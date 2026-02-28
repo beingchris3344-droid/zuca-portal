@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ====================
+// USERS
+// ====================
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  password     String
+  role         String   @default("member")
+  profileImage String?
+  createdAt    DateTime @default(now())
+  lastActive   DateTime?
+
+  // Relations
+  pledges      Pledge[]
+  messages     Message[]
+}
+
+// ====================
+// ANNOUNCEMENTS
+// ====================
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  category  String
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ====================
+// MASS PROGRAMS
+// ====================
+model MassProgram {
+  id        String   @id @default(uuid())
+  date      DateTime
+  venue     String
+  createdAt DateTime @default(now())
+
+  songs MassProgramSong[]
+}
+
+// ====================
+// SONGS
+// ====================
+model Song {
+  id       String @id @default(uuid())
+  title    String
+  composer String?
+
+  massPrograms MassProgramSong[]
+}
+
+model MassProgramSong {
+  id            String @id @default(uuid())
+  massProgramId String
+  songId        String
+  type          String
+
+  massProgram   MassProgram @relation(fields: [massProgramId], references: [id], onDelete: Cascade)
+  song          Song        @relation(fields: [songId], references: [id])
+}
+
+// ====================
+// CONTRIBUTION SYSTEM
+// ====================
+model ContributionType {
+  id             String   @id @default(uuid())
+  title          String
+  description    String?
+  amountRequired Float
+  deadline       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  pledges        Pledge[]
+}
+
+model Pledge {
+  id                 String   @id @default(uuid())
+
+  userId             String
+  contributionTypeId String
+
+  pendingAmount      Float    @default(0)   // User pledge waiting for admin approval
+  amountPaid         Float    @default(0)   // Approved or manually added by admin
+  message            String?                  // Optional note from user to admin
+  status             String   @default("PENDING") // PENDING / APPROVED / COMPLETED
+
+  createdByAdmin     Boolean  @default(false) // Manual admin addition
+  approvedById       String?                  // Admin who approved the pledge
+  approvedAt         DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Cascade)
+}
+
+// ====================
+// CHAT SYSTEM
+// ====================
+model ChatRoom {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  messages  Message[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  roomId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  room      ChatRoom @relation(fields: [roomId], references: [id])
+}

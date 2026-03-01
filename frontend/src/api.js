@@ -6,16 +6,12 @@ const hostname = window.location.hostname;
 let BASE_URL;
 
 if (hostname === "localhost") {
+  // Local development
   BASE_URL = "http://localhost:5000";
 } 
-else if (hostname.startsWith("100.")) {
-  BASE_URL = "http://100.79.107.46:5000";
-} 
-else if (hostname.startsWith("192.168.")) {
-  BASE_URL = "http://192.168.100.141:5000";
-} 
 else {
-  BASE_URL = "http://192.168.100.141:5000";
+  // Production (deployed frontend)
+  BASE_URL = "https://zuca-portal2.onrender.com";
 }
 
 // ====================

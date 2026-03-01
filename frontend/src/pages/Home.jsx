@@ -16,7 +16,7 @@ function Dashboard() {
     >
       <div
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.07)",
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
           padding: "50px",
           borderRadius: "15px",
           textAlign: "center",

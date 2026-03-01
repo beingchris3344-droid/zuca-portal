@@ -98,7 +98,7 @@ function Contributions() {
                   style={{
                     ...styles.barForeground,
                     width: `{(c.amountPaid / c.amountRequired) * 100}%`,
-                    backgroundColor: "#10da64",
+                    backgroundColor: "#11da64",
                   }}
                 />
               </div>

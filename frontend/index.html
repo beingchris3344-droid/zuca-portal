@@ -16,7 +16,7 @@
     <title>ZucaPortal</title>
 
     <style>
-      /* Splash screen container */
+      /* Splash container */
       #splash {
         position: fixed;
         inset: 0;
@@ -25,14 +25,13 @@
         align-items: center;
         justify-content: center;
         background: url('/src/assets/background.webp') center/cover no-repeat;
-        z-index: 9999;
-        overflow: hidden;
         color: white;
-        font-family: 'Arial', sans-serif;
+        font-family: Arial, sans-serif;
         text-align: center;
+        z-index: 9999;
       }
 
-      /* Gradient overlay animation */
+      /* Gradient overlay */
       #splash::before {
         content: "";
         position: absolute;
@@ -52,7 +51,7 @@
         animation: fadeIn 1.2s ease forwards;
       }
 
-      /* Typing welcome text */
+      /* Typing welcome */
       #welcome {
         position: relative;
         z-index: 2;
@@ -76,47 +75,33 @@
         opacity: 0.7;
       }
 
-      /* Animations */
       @keyframes fadeIn {
-        0% {opacity: 0; transform: scale(0.8);}
-        100% {opacity: 1; transform: scale(1);}
+        0% {opacity:0; transform:scale(0.8);}
+        100% {opacity:1; transform:scale(1);}
       }
 
       @keyframes gradientMove {
-        0% {background-position: 0% 50%;}
-        50% {background-position: 100% 50%;}
-        100% {background-position: 0% 50%;}
+        0% {background-position:0% 50%;}
+        50% {background-position:100% 50%;}
+        100% {background-position:0% 50%;}
       }
 
-      /* Responsive adjustments */
-      @media (max-width: 768px) {
-        #splash img {
-          width: 120px;
-        }
-        #welcome {
-          font-size: 20px;
-        }
-        #credits {
-          font-size: 10px;
-        }
+      @media (max-width:768px){
+        #splash img{width:120px;}
+        #welcome{font-size:20px;}
+        #credits{font-size:10px;}
       }
 
-      @media (max-width: 480px) {
-        #splash img {
-          width: 100px;
-        }
-        #welcome {
-          font-size: 18px;
-        }
-        #credits {
-          font-size: 9px;
-        }
+      @media (max-width:480px){
+        #splash img{width:100px;}
+        #welcome{font-size:18px;}
+        #credits{font-size:9px;}
       }
     </style>
   </head>
 
   <body>
-    <!-- Splash Screen -->
+    <!-- Splash Screen for App Launch -->
     <div id="splash">
       <img src="/src/assets/zuca-logo.png" alt="ZUCA Logo" />
       <div id="welcome"></div>
@@ -125,38 +110,30 @@
 
     <!-- React Root -->
     <div id="root"></div>
-
-    <!-- React Entry -->
     <script type="module" src="/src/main.jsx"></script>
 
     <script>
-      // Typing effect for "Welcome to Zuca Portal" with erase/retype
+      // Typing effect
       const welcomeText = "Welcome to Zuca Portal";
       const welcomeEl = document.getElementById("welcome");
-      let i = 0;
-      let forward = true;
+      let i = 0, forward = true;
 
       function typeEffect() {
-        if (forward) {
-          welcomeEl.textContent = welcomeText.slice(0, i + 1);
-          i++;
-          if (i === welcomeText.length) forward = false;
-        } else {
-          welcomeEl.textContent = welcomeText.slice(0, i - 1);
-          i--;
-          if (i === 0) forward = true;
-        }
-        setTimeout(typeEffect, 150);
+        welcomeEl.textContent = forward ? welcomeText.slice(0,i+1) : welcomeText.slice(0,i-1);
+        i = forward ? i+1 : i-1;
+        if (i === welcomeText.length) forward = false;
+        if (i === 0) forward = true;
+        setTimeout(typeEffect,150);
       }
       typeEffect();
 
-      // Smoothly hide splash once React is ready
+      // Remove splash after app loads
       window.addEventListener('load', () => {
         const splash = document.getElementById('splash');
         if (!splash) return;
         splash.style.transition = 'opacity 0.5s ease';
         splash.style.opacity = '0';
-        setTimeout(() => splash.remove(), 500);
+        setTimeout(() => splash.remove(),500);
       });
     </script>
   </body>

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import BASE_URL from "../api";
-import backgroundImg from "../assets/background.png";
+import backgroundImg from "../assets/background.webp";
 
 function Contributions() {
   const token = localStorage.getItem("token");

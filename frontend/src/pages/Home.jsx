@@ -1,5 +1,5 @@
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background.png";
+import bg from "../assets/background.webp";
 
 function Dashboard() {
   return (

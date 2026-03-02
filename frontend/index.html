@@ -113,28 +113,37 @@
     <script type="module" src="/src/main.jsx"></script>
 
     <script>
-      // Typing effect
-      const welcomeText = "Welcome to Zuca Portal";
-      const welcomeEl = document.getElementById("welcome");
-      let i = 0, forward = true;
+      const splash = document.getElementById('splash');
 
-      function typeEffect() {
-        welcomeEl.textContent = forward ? welcomeText.slice(0,i+1) : welcomeText.slice(0,i-1);
-        i = forward ? i+1 : i-1;
-        if (i === welcomeText.length) forward = false;
-        if (i === 0) forward = true;
-        setTimeout(typeEffect,150);
+      // Check if running as PWA / standalone app
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+      if (isPWA) {
+        // Typing effect
+        const welcomeText = "Welcome to Zuca Portal";
+        const welcomeEl = document.getElementById("welcome");
+        let i = 0, forward = true;
+
+        function typeEffect() {
+          welcomeEl.textContent = forward ? welcomeText.slice(0,i+1) : welcomeText.slice(0,i-1);
+          i = forward ? i+1 : i-1;
+          if (i === welcomeText.length) forward = false;
+          if (i === 0) forward = true;
+          setTimeout(typeEffect,150);
+        }
+        typeEffect();
+
+        // Fade out splash after app loads
+        window.addEventListener('load', () => {
+          splash.style.transition = 'opacity 0.5s ease';
+          splash.style.opacity = 0;
+          setTimeout(() => splash.remove(),500);
+        });
+
+      } else {
+        // Not a PWA: remove splash immediately in normal browser
+        if (splash) splash.remove();
       }
-      typeEffect();
-
-      // Remove splash after app loads
-      window.addEventListener('load', () => {
-        const splash = document.getElementById('splash');
-        if (!splash) return;
-        splash.style.transition = 'opacity 0.5s ease';
-        splash.style.opacity = '0';
-        setTimeout(() => splash.remove(),500);
-      });
     </script>
   </body>
 </html>

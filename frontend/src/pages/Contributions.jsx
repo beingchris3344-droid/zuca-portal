@@ -1,28 +1,30 @@
 // frontend/src/pages/Contributions.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
-import BASE_URL from "../api";
+import { api } from "../api"; // use your axios instance
 import backgroundImg from "../assets/background.webp";
 
 function Contributions() {
   const token = localStorage.getItem("token");
   if (!token) window.location.href = "/login";
 
-  const [contributions, setContributions] = useState([]);
+  const [normalContributions, setNormalContributions] = useState([]);
+  const [jumuiyaContributions, setJumuiyaContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pledgeInputs, setPledgeInputs] = useState({}); // store amount and message per contribution
-
-  const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetchContributions();
   }, []);
 
+  // ==================== Fetch Contributions ====================
   const fetchContributions = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
-      setContributions(res.data);
+      const normalRes = await api.get("/api/users/contributions", { headers: { Authorization: `Bearer ${token}` } });
+      const jumuiyaRes = await api.get("/api/users/jumuiya-contributions", { headers: { Authorization: `Bearer ${token}` } });
+
+      setNormalContributions(normalRes.data || []);
+      setJumuiyaContributions(jumuiyaRes.data || []);
     } catch (err) {
       console.error("Fetch Contributions Error:", err);
     } finally {
@@ -31,24 +33,23 @@ function Contributions() {
   };
 
   // ==================== Handle Pledge ====================
-  const handlePledge = async (contributionId) => {
-    const { amount, message } = pledgeInputs[contributionId] || {};
+  const handlePledge = async (contribution) => {
+    const { id, contributionTypeId, amountRequired, amountPaid, pendingAmount } = contribution;
+    const { amount, message } = pledgeInputs[id] || {};
 
     if (!amount || parseFloat(amount) <= 0) return alert("Enter a valid amount");
 
-    const contribution = contributions.find((c) => c.id === contributionId);
-    if (!contribution) return alert("Contribution type not found");
-
-    const remaining = contribution.amountRequired - contribution.amountPaid - contribution.pendingAmount;
+    const remaining = amountRequired - amountPaid - pendingAmount;
     if (parseFloat(amount) > remaining) return alert("Cannot pledge more than remaining amount");
 
     try {
-      await axios.post(
-        `${BASE_URL}/api/pledges/${contribution.contributionTypeId}`, // <-- Use contributionTypeId from backend
+      await api.post(
+        `/api/pledges/${contributionTypeId}`,
         { amount: parseFloat(amount), message: message || "" },
-        { headers }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      setPledgeInputs({ ...pledgeInputs, [contributionId]: { amount: "", message: "" } });
+
+      setPledgeInputs({ ...pledgeInputs, [id]: { amount: "", message: "" } });
       fetchContributions();
     } catch (err) {
       console.error(err);
@@ -56,97 +57,102 @@ function Contributions() {
     }
   };
 
+  // ==================== Render Single Contribution Card ====================
+  const renderContributionCard = (c) => {
+    const remaining = c.amountRequired - c.amountPaid - c.pendingAmount;
+    const completed = c.amountPaid >= c.amountRequired;
+
+    return (
+      <div key={c.id} style={styles.card}>
+        <h2>{c.title}</h2>
+        <p>{c.description || "No description"}</p>
+        <p><strong>Amount Required:</strong> {c.amountRequired}</p>
+        <p>
+          <strong>Pending Approval:</strong> {c.pendingAmount} |{" "}
+          <strong>Amount Paid:</strong> {c.amountPaid}
+        </p>
+
+        {/* STATUS BARS */}
+        <div style={styles.statusBars}>
+          <div style={styles.statusLabel}>Pending Approval</div>
+          <div style={styles.barBackground}>
+            <div
+              style={{
+                ...styles.barForeground,
+                width: `${(c.pendingAmount / c.amountRequired) * 100}%`,
+                backgroundColor: "#f39c12",
+              }}
+            />
+          </div>
+
+          <div style={styles.statusLabel}>Amount Paid</div>
+          <div style={styles.barBackground}>
+            <div
+              style={{
+                ...styles.barForeground,
+                width: `${(c.amountPaid / c.amountRequired) * 100}%`,
+                backgroundColor: "#11da64",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* PLEDGE INPUT */}
+        {!completed && (
+          <div style={styles.pledgeSection}>
+            <input
+              type="number"
+              placeholder={`Max: ${remaining}`}
+              style={styles.input}
+              value={pledgeInputs[c.id]?.amount || ""}
+              onChange={(e) =>
+                setPledgeInputs({
+                  ...pledgeInputs,
+                  [c.id]: { ...pledgeInputs[c.id], amount: e.target.value },
+                })
+              }
+              max={remaining}
+              min={1}
+            />
+
+            <input
+              type="text"
+              placeholder="Message to admin (optional)"
+              style={styles.input}
+              value={pledgeInputs[c.id]?.message || ""}
+              onChange={(e) =>
+                setPledgeInputs({
+                  ...pledgeInputs,
+                  [c.id]: { ...pledgeInputs[c.id], message: e.target.value },
+                })
+              }
+            />
+
+            <button style={styles.pledgeBtn} onClick={() => handlePledge(c)}>
+              Pledge
+            </button>
+          </div>
+        )}
+
+        {completed && <div style={styles.completedText}>✅ Contribution Completed!</div>}
+      </div>
+    );
+  };
+
+  // ==================== Render Page ====================
   if (loading) return <div style={styles.loading}>Loading Contributions...</div>;
 
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>Your Contributions</h1>
 
-      {contributions.map((c) => {
-        const remaining = c.amountRequired - c.amountPaid - c.pendingAmount;
-        const completed = c.amountPaid >= c.amountRequired;
+      <h2 style={{ marginTop: "20px" }}>Normal Contributions</h2>
+      {normalContributions.length === 0 && <p>No normal contributions yet.</p>}
+      {normalContributions.map(renderContributionCard)}
 
-        return (
-          <div key={c.id} style={styles.card}>
-            {/* ===== CONTRIBUTION DETAILS ===== */}
-            <h2>{c.title}</h2>
-            <p>{c.description || "No description"}</p>
-            <p>
-              <strong>Amount Required:</strong> {c.amountRequired}
-            </p>
-            <p>
-              <strong>Pending Approval:</strong> {c.pendingAmount} |{" "}
-              <strong>Amount Paid:</strong> {c.amountPaid}
-            </p>
-
-            {/* ===== STATUS BARS ===== */}
-            <div style={styles.statusBars}>
-              <div style={styles.statusLabel}>Pending Approval</div>
-              <div style={styles.barBackground}>
-                <div
-                  style={{
-                    ...styles.barForeground,
-                    width: `${(c.pendingAmount / c.amountRequired) * 100}%`,
-                    backgroundColor: "#f39c12",
-                  }}
-                />
-              </div>
-
-              <div style={styles.statusLabel}>Amount Paid</div>
-              <div style={styles.barBackground}>
-                <div
-                  style={{
-                    ...styles.barForeground,
-                    width: `{(c.amountPaid / c.amountRequired) * 100}%`,
-                    backgroundColor: "#11da64",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* ===== PLEDGE INPUTS ===== */}
-            {!completed && (
-              <div style={styles.pledgeSection}>
-                {/* Amount input */}
-                <input
-                  type="number"
-                  placeholder={`Max: {remaining}`}
-                  style={styles.input}
-                  value={pledgeInputs[c.id]?.amount || ""}
-                  onChange={(e) =>
-                    setPledgeInputs({
-                      ...pledgeInputs,
-                      [c.id]: { ...pledgeInputs[c.id], amount: e.target.value },
-                    })
-                  }
-                  max={remaining}
-                  min={1}
-                />
-
-                {/* Message input */}
-                <input
-                  type="text"
-                  placeholder="Message to admin (optional)"
-                  style={styles.input}
-                  value={pledgeInputs[c.id]?.message || ""}
-                  onChange={(e) =>
-                    setPledgeInputs({
-                      ...pledgeInputs,
-                      [c.id]: { ...pledgeInputs[c.id], message: e.target.value },
-                    })
-                  }
-                />
-
-                <button style={styles.pledgeBtn} onClick={() => handlePledge(c.id)}>
-                  Pledge
-                </button>
-              </div>
-            )}
-
-            {completed && <div style={styles.completedText}>✅ Contribution Completed!</div>}
-          </div>
-        );
-      })}
+      <h2 style={{ marginTop: "20px" }}>Jumuiya Contributions</h2>
+      {jumuiyaContributions.length === 0 && <p>No Jumuiya contributions yet.</p>}
+      {jumuiyaContributions.map(renderContributionCard)}
     </div>
   );
 }

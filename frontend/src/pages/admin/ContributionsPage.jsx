@@ -8,14 +8,14 @@ function ContributionsPage() {
   const token = localStorage.getItem("token");
   if (!token) window.location.href = "/login";
 
-  const [contributionTypes, setContributionTypes] = useState([]);
+  const [contributionTypes, setContributionTypes] = useState([]); // normal contributions
+  const [jumuiyaContributions, setJumuiyaContributions] = useState({}); // {jumuiyaId: { contributions: [], collapsed: false }}
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newContribution, setNewContribution] = useState({
-    title: "",
-    description: "",
-    amountRequired: "",
-  });
+
+  const [newContribution, setNewContribution] = useState({ title: "", description: "", amountRequired: "" });
+  const [newJumuiyaContribution, setNewJumuiyaContribution] = useState({}); // {jumuiyaId: { title, description, amountRequired }}
+
   const [selectedPledges, setSelectedPledges] = useState([]);
   const [pledgeInputs, setPledgeInputs] = useState({});
   const [collapsed, setCollapsed] = useState({});
@@ -24,8 +24,19 @@ function ContributionsPage() {
 
   const headers = { Authorization: `Bearer ${token}` };
 
+  // Jumuiyas fixed
+  const jumuiyas = [
+    { id: 1, name: "ST. PEREGRINE" },
+    { id: 2, name: "ST. BENEDICT" },
+    { id: 3, name: "CHRIST THE KING" },
+    { id: 4, name: "ST. MICHAEL" },
+    { id: 5, name: "ST. GREGORY" },
+    { id: 6, name: "ST. PACIFICUS" },
+  ];
+
   useEffect(() => {
     fetchAll();
+    fetchJumuiyaContributions();
   }, []);
 
   const fetchAll = async () => {
@@ -44,12 +55,28 @@ function ContributionsPage() {
     }
   };
 
+  const fetchJumuiyaContributions = async () => {
+    try {
+      const newState = {};
+      for (const j of jumuiyas) {
+        const res = await axios.get(`${BASE_URL}/api/admin/jumuiya/${j.id}/contributions`, { headers });
+        newState[j.id] = { contributions: res.data.contributions, collapsed: true };
+      }
+      setJumuiyaContributions(newState);
+      setNewJumuiyaContribution(
+        jumuiyas.reduce((acc, j) => ({ ...acc, [j.id]: { title: "", description: "", amountRequired: "" } }), {})
+      );
+    } catch (err) {
+      console.error("Fetch Jumuiya contributions error:", err);
+    }
+  };
+
+  /* ===== Normal Contribution Functions (unchanged) ===== */
   const handleAddContributionType = async () => {
     if (!newContribution.title || !newContribution.amountRequired) {
       alert("Title & Amount required");
       return;
     }
-
     try {
       await axios.post(
         `${BASE_URL}/api/contribution-types`,
@@ -89,17 +116,9 @@ function ContributionsPage() {
   const handleManualAdd = async (pledgeId) => {
     const amount = parseFloat(pledgeInputs[pledgeId]?.amount);
     if (!amount || amount <= 0) return;
-
     try {
-      await axios.put(
-        `${BASE_URL}/api/pledges/${pledgeId}/manual-add`,
-        { amount },
-        { headers }
-      );
-      setPledgeInputs({
-        ...pledgeInputs,
-        [pledgeId]: { ...pledgeInputs[pledgeId], amount: "" },
-      });
+      await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/manual-add`, { amount }, { headers });
+      setPledgeInputs({ ...pledgeInputs, [pledgeId]: { ...pledgeInputs[pledgeId], amount: "" } });
       fetchAll();
     } catch {
       alert("Failed to add manually");
@@ -109,40 +128,16 @@ function ContributionsPage() {
   const handleEditMessage = async (pledgeId) => {
     const msg = pledgeInputs[pledgeId]?.message;
     if (msg === undefined) return;
-
     try {
-      await axios.put(
-        `${BASE_URL}/api/pledges/${pledgeId}/edit-message`,
-        { message: msg },
-        { headers }
-      );
+      await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/edit-message`, { message: msg }, { headers });
       fetchAll();
     } catch {
       alert("Failed to update message");
     }
   };
 
-  const handleBulkApprove = async () => {
-    if (!selectedPledges.length) return alert("Select pledges first");
-
-    try {
-      await Promise.all(
-        selectedPledges.map((id) =>
-          axios.put(`${BASE_URL}/api/pledges/${id}/approve`, {}, { headers })
-        )
-      );
-      setSelectedPledges([]);
-      setSelectAll(false);
-      fetchAll();
-    } catch {
-      alert("Bulk approve failed");
-    }
-  };
-
   const toggleSelectPledge = (id) => {
-    setSelectedPledges((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedPledges((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const toggleSelectAll = () => {
@@ -150,41 +145,63 @@ function ContributionsPage() {
       setSelectedPledges([]);
     } else {
       const allIds = [];
-      contributionTypes.forEach((type) => {
+      contributionTypes.forEach((type) =>
         type.pledges.forEach((p) => {
-          if (p.user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) {
-    allIds.push(p.id);
-          }
-        });
-      });
+          if (p.user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) allIds.push(p.id);
+        })
+      );
       setSelectedPledges(allIds);
     }
     setSelectAll(!selectAll);
+  };
+
+  /* ===== Jumuiya Contribution Functions ===== */
+  const handleAddJumuiyaContribution = async (jumuiyaId) => {
+    const { title, description, amountRequired } = newJumuiyaContribution[jumuiyaId];
+    if (!title || !amountRequired) return alert("Title & amount required");
+
+    try {
+      await axios.post(
+        `${BASE_URL}/api/contribution-types`,
+        { title, description, amountRequired: parseFloat(amountRequired), jumuiyaId },
+        { headers }
+      );
+      setNewJumuiyaContribution({
+        ...newJumuiyaContribution,
+        [jumuiyaId]: { title: "", description: "", amountRequired: "" },
+      });
+      fetchJumuiyaContributions();
+    } catch {
+      alert("Failed to add Jumuiya contribution");
+    }
+  };
+
+  const toggleJumuiyaCollapse = (jumuiyaId) => {
+    setJumuiyaContributions({
+      ...jumuiyaContributions,
+      [jumuiyaId]: { ...jumuiyaContributions[jumuiyaId], collapsed: !jumuiyaContributions[jumuiyaId].collapsed },
+    });
   };
 
   if (loading) return <div style={styles.loading}>Loading Contributions...</div>;
 
   return (
     <div style={styles.container}>
+      {/* Normal Contributions */}
       <div style={styles.newContribution}>
         <h2 style={styles.sectionTitle}>Add New Contribution Type</h2>
-
         <div style={styles.formGrid}>
           <input
             style={styles.input}
             placeholder="Title"
             value={newContribution.title}
-            onChange={(e) =>
-              setNewContribution({ ...newContribution, title: e.target.value })
-            }
+            onChange={(e) => setNewContribution({ ...newContribution, title: e.target.value })}
           />
           <input
             style={styles.input}
             placeholder="Description"
             value={newContribution.description}
-            onChange={(e) =>
-              setNewContribution({ ...newContribution, description: e.target.value })
-            }
+            onChange={(e) => setNewContribution({ ...newContribution, description: e.target.value })}
           />
           <input
             style={styles.input}
@@ -192,14 +209,10 @@ function ContributionsPage() {
             placeholder="Amount Required"
             value={newContribution.amountRequired}
             onChange={(e) =>
-              setNewContribution({
-                ...newContribution,
-                amountRequired: e.target.value,
-              })
+              setNewContribution({ ...newContribution, amountRequired: e.target.value })
             }
           />
         </div>
-
         <button style={styles.addBtn} onClick={handleAddContributionType}>
           Add Contribution
         </button>
@@ -213,11 +226,12 @@ function ContributionsPage() {
       />
 
       {selectedPledges.length > 0 && (
-        <button style={styles.bulkBtn} onClick={handleBulkApprove}>
+        <button style={styles.bulkBtn} onClick={() => {}}>
           Approve Selected ({selectedPledges.length})
         </button>
       )}
 
+      {/* Normal Contributions Cards */}
       {contributionTypes.map((type) => {
         const filteredPledges = type.pledges.filter((p) =>
           p.user.fullName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -227,27 +241,16 @@ function ContributionsPage() {
         return (
           <div key={type.id} style={styles.contributionCard}>
             <div style={styles.cardHeader}>
-              <h3
-                style={styles.cardTitle}
-                onClick={() =>
-                  setCollapsed({ ...collapsed, [type.id]: !isCollapsed })
-                }
-              >
+              <h3 style={styles.cardTitle} onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
                 {type.title} - {type.amountRequired} {isCollapsed ? "▼" : "▲"}
               </h3>
-
-              <button
-                style={styles.deleteBtn}
-                onClick={() => handleDeleteContributionType(type.id)}
-              >
+              <button style={styles.deleteBtn} onClick={() => handleDeleteContributionType(type.id)}>
                 Delete
               </button>
             </div>
-
             {!isCollapsed && (
               <>
                 <p>{type.description}</p>
-
                 <div style={styles.tableOuter}>
                   <div style={styles.tableScrollY}>
                     <table style={styles.table}>
@@ -287,17 +290,11 @@ function ContributionsPage() {
                                   onChange={(e) =>
                                     setPledgeInputs({
                                       ...pledgeInputs,
-                                      [p.id]: {
-                                        ...pledgeInputs[p.id],
-                                        amount: e.target.value,
-                                      },
+                                      [p.id]: { ...pledgeInputs[p.id], amount: e.target.value },
                                     })
                                   }
                                 />
-                                <button
-                                  style={styles.actionBtn}
-                                  onClick={() => handleManualAdd(p.id)}
-                                >
+                                <button style={styles.actionBtn} onClick={() => handleManualAdd(p.id)}>
                                   Add
                                 </button>
                                 <input
@@ -308,17 +305,11 @@ function ContributionsPage() {
                                   onChange={(e) =>
                                     setPledgeInputs({
                                       ...pledgeInputs,
-                                      [p.id]: {
-                                        ...pledgeInputs[p.id],
-                                        message: e.target.value,
-                                      },
+                                      [p.id]: { ...pledgeInputs[p.id], message: e.target.value },
                                     })
                                   }
                                 />
-                                <button
-                                  style={styles.actionBtn}
-                                  onClick={() => handleEditMessage(p.id)}
-                                >
+                                <button style={styles.actionBtn} onClick={() => handleEditMessage(p.id)}>
                                   Update
                                 </button>
                               </div>
@@ -334,12 +325,145 @@ function ContributionsPage() {
           </div>
         );
       })}
+
+      {/* ===== Jumuiya Contributions ===== */}
+      <h2 style={{ ...styles.sectionTitle, marginTop: 40 }}>Jumuiya Contributions</h2>
+
+      {jumuiyas.map((j) => {
+        const jumuiya = jumuiyaContributions[j.id];
+        if (!jumuiya) return null;
+
+        return (
+          <div key={j.id} style={styles.contributionCard}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle} onClick={() => toggleJumuiyaCollapse(j.id)}>
+                {j.name} Contributions {jumuiya.collapsed ? "▼" : "▲"}
+              </h3>
+            </div>
+
+            {!jumuiya.collapsed && (
+              <>
+                {/* Add Contribution for this Jumuiya */}
+                <div style={styles.newContribution}>
+                  <h4>Add Contribution to {j.name}</h4>
+                  <div style={styles.formGrid}>
+                    <input
+                      style={styles.input}
+                      placeholder="Title"
+                      value={newJumuiyaContribution[j.id]?.title || ""}
+                      onChange={(e) =>
+                        setNewJumuiyaContribution({
+                          ...newJumuiyaContribution,
+                          [j.id]: { ...newJumuiyaContribution[j.id], title: e.target.value },
+                        })
+                      }
+                    />
+                    <input
+                      style={styles.input}
+                      placeholder="Description"
+                      value={newJumuiyaContribution[j.id]?.description || ""}
+                      onChange={(e) =>
+                        setNewJumuiyaContribution({
+                          ...newJumuiyaContribution,
+                          [j.id]: { ...newJumuiyaContribution[j.id], description: e.target.value },
+                        })
+                      }
+                    />
+                    <input
+                      style={styles.input}
+                      type="number"
+                      placeholder="Amount Required"
+                      value={newJumuiyaContribution[j.id]?.amountRequired || ""}
+                      onChange={(e) =>
+                        setNewJumuiyaContribution({
+                          ...newJumuiyaContribution,
+                          [j.id]: { ...newJumuiyaContribution[j.id], amountRequired: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                  <button style={styles.addBtn} onClick={() => handleAddJumuiyaContribution(j.id)}>
+                    Add Contribution
+                  </button>
+                </div>
+
+                {/* Contributions Table */}
+                {jumuiya.contributions.map((c) => (
+                  <div key={c.id} style={{ marginTop: 20 }}>
+                    <h4>{c.title} - {c.amountRequired}</h4>
+                    <div style={styles.tableOuter}>
+                      <div style={styles.tableScrollY}>
+                        <table style={styles.table}>
+                          <thead style={styles.thead}>
+                            <tr>
+                              <th style={styles.th}>User</th>
+                              <th style={styles.th}>Pending</th>
+                              <th style={styles.th}>Paid</th>
+                              <th style={styles.th}>Message</th>
+                              <th style={styles.th}>Status</th>
+                              <th style={styles.th}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {c.pledges.map((p) => (
+                              <tr key={p.id}>
+                                <td style={styles.td}>{p.userName}</td>
+                                <td style={styles.td}>{p.pendingAmount}</td>
+                                <td style={styles.td}>{p.amountPaid}</td>
+                                <td style={styles.td}>{p.message || "-"}</td>
+                                <td style={styles.td}>{p.status}</td>
+                                <td style={styles.td}>
+                                  <div style={styles.actionWrap}>
+                                    <input
+                                      type="number"
+                                      placeholder="Add"
+                                      style={styles.inlineInput}
+                                      value={pledgeInputs[p.id]?.amount || ""}
+                                      onChange={(e) =>
+                                        setPledgeInputs({
+                                          ...pledgeInputs,
+                                          [p.id]: { ...pledgeInputs[p.id], amount: e.target.value },
+                                        })
+                                      }
+                                    />
+                                    <button style={styles.actionBtn} onClick={() => handleManualAdd(p.id)}>
+                                      Add
+                                    </button>
+                                    <input
+                                      type="text"
+                                      placeholder="Message"
+                                      style={styles.inlineInput}
+                                      value={pledgeInputs[p.id]?.message || ""}
+                                      onChange={(e) =>
+                                        setPledgeInputs({
+                                          ...pledgeInputs,
+                                          [p.id]: { ...pledgeInputs[p.id], message: e.target.value },
+                                        })
+                                      }
+                                    />
+                                    <button style={styles.actionBtn} onClick={() => handleEditMessage(p.id)}>
+                                      Update
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ================= STYLES ================= */
-
+// Styles
 const styles = {
   container: {
     padding: "clamp(16px, 4vw, 32px)",
@@ -349,7 +473,9 @@ const styles = {
     backgroundSize: "cover",
   },
 
-  sectionTitle: { marginBottom: 20 },
+  sectionTitle: {
+    marginBottom: 20,
+  },
 
   formGrid: {
     display: "grid",

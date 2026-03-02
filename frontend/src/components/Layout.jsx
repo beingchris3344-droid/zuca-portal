@@ -66,7 +66,6 @@ function Layout() {
           <SidebarLink to="/announcements">Announcements</SidebarLink>
           <SidebarLink to="/mass-programs">Mass Programs</SidebarLink>
           <SidebarLink to="/contributions">Contributions</SidebarLink>
-          <SidebarLink to="/join-jumuiya">Join Jumuiya</SidebarLink>
           <SidebarLink to="/chat">Chat</SidebarLink>
         </div>
       </div>
@@ -95,19 +94,32 @@ function Layout() {
                   {user.fullName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <div style={{ display: "flex", flexDirection: "column", marginLeft: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  marginLeft: "8px",
+                }}
+              >
                 <span style={{ fontWeight: "bold", fontSize: "14px" }}>
                   Hello, {user.fullName.split(" ")[0]} 👋
                 </span>
-                <span style={{ fontSize: "12px", opacity: 0.7 }}>{user.fullName}</span>
-                <span style={{ fontSize: "12px", opacity: 0.7 }}>{user.email}</span>
+                <span style={{ fontSize: "12px", opacity: 0.7 }}>
+                  {user.fullName}
+                </span>
+                <span style={{ fontSize: "12px", opacity: 0.7 }}>
+                  {user.email}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Right: Notifications + Logout */}
           <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+            {/* Notifications Bell */}
             <Notifications userId={user.id} />
+
+            {/* Logout Button */}
             <button onClick={handleLogout} style={logoutBtnHeader}>
               Logout
             </button>
@@ -180,14 +192,18 @@ function SidebarLink({ to, children }) {
   return (
     <NavLink
       to={to}
-      style={({ isActive }) => ({
-        padding: "14px",
-        borderRadius: "10px",
-        textDecoration: "none",
-        color: "white",
-        fontWeight: "500",
-        backgroundColor: isActive ? "rgba(255, 255, 255, 0.23)" : "rgba(255,255,255,0.08)",
-      })}
+      style={({ isActive }) => {
+        return {
+          padding: "14px",
+          borderRadius: "10px",
+          textDecoration: "none",
+          color: "white",
+          fontWeight: "500",
+          backgroundColor: isActive
+            ? "rgba(255, 255, 255, 0.23)"
+            : "rgba(255,255,255,0.08)",
+        };
+      }}
       onClick={() => {
         if (window.innerWidth <= 900) {
           document.querySelector(".sidebar")?.classList.remove("open");

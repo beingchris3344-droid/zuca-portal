@@ -86,10 +86,15 @@ export default function UsersPage() {
                 <tr key={u.id} style={styles.tr}>
                   <td style={styles.td}>{u.id.slice(0, 8)}...</td>
 
+                  {/* ===== UPDATED PROFILE IMAGE LOGIC ===== */}
                   <td style={styles.td}>
                     {u.profileImage ? (
                       <img
-                        src={`${BASE_URL}/${u.profileImage}`}
+                        src={
+                          u.profileImage.startsWith("http")
+                            ? u.profileImage
+                            : `${BASE_URL}/${u.profileImage}`
+                        }
                         alt="Profile"
                         style={styles.profileThumb}
                         onClick={() => setModalUser(u)}
@@ -167,9 +172,14 @@ export default function UsersPage() {
             style={styles.modalContent}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* ===== UPDATED MODAL PROFILE IMAGE ===== */}
             {modalUser.profileImage ? (
               <img
-                src={`${BASE_URL}/${modalUser.profileImage}`}
+                src={
+                  modalUser.profileImage.startsWith("http")
+                    ? modalUser.profileImage
+                    : `${BASE_URL}/${modalUser.profileImage}`
+                }
                 alt="Profile"
                 style={styles.modalImage}
               />

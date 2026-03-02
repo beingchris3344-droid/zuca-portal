@@ -12,9 +12,15 @@ function Dashboard() {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) {
       setUser(storedUser);
-      if (storedUser.profileImage) {
-        setProfileImage(`${BASE_URL}/${storedUser.profileImage}`);
-      }
+
+      // Use Layout-style logic to build profile image URL
+      const imageUrl = storedUser.profileImage
+        ? storedUser.profileImage.startsWith("http")
+          ? storedUser.profileImage
+          : `${BASE_URL}/${storedUser.profileImage}`
+        : null;
+
+      setProfileImage(imageUrl);
       setLoading(false);
     } else {
       setLoading(false);
@@ -44,7 +50,15 @@ function Dashboard() {
 
       const updatedUser = response.data.user;
       setUser(updatedUser);
-      setProfileImage(`${BASE_URL}/${updatedUser.profileImage}`);
+
+      // Use Layout-style logic
+      const imageUrl = updatedUser.profileImage
+        ? updatedUser.profileImage.startsWith("http")
+          ? updatedUser.profileImage
+          : `${BASE_URL}/${updatedUser.profileImage}`
+        : null;
+
+      setProfileImage(imageUrl);
       localStorage.setItem("user", JSON.stringify(updatedUser));
       console.log("Profile updated:", updatedUser.profileImage);
     } catch (error) {
@@ -108,7 +122,6 @@ function Dashboard() {
                 <button onClick={handleRemovePhoto} style={removeBtn}>
                   Remove
                 </button>
-                
               )}
             </div>
           </div>
@@ -123,7 +136,6 @@ function Dashboard() {
               <span style={roleBadge}>
                 {user.role?.toUpperCase() || "MEMBER"}
               </span>
-              
             </div>
 
             <p style={{ fontSize: "13px", marginTop: "10px", opacity: 0.7 }}>

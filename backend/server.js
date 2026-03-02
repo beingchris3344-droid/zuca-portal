@@ -539,21 +539,49 @@ app.delete("/api/users/:id/delete-profile", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Only the user themselves or an admin
+    // Only the user themselves or an admin can delete
     if (req.user.userId !== id && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed" });
     }
 
+    // Fetch the user
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (user.profileImage) {
-      const fileName = user.profileImage.split("/").pop();
-      await supabase.storage.from("profiles").remove([fileName]);
-
-      // Remove reference from DB
-      await prisma.user.update({ where: { id }, data: { profileImage: null } });
+    if (!user.profileImage) {
+      return res.status(400).json({ error: "No profile image to delete" });
     }
+
+    // Determine path to delete from Supabase
+    let pathToDelete = user.profileImage;
+
+    // If profileImage is a full URL, extract the path relative to the bucket
+    if (user.profileImage.startsWith("http")) {
+      try {
+        const url = new URL(user.profileImage);
+        // Adjust this to match your bucket's public URL structure
+        // e.g., https://<project>.supabase.co/storage/v1/object/public/profiles/<filename>
+        pathToDelete = decodeURIComponent(
+          url.pathname.replace(/^\/storage\/v1\/object\/public\/profiles\//, "")
+        );
+      } catch (err) {
+        console.error("Failed to parse profile image URL:", err);
+        return res.status(500).json({ error: "Failed to delete profile image" });
+      }
+    }
+
+    // Remove file from Supabase Storage
+    const { error: storageError } = await supabase.storage
+      .from("profiles") // bucket name
+      .remove([pathToDelete]);
+
+    if (storageError) {
+      console.error("Failed to delete image from Supabase storage:", storageError);
+      return res.status(500).json({ error: "Failed to delete profile image from storage" });
+    }
+
+    // Remove reference from DB
+    await prisma.user.update({ where: { id }, data: { profileImage: null } });
 
     res.json({ message: "Profile image deleted successfully" });
   } catch (err) {

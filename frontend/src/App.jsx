@@ -1,9 +1,12 @@
+// frontend/src/App.jsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+/* ===== LAYOUTS & ROUTES ===== */
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
+/* ===== MEMBER PAGES ===== */
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -11,10 +14,11 @@ import Announcements from "./pages/Announcements";
 import MassPrograms from "./pages/MassPrograms";
 import Contributions from "./pages/Contributions";
 import Chat from "./pages/Chat";
+import JoinJumuiya from "./pages/JoinJumuiya"; // <- import fixed
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-/* ===== ADMIN IMPORTS ===== */
+/* ===== ADMIN PAGES ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -50,6 +54,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
+          <Route path="/join-jumuiya" element={<JoinJumuiya />} />
           <Route path="/contributions" element={<Contributions />} />
           <Route path="/chat" element={<Chat />} />
         </Route>

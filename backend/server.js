@@ -1100,6 +1100,50 @@ app.post("/api/users/pledge", authenticate, async (req, res) => {
   }
 });
 
+// POST /api/admin/jumuiya/:jumuiyaId/contributions
+app.post("/api/admin/jumuiya/:jumuiyaId/contributions", authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not allowed" });
+    }
+
+    const { jumuiyaId } = req.params;
+    const { title, description, amountRequired, deadline } = req.body;
+
+    if (!title || !amountRequired) {
+      return res.status(400).json({ error: "Title & amountRequired required" });
+    }
+
+    // Check if Jumuiya exists
+    const jumuiya = await prisma.jumuiya.findUnique({
+      where: { id: jumuiyaId }
+    });
+
+    if (!jumuiya) {
+      return res.status(404).json({ error: "Jumuiya not found" });
+    }
+
+    const newContribution = await prisma.contributionType.create({
+      data: {
+        title,
+        description,
+        amountRequired: parseFloat(amountRequired),
+        deadline: deadline ? new Date(deadline) : null,
+        jumuiyaId: jumuiyaId   // 🔥 THIS IS THE IMPORTANT PART
+      }
+    });
+
+    res.json({
+      message: "Jumuiya contribution created successfully",
+      contribution: newContribution
+    });
+
+  } catch (err) {
+    console.error("Create Jumuiya contribution error:", err);
+    res.status(500).json({ error: "Failed to create Jumuiya contribution" });
+  }
+});
+
 // GET /api/admin/jumuiya/:jumuiyaId/contributions
 app.get("/api/admin/jumuiya/:jumuiyaId/contributions", authenticate, async (req, res) => {
   try {

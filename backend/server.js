@@ -476,11 +476,13 @@ app.put("/api/users/:id/role", requireAdmin, async (req, res) => {
 // ====================
 // Upload User Profile Image to Supabase
 // ====================
-app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, res) => {
+const { supabase } = require("./supabaseClient"); // CommonJS client
+
+app.post("/api/users/:id/upload-profile", authenticate, upload.single("profile"), async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Only the user themselves or an admin can upload
+    // Only the user themselves or an admin
     if (req.user.userId !== id && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed" });
     }
@@ -490,10 +492,10 @@ app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) return res.status(404).json({ error: "User not found" });
 
-    // Delete old image from Supabase if it exists
+    // Delete old image from Supabase if exists
     if (existingUser.profileImage) {
-      const oldFileName = existingUser.profileImage.split('/').pop(); // extract filename
-      await supabase.storage.from('profiles').remove([oldFileName]);
+      const oldFileName = existingUser.profileImage.split("/").pop();
+      await supabase.storage.from("profiles").remove([oldFileName]);
     }
 
     // Create unique filename
@@ -502,7 +504,7 @@ app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, 
 
     // Upload to Supabase
     const { error } = await supabase.storage
-      .from('profiles')
+      .from("profiles")
       .upload(fileName, fs.createReadStream(req.file.path), {
         contentType: req.file.mimetype,
         upsert: true,
@@ -516,7 +518,7 @@ app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, 
     // Construct public URL
     const publicURL = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/profiles/${fileName}`;
 
-    // Update user profile in database
+    // Update user profile in DB
     const updatedUser = await prisma.user.update({
       where: { id },
       data: { profileImage: publicURL },
@@ -525,7 +527,7 @@ app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, 
 
     res.json({ message: "Profile image uploaded successfully", user: updatedUser });
   } catch (err) {
-    console.error(err);
+    console.error("Upload profile error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -533,11 +535,11 @@ app.post("/api/users/:id/upload-profile", upload.single("profile"), async (req, 
 // ====================
 // Delete User Profile Image from Supabase
 // ====================
-app.delete("/api/users/:id/delete-profile", async (req, res) => {
+app.delete("/api/users/:id/delete-profile", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Only the user themselves or an admin can delete
+    // Only the user themselves or an admin
     if (req.user.userId !== id && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed" });
     }
@@ -546,19 +548,16 @@ app.delete("/api/users/:id/delete-profile", async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (user.profileImage) {
-      const fileName = user.profileImage.split('/').pop(); // extract filename
-      await supabase.storage.from('profiles').remove([fileName]);
+      const fileName = user.profileImage.split("/").pop();
+      await supabase.storage.from("profiles").remove([fileName]);
 
-      // Remove reference from database
-      await prisma.user.update({
-        where: { id },
-        data: { profileImage: null },
-      });
+      // Remove reference from DB
+      await prisma.user.update({ where: { id }, data: { profileImage: null } });
     }
 
     res.json({ message: "Profile image deleted successfully" });
   } catch (err) {
-    console.error(err);
+    console.error("Delete profile error:", err);
     res.status(500).json({ error: err.message });
   }
 });

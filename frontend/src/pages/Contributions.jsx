@@ -86,7 +86,7 @@ function Contributions() {
                 <div
                   style={{
                     ...styles.barForeground,
-                    width: `${(c.pendingAmount / c.amountRequired) * 100}%`,
+                    width: `${(c.pendingAmount / c.amountRequired) * 100}%`, // ✅ corrected
                     backgroundColor: "#f39c12",
                   }}
                 />
@@ -97,7 +97,7 @@ function Contributions() {
                 <div
                   style={{
                     ...styles.barForeground,
-                    width: `{(c.amountPaid / c.amountRequired) * 100}%`,
+                    width: `${(c.amountPaid / c.amountRequired) * 100}%`, // ✅ corrected
                     backgroundColor: "#11da64",
                   }}
                 />
@@ -110,7 +110,7 @@ function Contributions() {
                 {/* Amount input */}
                 <input
                   type="number"
-                  placeholder={`Max: {remaining}`}
+                  placeholder={`Max: ${remaining}`} // ✅ corrected
                   style={styles.input}
                   value={pledgeInputs[c.id]?.amount || ""}
                   onChange={(e) =>

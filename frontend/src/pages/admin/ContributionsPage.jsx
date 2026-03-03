@@ -9,17 +9,16 @@ function ContributionsPage() {
   if (!token) window.location.href = "/login";
 
   const [contributionTypes, setContributionTypes] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newContribution, setNewContribution] = useState({
     title: "",
     description: "",
     amountRequired: "",
   });
-  const [selectedPledges, setSelectedPledges] = useState([]);
   const [pledgeInputs, setPledgeInputs] = useState({});
   const [collapsed, setCollapsed] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPledges, setSelectedPledges] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -31,12 +30,10 @@ function ContributionsPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [typesRes, usersRes] = await Promise.all([
+      const [typesRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/contribution-types`, { headers }),
-        axios.get(`${BASE_URL}/api/users`, { headers }),
       ]);
       setContributionTypes(typesRes.data);
-      setUsers(usersRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -77,7 +74,11 @@ function ContributionsPage() {
     }
   };
 
-  const handleApprovePledge = async (pledgeId) => {
+  const handleApprovePledge = async (pledgeId, p, type) => {
+    const totalAfterApprove = p.amountPaid + p.pendingAmount;
+    if (totalAfterApprove > type.amountRequired) {
+      return alert("Cannot approve: would exceed required amount");
+    }
     try {
       await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/approve`, {}, { headers });
       fetchAll();
@@ -86,14 +87,19 @@ function ContributionsPage() {
     }
   };
 
-  const handleManualAdd = async (pledgeId) => {
-    const amount = parseFloat(pledgeInputs[pledgeId]?.amount);
-    if (!amount || amount <= 0) return;
+  const handleManualAdd = async (pledgeId, p, type) => {
+    const addAmount = parseFloat(pledgeInputs[pledgeId]?.amount || 0);
+    if (!addAmount || addAmount <= 0) return;
+
+    const totalAfterAdd = p.amountPaid + p.pendingAmount + addAmount;
+    if (totalAfterAdd > type.amountRequired) {
+      return alert("Cannot add: would exceed required amount");
+    }
 
     try {
       await axios.put(
         `${BASE_URL}/api/pledges/${pledgeId}/manual-add`,
-        { amount },
+        { amount: addAmount },
         { headers }
       );
       setPledgeInputs({
@@ -119,6 +125,16 @@ function ContributionsPage() {
       fetchAll();
     } catch {
       alert("Failed to update message");
+    }
+  };
+
+  const handleResetPledge = async (pledgeId) => {
+    if (!window.confirm("Reset this pledge?")) return;
+    try {
+      await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/reset`, {}, { headers });
+      fetchAll();
+    } catch {
+      alert("Failed to reset pledge");
     }
   };
 
@@ -153,7 +169,7 @@ function ContributionsPage() {
       contributionTypes.forEach((type) => {
         type.pledges.forEach((p) => {
           if (p.user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) {
-    allIds.push(p.id);
+            allIds.push(p.id);
           }
         });
       });
@@ -166,9 +182,9 @@ function ContributionsPage() {
 
   return (
     <div style={styles.container}>
+      {/* ===== New Contribution Form ===== */}
       <div style={styles.newContribution}>
         <h2 style={styles.sectionTitle}>Add New Contribution Type</h2>
-
         <div style={styles.formGrid}>
           <input
             style={styles.input}
@@ -199,12 +215,12 @@ function ContributionsPage() {
             }
           />
         </div>
-
         <button style={styles.addBtn} onClick={handleAddContributionType}>
           Add Contribution
         </button>
       </div>
 
+      {/* ===== Search + Bulk Approve ===== */}
       <input
         style={{ ...styles.input, marginBottom: 20 }}
         placeholder="Search members..."
@@ -218,6 +234,7 @@ function ContributionsPage() {
         </button>
       )}
 
+      {/* ===== Contribution Types ===== */}
       {contributionTypes.map((type) => {
         const filteredPledges = type.pledges.filter((p) =>
           p.user.fullName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -235,7 +252,6 @@ function ContributionsPage() {
               >
                 {type.title} - {type.amountRequired} {isCollapsed ? "▼" : "▲"}
               </h3>
-
               <button
                 style={styles.deleteBtn}
                 onClick={() => handleDeleteContributionType(type.id)}
@@ -247,7 +263,6 @@ function ContributionsPage() {
             {!isCollapsed && (
               <>
                 <p>{type.description}</p>
-
                 <div style={styles.tableOuter}>
                   <div style={styles.tableScrollY}>
                     <table style={styles.table}>
@@ -263,68 +278,114 @@ function ContributionsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredPledges.map((p) => (
-                          <tr key={p.id}>
-                            <td style={styles.tdCenter}>
-                              <input
-                                type="checkbox"
-                                checked={selectedPledges.includes(p.id)}
-                                onChange={() => toggleSelectPledge(p.id)}
-                              />
-                            </td>
-                            <td style={styles.td}>{p.user.fullName}</td>
-                            <td style={styles.td}>{p.pendingAmount}</td>
-                            <td style={styles.td}>{p.amountPaid}</td>
-                            <td style={styles.td}>{p.message || "-"}</td>
-                            <td style={styles.td}>{p.status}</td>
-                            <td style={styles.td}>
-                              <div style={styles.actionWrap}>
-                                <input
-                                  type="number"
-                                  placeholder="Add"
-                                  style={styles.inlineInput}
-                                  value={pledgeInputs[p.id]?.amount || ""}
-                                  onChange={(e) =>
-                                    setPledgeInputs({
-                                      ...pledgeInputs,
-                                      [p.id]: {
-                                        ...pledgeInputs[p.id],
-                                        amount: e.target.value,
-                                      },
-                                    })
-                                  }
-                                />
-                                <button
-                                  style={styles.actionBtn}
-                                  onClick={() => handleManualAdd(p.id)}
-                                >
-                                  Add
-                                </button>
-                                <input
-                                  type="text"
-                                  placeholder="Message"
-                                  style={styles.inlineInput}
-                                  value={pledgeInputs[p.id]?.message || ""}
-                                  onChange={(e) =>
-                                    setPledgeInputs({
-                                      ...pledgeInputs,
-                                      [p.id]: {
-                                        ...pledgeInputs[p.id],
-                                        message: e.target.value,
-                                      },
-                                    })
-                                  }
-                                />
-                                <button
-                                  style={styles.actionBtn}
-                                  onClick={() => handleEditMessage(p.id)}
-                                >
-                                  Update
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {filteredPledges.map((p) => {
+                          const completed =
+                            p.amountPaid + p.pendingAmount >= type.amountRequired;
+
+                          return (
+                            <>
+                              <tr key={p.id}>
+                                <td style={styles.tdCenter}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPledges.includes(p.id)}
+                                    onChange={() => toggleSelectPledge(p.id)}
+                                  />
+                                </td>
+                                <td style={styles.td}>
+                                  <div style={styles.userCard}>
+                                    <strong>{p.user.fullName}</strong>
+                                  </div>
+                                </td>
+                                <td style={styles.td}>{p.pendingAmount}</td>
+                                <td style={styles.td}>{p.amountPaid}</td>
+                                <td style={styles.td}>{p.message || "-"}</td>
+                                <td style={styles.td}>{p.status}</td>
+                                <td style={styles.td}>
+                                  {completed ? (
+                                    <div style={styles.completedText}>✅ Completed</div>
+                                  ) : (
+                                    <div style={styles.actionPlaceholder}></div>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Horizontal action row aligned right */}
+                              {!completed && (
+                                <tr>
+                                  <td colSpan={7} style={styles.actionsRow}>
+                                    <div style={styles.horizontalActionsRight}>
+                                      {p.pendingAmount > 0 &&
+                                        p.status === "PENDING" &&
+                                        p.amountPaid + p.pendingAmount <=
+                                          type.amountRequired && (
+                                          <button
+                                            style={styles.actionBtn}
+                                            onClick={() =>
+                                              handleApprovePledge(p.id, p, type)
+                                            }
+                                          >
+                                            Approve
+                                          </button>
+                                        )}
+
+                                      <input
+                                        type="text"
+                                        placeholder="Message"
+                                        style={styles.inlineInputHorizontal}
+                                        value={pledgeInputs[p.id]?.message || ""}
+                                        onChange={(e) =>
+                                          setPledgeInputs({
+                                            ...pledgeInputs,
+                                            [p.id]: {
+                                              ...pledgeInputs[p.id],
+                                              message: e.target.value,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        style={styles.actionBtn}
+                                        onClick={() => handleEditMessage(p.id)}
+                                      >
+                                        Update
+                                      </button>
+
+                                      <input
+                                        type="number"
+                                        placeholder="Amount"
+                                        style={styles.inlineInputHorizontal}
+                                        value={pledgeInputs[p.id]?.amount || ""}
+                                        onChange={(e) =>
+                                          setPledgeInputs({
+                                            ...pledgeInputs,
+                                            [p.id]: {
+                                              ...pledgeInputs[p.id],
+                                              amount: e.target.value,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        style={styles.actionBtn}
+                                        onClick={() => handleManualAdd(p.id, p, type)}
+                                      >
+                                        Add
+                                      </button>
+
+                                      <button
+                                        style={{ ...styles.actionBtn, background: "#ff4d6d" }}
+                                        onClick={() => handleResetPledge(p.id)}
+                                      >
+                                        Reset
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -339,7 +400,6 @@ function ContributionsPage() {
 }
 
 /* ================= STYLES ================= */
-
 const styles = {
   container: {
     padding: "clamp(16px, 4vw, 32px)",
@@ -348,16 +408,13 @@ const styles = {
     background: `url(${backgroundImg}) no-repeat center center`,
     backgroundSize: "cover",
   },
-
   sectionTitle: { marginBottom: 20 },
-
   formGrid: {
     display: "grid",
     gap: 15,
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     marginBottom: 20,
   },
-
   input: {
     padding: 14,
     borderRadius: 8,
@@ -366,7 +423,6 @@ const styles = {
     fontSize: 15,
     width: "100%",
   },
-
   newContribution: {
     backdropFilter: "blur(12px)",
     background: "rgba(0,0,0,0.6)",
@@ -374,7 +430,6 @@ const styles = {
     borderRadius: 15,
     marginBottom: 30,
   },
-
   addBtn: {
     padding: "12px 20px",
     borderRadius: 10,
@@ -383,7 +438,6 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
-
   bulkBtn: {
     marginBottom: 20,
     padding: "12px 20px",
@@ -393,7 +447,6 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
-
   contributionCard: {
     backdropFilter: "blur(12px)",
     background: "rgba(50,50,50,0.6)",
@@ -401,7 +454,6 @@ const styles = {
     padding: 20,
     marginBottom: 25,
   },
-
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -409,13 +461,11 @@ const styles = {
     flexWrap: "wrap",
     gap: 10,
   },
-
   cardTitle: {
     margin: 0,
     cursor: "pointer",
     fontSize: 18,
   },
-
   deleteBtn: {
     padding: "6px 12px",
     borderRadius: 8,
@@ -424,31 +474,26 @@ const styles = {
     color: "#fff",
     cursor: "pointer",
   },
-
   tableOuter: {
     overflowX: "auto",
     marginTop: 15,
   },
-
   tableScrollY: {
     maxHeight: 450,
     overflowY: "auto",
     position: "relative",
   },
-
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: 950,
+    minWidth: 700,
   },
-
   thead: {
     position: "sticky",
     top: 0,
     background: "rgba(0,0,0,0.9)",
     zIndex: 5,
   },
-
   th: {
     padding: "14px 12px",
     textAlign: "left",
@@ -457,50 +502,54 @@ const styles = {
     borderBottom: "1px solid rgba(255,255,255,0.3)",
     whiteSpace: "nowrap",
   },
-
   td: {
-    padding: "0px 12px",
-    fontSize: 17,
-    fontWeight: 700,
-    borderBottom: "9px solid rgba(255,255,255,0.1)",
+    padding: "6px 12px",
+    fontSize: 15,
+    fontWeight: 500,
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
     whiteSpace: "nowrap",
   },
-
   tdCenter: {
     padding: "14px 12px",
     textAlign: "center",
     borderBottom: "1px solid rgba(255,255,255,0.1)",
   },
-
-  actionWrap: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
+  userCard: {
+    padding: 6,
+    background: "rgba(255,255,255,0.1)",
+    borderRadius: 6,
   },
-
-  inlineInput: {
+  actionsRow: { padding: 0 },
+  horizontalActionsRight: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    alignItems: "center",
+    padding: "4px 0",
+  },
+  inlineInputHorizontal: {
     padding: 6,
     borderRadius: 6,
     border: "1px solid #ccc",
-    minWidth: 90,
     fontSize: 14,
+    width: 70,
+    boxSizing: "border-box",
   },
-
   actionBtn: {
-    padding: "6px 10px",
+    padding: "6px 8px",
     borderRadius: 6,
     border: "none",
     background: "#32c50adb",
     color: "#fff",
     fontWeight: "bold",
     cursor: "pointer",
+    fontSize: 13,
   },
-
-  loading: {
-    textAlign: "center",
-    padding: 50,
-    fontSize: 20,
-  },
+  completedText: { color: "#27ae60", fontWeight: "bold", marginTop: 4 },
+  actionPlaceholder: { height: 40 },
+  loading: { textAlign: "center", padding: 50, fontSize: 20 },
 };
 
 export default ContributionsPage;

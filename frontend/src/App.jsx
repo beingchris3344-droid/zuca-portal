@@ -13,7 +13,8 @@ import Contributions from "./pages/Contributions";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-
+import JumuiaContributions from "./pages/JumuiaContributions";
+import JoinJumuia from "./pages/JoinJumuia";
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -23,6 +24,7 @@ import AnalyticsPage from "./pages/admin/AnalyticsPage";
 import SongsPage from "./pages/admin/SongsPage";
 import AnnouncementsPage from "./pages/admin/AnnouncementsPage";
 import ContributionsPage from "./pages/admin/ContributionsPage";
+import JumuiaManagement from "./pages/admin/JumuiaManagement";
 import ChatMonitorPage from "./pages/admin/ChatMonitorPage";
 import SecurityPage from "./pages/admin/SecurityPage";
 
@@ -51,6 +53,8 @@ function App() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
+          <Route path="/jumuia-contributions" element={<JumuiaContributions />} />
+          <Route path="/join-jumuia" element={<JoinJumuia />} />
           <Route path="/chat" element={<Chat />} />
         </Route>
 
@@ -70,6 +74,7 @@ function App() {
           <Route path="songs" element={<SongsPage />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />
+          <Route path="/admin/jumuia-management" element={<JumuiaManagement />} />
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
         </Route>

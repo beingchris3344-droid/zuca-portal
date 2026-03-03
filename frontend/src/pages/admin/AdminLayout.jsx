@@ -17,6 +17,7 @@ export default function AdminLayout() {
   const navItems = [
     { label: "Dashboard", path: "" },
     { label: "Users", path: "users" },
+    { label: "Manage Jumuia", path: "jumuia-management" },
     { label: "Activity", path: "activity" },
     { label: "Analytics", path: "analytics" },
     { label: "Songs Program", path: "songs" },

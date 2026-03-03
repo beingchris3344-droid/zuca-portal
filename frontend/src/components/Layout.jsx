@@ -63,9 +63,12 @@ function Layout() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
           <SidebarLink to="/dashboard">Dashboard</SidebarLink>
+          <SidebarLink to="/join-jumuia">Join Jumuia</SidebarLink>
           <SidebarLink to="/announcements">Announcements</SidebarLink>
           <SidebarLink to="/mass-programs">Mass Programs</SidebarLink>
           <SidebarLink to="/contributions">Contributions</SidebarLink>
+          <SidebarLink to="/jumuia-contributions">Jumuia Contributions</SidebarLink>
+    
           <SidebarLink to="/chat">Chat</SidebarLink>
         </div>
       </div>

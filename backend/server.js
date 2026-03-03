@@ -322,6 +322,178 @@ app.delete("/api/songs/:id", requireAdmin, async (req, res) => {
 });
 
 // ====================
+// JUMUIA ROUTES
+// ====================
+
+// Get all Jumuia (public, no auth needed)
+app.get("/api/jumuia", async (req, res) => {
+  try {
+    const jumuia = await prisma.jumuia.findMany({
+      orderBy: { name: "asc" },
+    });
+    res.json(jumuia);
+  } catch (err) {
+    console.error("Fetch Jumuia error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// USER: Join a Jumuia
+// ====================
+app.patch("/api/join-jumuia", authenticate, async (req, res) => {
+  try {
+    const { jumuiaId } = req.body;
+    console.log("Joining JumuiaId:", jumuiaId, "User:", req.user);
+
+    if (!jumuiaId)
+      return res.status(400).json({ error: "jumuiaId is required" });
+
+    // Check if the Jumuia exists
+    const jumuia = await prisma.jumuia.findUnique({ where: { id: jumuiaId } });
+    if (!jumuia) return res.status(404).json({ error: "Jumuia not found" });
+
+    // Update the logged-in user's jumuiaId
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { jumuiaId },
+      include: { jumuia: true },
+    });
+
+    res.json({ message: `Joined ${updatedUser.jumuia.name}`, user: updatedUser });
+  } catch (err) {
+    console.error("Join Jumuia error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// ADMIN: Assign or Change User Jumuia
+// ====================
+app.patch("/api/admin/jumuia/:userId", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { jumuiaId } = req.body; // can be null to remove from Jumuia
+
+    // Find the user
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Update user's Jumuia
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { jumuiaId: jumuiaId || null },
+      include: { jumuia: true },
+    });
+
+    const message = jumuiaId
+      ? `User assigned to ${updated.jumuia?.name}`
+      : "User removed from a Jumuia";
+
+    res.json({ message, user: updated });
+  } catch (err) {
+    console.error("Admin PATCH Jumuia error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// ADMIN: Delete User
+// ====================
+app.delete("/api/admin/user/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedUser = await prisma.user.delete({ where: { id } });
+    res.json({ message: `User ${deletedUser.fullName} deleted.` });
+  } catch (err) {
+    console.error("Delete User Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// USER: Get My Jumuia Contributions
+// ====================
+app.get("/api/contributions/jumuia", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { jumuia: true },
+    });
+
+    if (!user.jumuiaId) return res.status(400).json({ error: "User has not been assigned to any Jumuia" });
+
+    const contributions = await prisma.contributionType.findMany({
+      where: { jumuiaId: user.jumuiaId },
+      include: {
+        pledges: { include: { user: { select: { id: true, fullName: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json(contributions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// ADMIN: Create Jumuia Contribution
+// ====================
+app.post("/api/admin/contributions/jumuia", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { title, description, amountRequired, deadline, jumuiaId } = req.body;
+    if (!title || !amountRequired || !jumuiaId)
+      return res.status(400).json({ error: "Title, amountRequired & jumuiaId are required" });
+
+    const newType = await prisma.contributionType.create({
+      data: {
+        title,
+        description,
+        amountRequired: parseFloat(amountRequired),
+        deadline: deadline ? new Date(deadline) : null,
+        jumuiaId,
+      },
+    });
+
+    // Auto-create pledges only for users in this Jumuia
+    const users = await prisma.user.findMany({ where: { jumuiaId }, select: { id: true } });
+    if (users.length > 0) {
+      await prisma.pledge.createMany({
+        data: users.map(u => ({
+          userId: u.id,
+          contributionTypeId: newType.id,
+          pendingAmount: 0,
+          amountPaid: 0,
+          status: "PENDING",
+        })),
+      });
+    }
+
+    res.json(newType);
+  } catch (err) {
+    console.error("Create Jumuia Contribution error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// ADMIN: List Users in a Jumuia
+// ====================
+app.get("/api/admin/jumuia/:id/users", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { jumuiaId: req.params.id },
+      select: { id: true, fullName: true, email: true, role: true },
+    });
+    res.json(users);
+  } catch (err) {
+    console.error("Fetch Jumuia Users error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
 // Chat
 // ====================
 async function ensureDefaultChatRoom() {

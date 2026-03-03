@@ -24,9 +24,9 @@ model User {
   pledges      Pledge[]
   messages     Message[]
 
-  // Jumuiya relation
-  jumuiyaId    String?       // nullable, user may not have joined yet
-  jumuiya      Jumuiya?      @relation(fields: [jumuiyaId], references: [id])
+  // Jumuia relation
+  jumuiaId    String?       // nullable, user may not have joined yet
+  jumuia      Jumuia?      @relation(fields: [jumuiaId], references: [id])
 }
 
 // ====================
@@ -88,9 +88,9 @@ model ContributionType {
 
   pledges        Pledge[]
 
-  // Jumuiya relation
-  jumuiyaId      String?   // nullable, normal contributions have null
-  jumuiya        Jumuiya?  @relation(fields: [jumuiyaId], references: [id])
+  // Jumuia relation
+  jumuiaId      String?   // nullable, normal contributions have null
+  jumuia        Jumuia?  @relation(fields: [jumuiaId], references: [id])
 }
 
 model Pledge {
@@ -138,9 +138,9 @@ model Message {
 }
 
 // ====================
-// JUMUIYAS (CHURCH GROUPS)
+// JUMUIAS (CHURCH GROUPS)
 // ====================
-model Jumuiya {
+model Jumuia {
   id            String             @id @default(uuid())
   name          String             @unique
   createdAt     DateTime           @default(now())

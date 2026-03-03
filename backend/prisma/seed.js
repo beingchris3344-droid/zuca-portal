@@ -1,25 +1,45 @@
 const { PrismaClient } = require("@prisma/client");
+
 const prisma = new PrismaClient();
 
 async function main() {
-  const jumuias = [
-    "ST. PEREGRINE",
-    "ST. BENEDICT",
-    "CHRIST THE KING",
-    "ST. MICHAEL",
-    "ST. GREGORY",
-    "ST. PACIFICUS"
-  ];
+  await prisma.jumuia.upsert({
+    where: { name: "ST. PEREGRINE" },
+    update: {},
+    create: { name: "ST. PEREGRINE" }
+  });
 
-  for (const name of jumuias) {
-    await prisma.jumuiya.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
+  await prisma.jumuia.upsert({
+    where: { name: "ST. BENEDICT" },
+    update: {},
+    create: { name: "ST. BENEDICT" }
+  });
 
-  console.log("✅ Jumuiya seeded successfully!");
+  await prisma.jumuia.upsert({
+    where: { name: "CHRIST THE KING" },
+    update: {},
+    create: { name: "CHRIST THE KING" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. MICHAEL" },
+    update: {},
+    create: { name: "ST. MICHAEL" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. GREGORY" },
+    update: {},
+    create: { name: "ST. GREGORY" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. PACIFICUS" },
+    update: {},
+    create: { name: "ST. PACIFICUS" }
+  });
+
+  console.log("Jumuia seeded successfully");
 }
 
 main()

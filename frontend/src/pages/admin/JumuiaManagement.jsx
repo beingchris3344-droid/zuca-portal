@@ -8,13 +8,14 @@ export default function JumuiaManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatingMemberId, setUpdatingMemberId] = useState(null);
+  const [selectedMoves, setSelectedMoves] = useState({});
 
   const tdStyle = { padding: "8px", border: "1px solid #ccc" };
   const removeBtnStyle = {
     padding: "4px 8px",
     border: "none",
     borderRadius: "4px",
-    backgroundColor: "#e67e22",
+    backgroundColor: "#12e828",
     color: "white",
     cursor: "pointer",
   };
@@ -159,8 +160,8 @@ export default function JumuiaManagement() {
                             {/* Move Member Dropdown */}
                             <select
                               disabled={updatingMemberId === m.id}
-                              value={j.id}
-                              onChange={(e) => handleMoveMember(m.id, e.target.value)}
+                              value={selectedMoves[m.id] || j.id}
+                              onChange={(e) => setSelectedMoves({...selectedMoves, [m.id]: e.target.value})}
                             >
                               {jumuiaList.map((ju) => (
                                 <option key={ju.id} value={ju.id}>{ju.name}</option>
@@ -169,12 +170,18 @@ export default function JumuiaManagement() {
 
                             {/* Remove from Jumuia */}
                             <button
-                              disabled={updatingMemberId === m.id}
-                              onClick={() => handleRemoveMember(m.id)}
-                              style={removeBtnStyle}
-                            >
-                              Remove
-                            </button>
+  disabled={
+    updatingMemberId === m.id ||
+    !selectedMoves[m.id] ||
+    selectedMoves[m.id] === j.id
+  }
+  onClick={() =>
+    handleMoveMember(m.id, selectedMoves[m.id])
+  }
+  style={removeBtnStyle}
+>
+  Move
+</button>
 
                             {/* Delete Member Completely */}
                             <button

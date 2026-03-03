@@ -1,6 +1,6 @@
 // frontend/src/components/Layout.jsx
 import { Outlet, NavLink } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
 import bg from "../assets/background.webp";
 import Notifications from "./Notifications"; // adjust path if needed
@@ -9,10 +9,24 @@ import BASE_URL from "../api";
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [sidebarShadow, setSidebarShadow] = useState(false);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) setUser(storedUser);
+  }, []);
+
+  // Add scroll shadow effect
+  useEffect(() => {
+    const handleScroll = () => {
+      if (scrollContainerRef.current) {
+        setSidebarShadow(scrollContainerRef.current.scrollTop > 5);
+      }
+    };
+    const container = scrollContainerRef.current;
+    container?.addEventListener("scroll", handleScroll);
+    return () => container?.removeEventListener("scroll", handleScroll);
   }, []);
 
   if (!user) return null;
@@ -54,22 +68,37 @@ function Layout() {
 
       {/* Sidebar */}
       <div className={`sidebar ${menuOpen ? "open" : ""}`}>
+        {/* Logo / Header */}
         <div style={logoCard}>
-          <img src={logo} alt="ZUCA Logo" width="70" />
+          <img src={logo} alt="ZUCA Logo" width="60" />
           <h3 style={{ fontSize: "15px", color: "white" }}>
             ZETECH UNIVERSITY <br /> CATHOLIC ACTION
           </h3>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-          <SidebarLink to="/dashboard">Dashboard</SidebarLink>
-          <SidebarLink to="/join-jumuia">Join Jumuia</SidebarLink>
-          <SidebarLink to="/announcements">Announcements</SidebarLink>
-          <SidebarLink to="/mass-programs">Mass Programs</SidebarLink>
-          <SidebarLink to="/contributions">Contributions</SidebarLink>
-          <SidebarLink to="/jumuia-contributions">Jumuia Contributions</SidebarLink>
-    
-          <SidebarLink to="/chat">Chat</SidebarLink>
+        {/* Scrollable Links */}
+        <div
+          ref={scrollContainerRef}
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            paddingRight: "5px",
+            transition: "box-shadow 0.3s",
+            boxShadow: sidebarShadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.6)" : "none",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+        
+            <SidebarLink to="/dashboard">Dashboard</SidebarLink>
+
+            <SidebarLink to="/join-jumuia">Join Jumuia</SidebarLink>
+            <SidebarLink to="/announcements">Announcements</SidebarLink>
+            <SidebarLink to="/mass-programs">Mass Programs</SidebarLink>
+            <SidebarLink to="/contributions">Contributions</SidebarLink>
+            <SidebarLink to="/jumuia-contributions">Jumuia Contributions</SidebarLink>
+            <SidebarLink to="/chat">Chat</SidebarLink>
+            fontWeight: "500",
+          </div>
         </div>
       </div>
 
@@ -77,7 +106,6 @@ function Layout() {
       <div className="main-content">
         {/* Top Header */}
         <div className="top-header" style={topHeaderStyle}>
-          {/* Left: Hamburger + User */}
           <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
             {/* Hamburger */}
             <button
@@ -97,32 +125,19 @@ function Layout() {
                   {user.fullName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  marginLeft: "8px",
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", marginLeft: "8px" }}>
                 <span style={{ fontWeight: "bold", fontSize: "14px" }}>
                   Hello, {user.fullName.split(" ")[0]} 👋
                 </span>
-                <span style={{ fontSize: "12px", opacity: 0.7 }}>
-                  {user.fullName}
-                </span>
-                <span style={{ fontSize: "12px", opacity: 0.7 }}>
-                  {user.email}
-                </span>
+                <span style={{ fontSize: "12px", opacity: 0.7 }}>{user.fullName}</span>
+                <span style={{ fontSize: "12px", opacity: 0.7 }}>{user.email}</span>
               </div>
             </div>
           </div>
 
           {/* Right: Notifications + Logout */}
           <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-            {/* Notifications Bell */}
             <Notifications userId={user.id} />
-
-            {/* Logout Button */}
             <button onClick={handleLogout} style={logoutBtnHeader}>
               Logout
             </button>
@@ -141,17 +156,29 @@ function Layout() {
               100% {background-position: 0% 50%;}
             }
 
+            /* Sidebar scroll */
+            .sidebar::-webkit-scrollbar {
+              width: 6px;
+            }
+            .sidebar::-webkit-scrollbar-thumb {
+              background-color: rgba(255,255,255,0.3);
+              border-radius: 3px;
+            }
+            .sidebar::-webkit-scrollbar-track {
+              background: transparent;
+            }
+
             .sidebar {
               position: fixed;
               left: 0;
               top: 0;
               height: 100%;
               width: 260px;
-              background: rgba(24, 23, 28, 0.66);
+              background: rgba(11, 10, 10, 0.83);
               padding: 25px;
               display: flex;
               flex-direction: column;
-              gap: 80px;
+              gap: 20px;
               z-index: 10;
               transition: transform 0.3s ease;
             }
@@ -195,18 +222,16 @@ function SidebarLink({ to, children }) {
   return (
     <NavLink
       to={to}
-      style={({ isActive }) => {
-        return {
-          padding: "14px",
-          borderRadius: "10px",
-          textDecoration: "none",
-          color: "white",
-          fontWeight: "500",
-          backgroundColor: isActive
-            ? "rgba(255, 255, 255, 0.23)"
-            : "rgba(255,255,255,0.08)",
-        };
-      }}
+      style={({ isActive }) => ({
+        padding: "14px",
+        borderRadius: "10px",
+        textDecoration: "none",
+        color: "white",
+        fontWeight: "500",
+        backgroundColor: isActive
+          ? "rgba(74, 22, 171, 0.96)"
+          : "rgba(31, 33, 30, 0.79)",
+      })}
       onClick={() => {
         if (window.innerWidth <= 900) {
           document.querySelector(".sidebar")?.classList.remove("open");
@@ -225,7 +250,7 @@ const logoCard = {
   gap: "10px",
   padding: "20px",
   marginTop: "55px",
-  backgroundColor: "rgba(255,255,255,0.1)",
+  backgroundColor: "rgba(37, 29, 29, 0.63)",
   borderRadius: "12px",
 };
 
@@ -233,7 +258,7 @@ const topHeaderStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "rgba(0,0,0,0.5)",
+  background: "rgba(0, 0, 0, 0.67)",
   padding: "12px 20px",
   borderRadius: "12px",
   marginBottom: "20px",

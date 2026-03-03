@@ -56,9 +56,9 @@ const JoinJumuia = () => {
 
   return (
     <div style={container}>
-      <h1 style={title}>Join a Jumuiya</h1>
+      <h1 style={title}>Join a Jumuia</h1>
       <p style={subtitle}>
-        Select a Jumuiya to join. You can only join one at a time.
+        Select a Jumuia to join. You can only join one at a time.
       </p>
 
       <div style={grid}>

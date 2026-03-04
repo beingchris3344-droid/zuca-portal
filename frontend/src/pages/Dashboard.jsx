@@ -115,7 +115,7 @@ function Dashboard() {
           </div>
 
           <div style={profileInfo}>
-            <span style={memberIdBadge}>ID: ZUCA-{user.id}</span>
+            <span style={memberIdBadge}>ID: ZUCA-{user.membership_number}</span>
             <h2 style={{ marginTop: "10px" }}>{user.fullName}</h2>
             <p style={{ marginTop: "9px", opacity: 0.8 }}>{user.email}</p>
 

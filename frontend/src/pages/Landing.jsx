@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background.webp";
+import bg from "../assets/background2.webp";
 
 function Landing() {
   const navigate = useNavigate();

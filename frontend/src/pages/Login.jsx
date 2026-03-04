@@ -1,7 +1,7 @@
 // frontend/src/pages/Login.jsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import bg from "../assets/background.webp";
+import bg from "../assets/background3.webp";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api"; // centralized API URL
 

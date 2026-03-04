@@ -2,7 +2,7 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background.webp";
+import bg from "../assets/background1.webp";
 import Notifications from "./Notifications"; // adjust path if needed
 import BASE_URL from "../api";
 

@@ -15,18 +15,14 @@ function Dashboard() {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) {
       setUser(storedUser);
-
       const imageUrl = storedUser.profileImage
         ? storedUser.profileImage.startsWith("http")
           ? storedUser.profileImage
           : `${BASE_URL}/${storedUser.profileImage}`
         : null;
-
       setProfileImage(imageUrl);
-      setLoading(false);
-    } else {
-      setLoading(false);
     }
+    setLoading(false);
   }, []);
 
   const handleImageUpload = async (e) => {
@@ -41,9 +37,7 @@ function Dashboard() {
       const response = await axios.post(
         `${BASE_URL}/api/users/${user.id}/upload-profile`,
         formData,
-        {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
-        }
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
       );
 
       const updatedUser = response.data.user;
@@ -54,7 +48,6 @@ function Dashboard() {
           ? updatedUser.profileImage
           : `${BASE_URL}/${updatedUser.profileImage}`
         : null;
-
       setProfileImage(imageUrl);
       localStorage.setItem("user", JSON.stringify(updatedUser));
     } catch (error) {
@@ -100,7 +93,7 @@ function Dashboard() {
     <div style={pageStyle}>
       {/* ===== PROFILE SECTION ===== */}
       <div style={profileCard}>
-        <div style={profileLeft}>
+        <div style={profileTop}>
           <div style={avatarSection}>
             {profileImage ? (
               <img src={profileImage} alt="Profile" style={avatarImage} />
@@ -113,7 +106,6 @@ function Dashboard() {
                 Upload Photo
                 <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
               </label>
-
               {profileImage && (
                 <button onClick={handleRemovePhoto} style={removeBtn}>
                   Remove
@@ -124,14 +116,14 @@ function Dashboard() {
 
           <div style={profileInfo}>
             <span style={memberIdBadge}>ID: ZUCA-{user.id}</span>
-            <h2 style={{ marginBottom: "5px" }}>{user.fullName}</h2>
-            <p style={{ margin: 0, opacity: 0.8 }}>{user.email}</p>
+            <h2 style={{ marginTop: "10px" }}>{user.fullName}</h2>
+            <p style={{ marginTop: "9px", opacity: 0.8 }}>{user.email}</p>
 
             <div style={badgesContainer}>
               <span style={roleBadge}>{user.role?.toUpperCase() || "MEMBER"}</span>
             </div>
 
-            <p style={{ fontSize: "13px", marginTop: "10px", opacity: 0.7 }}>
+            <p style={{ fontSize: "13px", marginTop: "29px", opacity: 0.7 }}>
               Logged in • {today}
             </p>
           </div>
@@ -155,7 +147,6 @@ function Dashboard() {
             key={index}
             style={{
               ...statCard,
-              cursor: "pointer",
               boxShadow:
                 hoveredCard === index
                   ? "0 0 20px 5px #daf10fc4"
@@ -202,22 +193,21 @@ const profileCard = {
   display: "flex",
   flexDirection: "column",
   gap: "15px",
-  padding: "2px",
+  padding: "10px",
   borderRadius: "20px",
   backdropFilter: "blur(14px)",
-  background: "rgba(255,255,255,0.05)",
+  background: "rgba(0,0,0,0.4)",
   border: "1px solid rgba(255,255,255,0.2)",
   marginBottom: "35px",
-  alignItems: "center",
-  justifyContent: "space-between",
 };
 
-const profileLeft = {
+const profileTop = {
   display: "flex",
-  flexDirection: "column",
+  flexDirection: "row",
+  gap: "30px",
+  flexWrap: "wrap",
   alignItems: "center",
-  gap: "20px",
-  width: "100%",
+  justifyContent: "center",
 };
 
 const avatarSection = {
@@ -256,15 +246,17 @@ const avatarButtons = {
 };
 
 const profileInfo = {
-  textAlign: "center",
-  width: "100%",
+  textAlign: "left",
+  minWidth: "200px",
+  flex: 1,
 };
 
 const badgesContainer = {
   display: "flex",
   gap: "10px",
   flexWrap: "wrap",
-  justifyContent: "center",
+  justifyContent: "flex-start",
+  marginTop: "10px",
 };
 
 const uploadBtn = {
@@ -305,7 +297,6 @@ const roleBadge = {
   padding: "2px 8px",
   borderRadius: "20px",
   background: "#38ff027f",
-  marginTop: "10px",
   color: "#ffffff",
   fontWeight: "bold",
   fontSize: "15px",
@@ -314,12 +305,10 @@ const roleBadge = {
 const memberIdBadge = {
   padding: "1px 10px",
   borderRadius: "20px",
-  
   background: "#a1ad1f00",
   fontWeight: "bold",
-  
   fontSize: "12px",
-   border: "2px solid rgb(0, 255, 8)"
+  border: "2px solid rgb(0, 255, 8)",
 };
 
 const welcomePanel = {

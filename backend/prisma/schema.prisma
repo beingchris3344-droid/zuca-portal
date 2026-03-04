@@ -7,31 +7,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ====================
-// USERS
-// ====================
 model User {
-  id           String   @id @default(uuid())
-  fullName     String
-  email        String   @unique
-  password     String
-  role         String   @default("member")
-  profileImage String?
-  createdAt    DateTime @default(now())
-  lastActive   DateTime?
-
-  // Relations
-  pledges      Pledge[]
-  messages     Message[]
-
-  // Jumuia relation
-  jumuiaId    String?       // nullable, user may not have joined yet
-  jumuia      Jumuia?      @relation(fields: [jumuiaId], references: [id])
+  id                String         @id @default(uuid())
+  fullName          String
+  email             String         @unique
+  password          String
+  role              String         @default("member")
+  profileImage      String?
+  createdAt         DateTime       @default(now())
+  lastActive        DateTime?
+  jumuiaId          String?
+  membership_number String?        @unique
+  messages          Message[]
+  Notification      Notification[]
+  pledges           Pledge[]
+  jumuia            Jumuia?        @relation(fields: [jumuiaId], references: [id])
 }
 
-// ====================
-// ANNOUNCEMENTS
-// ====================
 model Announcement {
   id        String   @id @default(uuid())
   title     String
@@ -41,88 +33,64 @@ model Announcement {
   createdAt DateTime @default(now())
 }
 
-// ====================
-// MASS PROGRAMS
-// ====================
 model MassProgram {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   date      DateTime
   venue     String
-  createdAt DateTime @default(now())
-
-  songs MassProgramSong[]
+  createdAt DateTime          @default(now())
+  songs     MassProgramSong[]
 }
 
-// ====================
-// SONGS
-// ====================
 model Song {
-  id       String @id @default(uuid())
-  title    String
-  composer String?
-
+  id           String            @id @default(uuid())
+  title        String
+  composer     String?
   massPrograms MassProgramSong[]
 }
 
 model MassProgramSong {
-  id            String @id @default(uuid())
+  id            String      @id @default(uuid())
   massProgramId String
   songId        String
   type          String
-
   massProgram   MassProgram @relation(fields: [massProgramId], references: [id], onDelete: Cascade)
   song          Song        @relation(fields: [songId], references: [id])
 }
 
-// ====================
-// CONTRIBUTION SYSTEM
-// ====================
 model ContributionType {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   title          String
   description    String?
   amountRequired Float
   deadline       DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  jumuiaId       String?
+  jumuia         Jumuia?   @relation(fields: [jumuiaId], references: [id])
   pledges        Pledge[]
-
-  // Jumuia relation
-  jumuiaId      String?   // nullable, normal contributions have null
-  jumuia        Jumuia?  @relation(fields: [jumuiaId], references: [id])
 }
 
 model Pledge {
-  id                 String   @id @default(uuid())
-
+  id                 String           @id @default(uuid())
   userId             String
   contributionTypeId String
-
-  pendingAmount      Float    @default(0)   // User pledge waiting for admin approval
-  amountPaid         Float    @default(0)   // Approved or manually added by admin
-  message            String?                  // Optional note from user to admin
-  status             String   @default("PENDING") // PENDING / APPROVED / COMPLETED
-
-  createdByAdmin     Boolean  @default(false) // Manual admin addition
-  approvedById       String?                  // Admin who approved the pledge
+  pendingAmount      Float            @default(0)
+  amountPaid         Float            @default(0)
+  message            String?
+  status             String           @default("PENDING")
+  createdByAdmin     Boolean          @default(false)
+  approvedById       String?
   approvedAt         DateTime?
-
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// ====================
-// CHAT SYSTEM
-// ====================
 model ChatRoom {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  createdAt DateTime @default(now())
-
+  createdAt DateTime  @default(now())
   messages  Message[]
 }
 
@@ -132,20 +100,26 @@ model Message {
   userId    String
   roomId    String
   createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
   room      ChatRoom @relation(fields: [roomId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-// ====================
-// JUMUIAS (CHURCH GROUPS)
-// ====================
 model Jumuia {
   id            String             @id @default(uuid())
   name          String             @unique
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
-
-  members       User[]
   contributions ContributionType[]
+  members       User[]
+}
+
+model Notification {
+  id        String   @id
+  userId    String
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

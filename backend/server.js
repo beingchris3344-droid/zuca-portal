@@ -117,9 +117,29 @@ app.post("/api/register", async (req, res) => {
     if (existing) return res.status(400).json({ error: "Email exists" });
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: { fullName, email: normalizedEmail, password: hashed },
-    });
+    // 1️⃣ Get last assigned membership number
+const lastUser = await prisma.user.findFirst({
+  orderBy: { createdAt: "desc" },
+  where: { membership_number: { not: null } },
+});
+
+let nextMembership = "Z#001";
+
+if (lastUser?.membership_number) {
+  const lastNum = parseInt(lastUser.membership_number.replace("Z#", ""), 10);
+  const nextNum = (lastNum + 1).toString().padStart(3, "0");
+  nextMembership = `Z#${nextNum}`;
+}
+
+// 2️⃣ Create user WITH membership_number
+const user = await prisma.user.create({
+  data: {
+    fullName,
+    email: normalizedEmail,
+    password: hashed,
+    membership_number: nextMembership,
+  },
+});
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
 

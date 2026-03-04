@@ -48,23 +48,33 @@ export default function JumuiaManagement() {
     setExpandedJumuia(expandedJumuia === id ? null : id);
   };
 
-  // Remove member from a Jumuia
   const handleRemoveMember = async (userId) => {
-    if (!window.confirm("Remove this member from the Jumuia?")) return;
-    setUpdatingMemberId(userId);
-    try {
-      await api.patch(`/api/admin/jumuia/${userId}`, { jumuiaId: null });
-      setJumuiaList(jumuiaList.map((ju) => ({
-        ...ju,
-        members: ju.members.filter((m) => m.id !== userId),
-      })));
-    } catch (err) {
-      console.error("Remove Member Error:", err.response || err);
-      alert("Failed to remove member.");
-    } finally {
-      setUpdatingMemberId(null);
+  if (!window.confirm("Remove this member from the Jumuia?")) return;
+  setUpdatingMemberId(userId);
+  try {
+    // PATCH route instead of DELETE
+    await api.patch(`/api/admin/jumuia/${userId}`, { jumuiaId: null });
+
+    // Update Jumuia member list in state
+    setJumuiaList(jumuiaList.map((ju) => ({
+      ...ju,
+      members: ju.members.filter((m) => m.id !== userId),
+    })));
+
+    // If the removed member is the logged-in user, reset joinedJumuia
+    const currentUser = JSON.parse(localStorage.getItem("user"));
+    if (currentUser?.id === userId) {
+      setJoinedJumuia(null);
+      currentUser.jumuiaId = null;
+      localStorage.setItem("user", JSON.stringify(currentUser));
     }
-  };
+  } catch (err) {
+    console.error("Remove Member Error:", err.response || err);
+    alert("Failed to remove member.");
+  } finally {
+    setUpdatingMemberId(null);
+  }
+};
 
   // Move member to another Jumuia
   const handleMoveMember = async (userId, newJumuiaId) => {
@@ -183,33 +193,43 @@ export default function JumuiaManagement() {
   Move
 </button>
 
-                            {/* Delete Member Completely */}
-                            <button
-                              disabled={updatingMemberId === m.id}
-                              onClick={async () => {
-                                if (!window.confirm(`Are you sure you want to delete ${m.fullName} completely?`)) return;
-                                setUpdatingMemberId(m.id);
-                                try {
-                                  await api.delete(`/api/admin/user/${m.id}`);
-                                  // Remove from UI
-                                  setJumuiaList(jumuiaList.map(ju => ({
-                                    ...ju,
-                                    members: ju.members.filter(u => u.id !== m.id)
-                                  })));
-                                } catch (err) {
-                                  console.error("Delete Member Error:", err.response || err);
-                                  alert("Failed to delete member.");
-                                } finally {
-                                  setUpdatingMemberId(null);
-                                }
-                              }}
-                              style={{
-                                ...removeBtnStyle,
-                                backgroundColor: "#c0392b", // red for delete
-                              }}
-                            >
-                              Delete
-                            </button>
+                         {/* Remove Member from Jumuia */}
+<button
+  disabled={updatingMemberId === m.id}
+  onClick={async () => {
+    if (!window.confirm(`Remove ${m.fullName} from this Jumuia?`)) return;
+    setUpdatingMemberId(m.id);
+    try {
+      // PATCH route to set jumuiaId to null
+      await api.patch(`/api/admin/jumuia/${m.id}`, { jumuiaId: null });
+
+      // Remove member from current UI state
+      setJumuiaList(jumuiaList.map(ju => ({
+        ...ju,
+        members: ju.members.filter(u => u.id !== m.id)
+      })));
+
+      // Reset joinedJumuia if the removed member is the logged-in user
+      const currentUser = JSON.parse(localStorage.getItem("user"));
+      if (currentUser?.id === m.id) {
+        setJoinedJumuia(null);
+        currentUser.jumuiaId = null;
+        localStorage.setItem("user", JSON.stringify(currentUser));
+      }
+    } catch (err) {
+      console.error("Remove Member Error:", err.response || err);
+      alert("Failed to remove member.");
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  }}
+  style={{
+    ...removeBtnStyle,
+    backgroundColor: "#f39c12", // orange for remove
+  }}
+>
+  Remove
+</button>
                           </div>
                         </td>
                       </tr>

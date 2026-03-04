@@ -11,7 +11,16 @@ const multer = require("multer"); // for file uploads
 const app = express();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
-const { createNotification, getNotifications, markAsRead } = require("./notifications");
+const { createNotification, readNotifications, markAsRead } = require("./notifications");
+const http = require("http");
+const { Server } = require("socket.io");
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
 
 // ====================
 // Middleware
@@ -148,6 +157,22 @@ app.post("/api/login", async (req, res) => {
 
     res.json({ token, user });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/me", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { jumuia: true },
+    });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json(user);
+  } catch (err) {
+    console.error("ME ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -398,15 +423,22 @@ app.patch("/api/admin/jumuia/:userId", authenticate, requireAdmin, async (req, r
 });
 
 // ====================
-// ADMIN: Delete User
+// ADMIN: Remove User from Jumuia
 // ====================
-app.delete("/api/admin/user/:id", authenticate, requireAdmin, async (req, res) => {
+app.patch("/api/admin/jumuia/:userId/remove", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    const deletedUser = await prisma.user.delete({ where: { id } });
-    res.json({ message: `User ${deletedUser.fullName} deleted.` });
+    const { userId } = req.params;
+
+    // Update the user to remove them from the Jumuia
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { jumuiaId: null },
+      include: { jumuia: true },
+    });
+
+    res.json({ message: "User removed from Jumuia", user: updatedUser });
   } catch (err) {
-    console.error("Delete User Error:", err);
+    console.error("Remove User from Jumuia Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1059,93 +1091,244 @@ app.put("/api/pledges/:id/edit-message", authenticate, requireAdmin, async (req,
   }
 });
 
-// -------------------------
-// Create a new notification
-// -------------------------
-app.post("/api/notify", (req, res) => {
-  const { userId, type, title, message } = req.body;
-  if (!userId || !type || !title || !message) {
-    return res.status(400).json({ error: "All fields are required" });
+
+// ====================
+// NOTIFICATIONS ROUTES + REAL-TIME EMITS
+// ====================
+
+// 1️⃣ General notification (manual trigger)
+app.post("/api/notify", authenticate, async (req, res) => {
+  try {
+    const { userId = null, type, title, message } = req.body;
+    if (!type || !title || !message) {
+      return res.status(400).json({ error: "Type, title, message are required" });
+    }
+
+    const notif = await createNotification({ userId, type, title, message });
+
+    if (io) {
+      if (userId) {
+        io.to(userId).emit("new_notification", notif); // per-user
+      } else {
+        io.emit("new_notification", notif); // broadcast
+      }
+    }
+
+    res.status(201).json(notif);
+  } catch (err) {
+    console.error("Notify error:", err);
+    res.status(500).json({ error: err.message });
   }
-  const notif = createNotification({ userId, type, title, message });
-  res.status(201).json(notif);
+});
+
+// 2️⃣ Get notifications for a user (including global)
+app.get("/api/notifications/:userId", authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Read stored notifications
+    const notifications = readNotifications(userId);
+
+    // Merge live DB data: announcements
+    const announcements = await prisma.announcement.findMany({
+      where: { published: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const annNotifs = announcements.map(a => ({
+      id: `ann-${a.id}`,
+      userId,
+      type: "announcement",
+      title: "New Announcement",
+      message: a.title,
+      read: false,
+      createdAt: a.createdAt,
+    }));
+
+    // Merge live DB data: songs
+    const songs = await prisma.song.findMany({ orderBy: { createdAt: "desc" } });
+    const songNotifs = songs.map(s => ({
+      id: `song-${s.id}`,
+      userId,
+      type: "song",
+      title: "New Song Added",
+      message: s.title,
+      read: false,
+      createdAt: s.createdAt,
+    }));
+
+    // Merge live DB data: mass programs
+    const programs = await prisma.massProgram.findMany({ orderBy: { createdAt: "desc" } });
+    const programNotifs = programs.map(p => ({
+      id: `program-${p.id}`,
+      userId,
+      type: "program",
+      title: "New Mass Program",
+      message: p.title,
+      read: false,
+      createdAt: p.createdAt,
+    }));
+
+    // Merge live DB data: contribution types
+    const contributions = await prisma.contributionType.findMany({ orderBy: { createdAt: "desc" } });
+    const contributionNotifs = contributions.map(c => ({
+      id: `contribution-${c.id}`,
+      userId,
+      type: "contribution",
+      title: "New Contribution Type",
+      message: c.title,
+      read: false,
+      createdAt: c.createdAt,
+    }));
+
+    // Combine all and sort by newest first
+    const allNotifs = [
+      ...notifications,
+      ...annNotifs,
+      ...songNotifs,
+      ...programNotifs,
+      ...contributionNotifs,
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json(allNotifs);
+  } catch (err) {
+    console.error("Get notifications error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3️⃣ Mark all notifications as read for a user
+app.put("/api/notifications/:userId/read", authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updated = markAsRead(userId);
+    res.json({ message: "All notifications marked as read", notifications: updated });
+  } catch (err) {
+    console.error("Mark notifications read error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ====================
-// Notifications Route
+// SOCKET.IO real-time
 // ====================
-app.get("/api/notifications/:userId", (req, res) => {
-  const { userId } = req.params;
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
 
-  // TEMP: pull from your in-memory JSON notifications (or existing announcements, pledges)
-  const announcements = require("./notifications/announcements.json"); // update path
-  const pledges = require("./notifications/pledges.json");
-  const messages = require("./notifications/messages.json");
+  // Join a room per user
+  socket.on("join", (userId) => {
+    socket.join(userId);
+    console.log(`User ${userId} joined room ${userId}`);
+  });
 
-  const annNotifs = announcements.map(a => ({
-    id: `ann-${a.id}`,
-    title: "New Announcement",
-    message: a.title,
-    read: false,
-    createdAt: a.createdAt
-  }));
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
 
-  // backend/notifications.js
-const fs = require("fs");
-const path = require("path");
+// ====================
+// ADMIN TRIGGERS: emit notifications on new events
+// ====================
 
-const notificationsFile = path.join(__dirname, "notifications/notifications.json");
+// New Announcement
+app.post("/api/announcements", authenticate, async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const newAnn = await prisma.announcement.create({ data: { title, content, published: true } });
 
-function getNotifications(req, res) {
-  const { userId } = req.params;
+    const notif = await createNotification({
+      userId: null, // global
+      type: "announcement",
+      title: "New Announcement",
+      message: title,
+    });
 
-  let notifications = JSON.parse(fs.readFileSync(notificationsFile, "utf8"));
+    io.emit("new_notification", { ...notif, id: `ann-${newAnn.id}` });
 
-  // Replace placeholder with actual userId
-  notifications = notifications.map(n => ({
-    ...n,
-    userId: userId === "__CURRENT_USER_ID__" ? userId : n.userId
-  }));
+    res.status(201).json(newAnn);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // Only send notifications for this user
-  const userNotifications = notifications.filter(n => n.userId === userId);
+// New Song
+app.post("/api/songs", authenticate, async (req, res) => {
+  try {
+    const { title, artist } = req.body;
+    const newSong = await prisma.song.create({ data: { title, artist } });
 
-  res.json(userNotifications);
-}
+    const notif = await createNotification({
+      userId: null,
+      type: "song",
+      title: "New Song Added",
+      message: title,
+    });
 
-module.exports = { getNotifications };
+    io.emit("new_notification", { ...notif, id: `song-${newSong.id}` });
 
-  const pledgeNotifs = pledges
-    .filter(p => p.userId === userId)
-    .map(p => ({
-      id: `pledge-${p.id}`,
-      title: "Contribution Update",
-      message: `Your pledge for ${p.contributionType} is ${p.status}`,
-      read: false,
-      createdAt: p.updatedAt
-    }));
+    res.status(201).json(newSong);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  const msgNotifs = messages
-    .filter(m => m.userId === userId)
-    .map(m => ({
-      id: `msg-${m.id}`,
-      title: "New Message",
-      message: m.content,
-      read: false,
-      createdAt: m.createdAt
-    }));
+// New Mass Program
+app.post("/api/mass-programs", authenticate, async (req, res) => {
+  try {
+    const { title, date } = req.body;
+    const newProgram = await prisma.massProgram.create({ data: { title, date } });
 
-  const allNotifs = [...annNotifs, ...pledgeNotifs, ...msgNotifs].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
+    const notif = await createNotification({
+      userId: null,
+      type: "program",
+      title: "New Mass Program",
+      message: title,
+    });
 
-  res.json(allNotifs);
+    io.emit("new_notification", { ...notif, id: `program-${newProgram.id}` });
+
+    res.status(201).json(newProgram);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// New Contribution Type
+app.post("/api/contribution-types", authenticate, async (req, res) => {
+  try {
+    const { title } = req.body;
+    const newContrib = await prisma.contributionType.create({ data: { title } });
+
+    const notif = await createNotification({
+      userId: null,
+      type: "contribution",
+      title: "New Contribution Type",
+      message: title,
+    });
+
+    io.emit("new_notification", { ...notif, id: `contribution-${newContrib.id}` });
+
+    res.status(201).json(newContrib);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ====================
+// SOCKET.IO
+// ====================
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  socket.on("join", (userId) => {
+    socket.join(userId);
+    console.log(`User ${userId} joined room ${userId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
 });
 
 
-
-// ====================
-// Start Server
-// ====================
+// Start server
 const PORT = 5000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));

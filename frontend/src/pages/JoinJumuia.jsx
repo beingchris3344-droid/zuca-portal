@@ -10,32 +10,39 @@ const JoinJumuia = () => {
   const [joiningId, setJoiningId] = useState(null);
 
   useEffect(() => {
-    const fetchJumuia = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get("/api/jumuia");
-        setJumuiaList(res.data);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
 
-        const user = JSON.parse(localStorage.getItem("user"));
-        if (user?.jumuiaId) setJoinedJumuia(user.jumuiaId);
-      } catch (err) {
-        console.error("Fetch Jumuia Error:", err);
-        setError(err.response?.data?.error || "Failed to fetch Jumuias");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchJumuia();
-  }, []);
+      const jRes = await api.get("/api/jumuia");
+      setJumuiaList(jRes.data);
+
+      const uRes = await api.get("/api/me");
+      setJoinedJumuia(uRes.data?.jumuiaId || null);
+
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+
+  // 🔥 Re-fetch whenever user returns to tab
+  const handleFocus = () => fetchData();
+  window.addEventListener("focus", handleFocus);
+
+  return () => window.removeEventListener("focus", handleFocus);
+
+}, []);
 
   const handleJoin = async (id, name) => {
     setJoiningId(id);
     try {
       const res = await api.patch("/api/join-jumuia", { jumuiaId: id });
-      const user = JSON.parse(localStorage.getItem("user"));
-      user.jumuiaId = id;
-      localStorage.setItem("user", JSON.stringify(user));
-      setJoinedJumuia(id);
+     
       alert(`Successfully joined ${name}`);
     } catch (err) {
       console.error("Join Jumuia Error:", err.response || err);

@@ -18,6 +18,8 @@ model User {
   lastActive        DateTime?
   jumuiaId          String?
   membership_number String?        @unique
+  resetCode        String?
+  resetCodeExpiry  DateTime?
   messages          Message[]
   Notification      Notification[]
   pledges           Pledge[]

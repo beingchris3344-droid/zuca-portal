@@ -105,6 +105,11 @@ async function updateLastActive(req, res, next) {
 // ====================
 app.get("/", (req, res) => res.json({ message: "ZUCA Backend Running 🚀" }));
 
+// Health check route (for uptime monitors)
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
 // ====================
 // Register
 // ====================

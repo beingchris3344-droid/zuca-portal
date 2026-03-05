@@ -120,83 +120,7 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// ====================
-// Forgot Password - Request Code
-// ====================
-app.post("/api/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required" });
 
-    // IMPORTANT: Normalize email to lowercase just like your Login route
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = await prisma.user.findUnique({ 
-      where: { email: normalizedEmail } 
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "Email not found" });
-    }
-
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await prisma.user.update({
-      where: { email: normalizedEmail },
-      data: { 
-        resetCode: code, 
-        resetCodeExpiry: expiry 
-      },
-    });
-
-    // Send the email
-    await sendResetCode(normalizedEmail, code);
-
-    res.json({ message: "Reset code sent!" });
-  } catch (err) {
-    console.error("Forgot Password Error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// ====================
-// Reset Password - Submit New Password
-// ====================
-app.post("/api/reset-password", async (req, res) => {
-  try {
-    const { email, code, newPassword } = req.body;
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = await prisma.user.findUnique({ 
-      where: { email: normalizedEmail } 
-    });
-
-    if (!user || user.resetCode !== code) {
-      return res.status(400).json({ error: "Invalid code" });
-    }
-
-    if (new Date() > user.resetCodeExpiry) {
-      return res.status(400).json({ error: "Code expired" });
-    }
-
-    const hashed = await bcrypt.hash(newPassword, 10);
-
-    await prisma.user.update({
-      where: { email: normalizedEmail },
-      data: {
-        password: hashed,
-        resetCode: null,
-        resetCodeExpiry: null,
-      },
-    });
-
-    res.json({ message: "Password updated successfully" });
-  } catch (err) {
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
 
 // ====================
 // Register
@@ -287,6 +211,84 @@ app.get("/api/me", authenticate, async (req, res) => {
   } catch (err) {
     console.error("ME ERROR:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// Forgot Password - Request Code
+// ====================
+app.post("/api/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    // IMPORTANT: Normalize email to lowercase just like your Login route
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await prisma.user.findUnique({ 
+      where: { email: normalizedEmail } 
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Email not found" });
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await prisma.user.update({
+      where: { email: normalizedEmail },
+      data: { 
+        resetCode: code, 
+        resetCodeExpiry: expiry 
+      },
+    });
+
+    // Send the email
+    await sendResetCode(normalizedEmail, code);
+
+    res.json({ message: "Reset code sent!" });
+  } catch (err) {
+    console.error("Forgot Password Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ====================
+// Reset Password - Submit New Password
+// ====================
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await prisma.user.findUnique({ 
+      where: { email: normalizedEmail } 
+    });
+
+    if (!user || user.resetCode !== code) {
+      return res.status(400).json({ error: "Invalid code" });
+    }
+
+    if (new Date() > user.resetCodeExpiry) {
+      return res.status(400).json({ error: "Code expired" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { email: normalizedEmail },
+      data: {
+        password: hashed,
+        resetCode: null,
+        resetCodeExpiry: null,
+      },
+    });
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

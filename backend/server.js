@@ -21,12 +21,12 @@ const { sendResetCode } = require("./services/mailer");
 
 
 
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
-});
-
+// Add this at the top of your middleware section in server.js
+app.use(cors({
+  origin: "https://zucaportal.onrender.com", // Your exact frontend URL
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 
 
 

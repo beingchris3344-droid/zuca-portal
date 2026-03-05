@@ -9,6 +9,8 @@ const { PrismaClient } = require("@prisma/client");
 const multer = require("multer"); // for file uploads
 
 const app = express();
+const server = require("http").createServer(app);
+const io = require("socket.io")(server, { cors: { origin: "*" } });
 app.use(cors());           // This stops the "Not Reachable" error
 app.use(express.json());
 const prisma = new PrismaClient();
@@ -16,7 +18,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const { createNotification, readNotifications, markAsRead } = require("./notifications");
 const http = require("http");
 const { Server } = require("socket.io");
-const server = http.createServer(app);
 const { sendResetCode } = require("./services/mailer");
 
 

@@ -97,10 +97,12 @@ function Layout() {
             <SidebarLink to="/contributions">Contributions</SidebarLink>
             <SidebarLink to="/jumuia-contributions">Jumuia Contributions</SidebarLink>
             <SidebarLink to="/chat">Chat</SidebarLink>
-            fontWeight: "500",
+            
+            
           </div>
         </div>
       </div>
+      
 
       {/* Main Content */}
       <div className="main-content">
@@ -174,7 +176,7 @@ function Layout() {
               top: 0;
               height: 100%;
               width: 260px;
-              background: rgba(255, 254, 254, 0.82);
+              background: linear-gradient(145deg, rgba(114, 184, 241, 0.89), rgba(227, 241, 235, 0.83));
               padding: 25px;
               display: flex;
               flex-direction: column;
@@ -258,9 +260,9 @@ const topHeaderStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "rgba(255, 255, 255, 0.44)",
+   background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
+    borderRadius: "12px",
   padding: "12px 20px",
-  borderRadius: "12px",
   marginBottom: "20px",
   color: "white",
   gap: "10px",

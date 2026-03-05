@@ -130,7 +130,7 @@ const menuBtnStyle = {
 const sidebarStyle = {
   width: 270,
   padding: "30px 20px",
-  background: "rgba(10, 12, 17, 0.34)",
+  background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
   backdropFilter: "blur(20px)",
   color: "#ffffff",
   display: "flex",
@@ -138,7 +138,7 @@ const sidebarStyle = {
   transition: "transform 0.3s ease",
   borderRadius: "20px",
   zIndex: 1200,
-  height: "102vh",
+  height: "108vh",
 };
 
 const logoStyle = {

@@ -309,7 +309,7 @@ const glassCard = {
   margin: "0 auto 35px",
   padding: "30px",
   borderRadius: "16px",
-  background: "#262020e0",
+  background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
   boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
 };
 
@@ -331,7 +331,7 @@ const input = {
   padding: "12px 14px",
   borderRadius: "10px",
   border: "1px solid #cbd5f5",
-  fontWeight: 900,
+  fontWeight: 700,
   fontSize: "18px",
   outline: "none",
 };
@@ -387,7 +387,7 @@ const secondaryBtn = { ...primaryBtn, background: "#64748b" };
 
 const editBtn = {
   padding: "8px 16px",
-  background: "#25eb2c00",
+  background: "#25eb2cd1",
   border: "none",
   borderRadius: "8px",
   color: "#fff",

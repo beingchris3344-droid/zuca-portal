@@ -136,8 +136,11 @@ function Dashboard() {
 
       {/* ===== WELCOME PANEL ===== */}
       <div style={welcomePanel}>
-        <h1 style={{ marginBottom: "10px" }}>Welcome back, {user.fullName.split(" ")[0]} 👋</h1>
+        <h1 style={{ marginBottom: "19px" }}>Welcome back, {user.fullName?.split(" ")[0]} 👋</h1>
         <p>This is your personal member dashboard. View announcements, contributions, mass programs, and interact with fellow members.</p>
+        <p> Make sure to join a Jumuia group today choose your specific Jumuia</p>
+        <h1 style={{ marginTop: "20px" }}> YOUR ZUCA ID IS - ({user.membership_number})</h1>
+      
       </div>
 
       {/* ===== STAT CARDS ===== */}
@@ -196,7 +199,7 @@ const profileCard = {
   padding: "10px",
   borderRadius: "20px",
   backdropFilter: "blur(14px)",
-  background: "rgba(217, 220, 241, 0.15)",
+  background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
   border: "1px solid rgba(255, 255, 255, 0.38)",
   marginBottom: "35px",
 };
@@ -206,6 +209,7 @@ const profileTop = {
   flexDirection: "row",
   gap: "30px",
   flexWrap: "wrap",
+  
   alignItems: "center",
   justifyContent: "center",
 };
@@ -290,7 +294,7 @@ const logoutBtn = {
   color: "white",
   fontWeight: "bold",
   cursor: "pointer",
-  height: "25px",
+  height: "29px",
 };
 
 const roleBadge = {
@@ -315,7 +319,8 @@ const welcomePanel = {
   padding: "30px",
   borderRadius: "20px",
   backdropFilter: "blur(12px)",
-  background: "rgba(212, 215, 223, 0.28)",
+   background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
+
   border: "1px solid rgb(255, 255, 255)",
   marginBottom: "30px",
   textAlign: "center",

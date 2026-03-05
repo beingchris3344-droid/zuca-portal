@@ -14,6 +14,7 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar toggle
+  const [usersCollapsed, setUsersCollapsed] = useState(false); // COLLAPSIBLE STATE
 
   const token = localStorage.getItem("token");
   if (!token) window.location.href = "/login";
@@ -94,40 +95,51 @@ function AdminDashboard() {
 
       {/* ===== USERS TABLE ===== */}
       <div style={styles.tableContainer}>
-        <h2 style={styles.tableTitle}>All Users</h2>
-        <div style={styles.tableWrapper}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>ID</th>
-                <th style={styles.th}>Name</th>
-                <th style={styles.th}>Email</th>
-                <th style={styles.th}>Role</th>
-                <th style={styles.th}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.id} style={styles.tr}>
-                  <td style={styles.td}>{user.id.slice(0, 8)}...</td>
-                  <td style={styles.td}>{user.fullName}</td>
-                  <td style={styles.td} title={user.email}>
-                    {user.email.length > 25 ? user.email.slice(0, 25) + "..." : user.email}
-                  </td>
-                  <td style={styles.td}>{user.role}</td>
-                  <td style={styles.td}>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      style={styles.deleteBtn}
-                    >
-                      Delete
-                    </button>
-                  </td>
+        <h2 style={styles.tableTitle}>
+          All Users
+          <button
+            onClick={() => setUsersCollapsed(!usersCollapsed)}
+            style={styles.collapseBtn}
+          >
+            {usersCollapsed ? "Show" : "Hide"}
+          </button>
+        </h2>
+
+        {!usersCollapsed && (
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>ID</th>
+                  <th style={styles.th}>Name</th>
+                  <th style={styles.th}>Email</th>
+                  <th style={styles.th}>Role</th>
+                  <th style={styles.th}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} style={styles.tr}>
+                    <td style={styles.td}>{user.id.slice(0, 8)}...</td>
+                    <td style={styles.td}>{user.fullName}</td>
+                    <td style={styles.td} title={user.email}>
+                      {user.email.length > 25 ? user.email.slice(0, 25) + "..." : user.email}
+                    </td>
+                    <td style={styles.td}>{user.role}</td>
+                    <td style={styles.td}>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        style={styles.deleteBtn}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -216,6 +228,18 @@ const styles = {
   tableTitle: {
     marginBottom: "15px",
     fontSize: "24px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  collapseBtn: {
+    padding: "6px 12px",
+    borderRadius: "12px",
+    border: "none",
+    background: "#00ffd0",
+    color: "#000",
+    cursor: "pointer",
+    fontSize: "14px",
   },
   table: {
     width: "100%",

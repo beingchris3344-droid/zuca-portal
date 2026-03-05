@@ -449,7 +449,7 @@ const styles = {
   },
   contributionCard: {
     backdropFilter: "blur(12px)",
-    background: "rgba(50,50,50,0.6)",
+    background: "rgba(13, 210, 228, 0.6)",
     borderRadius: 15,
     padding: 20,
     marginBottom: 25,
@@ -486,12 +486,14 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
+      background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
+
     minWidth: 700,
   },
   thead: {
     position: "sticky",
     top: 0,
-    background: "rgba(0,0,0,0.9)",
+    background: "rgba(30, 212, 212, 0.9)",
     zIndex: 5,
   },
   th: {
@@ -499,7 +501,7 @@ const styles = {
     textAlign: "left",
     fontSize: 15,
     fontWeight: 700,
-    borderBottom: "1px solid rgba(255,255,255,0.3)",
+    borderBottom: "1px solid rgba(219, 58, 58, 0.3)",
     whiteSpace: "nowrap",
   },
   td: {

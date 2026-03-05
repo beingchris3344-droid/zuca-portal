@@ -210,7 +210,8 @@ const styles = {
   container: {
     padding: "20px",
     minHeight: "100vh",
-    background: "linear-gradient(to right, #201d2db0, #928dab)",
+    borderRadius: "42px",
+    background: "linear-gradient(to right, #02b0efcf, #928dabc1)",
     color: "#fff",
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
@@ -227,7 +228,7 @@ const styles = {
   tableContainer: {
     overflowX: "auto",
     borderRadius: "12px",
-    background: "rgba(0,0,0,0.3)",
+  background: "linear-gradient(145deg, rgba(33, 133, 214, 0.89), rgba(138, 187, 166, 0.83))",
     padding: "20px",
   },
   table: {

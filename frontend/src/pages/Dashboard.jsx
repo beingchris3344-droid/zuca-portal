@@ -196,8 +196,8 @@ const profileCard = {
   padding: "10px",
   borderRadius: "20px",
   backdropFilter: "blur(14px)",
-  background: "rgba(0,0,0,0.4)",
-  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(217, 220, 241, 0.15)",
+  border: "1px solid rgba(255, 255, 255, 0.38)",
   marginBottom: "35px",
 };
 
@@ -315,8 +315,8 @@ const welcomePanel = {
   padding: "30px",
   borderRadius: "20px",
   backdropFilter: "blur(12px)",
-  background: "rgba(6, 6, 6, 0.28)",
-  border: "1px solid rgb(255, 242, 0)",
+  background: "rgba(212, 215, 223, 0.28)",
+  border: "1px solid rgb(255, 255, 255)",
   marginBottom: "30px",
   textAlign: "center",
 };
@@ -331,8 +331,8 @@ const statCard = {
   padding: "20px",
   borderRadius: "20px",
   backdropFilter: "blur(10px)",
-  background: "rgba(0, 0, 0, 0.53)",
-  border: "1px solid rgba(242, 255, 2, 0.99)",
+  background: "rgba(25, 124, 195, 0.53)",
+  border: "1px solid rgba(244, 244, 239, 0.99)",
   textAlign: "center",
   cursor: "pointer",
   transition: "all 0.3s ease",

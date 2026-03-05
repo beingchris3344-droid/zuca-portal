@@ -174,7 +174,7 @@ function Layout() {
               top: 0;
               height: 100%;
               width: 260px;
-              background: rgba(11, 10, 10, 0.83);
+              background: rgba(255, 254, 254, 0.82);
               padding: 25px;
               display: flex;
               flex-direction: column;
@@ -229,8 +229,8 @@ function SidebarLink({ to, children }) {
         color: "white",
         fontWeight: "500",
         backgroundColor: isActive
-          ? "rgba(74, 22, 171, 0.96)"
-          : "rgba(31, 33, 30, 0.79)",
+          ? "rgba(30, 171, 22, 0.96)"
+          : "rgba(17, 61, 182, 0.79)",
       })}
       onClick={() => {
         if (window.innerWidth <= 900) {
@@ -250,7 +250,7 @@ const logoCard = {
   gap: "10px",
   padding: "20px",
   marginTop: "55px",
-  backgroundColor: "rgba(37, 29, 29, 0.63)",
+  backgroundColor: "rgba(16, 9, 232, 0.87)",
   borderRadius: "12px",
 };
 
@@ -258,7 +258,7 @@ const topHeaderStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "rgba(0, 0, 0, 0.67)",
+  background: "rgba(255, 255, 255, 0.44)",
   padding: "12px 20px",
   borderRadius: "12px",
   marginBottom: "20px",

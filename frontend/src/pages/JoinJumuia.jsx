@@ -132,10 +132,10 @@ const grid = {
 
 const card = {
   background:
-    "linear-gradient(145deg, rgba(24,23,28,0.8), rgba(35,31,46,0.8))",
+    "linear-gradient(145deg, rgba(15, 7, 230, 0.89), rgba(75, 176, 134, 0.8))",
   padding: "1.5rem",
   borderRadius: "15px",
-  boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+  boxShadow: "0 4px 20px rgba(255, 255, 255, 0.82)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",

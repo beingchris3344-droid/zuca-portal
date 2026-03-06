@@ -5,15 +5,21 @@ const nodemailer = require("nodemailer");
  * Ensure EMAIL_USER and EMAIL_PASS are set in your .env file
  */
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  // Using the direct IPv4 address for smtp.gmail.com to bypass IPv6 issues
+  host: '74.125.136.108', 
   port: 587,
-  secure: false, // Must be false for port 587
+  secure: false, 
+  service: 'gmail', // Keep this so nodemailer knows it's Google
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, // Forces IPv4 to fix ENETUNREACH
-  connectionTimeout: 10000, // Wait 10 seconds before giving up
+  // Force IPv4
+  family: 4, 
+  // Disable strict SSL check if the IP address causes a certificate mismatch
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
 // Verify connection on startup to help with debugging

@@ -90,17 +90,18 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 
 // Utility function to send password reset email
-async function sendPasswordResetEmail(user, resetCode) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  family: 4,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+});
 
   await transporter.sendMail({
     from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,

@@ -5,11 +5,15 @@ const nodemailer = require("nodemailer");
  * Ensure EMAIL_USER and EMAIL_PASS are set in your .env file
  */
 const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // Use false for 587
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Your 16-digit Google App Password
+    pass: process.env.EMAIL_PASS,
   },
+  family: 4 
 });
 
 // Verify connection on startup to help with debugging

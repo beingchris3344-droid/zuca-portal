@@ -88,27 +88,64 @@ const upload = multer({
 });
 
 
+// ================== FIXED CORS FOR RENDER ==================
+// backend/server.js
+
+const allowedOrigins = [
+  "http://localhost:3000",          // Standard React
+  "http://localhost:5173",          // Vite (Check which one you see in your browser!)
+  "https://zucaportal.onrender.com" // Your Production Backend/Frontend link
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ================== AUTH ROUTES ==================
+
 // 1. REQUEST RESET CODE
 app.post("/api/auth/request", async (req, res) => {
   const { email } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email } });
+    
+    // Safety check: Don't tell hackers if an email exists, 
+    // but for your personal portal, this alert is fine.
     if (!user) return res.status(404).json({ error: "No account found with this email." });
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 15 * 60 * 1000);
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
     await prisma.user.update({
       where: { email },
-      data: { resetCode, resetCodeExpiry: expiry },
+      data: { 
+        resetCode: resetCode, 
+        resetCodeExpiry: expiry 
+      },
     });
 
-    await sendPasswordResetEmail(user, resetCode);
+    // Pass the actual email string to the mailer
+    await sendPasswordResetEmail(user.email, resetCode);
+    fullName: {user.fullName}
+    membership_number: {user.membership_number}
     res.json({ message: "Reset code sent! Check your inbox." });
 
   } catch (err) {
     console.error("Forgot Password Error:", err);
-    res.status(500).json({ error: "Email service is temporarily unavailable." });
+    res.status(500).json({ error: "Failed to send email. Check backend logs." });
   }
 });
 

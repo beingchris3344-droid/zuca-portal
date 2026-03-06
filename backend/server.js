@@ -91,7 +91,7 @@ const bcrypt = require("bcryptjs");
 
 // ==================== EMAIL TRANSPORTER ====================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: '64.233.184.108', // This is the direct IPv4 for smtp.gmail.com
   port: 465,
   secure: true,
   auth: {
@@ -99,9 +99,12 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
+    // This is important because the certificate is for 'smtp.gmail.com'
+    // but we are connecting via IP address
+    servername: 'smtp.gmail.com',
     rejectUnauthorized: false,
   },
-  family: 4, // <--- ADD THIS LINE (Forces IPv4)
+  family: 4,
   connectionTimeout: 20000,
   greetingTimeout: 20000,
 });

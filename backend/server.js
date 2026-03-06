@@ -89,42 +89,49 @@ const upload = multer({
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 
-// Email transporter
+// ==================== EMAIL TRANSPORTER ====================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false,
-  family: 4,
+  secure: false, // true for 465, false for 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // avoids some SSL issues
   },
   connectionTimeout: 10000,
   greetingTimeout: 10000,
 });
 
-// Utility function to send password reset email
+// ==================== UTILITY: SEND EMAIL ====================
 async function sendPasswordResetEmail(user, resetCode) {
-  await transporter.sendMail({
-    from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
-    to: user.email,
-    subject: "ZUCA Portal Password Reset Request",
-    text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. This code will expire in 15 minutes.`,
-    html: `
-      <div style="font-family: Arial; max-width:600px; margin:auto;">
-        <p>Hello <b>${user.fullName}</b> (ZUCA ID: <b>${user.membership_number}</b>)</p>
-        <p>Your reset code is:</p>
-        <h2>${resetCode}</h2>
-        <p>This code expires in 15 minutes.</p>
-        <p>If you did not request this, ignore this email.</p>
-        <br>
-        <p>ZUCA Portal Support Team</p>
-      </div>
-    `,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "ZUCA Portal Password Reset Request",
+      text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. It expires in 15 minutes.`,
+      html: `
+        <div style="font-family: Arial; max-width:600px; margin:auto;">
+          <p>Hello <b>${user.fullName}</b> (ZUCA ID: <b>${user.membership_number}</b>)</p>
+          <p>Your password reset code is:</p>
+          <h2>${resetCode}</h2>
+          <p>This code expires in 15 minutes.</p>
+          <p>If you did not request this, ignore this email thankyou.</p>
+          <br>
+          <p>Regards; @ZUCA Portal Support Team</p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error("Error sending password reset email:", err);
+    throw new Error("Failed to send email");
+  }
 }
 
-// ---------------- REQUEST PASSWORD RESET ----------------
+// ==================== REQUEST RESET CODE ====================
 app.post("/api/auth/request", async (req, res) => {
   const { email } = req.body;
 
@@ -133,7 +140,7 @@ app.post("/api/auth/request", async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found." });
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 15 * 60 * 1000);
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
     await prisma.user.update({
       where: { email },
@@ -149,7 +156,7 @@ app.post("/api/auth/request", async (req, res) => {
   }
 });
 
-// ---------------- VERIFY RESET CODE & RESET PASSWORD ----------------
+// ==================== VERIFY RESET CODE & CHANGE PASSWORD ====================
 app.post("/api/auth/verify", async (req, res) => {
   const { email, code, newPassword } = req.body;
 

@@ -9,75 +9,17 @@ const { PrismaClient } = require("@prisma/client");
 const multer = require("multer"); // for file uploads
 
 const app = express();
-app.use(cors());           // This stops the "Not Reachable" error
-app.use(express.json());
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const { createNotification, readNotifications, markAsRead } = require("./notifications");
 const http = require("http");
 const { Server } = require("socket.io");
 const server = http.createServer(app);
-const { sendResetCode } = require("./services/mailer");
-
-
 
 const io = new Server(server, {
   cors: {
     origin: "*",
   },
-});
-
-
-
-// --- PASSWORD RESET ROUTES ---
-
-// 1. Request a code
-app.post("/api/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-
-    await prisma.user.update({
-      where: { email },
-      data: { resetCode: code, resetCodeExpiry: expiry },
-    });
-
-    await sendResetCode(email, code);
-    res.json({ message: "Code sent to email!" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// 2. Reset the password
-app.post("/api/reset-password", async (req, res) => {
-  const { email, code, newPassword } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.resetCode !== code || new Date() > user.resetCodeExpiry) {
-      return res.status(400).json({ error: "Invalid or expired code" });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { email },
-      data: { 
-        password: hashedPassword, 
-        resetCode: null, 
-        resetCodeExpiry: null 
-      },
-    });
-
-    res.json({ message: "Password updated!" });
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
 });
 
 // ====================
@@ -140,7 +82,6 @@ function requireAdmin(req, res, next) {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
   next();
 }
-
 
 // ====================
 // Update lastActive
@@ -877,8 +818,6 @@ app.delete("/api/users/:id/delete-profile", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-
 
 // ====================
 // CONTRIBUTION SYSTEM ROUTES (FULL & STABLE)

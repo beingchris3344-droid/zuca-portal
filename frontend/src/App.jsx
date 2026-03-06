@@ -12,7 +12,6 @@ import MassPrograms from "./pages/MassPrograms";
 import Contributions from "./pages/Contributions";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
 import JumuiaContributions from "./pages/JumuiaContributions";
 import JoinJumuia from "./pages/JoinJumuia";
@@ -41,7 +40,6 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route

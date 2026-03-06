@@ -1,4 +1,3 @@
-// frontend/src/pages/ForgotPassword.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import bg from "../assets/background4.webp";
@@ -24,14 +23,15 @@ function ForgotPassword() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Reset code sent to your email.");
-        navigate("/reset-password"); // navigate to reset page
+        alert("Reset code sent to your email!");
+        // Use a leading slash to ensure it goes to the root /reset-password
+        navigate("/reset-password"); 
       } else {
-        alert(data.error || "Failed to send reset code.");
+        alert(data.error || "Something went wrong.");
       }
     } catch (err) {
       console.error(err);
-      alert("Network error. Try again.");
+      alert("Network error. Check if backend is running.");
     } finally {
       setLoading(false);
     }
@@ -41,33 +41,35 @@ function ForgotPassword() {
     <div style={pageStyle(bg)}>
       <div style={overlayStyle} />
       <div style={cardStyle}>
-        <div style={{ textAlign: "center", marginBottom: "10px" }}>
-          <img src={logo} alt="ZUCA Logo" style={{ width: "100px" }} />
+        <div style={{ textAlign: "center", marginBottom: "15px" }}>
+          <img src={logo} alt="ZUCA Logo" style={{ width: "80px" }} />
         </div>
 
-        <h2 style={{ textAlign: "center", marginBottom: "25px" }}>
-          Forgot Password
+        <h2 style={{ textAlign: "center", marginBottom: "20px" }}>
+          Forgot Password?
         </h2>
+        <p style={{ textAlign: "center", fontSize: "14px", marginBottom: "20px" }}>
+          Enter your email and we'll send you a 6-digit reset code.
+        </p>
 
         <form onSubmit={handleSubmit}>
           <input
             type="email"
-            placeholder="Enter your email"
+            placeholder="Enter your registered email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={inputStyle}
             required
           />
-
           <button style={buttonStyle} disabled={loading}>
             {loading ? "Sending..." : "Send Reset Code"}
           </button>
         </form>
 
-        <p style={{ marginTop: "15px", textAlign: "center" }}>
-          Remembered your password?{" "}
-          <Link to="/login" style={{ color: "#4da6ff" }}>
-            Login
+        <p style={{ marginTop: "20px", textAlign: "center", fontSize: "14px" }}>
+          {/* Added leading slash to ensure correct routing back to login */}
+          <Link to="/login" style={{ color: "#4da6ff", textDecoration: "none" }}>
+            ← Back to Login
           </Link>
         </p>
       </div>
@@ -75,9 +77,10 @@ function ForgotPassword() {
   );
 }
 
-export default ForgotPassword;
+export default ForgotPassword; // CRITICAL: Ensure this export exists!
 
 // ==================== Styles ====================
+
 const pageStyle = (bg) => ({
   minHeight: "100vh",
   backgroundImage: `url(${bg})`,
@@ -92,10 +95,9 @@ const pageStyle = (bg) => ({
 const overlayStyle = {
   position: "absolute",
   inset: 0,
-  background:
-    "linear-gradient(-45deg, rgba(49,15,221,0.6), rgba(0,0,0,0.7), rgba(49,15,221,0.6))",
+  background: "linear-gradient(-45deg, rgba(49,15,221,0.6), rgba(0,0,0,0.7), rgba(49,15,221,0.6))",
   backgroundSize: "400% 400%",
-  animation: "gradientMove 15s ease infinite",
+  zIndex: 0,
 };
 
 const cardStyle = {
@@ -103,7 +105,7 @@ const cardStyle = {
   zIndex: 1,
   backdropFilter: "blur(6px)",
   background: "rgba(27, 13, 13, 0.35)",
-  padding: "40px",
+  padding: "30px",
   borderRadius: "16px",
   width: "90%",
   maxWidth: "400px",
@@ -121,6 +123,7 @@ const inputStyle = {
   background: "rgba(255,255,255,0.15)",
   color: "white",
   fontSize: "14px",
+  boxSizing: "border-box",
 };
 
 const buttonStyle = {

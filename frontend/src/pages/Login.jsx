@@ -1,4 +1,3 @@
-// frontend/src/pages/Login.jsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import bg from "../assets/background3.webp";
@@ -29,7 +28,6 @@ function Login() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // ROLE BASED REDIRECT
         if (data.user.role === "admin") {
           navigate("/admin");
         } else {
@@ -40,57 +38,20 @@ function Login() {
       }
     } catch (err) {
       console.error("Login Error:", err);
-      alert(
-        "Network error. Ensure backend is reachable from your current network."
-      );
+      alert("Network error. Ensure backend is reachable.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundImage: `url(${bg})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        position: "relative",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(-45deg, rgba(49,15,221,0.6), rgba(0,0,0,0.7), rgba(49,15,221,0.6))",
-          backgroundSize: "400% 400%",
-          animation: "gradientMove 12s ease infinite",
-        }}
-      />
+    <div style={containerStyle(bg)}>
+      {/* Animated Overlay */}
+      <div style={overlayStyle} />
 
-      <div
-        style={{
-          position: "relative",
-          background: "rgba(27, 13, 13, 0.35)",
-          backdropFilter: "blur(6px)",
-          padding: "40px",
-          borderRadius: "16px",
-          width: "90%",
-          maxWidth: "400px",
-          color: "white",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
-        }}
-      >
+      <div style={cardStyle}>
         <div style={{ textAlign: "center", marginBottom: "15px" }}>
-          <img
-            src={logo}
-            alt="ZUCA Logo"
-            style={{ width: "60px", height: "auto" }}
-          />
+          <img src={logo} alt="ZUCA Logo" style={{ width: "60px", height: "auto" }} />
         </div>
 
         <h2 style={{ textAlign: "center", marginBottom: "25px" }}>
@@ -118,22 +79,17 @@ function Login() {
               required
               style={{ ...inputStyle, paddingRight: "40px" }}
             />
-            <span
-              onClick={() => setShowPassword(!showPassword)}
-              style={eyeStyle}
-            >
-              {showPassword ? "🙈" : "👁"}
+            <span onClick={() => setShowPassword(!showPassword)} style={eyeStyle}>
+              {showPassword ? "🙈" : "👁️"}
             </span>
           </div>
 
-        
 <div style={{ textAlign: "right", marginBottom: "15px" }}>
-  <Link 
-    to="/forgot-password" 
-    style={{ fontSize: "13px", color: "#ccc", textDecoration: "none" }}
-  >
-    Forgot Password?
-  </Link>
+  {/* The slash / is mandatory to go to the root path defined in App.jsx */}
+   
+<Link to="/forgot-password">
+  Forgot Password?
+</Link>
 </div>
 
           <button type="submit" style={buttonStyle} disabled={loading}>
@@ -157,17 +113,44 @@ function Login() {
             50% {background-position: 100% 50%;}
             100% {background-position: 0% 50%;}
           }
-
-          @media (max-width: 600px) {
-            input {
-              font-size: 14px;
-            }
-          }
         `}
       </style>
     </div>
   );
 }
+
+// ==================== Styles ====================
+
+const containerStyle = (bg) => ({
+  minHeight: "100vh",
+  backgroundImage: `url(${bg})`,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  position: "relative",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+});
+
+const overlayStyle = {
+  position: "absolute",
+  inset: 0,
+  background: "linear-gradient(-45deg, rgba(49,15,221,0.6), rgba(0,0,0,0.7), rgba(49,15,221,0.6))",
+  backgroundSize: "400% 400%",
+  animation: "gradientMove 12s ease infinite",
+};
+
+const cardStyle = {
+  position: "relative",
+  background: "rgba(27, 13, 13, 0.35)",
+  backdropFilter: "blur(6px)",
+  padding: "40px",
+  borderRadius: "16px",
+  width: "90%",
+  maxWidth: "400px",
+  color: "white",
+  boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
+};
 
 const labelStyle = {
   display: "block",
@@ -186,15 +169,16 @@ const inputStyle = {
   background: "rgba(255,255,255,0.15)",
   color: "white",
   fontSize: "14px",
+  boxSizing: "border-box", // Prevents input from overflowing
 };
 
 const eyeStyle = {
   position: "absolute",
   right: "12px",
-  top: "35%",
-  transform: "translateY(-50%)",
+  top: "50%",
+  transform: "translateY(-85%)", // Adjusted to align with text
   cursor: "pointer",
-  fontSize: "25px",
+  fontSize: "20px",
   opacity: 0.8,
 };
 

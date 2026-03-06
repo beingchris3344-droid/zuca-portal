@@ -1,13 +1,17 @@
-// frontend/src/pages/ForgotPassword.jsx
+// frontend/src/pages/ResetPassword.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import bg from "../assets/background4.webp";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
 
-function ForgotPassword() {
+function ResetPassword() {
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -15,19 +19,19 @@ function ForgotPassword() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/api/auth/request`, {
+      const res = await fetch(`${BASE_URL}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, code, newPassword }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        alert("Reset code sent to your email.");
-        navigate("/reset-password"); // navigate to reset page
+        alert("Password reset successfully. Please login.");
+        navigate("/login");
       } else {
-        alert(data.error || "Failed to send reset code.");
+        alert(data.error || "Failed to reset password.");
       }
     } catch (err) {
       console.error(err);
@@ -46,7 +50,7 @@ function ForgotPassword() {
         </div>
 
         <h2 style={{ textAlign: "center", marginBottom: "25px" }}>
-          Forgot Password
+          Reset Password
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -59,13 +63,39 @@ function ForgotPassword() {
             required
           />
 
+          <input
+            type="text"
+            placeholder="Enter reset code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            style={inputStyle}
+            required
+          />
+
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              style={{ ...inputStyle, paddingRight: "40px" }}
+              required
+            />
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              style={eyeStyle}
+            >
+              {showPassword ? "🙈" : "👁"}
+            </span>
+          </div>
+
           <button style={buttonStyle} disabled={loading}>
-            {loading ? "Sending..." : "Send Reset Code"}
+            {loading ? "Resetting..." : "Reset Password"}
           </button>
         </form>
 
         <p style={{ marginTop: "15px", textAlign: "center" }}>
-          Remembered your password?{" "}
+          Back to{" "}
           <Link to="/login" style={{ color: "#4da6ff" }}>
             Login
           </Link>
@@ -75,9 +105,9 @@ function ForgotPassword() {
   );
 }
 
-export default ForgotPassword;
+export default ResetPassword;
 
-// ==================== Styles ====================
+// Reuse styles
 const pageStyle = (bg) => ({
   minHeight: "100vh",
   backgroundImage: `url(${bg})`,
@@ -121,6 +151,16 @@ const inputStyle = {
   background: "rgba(255,255,255,0.15)",
   color: "white",
   fontSize: "14px",
+};
+
+const eyeStyle = {
+  position: "absolute",
+  right: "12px",
+  top: "35%",
+  transform: "translateY(-50%)",
+  cursor: "pointer",
+  fontSize: "25px",
+  opacity: 0.8,
 };
 
 const buttonStyle = {

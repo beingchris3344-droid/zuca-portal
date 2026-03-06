@@ -13,8 +13,12 @@ import Contributions from "./pages/Contributions";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+
 import JumuiaContributions from "./pages/JumuiaContributions";
 import JoinJumuia from "./pages/JoinJumuia";
+
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -40,6 +44,8 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route
@@ -74,7 +80,7 @@ function App() {
           <Route path="songs" element={<SongsPage />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />
-          <Route path="/admin/jumuia-management" element={<JumuiaManagement />} />
+          <Route path="jumuia-management" element={<JumuiaManagement />} />
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
         </Route>

@@ -91,24 +91,21 @@ const bcrypt = require("bcryptjs");
 
 // ==================== EMAIL TRANSPORTER ====================
 const transporter = nodemailer.createTransport({
-  host: '64.233.184.108', // This is the direct IPv4 for smtp.gmail.com
-  port: 465,
-  secure: true,
+  host: "smtp.gmail.com",
+  port: 587, // Switch back to 587 but we will force the settings below
+  secure: false, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    // This is important because the certificate is for 'smtp.gmail.com'
-    // but we are connecting via IP address
-    servername: 'smtp.gmail.com',
     rejectUnauthorized: false,
+    minVersion: "TLSv1.2" // Forces a modern security standard
   },
-  family: 4,
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
+  family: 4, 
+  connectionTimeout: 30000, // Give it a full 30 seconds
+  greetingTimeout: 30000,
 });
-
 // ==================== UTILITY: SEND EMAIL ====================
 async function sendPasswordResetEmail(user, resetCode) {
   try {

@@ -18,12 +18,14 @@ app.use(express.urlencoded({ extended: true }));
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const bcrypt = require("bcryptjs");
 
 ; // keep only once
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
 // ================== EMAIL ==================
+const { sendPasswordResetEmail } = require("./services/mailer");
 
 // ================== NOTIFICATIONS ==================
 const {
@@ -85,63 +87,16 @@ const upload = multer({
   },
 });
 
-// ==================== PASSWORD RESET ROUTES ====================
-const nodemailer = require("nodemailer");
-const bcrypt = require("bcryptjs");
 
-// ==================== EMAIL TRANSPORTER ====================
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587, // Switch back to 587 but we will force the settings below
-  secure: false, 
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-    minVersion: "TLSv1.2" // Forces a modern security standard
-  },
-  family: 4, 
-  connectionTimeout: 30000, // Give it a full 30 seconds
-  greetingTimeout: 30000,
-});
-// ==================== UTILITY: SEND EMAIL ====================
-async function sendPasswordResetEmail(user, resetCode) {
-  try {
-    await transporter.sendMail({
-      from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: "ZUCA Portal Password Reset Request",
-      text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. It expires in 15 minutes.`,
-      html: `
-        <div style="font-family: Arial; max-width:600px; margin:auto;">
-          <p>Hello <b>${user.fullName}</b> (ZUCA ID: <b>${user.membership_number}</b>)</p>
-          <p>Your password reset code is:</p>
-          <h2>${resetCode}</h2>
-          <p>This code expires in 15 minutes.</p>
-          <p>If you did not request this, ignore this email thankyou.</p>
-          <br>
-          <p>Regards; @ZUCA Portal Support Team</p>
-        </div>
-      `,
-    });
-  } catch (err) {
-    console.error("Error sending password reset email:", err);
-    throw new Error("Failed to send email");
-  }
-}
-
-// ==================== REQUEST RESET CODE ====================
+// 1. REQUEST RESET CODE
 app.post("/api/auth/request", async (req, res) => {
   const { email } = req.body;
-
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found." });
+    if (!user) return res.status(404).json({ error: "No account found with this email." });
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
     await prisma.user.update({
       where: { email },
@@ -149,37 +104,44 @@ app.post("/api/auth/request", async (req, res) => {
     });
 
     await sendPasswordResetEmail(user, resetCode);
+    res.json({ message: "Reset code sent! Check your inbox." });
 
-    res.json({ message: "Reset code sent to your email." });
   } catch (err) {
-    console.error("Password reset request error:", err);
-    res.status(500).json({ error: "Server error." });
+    console.error("Forgot Password Error:", err);
+    res.status(500).json({ error: "Email service is temporarily unavailable." });
   }
 });
 
-// ==================== VERIFY RESET CODE & CHANGE PASSWORD ====================
+// 2. VERIFY CODE & UPDATE PASSWORD
 app.post("/api/auth/verify", async (req, res) => {
   const { email, code, newPassword } = req.body;
-
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found." });
+    
+    if (!user || user.resetCode !== code) {
+      return res.status(400).json({ error: "Invalid reset code." });
+    }
 
-    if (user.resetCode !== code) return res.status(400).json({ error: "Invalid code." });
-    if (!user.resetCodeExpiry || user.resetCodeExpiry < new Date())
-      return res.status(400).json({ error: "Code expired." });
+    if (new Date() > user.resetCodeExpiry) {
+      return res.status(400).json({ error: "Code has expired. Request a new one." });
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
       where: { email },
-      data: { password: hashedPassword, resetCode: null, resetCodeExpiry: null },
+      data: { 
+        password: hashedPassword, 
+        resetCode: null, 
+        resetCodeExpiry: null 
+      },
     });
 
-    res.json({ message: "Password reset successfully." });
+    res.json({ message: "Password updated successfully! You can now log in." });
+
   } catch (err) {
-    console.error("Password reset verify error:", err);
-    res.status(500).json({ error: "Server error." });
+    console.error("Verify Error:", err);
+    res.status(500).json({ error: "Internal server error." });
   }
 });
 

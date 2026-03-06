@@ -92,16 +92,17 @@ const bcrypt = require("bcryptjs");
 // ==================== EMAIL TRANSPORTER ====================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,       // Change from 587 to 465
-  secure: true,    // Change from false to true
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false, 
+    rejectUnauthorized: false,
   },
-  connectionTimeout: 20000, // Increased timeout for slow connections
+  family: 4, // <--- ADD THIS LINE (Forces IPv4)
+  connectionTimeout: 20000,
   greetingTimeout: 20000,
 });
 

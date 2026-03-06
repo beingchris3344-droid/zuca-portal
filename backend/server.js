@@ -89,7 +89,7 @@ const upload = multer({
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 
-// Utility function to send password reset email
+// Email transporter
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -103,24 +103,22 @@ const transporter = nodemailer.createTransport({
   greetingTimeout: 10000,
 });
 
+// Utility function to send password reset email
+async function sendPasswordResetEmail(user, resetCode) {
   await transporter.sendMail({
     from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
     to: user.email,
     subject: "ZUCA Portal Password Reset Request",
-    text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. This code will expire in 15 minutes. If you did not request this password reset, ignore this email. - ZUCA Portal Support Team`,
+    text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. This code will expire in 15 minutes.`,
     html: `
-      <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
-        <p>Hello <span style="color: #1a73e8; font-weight: bold;">${user.fullName}</span> (ZUCA ID: <strong>${user.membership_number}</strong>),</p>
-        <p>You requested a password reset for your ZUCA Portal account.</p>
-        <p style="margin: 20px 0;">
-          <span style="display: inline-block; background-color: #fff3f3; border: 1px solid #d9534f; color: #d9534f; font-weight: bold; font-size: 22px; padding: 10px 20px; border-radius: 5px;">
-            ${resetCode}
-          </span>
-        </p>
-        <p>This code will expire in <strong>15 minutes</strong>.</p>
-        <p>If you did not request this password reset, you can safely ignore this email.</p>
-        <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;">
-        <p>Thank you,<br><strong>ZUCA Portal Support Team</strong></p>
+      <div style="font-family: Arial; max-width:600px; margin:auto;">
+        <p>Hello <b>${user.fullName}</b> (ZUCA ID: <b>${user.membership_number}</b>)</p>
+        <p>Your reset code is:</p>
+        <h2>${resetCode}</h2>
+        <p>This code expires in 15 minutes.</p>
+        <p>If you did not request this, ignore this email.</p>
+        <br>
+        <p>ZUCA Portal Support Team</p>
       </div>
     `,
   });

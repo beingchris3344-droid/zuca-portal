@@ -19,12 +19,11 @@ app.use(express.urlencoded({ extended: true }));
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const bcrypt = require("bcryptjs"); // keep only once
+; // keep only once
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
 // ================== EMAIL ==================
-const nodemailer = require("nodemailer");
 
 // ================== NOTIFICATIONS ==================
 const {
@@ -86,8 +85,47 @@ const upload = multer({
   },
 });
 
-// ==================== REQUEST PASSWORD RESET ====================
+// ==================== PASSWORD RESET ROUTES ====================
+const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs");
 
+// Utility function to send password reset email
+async function sendPasswordResetEmail(user, resetCode) {
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
+    to: user.email,
+    subject: "ZUCA Portal Password Reset Request",
+    text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. This code will expire in 15 minutes. If you did not request this password reset, ignore this email. - ZUCA Portal Support Team`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
+        <p>Hello <span style="color: #1a73e8; font-weight: bold;">${user.fullName}</span> (ZUCA ID: <strong>${user.membership_number}</strong>),</p>
+        <p>You requested a password reset for your ZUCA Portal account.</p>
+        <p style="margin: 20px 0;">
+          <span style="display: inline-block; background-color: #fff3f3; border: 1px solid #d9534f; color: #d9534f; font-weight: bold; font-size: 22px; padding: 10px 20px; border-radius: 5px;">
+            ${resetCode}
+          </span>
+        </p>
+        <p>This code will expire in <strong>15 minutes</strong>.</p>
+        <p>If you did not request this password reset, you can safely ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;">
+        <p>Thank you,<br><strong>ZUCA Portal Support Team</strong></p>
+      </div>
+    `,
+  });
+}
+
+// ---------------- REQUEST PASSWORD RESET ----------------
 app.post("/api/auth/request", async (req, res) => {
   const { email } = req.body;
 
@@ -103,44 +141,8 @@ app.post("/api/auth/request", async (req, res) => {
       data: { resetCode, resetCodeExpiry: expiry },
     });
 
-    const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  requireTLS: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+    await sendPasswordResetEmail(user, resetCode);
 
-  await transporter.sendMail({
-  from: `"ZUCA Portal Support" <${process.env.EMAIL_USER}>`,
-  to: email,
-  subject: "ZUCA Portal Password Reset Request",
-  text: `Hello ${user.fullName} (ZUCA ID: ${user.membership_number}), your reset code is: ${resetCode}. This code will expire in 15 minutes. If you did not request this password reset, you can safely ignore this email. Thank you. - ZUCA Portal Support Team`,
-  html: `
-    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
-      
-      <p>Hello <span style="color: #1a73e8; font-weight: bold;">${user.fullName}</span> (ZUCA ID: <strong>${user.membership_number}</strong>),</p>
-      
-      <p>You requested a password reset for your ZUCA Portal account.</p>
-
-      <p style="margin: 20px 0;">
-        <span style="display: inline-block; background-color: #fff3f3; border: 1px solid #d9534f; color: #d9534f; font-weight: bold; font-size: 22px; padding: 10px 20px; border-radius: 5px;">
-          ${resetCode}
-        </span>
-      </p>
-
-      <p>This code will expire in <strong>15 minutes</strong>.</p>
-      <p>If you did not request this password reset, you can safely ignore this email.</p>
-
-      <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;">
-
-      <p>Thank you,<br><strong>ZUCA Portal Support Team</strong></p>
-    </div>
-  `,
-});
     res.json({ message: "Reset code sent to your email." });
   } catch (err) {
     console.error("Password reset request error:", err);
@@ -148,7 +150,7 @@ app.post("/api/auth/request", async (req, res) => {
   }
 });
 
-// ==================== VERIFY RESET CODE & RESET PASSWORD ====================
+// ---------------- VERIFY RESET CODE & RESET PASSWORD ----------------
 app.post("/api/auth/verify", async (req, res) => {
   const { email, code, newPassword } = req.body;
 
@@ -169,7 +171,7 @@ app.post("/api/auth/verify", async (req, res) => {
 
     res.json({ message: "Password reset successfully." });
   } catch (err) {
-    console.error(err);
+    console.error("Password reset verify error:", err);
     res.status(500).json({ error: "Server error." });
   }
 });

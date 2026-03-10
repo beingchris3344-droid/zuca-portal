@@ -18,12 +18,26 @@ model User {
   lastActive        DateTime?
   jumuiaId          String?
   membership_number String?        @unique
-  resetCode        String?
-  resetCodeExpiry  DateTime?
-  messages          Message[]
+  resetCode         String?
+  resetCodeExpiry   DateTime?
+  
+  // EXISTING RELATIONS - Keep as is
+  messages          Message[]      @relation("UserMessages") // Added relation name
   Notification      Notification[]
   pledges           Pledge[]
   jumuia            Jumuia?        @relation(fields: [jumuiaId], references: [id])
+  
+  // NEW CHAT RELATIONS
+  messageReactions  MessageReaction[]
+  readReceipts      ReadReceipt[]
+  mentions          Mention[]
+  pinnedMessages    Pin[]
+  blockedUsers      BlockedUser[]  @relation("UserBlocks")
+  blockedBy         BlockedUser[]  @relation("BlockedBy")
+  
+  // NEW CHAT FIELDS
+  isOnline          Boolean        @default(false)
+  lastSeen          DateTime?
 }
 
 model Announcement {
@@ -89,21 +103,137 @@ model Pledge {
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ==================== CHAT ROOM MODEL ====================
 model ChatRoom {
-  id        String    @id @default(uuid())
-  name      String
-  createdAt DateTime  @default(now())
-  messages  Message[]
+  id            String         @id @default(uuid())
+  name          String         @unique
+  description   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Relations
+  messages      Message[]
+  pinnedMessages Pin[]
+  
+  // NEW FIELDS
+  isActive      Boolean        @default(true)
+  lastMessageAt DateTime?
 }
 
+// ==================== MESSAGE MODEL ====================
 model Message {
-  id        String   @id @default(uuid())
-  content   String
-  userId    String
-  roomId    String
-  createdAt DateTime @default(now())
-  room      ChatRoom @relation(fields: [roomId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  id            String         @id @default(uuid())
+  content       String         @db.Text
+  userId        String
+  roomId        String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Relations - Fixed with proper relation names
+  room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade, name: "UserMessages")
+  
+  // NEW FIELDS FOR RICH FEATURES
+  replyToId     String?
+  replyTo       Message?       @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies       Message[]      @relation("MessageReplies")
+  attachments   Json?          
+  isEdited      Boolean        @default(false)
+  isDeleted     Boolean        @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?        
+  
+  // NEW RELATIONS
+  reactions     MessageReaction[]
+  mentions      Mention[]
+  readReceipts  ReadReceipt[]
+  pins          Pin[]
+
+  @@index([userId])
+  @@index([roomId])
+  @@index([createdAt])
+  @@index([replyToId])
+  @@index([isDeleted])
+}
+
+// ==================== NEW MODEL: Message Reaction ====================
+model MessageReaction {
+  id            String         @id @default(uuid())
+  messageId     String
+  userId        String
+  reaction      String         
+  createdAt     DateTime       @default(now())
+
+  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, reaction])
+  @@index([messageId])
+  @@index([userId])
+}
+
+// ==================== NEW MODEL: Mention ====================
+model Mention {
+  id            String         @id @default(uuid())
+  messageId     String
+  userId        String
+  isRead        Boolean        @default(false)
+  readAt        DateTime?
+  createdAt     DateTime       @default(now())
+
+  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, isRead])
+  @@index([messageId])
+}
+
+// ==================== NEW MODEL: Read Receipt ====================
+model ReadReceipt {
+  id            String         @id @default(uuid())
+  messageId     String
+  userId        String
+  readAt        DateTime       @default(now())
+
+  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([messageId])
+}
+
+// ==================== NEW MODEL: Pin ====================
+model Pin {
+  id            String         @id @default(uuid())
+  messageId     String
+  roomId        String
+  userId        String
+  createdAt     DateTime       @default(now())
+
+  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, messageId])
+  @@index([roomId])
+  @@index([messageId])
+}
+
+// ==================== NEW MODEL: Blocked User ====================
+model BlockedUser {
+  id            String         @id @default(uuid())
+  userId        String         
+  blockedId     String         
+  createdAt     DateTime       @default(now())
+
+  user          User           @relation("UserBlocks", fields: [userId], references: [id], onDelete: Cascade)
+  blocked       User           @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blockedId])
+  @@index([userId])
+  @@index([blockedId])
 }
 
 model Jumuia {
@@ -116,7 +246,7 @@ model Jumuia {
 }
 
 model Notification {
-  id        String   @id
+  id        String   @id @default(uuid())
   userId    String
   type      String
   title     String

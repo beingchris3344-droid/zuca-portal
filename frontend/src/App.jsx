@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
-
+import Landing2 from "./pages/Landing2";
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -36,6 +36,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+
+
+        <Route path="/" element={<Landing2 />} />
 
         {/* ================= LANDING PAGE ================= */}
         <Route path="/" element={<Landing />} />

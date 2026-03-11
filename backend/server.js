@@ -15,6 +15,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
+
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
@@ -22,6 +24,12 @@ const bcrypt = require("bcryptjs");
 
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
+
+
+// ================== ADD THIS LINE ==================
+// In-memory store for reset attempts (phone_membership -> { attempts, lastAttempt })
+const resetAttempts = new Map();
+
 
 // ================== EMAIL ==================
 const { sendPasswordResetEmail } = require("./services/mailer");
@@ -60,6 +68,8 @@ const markAsRead = (userId) => {
   userNotifs.forEach(n => n.read = true);
   return userNotifs;
 };
+
+
 
 // ================== SOCKET.IO ==================
 const { Server } = require("socket.io");
@@ -244,105 +254,116 @@ app.get("/health", (req, res) => {
 // ====================
 // Register
 // ====================
-// In your backend register route
-// ====================
-// Register - FIXED for text membership_number
-// ====================
 app.post("/api/register", async (req, res) => {
   try {
-    const { fullName, email, password } = req.body;
+    const { fullName, email, password, phone } = req.body;
+
+    // Validate required fields
+    if (!fullName || !email || !password || !phone) {
+      return res.status(400).json({
+        error: "Full name, email, password, and phone are required",
+      });
+    }
+
+    // Format Kenyan phone numbers
+    let formattedPhone = phone;
+    if (phone.startsWith("07")) {
+      formattedPhone = "+254" + phone.slice(1);
+    }
+
     const normalizedEmail = email.toLowerCase();
 
-    // Check if user exists
-    const existing = await prisma.user.findUnique({ 
-      where: { email: normalizedEmail } 
+    // Check if email exists
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
     });
-    if (existing) return res.status(400).json({ error: "Email exists" });
+    if (existingEmail) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
 
+    // Check if phone exists — use findFirst to avoid PrismaUnique issue
+    const existingPhone = await prisma.user.findUnique({
+  where: { phone: formattedPhone },
+});
+    if (existingPhone) {
+      return res.status(400).json({ error: "Phone already registered" });
+    }
+
+    // Hash password
     const hashed = await bcrypt.hash(password, 10);
-    
-    // Generate membership number - FIXED FOR TEXT FIELD
+    // ====================
+    // MEMBERSHIP NUMBER
+    // ====================
+
     let membershipNumber = "Z#001";
-    
+
     try {
-      // Find the last user with a valid membership number
       const lastUser = await prisma.user.findFirst({
         orderBy: { createdAt: "desc" },
-        where: { 
-          membership_number: { 
+        where: {
+          membership_number: {
             not: null,
             not: "nan",
             not: ""
-          } 
-        },
+          }
+        }
       });
 
-      console.log("Last user membership:", lastUser?.membership_number);
-
       if (lastUser?.membership_number) {
-        // Extract number from string like "Z#001"
         const membershipStr = String(lastUser.membership_number);
-        
-        // Try to extract digits using regex
         const match = membershipStr.match(/\d+/);
-        
+
         if (match) {
           const lastNum = parseInt(match[0], 10);
-          console.log("Last number extracted:", lastNum);
-          
+
           if (!isNaN(lastNum)) {
             const nextNum = (lastNum + 1).toString().padStart(3, "0");
             membershipNumber = `Z#${nextNum}`;
-            console.log("Next membership number:", membershipNumber);
           }
         } else {
-          // If no digits found, just increment a counter based on total users
           const userCount = await prisma.user.count();
           const nextNum = (userCount + 1).toString().padStart(3, "0");
           membershipNumber = `Z#${nextNum}`;
         }
-      } else {
-        // First user - use Z#001
-        console.log("First user, using Z#001");
       }
+
     } catch (err) {
-      console.error("Error generating membership number:", err);
-      // Fallback: use timestamp
+      console.error("Membership generation error:", err);
       const timestamp = Date.now().toString().slice(-6);
       membershipNumber = `Z#${timestamp}`;
     }
 
-    console.log("Final membership number:", membershipNumber);
+    // ====================
+    // CREATE USER
+    // ====================
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         fullName,
         email: normalizedEmail,
         password: hashed,
+        phone: formattedPhone,
         membership_number: membershipNumber,
-        role: "member",
-      },
+        role: "member"
+      }
     });
 
-    console.log("User created with membership:", user.membership_number);
-
     const token = jwt.sign(
-      { userId: user.id, role: user.role }, 
-      JWT_SECRET, 
+      { userId: user.id, role: user.role },
+      JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastActive: new Date() },
+      data: { lastActive: new Date() }
     });
 
-    // Return user without password
     const { password: _, ...userWithoutPassword } = user;
-    res.json({ 
-      token, 
-      user: userWithoutPassword 
+
+    res.json({
+      token,
+      user: userWithoutPassword
     });
 
   } catch (err) {
@@ -397,10 +418,203 @@ app.get("/api/me", authenticate, async (req, res) => {
   }
 });
 
+// Request reset code with in-memory attempt tracking
+app.post("/api/auth/request-reset", async (req, res) => {
+  try {
+    const { phone, membershipNumber } = req.body;
+    
+    // Create a unique key
+    const attemptKey = `${phone}_${membershipNumber}`;
+    const now = Date.now();
+    
+    // Get current attempts
+    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
+    
+    // Check if locked out (5 attempts in 30 minutes)
+    if (userAttempts.attempts >= 5) {
+      const thirtyMinutesAgo = now - 30 * 60 * 1000;
+      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
+        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
+        return res.status(429).json({ 
+          error: `Too many reset attempts. Please try again in ${waitTime} minutes.` 
+        });
+      } else {
+        // Reset attempts if last attempt was more than 30 minutes ago
+        userAttempts = { attempts: 0, lastAttempt: now };
+      }
+    }
+    
+    // Find user
+    const user = await prisma.user.findFirst({
+      where: { phone, membership_number: membershipNumber }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "No account found" });
+    }
+    
+    // Generate code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCodeExpiry = new Date(now + 15 * 60 * 1000);
+    
+    // Save to database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode, resetCodeExpiry }
+    });
+    
+    // Increment attempts in memory
+    userAttempts.attempts += 1;
+    userAttempts.lastAttempt = now;
+    resetAttempts.set(attemptKey, userAttempts);
+    
+    res.json({ 
+      message: "Reset code generated",
+      code: resetCode,
+      expiresIn: 15,
+      attemptsRemaining: 5 - userAttempts.attempts
+    });
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Resend code with attempt tracking
+app.post("/api/auth/resend-code", async (req, res) => {
+  try {
+    const { phone, membershipNumber } = req.body;
+    
+    const attemptKey = `${phone}_${membershipNumber}`;
+    const now = Date.now();
+    
+    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
+    
+    // Check if locked out
+    if (userAttempts.attempts >= 5) {
+      const thirtyMinutesAgo = now - 30 * 60 * 1000;
+      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
+        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
+        return res.status(429).json({ 
+          error: `Too many attempts. Try again in ${waitTime} minutes.` 
+        });
+      }
+    }
+    
+    const user = await prisma.user.findFirst({
+      where: { phone, membership_number: membershipNumber }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCodeExpiry = new Date(now + 15 * 60 * 1000);
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode, resetCodeExpiry }
+    });
+    
+    // Increment attempts
+    userAttempts.attempts += 1;
+    userAttempts.lastAttempt = now;
+    resetAttempts.set(attemptKey, userAttempts);
+    
+    res.json({ 
+      message: "New code generated",
+      code: resetCode,
+      expiresIn: 15,
+      attemptsRemaining: 5 - userAttempts.attempts
+    });
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Verify code - reset attempts on success
+app.post("/api/auth/verify-reset", async (req, res) => {
+  try {
+    const { phone, membershipNumber, code, newPassword } = req.body;
+    
+    const attemptKey = `${phone}_${membershipNumber}`;
+    const now = Date.now();
+    
+    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
+    
+    // Check if locked out
+    if (userAttempts.attempts >= 5) {
+      const thirtyMinutesAgo = now - 30 * 60 * 1000;
+      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
+        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
+        return res.status(429).json({ 
+          error: `Too many failed attempts. Try again in ${waitTime} minutes.` 
+        });
+      }
+    }
+    
+    const user = await prisma.user.findFirst({
+      where: { phone, membership_number: membershipNumber }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Check code
+    if (user.resetCode !== code) {
+      // Increment attempts on failure
+      userAttempts.attempts += 1;
+      userAttempts.lastAttempt = now;
+      resetAttempts.set(attemptKey, userAttempts);
+      
+      const remaining = 5 - userAttempts.attempts;
+      if (remaining <= 0) {
+        return res.status(400).json({ error: "No attempts remaining. Try again in 30 minutes." });
+      } else {
+        return res.status(400).json({ error: `Invalid code. ${remaining} attempts remaining.` });
+      }
+    }
+    
+    if (!user.resetCodeExpiry || user.resetCodeExpiry < new Date()) {
+      return res.status(400).json({ error: "Code expired" });
+    }
+    
+    // Success - reset attempts
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        password: hashedPassword, 
+        resetCode: null,
+        resetCodeExpiry: null
+      }
+    });
+    
+    // Clear attempts on success
+    resetAttempts.delete(attemptKey);
+    
+    res.json({ message: "Password updated successfully", success: true });
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 // ====================
 // Apply authenticate + lastActive for protected routes
 // ====================
 app.use(authenticate, updateLastActive);
+
+
+
 
 // ====================
 // DASHBOARD STATS ENDPOINTS

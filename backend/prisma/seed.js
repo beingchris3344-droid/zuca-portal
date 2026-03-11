@@ -1,30 +1,52 @@
-// prisma/seed.js
 const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const hashedPassword = await bcrypt.hash("admin.zuca", 10);
-
-  // Update admin to use lowercase 'admin' role
-  await prisma.user.update({
-    where: { email: "admin@zuca.com" },
-    data: {
-      password: hashedPassword,
-      role: "admin", // lowercase to match your codebase
-      fullName: "ZUCA ADMIN"
-    }
+  await prisma.jumuia.upsert({
+    where: { name: "ST. PEREGRINE" },
+    update: {},
+    create: { name: "ST. PEREGRINE" }
   });
 
-  console.log("✅ Admin updated with lowercase 'admin' role");
-  console.log("\n📝 Login credentials:");
-  console.log("Admin - email: admin@zuca.com, password: admin.zuca");
+  await prisma.jumuia.upsert({
+    where: { name: "ST. BENEDICT" },
+    update: {},
+    create: { name: "ST. BENEDICT" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "CHRIST THE KING" },
+    update: {},
+    create: { name: "CHRIST THE KING" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. MICHAEL" },
+    update: {},
+    create: { name: "ST. MICHAEL" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. GREGORY" },
+    update: {},
+    create: { name: "ST. GREGORY" }
+  });
+
+  await prisma.jumuia.upsert({
+    where: { name: "ST. PACIFICUS" },
+    update: {},
+    create: { name: "ST. PACIFICUS" }
+  });
+
+  console.log("Jumuia seeded successfully");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seeding failed:", e);
+    console.error(e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -12,6 +12,13 @@ model User {
   fullName          String
   email             String         @unique
   password          String
+
+  
+
+   // NEW FIELD
+  phone             String         @unique
+  phoneVerified     Boolean        @default(false)
+  
   role              String         @default("member")
   profileImage      String?
   createdAt         DateTime       @default(now())
@@ -20,6 +27,8 @@ model User {
   membership_number String?        @unique
   resetCode         String?
   resetCodeExpiry   DateTime?
+  resetAttempts     Int           @default(0)
+  lastResetAttempt  DateTime?
   
   // EXISTING RELATIONS - Keep as is
   messages          Message[]      @relation("UserMessages")
@@ -41,6 +50,15 @@ model User {
   // NEW CHAT FIELDS
   isOnline          Boolean        @default(false)
   lastSeen          DateTime?
+
+
+  // ===== NEW MEDIA GALLERY RELATIONS =====
+  uploadedMedia     Media[]        @relation("UserMedia")
+  mediaLikes        MediaLike[]
+  mediaDownloads    MediaDownload[]
+  mediaShares       MediaShare[]
+  mediaViews        MediaView[]
+  mediaComments     MediaComment[]
 }
 
 model Announcement {
@@ -269,4 +287,110 @@ model PushSubscription {
   updatedAt    DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ==================== MEDIA GALLERY MODELS ====================
+
+model Media {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?   @db.Text
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  sizeFormatted String
+  type          String    // image, video, audio, document
+  url           String
+  category      String    @default("uncategorized")
+  tags          String[]
+  isPublic      Boolean   @default(true)
+  
+  uploadedById  String
+  // FIXED: Added the relation name "UserMedia" to match the User model
+  uploadedBy    User      @relation("UserMedia", fields: [uploadedById], references: [id], onDelete: Cascade)
+  
+  likes         MediaLike[]
+  downloads     MediaDownload[]
+  shares        MediaShare[]
+  views         MediaView[]
+  comments      MediaComment[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([type])
+  @@index([category])
+  @@index([createdAt])
+  @@index([uploadedById])
+}
+
+model MediaLike {
+  id        String   @id @default(uuid())
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([mediaId, userId])
+  @@index([mediaId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model MediaDownload {
+  id           String   @id @default(uuid())
+  mediaId      String
+  media        Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  downloadedAt DateTime @default(now())
+
+  @@index([mediaId])
+  @@index([userId])
+  @@index([downloadedAt])
+}
+
+model MediaShare {
+  id         String   @id @default(uuid())
+  mediaId    String
+  media      Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   String   @default("direct")
+  sharedAt   DateTime @default(now())
+
+  @@index([mediaId])
+  @@index([userId])
+  @@index([sharedAt])
+}
+
+model MediaView {
+  id        String   @id @default(uuid())
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime @default(now())
+
+  @@unique([mediaId, userId, viewedAt])
+  @@index([mediaId])
+  @@index([userId])
+  @@index([viewedAt])
+}
+
+model MediaComment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([mediaId])
+  @@index([userId])
+  @@index([createdAt])
 }

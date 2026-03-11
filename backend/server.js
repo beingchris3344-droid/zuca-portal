@@ -244,47 +244,109 @@ app.get("/health", (req, res) => {
 // ====================
 // Register
 // ====================
+// In your backend register route
+// ====================
+// Register - FIXED for text membership_number
+// ====================
 app.post("/api/register", async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
     const normalizedEmail = email.toLowerCase();
 
-    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    // Check if user exists
+    const existing = await prisma.user.findUnique({ 
+      where: { email: normalizedEmail } 
+    });
     if (existing) return res.status(400).json({ error: "Email exists" });
 
     const hashed = await bcrypt.hash(password, 10);
     
-    const lastUser = await prisma.user.findFirst({
-      orderBy: { createdAt: "desc" },
-      where: { membership_number: { not: null } },
-    });
+    // Generate membership number - FIXED FOR TEXT FIELD
+    let membershipNumber = "Z#001";
+    
+    try {
+      // Find the last user with a valid membership number
+      const lastUser = await prisma.user.findFirst({
+        orderBy: { createdAt: "desc" },
+        where: { 
+          membership_number: { 
+            not: null,
+            not: "nan",
+            not: ""
+          } 
+        },
+      });
 
-    let nextMembership = "Z#001";
+      console.log("Last user membership:", lastUser?.membership_number);
 
-    if (lastUser?.membership_number) {
-      const lastNum = parseInt(lastUser.membership_number.replace("Z#", ""), 10);
-      const nextNum = (lastNum + 1).toString().padStart(3, "0");
-      nextMembership = `Z#${nextNum}`;
+      if (lastUser?.membership_number) {
+        // Extract number from string like "Z#001"
+        const membershipStr = String(lastUser.membership_number);
+        
+        // Try to extract digits using regex
+        const match = membershipStr.match(/\d+/);
+        
+        if (match) {
+          const lastNum = parseInt(match[0], 10);
+          console.log("Last number extracted:", lastNum);
+          
+          if (!isNaN(lastNum)) {
+            const nextNum = (lastNum + 1).toString().padStart(3, "0");
+            membershipNumber = `Z#${nextNum}`;
+            console.log("Next membership number:", membershipNumber);
+          }
+        } else {
+          // If no digits found, just increment a counter based on total users
+          const userCount = await prisma.user.count();
+          const nextNum = (userCount + 1).toString().padStart(3, "0");
+          membershipNumber = `Z#${nextNum}`;
+        }
+      } else {
+        // First user - use Z#001
+        console.log("First user, using Z#001");
+      }
+    } catch (err) {
+      console.error("Error generating membership number:", err);
+      // Fallback: use timestamp
+      const timestamp = Date.now().toString().slice(-6);
+      membershipNumber = `Z#${timestamp}`;
     }
 
+    console.log("Final membership number:", membershipNumber);
+
+    // Create user
     const user = await prisma.user.create({
       data: {
         fullName,
         email: normalizedEmail,
         password: hashed,
-        membership_number: nextMembership,
+        membership_number: membershipNumber,
+        role: "member",
       },
     });
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
+    console.log("User created with membership:", user.membership_number);
+
+    const token = jwt.sign(
+      { userId: user.id, role: user.role }, 
+      JWT_SECRET, 
+      { expiresIn: "7d" }
+    );
 
     await prisma.user.update({
       where: { id: user.id },
       data: { lastActive: new Date() },
     });
 
-    res.json({ token, user });
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+    res.json({ 
+      token, 
+      user: userWithoutPassword 
+    });
+
   } catch (err) {
+    console.error("Registration Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1631,7 +1693,7 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
 app.get("/api/users", requireAdmin, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, fullName: true, email: true, role: true, profileImage: true, createdAt: true, lastActive: true },
+      select: { id: true, fullName: true,jumuia: true,  membership_number: true, email: true, role: true, profileImage: true, createdAt: true, lastActive: true },
       orderBy: { createdAt: "desc" },
     });
 
@@ -1835,12 +1897,46 @@ app.post("/api/contribution-types", authenticate, requireAdmin, async (req, res)
       });
     }
 
+    // After creating pledges, create notifications for all users
+if (users.length > 0) {
+  const now = new Date();
+  const notifications = users.map(user => ({
+    id: `contribution-${newType.id}-${user.id}-${Date.now()}`,
+    userId: user.id,
+    type: "contribution",
+    title: "💰 New Contribution Campaign",
+    message: `A new contribution "${title}" has been launched. Target: ${amountRequired} per member`,
+    read: false,
+    createdAt: now,
+  }));
+
+  await prisma.notification.createMany({
+    data: notifications,
+    skipDuplicates: true,
+  });
+
+  console.log(`✅ Created ${notifications.length} contribution notifications`);
+
+  // Emit socket events for real-time notifications
+  if (io) {
+    notifications.forEach(notif => {
+      io.to(notif.userId).emit("new_notification", {
+        ...notif,
+        createdAt: now.toISOString()
+      });
+    });
+  }
+}
+
+
     res.json(newType);
   } catch (err) {
     console.error("CREATE ContributionType ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 // Get all contribution types with pledges (Admin only)
 app.get("/api/contribution-types", authenticate, requireAdmin, async (req, res) => {
@@ -1890,6 +1986,133 @@ app.delete("/api/contribution-types/:id", authenticate, requireAdmin, async (req
 
     res.json({ message: "Deleted successfully" });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// BULK DELETE CONTRIBUTION TYPES (Admin only)
+// ====================
+app.post("/api/contribution-types/bulk-delete", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No campaign IDs provided" });
+    }
+
+    console.log(`Bulk deleting ${ids.length} campaigns:`, ids);
+
+    // First delete all pledges associated with these campaigns
+    await prisma.pledge.deleteMany({
+      where: {
+        contributionTypeId: {
+          in: ids
+        }
+      }
+    });
+
+    // Then delete the campaigns
+    const result = await prisma.contributionType.deleteMany({
+      where: {
+        id: {
+          in: ids
+        }
+      }
+    });
+
+    console.log(`Successfully deleted ${result.count} campaigns`);
+
+    res.json({ 
+      message: `Successfully deleted ${result.count} campaigns`,
+      count: result.count 
+    });
+  } catch (err) {
+    console.error("Bulk delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================
+// BULK DUPLICATE CONTRIBUTION TYPES (Admin only)
+// ====================
+app.post("/api/contribution-types/bulk-duplicate", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No campaign IDs provided" });
+    }
+
+    // Fetch the campaigns to duplicate with their pledges
+    const campaignsToDuplicate = await prisma.contributionType.findMany({
+      where: {
+        id: {
+          in: ids
+        }
+      },
+      include: {
+        pledges: {
+          include: {
+            user: {
+              select: { id: true, fullName: true }
+            }
+          }
+        }
+      }
+    });
+
+    const duplicatedCampaigns = [];
+
+    // Duplicate each campaign
+    for (const campaign of campaignsToDuplicate) {
+      // Create new campaign
+      const newCampaign = await prisma.contributionType.create({
+        data: {
+          title: `${campaign.title} (Copy)`,
+          description: campaign.description,
+          amountRequired: campaign.amountRequired,
+          deadline: campaign.deadline,
+        }
+      });
+
+      // Duplicate pledges for the new campaign
+      if (campaign.pledges && campaign.pledges.length > 0) {
+        await prisma.pledge.createMany({
+          data: campaign.pledges.map(pledge => ({
+            userId: pledge.userId,
+            contributionTypeId: newCampaign.id,
+            amountPaid: 0, // Reset amounts for duplicated pledges
+            pendingAmount: 0, // Reset amounts
+            message: pledge.message,
+            status: "PENDING", // Reset status
+          }))
+        });
+      }
+
+      // Fetch the complete new campaign with pledges
+      const completeNewCampaign = await prisma.contributionType.findUnique({
+        where: { id: newCampaign.id },
+        include: {
+          pledges: {
+            include: {
+              user: {
+                select: { id: true, fullName: true, email: true }
+              }
+            }
+          }
+        }
+      });
+
+      duplicatedCampaigns.push(completeNewCampaign);
+    }
+
+    res.json({ 
+      message: `Successfully duplicated ${duplicatedCampaigns.length} campaigns`,
+      campaigns: duplicatedCampaigns 
+    });
+  } catch (err) {
+    console.error("Bulk duplicate error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1981,7 +2204,7 @@ app.post("/api/pledges/:contributionTypeId", authenticate, async (req, res) => {
         userId: admin.id,
         type: "contribution",
         title: "💰 New Pledge Awaiting Approval",
-        message: `User pledged $${amount} for "${type.title}"`,
+        message: `User pledged ${amount} for "${type.title}"`,
         read: false,
         createdAt: now,
       }));
@@ -2032,11 +2255,11 @@ app.put("/api/pledges/:id/approve", authenticate, requireAdmin, async (req, res)
     if (newPaid >= amountRequired) {
       newStatus = "COMPLETED";
       notificationTitle = "💰 Pledge Completed!";
-      notificationMessage = `Your pledge of $${amountRequired} for "${pledge.contributionType.title}" has been fully paid. Thank you!`;
+      notificationMessage = `Your pledge of ${amountRequired} for "${pledge.contributionType.title}" has been fully paid. Thank you!`;
     } else {
       newStatus = "APPROVED";
       notificationTitle = "💰 Pledge Approved";
-      notificationMessage = `Your pledge of $${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved. You still owe $${amountRequired - newPaid}.`;
+      notificationMessage = `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved. You still owe ${amountRequired - newPaid}.`;
     }
 
     const updated = await prisma.pledge.update({
@@ -2110,12 +2333,12 @@ app.put("/api/pledges/:id/manual-add", authenticate, requireAdmin, async (req, r
 
     let newStatus = pledge.status;
     let notificationTitle = "💰 Pledge Updated";
-    let notificationMessage = `$${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
+    let notificationMessage = `${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
     
     if (totalPaid >= amountRequired) {
       newStatus = "COMPLETED";
       notificationTitle = "💰 Pledge Completed!";
-      notificationMessage = `Your pledge of $${amountRequired} for "${pledge.contributionType.title}" has been fully paid. Thank you!`;
+      notificationMessage = `Your pledge of ${amountRequired} for "${pledge.contributionType.title}" has been fully paid. Thank you!`;
     } else if (pledge.status === "PENDING" && totalPaid > 0) {
       newStatus = "APPROVED";
     }
@@ -2198,6 +2421,120 @@ app.put("/api/pledges/:id/edit-message", authenticate, requireAdmin, async (req,
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// ====================
+// PUSH NOTIFICATIONS - ADD THIS SECTION
+// ====================
+const webpush = require('web-push');
+
+// Generate VAPID keys (run once and save)
+// Run: node -e "console.log(require('web-push').generateVAPIDKeys())"
+const vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || 'YOUR_GENERATED_PUBLIC_KEY',
+  privateKey: process.env.VAPID_PRIVATE_KEY || 'YOUR_GENERATED_PRIVATE_KEY'
+};
+
+webpush.setVapidDetails(
+  'mailto:zucaportal2025@gmail.com',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
+// Store push subscriptions
+app.post('/api/notifications/subscribe', authenticate, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    const userId = req.user.userId;
+
+    // Save subscription to database
+    await prisma.pushSubscription.upsert({
+      where: { userId },
+      update: { subscription: JSON.stringify(subscription) },
+      create: {
+        userId,
+        subscription: JSON.stringify(subscription)
+      }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Unsubscribe
+app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    await prisma.pushSubscription.deleteMany({ where: { userId } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get VAPID public key
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+// Helper function to send push notification
+async function sendPushNotification(userId, title, body, data = {}) {
+  try {
+    const subscription = await prisma.pushSubscription.findUnique({
+      where: { userId }
+    });
+
+    if (!subscription) return;
+
+    const pushSubscription = JSON.parse(subscription.subscription);
+    
+    await webpush.sendNotification(pushSubscription, JSON.stringify({
+      title,
+      body,
+      icon: '/android-chrome-192x192.png',
+      badge: '/favicon.ico',
+      data,
+      timestamp: Date.now()
+    }));
+  } catch (err) {
+    console.error('Error sending push notification:', err);
+    // Remove invalid subscription
+    if (err.statusCode === 410) {
+      await prisma.pushSubscription.deleteMany({ where: { userId } });
+    }
+  }
+}
+
+// Modify existing notification functions to also send push
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  // Create DB notification (existing code)
+  const notif = await prisma.notification.create({
+    data: {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      createdAt: new Date(),
+    }
+  });
+
+  // Send socket notification (existing)
+  io.to(userId).emit('new_notification', {
+    ...notif,
+    createdAt: notif.createdAt.toISOString()
+  });
+
+  // Send push notification (NEW)
+  await sendPushNotification(userId, title, message, { type, ...data });
+
+  return notif;
+}
 
 // ====================
 // NOTIFICATIONS ROUTES - FIXED WITH PROPER DATE FORMATTING

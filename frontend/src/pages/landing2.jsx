@@ -1,3 +1,4 @@
+// frontend/src/pages/Landing2.jsx
 import { useNavigate } from "react-router-dom";
 import { 
   FaInstagram, 
@@ -22,16 +23,25 @@ import {
   FaUnderline,
   FaHammer,
   FaFontAwesomeLogoFull,
-  FaHandPointDown
+  FaHandPointDown,
+  FaDownload,
+  FaMobileAlt,
+  FaAndroid,
+  FaApple
 } from "react-icons/fa";
 import { useEffect, useState } from "react";
 import logo from "../assets/zuca-logo.png";
 import bg from "../assets/background2.webp";
 import { FiUnderline } from "react-icons/fi";
+import NotificationPrompt from '../components/NotificationPrompt';
 
 function Landing2() {
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallButton, setShowInstallButton] = useState(true);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -51,11 +61,131 @@ function Landing2() {
     
     document.querySelectorAll(".fade-section").forEach(section => observer.observe(section));
     
+    // Check if already installed
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isPWA) {
+      setShowInstallButton(false);
+    }
+    
     return () => {
       window.removeEventListener("scroll", handleScroll);
       observer.disconnect();
     };
   }, []);
+
+  // PWA Install Prompt Handler
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallButton(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  // Notification prompt
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const notificationsPrompted = localStorage.getItem('notificationsPrompted');
+    
+    if (token && !notificationsPrompted && 'Notification' in window && Notification.permission === 'default') {
+      const timer = setTimeout(() => {
+        setShowNotificationPrompt(true);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setShowInstallButton(false);
+      }
+    } else {
+      alert(
+        '📱 To install ZUCA Portal on your device:\n\n' +
+        '🔵 Android (Chrome):\n' +
+        '• Tap the menu button (⋮) at top right\n' +
+        '• Select "Add to Home screen"\n' +
+        '• Tap "Add" or "Install"\n\n' +
+        '🍎 iPhone/iPad (Safari):\n' +
+        '• Tap the Share button (📤) at bottom\n' +
+        '• Scroll down and tap "Add to Home Screen"\n' +
+        '• Tap "Add" in top right\n\n' +
+        '💻 Desktop (Chrome/Edge):\n' +
+        '• Click the install icon (➕) in address bar\n' +
+        '• Click "Install"'
+      );
+    }
+    setShowDownloadOptions(false);
+  };
+
+  const handleHowToInstall = () => {
+    alert(
+      '📱 Detailed Installation Guide:\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '🔵 ANDROID (Chrome)\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '1. Open ZUCA Portal in Chrome\n' +
+      '2. Tap the ⋮ menu (top right)\n' +
+      '3. Select "Add to Home screen"\n' +
+      '4. Tap "Add" or "Install"\n' +
+      '5. App appears on home screen!\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '🍎 IPHONE/IPAD (Safari)\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '1. Open ZUCA Portal in Safari\n' +
+      '2. Tap the Share 📤 button (bottom)\n' +
+      '3. Scroll down & tap "Add to Home Screen"\n' +
+      '4. Tap "Add" (top right)\n' +
+      '5. App appears on home screen!\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '💻 DESKTOP (Chrome/Edge)\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '1. Look for install icon (➕) in address bar\n' +
+      '2. Click "Install" button\n' +
+      '3. App opens in its own window!\n\n' +
+      '✨ Benefits after install:\n' +
+      '• Works offline\n' +
+      '• Push notifications\n' +
+      '• Icon on home screen\n' +
+      '• Opens like native app'
+    );
+    setShowDownloadOptions(false);
+  };
+
+  const handleDownloadClick = () => {
+    setShowDownloadOptions(!showDownloadOptions);
+  };
+
+  const handleDownloadAPK = () => {
+    const link = document.createElement('a');
+    link.href = '/downloads/zuca-portal.apk';
+    link.download = 'zuca-portal.apk';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowDownloadOptions(false);
+  };
+
+  const handleDownloadPlayStore = () => {
+    window.open('https://play.google.com/store/apps/details?id=com.zuca.portal', '_blank');
+    setShowDownloadOptions(false);
+  };
+
+  const handleDownloadAppStore = () => {
+    window.open('https://apps.apple.com/app/zuca-portal/id123456789', '_blank');
+    setShowDownloadOptions(false);
+  };
 
   return (
     <div style={pageWrapper}>
@@ -84,6 +214,67 @@ function Landing2() {
             <a href="#about" style={navLinkStyle}>About</a>
             <a href="#connect" style={navLinkStyle}>Connect</a>
             <a href="#mass" style={navLinkStyle}>Mass</a>
+            
+            {/* Install App Button with Instructions */}
+            <div style={{ position: "relative" }}>
+              <button onClick={handleDownloadClick} style={navInstallButtonStyle}>
+                <FaMobileAlt style={{ marginRight: "6px" }} />
+                <span>Install App</span>
+                <span style={{ marginLeft: "6px", fontSize: "10px" }}>▼</span>
+              </button>
+              
+              {showDownloadOptions && (
+                <div style={downloadDropdownStyle}>
+                  <div style={downloadDropdownHeader}>
+                    <FaMobileAlt style={{ marginRight: "8px", color: "#3b82f6" }} />
+                    Install ZUCA Portal
+                  </div>
+                  
+                  {/* Quick Install Button (if available) */}
+                  {deferredPrompt && (
+                    <button onClick={handleInstallClick} style={downloadOptionStyle}>
+                      <FaMobileAlt style={{ marginRight: "10px", color: "#3b82f6", fontSize: "18px" }} />
+                      <div style={{ textAlign: "left" }}>
+                        <strong>Quick Install</strong>
+                        <div style={{ fontSize: "11px", opacity: 0.7 }}>One-click installation</div>
+                      </div>
+                    </button>
+                  )}
+                  
+                  {/* Android Guide */}
+                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
+                    <FaAndroid style={{ marginRight: "10px", color: "#3DDC84", fontSize: "18px" }} />
+                    <div style={{ textAlign: "left" }}>
+                      <strong>Android Guide</strong>
+                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Chrome menu → Add to Home screen</div>
+                    </div>
+                  </button>
+                  
+                  {/* iOS Guide */}
+                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
+                    <FaApple style={{ marginRight: "10px", color: "#000", fontSize: "18px" }} />
+                    <div style={{ textAlign: "left" }}>
+                      <strong>iOS Guide</strong>
+                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Share → Add to Home Screen</div>
+                    </div>
+                  </button>
+                  
+                  {/* Desktop Guide */}
+                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
+                    <FaDownload style={{ marginRight: "10px", color: "#3b82f6", fontSize: "18px" }} />
+                    <div style={{ textAlign: "left" }}>
+                      <strong>Desktop Guide</strong>
+                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Click install icon in address bar</div>
+                    </div>
+                  </button>
+                  
+                  <div style={downloadDropdownFooter}>
+                    ✨ No APK needed • Works as PWA • Free
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <button onClick={() => navigate("/login")} style={navButtonStyle}>Login</button>
             <button onClick={() => navigate("/register")} style={navButtonPrimaryStyle}>Join Us</button>
           </div>
@@ -121,6 +312,19 @@ function Landing2() {
               MEMBER LOGIN
             </button>
           </div>
+
+          {/* Hero Install Button */}
+          {showInstallButton && (
+            <div style={{ marginTop: "30px" }}>
+              <button onClick={handleInstallClick} style={heroInstallButtonStyle}>
+                <FaDownload style={{ marginRight: "10px" }} />
+                Install App Now
+              </button>
+              <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>
+                📱 Works on Android, iPhone & Desktop • No download needed
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -153,11 +357,11 @@ function Landing2() {
               <h3 style={massCardTitleStyle}>Daily Choir Practice</h3>
               <div style={massTimeStyle}>
                 <FaClock style={massTimeIconStyle} />
-                <span>From (4:00 PM - 6:00 PM</span>
+                <span>4:00 PM - 6:00 PM</span>
               </div>
               <div style={massLocationStyle}>
                 <FaLocationArrow style={massLocationIconStyle} />
-                <span>ZETECH ANNEX 002 </span>
+                <span>ZETECH ANNEX 002</span>
               </div>
               <p style={massNoteStyle}>All are welcome to attend</p>
             </div>
@@ -174,7 +378,6 @@ function Landing2() {
             <p style={sectionSubtitleStyle}>Follow our community on social media</p>
           </div>
 
-          {/* Medium-sized Social Icons Grid */}
           <div style={socialGridStyle}>
             <a 
               href="https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3" 
@@ -235,16 +438,13 @@ function Landing2() {
       <section id="about" className="fade-section" style={aboutSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
-
-                        <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-
+            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
             <h2 style={sectionTitleDarkStyle}>Our Community</h2>
-            
           </div>
 
           <div style={aboutContentStyle}>
             <p style={aboutTextStyle}>
-              Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. Our mission is to spread the message of hope, love, and faith within our campus community and beyond. Our songs will be an  expression of our devotion and a call to all to embrace God’s grace.
+              Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. Our mission is to spread the message of hope, love, and faith within our campus community and beyond. Our songs will be an expression of our devotion and a call to all to embrace God's grace.
             </p>
 
             <div style={activitiesGridStyle}>
@@ -312,6 +512,16 @@ function Landing2() {
             </a>
           </div>
 
+          {/* Footer Download Button */}
+          {showInstallButton && (
+            <div style={{ marginBottom: "20px" }}>
+              <button onClick={handleInstallClick} style={footerInstallButtonStyle}>
+                <FaDownload style={{ marginRight: "8px" }} />
+                Install ZUCA App
+              </button>
+            </div>
+          )}
+
           <div style={creditStyle}>
             <span>Built with</span>
             <FaHeart style={creditHeartStyle} />
@@ -320,13 +530,39 @@ function Landing2() {
           </div>
 
           <div style={copyrightStyle}>
-            <p>© {new Date().getFullYear()} Zetech Catholic Action  Portal</p>
+            <p>© {new Date().getFullYear()} Zetech Catholic Action Portal</p>
           </div>
         </div>
       </footer>
 
+      {/* Notification Prompt */}
+      {showNotificationPrompt && (
+        <NotificationPrompt onClose={() => {
+          setShowNotificationPrompt(false);
+          localStorage.setItem('notificationsPrompted', 'true');
+        }} />
+      )}
+
       <style>
         {`
+          html, body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            overflow-y: auto !important;
+            height: auto !important;
+          }
+          
+          body {
+            min-height: 100vh;
+            overflow-y: auto !important;
+          }
+          
+          #root {
+            min-height: 100vh;
+            overflow-y: auto !important;
+          }
+          
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -358,19 +594,23 @@ function Landing2() {
   );
 }
 
-// Styles - All Responsive
+// ========== STYLES ==========
+
 const pageWrapper = {
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'TimesNewRoman', Roboto, sans-serif",
   color: "#ffffff",
-  overflowX: "hidden"
+  overflowX: "hidden",
+  overflowY: "auto",
+  minHeight: "100vh",
+  position: "relative"
 };
 
-// Top Bar - Simple
+// Top Bar
 const topBarStyle = {
   background: "#141c60c0",
-  padding: "8px ",
+  padding: "8px",
   position: "fixed",
-  top: -6,
+  top: 0,
   left: 0,
   right: 0,
   zIndex: 1001,
@@ -386,7 +626,6 @@ const topBarContentStyle = {
   alignItems: "center",
   fontSize: "12px",
   flexWrap: "wrap",
-  
   gap: "1px"
 };
 
@@ -414,7 +653,7 @@ const topBarMassStyle = {
 // Navigation
 const navStyle = {
   position: "fixed",
-  top: "36px",
+  top: "40px",
   left: 0,
   right: 0,
   zIndex: 1000,
@@ -448,7 +687,6 @@ const logoTextStyle = {
   fontSize: "20px",
   fontWeight: "700",
   background: "linear-gradient(135deg, #fff, #00c6ff)",
-  
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent"
 };
@@ -472,7 +710,7 @@ const navButtonStyle = {
   padding: "6px 16px",
   borderRadius: "20px",
   border: "1px solid rgba(255,255,255,0.2)",
-  background: "linear-gradient(135deg, #0c992d",
+  background: "linear-gradient(135deg, #0c992d)",
   color: "#eaedeb",
   fontSize: "14px",
   fontWeight: "500",
@@ -490,9 +728,100 @@ const navButtonPrimaryStyle = {
   cursor: "pointer"
 };
 
+// Download Dropdown Styles
+const downloadDropdownStyle = {
+  position: "absolute",
+  top: "45px",
+  right: 0,
+  width: "280px",
+  background: "white",
+  borderRadius: "12px",
+  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
+  zIndex: 1100,
+  overflow: "hidden",
+  border: "1px solid #e2e8f0"
+};
+
+const downloadDropdownHeader = {
+  padding: "12px 16px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #e2e8f0",
+  fontSize: "14px",
+  fontWeight: "600",
+  color: "#1e293b",
+  display: "flex",
+  alignItems: "center"
+};
+
+const downloadOptionStyle = {
+  width: "100%",
+  padding: "12px 16px",
+  border: "none",
+  borderBottom: "1px solid #f1f5f9",
+  background: "white",
+  display: "flex",
+  alignItems: "center",
+  cursor: "pointer",
+  fontSize: "13px",
+  color: "#1e293b",
+  transition: "background 0.2s"
+};
+
+const downloadDropdownFooter = {
+  padding: "8px 16px",
+  background: "#f8fafc",
+  fontSize: "11px",
+  color: "#64748b",
+  textAlign: "center"
+};
+
+const navInstallButtonStyle = {
+  padding: "6px 16px",
+  borderRadius: "20px",
+  border: "none",
+  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
+  color: "#000",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  marginRight: "5px"
+};
+
+const heroInstallButtonStyle = {
+  padding: "14px 30px",
+  borderRadius: "40px",
+  border: "none",
+  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
+  color: "#000",
+  fontSize: "16px",
+  fontWeight: "700",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 10px 20px -5px rgba(255,215,0,0.3)"
+};
+
+const footerInstallButtonStyle = {
+  padding: "10px 24px",
+  borderRadius: "30px",
+  border: "none",
+  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
+  color: "#000",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center"
+};
+
 // Hero Section
 const heroStyle = (bg) => ({
   minHeight: "100vh",
+  height: "auto",
   backgroundImage: `url(${bg})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
@@ -500,7 +829,7 @@ const heroStyle = (bg) => ({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "80px 15px 40px"
+  padding: "100px 15px 60px"
 });
 
 const heroOverlayStyle = {
@@ -520,7 +849,6 @@ const heroLogoStyle = {
   width: "150px",
   height: "auto",
   marginTop: "26px"
-
 };
 
 const heroTitleStyle = {
@@ -528,17 +856,6 @@ const heroTitleStyle = {
   fontWeight: "800",
   marginBottom: "15px",
   lineHeight: "1.2"
-};
-
-
-
-
-const heroTitleSmallStyle = {
-  fontSize: "clamp(14px, 3vw, 18px)",
-  fontWeight: "400",
-  display: "block",
-  marginBottom: "5px",
-  color: "#94a3b8"
 };
 
 const gradientTextStyle = {
@@ -553,7 +870,6 @@ const heroSubtitleStyle = {
   marginBottom: "40px",
   maxWidth: "600px",
   margin: "0 auto 30px"
- 
 };
 
 const heroMassCardStyle = {
@@ -707,7 +1023,7 @@ const massNoteStyle = {
   fontStyle: "italic"
 };
 
-// Social Section - Medium Icons
+// Social Section
 const socialSectionStyle = {
   padding: "60px 15px",
   background: "#0a0a25"
@@ -790,12 +1106,6 @@ const socialHandleStyle = {
 const aboutSectionStyle = {
   padding: "60px 15px",
   background: "#a5c3be8f"
-};
-
-const aboutsectionstyle = {
-  fontSize: "30px",
-  color: "#00c6ff",
-  marginBottom: "15px"
 };
 
 const sectionTitleDarkStyle = {

@@ -298,18 +298,19 @@ function Layout() {
           </div>
         </motion.header>
 
-        {/* Page Content - Lower z-index */}
+        {/* Page Content - This is where your pages render */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           style={contentStyle}
+          className="page-content"
         >
           <Outlet />
         </motion.div>
       </main>
 
-      {/* Global z-index management styles */}
+      {/* Global styles - CRITICAL FOR SCROLLING */}
       <style>
         {`
           @keyframes gradientMove {
@@ -318,7 +319,80 @@ function Layout() {
             100% { background-position: 0% 50%; }
           }
 
-          /* Custom Scrollbar */
+          /* FIXED: Proper scrolling for entire app */
+          html, body, #root {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: visible; /* or just remove it entirely */ /* Prevent double scrollbars */
+          }
+
+          body {
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          }
+
+          /* Main content area - THIS IS THE KEY SCROLLING CONTAINER */
+          main {
+            height: 100vh !important;
+            overflow-y: auto !important;
+            overflow-x: visible !important;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+          }
+
+          /* Page content container */
+          .page-content {
+            height: calc(100% - 80px) !important; /* Adjust based on header height */
+            overflow-y: auto !important;
+            overflow-x: auto !important;
+            padding-bottom: 20px;
+          }
+
+          /* Ensure all pages can scroll */
+          .page-content > * {
+            height: auto;
+            min-height: 100%;
+          }
+
+          /* Force all admin pages to scroll properly */
+          .contributions-page,
+          .users-page,
+          .admin-page,
+          .chat-monitor-page,
+          .jumuia-management-page,
+          .dashboard-page,
+          .announcements-page,
+          .mass-programs-page,
+          .chat-page,
+          .jumuia-contributions-page,
+          .join-jumuia-page {
+            height: auto !important;
+            min-height: 100% !important;
+            overflow: visible !important;
+          }
+
+          /* Custom Scrollbar Styling */
+          ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+          }
+
+          ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+          }
+
+          ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+          }
+
+          ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+          }
+
+          /* Sidebar scrollbar */
           .sidebar-scroll::-webkit-scrollbar {
             width: 4px;
           }
@@ -335,16 +409,13 @@ function Layout() {
             .mobile-hamburger {
               display: flex !important;
             }
+            
+            main {
+              height: 100vh !important;
+            }
           }
 
-          /* Z-index hierarchy - CRITICAL FOR NOTIFICATION DROPDOWN */
-          .notifications-dropdown,
-          [class*="Notifications"] [style*="position: fixed"],
-          [class*="Notifications"] [style*="position: absolute"] {
-            z-index: 9999999 !important;
-          }
-
-          /* Ensure no other elements overlap */
+          /* Z-index hierarchy */
           .sidebar {
             z-index: 50 !important;
           }
@@ -357,14 +428,15 @@ function Layout() {
             z-index: 100 !important;
           }
 
-          /* Header should not cover notifications */
           header {
             z-index: 30 !important;
           }
 
-          /* Page content - lowest */
-          main > div:last-child {
-            z-index: 1 !important;
+          /* Notifications - highest */
+          .notifications-dropdown,
+          [class*="Notifications"] [style*="position: fixed"],
+          [class*="Notifications"] [style*="position: absolute"] {
+            z-index: 9999999 !important;
           }
         `}
       </style>
@@ -372,16 +444,18 @@ function Layout() {
   );
 }
 
-// ==================== Professional Styles ====================
+// ==================== Styles ====================
 
 const containerStyle = (bg) => ({
   minHeight: "100vh",
+  height: "100vh",
   backgroundImage: `url(${bg})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",
   position: "relative",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+  overflow: "hidden", // Prevent double scrollbars
 });
 
 const overlayStyle = {
@@ -393,7 +467,6 @@ const overlayStyle = {
   zIndex: 0,
 };
 
-// Backdrop for mobile only
 const backdropStyle = {
   position: "fixed",
   inset: 0,
@@ -416,6 +489,7 @@ const sidebarStyle = {
   flexDirection: "column",
   zIndex: 50,
   boxShadow: "4px 0 20px rgba(0,0,0,0.2)",
+  overflowY: "hidden", // Sidebar itself doesn't scroll, its content does
 };
 
 const logoSection = {
@@ -508,11 +582,10 @@ const userBadgeRole = {
 
 const navContainer = (shadow) => ({
   flex: 1,
-  overflowY: "auto",
+  overflowY: "auto", // This makes the nav scrollable
   paddingRight: "8px",
   transition: "box-shadow 0.3s",
   boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.3)" : "none",
-  className: "sidebar-scroll",
 });
 
 const navStyle = {
@@ -585,13 +658,15 @@ const logoutIconStyle = {
   fontSize: "16px",
 };
 
-// Main content - adapts based on device and menu state
+// FIXED: Main content style - THIS IS THE KEY
 const mainContentStyle = (isMobile, menuOpen) => ({
   marginLeft: isMobile ? 0 : "280px",
   padding: "24px",
   position: "relative",
   zIndex: 1,
-  minHeight: "100vh",
+  height: "100vh", // Fixed height instead of min-height
+  overflowY: "auto", // THIS ENABLES SCROLLING
+  overflowX: "hidden",
   transition: "margin-left 0.3s ease",
 });
 
@@ -605,8 +680,9 @@ const headerStyle = {
   padding: "12px 20px",
   marginBottom: "24px",
   border: "1px solid rgba(27, 25, 25, 0.83)",
-  position: "relative", // Important for containing positioned elements
+  position: "relative",
   zIndex: 30,
+  flexShrink: 0, // Prevent header from shrinking
 };
 
 const headerLeftStyle = {
@@ -625,9 +701,6 @@ const hamburgerStyle = {
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
-  "@media (max-width: 900px)": {
-    display: "flex",
-  },
 };
 
 const hamburgerIconStyle = {
@@ -649,11 +722,10 @@ const headerRightStyle = {
   zIndex: 31,
 };
 
-// New wrapper for notifications to ensure proper stacking
 const notificationWrapperStyle = {
   position: "relative",
-  zIndex: 999999, // Very high z-index
-  isolation: "isolate", // Creates new stacking context
+  zIndex: 999999,
+  isolation: "isolate",
 };
 
 const userMenuContainerStyle = {
@@ -720,7 +792,7 @@ const userDropdownStyle = {
 };
 
 const userDropdownHeader = {
-  padding: "1 px",
+  padding: "12px 16px",
   borderBottom: "1px solid rgba(255, 255, 255, 0.72)",
 };
 
@@ -755,10 +827,14 @@ const dropdownLogoutIcon = {
   fontSize: "16px",
 };
 
+// FIXED: Content style - where your pages actually render
 const contentStyle = {
-  minHeight: "calc(100vh - 120px)",
+  height: "calc(100% - 80px)", // Subtract header height
+  overflowY: "auto",
+  overflowX: "auto",
   position: "relative",
   zIndex: 1,
+  paddingRight: "4px", // Space for scrollbar
 };
 
 export default Layout;

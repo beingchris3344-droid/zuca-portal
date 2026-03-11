@@ -543,6 +543,7 @@ export default function MassPrograms() {
     
     <div class="footer">
       <p>ZETECH CATHOLIC ACTION • Generated on ${new Date().toLocaleString()}</p>
+      <p>ZUCA PORTAL SYSTEM GENERATED PROGRAM</p>
     </div>
   </div>
 </body>

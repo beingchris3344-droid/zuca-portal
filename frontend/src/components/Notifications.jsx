@@ -1,7 +1,7 @@
 // frontend/src/components/Notifications.jsx
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiBell, FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi"; // Changed to FiEyeOff
+import { FiBell, FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
@@ -17,6 +17,20 @@ export default function Notifications({ userId }) {
   const dropdownRef = useRef(null);
   const socketRef = useRef(null);
   const hasMarkedReadForCurrentPage = useRef(new Set());
+  
+  // Store dismissed notifications in localStorage (persists across refreshes)
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    const saved = localStorage.getItem(`dismissed_notifications_${userId}`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  // Save dismissed IDs to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(
+      `dismissed_notifications_${userId}`, 
+      JSON.stringify([...dismissedIds])
+    );
+  }, [dismissedIds, userId]);
 
   // Connect to Socket.IO for real-time updates
   useEffect(() => {
@@ -37,6 +51,12 @@ export default function Notifications({ userId }) {
 
     socketRef.current.on('new_notification', (notification) => {
       console.log('🔔 New notification received:', notification);
+      
+      // Don't add if it was previously dismissed
+      if (dismissedIds.has(notification.id)) {
+        console.log('Notification was previously dismissed, ignoring');
+        return;
+      }
       
       setNotifications(prev => {
         const exists = prev.some(n => n.id === notification.id);
@@ -68,7 +88,7 @@ export default function Notifications({ userId }) {
         socketRef.current.disconnect();
       }
     };
-  }, [userId]);
+  }, [userId, dismissedIds]);
 
   // Request notification permission
   useEffect(() => {
@@ -76,6 +96,37 @@ export default function Notifications({ userId }) {
       Notification.requestPermission();
     }
   }, []);
+
+  // Fetch notifications - FILTER OUT DISMISSED ONES
+  const fetchNotifications = async () => {
+    if (!userId) return;
+    
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Filter out dismissed notifications
+      const filtered = res.data.filter(n => !dismissedIds.has(n.id));
+      setNotifications(filtered);
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [userId, dismissedIds]); // Re-fetch when dismissed IDs change
+
+  // Update unread count
+  useEffect(() => {
+    const unread = notifications.filter(n => !n.read).length;
+    setUnreadCount(unread);
+  }, [notifications]);
 
   // Auto-mark notifications as read when viewing their pages
   useEffect(() => {
@@ -103,6 +154,8 @@ export default function Notifications({ userId }) {
 
       const pageKey = `${pageType}-${pagePath}`;
       
+      if (hasMarkedReadForCurrentPage.current.has(pageKey)) return;
+
       const unreadForThisPage = notifications.filter(
         n => !n.read && n.type === pageType
       );
@@ -127,6 +180,7 @@ export default function Notifications({ userId }) {
         );
 
         hasMarkedReadForCurrentPage.current.add(pageKey);
+        
       } catch (err) {
         console.error("Error marking notifications as read:", err);
       }
@@ -137,36 +191,7 @@ export default function Notifications({ userId }) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [location.pathname, userId]);
-
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    if (!userId) return;
-    
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setNotifications(res.data);
-    } catch (err) {
-      console.error("Error fetching notifications:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [userId]);
-
-  // Update unread count
-  useEffect(() => {
-    const unread = notifications.filter(n => !n.read).length;
-    setUnreadCount(unread);
-  }, [notifications]);
+  }, [location.pathname, userId, notifications]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -191,6 +216,7 @@ export default function Notifications({ userId }) {
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
     } catch (err) {
       console.error("Error marking as read:", err);
       fetchNotifications();
@@ -207,21 +233,33 @@ export default function Notifications({ userId }) {
       await axios.put(`${BASE_URL}/api/notifications/${userId}/read-all`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
     } catch (err) {
       console.error("Error marking all as read:", err);
       fetchNotifications();
     }
   };
 
-  // NEW: Dismiss all notifications from dropdown only (UI only)
+  // FIXED: Dismiss all notifications PERMANENTLY (stored in localStorage)
   const dismissAllFromDropdown = () => {
-    // Just clear the notifications from the UI state
-    setNotifications([]);
-    // Close the dropdown
-    setShowDropdown(false);
+    // Add all current notification IDs to dismissed set
+    const newDismissed = new Set(dismissedIds);
+    notifications.forEach(n => newDismissed.add(n.id));
+    setDismissedIds(newDismissed);
     
-    // Optional: Show a toast or message
-    console.log("All notifications dismissed from view");
+    // Clear notifications from state
+    setNotifications([]);
+    setShowDropdown(false);
+    console.log("All notifications permanently dismissed");
+  };
+
+  // FIXED: Dismiss single notification PERMANENTLY
+  const dismissNotification = (notificationId) => {
+    const newDismissed = new Set(dismissedIds);
+    newDismissed.add(notificationId);
+    setDismissedIds(newDismissed);
+    
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
   };
 
   const handleNotificationClick = (notif) => {
@@ -250,19 +288,24 @@ export default function Notifications({ userId }) {
   };
 
   const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    if (!dateString) return 'Just now';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    } catch {
+      return 'Just now';
+    }
   };
 
   const getNotificationIcon = (type) => {
@@ -345,23 +388,35 @@ export default function Notifications({ userId }) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0 }}
-                      style={styles.unreadNotificationItem}
-                      onClick={() => handleNotificationClick(notif)}
-                      whileHover={{ backgroundColor: '#dbeafe' }}
-                      whileTap={{ scale: 0.98 }}
+                      style={styles.notificationItemWrapper}
                     >
-                      <div style={styles.notificationIcon}>
-                        {getNotificationIcon(notif.type)}
-                      </div>
-                      <div style={styles.notificationContent}>
-                        <div style={styles.notificationTitle}>{notif.title}</div>
-                        <div style={styles.notificationMessage}>{notif.message}</div>
-                        <div style={styles.notificationTime}>
-                          <FiClock size={10} />
-                          {formatTime(notif.createdAt)}
+                      <div 
+                        style={styles.unreadNotificationItem}
+                        onClick={() => handleNotificationClick(notif)}
+                      >
+                        <div style={styles.notificationIcon}>
+                          {getNotificationIcon(notif.type)}
                         </div>
+                        <div style={styles.notificationContent}>
+                          <div style={styles.notificationTitle}>{notif.title}</div>
+                          <div style={styles.notificationMessage}>{notif.message}</div>
+                          <div style={styles.notificationTime}>
+                            <FiClock size={10} />
+                            {formatTime(notif.createdAt)}
+                          </div>
+                        </div>
+                        <div style={styles.unreadDot} />
                       </div>
-                      <div style={styles.unreadDot} />
+                      <button 
+                        style={styles.dismissButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissNotification(notif.id);
+                        }}
+                        title="Dismiss permanently"
+                      >
+                        <FiX size={14} />
+                      </button>
                     </motion.div>
                   ))}
                 </>
@@ -379,22 +434,34 @@ export default function Notifications({ userId }) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      style={styles.readNotificationItem}
-                      onClick={() => handleNotificationClick(notif)}
-                      whileHover={{ backgroundColor: '#f8fafc' }}
-                      whileTap={{ scale: 0.98 }}
+                      style={styles.notificationItemWrapper}
                     >
-                      <div style={styles.notificationIcon}>
-                        {getNotificationIcon(notif.type)}
-                      </div>
-                      <div style={styles.notificationContent}>
-                        <div style={styles.notificationTitle}>{notif.title}</div>
-                        <div style={styles.notificationMessage}>{notif.message}</div>
-                        <div style={styles.notificationTime}>
-                          <FiClock size={10} />
-                          {formatTime(notif.createdAt)}
+                      <div 
+                        style={styles.readNotificationItem}
+                        onClick={() => handleNotificationClick(notif)}
+                      >
+                        <div style={styles.notificationIcon}>
+                          {getNotificationIcon(notif.type)}
+                        </div>
+                        <div style={styles.notificationContent}>
+                          <div style={styles.notificationTitle}>{notif.title}</div>
+                          <div style={styles.notificationMessage}>{notif.message}</div>
+                          <div style={styles.notificationTime}>
+                            <FiClock size={10} />
+                            {formatTime(notif.createdAt)}
+                          </div>
                         </div>
                       </div>
+                      <button 
+                        style={styles.dismissButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissNotification(notif.id);
+                        }}
+                        title="Dismiss permanently"
+                      >
+                        <FiX size={14} />
+                      </button>
                     </motion.div>
                   ))}
                   {readNotifications.length > 5 && (
@@ -428,7 +495,7 @@ export default function Notifications({ userId }) {
   );
 }
 
-// Updated styles with Dismiss All button
+// Updated styles
 const styles = {
   container: {
     position: "relative",
@@ -560,12 +627,8 @@ const styles = {
     minHeight: "36px",
     outline: "none",
     WebkitTapHighlightColor: "transparent",
-    ":hover": {
-      background: "#dbeafe",
-    },
   },
   
-  // NEW: Dismiss All button (UI only)
   dismissAllButton: {
     background: "#f1f5f9",
     border: "none",
@@ -584,9 +647,32 @@ const styles = {
     minHeight: "36px",
     outline: "none",
     WebkitTapHighlightColor: "transparent",
+  },
+  
+  notificationItemWrapper: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+  },
+  
+  dismissButton: {
+    position: "absolute",
+    right: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "transparent",
+    border: "none",
+    color: "#94a3b8",
+    cursor: "pointer",
+    padding: "6px",
+    borderRadius: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
     ":hover": {
-      background: "#e2e8f0",
-      color: "#475569",
+      background: "#fee2e2",
+      color: "#ef4444",
     },
   },
   
@@ -616,6 +702,7 @@ const styles = {
     display: "flex",
     gap: "12px",
     padding: "16px 20px",
+    paddingRight: "48px", // Make space for dismiss button
     borderBottom: "1px solid #f1f5f9",
     cursor: "pointer",
     transition: "background 0.2s",
@@ -623,19 +710,21 @@ const styles = {
     background: "#f0f9ff",
     borderLeft: "4px solid #4f46e5",
     minHeight: "70px",
+    width: "100%",
   },
   
   readNotificationItem: {
     display: "flex",
     gap: "12px",
     padding: "16px 20px",
+    paddingRight: "48px", // Make space for dismiss button
     borderBottom: "1px solid #f1f5f9",
     cursor: "pointer",
     transition: "background 0.2s",
     position: "relative",
     background: "#ffffff",
     opacity: 0.8,
-    minHeight: "70px",
+    width: "100%",
   },
   
   notificationIcon: {
@@ -707,25 +796,6 @@ const styles = {
     color: "#94a3b8",
   },
   
-  allReadContainer: {
-    padding: "30px 20px",
-    textAlign: "center",
-    background: "#ffffff",
-  },
-  
-  allReadIcon: {
-    fontSize: "32px",
-    color: "#4f46e5",
-    marginBottom: "10px",
-    display: "block",
-  },
-  
-  allReadText: {
-    fontSize: "14px",
-    color: "#475569",
-    fontWeight: "500",
-  },
-  
   viewAllContainer: {
     padding: "12px 20px",
     textAlign: "center",
@@ -779,25 +849,8 @@ style.textContent = `
     100% { opacity: 1; }
   }
   
-  @keyframes slideIn {
-    from {
-      transform: translateX(-100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-  
   /* Fix for dropdown being under content */
   .notifications-dropdown {
-    z-index: 9999999 !important;
-  }
-  
-  /* Ensure dropdown appears above all other elements */
-  div[style*="position: fixed"].notifications-dropdown,
-  div[style*="position: absolute"].notifications-dropdown {
     z-index: 9999999 !important;
   }
   
@@ -824,9 +877,19 @@ style.textContent = `
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Hover effects for buttons */
-  button:hover {
-    opacity: 0.9;
+  /* Hover effects - FIXED with proper CSS */
+  .mark-all-button:hover {
+    background: #dbeafe !important;
+  }
+  
+  .dismiss-all-button:hover {
+    background: #e2e8f0 !important;
+    color: #475569 !important;
+  }
+  
+  .dismiss-button:hover {
+    background: #fee2e2 !important;
+    color: #ef4444 !important;
   }
 `;
 document.head.appendChild(style);

@@ -228,7 +228,7 @@ export default function AdminLayout() {
         <Outlet />
       </main>
 
-      <style jsx>{`
+      <style>{`
         .admin-layout {
           min-height: 100vh;
           background: #f5f7fa;

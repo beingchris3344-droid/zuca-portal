@@ -15,6 +15,7 @@ function Chat() {
   const [onlineCount, setOnlineCount] = useState(0);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [showOnlineList, setShowOnlineList] = useState(false);
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
   
   // Chat input states
   const [newMessage, setNewMessage] = useState("");
@@ -29,6 +30,8 @@ function Chat() {
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const refreshTimerRef = useRef(null);
+  const lastScrollPositionRef = useRef(0);
+  const isUserScrollingRef = useRef(false);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -65,14 +68,15 @@ function Chat() {
     }
   };
 
-  // Fetch messages with scroll position preservation
-  const fetchMessages = async () => {
+  // Fetch messages with WhatsApp scroll logic
+  const fetchMessages = async (isInitialLoad = false) => {
     try {
       const container = chatContainerRef.current;
-      const scrollPosition = container?.scrollTop || 0;
-      const scrollHeight = container?.scrollHeight || 0;
-      const clientHeight = container?.clientHeight || 0;
-      const wasNearBottom = scrollHeight - scrollPosition - clientHeight < 50;
+      
+      // Store current scroll position before fetching
+      if (container && !isInitialLoad) {
+        lastScrollPositionRef.current = container.scrollTop;
+      }
       
       const response = await axios.get(`${BASE_URL}/api/chat`, { headers });
       
@@ -84,13 +88,25 @@ function Chat() {
       
       setMessages(parsedMessages);
       
-      // Restore scroll position - WhatsApp logic
+      // WhatsApp scroll logic
       setTimeout(() => {
         if (container) {
-          if (wasNearBottom) {
+          if (isInitialLoad) {
+            // On initial load, scroll to bottom (latest messages)
             container.scrollTop = container.scrollHeight;
           } else {
-            container.scrollTop = scrollPosition;
+            // On refresh, maintain position if user was scrolling
+            if (isUserScrollingRef.current) {
+              container.scrollTop = lastScrollPositionRef.current;
+            } else {
+              // If user wasn't scrolling, check if they were near bottom
+              const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+              if (wasNearBottom) {
+                container.scrollTop = container.scrollHeight;
+              } else {
+                container.scrollTop = lastScrollPositionRef.current;
+              }
+            }
           }
         }
       }, 0);
@@ -98,9 +114,36 @@ function Chat() {
     } catch (err) {
       console.error("Error fetching messages:", err);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+        setHasInitialLoad(true);
+      }
     }
   };
+
+  // Detect user scroll
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const handleScrollStart = () => {
+      isUserScrollingRef.current = true;
+    };
+
+    const handleScrollEnd = () => {
+      setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 150);
+    };
+
+    container.addEventListener('scroll', handleScrollStart);
+    container.addEventListener('scrollend', handleScrollEnd);
+
+    return () => {
+      container.removeEventListener('scroll', handleScrollStart);
+      container.removeEventListener('scrollend', handleScrollEnd);
+    };
+  }, []);
 
   // Fetch online users
   const fetchOnlineCount = async () => {
@@ -116,23 +159,24 @@ function Chat() {
   // Initial data fetch
   useEffect(() => {
     if (user) {
-      fetchMessages();
+      fetchMessages(true);
       fetchOnlineCount();
     }
 
+    // Silent refresh in background - no scroll interference
     refreshTimerRef.current = setInterval(() => {
-      if (user) {
-        fetchMessages();
+      if (user && hasInitialLoad) {
+        fetchMessages(false);
         fetchOnlineCount();
       }
-    }, 3000);
+    }, 5000); // Longer interval, less noticeable
 
     return () => {
       if (refreshTimerRef.current) {
         clearInterval(refreshTimerRef.current);
       }
     };
-  }, [user]);
+  }, [user, hasInitialLoad]);
 
   // Handle file selection
   const handleFileSelect = (e) => {
@@ -184,7 +228,7 @@ function Chat() {
     }
   };
 
-  // Send message - FIXED to work with updated backend
+  // Send message
   const handleSendMessage = async () => {
     if (selectedFiles.length === 0 && !newMessage.trim()) return;
     if (sending) return;
@@ -207,8 +251,6 @@ function Chat() {
         replyToId: replyTo?.id,
         attachments: attachments.length > 0 ? attachments : undefined
       };
-
-      console.log("Sending payload:", payload);
 
       const response = await axios.post(`${BASE_URL}/api/chat`, payload, { headers });
       
@@ -343,39 +385,27 @@ function Chat() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <button style={styles.backButton} onClick={() => navigate(-1)}>
-            ←
-          </button>
-          <div style={styles.headerInfo}>
-            <h1 style={styles.headerTitle}>ZUCA Community</h1>
-            <div style={styles.headerStatus} onClick={() => setShowOnlineList(!showOnlineList)}>
-              <span style={styles.onlineDot}></span>
-              <span style={styles.onlineText}>{onlineCount} online</span>
-            </div>
-          </div>
-        </div>
-        <div style={styles.headerRight}>
-          <button style={styles.headerIcon} onClick={() => setShowOnlineList(!showOnlineList)}>
-            👥
-          </button>
-        </div>
-      </div>
+      {/* Online Users Button - Floating */}
+      <button 
+        style={styles.onlineButton}
+        onClick={() => setShowOnlineList(!showOnlineList)}
+      >
+        <span style={styles.onlineButtonDot}></span>
+        <span>{onlineCount}</span>
+      </button>
 
       {/* Online Users Dropdown */}
       <AnimatePresence>
         {showOnlineList && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
             style={styles.onlineDropdown}
           >
             <div style={styles.onlineDropdownHeader}>
               <h3>Online Members</h3>
-              <button onClick={() => setShowOnlineList(false)}>×</button>
+              <button onClick={() => setShowOnlineList(false)}>✕</button>
             </div>
             <div style={styles.onlineList}>
               {onlineUsers.length === 0 ? (
@@ -397,7 +427,7 @@ function Chat() {
         )}
       </AnimatePresence>
 
-      {/* Messages Area - ONLY THIS SCROLLS */}
+      {/* Messages Area */}
       <div style={styles.messagesWrapper}>
         <div style={styles.messagesContainer} ref={chatContainerRef}>
           {messages.length === 0 ? (
@@ -470,7 +500,7 @@ function Chat() {
                             <p style={styles.messageText}>{msg.content}</p>
                           )}
 
-                          {/* Attachments - FIXED to show images properly */}
+                          {/* Attachments */}
                           {attachments.length > 0 && (
                             <div style={styles.attachments}>
                               {attachments.map((att, i) => {
@@ -511,11 +541,16 @@ function Chat() {
                             </div>
                           )}
 
-                          {/* Time */}
+                          {/* Message footer with time and status */}
                           <div style={styles.messageFooter}>
                             <span style={styles.messageTime}>
                               {formatMessageTime(msg.createdAt)}
                             </span>
+                            {isOwn && (
+                              <span style={styles.messageStatus}>
+                                {msg.isEdited ? '✓✓' : '✓'}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -539,7 +574,12 @@ function Chat() {
 
       {/* File Previews */}
       {selectedFiles.length > 0 && (
-        <div style={styles.previewContainer}>
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          style={styles.previewContainer}
+        >
           <div style={styles.previewScroller}>
             {selectedFiles.map((file, index) => {
               const preview = getFilePreview(file);
@@ -556,7 +596,7 @@ function Chat() {
               );
             })}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Reply Bar */}
@@ -581,7 +621,7 @@ function Chat() {
         )}
       </AnimatePresence>
 
-      {/* Input Area - Fixed at bottom */}
+      {/* Input Area */}
       <div style={styles.inputWrapper}>
         <div style={styles.inputContainer}>
           <button style={styles.attachButton} onClick={() => fileInputRef.current?.click()}>
@@ -626,9 +666,9 @@ function Chat() {
         <AnimatePresence>
           {showEmojiPicker && (
             <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
+              initial={{ y: 20, opacity: 0, scale: 0.9 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.9 }}
               style={styles.emojiPicker}
             >
               {["😊", "😂", "❤️", "👍", "🙏", "🎉", "🔥", "✨", "💯", "👏", "🥳", "😢", "😍", "🤔", "👀"].map(emoji => (
@@ -650,12 +690,18 @@ function Chat() {
 
       {/* Upload Progress */}
       {Object.entries(uploadProgress).map(([id, progress]) => (
-        <div key={id} style={styles.progressOverlay}>
+        <motion.div 
+          key={id} 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          style={styles.progressOverlay}
+        >
           <div style={styles.progressBar}>
             <div style={{ ...styles.progressFill, width: `${progress}%` }} />
             <span style={styles.progressText}>{progress}%</span>
           </div>
-        </div>
+        </motion.div>
       ))}
 
       <style>{`
@@ -664,166 +710,136 @@ function Chat() {
           100% { transform: rotate(360deg); }
         }
         
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+        
         .message-row:hover .reply-button {
           opacity: 1 !important;
         }
         
         .attach-button:hover, .emoji-button:hover {
-          background: #2a3942 !important;
-          color: #fff !important;
+          background: rgba(255,255,255,0.1) !important;
         }
         
         .emoji:hover {
           transform: scale(1.1);
-          background: #374248 !important;
+          background: rgb(255, 255, 255) !important;
         }
         
         .send-button:hover:not(:disabled) {
           background: #008f72 !important;
         }
+
+        /* Custom scrollbar - subtle */
+        ::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
         
-        @media (max-width: 768px) {
-          .message-bubble-wrapper {
-            max-width: 85%;
-          }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 2px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.3);
         }
       `}</style>
     </div>
   );
 }
 
-// WhatsApp-like Styles - PERFECT PHONE LAYOUT
+// WhatsApp-like Styles - WITH TRANSPARENT BACKGROUND
 const styles = {
   container: {
-    height: "100vh",
-    width: "100vw",
+    width: "100%",
+    height: "calc(100vh - 120px)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    background: "#0b141a",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     color: "#fff",
+    borderRadius: "16px",
+    position: "relative",
+    background: "rgba(30, 119, 179, 0.47)", // Semi-transparent background
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
   },
   notification: {
     position: "fixed",
-    top: "60px",
+    top: "80px",
     left: "50%",
     transform: "translateX(-50%)",
-    padding: "10px 20px",
+    padding: "8px 20px",
     borderRadius: "30px",
-    zIndex: 2000,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    zIndex: 999999,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    whiteSpace: "nowrap",
+    fontSize: "13px",
+    fontWeight: "500",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
   },
   notificationSuccess: {
-    background: "#00a884",
+    background: "rgb(0, 255, 106)",
   },
   notificationError: {
-    background: "#ea0038",
+    background: "rgba(234, 0, 56, 0.9)",
   },
-  // Header - Fixed at top
-  header: {
-    padding: "8px 16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    background: "#202c33",
-    borderBottom: "1px solid #2a3942",
-    height: "60px",
-    flexShrink: 0,
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    flex: 1,
-    minWidth: 0,
-  },
-  backButton: {
-    background: "none",
-    border: "none",
-    fontSize: "24px",
-    cursor: "pointer",
-    padding: "8px",
-    borderRadius: "50%",
-    width: "40px",
-    height: "40px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  // Online Users Button - Floating
+  onlineButton: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "30px",
+    padding: "6px 14px",
     color: "#fff",
-    flexShrink: 0,
-  },
-  headerInfo: {
-    display: "flex",
-    flexDirection: "column",
-    flex: 1,
-    minWidth: 0,
-  },
-  headerTitle: {
-    fontSize: "16px",
-    fontWeight: "600",
-    margin: 0,
-    color: "#fff",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  headerStatus: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
     fontSize: "13px",
+    fontWeight: "500",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
     cursor: "pointer",
+    zIndex: 10,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
   },
-  onlineDot: {
+  onlineButtonDot: {
     width: "8px",
     height: "8px",
-    background: "#00a884",
+    background: "#00ff62",
     borderRadius: "50%",
     animation: "pulse 2s infinite",
   },
-  onlineText: {
-    fontSize: "13px",
-    color: "#8696a0",
-  },
-  headerRight: {
-    display: "flex",
-    gap: "8px",
-    flexShrink: 0,
-  },
-  headerIcon: {
-    background: "none",
-    border: "none",
-    fontSize: "20px",
-    cursor: "pointer",
-    padding: "8px",
-    borderRadius: "50%",
-    width: "40px",
-    height: "40px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#fff",
-    flexShrink: 0,
-  },
-  // Online Users Dropdown
   onlineDropdown: {
     position: "absolute",
-    top: "68px",
-    right: "16px",
+    top: "52px",
+    right: "12px",
     width: "280px",
-    background: "#202c33",
+    background: "rgba(32, 44, 51, 0.9)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
     borderRadius: "12px",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.4)",
-    border: "1px solid #2a3942",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.1)",
     zIndex: 100,
     overflow: "hidden",
   },
   onlineDropdownHeader: {
     padding: "16px",
-    borderBottom: "1px solid #2a3942",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -839,7 +855,7 @@ const styles = {
       fontSize: "18px",
       cursor: "pointer",
       padding: "4px 8px",
-      color: "#8696a0",
+      color: "rgba(255,255,255,0.6)",
     },
   },
   onlineList: {
@@ -854,7 +870,7 @@ const styles = {
     padding: "8px 12px",
     borderRadius: "8px",
     "&:hover": {
-      background: "#2a3942",
+      background: "rgba(255,255,255,0.05)",
     },
   },
   onlineItemAvatar: {
@@ -879,7 +895,7 @@ const styles = {
     height: "10px",
     background: "#00a884",
     borderRadius: "50%",
-    border: "2px solid #202c33",
+    border: "2px solid rgba(32,44,51,0.9)",
   },
   onlineItemName: {
     flex: 1,
@@ -900,11 +916,11 @@ const styles = {
   },
   noOnline: {
     textAlign: "center",
-    color: "#8696a0",
+    color: "rgba(255,255,255,0.5)",
     padding: "20px",
     fontSize: "14px",
   },
-  // Messages Wrapper - Takes remaining height
+  // Messages Wrapper
   messagesWrapper: {
     flex: 1,
     overflow: "hidden",
@@ -915,10 +931,9 @@ const styles = {
     height: "100%",
     width: "100%",
     overflowY: "auto",
-    padding: "12px",
+    padding: "16px 12px",
     boxSizing: "border-box",
-    background: `url(${backgroundImg}) no-repeat center center`,
-    backgroundSize: "cover",
+    position: "relative",
   },
   emptyState: {
     height: "100%",
@@ -928,9 +943,13 @@ const styles = {
     justifyContent: "center",
     textAlign: "center",
     padding: "20px",
-    color: "#8696a0",
-    background: "rgba(11, 20, 26, 0.7)",
+    color: "rgba(255,255,255,0.6)",
+    background: "rgba(0,0,0,0.2)",
     borderRadius: "12px",
+    maxWidth: "300px",
+    margin: "0 auto",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
   },
   emptyIcon: {
     fontSize: "64px",
@@ -943,13 +962,15 @@ const styles = {
     margin: "16px 0",
   },
   dateText: {
-    background: "#202c33",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     padding: "6px 16px",
     borderRadius: "20px",
     fontSize: "12px",
     fontWeight: "500",
     color: "#d1d7db",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
   },
   messageRow: {
     display: "flex",
@@ -957,6 +978,8 @@ const styles = {
     marginBottom: "12px",
     position: "relative",
     width: "100%",
+    padding: "0 4px",
+    boxSizing: "border-box",
   },
   messageRowOwn: {
     justifyContent: "flex-end",
@@ -965,24 +988,26 @@ const styles = {
     width: "36px",
     height: "36px",
     borderRadius: "50%",
-    background: "#00a884",
+    background: "linear-gradient(135deg, #17d356, #c9dde6)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: "14px",
-    fontWeight: "600",
+    fontWeight: "800",
     color: "#fff",
     flexShrink: 0,
     position: "relative",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
   },
   adminCrown: {
     position: "absolute",
     top: "-4px",
     right: "-4px",
     fontSize: "10px",
+    filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))",
   },
   messageBubbleWrapper: {
-    maxWidth: "75%",
+    maxWidth: "70%",
     position: "relative",
   },
   messageBubbleWrapperOwn: {
@@ -992,8 +1017,8 @@ const styles = {
   },
   messageSenderName: {
     fontSize: "12px",
-    fontWeight: "600",
-    color: "#00a884",
+    fontWeight: "700",
+    color: "#181414",
     marginBottom: "2px",
     marginLeft: "4px",
     display: "block",
@@ -1007,10 +1032,12 @@ const styles = {
     alignItems: "center",
     gap: "4px",
     fontSize: "11px",
-    color: "#8696a0",
+    color: "rgba(255,255,255,0.5)",
     marginBottom: "2px",
     marginLeft: "4px",
-    background: "#2a3942",
+    background: "rgba(42, 57, 66, 0.5)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     padding: "4px 8px",
     borderRadius: "8px",
     maxWidth: "200px",
@@ -1024,15 +1051,21 @@ const styles = {
     whiteSpace: "nowrap",
   },
   messageBubble: {
-    background: "#202c33",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
     borderRadius: "12px",
     padding: "8px 12px",
     position: "relative",
     wordWrap: "break-word",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+    maxWidth: "100%",
+    border: "1px solid rgba(255,255,255,0.05)",
   },
   messageBubbleOwn: {
-    background: "#005d4b",
+    background: "rgba(7, 150, 233, 0.63)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
   },
   messageText: {
     fontSize: "14px",
@@ -1040,6 +1073,8 @@ const styles = {
     margin: "0 0 4px 0",
     color: "#fff",
     wordBreak: "break-word",
+    fontWeight: "600",
+    textShadow: "0 1px 2px rgba(0,0,0,0.1)",
   },
   attachments: {
     display: "flex",
@@ -1053,6 +1088,7 @@ const styles = {
     borderRadius: "8px",
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
   },
   attachmentImage: {
     width: "100%",
@@ -1065,13 +1101,16 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    padding: "8px 12px",
-    background: "#2a3942",
+    padding: "6px 10px",
+    background: "rgba(19, 20, 20, 0.98)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     borderRadius: "8px",
     color: "#fff",
     textDecoration: "none",
     fontSize: "13px",
     maxWidth: "200px",
+    border: "1px solid rgba(255,255,255,0.05)",
   },
   fileIcon: {
     fontSize: "16px",
@@ -1085,10 +1124,15 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
+    gap: "4px",
     marginTop: "4px",
   },
   messageTime: {
     fontSize: "10px",
+    color: "rgba(255,255,255,0.5)",
+  },
+  messageStatus: {
+    fontSize: "11px",
     color: "rgba(255,255,255,0.6)",
   },
   replyButton: {
@@ -1097,17 +1141,20 @@ const styles = {
     right: "-30px",
     background: "none",
     border: "none",
-    fontSize: "16px",
+    fontSize: "14px",
     cursor: "pointer",
     padding: "4px",
     opacity: 0,
     transition: "opacity 0.2s",
-    color: "#8696a0",
+    color: "rgba(255,255,255,0.6)",
+    filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.2))",
   },
   // Preview Container
   previewContainer: {
-    background: "#202c33",
-    borderTop: "1px solid #2a3942",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
     padding: "12px",
     overflowX: "auto",
     width: "100%",
@@ -1124,7 +1171,8 @@ const styles = {
     borderRadius: "8px",
     overflow: "hidden",
     flexShrink: 0,
-    background: "#2a3942",
+    background: "rgba(42, 57, 66, 0.6)",
+    border: "1px solid rgba(255,255,255,0.1)",
   },
   previewImage: {
     width: "100%",
@@ -1138,7 +1186,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: "24px",
-    background: "#374248",
+    background: "rgba(55, 66, 77, 0.6)",
     color: "#fff",
   },
   previewRemove: {
@@ -1148,7 +1196,7 @@ const styles = {
     width: "20px",
     height: "20px",
     borderRadius: "10px",
-    background: "#ff4d6d",
+    background: "rgba(255, 77, 109, 0.9)",
     color: "#fff",
     border: "none",
     fontSize: "14px",
@@ -1157,13 +1205,17 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
   },
   previewName: {
     position: "absolute",
     bottom: "0",
     left: "0",
     right: "0",
-    background: "rgba(0,0,0,0.7)",
+    background: "rgba(0,0,0,0.6)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     color: "#fff",
     fontSize: "9px",
     padding: "2px 4px",
@@ -1174,8 +1226,10 @@ const styles = {
   },
   // Reply Bar
   replyBar: {
-    background: "#202c33",
-    borderTop: "1px solid #2a3942",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
     padding: "8px 16px",
     display: "flex",
     alignItems: "center",
@@ -1196,7 +1250,7 @@ const styles = {
   },
   replyBarText: {
     fontSize: "12px",
-    color: "#8696a0",
+    color: "rgba(255,255,255,0.6)",
     fontStyle: "italic",
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -1209,13 +1263,15 @@ const styles = {
     fontSize: "20px",
     cursor: "pointer",
     padding: "4px 8px",
-    color: "#fff",
+    color: "rgba(255,255,255,0.6)",
     flexShrink: 0,
   },
-  // Input Area - Fixed at bottom
+  // Input Area
   inputWrapper: {
-    background: "#202c33",
-    borderTop: "1px solid #2a3942",
+    background: "rgba(250, 244, 244, 0.44)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
     padding: "8px 12px",
     position: "relative",
     flexShrink: 0,
@@ -1233,71 +1289,86 @@ const styles = {
     height: "40px",
     borderRadius: "50%",
     border: "none",
-    background: "transparent",
-    color: "#8696a0",
-    fontSize: "22px",
+    background: "rgba(14, 13, 13, 0.88)",
+    color: "rgb(255, 255, 255)",
+    fontSize: "30px",
+    fontWeight: "900",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
   },
   emojiButton: {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
     border: "none",
-    background: "transparent",
-    color: "#8696a0",
-    fontSize: "22px",
+    background: "rgba(255, 255, 255, 0.94)",
+    color: "rgba(255, 255, 255, 0.98)",
+    fontSize: "20px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
   },
   emojiPicker: {
     position: "absolute",
     bottom: "70px",
-    left: "12px",
-    background: "#202c33",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "rgba(32, 44, 51, 0.9)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
     borderRadius: "12px",
     padding: "12px",
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
     gap: "8px",
-    border: "1px solid #2a3942",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
     zIndex: 100,
-    maxWidth: "calc(100% - 24px)",
+    width: "90%",
+    maxWidth: "320px",
   },
   emoji: {
-    width: "40px",
-    height: "40px",
+    width: "100%",
+    aspectRatio: "1/1",
     borderRadius: "8px",
     border: "none",
-    background: "#2a3942",
+    background: "rgba(255,255,255,0.05)",
     color: "#fff",
     fontSize: "20px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    transition: "all 0.2s",
   },
   messageInput: {
     flex: 1,
     padding: "10px 12px",
     borderRadius: "24px",
-    border: "1px solid #2a3942",
-    background: "#2a3942",
-    color: "#fff",
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgb(241, 244, 246)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
+    color: "#000000",
     fontSize: "15px",
     minHeight: "20px",
     maxHeight: "100px",
+   
     fontFamily: "inherit",
+    fontWeight: "600",
     minWidth: 0,
+    width: "100%",
     "::placeholder": {
-      color: "#8696a0",
+      color: "rgb(12, 12, 12)",
     },
     "&:focus": {
       outline: "none",
@@ -1309,17 +1380,19 @@ const styles = {
     height: "40px",
     borderRadius: "24px",
     border: "none",
-    background: "#00a884",
+    background: "#04f741",
     color: "#fff",
     fontSize: "14px",
     fontWeight: "600",
     cursor: "pointer",
     whiteSpace: "nowrap",
     flexShrink: 0,
+   
   },
   sendButtonDisabled: {
     opacity: 0.5,
     cursor: "not-allowed",
+    boxShadow: "none",
   },
   progressOverlay: {
     position: "absolute",
@@ -1331,10 +1404,12 @@ const styles = {
   progressBar: {
     width: "200px",
     height: "40px",
-    background: "#202c33",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
     borderRadius: "20px",
     overflow: "hidden",
-    border: "1px solid #2a3942",
+    border: "1px solid rgba(255,255,255,0.1)",
     position: "relative",
     display: "flex",
     alignItems: "center",
@@ -1345,7 +1420,7 @@ const styles = {
     left: 0,
     top: 0,
     bottom: 0,
-    background: "#00a884",
+    background: "rgba(0, 168, 132, 0.8)",
     transition: "width 0.3s ease",
   },
   progressText: {
@@ -1354,6 +1429,7 @@ const styles = {
     fontSize: "12px",
     fontWeight: "600",
     zIndex: 1,
+    textShadow: "0 1px 2px rgba(0,0,0,0.3)",
   },
   modalOverlay: {
     position: "fixed",
@@ -1361,7 +1437,9 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "rgba(0,0,0,0.9)",
+    background: "rgba(0,0,0,0.8)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -1370,14 +1448,15 @@ const styles = {
   },
   modalContent: {
     position: "relative",
-    maxWidth: "90vw",
-    maxHeight: "90vh",
+    maxWidth: "95vw",
+    maxHeight: "95vh",
   },
   modalImage: {
     maxWidth: "100%",
-    maxHeight: "90vh",
+    maxHeight: "95vh",
     objectFit: "contain",
-    borderRadius: "8px",
+    borderRadius: "12px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
   },
   modalClose: {
     position: "absolute",
@@ -1387,30 +1466,36 @@ const styles = {
     height: "40px",
     borderRadius: "20px",
     border: "none",
-    background: "#ea0038",
+    background: "rgba(234, 0, 56, 0.8)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     color: "#fff",
     fontSize: "24px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
   },
 };
 
 const loadingStyles = {
   container: {
-    height: "100vh",
-    width: "100vw",
-    background: "#0b141a",
+    width: "100%",
+    height: "calc(100vh - 120px)",
+    background: "rgba(11, 20, 26, 0.75)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: "16px",
   },
   spinner: {
     width: "48px",
     height: "48px",
-    border: "4px solid #2a3942",
+    border: "4px solid rgba(255,255,255,0.1)",
     borderTopColor: "#00a884",
     borderRadius: "50%",
     animation: "spin 1s linear infinite",
@@ -1419,6 +1504,7 @@ const loadingStyles = {
   text: {
     color: "#fff",
     fontSize: "16px",
+    textShadow: "0 1px 2px rgba(0,0,0,0.3)",
   },
 };
 

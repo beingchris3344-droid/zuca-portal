@@ -118,12 +118,14 @@ function ChatMonitorPage() {
       setMessages(parsedMessages);
       calculateStats(parsedMessages);
       
-      // Preserve scroll position
+        // Auto-scroll to new message
       setTimeout(() => {
-        if (container && !wasNearBottom) {
-          container.scrollTop = scrollPosition;
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-      }, 0);
+      }, 100);
+
+     
       
     } catch (err) {
       console.error("Error fetching messages:", err);

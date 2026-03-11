@@ -115,7 +115,7 @@ function Contributions() {
     
     const remaining = calculateRemaining(contribution);
     if (parsedAmount > remaining) {
-      showNotification(`Amount cannot exceed KES ${remaining.toLocaleString()}`, "error");
+      showNotification(`Amount cannot exceed KES sh{remaining.toLocaleString()}`, "error");
       return;
     }
 
@@ -353,7 +353,7 @@ function Contributions() {
         </div>
       )}
 
-      <style jsx>{`
+     <style>{`
         .contributions-page {
           min-height: 10vh;
           padding: 40px 15px;

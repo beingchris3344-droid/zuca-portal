@@ -299,11 +299,11 @@ function AdminDashboard() {
               if (pledge.createdAt && pledge.user) {
                 let actionText = '';
                 if (pledge.amountPaid > 0 && pledge.amountPaid >= contribution.amountRequired) {
-                  actionText = `completed payment of KES ${pledge.amountPaid.toLocaleString()}`;
+                  actionText = `completed payment of KES sh{pledge.amountPaid.toLocaleString()}`;
                 } else if (pledge.amountPaid > 0) {
-                  actionText = `paid KES ${pledge.amountPaid.toLocaleString()}`;
+                  actionText = `paid KES sh{pledge.amountPaid.toLocaleString()}`;
                 } else if (pledge.pendingAmount > 0) {
-                  actionText = `pledged KES ${pledge.pendingAmount.toLocaleString()}`;
+                  actionText = `pledged KES sh{pledge.pendingAmount.toLocaleString()}`;
                 }
                 
                 if (actionText) {
@@ -492,15 +492,15 @@ function AdminDashboard() {
     scales: {
       y: {
         beginAtZero: true,
-        grid: { color: 'rgba(255,255,255,0.1)' },
+        grid: { color: 'rgba(0,0,0,0.05)' },
         ticks: { 
-          color: 'rgba(255,255,255,0.7)',
+          color: '#64748b',
           callback: (value) => value 
         }
       },
       x: { 
         grid: { display: false },
-        ticks: { color: 'rgba(255,255,255,0.7)' }
+        ticks: { color: '#64748b' }
       }
     },
   };
@@ -515,7 +515,7 @@ function AdminDashboard() {
           boxWidth: 12,
           padding: 15,
           font: { size: 11, weight: '500' },
-          color: 'rgba(255,255,255,0.9)'
+          color: '#334155'
         }
       }
     },
@@ -598,7 +598,7 @@ function AdminDashboard() {
           </div>
         </header>
 
-        {/* Stats Grid - 3 columns on mobile, 6 on desktop */}
+        {/* Stats Grid - 6 columns on desktop, 3 on mobile */}
         <div style={styles.statsGrid}>
           <motion.div 
             style={styles.statCard}
@@ -1034,7 +1034,7 @@ function AdminDashboard() {
   );
 }
 
-// Styles
+// Styles - Updated for white cards and better mobile layout
 const styles = {
   dashboard: {
     minHeight: "100vh",
@@ -1058,7 +1058,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    background: "linear-gradient(135deg, #667eea05 0%, #07070701 100%)"
   },
   loader: {
     background: "white",
@@ -1085,6 +1085,7 @@ const styles = {
     maxWidth: "1400px",
     margin: "0 auto",
     width: "100%",
+    marginTop: "30px",
     padding: "20px",
     position: "relative",
     zIndex: 1
@@ -1093,6 +1094,7 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: "24px",
     marginBottom: "24px",
     flexWrap: "wrap",
     gap: "16px"
@@ -1177,21 +1179,23 @@ const styles = {
     color: "rgba(255,255,255,0.8)"
   },
   statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(6, 1fr)",
-    gap: "12px",
-    marginBottom: "24px"
-  },
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "12px",
+  marginBottom: "24px"
+
+},
+
   statCard: {
-    background: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
+    background: "white",
     borderRadius: "16px",
     padding: "16px",
     display: "flex",
     alignItems: "center",
     gap: "12px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    transition: "all 0.3s"
+    border: "1px solid #e2e8f0",
+    transition: "all 0.3s",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
   },
   statIcon: {
     width: "48px",
@@ -1204,28 +1208,28 @@ const styles = {
     flexShrink: 0
   },
   statIconUsers: {
-    background: "rgba(59, 130, 246, 0.2)",
-    color: "#60a5fa"
+    background: "rgba(59, 130, 246, 0.1)",
+    color: "#3b82f6"
   },
   statIconAnnouncements: {
-    background: "rgba(245, 158, 11, 0.2)",
-    color: "#fbbf24"
+    background: "rgba(245, 158, 11, 0.1)",
+    color: "#f59e0b"
   },
   statIconContributions: {
-    background: "rgba(16, 185, 129, 0.2)",
-    color: "#34d399"
+    background: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981"
   },
   statIconPrograms: {
-    background: "rgba(139, 92, 246, 0.2)",
-    color: "#c084fc"
+    background: "rgba(139, 92, 246, 0.1)",
+    color: "#8b5cf6"
   },
   statIconMessages: {
-    background: "rgba(236, 72, 153, 0.2)",
-    color: "#f472b6"
+    background: "rgba(236, 72, 153, 0.1)",
+    color: "#ec4899"
   },
   statIconJumuia: {
-    background: "rgba(245, 158, 11, 0.2)",
-    color: "#fbbf24"
+    background: "rgba(245, 158, 11, 0.1)",
+    color: "#f59e0b"
   },
   statContent: {
     flex: 1,
@@ -1235,30 +1239,32 @@ const styles = {
     display: "block",
     fontSize: "clamp(16px, 2vw, 24px)",
     fontWeight: "700",
-    color: "white",
+    color: "#0f172a",
     lineHeight: "1.2",
     marginBottom: "2px"
   },
   statLabel: {
     display: "block",
     fontSize: "11px",
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: "4px"
+    color: "#64748b",
+    marginBottom: "4px",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px"
   },
   statFooter: {
     display: "flex",
     alignItems: "center",
     gap: "4px",
     fontSize: "10px",
-    color: "rgba(255,255,255,0.6)",
+    color: "#475569",
     flexWrap: "wrap"
   },
   footerIcon: {
     fontSize: "12px",
-    color: "rgba(255,255,255,0.5)"
+    color: "#94a3b8"
   },
   successColor: {
-    color: "#34d399"
+    color: "#10b981"
   },
   chartsStack: {
     display: "flex",
@@ -1267,12 +1273,12 @@ const styles = {
     marginBottom: "24px"
   },
   chartCard: {
-    background: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
+    background: "white",
     borderRadius: "20px",
     padding: "20px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    width: "100%"
+    border: "1px solid #e2e8f0",
+    width: "100%",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
   },
   chartHeader: {
     display: "flex",
@@ -1283,26 +1289,26 @@ const styles = {
   chartTitle: {
     fontSize: "16px",
     fontWeight: "600",
-    color: "white",
+    color: "#0f172a",
     margin: "0 0 4px 0"
   },
   chartSubtitle: {
     fontSize: "12px",
-    color: "rgba(255,255,255,0.6)",
+    color: "#64748b",
     margin: 0
   },
   chartIcon: {
-    color: "rgba(255,255,255,0.5)",
+    color: "#94a3b8",
     fontSize: "20px"
   },
   contributionSelect: {
     width: "100%",
     padding: "10px",
-    border: "1px solid rgba(255,255,255,0.2)",
+    border: "1px solid #e2e8f0",
     borderRadius: "8px",
     fontSize: "13px",
-    color: "white",
-    background: "rgba(0,0,0,0.3)",
+    color: "#0f172a",
+    background: "white",
     cursor: "pointer",
     outline: "none",
     marginTop: "8px"
@@ -1320,18 +1326,18 @@ const styles = {
   },
   noData: {
     textAlign: "center",
-    color: "rgba(255,255,255,0.5)",
+    color: "#94a3b8",
     padding: "40px",
     fontStyle: "italic"
   },
   usersCard: {
-    background: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
+    background: "white",
     borderRadius: "20px",
     padding: "20px",
-    border: "1px solid rgba(255,255,255,0.1)",
+    border: "1px solid #e2e8f0",
     marginBottom: "24px",
-    width: "100%"
+    width: "100%",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
   },
   cardHeader: {
     display: "flex",
@@ -1344,12 +1350,12 @@ const styles = {
   cardTitle: {
     fontSize: "18px",
     fontWeight: "600",
-    color: "white",
+    color: "#0f172a",
     margin: "0 0 4px 0"
   },
   cardSubtitle: {
     fontSize: "13px",
-    color: "rgba(255,255,255,0.6)",
+    color: "#64748b",
     margin: 0
   },
   cardActions: {
@@ -1359,20 +1365,19 @@ const styles = {
   },
   roleFilter: {
     padding: "8px 12px",
-    border: "1px solid rgba(255,255,255,0.2)",
+    border: "1px solid #e2e8f0",
     borderRadius: "8px",
     fontSize: "13px",
-    color: "white",
-    background: "rgba(0,0,0,0.3)",
+    color: "#0f172a",
+    background: "white",
     cursor: "pointer",
     outline: "none"
   },
   viewAll: {
-    color: "white",
+    color: "#3b82f6",
     textDecoration: "none",
     fontSize: "13px",
     fontWeight: "500",
-    opacity: 0.8,
     whiteSpace: "nowrap"
   },
   tableContainer: {
@@ -1380,7 +1385,7 @@ const styles = {
     overflowY: "auto",
     maxHeight: "400px",
     borderRadius: "12px",
-    background: "rgba(0,0,0,0.2)"
+    background: "white"
   },
   usersTable: {
     width: "100%",
@@ -1392,26 +1397,26 @@ const styles = {
     padding: "14px 12px",
     fontSize: "12px",
     fontWeight: "600",
-    color: "rgba(255,255,255,0.8)",
-    borderBottom: "1px solid rgba(255,255,255,0.2)",
+    color: "#64748b",
+    borderBottom: "1px solid #e2e8f0",
     position: "sticky",
     top: 0,
-    background: "rgba(0,0,0,0.5)",
+    background: "white",
     zIndex: 10
   },
   tableRow: {
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
+    borderBottom: "1px solid #f1f5f9",
     transition: "background 0.2s"
   },
   tableCell: {
     padding: "12px",
-    color: "white",
+    color: "#1e293b",
     fontSize: "13px"
   },
   noDataCell: {
     padding: "40px",
     textAlign: "center",
-    color: "rgba(255,255,255,0.5)",
+    color: "#94a3b8",
     fontSize: "14px"
   },
   userCell: {
@@ -1441,7 +1446,7 @@ const styles = {
   userName: {
     fontSize: "14px",
     fontWeight: "500",
-    color: "white",
+    color: "#0f172a",
     marginBottom: "2px",
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -1449,7 +1454,7 @@ const styles = {
   },
   userEmail: {
     fontSize: "11px",
-    color: "rgba(255,255,255,0.5)",
+    color: "#64748b",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis"
@@ -1464,16 +1469,16 @@ const styles = {
     whiteSpace: "nowrap"
   },
   roleBadgeadmin: {
-    background: "rgba(239, 68, 68, 0.2)",
-    color: "#fca5a5"
+    background: "rgba(239, 68, 68, 0.1)",
+    color: "#ef4444"
   },
   roleBadgemember: {
-    background: "rgba(59, 130, 246, 0.2)",
-    color: "#93c5fd"
+    background: "rgba(59, 130, 246, 0.1)",
+    color: "#3b82f6"
   },
   roleBadgetreasurer: {
-    background: "rgba(16, 185, 129, 0.2)",
-    color: "#6ee7b7"
+    background: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981"
   },
   statusBadge: {
     display: "inline-block",
@@ -1484,12 +1489,12 @@ const styles = {
     whiteSpace: "nowrap"
   },
   statusOnline: {
-    background: "rgba(16, 185, 129, 0.2)",
-    color: "#6ee7b7"
+    background: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981"
   },
   statusOffline: {
-    background: "rgba(100, 116, 139, 0.2)",
-    color: "#cbd5e1"
+    background: "rgba(100, 116, 139, 0.1)",
+    color: "#64748b"
   },
   actionButtons: {
     display: "flex",
@@ -1505,19 +1510,19 @@ const styles = {
     justifyContent: "center",
     cursor: "pointer",
     transition: "all 0.2s",
-    background: "rgba(255,255,255,0.1)",
-    color: "rgba(255,255,255,0.8)"
+    background: "#f8fafc",
+    color: "#64748b"
   },
   activityCard: {
-    background: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
+    background: "white",
     borderRadius: "20px",
     padding: "20px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    width: "100%"
+    border: "1px solid #e2e8f0",
+    width: "100%",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
   },
   activityIcon: {
-    color: "rgba(255,255,255,0.5)",
+    color: "#94a3b8",
     fontSize: "20px"
   },
   activityList: {
@@ -1528,12 +1533,12 @@ const styles = {
     alignItems: "flex-start",
     gap: "12px",
     padding: "12px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.1)"
+    borderBottom: "1px solid #f1f5f9"
   },
   activityIconWrapper: {
     width: "36px",
     height: "36px",
-    background: "rgba(255,255,255,0.1)",
+    background: "#f8fafc",
     borderRadius: "10px",
     display: "flex",
     alignItems: "center",
@@ -1549,25 +1554,25 @@ const styles = {
   },
   activityText: {
     fontSize: "13px",
-    color: "white",
+    color: "#1e293b",
     margin: "0 0 4px 0",
     lineHeight: "1.5",
     wordWrap: "break-word"
   },
   activityTime: {
     fontSize: "11px",
-    color: "rgba(255,255,255,0.5)"
+    color: "#94a3b8"
   },
   quickLinks: {
     margin: "20px 0",
     padding: "16px",
-    background: "rgba(0,0,0,0.2)",
+    background: "#f8fafc",
     borderRadius: "12px"
   },
   quickLinksTitle: {
     fontSize: "15px",
     fontWeight: "600",
-    color: "white",
+    color: "#0f172a",
     margin: "0 0 12px 0"
   },
   linksGrid: {
@@ -1580,24 +1585,24 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     padding: "12px",
-    background: "rgba(255,255,255,0.1)",
+    background: "white",
     borderRadius: "10px",
-    color: "white",
+    color: "#0f172a",
     textDecoration: "none",
     fontSize: "13px",
     fontWeight: "500",
     transition: "all 0.2s",
-    border: "1px solid rgba(255,255,255,0.1)"
+    border: "1px solid #e2e8f0"
   },
   recentSection: {
     marginTop: "20px",
     paddingTop: "20px",
-    borderTop: "1px solid rgba(255,255,255,0.1)"
+    borderTop: "1px solid #e2e8f0"
   },
   recentSectionTitle: {
     fontSize: "15px",
     fontWeight: "600",
-    color: "white",
+    color: "#0f172a",
     margin: "0 0 12px 0"
   },
   recentItem: {
@@ -1609,7 +1614,7 @@ const styles = {
   recentIcon: {
     width: "32px",
     height: "32px",
-    background: "rgba(255,255,255,0.1)",
+    background: "#f8fafc",
     borderRadius: "8px",
     display: "flex",
     alignItems: "center",
@@ -1624,7 +1629,7 @@ const styles = {
   recentTitle: {
     fontSize: "13px",
     fontWeight: "500",
-    color: "white",
+    color: "#0f172a",
     marginBottom: "2px",
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -1632,7 +1637,7 @@ const styles = {
   },
   recentTime: {
     fontSize: "11px",
-    color: "rgba(255,255,255,0.5)"
+    color: "#64748b"
   },
   modalOverlay: {
     position: "fixed",
@@ -1713,19 +1718,26 @@ style.textContent = `
   }
   
   .quick-link:hover {
-    background: rgba(255,255,255,0.2) !important;
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
   }
   
   .icon-btn:hover {
-    background: rgba(255,255,255,0.2) !important;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
   }
   
   .view-all:hover {
-    opacity: 1 !important;
+    color: #2563eb !important;
+    text-decoration: underline !important;
   }
   
   .close-btn:hover {
     background: #e2e8f0 !important;
+  }
+
+  .table-row:hover {
+    background: #f8fafc !important;
   }
 
   /* Mobile Styles */
@@ -1752,10 +1764,15 @@ style.textContent = `
     
     .stat-label {
       font-size: 9px !important;
+      margin-bottom: 2px !important;
     }
     
     .stat-footer {
       font-size: 8px !important;
+    }
+    
+    .footer-icon {
+      font-size: 10px !important;
     }
     
     .charts-stack {
@@ -1823,6 +1840,7 @@ style.textContent = `
     .icon-btn {
       width: 28px !important;
       height: 28px !important;
+      font-size: 12px !important;
     }
     
     .activity-item {
@@ -1883,6 +1901,7 @@ style.textContent = `
     
     .stat-card {
       padding: 8px !important;
+      gap: 6px !important;
     }
     
     .stat-icon {
@@ -1901,6 +1920,11 @@ style.textContent = `
     
     .stat-footer {
       font-size: 7px !important;
+      gap: 2px !important;
+    }
+    
+    .footer-icon {
+      font-size: 9px !important;
     }
     
     .table-container {

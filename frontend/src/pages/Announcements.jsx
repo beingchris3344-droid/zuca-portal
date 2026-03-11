@@ -547,7 +547,7 @@ export default function UserAnnouncements() {
                   style={timelineIndicator}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <span style={timelineDot} style={{ backgroundColor: "#3b82f6" }} />
+                  
                   <span style={timelineText}>
                     Latest: {formatDate(stats.latestUpdate)}
                   </span>
@@ -558,7 +558,7 @@ export default function UserAnnouncements() {
                   style={timelineIndicator}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <span style={timelineDot} style={{ backgroundColor: "#94a3b8" }} />
+                  <span style={{ ...timelineDot, backgroundColor: "#94a3b8" }} />
                   <span style={timelineText}>
                     Oldest: {formatDate(stats.oldestUpdate)}
                   </span>

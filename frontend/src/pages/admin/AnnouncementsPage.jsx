@@ -4,12 +4,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiPlus, FiX, FiEdit2, FiTrash2, FiBell, 
   FiClock, FiCalendar, FiCheck, FiAlertCircle,
-  FiRefreshCw, FiSearch, FiFilter
+  FiRefreshCw, FiSearch, FiFilter, FiTag
 } from "react-icons/fi";
 import { MdOutlineAnnouncement } from "react-icons/md";
 import { BsMegaphone } from "react-icons/bs";
 import axios from "axios";
 import io from "socket.io-client";
+import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
 
 export default function AdminAnnouncements() {
@@ -28,11 +29,6 @@ export default function AdminAnnouncements() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
-  const [stats, setStats] = useState({
-    total: 0,
-    thisWeek: 0,
-    categories: {}
-  });
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -48,7 +44,6 @@ export default function AdminAnnouncements() {
     socket.on('new_announcement', (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);
       showNotification("New announcement posted!", "success");
-      calculateStats([announcement, ...announcements]);
     });
 
     socket.on('announcement_updated', (updated) => {
@@ -64,32 +59,12 @@ export default function AdminAnnouncements() {
     });
 
     return () => socket.disconnect();
-  }, [announcements]);
+  }, []);
 
   // Show notification
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
-  };
-
-  // Calculate stats
-  const calculateStats = (data) => {
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const thisWeek = data.filter(a => new Date(a.createdAt) >= oneWeekAgo).length;
-    
-    const categories = data.reduce((acc, a) => {
-      const cat = a.category || 'General';
-      acc[cat] = (acc[cat] || 0) + 1;
-      return acc;
-    }, {});
-
-    setStats({
-      total: data.length,
-      thisWeek,
-      categories
-    });
   };
 
   // Fetch announcements
@@ -103,7 +78,6 @@ export default function AdminAnnouncements() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setAnnouncements(res.data);
-      calculateStats(res.data);
     } catch (err) {
       console.error("Fetch Announcements Error:", err);
       setError("Failed to load announcements.");
@@ -125,7 +99,7 @@ export default function AdminAnnouncements() {
     }
 
     try {
-      const res = await axios.post(
+      await axios.post(
         `${BASE_URL}/api/announcements`,
         { 
           title: title.trim(), 
@@ -202,10 +176,16 @@ export default function AdminAnnouncements() {
     setEditCategory("");
   };
 
+  // Calculate stats
+  const stats = {
+    total: announcements.length,
+    categories: new Set(announcements.map(a => a.category || 'General')).size
+  };
+
   // Filter announcements
   const filteredAnnouncements = announcements.filter(a => {
-    const matchesSearch = a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         a.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = a.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         a.content?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === "all" || a.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -214,33 +194,47 @@ export default function AdminAnnouncements() {
   const categories = ['all', ...new Set(announcements.map(a => a.category || 'General'))];
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    if (!dateString) return 'Unknown';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const getCategoryColor = (category) => {
+    switch(category) {
+      case 'Mass': return { bg: '#8b5cf6', light: '#ede9fe' };
+      case 'Event': return { bg: '#10b981', light: '#d1fae5' };
+      case 'Urgent': return { bg: '#ef4444', light: '#fee2e2' };
+      case 'Reminder': return { bg: '#f59e0b', light: '#fef3c7' };
+      default: return { bg: '#3b82f6', light: '#dbeafe' };
+    }
   };
 
   return (
-    <div className="announcements-page">
-      {/* Background Overlay */}
-      <div className="gradient-bg">
-        <div className="orb orb-1"></div>
-        <div className="orb orb-2"></div>
-        <div className="orb orb-3"></div>
-      </div>
+    <div 
+      className="announcements-page"
+      style={{ backgroundImage: `url(${backgroundImg})` }}
+    >
+      {/* Dark Overlay */}
+      <div className="overlay"></div>
 
       {/* Notification */}
       <AnimatePresence>
@@ -302,34 +296,12 @@ export default function AdminAnnouncements() {
           </div>
 
           <div className="stat-card">
-            <div className="stat-icon week">
-              <FiCalendar />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{stats.thisWeek}</span>
-              <span className="stat-label">This Week</span>
-            </div>
-          </div>
-
-          <div className="stat-card">
             <div className="stat-icon categories">
-              <FiFilter />
+              <FiTag />
             </div>
             <div className="stat-content">
-              <span className="stat-value">{Object.keys(stats.categories).length}</span>
+              <span className="stat-value">{stats.categories}</span>
               <span className="stat-label">Categories</span>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon latest">
-              <FiClock />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">
-                {announcements[0] ? formatDate(announcements[0].createdAt) : 'N/A'}
-              </span>
-              <span className="stat-label">Latest</span>
             </div>
           </div>
         </div>
@@ -465,164 +437,134 @@ export default function AdminAnnouncements() {
               )}
             </div>
           ) : (
-            <div className="announcements-grid">
-              {filteredAnnouncements.map((announcement, index) => (
-                <motion.div
-                  key={announcement.id}
-                  className={`announcement-card ${announcement.category?.toLowerCase() || 'general'}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  {editingId === announcement.id ? (
-                    // Edit Mode
-                    <div className="edit-mode">
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="edit-input"
-                        placeholder="Title"
-                      />
-                      <select
-                        value={editCategory}
-                        onChange={(e) => setEditCategory(e.target.value)}
-                        className="edit-select"
-                      >
-                        <option value="General">General</option>
-                        <option value="Mass">Mass</option>
-                        <option value="Event">Event</option>
-                        <option value="Urgent">Urgent</option>
-                        <option value="Reminder">Reminder</option>
-                      </select>
-                      <textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        rows={4}
-                        className="edit-textarea"
-                        placeholder="Content"
-                      />
-                      <div className="edit-actions">
-                        <button 
-                          className="btn-secondary btn-small"
-                          onClick={cancelEdit}
+            <div className="announcements-list">
+              {filteredAnnouncements.map((announcement, index) => {
+                const categoryColor = getCategoryColor(announcement.category);
+                return (
+                  <motion.div
+                    key={announcement.id}
+                    className="announcement-card"
+                    style={{ borderLeftColor: categoryColor.bg }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    {editingId === announcement.id ? (
+                      // Edit Mode
+                      <div className="edit-mode">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="edit-input"
+                          placeholder="Title"
+                        />
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value)}
+                          className="edit-select"
                         >
-                          Cancel
-                        </button>
-                        <button 
-                          className="btn-primary btn-small"
-                          onClick={() => handleUpdate(announcement.id)}
-                        >
-                          Save Changes
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    // View Mode
-                    <>
-                      <div className="card-header">
-                        <div className="card-meta">
-                          <span className="card-category">
-                            {announcement.category || 'General'}
-                          </span>
-                          <span className="card-date">
-                            <FiClock /> {formatDate(announcement.createdAt)}
-                          </span>
-                        </div>
-                        <div className="card-actions">
+                          <option value="General">General</option>
+                          <option value="Mass">Mass</option>
+                          <option value="Event">Event</option>
+                          <option value="Urgent">Urgent</option>
+                          <option value="Reminder">Reminder</option>
+                        </select>
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={4}
+                          className="edit-textarea"
+                          placeholder="Content"
+                        />
+                        <div className="edit-actions">
                           <button 
-                            className="action-btn edit"
-                            onClick={() => startEdit(announcement)}
-                            title="Edit"
+                            className="btn-secondary btn-small"
+                            onClick={cancelEdit}
                           >
-                            <FiEdit2 />
+                            Cancel
                           </button>
                           <button 
-                            className="action-btn delete"
-                            onClick={() => handleDelete(announcement.id)}
-                            title="Delete"
+                            className="btn-primary btn-small"
+                            onClick={() => handleUpdate(announcement.id)}
                           >
-                            <FiTrash2 />
+                            Save Changes
                           </button>
                         </div>
                       </div>
-                      
-                      <h3 className="card-title">{announcement.title}</h3>
-                      <p className="card-content">{announcement.content}</p>
-                      
-                      {announcement.updatedAt !== announcement.createdAt && (
-                        <span className="edited-badge">
-                          Edited {formatDate(announcement.updatedAt)}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </motion.div>
-              ))}
+                    ) : (
+                      // View Mode
+                      <>
+                        <div className="card-header">
+                          <div className="card-meta">
+                            <span 
+                              className="card-category"
+                              style={{ 
+                                background: categoryColor.light,
+                                color: categoryColor.bg
+                              }}
+                            >
+                              {announcement.category || 'General'}
+                            </span>
+                            <span className="card-date">
+                              <FiClock /> {formatDate(announcement.createdAt)}
+                            </span>
+                          </div>
+                          <div className="card-actions">
+                            <button 
+                              className="action-btn edit"
+                              onClick={() => startEdit(announcement)}
+                              title="Edit"
+                            >
+                              <FiEdit2 />
+                            </button>
+                            <button 
+                              className="action-btn delete"
+                              onClick={() => handleDelete(announcement.id)}
+                              title="Delete"
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <h3 className="card-title">{announcement.title}</h3>
+                        <p className="card-content">{announcement.content}</p>
+                        
+                        {announcement.updatedAt !== announcement.createdAt && (
+                          <span className="edited-badge">
+                            Edited {formatDate(announcement.updatedAt)}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .announcements-page {
           min-height: 100vh;
-          position: relative;
+          background-size: cover;
+          background-position: center;
+          background-attachment: fixed;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          position: relative;
           padding: 20px;
         }
 
-        /* Gradient Background */
-        .gradient-bg {
-          position: fixed;
+        .overlay {
+          position: absolute;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          z-index: -2;
-        }
-
-        .orb {
-          position: absolute;
-          border-radius: 50%;
-          filter: blur(60px);
-          opacity: 0.4;
-          animation: float 20s infinite;
-        }
-
-        .orb-1 {
-          width: 300px;
-          height: 300px;
-          background: #ff6b6b;
-          top: -100px;
-          right: -100px;
-          animation-delay: 0s;
-        }
-
-        .orb-2 {
-          width: 400px;
-          height: 400px;
-          background: #4ecdc4;
-          bottom: -150px;
-          left: -150px;
-          animation-delay: -5s;
-        }
-
-        .orb-3 {
-          width: 200px;
-          height: 200px;
-          background: #ffe66d;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          animation-delay: -10s;
-        }
-
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          33% { transform: translate(30px, -30px) rotate(120deg); }
-          66% { transform: translate(-30px, 30px) rotate(240deg); }
+          background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
+          z-index: 0;
         }
 
         .content-wrapper {
@@ -647,15 +589,17 @@ export default function AdminAnnouncements() {
           gap: 8px;
           z-index: 9999;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          background: white;
+          color: #1e293b;
         }
         .notification.success {
-          background: #10b981;
+          border-left: 4px solid #10b981;
         }
         .notification.error {
-          background: #ef4444;
+          border-left: 4px solid #ef4444;
         }
         .notification.info {
-          background: #3b82f6;
+          border-left: 4px solid #3b82f6;
         }
 
         /* Header */
@@ -677,7 +621,7 @@ export default function AdminAnnouncements() {
         .title-icon {
           width: 48px;
           height: 48px;
-          background: rgba(255,255,255,0.2);
+          background: rgba(255,255,255,0.15);
           backdrop-filter: blur(10px);
           border-radius: 16px;
           display: flex;
@@ -685,7 +629,7 @@ export default function AdminAnnouncements() {
           justify-content: center;
           font-size: 24px;
           color: white;
-          border: 1px solid rgba(255,255,255,0.3);
+          border: 1px solid rgba(255,255,255,0.2);
         }
 
         .page-title {
@@ -693,7 +637,7 @@ export default function AdminAnnouncements() {
           font-weight: 700;
           color: white;
           margin: 0 0 4px 0;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .page-subtitle {
@@ -724,7 +668,7 @@ export default function AdminAnnouncements() {
           border: 1px solid rgba(255,255,255,0.2);
           font-size: 20px;
         }
-        .refresh-btn:hover {
+        .refresh-btn:hover:not(:disabled) {
           background: rgba(255,255,255,0.25);
         }
         .refresh-btn:disabled {
@@ -737,7 +681,7 @@ export default function AdminAnnouncements() {
 
         .btn-primary {
           background: white;
-          color: #667eea;
+          color: #1e293b;
           border: none;
           padding: 10px 20px;
           border-radius: 12px;
@@ -756,10 +700,9 @@ export default function AdminAnnouncements() {
         }
 
         .btn-secondary {
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          color: white;
-          border: 1px solid rgba(255,255,255,0.2);
+          background: white;
+          color: #1e293b;
+          border: 1px solid #e2e8f0;
           padding: 10px 20px;
           border-radius: 12px;
           font-size: 14px;
@@ -771,7 +714,7 @@ export default function AdminAnnouncements() {
           gap: 8px;
         }
         .btn-secondary:hover {
-          background: rgba(255,255,255,0.25);
+          background: #f8fafc;
         }
 
         .btn-small {
@@ -782,7 +725,7 @@ export default function AdminAnnouncements() {
         /* Stats Grid */
         .stats-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(2, 1fr);
           gap: 16px;
           margin-bottom: 24px;
         }
@@ -811,17 +754,9 @@ export default function AdminAnnouncements() {
           background: rgba(59, 130, 246, 0.3);
           color: #93c5fd;
         }
-        .stat-icon.week {
-          background: rgba(16, 185, 129, 0.3);
-          color: #6ee7b7;
-        }
         .stat-icon.categories {
           background: rgba(245, 158, 11, 0.3);
           color: #fcd34d;
-        }
-        .stat-icon.latest {
-          background: rgba(139, 92, 246, 0.3);
-          color: #c4b5fd;
         }
 
         .stat-content {
@@ -830,16 +765,17 @@ export default function AdminAnnouncements() {
 
         .stat-value {
           display: block;
-          font-size: 24px;
+          font-size: 28px;
           font-weight: 700;
           color: white;
           line-height: 1.2;
+          margin-bottom: 4px;
         }
 
         .stat-label {
           display: block;
-          font-size: 12px;
-          color: rgba(255,255,255,0.8);
+          font-size: 13px;
+          color: rgba(255,255,255,0.9);
         }
 
         /* Search and Filter */
@@ -861,7 +797,7 @@ export default function AdminAnnouncements() {
           left: 12px;
           top: 50%;
           transform: translateY(-50%);
-          color: rgba(255,255,255,0.6);
+          color: rgba(255,255,255,0.7);
           font-size: 18px;
         }
 
@@ -882,7 +818,7 @@ export default function AdminAnnouncements() {
           background: rgba(255,255,255,0.2);
         }
         .search-input::placeholder {
-          color: rgba(255,255,255,0.5);
+          color: rgba(255,255,255,0.6);
         }
 
         .filter-select {
@@ -898,24 +834,24 @@ export default function AdminAnnouncements() {
           min-width: 150px;
         }
         .filter-select option {
-          background: #1a1a2e;
+          background: #1e293b;
           color: white;
         }
 
         /* Form Card */
         .form-card {
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
+          background: white;
           border-radius: 20px;
           padding: 24px;
           margin-bottom: 24px;
-          border: 1px solid rgba(255,255,255,0.2);
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+          border: 1px solid #e2e8f0;
         }
 
         .form-title {
           font-size: 18px;
           font-weight: 600;
-          color: white;
+          color: #1e293b;
           margin: 0 0 20px;
         }
 
@@ -926,8 +862,8 @@ export default function AdminAnnouncements() {
         .form-label {
           display: block;
           font-size: 13px;
-          font-weight: 500;
-          color: rgba(255,255,255,0.9);
+          font-weight: 600;
+          color: #475569;
           margin-bottom: 6px;
         }
 
@@ -936,10 +872,10 @@ export default function AdminAnnouncements() {
         .form-textarea {
           width: 100%;
           padding: 12px;
-          border: 1px solid rgba(255,255,255,0.2);
+          border: 1px solid #e2e8f0;
           border-radius: 10px;
-          background: rgba(255,255,255,0.1);
-          color: white;
+          background: white;
+          color: #1e293b;
           font-size: 14px;
           transition: all 0.2s;
           font-family: inherit;
@@ -948,12 +884,12 @@ export default function AdminAnnouncements() {
         .form-select:focus,
         .form-textarea:focus {
           outline: none;
-          border-color: rgba(255,255,255,0.5);
-          background: rgba(255,255,255,0.15);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         .form-input::placeholder,
         .form-textarea::placeholder {
-          color: rgba(255,255,255,0.5);
+          color: #94a3b8;
         }
 
         .form-textarea {
@@ -1001,10 +937,10 @@ export default function AdminAnnouncements() {
         .error-state {
           text-align: center;
           padding: 60px 20px;
-          background: rgba(239, 68, 68, 0.2);
-          backdrop-filter: blur(10px);
+          background: white;
           border-radius: 20px;
-          color: white;
+          color: #1e293b;
+          border: 1px solid #fee2e2;
         }
 
         .error-icon {
@@ -1016,16 +952,17 @@ export default function AdminAnnouncements() {
         .error-state p {
           margin-bottom: 20px;
           font-size: 16px;
+          color: #64748b;
         }
 
         /* Empty State */
         .empty-state {
           text-align: center;
           padding: 60px 20px;
-          background: rgba(255,255,255,0.1);
-          backdrop-filter: blur(10px);
+          background: white;
           border-radius: 20px;
-          color: white;
+          color: #1e293b;
+          border: 2px dashed #e2e8f0;
         }
 
         .empty-icon {
@@ -1038,51 +975,35 @@ export default function AdminAnnouncements() {
           font-size: 20px;
           font-weight: 600;
           margin: 0 0 8px;
+          color: #1e293b;
         }
 
         .empty-state p {
-          color: rgba(255,255,255,0.7);
+          color: #64748b;
           margin-bottom: 20px;
         }
 
-        /* Announcements Grid */
-        .announcements-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        /* Announcements List */
+        .announcements-list {
+          display: flex;
+          flex-direction: column;
           gap: 16px;
         }
 
         .announcement-card {
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
+          background: white;
           border-radius: 16px;
           padding: 20px;
-          border: 1px solid rgba(255,255,255,0.2);
+          border: 1px solid #e2e8f0;
           transition: all 0.3s;
           position: relative;
-          overflow: hidden;
+          border-left-width: 4px;
+          border-left-style: solid;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .announcement-card:hover {
-          transform: translateY(-4px);
-          border-color: rgba(255,255,255,0.4);
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
-        }
-
-        /* Category-based styling */
-        .announcement-card.general {
-          border-left: 4px solid #3b82f6;
-        }
-        .announcement-card.mass {
-          border-left: 4px solid #8b5cf6;
-        }
-        .announcement-card.event {
-          border-left: 4px solid #10b981;
-        }
-        .announcement-card.urgent {
-          border-left: 4px solid #ef4444;
-        }
-        .announcement-card.reminder {
-          border-left: 4px solid #f59e0b;
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
         }
 
         .card-header {
@@ -1101,22 +1022,22 @@ export default function AdminAnnouncements() {
         .card-category {
           font-size: 11px;
           font-weight: 600;
-          padding: 4px 8px;
+          padding: 4px 10px;
           border-radius: 20px;
-          background: rgba(255,255,255,0.2);
-          color: white;
+          background: #f1f5f9;
+          color: #475569;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
 
         .card-date {
           font-size: 11px;
-          color: rgba(255,255,255,0.7);
+          color: #64748b;
           display: flex;
           align-items: center;
           gap: 4px;
-          background: rgba(255,255,255,0.1);
-          padding: 4px 8px;
+          background: #f8fafc;
+          padding: 4px 10px;
           border-radius: 20px;
         }
 
@@ -1135,8 +1056,8 @@ export default function AdminAnnouncements() {
           height: 32px;
           border: none;
           border-radius: 8px;
-          background: rgba(255,255,255,0.1);
-          color: white;
+          background: #f1f5f9;
+          color: #475569;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1144,23 +1065,25 @@ export default function AdminAnnouncements() {
           transition: all 0.2s;
         }
         .action-btn.edit:hover {
-          background: rgba(59, 130, 246, 0.5);
+          background: #dbeafe;
+          color: #2563eb;
         }
         .action-btn.delete:hover {
-          background: rgba(239, 68, 68, 0.5);
+          background: #fee2e2;
+          color: #dc2626;
         }
 
         .card-title {
           font-size: 18px;
           font-weight: 600;
-          color: white;
+          color: #1e293b;
           margin: 0 0 8px;
           line-height: 1.4;
         }
 
         .card-content {
           font-size: 14px;
-          color: rgba(255,255,255,0.9);
+          color: #475569;
           line-height: 1.6;
           margin: 0 0 12px;
           white-space: pre-wrap;
@@ -1168,7 +1091,7 @@ export default function AdminAnnouncements() {
 
         .edited-badge {
           font-size: 11px;
-          color: rgba(255,255,255,0.5);
+          color: #94a3b8;
           font-style: italic;
           display: block;
         }
@@ -1185,10 +1108,10 @@ export default function AdminAnnouncements() {
         .edit-textarea {
           width: 100%;
           padding: 10px;
-          border: 1px solid rgba(255,255,255,0.2);
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
-          background: rgba(255,255,255,0.1);
-          color: white;
+          background: white;
+          color: #1e293b;
           font-size: 14px;
           transition: all 0.2s;
           font-family: inherit;
@@ -1197,8 +1120,8 @@ export default function AdminAnnouncements() {
         .edit-select:focus,
         .edit-textarea:focus {
           outline: none;
-          border-color: rgba(255,255,255,0.5);
-          background: rgba(255,255,255,0.15);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         .edit-textarea {
@@ -1216,10 +1139,6 @@ export default function AdminAnnouncements() {
         @media (max-width: 768px) {
           .stats-grid {
             grid-template-columns: repeat(2, 1fr);
-          }
-
-          .announcements-grid {
-            grid-template-columns: 1fr;
           }
 
           .search-filter-bar {

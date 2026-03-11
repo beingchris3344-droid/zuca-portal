@@ -11,8 +11,10 @@ function Register() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -60,13 +62,20 @@ function Register() {
       return;
     }
 
-    setLoading(true);
+   // Format Kenyan phone number
+let formattedPhone = phone;
+
+if (phone.startsWith("07")) {
+  formattedPhone = "+254" + phone.slice(1);
+}
+
+setLoading(true);
 
     try {
       const res = await fetch(`${BASE_URL}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, password }),
+        body: JSON.stringify({ fullName, email, password, phone: formattedPhone }),
       });
 
       const data = await res.json();
@@ -323,6 +332,44 @@ function Register() {
               )}
             </div>
           </motion.div>
+
+
+          {/* Phone Field */}
+<motion.div variants={itemVariants}>
+  <div style={{ position: "relative", marginBottom: "15px" }}>
+    <motion.input
+      type="tel"
+      placeholder="Phone Number (+254...)"
+      value={phone}
+      onChange={(e) => setPhone(e.target.value)}
+      onFocus={() => setFocusedField("phone")}
+      onBlur={() => setFocusedField(null)}
+      style={{
+        ...inputStyle,
+        borderBottom: focusedField === "phone" ? "2px solid #00c6ff" : "2px solid transparent",
+        transition: "all 0.3s"
+      }}
+      whileFocus={{ scale: 1.02 }}
+    />
+
+    {focusedField === "phone" && (
+      <motion.span
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        style={{
+          position: "absolute",
+          right: "12px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          fontSize: "14px",
+          color: "#00c6ff"
+        }}
+      >
+        📱
+      </motion.span>
+    )}
+  </div>
+</motion.div>
 
           {/* Password Field */}
           <motion.div variants={itemVariants}>

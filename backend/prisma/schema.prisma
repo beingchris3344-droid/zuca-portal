@@ -107,7 +107,12 @@ model Song {
   id           String            @id @default(uuid())
   title        String
   composer     String?
+  lyrics       String?           // Full song text with verses
+  reference    String?           // e.g., "AGJ 451/134", "NAGJ 188/52"
+
   massPrograms MassProgramSong[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime?         // Optional - won't break existing rows
 }
 
 model MassProgramSong {

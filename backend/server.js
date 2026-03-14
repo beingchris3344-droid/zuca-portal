@@ -155,6 +155,394 @@ const hasRole = (req, allowedRoles) => {
   return allowedRoles.includes(req.user.role);
 };
 
+
+// ====================
+// PUBLIC SONGS ROUTES (no auth needed)
+// ====================
+
+// GET /api/songs - List all songs
+app.get("/api/songs", async (req, res) => {
+  try {
+    const songs = await prisma.song.findMany({
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true
+      },
+      orderBy: { title: "asc" }
+    });
+    
+    // Add first line preview to each song
+    const songsWithPreview = songs.map(song => {
+      let firstLine = '';
+      if (song.lyrics) {
+        // Clean HTML tags from preview
+        const cleanLyrics = song.lyrics.replace(/<[^>]*>/g, '');
+        // Get first non-empty line
+        const lines = cleanLyrics.split('\n').filter(line => line.trim() !== '');
+        firstLine = lines[0] || '';
+        // Truncate if too long
+        if (firstLine.length > 50) {
+          firstLine = firstLine.substring(0, 50) + '...';
+        }
+      }
+      
+      return {
+        id: song.id,
+        title: song.title,
+        reference: song.reference,
+        firstLine: firstLine,
+        createdAt: song.createdAt
+      };
+    });
+    
+    res.json(songsWithPreview);
+  } catch (err) {
+    console.error("Error fetching songs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/songs/:id - Get single song with full lyrics
+app.get("/api/songs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const song = await prisma.song.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        lyrics: true,
+        reference: true,
+        createdAt: true
+      }
+    });
+    
+    if (!song) {
+      return res.status(404).json({ error: "Song not found" });
+    }
+    
+    // Clean HTML tags from lyrics for display
+    if (song.lyrics) {
+      song.lyrics = song.lyrics.replace(/<[^>]*>/g, '');
+    }
+    
+    res.json(song);
+  } catch (err) {
+    console.error("Error fetching song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/songs/search?q=... - Search songs by title or lyrics
+app.get("/api/songs/search", async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || q.trim() === '') {
+      return res.json([]);
+    }
+    
+    const searchTerm = q.trim();
+    
+    const songs = await prisma.song.findMany({
+      where: {
+        OR: [
+          { title: { contains: searchTerm, mode: 'insensitive' } },
+          { lyrics: { contains: searchTerm, mode: 'insensitive' } }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true
+      },
+      orderBy: { title: "asc" },
+      take: 50
+    });
+    
+    // Add preview and highlight match
+    const results = songs.map(song => {
+      // Clean lyrics for preview
+      const cleanLyrics = song.lyrics ? song.lyrics.replace(/<[^>]*>/g, '') : '';
+      
+      let preview = '';
+      let matchType = 'title';
+      
+      if (song.title.toLowerCase().includes(searchTerm.toLowerCase())) {
+        matchType = 'title';
+        preview = song.title;
+      } else if (cleanLyrics.toLowerCase().includes(searchTerm.toLowerCase())) {
+        matchType = 'lyrics';
+        // Find the line where the term appears
+        const lines = cleanLyrics.split('\n');
+        const matchingLine = lines.find(line => 
+          line.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        preview = matchingLine || '';
+        if (preview.length > 60) {
+          const index = preview.toLowerCase().indexOf(searchTerm.toLowerCase());
+          const start = Math.max(0, index - 20);
+          const end = Math.min(preview.length, index + searchTerm.length + 20);
+          preview = (start > 0 ? '...' : '') + 
+                    preview.substring(start, end) + 
+                    (end < preview.length ? '...' : '');
+        }
+      }
+      
+      return {
+        id: song.id,
+        title: song.title,
+        reference: song.reference,
+        matchType,
+        preview
+      };
+    });
+    
+    res.json(results);
+  } catch (err) {
+    console.error("Error searching songs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ====================
+// ADMIN SONGS ROUTES (with full lyrics)
+// ====================
+
+// GET /api/admin/songs - Get all songs with full lyrics for admin
+app.get("/api/admin/songs", authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isSecretary && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const songs = await prisma.song.findMany({
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,  // ← Include full lyrics
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { title: "asc" }
+    });
+
+    // Add first line preview for convenience
+    const songsWithPreview = songs.map(song => {
+      let firstLine = '';
+      if (song.lyrics) {
+        const lines = song.lyrics.split('\n').filter(line => line.trim() !== '');
+        firstLine = lines[0] || '';
+        if (firstLine.length > 60) {
+          firstLine = firstLine.substring(0, 60) + '...';
+        }
+      }
+      
+      return {
+        ...song,
+        firstLine
+      };
+    });
+
+    res.json(songsWithPreview);
+  } catch (err) {
+    console.error("Error fetching admin songs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/songs/:id - Get single song with full lyrics
+app.get("/api/admin/songs/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is admin
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isSecretary && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const song = await prisma.song.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!song) {
+      return res.status(404).json({ error: "Song not found" });
+    }
+
+    res.json(song);
+  } catch (err) {
+    console.error("Error fetching song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/songs - Create new song
+app.post("/api/admin/songs", authenticate, async (req, res) => {
+  try {
+    const { title, reference, lyrics } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isSecretary && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Check if song already exists
+    const existing = await prisma.song.findFirst({
+      where: { 
+        title: {
+          equals: title,
+          mode: 'insensitive'
+        }
+      }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: "A song with this title already exists" });
+    }
+
+    const song = await prisma.song.create({
+      data: {
+        title,
+        reference: reference || null,
+        lyrics: lyrics || null
+      }
+    });
+
+    // Add first line for response
+    let firstLine = '';
+    if (song.lyrics) {
+      const lines = song.lyrics.split('\n').filter(line => line.trim() !== '');
+      firstLine = lines[0] || '';
+    }
+
+    res.status(201).json({
+      ...song,
+      firstLine
+    });
+  } catch (err) {
+    console.error("Error creating song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/songs/:id - Update song
+app.put("/api/admin/songs/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, reference, lyrics } = req.body;
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isSecretary && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const song = await prisma.song.update({
+      where: { id },
+      data: {
+        title,
+        reference: reference || null,
+        lyrics: lyrics || null
+      }
+    });
+
+    // Add first line for response
+    let firstLine = '';
+    if (song.lyrics) {
+      const lines = song.lyrics.split('\n').filter(line => line.trim() !== '');
+      firstLine = lines[0] || '';
+    }
+
+    res.json({
+      ...song,
+      firstLine
+    });
+  } catch (err) {
+    console.error("Error updating song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/songs/:id - Delete song
+app.delete("/api/admin/songs/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isSecretary && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    await prisma.song.delete({
+      where: { id }
+    });
+
+    res.json({ message: "Song deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================== UPDATE LAST ACTIVE ==================
 async function updateLastActive(req, res, next) {
   if (req.user?.userId) {
@@ -5130,6 +5518,9 @@ app.delete('/api/notifications/:userId/clear-all', authenticate, async (req, res
     });
   }
 });
+
+
+
 
 // ================== SOCKET.IO ==================
 io.on("connection", (socket) => {

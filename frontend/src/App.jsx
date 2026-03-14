@@ -16,6 +16,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import HymnBook from './pages/HymnBook';
+import HymnLyrics from './pages/HymnLyrics';
 
 import JumuiaDashboard from "./pages/JumuiaDashboard";import JoinJumuia from "./pages/JoinJumuia";
 import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
@@ -28,6 +30,7 @@ import RoleManagement from "./pages/admin/RoleManagement";
 import ActivityPage from "./pages/admin/ActivityPage";
 import AnalyticsPage from "./pages/admin/AnalyticsPage";
 import SongsPage from "./pages/admin/SongsPage";
+import AdminHymns from './pages/admin/Hymns';
 import AnnouncementsPage from "./pages/admin/AnnouncementsPage";
 import ContributionsPage from "./pages/admin/ContributionsPage";
 import JumuiaManagement from "./pages/admin/JumuiaManagement";
@@ -63,7 +66,10 @@ function App() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
-<Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          <Route path="/join-jumuia" element={<JoinJumuia />} />
+<Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
+<Route path="/join-jumuia" element={<JoinJumuia />} />
+<Route path="/hymns" element={<HymnBook />} />
+<Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
         </Route>
 
@@ -93,6 +99,7 @@ function App() {
           <Route path="activity" element={<ActivityPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
+          <Route path="/admin/hymns" element={<AdminHymns />} />
           <Route path="roles" element={<RoleManagement />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />

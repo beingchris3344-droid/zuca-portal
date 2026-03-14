@@ -1,6 +1,7 @@
 // frontend/src/pages/admin/JumuiaManagement.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom"; // Add this import
 import { api } from "../../api";
 
 // Professional icon components
@@ -18,9 +19,12 @@ const Icons = {
   Plus: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   Check: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
+  Eye: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>, // Add this icon
 };
 
 export default function JumuiaManagement() {
+  const navigate = useNavigate(); // Add this hook
+  
   const [jumuiaList, setJumuiaList] = useState([]);
   const [expandedJumuia, setExpandedJumuia] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -244,6 +248,11 @@ export default function JumuiaManagement() {
     showNotification("Export completed", "success");
   };
 
+  const handleViewJumuia = (e, jumuia) => {
+    e.stopPropagation(); // Prevent triggering the expand/collapse
+    navigate(`/jumuia/${jumuia.code || jumuia.id}`);
+  };
+
   const stats = useMemo(() => ({
     totalJumuia: jumuiaList.length,
     totalMembers: jumuiaList.reduce((sum, j) => sum + j.members.length, 0),
@@ -434,11 +443,11 @@ export default function JumuiaManagement() {
             style={styles.jumuiaCard}
           >
             {/* Jumuia Header */}
-            <div
-              style={styles.jumuiaHeader}
-              onClick={() => setExpandedJumuia(expandedJumuia === jumuia.id ? null : jumuia.id)}
-            >
-              <div style={styles.jumuiaHeaderLeft}>
+            <div style={styles.jumuiaHeader}>
+              <div 
+                style={styles.jumuiaHeaderLeft}
+                onClick={() => setExpandedJumuia(expandedJumuia === jumuia.id ? null : jumuia.id)}
+              >
                 <div style={styles.jumuiaIcon}>
                   <Icons.Building />
                 </div>
@@ -454,8 +463,23 @@ export default function JumuiaManagement() {
                   </div>
                 </div>
               </div>
+              
               <div style={styles.jumuiaHeaderRight}>
-                <span style={styles.expandIcon}>
+                {/* ADDED: View Full Page Button */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={styles.viewFullBtn}
+                  onClick={(e) => handleViewJumuia(e, jumuia)}
+                >
+                  <Icons.Eye />
+                  View Full Page
+                </motion.button>
+                
+                <span 
+                  style={styles.expandIcon}
+                  onClick={() => setExpandedJumuia(expandedJumuia === jumuia.id ? null : jumuia.id)}
+                >
                   {expandedJumuia === jumuia.id ? <Icons.ChevronDown /> : <Icons.ChevronRight />}
                 </span>
               </div>
@@ -943,7 +967,6 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    cursor: "pointer",
     background: "#5af2f8",
     transition: "background 0.2s",
     "&:hover": {
@@ -954,6 +977,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "16px",
+    cursor: "pointer",
+    flex: 1,
   },
   jumuiaIcon: {
     width: "40px",
@@ -995,11 +1020,29 @@ const styles = {
   jumuiaHeaderRight: {
     display: "flex",
     alignItems: "center",
+    gap: "12px",
+  },
+  // ADDED: View Full Page button style
+  viewFullBtn: {
+    padding: "8px 16px",
+    borderRadius: "6px",
+    border: "none",
+    background: "#2563eb",
+    color: "#fff",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    transition: "all 0.2s",
+    boxShadow: "0 2px 8px rgba(37,99,235,0.2)",
   },
   expandIcon: {
     color: "#94a3b8",
     display: "flex",
     alignItems: "center",
+    cursor: "pointer",
   },
   membersContainer: {
     borderTop: "1px solid #e2e8f0d9",

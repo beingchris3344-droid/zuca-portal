@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["interactiveTransactions"]
 }
 
 datasource db {
@@ -8,57 +9,64 @@ datasource db {
 }
 
 model User {
-  id                String         @id @default(uuid())
+  id                String    @id @default(uuid())
   fullName          String
-  email             String         @unique
+  email             String    @unique
   password          String
-
-  
-
-   // NEW FIELD
-  phone             String         @unique
-  phoneVerified     Boolean        @default(false)
-  
-  role              String         @default("member")
+  phone             String    @unique
+  phoneVerified     Boolean   @default(false)
+  role              String    @default("member") // "member", "admin" (for chairman)
   profileImage      String?
-  createdAt         DateTime       @default(now())
+  createdAt         DateTime  @default(now())
   lastActive        DateTime?
   jumuiaId          String?
-  membership_number String?        @unique
+  membership_number String?   @unique
   resetCode         String?
   resetCodeExpiry   DateTime?
-  resetAttempts     Int           @default(0)
-  lastResetAttempt  DateTime?
-  
-  // EXISTING RELATIONS - Keep as is
-  messages          Message[]      @relation("UserMessages")
-  Notification      Notification[]
-  pledges           Pledge[]
-  jumuia            Jumuia?        @relation(fields: [jumuiaId], references: [id])
-  
-  // NEW CHAT RELATIONS
-  messageReactions  MessageReaction[]
-  readReceipts      ReadReceipt[]
-  mentions          Mention[]
-  pinnedMessages    Pin[]
-  blockedUsers      BlockedUser[]  @relation("UserBlocks")
-  blockedBy         BlockedUser[]  @relation("BlockedBy")
-  
-  // PUSH NOTIFICATIONS RELATION
-  pushSubscription  PushSubscription?
-  
-  // NEW CHAT FIELDS
-  isOnline          Boolean        @default(false)
+  isOnline          Boolean   @default(false)
   lastSeen          DateTime?
+  lastResetAttempt  DateTime?
+  resetAttempts     Int       @default(0)
 
+  // Special role fields for ZUCA CA structure
+  specialRole      String? // "jumuia_leader", "choir_moderator", "secretary", "treasurer", or null
+  assignedJumuiaId String? // Which jumuia they lead (only for jumuia_leaders)
+  lastRoleLogin    DateTime? // Track last time they used special login
 
-  // ===== NEW MEDIA GALLERY RELATIONS =====
-  uploadedMedia     Media[]        @relation("UserMedia")
-  mediaLikes        MediaLike[]
-  mediaDownloads    MediaDownload[]
-  mediaShares       MediaShare[]
-  mediaViews        MediaView[]
-  mediaComments     MediaComment[]
+  // Relations
+  blockedBy        BlockedUser[]     @relation("BlockedBy")
+  blockedUsers     BlockedUser[]     @relation("UserBlocks")
+  uploadedMedia    Media[]           @relation("UserMedia")
+  mediaComments    MediaComment[]
+  mediaDownloads   MediaDownload[]
+  mediaLikes       MediaLike[]
+  mediaShares      MediaShare[]
+  mediaViews       MediaView[]
+  mentions         Mention[]
+  messages         Message[]         @relation("UserMessages")
+  messageReactions MessageReaction[]
+  Notification     Notification[]
+  pinnedMessages   Pin[]
+  pledges          Pledge[]
+  pushSubscription PushSubscription?
+  readReceipts     ReadReceipt[]
+
+  // Relations
+  pledgeMessages PledgeMessage[]
+
+  // NEW: Relations for created content
+  announcementsCreated Announcement[] @relation("UserAnnouncements")
+  massProgramsCreated  MassProgram[]  @relation("UserMassPrograms")
+
+  // Jumuia relations with unique names
+  homeJumuia    Jumuia? @relation("UserHomeJumuia", fields: [jumuiaId], references: [id]) // Their home jumuia
+  leadingJumuia Jumuia? @relation("UserLeadingJumuia", fields: [assignedJumuiaId], references: [id]) // Jumuia they lead (if leader)
+
+  // NEW: Jumuia-specific chat relations
+  jumuiaChatMessages  JumuiaChatMessage[]
+  jumuiaChatReactions JumuiaChatReaction[]
+  jumuiaMentions      JumuiaMention[]
+  jumuiaReadReceipts  JumuiaReadReceipt[]
 }
 
 model Announcement {
@@ -68,14 +76,31 @@ model Announcement {
   category  String
   published Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  // Track who created it
+  createdBy String?
+  author    User?   @relation("UserAnnouncements", fields: [createdBy], references: [id])
+
+  // Optional: which jumuia this announcement is for (null = all)
+  jumuiaId String?
+  jumuia   Jumuia? @relation(fields: [jumuiaId], references: [id])
 }
 
 model MassProgram {
-  id        String            @id @default(uuid())
+  id        String   @id @default(uuid())
   date      DateTime
   venue     String
-  createdAt DateTime          @default(now())
-  songs     MassProgramSong[]
+  createdAt DateTime @default(now())
+
+  // Which jumuia this mass program is for
+  jumuiaId String?
+  jumuia   Jumuia? @relation(fields: [jumuiaId], references: [id])
+
+  // Track who created it
+  createdBy String?
+  author    User?   @relation("UserMassPrograms", fields: [createdBy], references: [id])
+
+  songs MassProgramSong[]
 }
 
 model Song {
@@ -102,7 +127,7 @@ model ContributionType {
   deadline       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  jumuiaId       String?
+  jumuiaId       String? // null = for all members, specific jumuia = for that jumuia only
   jumuia         Jumuia?   @relation(fields: [jumuiaId], references: [id])
   pledges        Pledge[]
 }
@@ -122,53 +147,42 @@ model Pledge {
   updatedAt          DateTime         @updatedAt
   contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Cascade)
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pledgeMessages     PledgeMessage[]
 }
 
-// ==================== CHAT ROOM MODEL ====================
 model ChatRoom {
-  id            String         @id @default(uuid())
-  name          String         @unique
-  description   String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  
-  // Relations
-  messages      Message[]
+  id             String    @id @default(uuid())
+  name           String    @unique
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  isActive       Boolean   @default(true)
+  lastMessageAt  DateTime?
+  messages       Message[]
   pinnedMessages Pin[]
-  
-  // NEW FIELDS
-  isActive      Boolean        @default(true)
-  lastMessageAt DateTime?
 }
 
-// ==================== MESSAGE MODEL ====================
 model Message {
-  id            String         @id @default(uuid())
-  content       String         @db.Text
-  userId        String
-  roomId        String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  
-  // Relations - Fixed with proper relation names
-  room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade, name: "UserMessages")
-  
-  // NEW FIELDS FOR RICH FEATURES
-  replyToId     String?
-  replyTo       Message?       @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies       Message[]      @relation("MessageReplies")
-  attachments   Json?          
-  isEdited      Boolean        @default(false)
-  isDeleted     Boolean        @default(false)
-  deletedAt     DateTime?
-  deletedBy     String?        
-  
-  // NEW RELATIONS
-  reactions     MessageReaction[]
-  mentions      Mention[]
-  readReceipts  ReadReceipt[]
-  pins          Pin[]
+  id           String            @id @default(uuid())
+  content      String
+  userId       String
+  roomId       String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  replyToId    String?
+  attachments  Json?
+  isEdited     Boolean           @default(false)
+  isDeleted    Boolean           @default(false)
+  deletedAt    DateTime?
+  deletedBy    String?
+  mentions     Mention[]
+  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]         @relation("MessageReplies")
+  room         ChatRoom          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user         User              @relation("UserMessages", fields: [userId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
+  pins         Pin[]
+  readReceipts ReadReceipt[]
 
   @@index([userId])
   @@index([roomId])
@@ -177,80 +191,70 @@ model Message {
   @@index([isDeleted])
 }
 
-// ==================== NEW MODEL: Message Reaction ====================
 model MessageReaction {
-  id            String         @id @default(uuid())
-  messageId     String
-  userId        String
-  reaction      String         
-  createdAt     DateTime       @default(now())
-
-  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  reaction  String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, reaction])
   @@index([messageId])
   @@index([userId])
 }
 
-// ==================== NEW MODEL: Mention ====================
 model Mention {
-  id            String         @id @default(uuid())
-  messageId     String
-  userId        String
-  isRead        Boolean        @default(false)
-  readAt        DateTime?
-  createdAt     DateTime       @default(now())
-
-  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  messageId String
+  userId    String
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  message   Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([userId, isRead])
   @@index([messageId])
 }
 
-// ==================== NEW MODEL: Read Receipt ====================
 model ReadReceipt {
-  id            String         @id @default(uuid())
-  messageId     String
-  userId        String
-  readAt        DateTime       @default(now())
-
-  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([userId])
   @@index([messageId])
 }
 
-// ==================== NEW MODEL: Pin ====================
 model Pin {
-  id            String         @id @default(uuid())
-  messageId     String
-  roomId        String
-  userId        String
-  createdAt     DateTime       @default(now())
-
-  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  messageId String
+  roomId    String
+  userId    String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, messageId])
   @@index([roomId])
   @@index([messageId])
 }
 
-// ==================== NEW MODEL: Blocked User ====================
 model BlockedUser {
-  id            String         @id @default(uuid())
-  userId        String         
-  blockedId     String         
-  createdAt     DateTime       @default(now())
-
-  user          User           @relation("UserBlocks", fields: [userId], references: [id], onDelete: Cascade)
-  blocked       User           @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocked   User     @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserBlocks", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, blockedId])
   @@index([userId])
@@ -258,12 +262,23 @@ model BlockedUser {
 }
 
 model Jumuia {
-  id            String             @id @default(uuid())
-  name          String             @unique
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  contributions ContributionType[]
-  members       User[]
+  id        String   @id @default(uuid())
+  name      String   @unique // "ST. MICHAEL", "ST. BENEDICT", etc.
+  code      String   @unique // "stmichael", "stbenedict", etc. (for login)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations with matching relation names
+  members User[] @relation("UserHomeJumuia") // All members whose home is this jumuia
+  leaders User[] @relation("UserLeadingJumuia") // Users who lead this jumuia
+
+  contributions ContributionType[] // Contributions specific to this jumuia
+  massPrograms  MassProgram[] // Mass programs for this jumuia's choir
+  announcements Announcement[] // Announcements for this jumuia
+
+  // NEW: Jumuia-specific chat and notifications
+  chatRooms     JumuiaChatRoom[]
+  notifications Notification[]
 }
 
 model Notification {
@@ -275,49 +290,48 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // NEW: Jumuia-specific notification fields
+  jumuiaId String?
+  jumuia   Jumuia?   @relation(fields: [jumuiaId], references: [id])
+  data     Json? // Store additional data like {contributionId, messageId, etc.}
+  readAt   DateTime?
 }
 
-// ==================== PUSH NOTIFICATIONS MODEL ====================
 model PushSubscription {
   id           String   @id @default(uuid())
   userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription String   // JSON string of push subscription
+  subscription String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-// ==================== MEDIA GALLERY MODELS ====================
-
 model Media {
-  id            String    @id @default(uuid())
+  id            String          @id @default(uuid())
   title         String
-  description   String?   @db.Text
+  description   String?
   filename      String
   originalName  String
   mimeType      String
   size          Int
   sizeFormatted String
-  type          String    // image, video, audio, document
+  type          String
   url           String
-  category      String    @default("uncategorized")
+  category      String          @default("uncategorized")
   tags          String[]
-  isPublic      Boolean   @default(true)
-  
+  isPublic      Boolean         @default(true)
   uploadedById  String
-  // FIXED: Added the relation name "UserMedia" to match the User model
-  uploadedBy    User      @relation("UserMedia", fields: [uploadedById], references: [id], onDelete: Cascade)
-  
-  likes         MediaLike[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  uploadedBy    User            @relation("UserMedia", fields: [uploadedById], references: [id], onDelete: Cascade)
+  comments      MediaComment[]
   downloads     MediaDownload[]
+  likes         MediaLike[]
   shares        MediaShare[]
   views         MediaView[]
-  comments      MediaComment[]
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
 
   @@index([type])
   @@index([category])
@@ -328,10 +342,10 @@ model Media {
 model MediaLike {
   id        String   @id @default(uuid())
   mediaId   String
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([mediaId, userId])
   @@index([mediaId])
@@ -342,10 +356,10 @@ model MediaLike {
 model MediaDownload {
   id           String   @id @default(uuid())
   mediaId      String
-  media        Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   downloadedAt DateTime @default(now())
+  media        Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([mediaId])
   @@index([userId])
@@ -353,13 +367,13 @@ model MediaDownload {
 }
 
 model MediaShare {
-  id         String   @id @default(uuid())
-  mediaId    String
-  media      Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform   String   @default("direct")
-  sharedAt   DateTime @default(now())
+  id       String   @id @default(uuid())
+  mediaId  String
+  userId   String
+  platform String   @default("direct")
+  sharedAt DateTime @default(now())
+  media    Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([mediaId])
   @@index([userId])
@@ -367,12 +381,12 @@ model MediaShare {
 }
 
 model MediaView {
-  id        String   @id @default(uuid())
-  mediaId   String
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  viewedAt  DateTime @default(now())
+  id       String   @id @default(uuid())
+  mediaId  String
+  userId   String
+  viewedAt DateTime @default(now())
+  media    Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([mediaId, userId, viewedAt])
   @@index([mediaId])
@@ -382,15 +396,130 @@ model MediaView {
 
 model MediaComment {
   id        String   @id @default(uuid())
-  content   String   @db.Text
+  content   String
   mediaId   String
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([mediaId])
   @@index([userId])
   @@index([createdAt])
+}
+
+model PledgeMessage {
+  id        String   @id @default(uuid())
+  pledgeId  String
+  userId    String
+  content   String   @db.Text
+  isAdmin   Boolean  @default(false)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  pledge Pledge @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([pledgeId])
+  @@index([createdAt])
+}
+
+// ==================== NEW JUMUIA CHAT MODELS ====================
+
+model JumuiaChatRoom {
+  id            String    @id @default(uuid())
+  name          String    @default("general")
+  description   String?
+  jumuiaId      String
+  jumuia        Jumuia    @relation(fields: [jumuiaId], references: [id], onDelete: Cascade)
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
+
+  messages JumuiaChatMessage[]
+
+  @@unique([jumuiaId, name])
+  @@index([jumuiaId])
+  @@map("jumuia_chat_rooms")
+}
+
+model JumuiaChatMessage {
+  id      String         @id @default(uuid())
+  content String         @db.Text
+  userId  String
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId  String
+  room    JumuiaChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  attachments Json?
+
+  replyToId String?
+  replyTo   JumuiaChatMessage?  @relation("JumuiaMessageReplies", fields: [replyToId], references: [id])
+  replies   JumuiaChatMessage[] @relation("JumuiaMessageReplies")
+
+  isEdited  Boolean   @default(false)
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  replyCount    Int   @default(0)
+  reactionCount Json?
+
+  reactions    JumuiaChatReaction[]
+  mentions     JumuiaMention[]
+  readReceipts JumuiaReadReceipt[]
+
+  @@index([roomId, createdAt])
+  @@index([userId])
+  @@index([replyToId])
+  @@index([isDeleted])
+  @@map("jumuia_chat_messages")
+}
+
+model JumuiaChatReaction {
+  id        String            @id @default(uuid())
+  messageId String
+  message   JumuiaChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reaction  String
+  createdAt DateTime          @default(now())
+
+  @@unique([messageId, userId, reaction])
+  @@index([messageId])
+  @@index([userId])
+  @@map("jumuia_chat_reactions")
+}
+
+model JumuiaMention {
+  id        String            @id @default(uuid())
+  messageId String
+  message   JumuiaChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
+  @@map("jumuia_mentions")
+}
+
+model JumuiaReadReceipt {
+  id        String            @id @default(uuid())
+  messageId String
+  message   JumuiaChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime          @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("jumuia_read_receipts")
 }

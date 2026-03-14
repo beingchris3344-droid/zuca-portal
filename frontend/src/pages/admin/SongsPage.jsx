@@ -1,5 +1,5 @@
 // frontend/src/pages/admin/SongsPage.jsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiPlus, FiX, FiEdit2, FiTrash2, FiCalendar,
@@ -29,7 +29,27 @@ const songFields = [
   { key: "exit", label: "Exit Hymn", icon: "👋" },
 ];
 
+// Check if user has access to this page (Admin or Choir Moderator)
+const checkAccess = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const token = localStorage.getItem("token");
+  
+  if (!token) {
+    window.location.href = "/login";
+    return false;
+  }
+  
+  // Allow access for Admin and Choir Moderator
+  if (user.role !== "admin" && user.role !== "choir_moderator") {
+    window.location.href = "/dashboard";
+    return false;
+  }
+  
+  return true;
+};
+
 export default function SongsPage() {
+  // ALL HOOKS MUST BE AT THE TOP - in the same order every render
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,6 +66,8 @@ export default function SongsPage() {
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [userRole, setUserRole] = useState("");
 
   // Refs
   const autoSaveTimerRef = useRef(null);
@@ -55,6 +77,14 @@ export default function SongsPage() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Check access in useEffect (NOT before hooks)
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const hasAccessCheck = checkAccess();
+    setUserRole(user.role);
+    setHasAccess(hasAccessCheck);
+  }, []);
 
   // Load draft from localStorage on initial mount
   useEffect(() => {
@@ -133,6 +163,7 @@ export default function SongsPage() {
     else setLoading(true);
     
     try {
+      // For admin and choir moderator, use the same endpoint
       const res = await axios.get(`${BASE_URL}/api/songs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -145,6 +176,9 @@ export default function SongsPage() {
       setRefreshing(false);
     }
   };
+
+
+  
 
   useEffect(() => {
     fetchPrograms();
@@ -163,6 +197,8 @@ export default function SongsPage() {
     }
   };
 
+
+  
   const handleEdit = (program) => {
     setEditingId(program.id);
     setForm({
@@ -244,38 +280,36 @@ export default function SongsPage() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!form.date || !form.venue) {
-    setFormError("Date and venue are required");
-    return;
-  }
-
-  if (!checkForDuplicates()) return;
-
-  // Disable button and show loading
-  setIsSaving(true);
-  
-  const payload = { date: form.date, venue: form.venue, ...form.songs };
-
-  try {
-    if (editingId) {
-      await axios.put(`${BASE_URL}/api/songs/${editingId}`, payload, { headers });
-      showNotification("Program updated successfully", "success");
-    } else {
-      await axios.post(`${BASE_URL}/api/songs`, payload, { headers });
-      showNotification("Program created successfully", "success");
+    if (!form.date || !form.venue) {
+      setFormError("Date and venue are required");
+      return;
     }
-    fetchPrograms();
-    handleCancel();
-  } catch (err) {
-    console.error("Save Program Error:", err);
-    setFormError("Failed to save program");
-  } finally {
-    // Re-enable button
-    setIsSaving(false);
-  }
-};
+
+    if (!checkForDuplicates()) return;
+
+    setIsSaving(true);
+    
+    const payload = { date: form.date, venue: form.venue, ...form.songs };
+
+    try {
+      if (editingId) {
+        await axios.put(`${BASE_URL}/api/songs/${editingId}`, payload, { headers });
+        showNotification("Program updated successfully", "success");
+      } else {
+        await axios.post(`${BASE_URL}/api/songs`, payload, { headers });
+        showNotification("Program created successfully", "success");
+      }
+      fetchPrograms();
+      handleCancel();
+    } catch (err) {
+      console.error("Save Program Error:", err);
+      setFormError("Failed to save program");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this program?")) return;
@@ -293,7 +327,6 @@ export default function SongsPage() {
     setExpandedPrograms(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Download functions - FIXED: Removed emoji icons from Word document
   const downloadAsWord = (program) => {
     const content = `
       <html>
@@ -335,7 +368,6 @@ export default function SongsPage() {
         <div class="footer">
           <p>Zetech University Catholic Action</p>
           <p>ZUCA PORTAL SYSTEM GENERATED PROGRAM</p>
-
           <p>May the Lord bless you</p>
         </div>
       </body>
@@ -411,7 +443,6 @@ export default function SongsPage() {
     showNotification("Generating image...", "info");
 
     try {
-      // Create a temporary container for the styled program
       const container = document.createElement('div');
       container.style.padding = '30px';
       container.style.background = 'white';
@@ -448,7 +479,6 @@ export default function SongsPage() {
 
       document.body.appendChild(container);
 
-      // Generate canvas
       const canvas = await html2canvas(container, {
         scale: 2,
         backgroundColor: '#ffffff',
@@ -457,10 +487,8 @@ export default function SongsPage() {
         useCORS: true
       });
 
-      // Remove temporary container
       document.body.removeChild(container);
 
-      // Download as PNG
       const link = document.createElement('a');
       link.download = `mass-program-${program.date}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -505,9 +533,18 @@ export default function SongsPage() {
     }
   };
 
+  // Conditional return AFTER all hooks
+  if (!hasAccess) {
+    return null;
+  }
+
+  const isAdmin = userRole === "admin";
+  const isChoirModerator = userRole === "choir_moderator";
+  const canModify = isAdmin || isChoirModerator; // Both can create/edit/delete
+
   return (
     <div className="songs-page">
-      {/* Fixed Background with your original image */}
+      {/* Fixed Background */}
       <div className="background-image" style={{ backgroundImage: `url(${backgroundImg})` }}></div>
       <div className="background-overlay"></div>
 
@@ -528,7 +565,7 @@ export default function SongsPage() {
       </AnimatePresence>
 
       <div className="content-wrapper">
-        {/* Header */}
+        {/* Header with Role Badge */}
         <div className="header">
           <div className="header-left">
             <div className="title-icon">
@@ -536,11 +573,29 @@ export default function SongsPage() {
             </div>
             <div>
               <h1 className="page-title">Mass Programs</h1>
-              <p className="page-subtitle">Manage songs and liturgy programs</p>
+              <p className="page-subtitle">
+                {isChoirModerator ? "Manage songs and liturgy programs as Choir Moderator" : "Manage songs and liturgy programs"}
+              </p>
             </div>
           </div>
           
           <div className="header-actions">
+            {isChoirModerator && (
+              <div className="role-badge" style={{ 
+                background: '#ec489920', 
+                color: '#ec4899', 
+                border: '1px solid #ec4899',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span>🎵</span> Choir Moderator
+              </div>
+            )}
             <button 
               className="btn-icon"
               onClick={() => fetchPrograms(true)}
@@ -549,13 +604,15 @@ export default function SongsPage() {
             >
               <FiRefreshCw className={refreshing ? 'spinning' : ''} />
             </button>
-            <button 
-              className="btn-primary"
-              onClick={() => setIsFormOpen(!isFormOpen)}
-            >
-              {isFormOpen ? <FiX /> : <FiPlus />}
-              <span>{isFormOpen ? 'Close' : 'New Program'}</span>
-            </button>
+            {canModify && (
+              <button 
+                className="btn-primary"
+                onClick={() => setIsFormOpen(!isFormOpen)}
+              >
+                {isFormOpen ? <FiX /> : <FiPlus />}
+                <span>{isFormOpen ? 'Close' : 'New Program'}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -604,111 +661,113 @@ export default function SongsPage() {
           </select>
         </div>
 
-        {/* Form Card */}
-        <AnimatePresence>
-          {isFormOpen && (
-            <motion.div 
-              className="form-card"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <div className="form-header">
-                <h3 className="form-title">
-                  {editingId ? 'Edit Program' : 'Create New Program'}
-                </h3>
-                {lastSaved && (
-                  <span className="last-saved">
-                    Last saved: {lastSaved.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">
-                      <FiCalendar /> Date
-                    </label>
-                    <input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) => handleChange("date", e.target.value)}
-                      required
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      <FiMapPin /> Venue
-                    </label>
-                    <input
-                      type="text"
-                      value={form.venue}
-                      onChange={(e) => handleChange("venue", e.target.value)}
-                      placeholder="e.g., Main Church"
-                      required
-                      className="form-input"
-                    />
-                  </div>
+        {/* Form Card - Only show if canModify */}
+        {canModify && (
+          <AnimatePresence>
+            {isFormOpen && (
+              <motion.div 
+                className="form-card"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <div className="form-header">
+                  <h3 className="form-title">
+                    {editingId ? 'Edit Program' : 'Create New Program'}
+                  </h3>
+                  {lastSaved && (
+                    <span className="last-saved">
+                      Last saved: {lastSaved.toLocaleTimeString()}
+                    </span>
+                  )}
                 </div>
+                
+                <form onSubmit={handleSubmit}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">
+                        <FiCalendar /> Date
+                      </label>
+                      <input
+                        type="date"
+                        value={form.date}
+                        onChange={(e) => handleChange("date", e.target.value)}
+                        required
+                        className="form-input"
+                      />
+                    </div>
 
-                <div className="songs-grid">
-                  {songFields.map(field => (
-                    <div key={field.key} className="song-field">
-                      <label className="song-label">
-                        <span className="song-icon">{field.icon}</span>
-                        <span>{field.label}</span>
+                    <div className="form-group">
+                      <label className="form-label">
+                        <FiMapPin /> Venue
                       </label>
                       <input
                         type="text"
-                        value={form.songs[field.key] || ""}
-                        onChange={(e) => handleChange(field.key, e.target.value)}
-                        placeholder={`Enter ${field.label.toLowerCase()}`}
-                        className="song-input"
+                        value={form.venue}
+                        onChange={(e) => handleChange("venue", e.target.value)}
+                        placeholder="e.g., Main Church"
+                        required
+                        className="form-input"
                       />
                     </div>
-                  ))}
-                </div>
-
-                {formError && (
-                  <div className="form-error">
-                    <FiAlertCircle />
-                    <span>{formError}</span>
                   </div>
-                )}
 
-                <div className="form-actions">
-                  <button 
-                    type="button" 
-                    onClick={handleCancelProgram}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-  type="submit" 
-  className="btn-primary"
-  disabled={isSaving}
->
-  {isSaving ? (
-    <>
-      <span className="spinner-small"></span>
-      <span>{editingId ? 'Updating...' : 'Creating...'}</span>
-    </>
-  ) : (
-    <>
-      <FiSave />
-      <span>{editingId ? 'Update Program' : 'Create Program'}</span>
-    </>
-  )}
-</button>
-                </div>
-              </form>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <div className="songs-grid">
+                    {songFields.map(field => (
+                      <div key={field.key} className="song-field">
+                        <label className="song-label">
+                          <span className="song-icon">{field.icon}</span>
+                          <span>{field.label}</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={form.songs[field.key] || ""}
+                          onChange={(e) => handleChange(field.key, e.target.value)}
+                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                          className="song-input"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {formError && (
+                    <div className="form-error">
+                      <FiAlertCircle />
+                      <span>{formError}</span>
+                    </div>
+                  )}
+
+                  <div className="form-actions">
+                    <button 
+                      type="button" 
+                      onClick={handleCancelProgram}
+                      className="btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="btn-primary"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <>
+                          <span className="spinner-small"></span>
+                          <span>{editingId ? 'Updating...' : 'Creating...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiSave />
+                          <span>{editingId ? 'Update Program' : 'Create Program'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
         {/* Programs List */}
         <div className="content-area">
@@ -728,7 +787,7 @@ export default function SongsPage() {
                   ? 'Try adjusting your search or filters' 
                   : 'Create your first mass program to get started'}
               </p>
-              {!searchTerm && filterVenue === 'all' && (
+              {!searchTerm && filterVenue === 'all' && canModify && (
                 <button 
                   className="btn-primary"
                   onClick={() => setIsFormOpen(true)}
@@ -764,16 +823,18 @@ export default function SongsPage() {
                     </div>
                     
                     <div className="program-actions">
-                      <button 
-                        className="action-btn edit"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(program);
-                        }}
-                        title="Edit"
-                      >
-                        <FiEdit2 />
-                      </button>
+                      {canModify && (
+                        <button 
+                          className="action-btn edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(program);
+                          }}
+                          title="Edit"
+                        >
+                          <FiEdit2 />
+                        </button>
+                      )}
                       
                       <div className="download-dropdown">
                         <button 
@@ -803,16 +864,18 @@ export default function SongsPage() {
                         )}
                       </div>
                       
-                      <button 
-                        className="action-btn delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(program.id);
-                        }}
-                        title="Delete"
-                      >
-                        <FiTrash2 />
-                      </button>
+                      {canModify && (
+                        <button 
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(program.id);
+                          }}
+                          title="Delete"
+                        >
+                          <FiTrash2 />
+                        </button>
+                      )}
                       
                       <button className="expand-btn">
                         {expandedPrograms[program.id] ? <FiChevronUp /> : <FiChevronDown />}
@@ -851,7 +914,8 @@ export default function SongsPage() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
+        /* Keep all your existing styles exactly as they were */
         .songs-page {
           min-height: 100vh;
           position: relative;
@@ -859,7 +923,6 @@ export default function SongsPage() {
           padding: 24px;
         }
 
-        /* Fixed Background with your original image */
         .background-image {
           position: fixed;
           top: 0;
@@ -889,7 +952,6 @@ export default function SongsPage() {
           z-index: 1;
         }
 
-        /* Notification */
         .notification {
           position: fixed;
           top: 24px;
@@ -909,7 +971,6 @@ export default function SongsPage() {
         .notification.error { background: #ef4444; }
         .notification.info { background: #3b82f6; }
 
-        /* Header */
         .header {
           display: flex;
           justify-content: space-between;
@@ -958,6 +1019,16 @@ export default function SongsPage() {
           display: flex;
           align-items: center;
           gap: 12px;
+        }
+
+        .role-badge {
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 13px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .btn-icon {
@@ -1021,7 +1092,6 @@ export default function SongsPage() {
           to { transform: rotate(360deg); }
         }
 
-        /* Draft Indicator */
         .draft-indicator {
           display: flex;
           align-items: center;
@@ -1051,7 +1121,6 @@ export default function SongsPage() {
           background: #fed7aa;
         }
 
-        /* Search and Filter */
         .search-filter-bar {
           display: flex;
           gap: 12px;
@@ -1100,7 +1169,6 @@ export default function SongsPage() {
           background: white;
         }
 
-        /* Form Card */
         .form-card {
           background: white;
           border-radius: 16px;
@@ -1229,7 +1297,17 @@ export default function SongsPage() {
           margin-top: 24px;
         }
 
-        /* Programs List */
+        .spinner-small {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          display: inline-block;
+          margin-right: 6px;
+        }
+
         .programs-list {
           display: flex;
           flex-direction: column;
@@ -1308,18 +1386,6 @@ export default function SongsPage() {
           height: 36px;
         }
 
-
-        .spinner-small {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  display: inline-block;
-  margin-right: 6px;
-}
-
         .download-dropdown {
           position: relative;
           display: inline-block;
@@ -1393,7 +1459,6 @@ export default function SongsPage() {
           padding-left: 26px;
         }
 
-        /* Loading State */
         .loading-state {
           text-align: center;
           padding: 60px 20px;
@@ -1413,7 +1478,6 @@ export default function SongsPage() {
           animation: spin 1s linear infinite;
         }
 
-        /* Empty State */
         .empty-state {
           text-align: center;
           padding: 60px 20px;
@@ -1441,7 +1505,6 @@ export default function SongsPage() {
           margin-bottom: 20px;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
           .songs-page { padding: 16px; }
           
@@ -1527,5 +1590,7 @@ export default function SongsPage() {
         }
       `}</style>
     </div>
+
+    
   );
 }

@@ -101,7 +101,7 @@ function Layout() {
     { path: "/announcements", label: "Announcements", icon: "📢" },
     { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
     { path: "/contributions", label: "Contributions", icon: "💰" },
-    { path: "/jumuia-contributions", label: "Jumuia Contributions", icon: "🤝" },
+    { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
     { path: "/chat", label: "Chat", icon: "💬" },
   ];
 

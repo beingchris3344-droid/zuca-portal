@@ -14,6 +14,8 @@ function Login() {
   const [emailError, setEmailError] = useState("");
   const [loginError, setLoginError] = useState("");
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [loginMode, setLoginMode] = useState("normal");
+  const [detectedRole, setDetectedRole] = useState(null);
   const navigate = useNavigate();
 
   // Track mouse for subtle parallax
@@ -28,56 +30,187 @@ function Login() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // Email validation
+  // Auto-detect if this is a role login based on password format
   useEffect(() => {
-    if (email && !email.includes("@")) {
+    if (password) {
+      if (password.startsWith("stmichael") || password.startsWith("stbenedict") || 
+          password.startsWith("stperegrine") || password.startsWith("christtheking") ||
+          password.startsWith("stgregory") || password.startsWith("stpacificus")) {
+        setLoginMode("role");
+        setDetectedRole("jumuia_leader");
+      } else if (password.startsWith("treasurer")) {
+        setLoginMode("role");
+        setDetectedRole("treasurer");
+      } else if (password.startsWith("secretary")) {
+        setLoginMode("role");
+        setDetectedRole("secretary");
+      } else if (password.startsWith("choir")) {
+        setLoginMode("role");
+        setDetectedRole("choir_moderator");
+      } else {
+        setLoginMode("normal");
+        setDetectedRole(null);
+      }
+    } else {
+      setLoginMode("normal");
+      setDetectedRole(null);
+    }
+  }, [password]);
+
+  // Email validation (only for normal login)
+  useEffect(() => {
+    if (loginMode === "normal" && email && !email.includes("@")) {
       setEmailError("Hmm, that doesn't look like an email");
     } else {
       setEmailError("");
     }
-  }, [email]);
+  }, [email, loginMode]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setLoginError("");
+  // Get welcome message based on detected role
+  const getWelcomeMessage = () => {
+    if (loginMode === "normal") {
+      return {
+        greeting: "We've missed you ✨",
+        title: "Welcome back to",
+        subtitle: "ZUCA Portal",
+        color: "#00c6ff" // Blue for normal
+      };
+    }
 
-    // Simulate a moment of anticipation
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    try {
-      const res = await fetch(`${BASE_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        // Small celebration before redirect
-        setTimeout(() => {
-          if (data.user.role === "admin") {
-            navigate("/admin");
-          } else {
-            navigate("/dashboard");
-          }
-        }, 500);
-      } else {
-        setLoginError(data.error || "Those credentials don't match our records");
-      }
-    } catch (err) {
-      console.error("Login Error:", err);
-      setLoginError("Connection issue. Please check your network.");
-    } finally {
-      setLoading(false);
+    switch(detectedRole) {
+      case "jumuia_leader":
+        return {
+          greeting: "👑 Jumuia Leader",
+          title: "Welcome, Shepard!",
+          subtitle: "Lead your community with wisdom",
+          color: "#8b5cf6" // Purple
+        };
+      case "treasurer":
+        return {
+          greeting: "💰 Treasurer",
+          title: "Welcome, Steward!",
+          subtitle: "Manage the contributions",
+          color: "#f59e0b" // Orange
+        };
+      case "secretary":
+        return {
+          greeting: "📝 Secretary",
+          title: "Welcome, Scribe!",
+          subtitle: "Share the good news",
+          color: "#10b981" // Green
+        };
+      case "choir_moderator":
+        return {
+          greeting: "🎵 Choir Moderator",
+          title: "Welcome, Maestro!",
+          subtitle: "Lead the songs of praise",
+          color: "#ec4899" // Pink
+        };
+      default:
+        return {
+          greeting: "Special access",
+          title: "Welcome,",
+          subtitle: "continue your service",
+          color: "#8b5cf6"
+        };
     }
   };
 
-  // Animation variants with soul
+  const welcome = getWelcomeMessage();
+
+  // Get role icon
+  const getRoleIcon = () => {
+    if (!detectedRole) return null;
+    
+    switch(detectedRole) {
+      case "jumuia_leader": return "👑";
+      case "treasurer": return "💰";
+      case "secretary": return "📝";
+      case "choir_moderator": return "🎵";
+      default: return null;
+    }
+  };
+
+  const handleLogin = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setLoginError("");
+
+  // Simulate a moment of anticipation
+  await new Promise(resolve => setTimeout(resolve, 800));
+
+  try {
+    // Choose endpoint based on detected mode
+    const endpoint = loginMode === "normal" ? "/api/login" : "/api/role-login";
+    
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.token) {
+      // For jumuia leaders, add jumuiaCode if it's missing
+      if (data.user.role === 'jumuia_leader' && !data.user.jumuiaCode) {
+        // Get the password from the input field
+        const passwordInput = document.querySelector('input[type="password"]');
+        const password = passwordInput ? passwordInput.value : '';
+        
+        // Extract jumuiaCode from password (e.g., "stgregory" from "stgregoryZ#002")
+        let jumuiaCode = null;
+        
+        if (password.startsWith('stmichael')) jumuiaCode = 'stmichael';
+        else if (password.startsWith('stbenedict')) jumuiaCode = 'stbenedict';
+        else if (password.startsWith('stperegrine')) jumuiaCode = 'stperegrine';
+        else if (password.startsWith('christtheking')) jumuiaCode = 'christtheking';
+        else if (password.startsWith('stgregory')) jumuiaCode = 'stgregory';
+        else if (password.startsWith('stpacificus')) jumuiaCode = 'stpacificus';
+        
+        // If still not found, try from jumuia name
+        if (!jumuiaCode && data.user.jumuia) {
+          jumuiaCode = data.user.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+        }
+        
+        // Add the missing fields
+        data.user.jumuiaCode = jumuiaCode;
+        data.user.specialRole = 'jumuia_leader';
+        
+        console.log('Added jumuiaCode:', jumuiaCode);
+      }
+      
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // Redirect based on role
+      setTimeout(() => {
+        if (data.user.role === "admin") {
+          navigate("/admin");
+        } else if (data.user.role === "jumuia_leader") {
+          navigate(`/jumuia/${data.user.jumuiaCode}`);
+        } else if (data.user.role === "treasurer") {
+          navigate("/treasurer");
+        } else if (data.user.role === "secretary") {
+          navigate("/secretary");
+        } else if (data.user.role === "choir_moderator") {
+          navigate("/choir");
+        } else {
+          navigate("/dashboard");
+        }
+      }, 500);
+    } else {
+      setLoginError(data.error || "Those credentials don't match our records");
+    }
+  } catch (err) {
+    console.error("Login Error:", err);
+    setLoginError("Connection issue. Please check your network.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -119,7 +252,7 @@ function Login() {
       variants={containerVariants}
       style={containerStyle(bg)}
     >
-      {/* Animated gradient overlay with depth */}
+      {/* Animated gradient overlay */}
       <motion.div 
         style={{
           ...overlayStyle,
@@ -163,7 +296,7 @@ function Login() {
         ))}
       </div>
 
-      {/* Main Card with Depth */}
+      {/* Main Card */}
       <motion.div
         variants={childVariants}
         style={{
@@ -176,7 +309,7 @@ function Login() {
         {/* Inner glow effect */}
         <div style={cardInnerGlowStyle} />
 
-        {/* Logo with personality */}
+        {/* Logo */}
         <motion.div 
           style={logoContainerStyle}
           whileHover={{ scale: 1.1 }}
@@ -202,31 +335,58 @@ function Login() {
           />
         </motion.div>
 
-        {/* Welcome message with heart */}
+        {/* Welcome message - changes based on detected role */}
         <motion.div variants={childVariants}>
           <h2 style={welcomeStyle}>
-            <span style={welcomeTextStyle}>Welcome back to</span>
+            <span style={welcomeTextStyle}>{welcome.title}</span>
             <br />
-            <span style={gradientTextStyle}>ZUCA Portal</span>
+            <motion.span 
+              style={{
+                fontSize: "32px",
+                fontWeight: "700",
+                color: welcome.color, // Solid color instead of gradient
+                letterSpacing: "0.5px",
+              }}
+              animate={{
+                scale: detectedRole ? [1, 1.05, 1] : 1,
+              }}
+              transition={{ duration: 0.5 }}
+            >
+              {detectedRole ? (
+                <span>
+                  {getRoleIcon()} {welcome.subtitle}
+                </span>
+              ) : (
+                welcome.subtitle
+              )}
+            </motion.span>
           </h2>
           <motion.p 
-            style={greetingStyle}
+            style={{
+              textAlign: "center",
+              fontSize: "14px",
+              color: welcome.color,
+              marginTop: "-15px",
+              marginBottom: "25px",
+              fontStyle: "italic",
+              opacity: 0.9,
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            We've missed you ✨
+            {welcome.greeting}
           </motion.p>
         </motion.div>
 
         <form onSubmit={handleLogin}>
-          {/* Email Field with Character */}
+          {/* Email Field */}
           <motion.div variants={childVariants}>
             <label style={labelStyle}>
               <motion.span
                 animate={{ 
                   x: focusedField === "email" ? 5 : 0,
-                  color: focusedField === "email" ? "#00c6ff" : "rgba(255,255,255,0.8)"
+                  color: focusedField === "email" ? welcome.color : "rgba(255,255,255,0.8)"
                 }}
               >
                 Email address
@@ -245,10 +405,10 @@ function Login() {
                 whileFocus={{ 
                   scale: 1.02,
                   backgroundColor: "rgba(255,255,255,0.25)",
-                  borderColor: "#00c6ff",
+                  borderColor: welcome.color,
                 }}
                 animate={{
-                  borderColor: emailError ? "#ef4444" : focusedField === "email" ? "#00c6ff" : "transparent",
+                  borderColor: emailError ? "#ef4444" : focusedField === "email" ? welcome.color : "transparent",
                 }}
               />
               <AnimatePresence>
@@ -257,7 +417,10 @@ function Login() {
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    style={fieldGlowStyle}
+                    style={{
+                      ...fieldGlowStyle,
+                      background: `linear-gradient(135deg, ${welcome.color}, transparent)`,
+                    }}
                   >
                     <span style={fieldGlowInnerStyle} />
                   </motion.span>
@@ -278,13 +441,13 @@ function Login() {
             </AnimatePresence>
           </motion.div>
 
-          {/* Password Field with Character */}
+          {/* Password Field */}
           <motion.div variants={childVariants}>
             <label style={labelStyle}>
               <motion.span
                 animate={{ 
                   x: focusedField === "password" ? 5 : 0,
-                  color: focusedField === "password" ? "#00c6ff" : "rgba(255,255,255,0.8)"
+                  color: focusedField === "password" ? welcome.color : "rgba(255,255,255,0.8)"
                 }}
               >
                 Password
@@ -306,7 +469,7 @@ function Login() {
                 whileFocus={{ 
                   scale: 1.02,
                   backgroundColor: "rgba(255,255,255,0.25)",
-                  borderColor: "#00c6ff",
+                  borderColor: welcome.color,
                 }}
               />
               <motion.span
@@ -323,7 +486,10 @@ function Login() {
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    style={fieldGlowStyle}
+                    style={{
+                      ...fieldGlowStyle,
+                      background: `linear-gradient(135deg, ${welcome.color}, transparent)`,
+                    }}
                   >
                     <span style={fieldGlowInnerStyle} />
                   </motion.span>
@@ -333,21 +499,12 @@ function Login() {
           </motion.div>
 
           {/* Forgot Password Link */}
-          <motion.div 
-            variants={childVariants}
-            style={forgotContainerStyle}
-          >
+          <motion.div variants={childVariants} style={forgotContainerStyle}>
             <Link to="/forgot-password" style={forgotLinkStyle}>
-              <motion.span
-                whileHover={{ x: 3 }}
-                transition={{ type: "spring", stiffness: 400 }}
-              >
+              <motion.span whileHover={{ x: 3 }}>
                 Forgot your password? 
               </motion.span>
-              <motion.span
-                initial={{ opacity: 0, x: -5 }}
-                whileHover={{ opacity: 1, x: 3 }}
-              >
+              <motion.span whileHover={{ opacity: 1, x: 3 }} initial={{ opacity: 0, x: -5 }}>
                 →
               </motion.span>
             </Link>
@@ -371,7 +528,11 @@ function Login() {
           <motion.div variants={childVariants}>
             <motion.button
               type="submit"
-              style={buttonStyle}
+              style={{
+                ...buttonStyle,
+                background: `linear-gradient(135deg, ${welcome.color}, ${adjustColor(welcome.color, -20)})`,
+                boxShadow: `0 10px 25px -5px ${welcome.color}80`,
+              }}
               disabled={loading}
               variants={glowVariants}
               initial="initial"
@@ -387,14 +548,16 @@ function Login() {
                   >
                     ⟳
                   </motion.span>
-                  <span style={loadingTextStyle}>Welcoming you...</span>
+                  <span style={loadingTextStyle}>
+                    {detectedRole ? `Welcoming ${detectedRole.replace('_', ' ')}...` : "Signing in..."}
+                  </span>
                 </motion.div>
               ) : (
                 <motion.span
                   animate={{ y: [0, -2, 0] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
-                  Sign in to continue →
+                  {detectedRole ? `Continue as ${detectedRole.replace('_', ' ')} →` : "Sign in →"}
                 </motion.span>
               )}
             </motion.button>
@@ -402,10 +565,7 @@ function Login() {
         </form>
 
         {/* Register Link */}
-        <motion.div 
-          variants={childVariants}
-          style={registerContainerStyle}
-        >
+        <motion.div variants={childVariants} style={registerContainerStyle}>
           <span style={registerTextStyle}>New to our community?</span>
           <Link to="/register">
             <motion.button
@@ -422,7 +582,7 @@ function Login() {
           </Link>
         </motion.div>
 
-        {/* Faith-inspired subtle text */}
+        {/* Faith-inspired text */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -441,22 +601,10 @@ function Login() {
             100% {background-position: 0% 50%;}
           }
           
-          @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-5px); }
-            100% { transform: translateY(0px); }
-          }
-          
           input::placeholder {
             color: rgba(255,255,255,0.3);
             font-size: 13px;
             font-style: italic;
-            transition: all 0.3s;
-          }
-          
-          input:focus::placeholder {
-            opacity: 0.5;
-            transform: translateX(8px);
           }
         `}
       </style>
@@ -464,7 +612,21 @@ function Login() {
   );
 }
 
-// ==================== Styles with Soul ====================
+// Helper function to darken colors for button gradient
+const adjustColor = (color, percent) => {
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  const newR = Math.max(0, Math.min(255, r + percent));
+  const newG = Math.max(0, Math.min(255, g + percent));
+  const newB = Math.max(0, Math.min(255, b + percent));
+  
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+};
+
+// ==================== Styles ====================
 
 const containerStyle = (bg) => ({
   minHeight: "100vh",
@@ -558,26 +720,6 @@ const welcomeTextStyle = {
   color: "rgba(255,255,255,0.6)",
   letterSpacing: "1px",
   textTransform: "uppercase",
-};
-
-const gradientTextStyle = {
-  fontSize: "32px",
-  fontWeight: "700",
-  background: "linear-gradient(135deg, #fff, #00c6ff, #fff)",
-  backgroundSize: "200% auto",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  animation: "gradientFlow 5s ease infinite",
-  letterSpacing: "0.5px",
-};
-
-const greetingStyle = {
-  textAlign: "center",
-  fontSize: "14px",
-  color: "rgba(255,255,255,0.5)",
-  marginTop: "-15px",
-  marginBottom: "25px",
-  fontStyle: "italic",
 };
 
 const labelStyle = {
@@ -677,13 +819,11 @@ const buttonStyle = {
   padding: "16px",
   borderRadius: "16px",
   border: "none",
-  background: "linear-gradient(135deg, #0fdd20, #0a9f1a)",
   color: "white",
   fontWeight: "600",
   fontSize: "16px",
   cursor: "pointer",
   transition: "all 0.3s",
-  boxShadow: "0 10px 25px -5px rgba(15,221,32,0.4)",
   position: "relative",
   overflow: "hidden",
 };

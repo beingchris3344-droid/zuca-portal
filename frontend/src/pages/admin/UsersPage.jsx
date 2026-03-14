@@ -43,6 +43,41 @@ export default function UsersPage() {
   const [copiedId, setCopiedId] = useState(null);
   const [hoveredRow, setHoveredRow] = useState(null);
   const [expandedMobileMenu, setExpandedMobileMenu] = useState(false);
+
+  // Helper functions for special roles
+  const formatSpecialRole = (role) => {
+    const roles = {
+      'jumuia_leader': 'Jumuia Leader',
+      'treasurer': 'Treasurer',
+      'secretary': 'Secretary',
+      'choir_moderator': 'Choir Moderator'
+    };
+    return roles[role] || role;
+  };
+
+  const getSpecialRoleStyle = (role) => {
+    const baseStyle = {
+      display: 'inline-block',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '11px',
+      fontWeight: '600',
+      textTransform: 'uppercase',
+    };
+    
+    switch(role) {
+      case 'jumuia_leader':
+        return { ...baseStyle, background: 'rgba(139, 92, 246, 0.2)', color: '#a78bfa' };
+      case 'treasurer':
+        return { ...baseStyle, background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' };
+      case 'secretary':
+        return { ...baseStyle, background: 'rgba(16, 185, 129, 0.2)', color: '#34d399' };
+      case 'choir_moderator':
+        return { ...baseStyle, background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6' };
+      default:
+        return { ...baseStyle, background: 'rgba(255,255,255,0.1)', color: '#fff' };
+    }
+  };
   
   const exportMenuRef = useRef(null);
   const token = localStorage.getItem("token");
@@ -79,7 +114,7 @@ export default function UsersPage() {
       const res = await axios.get(`${BASE_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("Fetched users:", res.data); // Debug log
+      console.log("Fetched users:", res.data);
       setUsers(res.data);
     } catch (err) {
       console.error("Fetch Users Error:", err);
@@ -201,19 +236,18 @@ export default function UsersPage() {
 
   // Export functions
   const exportToExcel = (data, filename) => {
-    // Prepare data for export with only relevant fields
     const exportData = data.map(user => ({
       Name: user.fullName,
       "Membership Number": user.membership_number || "N/A",
       Email: user.email,
       Role: user.role,
-      "User ID": user.id,
-      "Jumuia": user.jumuia?.name || "N/A",
+      "Special Role": user.specialRole ? formatSpecialRole(user.specialRole) : "None",
+      "Home Jumuia": user.homeJumuia?.name || "N/A",
+      "Leading Jumuia": user.leadingJumuia?.name || "N/A",
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     
-    // Auto-size columns
     const colWidths = [];
     const headers = Object.keys(exportData[0] || {});
     headers.forEach(header => {
@@ -232,14 +266,14 @@ export default function UsersPage() {
   };
 
   const exportToDoc = (data, filename) => {
-    // Prepare data for export with only relevant fields
     const exportData = data.map(user => ({
       Name: user.fullName,
       "Membership Number": user.membership_number || "N/A",
       Email: user.email,
       Role: user.role,
-      "User ID": user.id,
-      "Jumuia": user.jumuia?.name || "N/A",
+      "Special Role": user.specialRole ? formatSpecialRole(user.specialRole) : "None",
+      "Home Jumuia": user.homeJumuia?.name || "N/A",
+      "Leading Jumuia": user.leadingJumuia?.name || "N/A",
     }));
 
     let htmlContent = `
@@ -247,14 +281,11 @@ export default function UsersPage() {
 <html>
 <head>
 <title>${filename}</title>
-
 <style>
-
 @page {
   size: A4;
   margin: 1in;
 }
-
 body { 
   font-family: "Times New Roman", Times, serif;
   margin: 0;
@@ -262,12 +293,10 @@ body {
   color: #000;
   line-height: 1.4;
 }
-
 .container{
   width: 90%;
   margin: 0 auto;
 }
-
 h1 { 
   color: #000;
   border-bottom: 2px solid #000;
@@ -277,7 +306,6 @@ h1 {
   text-transform: uppercase;
   margin-bottom: 20px;
 }
-
 .header-info{
   margin-bottom: 20px;
   padding: 12px;
@@ -285,7 +313,6 @@ h1 {
   border: 1px solid #ccc;
   font-size: 12pt;
 }
-
 table{
   border-collapse: collapse;
   width: 100%;
@@ -293,7 +320,6 @@ table{
   border: 1px solid #999;
   table-layout: fixed;
 }
-
 th{
   background: #e0e0e0;
   padding: 10px 8px;
@@ -302,26 +328,21 @@ th{
   text-align: left;
   font-size: 12pt;
 }
-
 td{
   padding: 8px;
   border: 1px solid #999;
   word-wrap: break-word;
   font-size: 11pt;
 }
-
 tr:nth-child(even){
   background: #f9f9f9;
 }
-
 tr{
   page-break-inside: avoid;
 }
-
 thead{
   display: table-header-group;
 }
-
 .footer{
   margin-top: 30px;
   text-align: right;
@@ -330,25 +351,20 @@ thead{
   border-top: 1px solid #ccc;
   padding-top: 10px;
 }
-
-/* Column width distribution (TOTAL = 100%) */
-
-th:nth-child(1){ width:20%; } /* Name */
+th:nth-child(1){ width:15%; } /* Name */
 th:nth-child(2){ width:10%; } /* Membership Number */
-th:nth-child(3){ width:20%; } /* Email */
-th:nth-child(4){ width:10%; } /* Role */
-th:nth-child(5){ width:20%; } /* User ID */
-th:nth-child(6){ width:20%; } /* Jumuia */
-
+th:nth-child(3){ width:15%; } /* Email */
+th:nth-child(4){ width:8%; } /* Role */
+th:nth-child(5){ width:12%; } /* Special Role */
+th:nth-child(6){ width:10%; } /* Home Jumuia */
+th:nth-child(7){ width:10%; } /* Leading Jumuia */
 </style>
 </head>
-
 <body>
         <h1>USERS REPORT</h1>
         <div class="header-info">
           <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
           <p><strong>Total Users:</strong> ${exportData.length}</p>
-          <p><strong>Export Type:</strong> ${selectedUsers.length > 0 ? 'Selected Users' : 'All Users'}</p>
         </div>
         
         <table>
@@ -448,7 +464,7 @@ th:nth-child(6){ width:20%; } /* Jumuia */
           <p style={styles.subtitle}>Manage system users, roles, and permissions</p>
         </div>
         <div style={styles.headerActions}>
-          {/* Export Dropdown - Fixed positioning with higher z-index */}
+          {/* Export Dropdown */}
           <div style={styles.exportWrapper} ref={exportMenuRef}>
             <motion.button 
               whileHover={{ scale: 1.02 }}
@@ -624,7 +640,7 @@ th:nth-child(6){ width:20%; } /* Jumuia */
         )}
       </AnimatePresence>
 
-      {/* Users Table - Scrollable Container */}
+      {/* Users Table */}
       <div style={styles.tableContainer}>
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
@@ -642,7 +658,9 @@ th:nth-child(6){ width:20%; } /* Jumuia */
                 <th style={styles.tableHeader}>Membership #</th>
                 <th style={styles.tableHeader}>Contact</th>
                 <th style={styles.tableHeader}>Role</th>
-                <th style={styles.tableHeader}>Jumuia</th>
+                <th style={styles.tableHeader}>Special Role</th>
+                <th style={styles.tableHeader}>Home Jumuia</th>
+                <th style={styles.tableHeader}>Leading Jumuia</th>
                 <th style={styles.tableHeader}>Status</th>
                 <th style={styles.tableHeader}>Last Active</th>
                 <th style={styles.tableHeader}>Actions</th>
@@ -741,9 +759,30 @@ th:nth-child(6){ width:20%; } /* Jumuia */
                     </motion.span>
                   </td>
                   <td style={styles.tableCell}>
+                    {user.specialRole ? (
+                      <motion.span
+                        whileHover={{ scale: 1.05 }}
+                        style={getSpecialRoleStyle(user.specialRole)}
+                      >
+                        {formatSpecialRole(user.specialRole)}
+                      </motion.span>
+                    ) : (
+                      <span style={{ color: 'rgba(255,255,255,0.3)' }}>—</span>
+                    )}
+                  </td>
+                  <td style={styles.tableCell}>
                     <span style={styles.jumuiaBadge}>
-                      {user.jumuia?.name || "—"}
+                      {user.homeJumuia?.name || "—"}
                     </span>
+                  </td>
+                  <td style={styles.tableCell}>
+                    {user.specialRole === "jumuia_leader" ? (
+                      <span style={styles.jumuiaBadge}>
+                        {user.leadingJumuia?.name || "—"}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'rgba(255,255,255,0.3)' }}>—</span>
+                    )}
                   </td>
                   <td style={styles.tableCell}>
                     <div style={styles.statusInfo}>
@@ -899,9 +938,19 @@ th:nth-child(6){ width:20%; } /* Jumuia */
                   </span>
                 </div>
                 <div style={styles.modalInfoRow}>
- <span style={styles.modalInfoLabel}>Jumuia</span>                  
- <span>{modalUser.jumuia || "Not assigned"}</span>
+                  <span style={styles.modalInfoLabel}>Special Role</span>
+                  <span>{modalUser.specialRole ? formatSpecialRole(modalUser.specialRole) : "None"}</span>
                 </div>
+                <div style={styles.modalInfoRow}>
+                  <span style={styles.modalInfoLabel}>Home Jumuia</span>                  
+                  <span>{modalUser.homeJumuia?.name || "Not assigned"}</span>
+                </div>
+                {modalUser.specialRole === "jumuia_leader" && (
+                  <div style={styles.modalInfoRow}>
+                    <span style={styles.modalInfoLabel}>Leading Jumuia</span>                  
+                    <span>{modalUser.leadingJumuia?.name || "Not assigned"}</span>
+                  </div>
+                )}
                 <div style={styles.modalInfoRow}>
                   <span style={styles.modalInfoLabel}>Status</span>
                   <span style={styles.modalStatus}>
@@ -1083,7 +1132,7 @@ const styles = {
     alignItems: "center",
     marginBottom: "24px",
     position: "relative",
-    zIndex: 10, // Higher z-index for header
+    zIndex: 10,
     flexWrap: "wrap",
     gap: "16px",
   },
@@ -1104,11 +1153,11 @@ const styles = {
     display: "flex",
     gap: "12px",
     position: "relative",
-    zIndex: 100, // Higher z-index for actions
+    zIndex: 100,
   },
   exportWrapper: {
     position: "relative",
-    zIndex: 1000, // Very high z-index for dropdown
+    zIndex: 1000,
   },
   exportBtn: {
     padding: "10px 20px",
@@ -1140,7 +1189,7 @@ const styles = {
     borderRadius: "8px",
     border: "1px solid rgba(255,255,255,0.1)",
     padding: "8px",
-    zIndex: 2000, // Even higher z-index for the menu
+    zIndex: 2000,
     boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
   },
   exportMenuItem: {
@@ -1356,7 +1405,7 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "1600px", // Increased to accommodate more columns
+    minWidth: "1400px",
     fontSize: "14px",
   },
   tableHead: {

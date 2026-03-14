@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import io from "socket.io-client";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
+import RoleManagement from "./RoleManagement";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -16,24 +17,59 @@ export default function AdminLayout() {
   const notificationRef = useRef(null);
 
   // Socket connection for real-time updates
-  useEffect(() => {
-    const socket = io(BASE_URL);
+useEffect(() => {
+  const socket = io(BASE_URL);
+  
+  socket.on('connect', () => {
+    console.log('Admin connected');
+  });
+
+  // Listen for pledge-related notifications
+  socket.on('new_notification', (notification) => {
+    console.log('Admin notification received:', notification);
+    setNotifications(prev => [notification, ...prev].slice(0, 20));
     
-    socket.on('connect', () => {
-      console.log('Admin connected');
-    });
+    // Play sound for new notifications (optional)
+    // new Audio('/notification.mp3').play().catch(e => console.log('Audio play failed:', e));
+  });
 
-    socket.on('admin_notification', (notification) => {
-      setNotifications(prev => [notification, ...prev].slice(0, 10));
-    });
+  // Listen for pledge updates
+  socket.on('pledge_updated', (updatedPledge) => {
+    console.log('Pledge updated:', updatedPledge);
+    // You could add a notification here if needed
+  });
 
-    // Listen for online members count (not admins)
-    socket.on('online_members', (data) => {
-      setOnlineMembers(data.count);
-    });
+  // Listen for new pledges
+  socket.on('pledge_created', (newPledge) => {
+    console.log('New pledge created:', newPledge);
+    // The notification will come through 'new_notification' channel
+  });
 
-    return () => socket.disconnect();
-  }, []);
+  // Listen for new messages
+  socket.on('new_message', (message) => {
+    console.log('New message:', message);
+    // Add a notification for new messages
+    setNotifications(prev => [{
+      id: Date.now(),
+      type: 'message',
+      title: '💬 New Message',
+      message: `New message about a pledge`,
+      icon: '💬',
+      read: false,
+      createdAt: new Date().toISOString()
+    }, ...prev].slice(0, 20));
+  });
+
+
+  
+
+  // Listen for online members count
+  socket.on('online_members', (data) => {
+    setOnlineMembers(data.count);
+  });
+
+  return () => socket.disconnect();
+}, []);
 
   // Handle resize
   useEffect(() => {
@@ -65,6 +101,7 @@ export default function AdminLayout() {
   const navItems = [
     { label: "Dashboard", path: "", icon: "📊" },
     { label: "Users", path: "users", icon: "👥" },
+    { label: "Role Management", path: "roles", icon: "👑" },
     { label: "Manage Jumuia", path: "jumuia-management", icon: "⛪" },
     { label: "Activity", path: "activity", icon: "📈" },
     { label: "Analytics", path: "analytics", icon: "📊" },
@@ -133,20 +170,25 @@ export default function AdminLayout() {
                     )}
                   </div>
                   <div className="notification-list">
-                    {notifications.length === 0 ? (
-                      <div className="notification-empty">No new notifications</div>
-                    ) : (
-                      notifications.map((notif, index) => (
-                        <div key={index} className="notification-item">
-                          <div className="notification-icon">{notif.icon || '📌'}</div>
-                          <div className="notification-content">
-                            <div className="notification-title">{notif.title}</div>
-                            <div className="notification-message">{notif.message}</div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+  {notifications.length === 0 ? (
+    <div className="notification-empty">No new notifications</div>
+  ) : (
+    notifications.map((notif, index) => (
+      <div key={index} className={`notification-item ${notif.type || ''}`}>
+        <div className="notification-icon">
+          {notif.icon || (notif.type === 'message' ? '💬' : '📌')}
+        </div>
+        <div className="notification-content">
+          <div className="notification-title">{notif.title}</div>
+          <div className="notification-message">{notif.message}</div>
+          <div className="notification-time">
+            {new Date(notif.createdAt).toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
+    ))
+  )}
+</div>
                 </motion.div>
               )}
             </AnimatePresence>

@@ -1,10 +1,11 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
+import RoleRoute from "./components/RoleRoute";
+import JumuiaRoute from "./components/routing/JumuiaRoute";
 import Landing2 from "./pages/landing2";
-import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Announcements from "./pages/Announcements";
@@ -16,13 +17,14 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
-import JumuiaContributions from "./pages/JumuiaContributions";
-import JoinJumuia from "./pages/JoinJumuia";
+import JumuiaDashboard from "./pages/JumuiaDashboard";import JoinJumuia from "./pages/JoinJumuia";
+import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
+import RoleManagement from "./pages/admin/RoleManagement";
 import ActivityPage from "./pages/admin/ActivityPage";
 import AnalyticsPage from "./pages/admin/AnalyticsPage";
 import SongsPage from "./pages/admin/SongsPage";
@@ -32,16 +34,15 @@ import JumuiaManagement from "./pages/admin/JumuiaManagement";
 import ChatMonitorPage from "./pages/admin/ChatMonitorPage";
 import SecurityPage from "./pages/admin/SecurityPage";
 
+/* ===== ROLE LAYOUT ===== */
+import RoleLayout from "./pages/role/RoleLayout";
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-
-        <Route path="/" element={<Landing2 />} />
-
         {/* ================= LANDING PAGE ================= */}
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Landing2 />} />
 
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/home" element={<Home />} />
@@ -62,12 +63,23 @@ function App() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
-          <Route path="/jumuia-contributions" element={<JumuiaContributions />} />
-          <Route path="/join-jumuia" element={<JoinJumuia />} />
+<Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          <Route path="/join-jumuia" element={<JoinJumuia />} />
           <Route path="/chat" element={<Chat />} />
         </Route>
 
-        {/* ================= ADMIN PORTAL ================= */}
+        {/* ================= JUMUIA DETAIL PAGE ================= */}
+        <Route
+          path="/jumuia/:jumuiaCode"
+          element={
+            <ProtectedRoute>
+              <JumuiaRoute>
+                <JumuiaDetailPage />
+              </JumuiaRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= ADMIN PORTAL (Full Access) ================= */}
         <Route
           path="/admin"
           element={
@@ -81,6 +93,7 @@ function App() {
           <Route path="activity" element={<ActivityPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
+          <Route path="roles" element={<RoleManagement />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />
           <Route path="jumuia-management" element={<JumuiaManagement />} />
@@ -88,6 +101,59 @@ function App() {
           <Route path="security" element={<SecurityPage />} />
         </Route>
 
+        {/* ================= SECRETARY (Announcements only) ================= */}
+        <Route
+          path="/secretary"
+          element={
+            <RoleRoute allowedRoles={["secretary"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="announcements" replace />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+        </Route>
+
+        {/* ================= TREASURER (Contributions only) ================= */}
+        <Route
+          path="/treasurer"
+          element={
+            <RoleRoute allowedRoles={["treasurer"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="contributions" replace />} />
+          <Route path="contributions" element={<ContributionsPage />} />
+        </Route>
+
+        {/* ================= CHOIR MODERATOR (Songs only) ================= */}
+        <Route
+          path="/choir"
+          element={
+            <RoleRoute allowedRoles={["choir_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="songs" replace />} />
+          <Route path="songs" element={<SongsPage />} />
+        </Route>
+
+        {/* ================= JUMUIA LEADER (Single dashboard page) ================= */}
+        <Route
+          path="/leader"
+          element={
+            <RoleRoute allowedRoles={["jumuia_leader"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<JumuiaManagement />} />
+        </Route>
+
+        {/* ================= CATCH ALL ================= */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

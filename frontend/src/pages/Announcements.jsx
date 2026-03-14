@@ -65,8 +65,11 @@ export default function UserAnnouncements() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       
+      const allAnnouncements = res.data;
+    const globalAnnouncements = allAnnouncements.filter(a => !a.jumuiaId);
       const data = res.data;
-      setAnnouncements(data);
+    
+      setAnnouncements(globalAnnouncements);
       
       // Extract unique categories
       const uniqueCategories = [...new Set(data.map(a => a.category || "General").filter(Boolean))];

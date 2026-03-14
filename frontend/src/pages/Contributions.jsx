@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
+import SimpleMessageModal from "./SimpleMessageModal";
 
 function Contributions() {
   const [contributions, setContributions] = useState([]);
@@ -15,6 +16,8 @@ function Contributions() {
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [expandedCard, setExpandedCard] = useState(null);
   const [filter, setFilter] = useState("all");
+  // NEW: State for message modal
+  const [messageThread, setMessageThread] = useState(null);
   
   const fetchAttempted = useRef(false);
   const token = localStorage.getItem("token");
@@ -35,10 +38,21 @@ function Contributions() {
         )
       );
       
+      // Better messages based on what changed
       if (updatedPledge.status === "APPROVED") {
-        showNotification("Your pledge has been approved!", "success");
+        const paidAmount = updatedPledge.amountPaid;
+        const remaining = updatedPledge.amountRequired - paidAmount;
+        showNotification(
+          `✅ Your pledge of ${updatedPledge.pendingAmount} has been approved! ${
+            remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'
+          }`, 
+          "success"
+        );
       } else if (updatedPledge.status === "COMPLETED") {
-        showNotification("Congratulations! Your contribution is complete!", "success");
+        showNotification(
+          `🎉 Congratulations! Your contribution of KES ${updatedPledge.amountRequired.toLocaleString()} is complete!`, 
+          "success"
+        );
       }
     });
 
@@ -46,8 +60,43 @@ function Contributions() {
       setContributions(prev => [newPledge, ...prev]);
     });
 
+    // NEW: Listen for new messages
+    socket.on('new_message', (message) => {
+      // Find which pledge this message belongs to
+      const pledge = contributions.find(p => p.id === message.pledgeId);
+      if (pledge) {
+        showNotification(
+          `💬 New message about "${pledge.title}"`,
+          "info"
+        );
+      }
+    });
+
     return () => socket.disconnect();
+  }, [contributions]);
+
+  // Silent background refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!refreshing) {
+        silentRefresh();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  const silentRefresh = useCallback(async () => {
+    if (!token || refreshing) return;
+    
+    try {
+      const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
+      setContributions(res.data);
+      console.log('Background refresh completed');
+    } catch (err) {
+      console.error("Background refresh error:", err);
+    }
+  }, [token, headers, refreshing]);
 
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
@@ -61,27 +110,31 @@ function Contributions() {
   }, [token]);
 
   const fetchContributions = useCallback(async (isRefresh = false) => {
-    if (!token) return;
+  if (!token) return;
+  
+  if (isRefresh) {
+    setRefreshing(true);
+  } else {
+    setLoading(true);
+  }
+  
+  setError(null);
+  
+  try {
+    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
     
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+    // Filter out jumuia-specific contributions
+    const userContributions = res.data.filter(c => !c.jumuiaId);
     
-    setError(null);
-    
-    try {
-      const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
-      setContributions(res.data);
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to fetch contributions");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      fetchAttempted.current = true;
-    }
-  }, [token, headers]);
+    setContributions(userContributions);
+  } catch (err) {
+    setError(err.response?.data?.error || "Failed to fetch contributions");
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+    fetchAttempted.current = true;
+  }
+}, [token, headers]);
 
   useEffect(() => {
     if (token && !fetchAttempted.current) {
@@ -89,8 +142,14 @@ function Contributions() {
     }
   }, [token, fetchContributions]);
 
+  // FIXED: calculateRemaining now correctly shows what's left to pay
   const calculateRemaining = (contribution) => {
-    return contribution.amountRequired - contribution.amountPaid - contribution.pendingAmount;
+    return contribution.amountRequired - contribution.amountPaid;
+  };
+
+  // NEW: Handle opening message thread
+  const handleOpenMessage = (pledgeId, pledgeTitle) => {
+    setMessageThread({ pledgeId, pledgeTitle });
   };
 
   const optimisticUpdate = (contributionId, updates) => {
@@ -113,9 +172,10 @@ function Contributions() {
       return;
     }
     
+    // FIXED: Check against correct remaining amount
     const remaining = calculateRemaining(contribution);
     if (parsedAmount > remaining) {
-      showNotification(`Amount cannot exceed KES sh{remaining.toLocaleString()}`, "error");
+      showNotification(`Amount cannot exceed KES ${remaining.toLocaleString()}`, "error");
       return;
     }
 
@@ -168,12 +228,18 @@ function Contributions() {
     return true;
   });
 
+  // FIXED: Added totalRequired and progressPercentage to stats
   const stats = {
     totalPledged: contributions.reduce((sum, c) => sum + c.amountPaid + c.pendingAmount, 0),
     totalPaid: contributions.reduce((sum, c) => sum + c.amountPaid, 0),
     totalPending: contributions.reduce((sum, c) => sum + c.pendingAmount, 0),
     completedCount: contributions.filter(c => c.amountPaid >= c.amountRequired).length,
     pendingCount: contributions.filter(c => c.status === "PENDING" && c.pendingAmount > 0).length,
+    totalRequired: contributions.reduce((sum, c) => sum + c.amountRequired, 0),
+    progressPercentage: contributions.length > 0 
+      ? (contributions.reduce((sum, c) => sum + c.amountPaid, 0) / 
+         contributions.reduce((sum, c) => sum + c.amountRequired, 0) * 100).toFixed(1)
+      : 0
   };
 
   if (!token) return null;
@@ -348,9 +414,19 @@ function Contributions() {
               onToggle={() => setExpandedCard(
                 expandedCard === contribution.id ? null : contribution.id
               )}
+              onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
             />
           ))}
         </div>
+      )}
+
+      {/* Message Modal */}
+      {messageThread && (
+        <SimpleMessageModal
+          pledgeId={messageThread.pledgeId}
+          userName={messageThread.pledgeTitle}
+          onClose={() => setMessageThread(null)}
+        />
       )}
 
      <style>{`
@@ -381,6 +457,9 @@ function Contributions() {
         }
         .notification.error {
           background: #ef4444;
+        }
+        .notification.info {
+          background: #3b82f6;
         }
 
         /* Header */
@@ -685,7 +764,8 @@ const ContributionCard = ({
   isSubmitting,
   remainingAmount,
   isExpanded,
-  onToggle
+  onToggle,
+  onOpenMessage  // NEW prop
 }) => {
   const completed = contribution.amountPaid >= contribution.amountRequired;
   const status = completed ? "COMPLETED" : contribution.status;
@@ -823,7 +903,7 @@ const ContributionCard = ({
                   <span className="breakdown-value pending">KES {formatNumber(contribution.pendingAmount)}</span>
                 </div>
                 <div className="breakdown-item total">
-                  <span>Remaining</span>
+                  <span>Remaining to Pay</span>
                   <span className="breakdown-value">KES {formatNumber(remainingAmount)}</span>
                 </div>
               </div>
@@ -857,13 +937,26 @@ const ContributionCard = ({
                     disabled={isSubmitting}
                   />
 
-                  <button 
-                    className={`pledge-btn ${isSubmitting ? 'submitting' : ''}`}
-                    onClick={onPledge}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      className={`pledge-btn ${isSubmitting ? 'submitting' : ''}`}
+                      onClick={onPledge}
+                      disabled={isSubmitting}
+                      style={{ flex: 1 }}
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
+                    </button>
+                    
+                    {/* NEW: Message button */}
+                    <button 
+                      className="message-btn"
+                      onClick={onOpenMessage}
+                      disabled={isSubmitting}
+                      title="Ask a question about this pledge"
+                    >
+                      💬
+                    </button>
+                  </div>
                 </div>
                 <p className="form-note">
                   Your pledge will be pending until approved by an administrator.
@@ -1137,6 +1230,27 @@ const ContributionCard = ({
         }
         .pledge-btn.submitting {
           opacity: 0.7;
+          cursor: not-allowed;
+        }
+        .message-btn {
+          width: 48px;
+          height: 48px;
+          border: none;
+          border-radius: 10px;
+          background: #8b5cf6;
+          color: white;
+          font-size: 20px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .message-btn:hover:not(:disabled) {
+          background: #7c3aed;
+        }
+        .message-btn:disabled {
+          opacity: 0.5;
           cursor: not-allowed;
         }
         .form-note {

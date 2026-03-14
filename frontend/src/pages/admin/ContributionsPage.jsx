@@ -9,6 +9,7 @@ import { saveAs } from 'file-saver';
 import BASE_URL from "../../api";
 import backgroundImg from "../../assets/background.png";
 import io from "socket.io-client";
+import SimpleMessageModal from "../SimpleMessageModal";
 
 // Professional icon components
 const Icons = {
@@ -28,11 +29,34 @@ const Icons = {
   Copy: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
 };
 
+// Check if user has access to this page (Admin or Treasurer)
+const checkAccess = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const token = localStorage.getItem("token");
+  
+  if (!token) {
+    window.location.href = "/login";
+    return false;
+  }
+  
+  // Allow access for Admin and Treasurer
+  if (user.role !== "admin" && user.role !== "treasurer") {
+    window.location.href = "/dashboard";
+    return false;
+  }
+  
+  return true;
+};
+
 function ContributionsPage() {
   const navigate = useNavigate();
+  
+  // ALL HOOKS AT THE TOP - in the same order every render
+  const [hasAccess, setHasAccess] = useState(false);
+  const [userRole, setUserRole] = useState("");
   const [contributionTypes, setContributionTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // Silent background refresh
+  const [refreshing, setRefreshing] = useState(false);
   const [newContribution, setNewContribution] = useState({
     title: "",
     description: "",
@@ -43,7 +67,7 @@ function ContributionsPage() {
   const [collapsed, setCollapsed] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPledges, setSelectedPledges] = useState([]);
-  const [selectedCampaigns, setSelectedCampaigns] = useState([]); // For bulk campaign actions
+  const [selectedCampaigns, setSelectedCampaigns] = useState([]);
   const [selectAllCampaigns, setSelectAllCampaigns] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [expandedMember, setExpandedMember] = useState(null);
@@ -59,7 +83,7 @@ function ContributionsPage() {
   });
   const exportMenuRef = useRef(null);
 
-  // Loading states for buttons
+  // Loading states
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [deletingCampaign, setDeletingCampaign] = useState(null);
   const [bulkDeletingCampaigns, setBulkDeletingCampaigns] = useState(false);
@@ -68,9 +92,18 @@ function ContributionsPage() {
   const [addingManual, setAddingManual] = useState(null);
   const [resettingPledge, setResettingPledge] = useState(null);
   const [bulkApproving, setBulkApproving] = useState(false);
+  const [pledgeMessageThread, setPledgeMessageThread] = useState(null);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Check access on mount
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const hasAccessCheck = checkAccess();
+    setUserRole(user.role);
+    setHasAccess(hasAccessCheck);
+  }, []);
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -83,7 +116,7 @@ function ContributionsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Socket connection for real-time updates
+  // Socket connection
   useEffect(() => {
     const socket = io(BASE_URL);
     
@@ -132,13 +165,11 @@ function ContributionsPage() {
     }
   }, [token, navigate]);
 
-  // Show notification
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type, id: Date.now() });
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
   };
 
-  // Silent background refresh function
   const silentRefresh = useCallback(async () => {
     if (refreshing) return;
     
@@ -154,36 +185,65 @@ function ContributionsPage() {
     }
   }, [headers]);
 
-  // Set up silent background refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       silentRefresh();
-    }, 30000); // 30 seconds
-
+    }, 30000);
     return () => clearInterval(interval);
   }, [silentRefresh]);
 
-  // Fetch all data (initial load)
   const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
-      setContributionTypes(typesRes.data);
-    } catch (err) {
-      console.error("Fetch error:", err);
-      showNotification(err.response?.data?.error || "Failed to fetch contributions", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  setLoading(true);
+  try {
+    const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
+    
+    console.log("All contributions:", typesRes.data);
+    console.log("jumuiaId values:", typesRes.data.map(c => ({ 
+      title: c.title, 
+      jumuiaId: c.jumuiaId,
+      isGlobal: !c.jumuiaId
+    })));
+    
+    // Filter out jumuia-specific contributions
+    const globalContributions = typesRes.data.filter(c => !c.jumuiaId);
+    
+    console.log("Global contributions:", globalContributions);
+    console.log("Filtered out (jumuia) contributions:", typesRes.data.filter(c => c.jumuiaId));
+    
+    setContributionTypes(globalContributions);
+  } catch (err) {
+    console.error("Fetch error:", err);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     if (token) {
       fetchAll();
     }
   }, [token]);
 
-  // Optimistic update helper
+  // MOVED: summaryStats useMemo BEFORE any conditional returns
+  const summaryStats = useMemo(() => {
+    const totalCampaigns = contributionTypes.length;
+    const totalMembers = new Set(contributionTypes.flatMap(t => t.pledges?.map(p => p.userId) || [])).size;
+    const pendingCount = contributionTypes.reduce((sum, t) => 
+      sum + (t.pledges?.filter(p => p.status === "PENDING" && p.pendingAmount > 0).length || 0), 0);
+    const totalCollected = contributionTypes.reduce((sum, t) => 
+      sum + (t.pledges?.reduce((s, p) => s + (p.amountPaid || 0), 0) || 0), 0);
+
+    return { totalCampaigns, totalMembers, pendingCount, totalCollected };
+  }, [contributionTypes]);
+
+  // Conditional return AFTER all hooks
+  if (!hasAccess) {
+    return null;
+  }
+
+  const isAdmin = userRole === "admin";
+  const isTreasurer = userRole === "treasurer";
+  const canModify = isAdmin || isTreasurer; // Both can modify
+
   const optimisticUpdate = (pledgeId, updates) => {
     setContributionTypes(prevTypes => {
       return prevTypes.map(type => ({
@@ -195,7 +255,6 @@ function ContributionsPage() {
     });
   };
 
-  // Calculate stats for a contribution type
   const calculateTypeStats = (type) => {
     const pledges = type.pledges || [];
     
@@ -232,8 +291,13 @@ function ContributionsPage() {
     };
   };
 
-  // Handle add contribution type with loading state
+  // Handle add contribution type - Both Admin and Treasurer can create
   const handleAddContributionType = async () => {
+    if (!canModify) {
+      showNotification("You don't have permission to create campaigns", "error");
+      return;
+    }
+
     if (!newContribution.title || !newContribution.amountRequired) {
       showNotification("Title and amount are required", "error");
       return;
@@ -264,8 +328,13 @@ function ContributionsPage() {
     }
   };
 
-  // Handle delete contribution type with loading state
+  // Handle delete contribution type - Both can delete
   const handleDeleteContributionType = async (id) => {
+    if (!canModify) {
+      showNotification("You don't have permission to delete campaigns", "error");
+      return;
+    }
+
     if (!window.confirm("Delete this campaign? This will delete all associated pledges.")) return;
     
     setDeletingCampaign(id);
@@ -282,8 +351,13 @@ function ContributionsPage() {
     }
   };
 
-  // UPDATED: Bulk delete campaigns with backend API call
+  // Bulk delete campaigns - Both can do
   const handleBulkDeleteCampaigns = async () => {
+    if (!canModify) {
+      showNotification("You don't have permission to delete campaigns", "error");
+      return;
+    }
+
     if (!selectedCampaigns.length) {
       showNotification("No campaigns selected", "error");
       return;
@@ -294,14 +368,12 @@ function ContributionsPage() {
     setBulkDeletingCampaigns(true);
 
     try {
-      // Make API call to delete campaigns from database
       const response = await axios.post(
         `${BASE_URL}/api/contribution-types/bulk-delete`,
         { ids: selectedCampaigns },
         { headers }
       );
 
-      // Remove selected campaigns from UI only after successful backend deletion
       setContributionTypes(prev => prev.filter(campaign => !selectedCampaigns.includes(campaign.id)));
       
       setSelectedCampaigns([]);
@@ -310,15 +382,19 @@ function ContributionsPage() {
     } catch (err) {
       console.error("Bulk delete error:", err);
       showNotification(err.response?.data?.error || "Failed to delete campaigns", "error");
-      // Refresh data to ensure UI is in sync with database
       fetchAll();
     } finally {
       setBulkDeletingCampaigns(false);
     }
   };
 
-  // UPDATED: Bulk duplicate campaigns with backend API call
+  // Bulk duplicate campaigns - Both can do
   const handleBulkDuplicateCampaigns = async () => {
+    if (!canModify) {
+      showNotification("You don't have permission to duplicate campaigns", "error");
+      return;
+    }
+
     if (!selectedCampaigns.length) {
       showNotification("No campaigns selected", "error");
       return;
@@ -333,7 +409,6 @@ function ContributionsPage() {
         { headers }
       );
 
-      // Add duplicated campaigns to UI
       setContributionTypes(prev => [...response.data.campaigns, ...prev]);
       
       setSelectedCampaigns([]);
@@ -347,14 +422,12 @@ function ContributionsPage() {
     }
   };
 
-  // Toggle select campaign (for bulk actions)
   const toggleSelectCampaign = (id) => {
     setSelectedCampaigns((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  // Toggle select all campaigns
   const toggleSelectAllCampaigns = () => {
     if (selectAllCampaigns) {
       setSelectedCampaigns([]);
@@ -364,8 +437,13 @@ function ContributionsPage() {
     setSelectAllCampaigns(!selectAllCampaigns);
   };
 
-  // Handle approve pledge with loading state
+  // Handle approve pledge - Both can approve
   const handleApprovePledge = async (pledgeId, p, type) => {
+    if (!canModify) {
+      showNotification("You don't have permission to approve pledges", "error");
+      return;
+    }
+
     setUpdatingPledges(prev => ({ ...prev, [pledgeId]: true }));
     setApprovingPledge(pledgeId);
     
@@ -390,8 +468,17 @@ function ContributionsPage() {
     }
   };
 
-  // Handle manual add with loading state
+  const handleOpenMessage = (pledgeId, userName) => {
+    setPledgeMessageThread({ pledgeId, userName });
+  };
+
+  // Handle manual add - Both can add
   const handleManualAdd = async (pledgeId, p, type) => {
+    if (!canModify) {
+      showNotification("You don't have permission to add payments", "error");
+      return;
+    }
+
     const addAmount = parseFloat(pledgeInputs[pledgeId]?.amount || 0);
     if (!addAmount || addAmount <= 0) {
       showNotification("Please enter a valid amount", "error");
@@ -401,12 +488,37 @@ function ContributionsPage() {
     setUpdatingPledges(prev => ({ ...prev, [pledgeId]: true }));
     setAddingManual(pledgeId);
 
-    const totalPaid = p.amountPaid + addAmount;
-    const newStatus = totalPaid >= type.amountRequired ? "COMPLETED" : p.status;
+    // Calculate how the payment should be applied - FIRST PAY OFF PENDING
+    let newPendingAmount = p.pendingAmount;
+    let newAmountPaid = p.amountPaid;
+    
+    if (p.pendingAmount > 0) {
+      // First pay off pending amount
+      if (addAmount <= p.pendingAmount) {
+        // Partial payment of pending
+        newPendingAmount = p.pendingAmount - addAmount;
+        // amountPaid stays the same
+      } else {
+        // Pays off all pending + extra goes to paid
+        newPendingAmount = 0;
+        newAmountPaid = p.amountPaid + (addAmount - p.pendingAmount);
+      }
+    } else {
+      // No pending, all goes to paid
+      newAmountPaid = p.amountPaid + addAmount;
+    }
+
+    const newStatus = newAmountPaid >= type.amountRequired ? "COMPLETED" : p.status;
 
     optimisticUpdate(pledgeId, {
-      amountPaid: totalPaid,
+      amountPaid: newAmountPaid,
+      pendingAmount: newPendingAmount,
       status: newStatus
+    });
+
+    setPledgeInputs({
+      ...pledgeInputs,
+      [pledgeId]: { ...pledgeInputs[pledgeId], amount: "" }
     });
 
     try {
@@ -416,12 +528,15 @@ function ContributionsPage() {
         { headers }
       );
       
-      setPledgeInputs({
-        ...pledgeInputs,
-        [pledgeId]: { ...pledgeInputs[pledgeId], amount: "" }
-      });
-      
-      showNotification("Amount added successfully");
+      if (p.pendingAmount > 0) {
+        if (newPendingAmount === 0) {
+          showNotification(`✅ Payment cleared the pending pledge! ${newAmountPaid >= type.amountRequired ? 'Campaign completed!' : ''}`, "success");
+        } else {
+          showNotification(`✅ Payment applied. Remaining pending: KES ${newPendingAmount.toLocaleString()}`, "success");
+        }
+      } else {
+        showNotification(`✅ Amount added successfully`, "success");
+      }
     } catch (err) {
       fetchAll();
       showNotification(err.response?.data?.error || "Failed to add", "error");
@@ -431,8 +546,13 @@ function ContributionsPage() {
     }
   };
 
-  // Handle edit message
+  // Handle edit message - Both can edit
   const handleEditMessage = async (pledgeId) => {
+    if (!canModify) {
+      showNotification("You don't have permission to edit messages", "error");
+      return;
+    }
+
     const msg = pledgeInputs[pledgeId]?.message;
     if (msg === undefined) return;
 
@@ -455,8 +575,13 @@ function ContributionsPage() {
     }
   };
 
-  // Handle reset pledge with loading state
+  // Handle reset pledge - Both can reset
   const handleResetPledge = async (pledgeId) => {
+    if (!canModify) {
+      showNotification("You don't have permission to reset pledges", "error");
+      return;
+    }
+
     if (!window.confirm("Reset this pledge? This will clear all amounts and status.")) return;
     
     setUpdatingPledges(prev => ({ ...prev, [pledgeId]: true }));
@@ -481,8 +606,13 @@ function ContributionsPage() {
     }
   };
 
-  // Handle bulk approve (members)
+  // Handle bulk approve - Both can do
   const handleBulkApprove = async () => {
+    if (!canModify) {
+      showNotification("You don't have permission to bulk approve", "error");
+      return;
+    }
+
     const pendingSelected = selectedPledges.filter(id => {
       const pledge = contributionTypes
         .flatMap(t => t.pledges || [])
@@ -531,14 +661,12 @@ function ContributionsPage() {
     }
   };
 
-  // Toggle select pledge (members)
   const toggleSelectPledge = (id) => {
     setSelectedPledges((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  // Filter pledges by status
   const filterPledgesByStatus = (pledges) => {
     if (activeTab === "all") return pledges;
     if (activeTab === "pending") return pledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0);
@@ -547,7 +675,6 @@ function ContributionsPage() {
     return pledges;
   };
 
-  // Filter pledges by search
   const filterPledgesBySearch = (pledges) => {
     if (!searchTerm) return pledges;
     return pledges.filter(p => 
@@ -555,7 +682,6 @@ function ContributionsPage() {
     );
   };
 
-  // Get status badge style
   const getStatusStyle = (status, completed) => {
     if (completed) return "completed";
     switch(status) {
@@ -565,7 +691,6 @@ function ContributionsPage() {
     }
   };
 
-  // Get status text
   const getStatusText = (pledge, type) => {
     if ((pledge.amountPaid || 0) >= (type.amountRequired || 0)) return "COMPLETED";
     if (pledge.status === "APPROVED") return "APPROVED";
@@ -877,19 +1002,6 @@ function ContributionsPage() {
     showNotification(`Export completed: ${data.length} records`, "success");
   };
 
-  // Summary stats
-  const summaryStats = useMemo(() => {
-    const totalCampaigns = contributionTypes.length;
-    const totalMembers = new Set(contributionTypes.flatMap(t => t.pledges?.map(p => p.userId) || [])).size;
-    const pendingCount = contributionTypes.reduce((sum, t) => 
-      sum + (t.pledges?.filter(p => p.status === "PENDING" && p.pendingAmount > 0).length || 0), 0);
-    const totalCollected = contributionTypes.reduce((sum, t) => 
-      sum + (t.pledges?.reduce((s, p) => s + (p.amountPaid || 0), 0) || 0), 0);
-
-    return { totalCampaigns, totalMembers, pendingCount, totalCollected };
-  }, [contributionTypes]);
-
-  // Loading state
   if (loading) {
     return (
       <motion.div
@@ -929,112 +1041,133 @@ function ContributionsPage() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
+      {/* Header with Role Badge */}
       <div className="header">
         <div>
           <h1 className="title">Contributions Management</h1>
-          <p className="subtitle">Monitor and manage member contributions</p>
+          <p className="subtitle">
+            {isTreasurer ? "Manage all contributions as Treasurer" : "Monitor and manage member contributions"}
+          </p>
         </div>
 
-        {/* Export Button with Dropdown */}
-        <div className="export-dropdown" ref={exportMenuRef}>
-          <button 
-            className="export-btn"
-            onClick={() => setShowExportMenu(!showExportMenu)}
-          >
-            <Icons.Download />
-            Export Data
-            <span className="chevron">{showExportMenu ? "▼" : "▶"}</span>
-          </button>
+        <div className="header-actions">
+          {isTreasurer && (
+            <div className="role-badge" style={{ 
+              background: '#f59e0b20', 
+              color: '#f59e0b', 
+              border: '1px solid #f59e0b',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span>💰</span> Treasurer
+            </div>
+          )}
 
-          <AnimatePresence>
-            {showExportMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="export-menu"
-              >
-                <div className="export-option">
-                  <label>Format</label>
-                  <div className="format-buttons">
-                    <button
-                      className={exportOptions.format === 'excel' ? 'active' : ''}
-                      onClick={() => setExportOptions({...exportOptions, format: 'excel'})}
+          {/* Export Button with Dropdown */}
+          <div className="export-dropdown" ref={exportMenuRef}>
+            <button 
+              className="export-btn"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              <Icons.Download />
+              Export Data
+              <span className="chevron">{showExportMenu ? "▼" : "▶"}</span>
+            </button>
+
+            <AnimatePresence>
+              {showExportMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="export-menu"
+                >
+                  <div className="export-option">
+                    <label>Format</label>
+                    <div className="format-buttons">
+                      <button
+                        className={exportOptions.format === 'excel' ? 'active' : ''}
+                        onClick={() => setExportOptions({...exportOptions, format: 'excel'})}
+                      >
+                        <Icons.Excel /> Excel
+                      </button>
+                      <button
+                        className={exportOptions.format === 'csv' ? 'active' : ''}
+                        onClick={() => setExportOptions({...exportOptions, format: 'csv'})}
+                      >
+                        <Icons.Download /> CSV
+                      </button>
+                      <button
+                        className={exportOptions.format === 'doc' ? 'active' : ''}
+                        onClick={() => setExportOptions({...exportOptions, format: 'doc'})}
+                      >
+                        <Icons.Doc /> Document
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="export-option">
+                    <label>Campaign</label>
+                    <select
+                      value={exportOptions.campaign}
+                      onChange={(e) => setExportOptions({...exportOptions, campaign: e.target.value})}
                     >
-                      <Icons.Excel /> Excel
+                      <option value="all">All Campaigns</option>
+                      {contributionTypes.map(type => (
+                        <option key={type.id} value={type.id}>{type.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="export-option">
+                    <label>Status Filter</label>
+                    <select
+                      value={exportOptions.status}
+                      onChange={(e) => setExportOptions({...exportOptions, status: e.target.value})}
+                    >
+                      <option value="all">All Pledges</option>
+                      <option value="pending">Pending Only</option>
+                      <option value="approved">Approved Only</option>
+                      <option value="completed">Completed Only</option>
+                    </select>
+                  </div>
+
+                  <div className="export-option">
+                    <label>Date Range</label>
+                    <div className="date-range">
+                      <input
+                        type="date"
+                        placeholder="From"
+                        value={exportOptions.dateFrom}
+                        onChange={(e) => setExportOptions({...exportOptions, dateFrom: e.target.value})}
+                      />
+                      <span>to</span>
+                      <input
+                        type="date"
+                        placeholder="To"
+                        value={exportOptions.dateTo}
+                        onChange={(e) => setExportOptions({...exportOptions, dateTo: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="export-actions">
+                    <button className="cancel-btn" onClick={() => setShowExportMenu(false)}>
+                      Cancel
                     </button>
-                    <button
-                      className={exportOptions.format === 'csv' ? 'active' : ''}
-                      onClick={() => setExportOptions({...exportOptions, format: 'csv'})}
-                    >
-                      <Icons.Download /> CSV
-                    </button>
-                    <button
-                      className={exportOptions.format === 'doc' ? 'active' : ''}
-                      onClick={() => setExportOptions({...exportOptions, format: 'doc'})}
-                    >
-                      <Icons.Doc /> Document
+                    <button className="export-confirm-btn" onClick={handleExport}>
+                      Export Now
                     </button>
                   </div>
-                </div>
-
-                <div className="export-option">
-                  <label>Campaign</label>
-                  <select
-                    value={exportOptions.campaign}
-                    onChange={(e) => setExportOptions({...exportOptions, campaign: e.target.value})}
-                  >
-                    <option value="all">All Campaigns</option>
-                    {contributionTypes.map(type => (
-                      <option key={type.id} value={type.id}>{type.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="export-option">
-                  <label>Status Filter</label>
-                  <select
-                    value={exportOptions.status}
-                    onChange={(e) => setExportOptions({...exportOptions, status: e.target.value})}
-                  >
-                    <option value="all">All Pledges</option>
-                    <option value="pending">Pending Only</option>
-                    <option value="approved">Approved Only</option>
-                    <option value="completed">Completed Only</option>
-                  </select>
-                </div>
-
-                <div className="export-option">
-                  <label>Date Range</label>
-                  <div className="date-range">
-                    <input
-                      type="date"
-                      placeholder="From"
-                      value={exportOptions.dateFrom}
-                      onChange={(e) => setExportOptions({...exportOptions, dateFrom: e.target.value})}
-                    />
-                    <span>to</span>
-                    <input
-                      type="date"
-                      placeholder="To"
-                      value={exportOptions.dateTo}
-                      onChange={(e) => setExportOptions({...exportOptions, dateTo: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="export-actions">
-                  <button className="cancel-btn" onClick={() => setShowExportMenu(false)}>
-                    Cancel
-                  </button>
-                  <button className="export-confirm-btn" onClick={handleExport}>
-                    Export Now
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -1070,79 +1203,83 @@ function ContributionsPage() {
         </div>
       </div>
 
-      {/* Create Campaign Form */}
-      <div className="create-campaign">
-        <h2 className="section-title">Create New Campaign</h2>
-        <div className="campaign-form">
-          <input
-            className="form-input"
-            placeholder="Campaign title *"
-            value={newContribution.title}
-            onChange={(e) => setNewContribution({ ...newContribution, title: e.target.value })}
-          />
-          <input
-            className="form-input"
-            placeholder="Description (optional)"
-            value={newContribution.description}
-            onChange={(e) => setNewContribution({ ...newContribution, description: e.target.value })}
-          />
-          <input
-            className="form-input"
-            type="number"
-            placeholder="Amount per member (KES) *"
-            value={newContribution.amountRequired}
-            onChange={(e) => setNewContribution({ ...newContribution, amountRequired: e.target.value })}
-          />
-          <input
-            className="form-input"
-            type="date"
-            placeholder="Deadline (optional)"
-            value={newContribution.deadline}
-            onChange={(e) => setNewContribution({ ...newContribution, deadline: e.target.value })}
-          />
-          <button 
-            className="create-btn" 
-            onClick={handleAddContributionType}
-            disabled={creatingCampaign}
-          >
-            {creatingCampaign ? <Icons.Spinner /> : <Icons.Plus />}
-            {creatingCampaign ? 'Creating...' : 'Create'}
-          </button>
-        </div>
-      </div>
-
-      {/* Campaign Selection Header */}
-      <div className="campaign-selection-header">
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={selectAllCampaigns}
-            onChange={toggleSelectAllCampaigns}
-          />
-          Select All Campaigns
-        </label>
-        {selectedCampaigns.length > 0 && (
-          <div className="campaign-bulk-actions">
-            <span className="selected-count">{selectedCampaigns.length} campaigns selected</span>
+      {/* Create Campaign Form - Visible to both Admin and Treasurer */}
+      {canModify && (
+        <div className="create-campaign">
+          <h2 className="section-title">Create New Campaign</h2>
+          <div className="campaign-form">
+            <input
+              className="form-input"
+              placeholder="Campaign title *"
+              value={newContribution.title}
+              onChange={(e) => setNewContribution({ ...newContribution, title: e.target.value })}
+            />
+            <input
+              className="form-input"
+              placeholder="Description (optional)"
+              value={newContribution.description}
+              onChange={(e) => setNewContribution({ ...newContribution, description: e.target.value })}
+            />
+            <input
+              className="form-input"
+              type="number"
+              placeholder="Amount per member (KES) *"
+              value={newContribution.amountRequired}
+              onChange={(e) => setNewContribution({ ...newContribution, amountRequired: e.target.value })}
+            />
+            <input
+              className="form-input"
+              type="date"
+              placeholder="Deadline (optional)"
+              value={newContribution.deadline}
+              onChange={(e) => setNewContribution({ ...newContribution, deadline: e.target.value })}
+            />
             <button 
-              className="bulk-delete-campaigns-btn"
-              onClick={handleBulkDeleteCampaigns}
-              disabled={bulkDeletingCampaigns}
+              className="create-btn" 
+              onClick={handleAddContributionType}
+              disabled={creatingCampaign}
             >
-              {bulkDeletingCampaigns ? <Icons.Spinner /> : <Icons.Trash />}
-              {bulkDeletingCampaigns ? 'Deleting...' : 'Delete Selected'}
-            </button>
-            <button 
-              className="bulk-duplicate-campaigns-btn"
-              onClick={handleBulkDuplicateCampaigns}
-              disabled={bulkDuplicatingCampaigns}
-            >
-              {bulkDuplicatingCampaigns ? <Icons.Spinner /> : <Icons.Copy />}
-              {bulkDuplicatingCampaigns ? 'Duplicating...' : 'Duplicate Selected'}
+              {creatingCampaign ? <Icons.Spinner /> : <Icons.Plus />}
+              {creatingCampaign ? 'Creating...' : 'Create'}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Campaign Selection Header - Visible to both */}
+      {canModify && (
+        <div className="campaign-selection-header">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={selectAllCampaigns}
+              onChange={toggleSelectAllCampaigns}
+            />
+            Select All Campaigns
+          </label>
+          {selectedCampaigns.length > 0 && (
+            <div className="campaign-bulk-actions">
+              <span className="selected-count">{selectedCampaigns.length} campaigns selected</span>
+              <button 
+                className="bulk-delete-campaigns-btn"
+                onClick={handleBulkDeleteCampaigns}
+                disabled={bulkDeletingCampaigns}
+              >
+                {bulkDeletingCampaigns ? <Icons.Spinner /> : <Icons.Trash />}
+                {bulkDeletingCampaigns ? 'Deleting...' : 'Delete Selected'}
+              </button>
+              <button 
+                className="bulk-duplicate-campaigns-btn"
+                onClick={handleBulkDuplicateCampaigns}
+                disabled={bulkDuplicatingCampaigns}
+              >
+                {bulkDuplicatingCampaigns ? <Icons.Spinner /> : <Icons.Copy />}
+                {bulkDuplicatingCampaigns ? 'Duplicating...' : 'Duplicate Selected'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Campaigns List */}
       <div className="campaigns-list">
@@ -1169,16 +1306,18 @@ function ContributionsPage() {
               {/* Campaign Header with Checkbox */}
               <div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
                 <div className="campaign-header-left">
-                  <input
-                    type="checkbox"
-                    className="campaign-checkbox"
-                    checked={isSelected}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      toggleSelectCampaign(type.id);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                  {canModify && (
+                    <input
+                      type="checkbox"
+                      className="campaign-checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelectCampaign(type.id);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
                   <div className="campaign-info">
                     <h3 className="campaign-name">{type.title}</h3>
                     <div className="campaign-meta">
@@ -1257,8 +1396,8 @@ function ContributionsPage() {
                       </button>
                     </div>
 
-                    {/* Bulk Actions for Members */}
-                    {selectedPledges.length > 0 && (
+                    {/* Bulk Actions for Members - Visible to both */}
+                    {canModify && selectedPledges.length > 0 && (
                       <div className="bulk-actions">
                         <span className="selected-count">{selectedPledges.length} selected</span>
                         <button className="bulk-approve" onClick={handleBulkApprove} disabled={bulkApproving}>
@@ -1285,11 +1424,12 @@ function ContributionsPage() {
                                 type={type}
                                 isExpanded={expandedMember === pledge.id}
                                 onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                                onApprove={handleApprovePledge}
-                                onManualAdd={handleManualAdd}
-                                onEditMessage={handleEditMessage}
-                                onReset={handleResetPledge}
-                                onSelect={toggleSelectPledge}
+                                onApprove={canModify ? handleApprovePledge : null}
+                                onManualAdd={canModify ? handleManualAdd : null}
+                                onEditMessage={canModify ? handleEditMessage : null}
+                                onReset={canModify ? handleResetPledge : null}
+                                onSelect={canModify ? toggleSelectPledge : null}
+                                onOpenMessage={handleOpenMessage}
                                 isSelected={selectedPledges.includes(pledge.id)}
                                 inputValue={pledgeInputs[pledge.id]}
                                 onInputChange={(id, field, value) => 
@@ -1302,6 +1442,7 @@ function ContributionsPage() {
                                 approvingId={approvingPledge}
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
+                                canModify={canModify}
                               />
                             ))}
                           </div>
@@ -1319,10 +1460,11 @@ function ContributionsPage() {
                                 type={type}
                                 isExpanded={expandedMember === pledge.id}
                                 onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                                onManualAdd={handleManualAdd}
-                                onEditMessage={handleEditMessage}
-                                onReset={handleResetPledge}
-                                onSelect={toggleSelectPledge}
+                                onManualAdd={canModify ? handleManualAdd : null}
+                                onEditMessage={canModify ? handleEditMessage : null}
+                                onReset={canModify ? handleResetPledge : null}
+                                onSelect={canModify ? toggleSelectPledge : null}
+                                onOpenMessage={handleOpenMessage}
                                 isSelected={selectedPledges.includes(pledge.id)}
                                 inputValue={pledgeInputs[pledge.id]}
                                 onInputChange={(id, field, value) => 
@@ -1335,6 +1477,7 @@ function ContributionsPage() {
                                 approvingId={approvingPledge}
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
+                                canModify={canModify}
                               />
                             ))}
                           </div>
@@ -1352,8 +1495,9 @@ function ContributionsPage() {
                                 type={type}
                                 isExpanded={expandedMember === pledge.id}
                                 onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                                onEditMessage={handleEditMessage}
-                                onSelect={toggleSelectPledge}
+                                onEditMessage={canModify ? handleEditMessage : null}
+                                onSelect={canModify ? toggleSelectPledge : null}
+                                onOpenMessage={handleOpenMessage}
                                 isSelected={selectedPledges.includes(pledge.id)}
                                 inputValue={pledgeInputs[pledge.id]}
                                 onInputChange={(id, field, value) => 
@@ -1366,6 +1510,7 @@ function ContributionsPage() {
                                 approvingId={approvingPledge}
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
+                                canModify={canModify}
                               />
                             ))}
                           </div>
@@ -1383,9 +1528,10 @@ function ContributionsPage() {
                                 type={type}
                                 isExpanded={expandedMember === pledge.id}
                                 onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                                onManualAdd={handleManualAdd}
-                                onEditMessage={handleEditMessage}
-                                onSelect={toggleSelectPledge}
+                                onManualAdd={canModify ? handleManualAdd : null}
+                                onEditMessage={canModify ? handleEditMessage : null}
+                                onSelect={canModify ? toggleSelectPledge : null}
+                                onOpenMessage={handleOpenMessage}
                                 isSelected={selectedPledges.includes(pledge.id)}
                                 inputValue={pledgeInputs[pledge.id]}
                                 onInputChange={(id, field, value) => 
@@ -1398,6 +1544,7 @@ function ContributionsPage() {
                                 approvingId={approvingPledge}
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
+                                canModify={canModify}
                               />
                             ))}
                           </div>
@@ -1414,11 +1561,12 @@ function ContributionsPage() {
                             type={type}
                             isExpanded={expandedMember === pledge.id}
                             onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                            onApprove={handleApprovePledge}
-                            onManualAdd={handleManualAdd}
-                            onEditMessage={handleEditMessage}
-                            onReset={handleResetPledge}
-                            onSelect={toggleSelectPledge}
+                            onApprove={canModify ? handleApprovePledge : null}
+                            onManualAdd={canModify ? handleManualAdd : null}
+                            onEditMessage={canModify ? handleEditMessage : null}
+                            onReset={canModify ? handleResetPledge : null}
+                            onSelect={canModify ? toggleSelectPledge : null}
+                            onOpenMessage={handleOpenMessage}
                             isSelected={selectedPledges.includes(pledge.id)}
                             inputValue={pledgeInputs[pledge.id]}
                             onInputChange={(id, field, value) => 
@@ -1431,6 +1579,7 @@ function ContributionsPage() {
                             approvingId={approvingPledge}
                             addingId={addingManual}
                             resettingId={resettingPledge}
+                            canModify={canModify}
                           />
                         ))}
                       </>
@@ -1445,10 +1594,11 @@ function ContributionsPage() {
                             type={type}
                             isExpanded={expandedMember === pledge.id}
                             onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                            onManualAdd={handleManualAdd}
-                            onEditMessage={handleEditMessage}
-                            onReset={handleResetPledge}
-                            onSelect={toggleSelectPledge}
+                            onManualAdd={canModify ? handleManualAdd : null}
+                            onEditMessage={canModify ? handleEditMessage : null}
+                            onReset={canModify ? handleResetPledge : null}
+                            onSelect={canModify ? toggleSelectPledge : null}
+                            onOpenMessage={handleOpenMessage}
                             isSelected={selectedPledges.includes(pledge.id)}
                             inputValue={pledgeInputs[pledge.id]}
                             onInputChange={(id, field, value) => 
@@ -1461,6 +1611,7 @@ function ContributionsPage() {
                             approvingId={approvingPledge}
                             addingId={addingManual}
                             resettingId={resettingPledge}
+                            canModify={canModify}
                           />
                         ))}
                       </>
@@ -1475,8 +1626,9 @@ function ContributionsPage() {
                             type={type}
                             isExpanded={expandedMember === pledge.id}
                             onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
-                            onEditMessage={handleEditMessage}
-                            onSelect={toggleSelectPledge}
+                            onEditMessage={canModify ? handleEditMessage : null}
+                            onSelect={canModify ? toggleSelectPledge : null}
+                            onOpenMessage={handleOpenMessage}
                             isSelected={selectedPledges.includes(pledge.id)}
                             inputValue={pledgeInputs[pledge.id]}
                             onInputChange={(id, field, value) => 
@@ -1489,29 +1641,41 @@ function ContributionsPage() {
                             approvingId={approvingPledge}
                             addingId={addingManual}
                             resettingId={resettingPledge}
+                            canModify={canModify}
                           />
                         ))}
                       </>
                     )}
                   </div>
 
-                  {/* Campaign Footer */}
-                  <div className="campaign-footer">
-                    <button 
-                      className="delete-campaign-btn"
-                      onClick={() => handleDeleteContributionType(type.id)}
-                      disabled={deletingCampaign === type.id}
-                    >
-                      {deletingCampaign === type.id ? <Icons.Spinner /> : null}
-                      {deletingCampaign === type.id ? 'Deleting...' : 'Delete Campaign'}
-                    </button>
-                  </div>
+                  {/* Campaign Footer - Visible to both */}
+                  {canModify && (
+                    <div className="campaign-footer">
+                      <button 
+                        className="delete-campaign-btn"
+                        onClick={() => handleDeleteContributionType(type.id)}
+                        disabled={deletingCampaign === type.id}
+                      >
+                        {deletingCampaign === type.id ? <Icons.Spinner /> : null}
+                        {deletingCampaign === type.id ? 'Deleting...' : 'Delete Campaign'}
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </motion.div>
           );
         })}
       </div>
+
+      {/* Message Modal */}
+      {pledgeMessageThread && (
+        <SimpleMessageModal
+          pledgeId={pledgeMessageThread.pledgeId}
+          userName={pledgeMessageThread.userName}
+          onClose={() => setPledgeMessageThread(null)}
+        />
+      )}
 
       <style>{`
         .contributions-page {
@@ -1577,6 +1741,12 @@ function ContributionsPage() {
           font-size: 14px;
           color: #64748b;
           margin: 0;
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
 
         /* Export Dropdown */
@@ -2246,10 +2416,18 @@ function ContributionsPage() {
         .action-btn.reset:hover:not(:disabled) {
           background: #e2e8f0;
         }
+        .action-btn.message {
+          background: #8b5cf6;
+          color: white;
+        }
+        .action-btn.message:hover:not(:disabled) {
+          background: #7c3aed;
+        }
         .message-input {
           display: flex;
           gap: 8px;
           align-items: center;
+          margin-top: 8px;
         }
         .message-field {
           flex: 1;
@@ -2334,13 +2512,15 @@ function MemberRow({
   onEditMessage, 
   onReset, 
   onSelect, 
+  onOpenMessage,
   isSelected, 
   inputValue, 
   onInputChange,
   isUpdating,
   approvingId,
   addingId,
-  resettingId 
+  resettingId,
+  canModify 
 }) {
   const status = (pledge.amountPaid || 0) >= (type.amountRequired || 0) ? "COMPLETED" : pledge.status;
   const canApprove = pledge.pendingAmount > 0 && pledge.status === "PENDING";
@@ -2354,17 +2534,19 @@ function MemberRow({
   return (
     <div className={`member-row ${isUpdating ? 'updating' : ''}`}>
       <div className="member-summary" onClick={onToggle}>
-        <input
-          type="checkbox"
-          className="member-checkbox"
-          checked={isSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onSelect(pledge.id);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          disabled={isUpdating}
-        />
+        {canModify && (
+          <input
+            type="checkbox"
+            className="member-checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onSelect(pledge.id);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            disabled={isUpdating}
+          />
+        )}
         <div className="member-avatar">
           {pledge.user?.fullName?.charAt(0).toUpperCase() || "?"}
         </div>
@@ -2388,7 +2570,7 @@ function MemberRow({
           {!isCompleted ? (
             <>
               <div className="action-group">
-                {canApprove && (
+                {canModify && canApprove && (
                   <button 
                     className="action-btn approve"
                     onClick={() => onApprove(pledge.id, pledge, type)}
@@ -2399,50 +2581,86 @@ function MemberRow({
                   </button>
                 )}
                 
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  className="action-input"
-                  value={inputValue?.amount || ""}
-                  onChange={(e) => onInputChange(pledge.id, 'amount', e.target.value)}
-                  disabled={isUpdating || isAdding}
-                />
-                <button 
-                  className="action-btn add"
-                  onClick={() => onManualAdd(pledge.id, pledge, type)}
-                  disabled={isUpdating || isAdding}
-                >
-                  {isAdding ? <Icons.Spinner /> : null}
-                  {isAdding ? 'Adding...' : '+ Add'}
-                </button>
+                {canModify && (
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    className="action-input"
+                    value={inputValue?.amount || ""}
+                    onChange={(e) => onInputChange(pledge.id, 'amount', e.target.value)}
+                    disabled={isUpdating || isAdding}
+                  />
+                )}
+                
+                {canModify && (
+                  <button 
+                    className="action-btn add"
+                    onClick={() => onManualAdd(pledge.id, pledge, type)}
+                    disabled={isUpdating || isAdding}
+                  >
+                    {isAdding ? <Icons.Spinner /> : null}
+                    {isAdding ? 'Adding...' : '+ Add'}
+                  </button>
+                )}
+
+                {canModify && (
+                  <button 
+                    className="action-btn reset"
+                    onClick={() => onReset(pledge.id)}
+                    disabled={isUpdating || isResetting}
+                  >
+                    {isResetting ? <Icons.Spinner /> : null}
+                    {isResetting ? 'Resetting...' : '↻ Reset'}
+                  </button>
+                )}
 
                 <button 
-                  className="action-btn reset"
-                  onClick={() => onReset(pledge.id)}
-                  disabled={isUpdating || isResetting}
+                  className="action-btn message"
+                  onClick={() => onOpenMessage(pledge.id, pledge.user?.fullName)}
+                  disabled={isUpdating}
                 >
-                  {isResetting ? <Icons.Spinner /> : null}
-                  {isResetting ? 'Resetting...' : '↻ Reset'}
+                  💬 Message
                 </button>
               </div>
 
-              <div className="message-input">
-                <input
-                  type="text"
-                  placeholder="Edit message"
-                  className="message-field"
-                  value={inputValue?.message || ""}
-                  onChange={(e) => onInputChange(pledge.id, 'message', e.target.value)}
-                  disabled={isUpdating}
-                />
-                <button 
-                  className="action-btn"
-                  onClick={() => onEditMessage(pledge.id)}
-                  disabled={isUpdating}
-                >
-                  Update
-                </button>
-              </div>
+              {/* Show pending amount info clearly */}
+              {pledge.pendingAmount > 0 && (
+                <div style={{ 
+                  marginTop: '8px', 
+                  padding: '8px', 
+                  background: '#fef3c7', 
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#d97706'
+                }}>
+                  ⏳ Pending Approval: KES {pledge.pendingAmount.toLocaleString()}
+                  {!canModify && (
+                    <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                      An admin or treasurer will review your pledge
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canModify && (
+                <div className="message-input">
+                  <input
+                    type="text"
+                    placeholder="Edit message"
+                    className="message-field"
+                    value={inputValue?.message || ""}
+                    onChange={(e) => onInputChange(pledge.id, 'message', e.target.value)}
+                    disabled={isUpdating}
+                  />
+                  <button 
+                    className="action-btn"
+                    onClick={() => onEditMessage(pledge.id)}
+                    disabled={isUpdating}
+                  >
+                    Update
+                  </button>
+                </div>
+              )}
 
               {remaining > 0 && pledge.amountPaid > 0 && (
                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>

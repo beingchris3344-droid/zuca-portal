@@ -1,5 +1,5 @@
 // frontend/src/pages/admin/Hymns.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { 
@@ -9,19 +9,15 @@ import {
   FiSearch,
   FiX,
   FiSave,
-  FiHeart,
-  FiCopy,
-  FiChevronLeft,
-  FiChevronRight,
   FiEye,
   FiEyeOff,
-  FiCheckCircle
+  FiCheckCircle,
+  FiMaximize2,
+  FiMinimize2,
+  FiCopy,
+  FiRefreshCw,
+  FiLoader
 } from "react-icons/fi";
-import { 
-  BsMusicNoteBeamed,
-  BsFileText,
-  BsCheckCircle
-} from "react-icons/bs";
 import { GiPrayerBeads } from "react-icons/gi";
 import { useNavigate } from "react-router-dom";
 import BASE_URL from "../../api";
@@ -29,9 +25,14 @@ import BASE_URL from "../../api";
 export default function AdminHymns() {
   const navigate = useNavigate();
   const [hymns, setHymns] = useState([]);
-  const [filteredHymns, setFilteredHymns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalHymns, setTotalHymns] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -41,14 +42,22 @@ export default function AdminHymns() {
     reference: "",
     lyrics: ""
   });
-  const [previewMode, setPreviewMode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(true);
   const [successMessage, setSuccessMessage] = useState("");
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [stats, setStats] = useState({
-    total: 0,
-    withRef: 0,
-    withoutRef: 0
-  });
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth <= 768) {
+        setIsFullScreen(true);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -58,123 +67,116 @@ export default function AdminHymns() {
   useEffect(() => {
     if (!isAdmin) {
       navigate("/dashboard");
-      showToast("⛔ Admin access only");
     }
   }, [isAdmin, navigate]);
 
-  // Handle resize
+  // Debounce search
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Fetch hymns
-  const fetchHymns = async () => {
+  const fetchHymns = useCallback(async (pageNum = 1, search = '', reset = false) => {
     try {
-      setLoading(true);
-const res = await axios.get(`${BASE_URL}/api/admin/songs`, {        headers: { Authorization: `Bearer ${token}` }
-      });
-      setHymns(res.data);
-      setFilteredHymns(res.data);
+      if (pageNum === 1) setLoading(true);
+      else setLoadingMore(true);
       
-      // Calculate stats
-      const withRef = res.data.filter(h => h.reference).length;
-      setStats({
-        total: res.data.length,
-        withRef,
-        withoutRef: res.data.length - withRef
+      const params = new URLSearchParams({ page: pageNum, limit: 20 });
+      if (search) params.append('search', search);
+      
+      const res = await axios.get(`${BASE_URL}/api/admin/songs?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
+      
+      if (reset || pageNum === 1) {
+        setHymns(res.data.songs || []);
+      } else {
+        setHymns(prev => [...prev, ...(res.data.songs || [])]);
+      }
+      
+      setHasMore(res.data.hasMore || false);
+      if (res.data.total) setTotalHymns(res.data.total);
+      
     } catch (err) {
       console.error(err);
-      showToast("❌ Failed to load hymns");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [token]);
+
+  // Initial load
+  useEffect(() => { fetchHymns(1, '', true); }, []);
+
+  // Search effect
+  useEffect(() => {
+    setPage(1);
+    fetchHymns(1, debouncedSearch, true);
+  }, [debouncedSearch]);
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      setPage(prev => prev + 1);
+      fetchHymns(page + 1, debouncedSearch);
     }
   };
 
-  useEffect(() => {
-    fetchHymns();
-  }, []);
-
-  // Search
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredHymns(hymns);
-    } else {
-      const term = searchTerm.toLowerCase();
-      const filtered = hymns.filter(h => 
-        h.title.toLowerCase().includes(term) ||
-        (h.reference && h.reference.toLowerCase().includes(term)) ||
-        (h.firstLine && h.firstLine.toLowerCase().includes(term))
-      );
-      setFilteredHymns(filtered);
-    }
-  }, [searchTerm, hymns]);
-
-  // Add hymn
+  // Add hymn with loading effect
   const handleAdd = async () => {
+    if (!formData.title.trim()) return;
+    
+    setSaving(true);
     try {
-      if (!formData.title.trim()) {
-        showToast("❌ Title is required");
-        return;
-      }
-
       const res = await axios.post(`${BASE_URL}/api/admin/songs`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      setHymns([res.data, ...hymns]);
+      setHymns(prev => [res.data, ...prev]);
+      setTotalHymns(prev => prev + 1);
       setShowAddModal(false);
       resetForm();
       showToast("✅ Hymn added successfully");
-      setSuccessMessage("Hymn added successfully!");
-      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error(err);
       showToast("❌ Failed to add hymn");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Edit hymn
+  // Edit hymn with loading effect
   const handleEdit = async () => {
+    if (!formData.title.trim()) return;
+    
+    setSaving(true);
     try {
-      if (!formData.title.trim()) {
-        showToast("❌ Title is required");
-        return;
-      }
-
       const res = await axios.put(`${BASE_URL}/api/admin/songs/${selectedHymn.id}`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      setHymns(hymns.map(h => h.id === selectedHymn.id ? res.data : h));
+      setHymns(prev => prev.map(h => h.id === selectedHymn.id ? res.data : h));
       setShowEditModal(false);
       resetForm();
       showToast("✅ Hymn updated successfully");
-      setSuccessMessage("Hymn updated successfully!");
-      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error(err);
       showToast("❌ Failed to update hymn");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Delete hymn
   const handleDelete = async () => {
     try {
       await axios.delete(`${BASE_URL}/api/admin/songs/${selectedHymn.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      setHymns(hymns.filter(h => h.id !== selectedHymn.id));
+      setHymns(prev => prev.filter(h => h.id !== selectedHymn.id));
+      setTotalHymns(prev => prev - 1);
       setShowDeleteModal(false);
       setSelectedHymn(null);
       showToast("✅ Hymn deleted");
-      setSuccessMessage("Hymn deleted successfully!");
-      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error(err);
       showToast("❌ Failed to delete hymn");
@@ -184,7 +186,6 @@ const res = await axios.get(`${BASE_URL}/api/admin/songs`, {        headers: { A
   const resetForm = () => {
     setFormData({ title: "", reference: "", lyrics: "" });
     setSelectedHymn(null);
-    setPreviewMode(false);
   };
 
   const openEditModal = (hymn) => {
@@ -195,11 +196,7 @@ const res = await axios.get(`${BASE_URL}/api/admin/songs`, {        headers: { A
       lyrics: hymn.lyrics || ""
     });
     setShowEditModal(true);
-  };
-
-  const openDeleteModal = (hymn) => {
-    setSelectedHymn(hymn);
-    setShowDeleteModal(true);
+    setIsFullScreen(isMobile);
   };
 
   const showToast = (message) => {
@@ -210,336 +207,456 @@ const res = await axios.get(`${BASE_URL}/api/admin/songs`, {        headers: { A
     setTimeout(() => toast.remove(), 3000);
   };
 
-  // Format lyrics for preview
   const formatLyrics = (lyrics) => {
     if (!lyrics) return [];
     return lyrics.split('\n\n').filter(v => v.trim() !== '');
   };
 
-  if (loading) {
+  const getVerseCount = () => {
+    return formatLyrics(formData.lyrics).length;
+  };
+
+  const getLineCount = () => {
+    if (!formData.lyrics) return 0;
+    return formData.lyrics.split('\n').length;
+  };
+
+  const cleanFormatting = () => {
+    if (formData.lyrics) {
+      const cleaned = formData.lyrics
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[^\S\n]+/g, ' ')
+        .trim();
+      setFormData({ ...formData, lyrics: cleaned });
+      showToast("✨ Formatting cleaned");
+    }
+  };
+
+  const insertSample = () => {
+    const sample = `Verse 1 line 1
+Verse 1 line 2
+Verse 1 line 3
+
+Verse 2 line 1
+Verse 2 line 2
+
+Verse 3 line 1
+Verse 3 line 2
+Verse 3 line 3`;
+    setFormData({ ...formData, lyrics: sample });
+  };
+
+  if (loading && page === 1) {
     return (
-      <div style={loadingContainer}>
-        <motion.div 
-          animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          style={loadingSpinner}
-        >
-          🎵
-        </motion.div>
-        <p style={loadingText}>Loading hymns...</p>
-        <p style={loadingSubtext}>Admin panel</p>
+      <div style={styles.container}>
+        <div style={styles.skeletonHeader} />
+        <div style={styles.skeletonGrid}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} style={styles.skeletonCard}>
+              <div style={styles.skeletonIcon} />
+              <div style={styles.skeletonContent}>
+                <div style={styles.skeletonTitle} />
+                <div style={styles.skeletonLine} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      style={container}
-    >
-      {/* Success Banner */}
-      <AnimatePresence>
-        {successMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            style={successBanner}
-          >
-            <FiCheckCircle size={20} />
-            <span>{successMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={styles.container}>
+      
       {/* Header */}
-      <div style={headerSection}>
-        <div style={headerTop}>
-          <div style={titleWrapper}>
-            <div style={titleIcon}>📚</div>
+      <div style={styles.headerSection}>
+        <div style={styles.headerTop}>
+          <div style={styles.titleWrapper}>
+            <div style={styles.titleIcon}>📚</div>
             <div>
-              <h1 style={title}>Admin: Hymn Management</h1>
-              <p style={titleSub}>{stats.total} total hymns • {stats.withRef} with references</p>
+              <h1 style={styles.title}>Hymn Management</h1>
+              <p style={styles.titleSub}>{totalHymns || 0} total hymns • {hymns.length} loaded</p>
             </div>
           </div>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowAddModal(true)}
-            style={addButton}
-          >
-            <FiPlus size={20} />
-            <span>Add Hymn</span>
-          </motion.button>
+          <button onClick={() => setShowAddModal(true)} style={styles.addButton}>
+            <FiPlus size={20} /> Add Hymn
+          </button>
         </div>
 
-        {/* Stats Cards */}
-        <div style={statsGrid}>
-          <div style={statCard}>
-            <span style={statValue}>{stats.total}</span>
-            <span style={statLabel}>Total Hymns</span>
+        {/* Stats */}
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <span style={styles.statValue}>{totalHymns || 0}</span>
+            <span style={styles.statLabel}>Total</span>
           </div>
-          <div style={statCard}>
-            <span style={statValue}>{stats.withRef}</span>
-            <span style={statLabel}>With References</span>
+          <div style={styles.statCard}>
+            <span style={styles.statValue}>{hymns.length}</span>
+            <span style={styles.statLabel}>Loaded</span>
           </div>
-          <div style={statCard}>
-            <span style={statValue}>{stats.withoutRef}</span>
-            <span style={statLabel}>Need References</span>
+          <div style={styles.statCard}>
+            <span style={styles.statValue}>{hymns.filter(h => h.reference).length}</span>
+            <span style={styles.statLabel}>With Ref</span>
           </div>
         </div>
 
         {/* Search */}
-        <div style={searchContainer}>
-          <FiSearch style={searchIcon} />
+        <div style={styles.searchContainer}>
+          <FiSearch style={styles.searchIcon} />
           <input
             type="text"
-            placeholder="Search hymns by title, reference or lyrics..."
+            placeholder="Search hymns by title or reference..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={searchInput}
+            style={styles.searchInput}
           />
           {searchTerm && (
-            <button onClick={() => setSearchTerm("")} style={searchClear}>✕</button>
+            <button onClick={() => setSearchTerm("")} style={styles.searchClear}>✕</button>
           )}
         </div>
 
-        {/* Results Count */}
-        <div style={resultsCount}>
-          <span style={resultsBold}>{filteredHymns.length}</span> hymns found
+        <div style={styles.resultsCount}>
+          <span style={styles.resultsBold}>{hymns.length}</span> shown
+          {totalHymns > 0 && !searchTerm && ` of ${totalHymns}`}
         </div>
       </div>
 
       {/* Hymns List */}
-      <div style={hymnsList}>
-        <AnimatePresence>
-          {filteredHymns.map((hymn) => (
-            <motion.div
-              key={hymn.id}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              style={hymnCard}
-            >
-              <div style={hymnCardContent}>
-                <div style={hymnIcon}>
-                  <GiPrayerBeads />
+      <div style={styles.list}>
+        {hymns.map(hymn => (
+          <motion.div
+            key={hymn.id}
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            style={styles.card}
+          >
+            <div style={styles.cardContent}>
+              <div style={styles.icon}><GiPrayerBeads /></div>
+              <div style={styles.info}>
+                <div style={styles.titleRow}>
+                  <h3 style={styles.hymnTitle}>{hymn.title}</h3>
+                  {hymn.reference && <span style={styles.ref}>{hymn.reference}</span>}
                 </div>
-                <div style={hymnInfo}>
-                  <div style={hymnTitleRow}>
-                    <h3 style={hymnTitle}>{hymn.title}</h3>
-                    {hymn.reference && (
-                      <span style={hymnRef}>{hymn.reference}</span>
-                    )}
+                {hymn.firstLine && <p style={styles.preview}>{hymn.firstLine}</p>}
+                {hymn.lyrics && (
+                  <div style={styles.metaInfo}>
+                    <span style={styles.metaItem}>📝 Has lyrics</span>
+                    <span style={styles.metaItem}>📊 {hymn.lyrics.split('\n\n').length} verses</span>
                   </div>
-                  {hymn.firstLine && (
-                    <p style={hymnPreview}>{hymn.firstLine}</p>
-                  )}
-                </div>
+                )}
               </div>
-              
-              <div style={hymnActions}>
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => openEditModal(hymn)}
-                  style={actionButton}
-                  title="Edit hymn"
-                >
-                  <FiEdit2 size={16} />
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => openDeleteModal(hymn)}
-                  style={{ ...actionButton, color: '#ef4444' }}
-                  title="Delete hymn"
-                >
-                  <FiTrash2 size={16} />
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+            </div>
+            <div style={styles.actions}>
+              <button onClick={() => openEditModal(hymn)} style={styles.editBtn} title="Edit">
+                <FiEdit2 size={16} />
+              </button>
+              <button onClick={() => {
+                setSelectedHymn(hymn);
+                setShowDeleteModal(true);
+              }} style={styles.deleteBtn} title="Delete">
+                <FiTrash2 size={16} />
+              </button>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Load More */}
+      {hasMore && !searchTerm && (
+        <button onClick={loadMore} disabled={loadingMore} style={styles.loadMore}>
+          {loadingMore ? "Loading..." : "Load More Hymns"}
+        </button>
+      )}
+
+      {/* Empty State */}
+      {hymns.length === 0 && !loading && (
+        <div style={styles.empty}>
+          <div style={styles.emptyIcon}>🎵</div>
+          <h3 style={styles.emptyTitle}>No hymns found</h3>
+          <p style={styles.emptyText}>
+            {searchTerm ? `No results for "${searchTerm}"` : "Add your first hymn"}
+          </p>
+          <button onClick={() => setShowAddModal(true)} style={styles.emptyBtn}>
+            Add Hymn
+          </button>
+        </div>
+      )}
+
+      {/* ADD/EDIT MODAL */}
       <AnimatePresence>
         {(showAddModal || showEditModal) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={modalOverlay}
+            style={isFullScreen ? styles.fullModalOverlay : styles.modalOverlay}
             onClick={() => {
-              setShowAddModal(false);
-              setShowEditModal(false);
-              resetForm();
+              if (!isFullScreen) {
+                setShowAddModal(false);
+                setShowEditModal(false);
+                resetForm();
+              }
             }}
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              style={modalContent}
+              initial={isFullScreen ? { y: 0 } : { scale: 0.9, y: 20 }}
+              animate={isFullScreen ? { y: 0 } : { scale: 1, y: 0 }}
+              exit={isFullScreen ? { y: 0 } : { scale: 0.9, y: 20 }}
+              style={isFullScreen ? styles.fullModal : styles.largeModal}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={modalHeader}>
-                <h2 style={modalTitle}>
-                  {showAddModal ? "Add New Hymn" : "Edit Hymn"}
-                </h2>
-                <button 
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setShowEditModal(false);
-                    resetForm();
-                  }}
-                  style={modalClose}
-                >
-                  <FiX />
-                </button>
+              {/* Modal Header with SAVE BUTTON at TOP */}
+              <div style={styles.modalHeader}>
+                <div>
+                  <h2 style={styles.modalTitle}>
+                    {showAddModal ? "Add New Hymn" : "Edit Hymn"}
+                  </h2>
+                  {selectedHymn && (
+                    <p style={styles.modalSubtitle}>
+                      Last updated: {new Date(selectedHymn.updatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div style={styles.modalHeaderActions}>
+                  {/* SAVE BUTTON - ALWAYS VISIBLE AT TOP */}
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={showAddModal ? handleAdd : handleEdit}
+                    disabled={!formData.title.trim() || saving}
+                    style={{
+                      ...styles.saveButton,
+                      opacity: !formData.title.trim() || saving ? 0.7 : 1,
+                      cursor: !formData.title.trim() || saving ? 'not-allowed' : 'pointer',
+                      padding: isMobile ? "8px 16px" : "10px 24px",
+                      marginRight: "8px",
+                    }}
+                  >
+                    {saving ? (
+                      <>
+                        <FiLoader style={styles.spinningIcon} size={16} />
+                        {showAddModal ? "Adding..." : "Saving..."}
+                      </>
+                    ) : (
+                      <>
+                        <FiSave size={16} />
+                        {showAddModal ? "Add" : "Save"}
+                      </>
+                    )}
+                  </motion.button>
+                  
+                  {!isMobile && (
+                    <button 
+                      onClick={() => setIsFullScreen(!isFullScreen)}
+                      style={styles.modalSizeToggle}
+                      title={isFullScreen ? "Exit full screen" : "Full screen"}
+                    >
+                      {isFullScreen ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => { 
+                      setShowAddModal(false); 
+                      setShowEditModal(false); 
+                      resetForm(); 
+                      setIsFullScreen(false);
+                    }}
+                    style={styles.modalClose}
+                  >
+                    <FiX size={20} />
+                  </button>
+                </div>
               </div>
 
-              {/* Preview Toggle */}
-              <div style={previewToggle}>
-                <button
-                  onClick={() => setPreviewMode(!previewMode)}
-                  style={{
-                    ...previewButton,
-                    background: previewMode ? '#4f46e5' : '#f1f5f9',
-                    color: previewMode ? 'white' : '#475569'
-                  }}
-                >
-                  {previewMode ? <FiEyeOff /> : <FiEye />}
-                  {previewMode ? "Hide Preview" : "Show Preview"}
-                </button>
-              </div>
+              {/* Preview Toggle & Tools - HIDE ON MOBILE */}
+              {!isMobile && (
+                <div style={styles.modalToolbar}>
+                  <button
+                    onClick={() => setPreviewMode(!previewMode)}
+                    style={{
+                      ...styles.toolbarButton,
+                      background: previewMode ? '#4f46e5' : '#f1f5f9',
+                      color: previewMode ? 'white' : '#475569'
+                    }}
+                  >
+                    {previewMode ? <FiEyeOff size={14} /> : <FiEye size={14} />}
+                    {previewMode ? "Hide Preview" : "Show Preview"}
+                  </button>
+                  <button onClick={cleanFormatting} style={styles.toolbarButton}>
+                    <FiRefreshCw size={14} /> Clean
+                  </button>
+                  <button onClick={insertSample} style={styles.toolbarButton}>
+                    <FiCopy size={14} /> Sample
+                  </button>
+                </div>
+              )}
 
-              <div style={modalBody}>
-                {/* Form */}
-                <div style={formSection}>
-                  <div style={formGroup}>
-                    <label style={formLabel}>Title *</label>
+              {/* MODAL BODY - RESPONSIVE LAYOUT */}
+              <div style={
+                isMobile 
+                  ? styles.mobileModalBody      // Mobile: full width, no grid
+                  : (isFullScreen ? styles.fullModalBody : styles.largeModalBody)
+              }>
+                {/* LEFT COLUMN - BIG EDITING FORM (takes full width on mobile) */}
+                <div style={isMobile ? styles.mobileFormColumn : styles.formColumn}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>
+                      Title <span style={styles.required}>*</span>
+                    </label>
                     <input
                       type="text"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       placeholder="Enter hymn title"
-                      style={formInput}
+                      style={styles.formInput}
+                      autoFocus
+                      disabled={saving}
                     />
                   </div>
 
-                  <div style={formGroup}>
-                    <label style={formLabel}>Reference (AGJ/NAGJ number)</label>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>Reference</label>
                     <input
                       type="text"
                       value={formData.reference}
                       onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                      placeholder="e.g., AGJ 451/134"
-                      style={formInput}
+                      placeholder="e.g., AGJ 451/134, NAGJ 188/52"
+                      style={styles.formInput}
+                      disabled={saving}
                     />
                   </div>
 
-                  <div style={formGroup}>
-                    <label style={formLabel}>Lyrics</label>
+                  {/* BIG LYRICS EDITING AREA - FILLS REMAINING SPACE */}
+                  <div style={isMobile ? styles.mobileLyricsGroup : styles.lyricsGroup}>
+                    <div style={styles.textareaHeader}>
+                      <label style={styles.formLabel}>Lyrics</label>
+                      <div style={styles.textareaStats}>
+                        <span>{getLineCount()} lines</span>
+                        <span>•</span>
+                        <span>{getVerseCount()} verses</span>
+                      </div>
+                    </div>
                     <textarea
                       value={formData.lyrics}
                       onChange={(e) => setFormData({ ...formData, lyrics: e.target.value })}
-                      placeholder="Enter hymn lyrics..."
-                      rows={10}
-                      style={formTextarea}
+                      placeholder="Enter hymn lyrics...&#10;&#10;Use blank lines between verses"
+                      rows={isMobile ? 18 : (isFullScreen ? 30 : 22)}
+                      style={isMobile ? styles.mobileTextarea : styles.bigTextarea}
+                      disabled={saving}
                     />
-                    <div style={formHint}>
-                      Separate verses with a blank line for better formatting
+                    <div style={styles.formHint}>
+                      💡 Separate verses with a blank line for proper formatting
                     </div>
                   </div>
                 </div>
 
-                {/* Preview Section */}
-                {previewMode && (
+                {/* RIGHT COLUMN - PREVIEW (HIDDEN ON MOBILE) */}
+                {!isMobile && previewMode && (
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    style={previewSection}
+                    style={styles.previewColumn}
                   >
-                    <h3 style={previewTitle}>Preview</h3>
-                    <div style={previewContent}>
-                      <h4 style={previewHymnTitle}>{formData.title || "Untitled Hymn"}</h4>
+                    <div style={styles.previewHeader}>
+                      <h3 style={styles.previewTitle}>Live Preview</h3>
+                      <span style={styles.previewBadge}>
+                        {getVerseCount()} verses
+                      </span>
+                    </div>
+                    <div style={styles.previewContent}>
+                      <h4 style={styles.previewHymnTitle}>
+                        {formData.title || "Untitled Hymn"}
+                      </h4>
                       {formData.reference && (
-                        <p style={previewRef}>{formData.reference}</p>
+                        <p style={styles.previewRef}>{formData.reference}</p>
                       )}
-                      <div style={previewLyrics}>
-                        {formatLyrics(formData.lyrics).map((verse, i) => (
-                          <div key={i} style={previewVerse}>
-                            {verse.split('\n').map((line, j) => (
-                              <p key={j} style={previewLine}>{line || <br/>}</p>
-                            ))}
+                      <div style={styles.previewLyrics}>
+                        {formatLyrics(formData.lyrics).length > 0 ? (
+                          formatLyrics(formData.lyrics).map((verse, i) => (
+                            <div key={i} style={styles.previewVerse}>
+                              {verse.split('\n').map((line, j) => (
+                                <p key={j} style={styles.previewLine}>
+                                  {line || <br/>}
+                                </p>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={styles.previewEmpty}>
+                            {formData.lyrics ? (
+                              <>
+                                <p>Invalid format or empty lines</p>
+                                <small>Use blank lines between verses</small>
+                              </>
+                            ) : (
+                              <p>No lyrics to preview</p>
+                            )}
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </motion.div>
                 )}
               </div>
 
-              <div style={modalFooter}>
-                <button
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setShowEditModal(false);
-                    resetForm();
-                  }}
-                  style={cancelButton}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={showAddModal ? handleAdd : handleEdit}
-                  style={saveButton}
-                >
-                  <FiSave size={16} />
-                  {showAddModal ? "Add Hymn" : "Save Changes"}
-                </button>
+              {/* Footer with cancel button only */}
+              <div style={styles.modalFooter}>
+                <div style={styles.modalFooterLeft}>
+                  {selectedHymn && (
+                    <span style={styles.footerInfo}>
+                      ID: {selectedHymn.id.substring(0, 8)}...
+                    </span>
+                  )}
+                </div>
+                <div style={styles.modalFooterRight}>
+                  <button
+                    onClick={() => { 
+                      setShowAddModal(false); 
+                      setShowEditModal(false); 
+                      resetForm(); 
+                      setIsFullScreen(false);
+                    }}
+                    style={styles.cancelButton}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Modal */}
       <AnimatePresence>
         {showDeleteModal && selectedHymn && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={modalOverlay}
+            style={styles.modalOverlay}
             onClick={() => setShowDeleteModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              style={{ ...modalContent, maxWidth: '400px' }}
+              style={styles.deleteModal}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={deleteIcon}>⚠️</div>
-              <h3 style={deleteTitle}>Delete Hymn?</h3>
-              <p style={deleteText}>
-                Are you sure you want to delete "{selectedHymn.title}"? 
+              <div style={styles.deleteIcon}>⚠️</div>
+              <h3 style={styles.deleteTitle}>Delete Hymn?</h3>
+              <p style={styles.deleteText}>
+                Are you sure you want to delete "<strong>{selectedHymn.title}</strong>"? 
                 This action cannot be undone.
               </p>
-              
-              <div style={deleteActions}>
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  style={cancelButton}
-                >
+              <div style={styles.deleteActions}>
+                <button onClick={() => setShowDeleteModal(false)} style={styles.cancelButton}>
                   Cancel
                 </button>
-                <button
-                  onClick={handleDelete}
-                  style={deleteButton}
-                >
+                <button onClick={handleDelete} style={styles.deleteConfirmBtn}>
                   Delete
                 </button>
               </div>
@@ -547,562 +664,719 @@ const res = await axios.get(`${BASE_URL}/api/admin/songs`, {        headers: { A
           </motion.div>
         )}
       </AnimatePresence>
-
-      <style>
-        {`
-          @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-        `}
-      </style>
     </motion.div>
   );
 }
 
 // ====== STYLES ======
-
-const container = {
-  padding: "16px",
-  maxWidth: "1200px",
-  margin: "0 auto",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-  background: "#f8fafc",
-  minHeight: "100vh",
-  borderRadius: "25px",
-  position: "relative",
-};
-
-// Loading
-const loadingContainer = {
-  minHeight: "100vh",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#f8fafc",
-  borderRadius: "40px",
-};
-
-const loadingSpinner = {
-  width: "60px",
-  height: "60px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "30px",
-  background: "#ffffff",
-  borderRadius: "50%",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-  marginBottom: "16px",
-};
-
-const loadingText = {
-  color: "#1e293b",
-  fontSize: "16px",
-  fontWeight: "600",
-  marginBottom: "4px",
-};
-
-const loadingSubtext = {
-  color: "#64748b",
-  fontSize: "12px",
-};
-
-// Success Banner
-const successBanner = {
-  position: "fixed",
-  top: "20px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  background: "#10b981",
-  color: "white",
-  padding: "12px 24px",
-  borderRadius: "30px",
-  fontSize: "14px",
-  fontWeight: "500",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
-  zIndex: 1000,
-};
-
-// Header
-const headerSection = {
-  marginBottom: "20px",
-};
-
-const headerTop = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "16px",
-  flexWrap: "wrap",
-  gap: "12px",
-};
-
-const titleWrapper = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const titleIcon = {
-  width: "48px",
-  height: "48px",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "24px",
-  color: "#ffffff",
-};
-
-const title = {
-  fontSize: "24px",
-  fontWeight: "700",
-  color: "#0f172a",
-  margin: 0,
-};
-
-const titleSub = {
-  fontSize: "13px",
-  color: "#64748b",
-  margin: "4px 0 0 0",
-};
-
-const addButton = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "10px 16px",
-  background: "#4f46e5",
-  color: "white",
-  border: "none",
-  borderRadius: "30px",
-  fontSize: "14px",
-  fontWeight: "500",
-  cursor: "pointer",
-};
-
-// Stats
-const statsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "10px",
-  marginBottom: "16px",
-};
-
-const statCard = {
-  background: "#ffffff",
-  padding: "16px 8px",
-  borderRadius: "12px",
-  border: "1px solid #e2e8f0",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "4px",
-};
-
-const statValue = {
-  fontSize: "24px",
-  fontWeight: "700",
-  color: "#4f46e5",
-};
-
-const statLabel = {
-  fontSize: "11px",
-  color: "#64748b",
-  textTransform: "uppercase",
-};
-
-// Search
-const searchContainer = {
-  position: "relative",
-  marginBottom: "8px",
-};
-
-const searchIcon = {
-  position: "absolute",
-  left: "12px",
-  top: "50%",
-  transform: "translateY(-50%)",
-  color: "#94a3b8",
-  fontSize: "14px",
-};
-
-const searchInput = {
-  width: "100%",
-  padding: "12px 12px 12px 40px",
-  borderRadius: "30px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  fontSize: "14px",
-  outline: "none",
-};
-
-const searchClear = {
-  position: "absolute",
-  right: "12px",
-  top: "50%",
-  transform: "translateY(-50%)",
-  background: "none",
-  border: "none",
-  color: "#94a3b8",
-  fontSize: "16px",
-  cursor: "pointer",
-  padding: "4px 8px",
-};
-
-// Results
-const resultsCount = {
-  fontSize: "12px",
-  color: "#64748b",
-  marginBottom: "12px",
-};
-
-const resultsBold = {
-  fontWeight: "700",
-  color: "#0f172a",
-};
-
-// Hymns List
-const hymnsList = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-};
-
-const hymnCard = {
-  background: "#ffffff",
-  borderRadius: "12px",
-  padding: "12px",
-  border: "1px solid #e2e8f0",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const hymnCardContent = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  flex: 1,
-};
-
-const hymnIcon = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "10px",
-  background: "#f1f5f9",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "20px",
-  color: "#4f46e5",
-};
-
-const hymnInfo = {
-  flex: 1,
-};
-
-const hymnTitleRow = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  flexWrap: "wrap",
-  marginBottom: "4px",
-};
-
-const hymnTitle = {
-  fontSize: "15px",
-  fontWeight: "600",
-  color: "#0f172a",
-  margin: 0,
-};
-
-const hymnRef = {
-  fontSize: "11px",
-  color: "#64748b",
-  background: "#f1f5f9",
-  padding: "2px 8px",
-  borderRadius: "12px",
-};
-
-const hymnPreview = {
-  fontSize: "12px",
-  color: "#64748b",
-  margin: 0,
-  display: "-webkit-box",
-  WebkitLineClamp: 1,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
-};
-
-const hymnActions = {
-  display: "flex",
-  gap: "4px",
-};
-
-const actionButton = {
-  width: "36px",
-  height: "36px",
-  borderRadius: "8px",
-  background: "#f1f5f9",
-  border: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  color: "#475569",
-};
-
-// Modal
-const modalOverlay = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(0,0,0,0.5)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "16px",
-  zIndex: 1000,
-};
-
-const modalContent = {
-  background: "#ffffff",
-  borderRadius: "24px",
-  padding: "24px",
-  maxWidth: "900px",
-  width: "100%",
-  maxHeight: "90vh",
-  overflowY: "auto",
-};
-
-const modalHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "20px",
-};
-
-const modalTitle = {
-  fontSize: "20px",
-  fontWeight: "700",
-  color: "#0f172a",
-  margin: 0,
-};
-
-const modalClose = {
-  background: "none",
-  border: "none",
-  fontSize: "20px",
-  cursor: "pointer",
-  color: "#64748b",
-  padding: "4px",
-};
-
-// Preview Toggle
-const previewToggle = {
-  marginBottom: "20px",
-};
-
-const previewButton = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  padding: "8px 12px",
-  border: "none",
-  borderRadius: "20px",
-  fontSize: "13px",
-  fontWeight: "500",
-  cursor: "pointer",
-};
-
-// Modal Body
-const modalBody = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "20px",
-  marginBottom: "20px",
-};
-
-const formSection = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "16px",
-};
-
-const formGroup = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px",
-};
-
-const formLabel = {
-  fontSize: "13px",
-  fontWeight: "500",
-  color: "#0f172a",
-};
-
-const formInput = {
-  padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  fontSize: "14px",
-  outline: "none",
-};
-
-const formTextarea = {
-  padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  fontSize: "14px",
-  outline: "none",
-  fontFamily: "inherit",
-  resize: "vertical",
-};
-
-const formHint = {
-  fontSize: "11px",
-  color: "#64748b",
-};
-
-// Preview Section
-const previewSection = {
-  background: "#f8fafc",
-  borderRadius: "12px",
-  padding: "16px",
-  border: "1px solid #e2e8f0",
-  maxHeight: "500px",
-  overflowY: "auto",
-};
-
-const previewTitle = {
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "#0f172a",
-  margin: "0 0 12px 0",
-};
-
-const previewContent = {
-  background: "#ffffff",
-  borderRadius: "8px",
-  padding: "20px",
-  border: "1px solid #e2e8f0",
-};
-
-const previewHymnTitle = {
-  fontSize: "18px",
-  fontWeight: "700",
-  color: "#4f46e5",
-  textAlign: "center",
-  margin: "0 0 8px 0",
-};
-
-const previewRef = {
-  fontSize: "12px",
-  color: "#64748b",
-  textAlign: "center",
-  margin: "0 0 20px 0",
-};
-
-const previewLyrics = {
-  lineHeight: 1.6,
-};
-
-const previewVerse = {
-  marginBottom: "16px",
-};
-
-const previewLine = {
-  margin: "4px 0",
-  fontSize: "13px",
-  color: "#1e293b",
-  textAlign: "center",
-};
-
-// Modal Footer
-const modalFooter = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: "12px",
-  marginTop: "20px",
-  paddingTop: "20px",
-  borderTop: "1px solid #e2e8f0",
-};
-
-const cancelButton = {
-  padding: "10px 16px",
-  background: "#f1f5f9",
-  border: "none",
-  borderRadius: "8px",
-  fontSize: "13px",
-  fontWeight: "500",
-  color: "#475569",
-  cursor: "pointer",
-};
-
-const saveButton = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  padding: "10px 16px",
-  background: "#4f46e5",
-  border: "none",
-  borderRadius: "8px",
-  fontSize: "13px",
-  fontWeight: "500",
-  color: "white",
-  cursor: "pointer",
-};
-
-// Delete Modal
-const deleteIcon = {
-  fontSize: "48px",
-  textAlign: "center",
-  marginBottom: "16px",
-};
-
-const deleteTitle = {
-  fontSize: "20px",
-  fontWeight: "700",
-  color: "#0f172a",
-  textAlign: "center",
-  marginBottom: "8px",
-};
-
-const deleteText = {
-  fontSize: "14px",
-  color: "#64748b",
-  textAlign: "center",
-  marginBottom: "20px",
-};
-
-const deleteActions = {
-  display: "flex",
-  gap: "12px",
-};
-
-const deleteButton = {
-  flex: 1,
-  padding: "12px",
-  background: "#ef4444",
-  border: "none",
-  borderRadius: "8px",
-  fontSize: "14px",
-  fontWeight: "500",
-  color: "white",
-  cursor: "pointer",
-};
-
-// Toast
+const styles = {
+  container: {
+    padding: "16px",
+    maxWidth: "1200px",
+    margin: "0 auto",
+    fontFamily: "'Inter', -apple-system, sans-serif",
+    background: "#f8fafc",
+    minHeight: "100vh",
+  },
+  
+  // Header
+  headerSection: { marginBottom: "24px" },
+  headerTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "16px",
+  },
+  titleWrapper: { display: "flex", alignItems: "center", gap: "16px" },
+  titleIcon: {
+    width: "56px",
+    height: "56px",
+    borderRadius: "16px",
+    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "28px",
+    color: "#fff",
+  },
+  title: { fontSize: "28px", fontWeight: "700", color: "#0f172a", margin: 0 },
+  titleSub: { fontSize: "14px", color: "#64748b", margin: "4px 0 0" },
+  addButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "12px 24px",
+    background: "#4f46e5",
+    color: "white",
+    border: "none",
+    borderRadius: "40px",
+    fontSize: "15px",
+    fontWeight: "600",
+    cursor: "pointer",
+    boxShadow: "0 4px 6px rgba(79, 70, 229, 0.25)",
+  },
+
+  // Stats
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "12px",
+    marginBottom: "20px",
+  },
+  statCard: {
+    background: "#fff",
+    padding: "20px 12px",
+    borderRadius: "16px",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "4px",
+  },
+  statValue: { fontSize: "28px", fontWeight: "700", color: "#4f46e5" },
+  statLabel: { fontSize: "12px", color: "#64748b", textTransform: "uppercase" },
+
+  // Search
+  searchContainer: {
+    position: "relative",
+    marginBottom: "12px",
+  },
+  searchIcon: {
+    position: "absolute",
+    left: "16px",
+    top: "14px",
+    color: "#94a3b8",
+    fontSize: "16px",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "14px 16px 14px 48px",
+    borderRadius: "40px",
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    fontSize: "15px",
+    outline: "none",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+  },
+  searchClear: {
+    position: "absolute",
+    right: "16px",
+    top: "14px",
+    background: "#f1f5f9",
+    border: "none",
+    width: "24px",
+    height: "24px",
+    borderRadius: "50%",
+    color: "#64748b",
+    fontSize: "14px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Results
+  resultsCount: {
+    fontSize: "13px",
+    color: "#64748b",
+    marginBottom: "16px",
+  },
+  resultsBold: { fontWeight: "700", color: "#0f172a" },
+
+  // List
+  list: { display: "flex", flexDirection: "column", gap: "10px" },
+  card: {
+    background: "#fff",
+    borderRadius: "16px",
+    padding: "16px",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "16px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+  },
+  cardContent: { display: "flex", alignItems: "center", gap: "16px", flex: 1 },
+  icon: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    background: "#f1f5f9",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "24px",
+    color: "#4f46e5",
+  },
+  info: { flex: 1 },
+  titleRow: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" },
+  hymnTitle: { fontSize: "16px", fontWeight: "600", color: "#0f172a", margin: 0 },
+  ref: {
+    fontSize: "12px",
+    color: "#64748b",
+    background: "#f1f5f9",
+    padding: "4px 10px",
+    borderRadius: "20px",
+  },
+  preview: {
+    fontSize: "13px",
+    color: "#64748b",
+    margin: "4px 0",
+    display: "-webkit-box",
+    WebkitLineClamp: 1,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  },
+  metaInfo: {
+    display: "flex",
+    gap: "12px",
+    marginTop: "6px",
+  },
+  metaItem: {
+    fontSize: "11px",
+    color: "#94a3b8",
+  },
+  actions: { display: "flex", gap: "8px" },
+  editBtn: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+    background: "#f1f5f9",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#475569",
+  },
+  deleteBtn: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+    background: "#f1f5f9",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#ef4444",
+  },
+
+  // Load More
+  loadMore: {
+    width: "100%",
+    padding: "16px",
+    background: "#4f46e5",
+    color: "white",
+    border: "none",
+    borderRadius: "40px",
+    fontSize: "15px",
+    fontWeight: "600",
+    cursor: "pointer",
+    marginTop: "24px",
+    boxShadow: "0 4px 6px rgba(79, 70, 229, 0.25)",
+  },
+
+  // Empty State
+  empty: {
+    textAlign: "center",
+    padding: "80px 20px",
+  },
+  emptyIcon: { fontSize: "64px", marginBottom: "20px", opacity: 0.7 },
+  emptyTitle: { fontSize: "20px", fontWeight: "600", color: "#0f172a", marginBottom: "8px" },
+  emptyText: { fontSize: "14px", color: "#64748b", marginBottom: "24px" },
+  emptyBtn: {
+    padding: "12px 28px",
+    background: "#4f46e5",
+    color: "#fff",
+    border: "none",
+    borderRadius: "40px",
+    fontSize: "15px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+
+  // MODAL STYLES
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px",
+    zIndex: 1000,
+    backdropFilter: "blur(5px)",
+  },
+  
+  fullModalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "#f8fafc",
+    zIndex: 1000,
+  },
+
+  largeModal: {
+    background: "#ffffff",
+    borderRadius: "24px",
+    padding: "28px",
+    maxWidth: "1200px",
+    width: "95%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+  },
+
+  fullModal: {
+    background: "#ffffff",
+    padding: window.innerWidth <= 768 ? "16px" : "32px",
+    width: "100%",
+    minHeight: "100vh",
+    overflowY: "auto",
+  },
+
+  // Modal Header
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "24px",
+    paddingBottom: "16px",
+    borderBottom: "2px solid #e2e8f0",
+  },
+  modalTitle: {
+    fontSize: window.innerWidth <= 768 ? "20px" : "26px",
+    fontWeight: "700",
+    color: "#0f172a",
+    margin: 0,
+  },
+  modalSubtitle: {
+    fontSize: "13px",
+    color: "#64748b",
+    margin: "4px 0 0",
+  },
+  modalHeaderActions: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+  },
+  spinningIcon: {
+    animation: "spin 1s linear infinite",
+  },
+  saveButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 24px",
+    background: "#4f46e5",
+    border: "none",
+    borderRadius: "30px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "white",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  modalSizeToggle: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "12px",
+    background: "#f1f5f9",
+    border: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    color: "#475569",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalClose: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "12px",
+    background: "#f1f5f9",
+    border: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    color: "#475569",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Modal Toolbar
+  modalToolbar: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "24px",
+    flexWrap: "wrap",
+  },
+  toolbarButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "8px 16px",
+    background: "#f1f5f9",
+    border: "1px solid #e2e8f0",
+    borderRadius: "30px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#475569",
+    cursor: "pointer",
+  },
+
+  // Modal Body - Desktop layouts
+  largeModalBody: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 0.8fr",
+    gap: "28px",
+    marginBottom: "24px",
+    minHeight: "600px",
+  },
+  
+  fullModalBody: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 0.8fr",
+    gap: "32px",
+    marginBottom: "24px",
+    height: "calc(100vh - 200px)",
+    overflowY: "auto",
+  },
+
+  // MOBILE SPECIFIC STYLES
+  mobileModalBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    marginBottom: "16px",
+    height: "calc(100vh - 200px)",
+    overflowY: "auto",
+  },
+
+  mobileFormColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    height: "100%",
+    width: "100%",
+  },
+
+  mobileLyricsGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    flex: 1,
+    minHeight: "300px",
+  },
+
+  mobileTextarea: {
+    padding: "16px 20px",
+    borderRadius: "16px",
+    border: "2px solid #d1d5db",
+    fontSize: "18px",
+    fontFamily: "'Inter', monospace",
+    lineHeight: "1.8",
+    minHeight: "400px",
+    maxHeight: "none",
+    resize: "vertical",
+    width: "100%",
+    backgroundColor: "#fafafa",
+    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.03)",
+    outline: "none",
+    flex: 1,
+    ':focus': {
+      borderColor: "#4f46e5",
+      borderWidth: "2px",
+      backgroundColor: "#ffffff",
+    },
+  },
+
+  // Desktop Form Column
+  formColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+    height: "100%",
+  },
+  formGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  formLabel: {
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  required: {
+    color: "#ef4444",
+    marginLeft: "2px",
+  },
+  formInput: {
+    padding: "14px 18px",
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
+    fontSize: "16px",
+    outline: "none",
+    transition: "all 0.2s",
+    ':focus': {
+      borderColor: "#4f46e5",
+      boxShadow: "0 0 0 3px rgba(79,70,229,0.1)",
+    },
+  },
+
+  // Desktop Lyrics Area
+  lyricsGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    flex: 1,
+  },
+  textareaHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  textareaStats: {
+    display: "flex",
+    gap: "8px",
+    fontSize: "14px",
+    color: "#4f46e5",
+    background: "#e0e7ff",
+    padding: "6px 14px",
+    borderRadius: "30px",
+    fontWeight: "500",
+  },
+  bigTextarea: {
+    padding: "20px 24px",
+    borderRadius: "16px",
+    border: "2px solid #d1d5db",
+    fontSize: "18px",
+    fontFamily: "'Inter', monospace",
+    lineHeight: "1.8",
+    minHeight: "500px",
+    maxHeight: "700px",
+    resize: "vertical",
+    width: "100%",
+    backgroundColor: "#fafafa",
+    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.03)",
+    outline: "none",
+    ':focus': {
+      borderColor: "#4f46e5",
+      borderWidth: "2px",
+      backgroundColor: "#ffffff",
+    },
+  },
+  formHint: {
+    fontSize: "13px",
+    color: "#64748b",
+    marginTop: "6px",
+  },
+
+  // Preview Column
+  previewColumn: {
+    background: "#f8fafc",
+    borderRadius: "16px",
+    padding: "20px",
+    border: "1px solid #e2e8f0",
+    overflowY: "auto",
+    height: "100%",
+  },
+  previewHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "16px",
+  },
+  previewTitle: {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#0f172a",
+    margin: 0,
+  },
+  previewBadge: {
+    fontSize: "12px",
+    padding: "4px 12px",
+    background: "#4f46e5",
+    color: "white",
+    borderRadius: "30px",
+  },
+  previewContent: {
+    background: "#ffffff",
+    borderRadius: "12px",
+    padding: "28px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+  },
+  previewHymnTitle: {
+    fontSize: "22px",
+    fontWeight: "700",
+    color: "#4f46e5",
+    textAlign: "center",
+    margin: "0 0 12px 0",
+  },
+  previewRef: {
+    fontSize: "15px",
+    color: "#64748b",
+    textAlign: "center",
+    margin: "0 0 28px 0",
+    padding: "4px 0",
+    borderBottom: "1px dashed #e2e8f0",
+  },
+  previewLyrics: {
+    lineHeight: "2",
+  },
+  previewVerse: {
+    marginBottom: "28px",
+  },
+  previewLine: {
+    margin: "6px 0",
+    fontSize: "16px",
+    color: "#1e293b",
+    textAlign: "center",
+  },
+  previewEmpty: {
+    textAlign: "center",
+    color: "#94a3b8",
+    padding: "40px 0",
+    '& small': {
+      fontSize: "13px",
+      display: "block",
+      marginTop: "8px",
+    },
+  },
+
+  // Modal Footer
+  modalFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "20px",
+    paddingTop: "16px",
+    borderTop: "1px solid #e2e8f0",
+  },
+  modalFooterLeft: {
+    color: "#64748b",
+    fontSize: "12px",
+  },
+  footerInfo: {
+    fontFamily: "monospace",
+    background: "#f1f5f9",
+    padding: "4px 10px",
+    borderRadius: "20px",
+  },
+  modalFooterRight: {
+    display: "flex",
+    gap: "12px",
+  },
+  cancelButton: {
+    padding: "12px 28px",
+    background: "#f1f5f9",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "15px",
+    fontWeight: "500",
+    color: "#475569",
+    cursor: "pointer",
+    ':disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
+
+  // Delete Modal
+  deleteModal: {
+    background: "#ffffff",
+    borderRadius: "24px",
+    padding: "32px",
+    maxWidth: "400px",
+    width: "90%",
+    textAlign: "center",
+  },
+  deleteIcon: {
+    fontSize: "48px",
+    marginBottom: "16px",
+  },
+  deleteTitle: {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: "8px",
+  },
+  deleteText: {
+    fontSize: "15px",
+    color: "#64748b",
+    marginBottom: "24px",
+    lineHeight: 1.6,
+  },
+  deleteActions: {
+    display: "flex",
+    gap: "12px",
+  },
+  deleteConfirmBtn: {
+    flex: 1,
+    padding: "14px",
+    background: "#ef4444",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "white",
+    cursor: "pointer",
+  },
+
+  // Skeleton
+  skeletonHeader: {
+    height: "120px",
+    background: "#e2e8f0",
+    borderRadius: "16px",
+    marginBottom: "20px",
+    animation: "pulse 1.5s infinite",
+  },
+  skeletonCard: {
+    background: "#fff",
+    borderRadius: "16px",
+    padding: "16px",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    gap: "16px",
+  },
+  skeletonIcon: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    background: "#e2e8f0",
+  },
+  skeletonContent: { flex: 1 },
+  skeletonTitle: {
+    width: "70%",
+    height: "18px",
+    background: "#e2e8f0",
+    borderRadius: "4px",
+    marginBottom: "10px",
+  },
+  skeletonLine: {
+    width: "90%",
+    height: "14px",
+    background: "#e2e8f0",
+    borderRadius: "4px",
+  },
+  skeletonGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+};
+
+// Toast Style
 const toastStyle = `
   position: fixed;
   bottom: 20px;
@@ -1110,8 +1384,8 @@ const toastStyle = `
   transform: translateX(-50%);
   background: #0f172a;
   color: white;
-  padding: 12px 24px;
-  border-radius: 30px;
+  padding: 14px 28px;
+  border-radius: 40px;
   font-size: 14px;
   font-weight: 500;
   box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
@@ -1122,3 +1396,21 @@ const toastStyle = `
   overflow: hidden;
   text-overflow: ellipsis;
 `;
+
+// Add keyframes
+const style = document.createElement('style');
+style.innerHTML = `
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+`;
+document.head.appendChild(style);

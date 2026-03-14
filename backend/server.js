@@ -160,10 +160,31 @@ const hasRole = (req, allowedRoles) => {
 // PUBLIC SONGS ROUTES (no auth needed)
 // ====================
 
-// GET /api/songs - List all songs
+// ====================
+// SIMPLE PAGINATED SONGS
+// ====================
 app.get("/api/songs", async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || '';
+    
+    const skip = (page - 1) * limit;
+    
+    // Build where clause for search
+    const where = search ? {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { lyrics: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {};
+    
+    // Get total count for pagination
+    const total = await prisma.song.count({ where });
+    
+    // Get paginated songs
     const songs = await prisma.song.findMany({
+      where,
       select: {
         id: true,
         title: true,
@@ -171,36 +192,37 @@ app.get("/api/songs", async (req, res) => {
         lyrics: true,
         createdAt: true
       },
-      orderBy: { title: "asc" }
+      orderBy: { title: "asc" },
+      skip,
+      take: limit
     });
     
-    // Add first line preview to each song
+    // Add first line preview
     const songsWithPreview = songs.map(song => {
       let firstLine = '';
       if (song.lyrics) {
-        // Clean HTML tags from preview
-        const cleanLyrics = song.lyrics.replace(/<[^>]*>/g, '');
-        // Get first non-empty line
-        const lines = cleanLyrics.split('\n').filter(line => line.trim() !== '');
+        const lines = song.lyrics.split('\n').filter(line => line.trim() !== '');
         firstLine = lines[0] || '';
-        // Truncate if too long
-        if (firstLine.length > 50) {
-          firstLine = firstLine.substring(0, 50) + '...';
+        if (firstLine.length > 60) {
+          firstLine = firstLine.substring(0, 60) + '...';
         }
       }
-      
       return {
         id: song.id,
         title: song.title,
         reference: song.reference,
-        firstLine: firstLine,
+        firstLine,
         createdAt: song.createdAt
       };
     });
     
-    res.json(songsWithPreview);
+    res.json({
+      songs: songsWithPreview,
+      hasMore: page * limit < total,
+      total
+    });
+    
   } catch (err) {
-    console.error("Error fetching songs:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -315,7 +337,7 @@ app.get("/api/songs/search", async (req, res) => {
 // ADMIN SONGS ROUTES (with full lyrics)
 // ====================
 
-// GET /api/admin/songs - Get all songs with full lyrics for admin
+// GET /api/admin/songs - Get all songs with full lyrics (WITH PAGINATION)
 app.get("/api/admin/songs", authenticate, async (req, res) => {
   try {
     // Check if user is admin
@@ -331,16 +353,38 @@ app.get("/api/admin/songs", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
+    // Get pagination parameters from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || '';
+    
+    const skip = (page - 1) * limit;
+    
+    // Build search condition
+    const where = search ? {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {};
+    
+    // Get total count for pagination
+    const total = await prisma.song.count({ where });
+    
+    // Get paginated songs
     const songs = await prisma.song.findMany({
+      where,
       select: {
         id: true,
         title: true,
         reference: true,
-        lyrics: true,  // ← Include full lyrics
+        lyrics: true,
         createdAt: true,
         updatedAt: true
       },
-      orderBy: { title: "asc" }
+      orderBy: { title: "asc" },
+      skip,
+      take: limit
     });
 
     // Add first line preview for convenience
@@ -360,7 +404,12 @@ app.get("/api/admin/songs", authenticate, async (req, res) => {
       };
     });
 
-    res.json(songsWithPreview);
+    // Return paginated response
+    res.json({
+      songs: songsWithPreview,
+      hasMore: page * limit < total,
+      total
+    });
   } catch (err) {
     console.error("Error fetching admin songs:", err);
     res.status(500).json({ error: err.message });

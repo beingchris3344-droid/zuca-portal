@@ -212,37 +212,41 @@ export default function MassPrograms() {
 
   // Fetch programs
   const fetchPrograms = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
-  headers: token ? { Authorization: `Bearer ${token}` } : {},
-});
-setPrograms(res.data || []); // Ensure it's an array
-      
-      const now = new Date();
-      const upcoming = res.data.filter(p => new Date(p.date) >= now).length;
-      const venues = [...new Set(res.data.map(p => p.venue))].length;
-      
-      // Calculate total hymns
-      let hymnCount = 0;
-      res.data.forEach(p => {
-        songFields.forEach(f => {
-          if (p[f.key]) hymnCount++;
-        });
+  try {
+    setLoading(true);
+    const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    
+    // ✅ FIX: Ensure we always have an array
+    const programsData = Array.isArray(res.data) ? res.data : [];
+    setPrograms(programsData);
+    
+    const now = new Date();
+    const upcoming = programsData.filter(p => new Date(p.date) >= now).length;
+    const venues = [...new Set(programsData.map(p => p.venue).filter(Boolean))].length;
+    
+    // Calculate total hymns
+    let hymnCount = 0;
+    programsData.forEach(p => {
+      songFields.forEach(f => {
+        if (p[f.key]) hymnCount++;
       });
-      
-      setStats({
-        total: res.data.length,
-        venues,
-        upcoming,
-        totalHymns: hymnCount,
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+    });
+    
+    setStats({
+      total: programsData.length,
+      venues,
+      upcoming,
+      totalHymns: hymnCount,
+    });
+  } catch (err) {
+    console.error(err);
+    setPrograms([]); // Set empty array on error
+  } finally {
+    setLoading(false);
+  }
+}, [token]);
 
   useEffect(() => {
     fetchPrograms();

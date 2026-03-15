@@ -1313,11 +1313,7 @@ app.delete("/api/announcements/:id", authenticate, async (req, res) => {
 app.get("/api/mass-programs", async (req, res) => {
   try {
     const programs = await prisma.massProgram.findMany({
-      where: {
-        date: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)) // Only future programs
-        }
-      },
+    
       orderBy: { date: "asc" },
       include: { 
         songs: { 

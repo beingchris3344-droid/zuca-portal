@@ -163,7 +163,7 @@ const hasRole = (req, allowedRoles) => {
 // ====================
 // SIMPLE PAGINATED SONGS
 // ====================
-app.get("/api/songs", async (req, res) => {
+app.get("/api/mass-programs", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -1486,6 +1486,7 @@ app.delete("/api/songs/:id", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ================== JUMUIA ROUTES ==================
 app.get("/api/jumuia", async (req, res) => {

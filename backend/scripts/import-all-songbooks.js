@@ -250,7 +250,7 @@ async function importAllSongbooks() {
   
   for (const file of files) {
     try {
-      const filePath = path.join(backendDir, file);
+      const filePath = path.join(backendDir, 'songbooks', file);
       const songs = await parseVideoPsalmFile(filePath, file);
       
       console.log(`\n📥 Importing from ${file}...`);

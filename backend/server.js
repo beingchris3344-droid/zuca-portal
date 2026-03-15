@@ -163,7 +163,7 @@ const hasRole = (req, allowedRoles) => {
 // ====================
 // SIMPLE PAGINATED SONGS
 // ====================
-app.get("/api/mass-programs", async (req, res) => {
+app.get("/api/songs", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -416,7 +416,7 @@ app.get("/api/admin/songs", authenticate, async (req, res) => {
   }
 });
 
-// GET /api/admin/songs/:id - Get single song with full lyrics
+// songs/:id - Get single song with full lyrics
 app.get("/api/admin/songs/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1307,12 +1307,23 @@ app.delete("/api/announcements/:id", authenticate, async (req, res) => {
   }
 });
 
-// ================== MASS PROGRAMS ==================
-app.get("/api/songs", async (req, res) => {
+// ================== MASS PROGRAM ROUTES ==================
+
+// PUBLIC ROUTE - for users to view programs (no auth needed)
+app.get("/api/mass-programs", async (req, res) => {
   try {
     const programs = await prisma.massProgram.findMany({
-      include: { songs: { include: { song: true } } },
-      orderBy: { date: "desc" },
+      where: {
+        date: {
+          gte: new Date(new Date().setHours(0, 0, 0, 0)) // Only future programs
+        }
+      },
+      orderBy: { date: "asc" },
+      include: { 
+        songs: { 
+          include: { song: true } 
+        } 
+      },
     });
 
     const formatted = programs.map((p) => {
@@ -1340,16 +1351,82 @@ app.get("/api/songs", async (req, res) => {
 
     res.json(formatted);
   } catch (err) {
+    console.error("Error fetching mass programs:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/songs", authenticate, async (req, res) => {
+// ADMIN ROUTES - for admin/choir moderator pages (require auth)
+
+// GET all mass programs (admin view - includes all dates)
+app.get("/api/admin/mass-programs", authenticate, async (req, res) => {
+  try {
+    // Check authorization
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const programs = await prisma.massProgram.findMany({
+      orderBy: { date: "desc" },
+      include: { 
+        songs: { 
+          include: { song: true } 
+        } 
+      },
+    });
+
+    const formatted = programs.map((p) => {
+      const songMap = {};
+      p.songs.forEach((s) => {
+        songMap[s.type] = s.song.title;
+      });
+      return {
+        id: p.id,
+        date: p.date.toISOString().split("T")[0],
+        venue: p.venue,
+        entrance: songMap.entrance || "",
+        mass: songMap.mass || "",
+        bible: songMap.bible || "",
+        offertory: songMap.offertory || "",
+        procession: songMap.procession || "",
+        mtakatifu: songMap.mtakatifu || "",
+        signOfPeace: songMap.signOfPeace || "",
+        communion: songMap.communion || "",
+        thanksgiving: songMap.thanksgiving || "",
+        exit: songMap.exit || "",
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt?.toISOString()
+      };
+    });
+
+    res.json(formatted); // Return array directly for your SongsPage
+  } catch (err) {
+    console.error("Error fetching admin mass programs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE mass program (admin/choir moderator only)
+app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
   try {
     const { date, venue, ...songsData } = req.body;
-    if (!date || !venue) return res.status(400).json({ error: "Date & Venue required" });
+    
+    if (!date || !venue) {
+      return res.status(400).json({ error: "Date and venue are required" });
+    }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Check authorization
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
     const isAdmin = user.role === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
@@ -1357,81 +1434,110 @@ app.post("/api/songs", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Not authorized to create mass programs" });
     }
 
-    const songsToCreate = [];
-    for (const [type, title] of Object.entries(songsData)) {
-      if (!title || title.trim() === "") continue;
-      let existingSong = await prisma.song.findFirst({ where: { title: title.trim() } });
-      if (!existingSong) existingSong = await prisma.song.create({ data: { title: title.trim() } });
-      songsToCreate.push({ song: { connect: { id: existingSong.id } }, type });
-    }
-
+    // Create mass program
     const newProgram = await prisma.massProgram.create({
       data: { 
         date: new Date(date), 
         venue, 
-        songs: { create: songsToCreate },
         createdBy: req.user.userId
-      },
-      include: { songs: { include: { song: true } } },
+      }
     });
 
-    console.log("✅ Mass Program created:", newProgram.id);
+    // Add songs
+    for (const [type, title] of Object.entries(songsData)) {
+      if (!title || title.trim() === "") continue;
+      
+      let song = await prisma.song.findFirst({ 
+        where: { title: title.trim() } 
+      });
+      
+      if (!song) {
+        song = await prisma.song.create({ 
+          data: { 
+            title: title.trim(),
+            composer: "",
+            lyrics: "",
+            reference: ""
+          } 
+        });
+      }
+      
+      await prisma.massProgramSong.create({
+        data: {
+          type,
+          massProgramId: newProgram.id,
+          songId: song.id
+        }
+      });
+    }
 
-    const users = await prisma.user.findMany({ 
-      select: { id: true } 
+    // Fetch complete program with songs
+    const completeProgram = await prisma.massProgram.findUnique({
+      where: { id: newProgram.id },
+      include: { songs: { include: { song: true } } }
     });
-    
+
+    // Format response
+    const songMap = {};
+    completeProgram.songs.forEach((s) => {
+      songMap[s.type] = s.song.title;
+    });
+
+    const response = {
+      id: completeProgram.id,
+      date: completeProgram.date.toISOString().split("T")[0],
+      venue: completeProgram.venue,
+      entrance: songMap.entrance || "",
+      mass: songMap.mass || "",
+      bible: songMap.bible || "",
+      offertory: songMap.offertory || "",
+      procession: songMap.procession || "",
+      mtakatifu: songMap.mtakatifu || "",
+      signOfPeace: songMap.signOfPeace || "",
+      communion: songMap.communion || "",
+      thanksgiving: songMap.thanksgiving || "",
+      exit: songMap.exit || "",
+      createdAt: completeProgram.createdAt.toISOString()
+    };
+
+    // Emit socket event
+    if (io) {
+      io.emit("program_created", response);
+    }
+
+    // Create notifications
+    const users = await prisma.user.findMany({ select: { id: true } });
     if (users.length > 0) {
-      const now = new Date();
       const notifications = users.map(user => ({
-        id: `program-${newProgram.id}-${user.id}-${Date.now()}`,
         userId: user.id,
         type: "program",
         title: "⛪ New Mass Program",
         message: `Mass at ${venue} on ${new Date(date).toLocaleDateString()}`,
         read: false,
-        createdAt: now,
+        createdAt: new Date(),
       }));
 
-      const result = await prisma.notification.createMany({
-        data: notifications,
-        skipDuplicates: true,
-      });
-
-      console.log(`✅ Created ${result.count} notifications`);
-      
-      if (io) {
-        notifications.forEach(notif => {
-          const formattedNotif = {
-            ...notif,
-            createdAt: now.toISOString()
-          };
-          io.to(notif.userId).emit("new_notification", formattedNotif);
-        });
-      }
+      await prisma.notification.createMany({ data: notifications });
     }
 
-    const response = { 
-      id: newProgram.id, 
-      date: newProgram.date.toISOString().split("T")[0], 
-      venue: newProgram.venue,
-      createdAt: newProgram.createdAt.toISOString()
-    };
-    newProgram.songs.forEach((s) => (response[s.type] = s.song.title));
-
-    res.json({ program: response });
+    res.status(201).json(response);
   } catch (err) {
-    console.error("❌ Error creating mass program:", err);
+    console.error("Error creating mass program:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put("/api/songs/:id", authenticate, async (req, res) => {
+// UPDATE mass program (admin/choir moderator only)
+app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { date, venue, ...songsData } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Check authorization
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
     const isAdmin = user.role === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
@@ -1439,39 +1545,101 @@ app.put("/api/songs/:id", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Not authorized to update mass programs" });
     }
 
-    await prisma.massProgramSong.deleteMany({ where: { massProgramId: id } });
-
-    const songsToCreate = [];
-    for (const [type, title] of Object.entries(songsData)) {
-      if (!title || title.trim() === "") continue;
-      let existingSong = await prisma.song.findFirst({ where: { title: title.trim() } });
-      if (!existingSong) existingSong = await prisma.song.create({ data: { title: title.trim() } });
-      songsToCreate.push({ song: { connect: { id: existingSong.id } }, type });
-    }
-
-    const updatedProgram = await prisma.massProgram.update({
+    // Update basic info
+    await prisma.massProgram.update({
       where: { id },
-      data: { date: new Date(date), venue, songs: { create: songsToCreate } },
-      include: { songs: { include: { song: true } } },
+      data: { 
+        date: new Date(date), 
+        venue,
+        updatedAt: new Date()
+      }
     });
 
-    const response = { 
-      id: updatedProgram.id, 
-      date: updatedProgram.date.toISOString().split("T")[0], 
-      venue: updatedProgram.venue,
-      createdAt: updatedProgram.createdAt.toISOString()
-    };
-    updatedProgram.songs.forEach((s) => (response[s.type] = s.song.title));
+    // Delete existing songs
+    await prisma.massProgramSong.deleteMany({ 
+      where: { massProgramId: id } 
+    });
 
-    res.json({ program: response });
+    // Add updated songs
+    for (const [type, title] of Object.entries(songsData)) {
+      if (!title || title.trim() === "") continue;
+      
+      let song = await prisma.song.findFirst({ 
+        where: { title: title.trim() } 
+      });
+      
+      if (!song) {
+        song = await prisma.song.create({ 
+          data: { 
+            title: title.trim(),
+            composer: "",
+            lyrics: "",
+            reference: ""
+          } 
+        });
+      }
+      
+      await prisma.massProgramSong.create({
+        data: {
+          type,
+          massProgramId: id,
+          songId: song.id
+        }
+      });
+    }
+
+    // Fetch updated program
+    const updatedProgram = await prisma.massProgram.findUnique({
+      where: { id },
+      include: { songs: { include: { song: true } } }
+    });
+
+    // Format response
+    const songMap = {};
+    updatedProgram.songs.forEach((s) => {
+      songMap[s.type] = s.song.title;
+    });
+
+    const response = {
+      id: updatedProgram.id,
+      date: updatedProgram.date.toISOString().split("T")[0],
+      venue: updatedProgram.venue,
+      entrance: songMap.entrance || "",
+      mass: songMap.mass || "",
+      bible: songMap.bible || "",
+      offertory: songMap.offertory || "",
+      procession: songMap.procession || "",
+      mtakatifu: songMap.mtakatifu || "",
+      signOfPeace: songMap.signOfPeace || "",
+      communion: songMap.communion || "",
+      thanksgiving: songMap.thanksgiving || "",
+      exit: songMap.exit || "",
+      createdAt: updatedProgram.createdAt.toISOString(),
+      updatedAt: updatedProgram.updatedAt?.toISOString()
+    };
+
+    // Emit socket event
+    if (io) {
+      io.emit("program_updated", response);
+    }
+
+    res.json(response);
   } catch (err) {
+    console.error("Error updating mass program:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete("/api/songs/:id", authenticate, async (req, res) => {
+// DELETE mass program (admin/choir moderator only)
+app.delete("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const { id } = req.params;
+
+    // Check authorization
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
     const isAdmin = user.role === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
@@ -1479,14 +1647,43 @@ app.delete("/api/songs/:id", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Not authorized to delete mass programs" });
     }
 
-    await prisma.massProgramSong.deleteMany({ where: { massProgramId: req.params.id } });
-    await prisma.massProgram.delete({ where: { id: req.params.id } });
-    res.json({ message: "Program deleted" });
+    // Delete songs first
+    await prisma.massProgramSong.deleteMany({ 
+      where: { massProgramId: id } 
+    });
+
+    // Delete program
+    await prisma.massProgram.delete({ 
+      where: { id } 
+    });
+
+    // Emit socket event
+    if (io) {
+      io.emit("program_deleted", id);
+    }
+
+    res.json({ message: "Program deleted successfully" });
   } catch (err) {
+    console.error("Error deleting mass program:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// GET upcoming count (for dashboard)
+app.get("/api/mass-programs/upcoming/count", async (req, res) => {
+  try {
+    const count = await prisma.massProgram.count({
+      where: {
+        date: {
+          gte: new Date()
+        }
+      }
+    });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ================== JUMUIA ROUTES ==================
 app.get("/api/jumuia", async (req, res) => {

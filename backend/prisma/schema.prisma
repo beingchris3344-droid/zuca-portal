@@ -91,6 +91,7 @@ model MassProgram {
   date      DateTime
   venue     String
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Which jumuia this mass program is for
   jumuiaId String?

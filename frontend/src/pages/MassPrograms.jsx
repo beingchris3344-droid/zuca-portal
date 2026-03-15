@@ -214,10 +214,10 @@ export default function MassPrograms() {
   const fetchPrograms = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${BASE_URL}/api/songs`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      setPrograms(res.data);
+      const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
+});
+setPrograms(res.data || []); // Ensure it's an array
       
       const now = new Date();
       const upcoming = res.data.filter(p => new Date(p.date) >= now).length;

@@ -94,15 +94,18 @@ export default function HymnBook() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       
+      // SAFETY: Ensure we have an array
+      const newSongs = res.data?.songs || [];
+      
       if (reset || pageNum === 1) {
-        setSongs(res.data.songs);
+        setSongs(newSongs);
       } else {
-        setSongs(prev => [...prev, ...res.data.songs]);
+        setSongs(prev => [...(prev || []), ...newSongs]);
       }
       
-      setHasMore(res.data.hasMore);
+      setHasMore(res.data?.hasMore || false);
       
-      if (res.data.total) {
+      if (res.data?.total) {
         setTotalSongs(res.data.total);
       }
       
@@ -126,10 +129,13 @@ export default function HymnBook() {
     fetchSongs(1, debouncedSearch, true);
   }, [debouncedSearch]);
 
+  // SAFETY: Ensure songs is always an array
+  const safeSongs = songs || [];
+  
   // Filter favorites (client-side only)
   const displayedSongs = showFavoritesOnly
-    ? songs.filter(song => favorites.includes(song.id))
-    : songs;
+    ? safeSongs.filter(song => favorites.includes(song?.id))
+    : safeSongs;
 
   // Load more function
   const loadMore = () => {
@@ -142,7 +148,8 @@ export default function HymnBook() {
 
   // Track recently viewed
   const trackView = (song) => {
-    const updated = [song, ...recentlyViewed.filter(s => s.id !== song.id)].slice(0, 5);
+    if (!song) return;
+    const updated = [song, ...(recentlyViewed || []).filter(s => s?.id !== song.id)].slice(0, 5);
     setRecentlyViewed(updated);
     localStorage.setItem("recentSongs", JSON.stringify(updated));
   };
@@ -159,14 +166,16 @@ export default function HymnBook() {
 
   // Copy to clipboard
   const copyToClipboard = (song) => {
-    const text = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${song.firstLine || ''}`;
+    if (!song) return;
+    const text = `${song.title || ''}\n${song.reference ? `(${song.reference})\n` : ''}\n${song.firstLine || ''}`;
     navigator.clipboard.writeText(text);
     showToast("📋 Song info copied!");
   };
 
   // Share song
   const shareSong = (song, platform) => {
-    const text = `Check out this hymn: ${song.title} ${song.reference ? `(${song.reference})` : ''}`;
+    if (!song) return;
+    const text = `Check out this hymn: ${song.title || ''} ${song.reference ? `(${song.reference})` : ''}`;
     
     if (platform === 'whatsapp') {
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -222,7 +231,7 @@ export default function HymnBook() {
             <div style={titleIcon}>🎵</div>
             <div>
               <h1 style={title}>Hymn Book</h1>
-              <p style={titleSub}>{totalSongs || songs.length} hymns</p>
+              <p style={titleSub}>{totalSongs || safeSongs.length || 0} hymns</p>
             </div>
           </div>
         </div>
@@ -238,14 +247,14 @@ export default function HymnBook() {
               setDebouncedSearch("");
             }}
           >
-            <span style={compactStatValue}>{totalSongs || songs.length}</span>
+            <span style={compactStatValue}>{totalSongs || safeSongs.length || 0}</span>
             <span style={compactStatLabel}>Total</span>
           </motion.div>
           <motion.div 
             style={compactStat}
             whileTap={{ scale: 0.95 }}
           >
-            <span style={compactStatValue}>{songs.length}</span>
+            <span style={compactStatValue}>{safeSongs.length || 0}</span>
             <span style={compactStatLabel}>Loaded</span>
           </motion.div>
           <motion.div 
@@ -288,30 +297,30 @@ export default function HymnBook() {
           )}
         </div>
 
-        {/* Results Count */}
+        {/* Results Count - FIXED LINE 225 */}
         <div style={resultsCount}>
-          <span style={resultsBold}>{displayedSongs.length}</span> hymns shown
+          <span style={resultsBold}>{displayedSongs?.length || 0}</span> hymns shown
           {totalSongs > 0 && !searchTerm && ` of ${totalSongs} total`}
           {searchTerm && ` for "${searchTerm}"`}
           {showFavoritesOnly && " • Favorites only"}
         </div>
 
         {/* Recently Viewed - only show when not searching */}
-        {recentlyViewed.length > 0 && !searchTerm && !showFavoritesOnly && (
+        {recentlyViewed?.length > 0 && !searchTerm && !showFavoritesOnly && (
           <div style={recentSection}>
             <div style={recentHeader}>
               <IoTimeOutline size={14} />
               <span>Recently viewed</span>
             </div>
             <div style={recentList}>
-              {recentlyViewed.map(song => (
+              {recentlyViewed.map(song => song && (
                 <Link
                   to={`/hymn/${song.id}`}
                   key={song.id}
                   style={recentItem}
                   onClick={() => trackView(song)}
                 >
-                  <span style={recentTitle}>{song.title}</span>
+                  <span style={recentTitle}>{song.title || ''}</span>
                   {song.reference && <span style={recentRef}>{song.reference}</span>}
                 </Link>
               ))}
@@ -323,7 +332,7 @@ export default function HymnBook() {
       {/* Songs Grid */}
       <div style={viewMode === 'grid' ? songsGrid : songsList}>
         <AnimatePresence>
-          {displayedSongs.map((song) => (
+          {displayedSongs?.map((song) => song && (
             <motion.div
               key={song.id}
               layout
@@ -346,7 +355,7 @@ export default function HymnBook() {
                   </div>
                   <div style={songCardInfo}>
                     <div style={songCardTitleRow}>
-                      <h3 style={songCardTitle}>{song.title}</h3>
+                      <h3 style={songCardTitle}>{song.title || ''}</h3>
                       {favorites.includes(song.id) && (
                         <FiHeart size={12} color="#ec4899" style={{ fill: "#ec4899" }} />
                       )}
@@ -415,7 +424,7 @@ export default function HymnBook() {
       )}
 
       {/* Empty State */}
-      {displayedSongs.length === 0 && !loading && (
+      {(!displayedSongs || displayedSongs.length === 0) && !loading && (
         <div style={emptyState}>
           <div style={emptyIcon}>🎵</div>
           <h3 style={emptyTitle}>No hymns found</h3>
@@ -456,7 +465,7 @@ export default function HymnBook() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 style={modalTitle}>Share Hymn</h3>
-              <p style={modalSongTitle}>{shareModal.title}</p>
+              <p style={modalSongTitle}>{shareModal?.title || ''}</p>
               
               <div style={modalOptions}>
                 <button onClick={() => shareSong(shareModal, 'whatsapp')} style={modalOption}>
@@ -481,6 +490,8 @@ export default function HymnBook() {
     </motion.div>
   );
 }
+
+// ... (keep all your styles the same)
 
 // ====== STYLES ======
 

@@ -159,26 +159,42 @@ export default function SongsPage() {
   }, []);
 
   const fetchPrograms = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    
-    try {
-      // For admin and choir moderator, use the same endpoint
-      const res = await axios.get(`${BASE_URL}/api/songs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setPrograms(res.data);
-    } catch (err) {
-      console.error("Fetch Programs Error:", err);
-      showNotification("Failed to load programs", "error");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-
+  if (isRefresh) setRefreshing(true);
+  else setLoading(true);
   
+  try {
+    const res = await axios.get(`${BASE_URL}/api/admin/mass-programs`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // Check what the API returns and extract the array
+    let programsData = res.data;
+    
+    // If it's an object with a 'programs' property (like { programs: [...], hasMore, total })
+    if (res.data.programs && Array.isArray(res.data.programs)) {
+      programsData = res.data.programs;
+    }
+    // If it's already an array, use it directly
+    else if (Array.isArray(res.data)) {
+      programsData = res.data;
+    }
+    // Otherwise, try to handle gracefully
+    else {
+      console.warn("Unexpected API response format:", res.data);
+      programsData = [];
+    }
+    
+    setPrograms(programsData);
+    
+  } catch (err) {
+    console.error("Fetch Programs Error:", err);
+    showNotification("Failed to load programs: " + (err.response?.data?.error || err.message), "error");
+    setPrograms([]); // Set empty array on error
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   useEffect(() => {
     fetchPrograms();
@@ -197,8 +213,6 @@ export default function SongsPage() {
     }
   };
 
-
-  
   const handleEdit = (program) => {
     setEditingId(program.id);
     setForm({
@@ -295,17 +309,19 @@ export default function SongsPage() {
 
     try {
       if (editingId) {
-        await axios.put(`${BASE_URL}/api/songs/${editingId}`, payload, { headers });
+        // CHANGED: Use admin mass-programs endpoint
+        await axios.put(`${BASE_URL}/api/admin/mass-programs/${editingId}`, payload, { headers });
         showNotification("Program updated successfully", "success");
       } else {
-        await axios.post(`${BASE_URL}/api/songs`, payload, { headers });
+        // CHANGED: Use admin mass-programs endpoint
+        await axios.post(`${BASE_URL}/api/admin/mass-programs`, payload, { headers });
         showNotification("Program created successfully", "success");
       }
       fetchPrograms();
       handleCancel();
     } catch (err) {
       console.error("Save Program Error:", err);
-      setFormError("Failed to save program");
+      setFormError(err.response?.data?.error || "Failed to save program");
     } finally {
       setIsSaving(false);
     }
@@ -314,7 +330,8 @@ export default function SongsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this program?")) return;
     try {
-      await axios.delete(`${BASE_URL}/api/songs/${id}`, { headers });
+      // CHANGED: Use admin mass-programs endpoint
+      await axios.delete(`${BASE_URL}/api/admin/mass-programs/${id}`, { headers });
       showNotification("Program deleted", "info");
       fetchPrograms();
     } catch (err) {

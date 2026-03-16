@@ -50,13 +50,22 @@ const AnalyticsPage = () => {
     
     try {
       const token = localStorage.getItem('token');
-      
-      const response = await fetch('https://zuca-portal2.onrender.com/api/admin/analytics/youtube', {
-  headers: { Authorization: `Bearer ${token}` }
-});
-      if (!response.ok) throw new Error('Failed to fetch YouTube data');
-      
-      const youtubeData = await response.json();
+    
+    const response = await fetch('https://zuca-portal2.onrender.com/api/admin/analytics/youtube', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // Log the response status to see what's happening
+    console.log('Response status:', response.status);
+    
+    const youtubeData = await response.json();
+    console.log('Raw YouTube data:', youtubeData); // Check what you're getting
+    
+    // Check if the response has the expected structure
+    if (!youtubeData || !youtubeData.channel) {
+      throw new Error('Invalid data structure received');
+    }
+    
       
       // Enhanced data with songs
       const processedData = {

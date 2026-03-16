@@ -11,28 +11,17 @@ import {
   FaChurch,
   FaMusic,
   FaUsers,
-  FaBell,
-  FaCalendarAlt,
   FaHandsHelping,
   FaHeart,
-  FaCross,
   FaPray,
   FaClock,
   FaLocationArrow,
-  FaBold,
-  FaUnderline,
-  FaHammer,
-  FaFontAwesomeLogoFull,
-  FaHandPointDown,
   FaDownload,
-  FaMobileAlt,
-  FaAndroid,
-  FaApple
+  FaMobileAlt
 } from "react-icons/fa";
 import { useEffect, useState } from "react";
 import logo from "../assets/zuca-logo.png";
 import bg from "../assets/background2.webp";
-import { FiUnderline } from "react-icons/fi";
 import NotificationPrompt from '../components/NotificationPrompt';
 
 function Landing2() {
@@ -40,7 +29,6 @@ function Landing2() {
   const [scrollY, setScrollY] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(true);
-  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
   useEffect(() => {
@@ -126,65 +114,6 @@ function Landing2() {
         '• Click "Install"'
       );
     }
-    setShowDownloadOptions(false);
-  };
-
-  const handleHowToInstall = () => {
-    alert(
-      '📱 Detailed Installation Guide:\n\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '🔵 ANDROID (Chrome)\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '1. Open ZUCA Portal in Chrome\n' +
-      '2. Tap the ⋮ menu (top right)\n' +
-      '3. Select "Add to Home screen"\n' +
-      '4. Tap "Add" or "Install"\n' +
-      '5. App appears on home screen!\n\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '🍎 IPHONE/IPAD (Safari)\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '1. Open ZUCA Portal in Safari\n' +
-      '2. Tap the Share 📤 button (bottom)\n' +
-      '3. Scroll down & tap "Add to Home Screen"\n' +
-      '4. Tap "Add" (top right)\n' +
-      '5. App appears on home screen!\n\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '💻 DESKTOP (Chrome/Edge)\n' +
-      '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '1. Look for install icon (➕) in address bar\n' +
-      '2. Click "Install" button\n' +
-      '3. App opens in its own window!\n\n' +
-      '✨ Benefits after install:\n' +
-      '• Works offline\n' +
-      '• Push notifications\n' +
-      '• Icon on home screen\n' +
-      '• Opens like native app'
-    );
-    setShowDownloadOptions(false);
-  };
-
-  const handleDownloadClick = () => {
-    setShowDownloadOptions(!showDownloadOptions);
-  };
-
-  const handleDownloadAPK = () => {
-    const link = document.createElement('a');
-    link.href = '/downloads/zuca-portal.apk';
-    link.download = 'zuca-portal.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setShowDownloadOptions(false);
-  };
-
-  const handleDownloadPlayStore = () => {
-    window.open('https://play.google.com/store/apps/details?id=com.zuca.portal', '_blank');
-    setShowDownloadOptions(false);
-  };
-
-  const handleDownloadAppStore = () => {
-    window.open('https://apps.apple.com/app/zuca-portal/id123456789', '_blank');
-    setShowDownloadOptions(false);
   };
 
   return (
@@ -215,65 +144,13 @@ function Landing2() {
             <a href="#connect" style={navLinkStyle}>Connect</a>
             <a href="#mass" style={navLinkStyle}>Mass</a>
             
-            {/* Install App Button with Instructions */}
-            <div style={{ position: "relative" }}>
-              <button onClick={handleDownloadClick} style={navInstallButtonStyle}>
-                <FaMobileAlt style={{ marginRight: "6px" }} />
-                <span>Install App</span>
-                <span style={{ marginLeft: "6px", fontSize: "10px" }}>▼</span>
+            {/* ONE-CLICK INSTALL BUTTON - This is what you wanted! */}
+            {showInstallButton && (
+              <button onClick={handleInstallClick} style={navInstallButtonStyle}>
+                <FaDownload style={{ marginRight: "8px" }} />
+                📲 Install App
               </button>
-              
-              {showDownloadOptions && (
-                <div style={downloadDropdownStyle}>
-                  <div style={downloadDropdownHeader}>
-                    <FaMobileAlt style={{ marginRight: "8px", color: "#3b82f6" }} />
-                    Install ZUCA Portal
-                  </div>
-                  
-                  {/* Quick Install Button (if available) */}
-                  {deferredPrompt && (
-                    <button onClick={handleInstallClick} style={downloadOptionStyle}>
-                      <FaMobileAlt style={{ marginRight: "10px", color: "#3b82f6", fontSize: "18px" }} />
-                      <div style={{ textAlign: "left" }}>
-                        <strong>Quick Install</strong>
-                        <div style={{ fontSize: "11px", opacity: 0.7 }}>One-click installation</div>
-                      </div>
-                    </button>
-                  )}
-                  
-                  {/* Android Guide */}
-                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
-                    <FaAndroid style={{ marginRight: "10px", color: "#3DDC84", fontSize: "18px" }} />
-                    <div style={{ textAlign: "left" }}>
-                      <strong>Android Guide</strong>
-                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Chrome menu → Add to Home screen</div>
-                    </div>
-                  </button>
-                  
-                  {/* iOS Guide */}
-                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
-                    <FaApple style={{ marginRight: "10px", color: "#000", fontSize: "18px" }} />
-                    <div style={{ textAlign: "left" }}>
-                      <strong>iOS Guide</strong>
-                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Share → Add to Home Screen</div>
-                    </div>
-                  </button>
-                  
-                  {/* Desktop Guide */}
-                  <button onClick={handleHowToInstall} style={downloadOptionStyle}>
-                    <FaDownload style={{ marginRight: "10px", color: "#3b82f6", fontSize: "18px" }} />
-                    <div style={{ textAlign: "left" }}>
-                      <strong>Desktop Guide</strong>
-                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Click install icon in address bar</div>
-                    </div>
-                  </button>
-                  
-                  <div style={downloadDropdownFooter}>
-                    ✨ No APK needed • Works as PWA • Free
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
             
             <button onClick={() => navigate("/login")} style={navButtonStyle}>Login</button>
             <button onClick={() => navigate("/register")} style={navButtonPrimaryStyle}>Join Us</button>
@@ -726,53 +603,6 @@ const navButtonPrimaryStyle = {
   fontSize: "14px",
   fontWeight: "500",
   cursor: "pointer"
-};
-
-// Download Dropdown Styles
-const downloadDropdownStyle = {
-  position: "absolute",
-  top: "45px",
-  right: 0,
-  width: "280px",
-  background: "white",
-  borderRadius: "12px",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
-  zIndex: 1100,
-  overflow: "hidden",
-  border: "1px solid #e2e8f0"
-};
-
-const downloadDropdownHeader = {
-  padding: "12px 16px",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "#1e293b",
-  display: "flex",
-  alignItems: "center"
-};
-
-const downloadOptionStyle = {
-  width: "100%",
-  padding: "12px 16px",
-  border: "none",
-  borderBottom: "1px solid #f1f5f9",
-  background: "white",
-  display: "flex",
-  alignItems: "center",
-  cursor: "pointer",
-  fontSize: "13px",
-  color: "#1e293b",
-  transition: "background 0.2s"
-};
-
-const downloadDropdownFooter = {
-  padding: "8px 16px",
-  background: "#f8fafc",
-  fontSize: "11px",
-  color: "#64748b",
-  textAlign: "center"
 };
 
 const navInstallButtonStyle = {

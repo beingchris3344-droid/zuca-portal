@@ -19,7 +19,9 @@ import {
   Headphones, Mic2, Radio, Disc, Music, Album,
   Volume2, Volume, Speaker, RadioReceiver
 } from 'lucide-react';
+
 import { format, subDays, subMonths } from 'date-fns';
+import { api } from '../../api'; // Adjust path as needed
 
 const AnalyticsPage = () => {
   const [loading, setLoading] = useState(true);
@@ -45,33 +47,26 @@ const AnalyticsPage = () => {
   }, [dateRange]);
 
   const fetchYouTubeData = async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // Just use api.get() - it handles baseURL and auth token automatically!
+    const response = await api.get('/api/admin/analytics/youtube');
     
-    try {
-      const token = localStorage.getItem('token');
+    console.log('YouTube data:', response.data); // ✅ Data is already here!
     
-    const response = await fetch('https://zuca-portal2.onrender.com/api/admin/analytics/youtube', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    // Log the response status to see what's happening
-    console.log('Response status:', response.status);
-    
-    const youtubeData = await response.json();
-    console.log('Raw YouTube data:', youtubeData); // Check what you're getting
-    
-    // Check if the response has the expected structure
-    if (!youtubeData || !youtubeData.channel) {
-      throw new Error('Invalid data structure received');
+    if (!response.data || !response.data.channel) {
+      throw new Error('Invalid data structure');
     }
-    
+      
+      
       
       // Enhanced data with songs
       const processedData = {
-        ...youtubeData,
-        recentVideos: youtubeData.recentVideos || [],
-        topVideos: youtubeData.topVideos || [],
+        ...response.data,
+        recentVideos: response.data.recentVideos || [],
+        topVideos: response.data.topVideos || [],
         songs: [
           {
             id: 1,
@@ -130,7 +125,7 @@ const AnalyticsPage = () => {
             year: "2025"
           }
         ],
-        chartData: youtubeData.dailyStats?.map(day => ({
+        chartData: response.data.dailyStats?.map(day => ({
           date: formatDate(day.date),
           views: day.views,
           songs: Math.floor(Math.random() * 3) + 1

@@ -828,8 +828,7 @@ function ChatMonitorPage() {
         )}
       </AnimatePresence>
 
-      {/* Media Preview Modal */}
-<AnimatePresence>
+      <AnimatePresence>
   {showMediaPreview && (
     <motion.div
       initial={{ opacity: 0 }}
@@ -845,18 +844,20 @@ function ChatMonitorPage() {
         style={styles.modalContent}
         onClick={e => e.stopPropagation()}
       >
-        {/* Debug info - remove after fixing */}
+        {/* Debug info */}
         <div style={{
           position: 'absolute',
-          top: '-30px',
+          top: '-60px',
           left: 0,
           color: '#fff',
           fontSize: '12px',
-          background: 'rgba(0,0,0,0.5)',
-          padding: '4px 8px',
-          borderRadius: '4px'
+          background: 'rgba(0,0,0,0.8)',
+          padding: '8px',
+          borderRadius: '4px',
+          zIndex: 9999,
+          whiteSpace: 'nowrap'
         }}>
-          Loading: {showMediaPreview}
+          URL: {showMediaPreview}
         </div>
 
         <img 
@@ -864,32 +865,35 @@ function ChatMonitorPage() {
           alt="preview" 
           style={styles.modalImage}
           onError={(e) => {
-            console.error("Modal image failed to load:", showMediaPreview);
-            e.target.onerror = null;
+            console.log("1️⃣ IMAGE FAILED TO LOAD");
+            console.log("2️⃣ Failed URL:", showMediaPreview);
             
-            // Try with a different approach - fetch with headers
             const token = localStorage.getItem('token');
-            fetch(showMediaPreview.split('?')[0], {
+            console.log("3️⃣ Token exists:", !!token);
+            
+            const baseUrl = showMediaPreview.split('?')[0];
+            console.log("4️⃣ Base URL:", baseUrl);
+            
+            // Try fetch
+            fetch(baseUrl, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
             })
-            .then(response => response.blob())
+            .then(response => {
+              console.log("5️⃣ Fetch response status:", response.status);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              return response.blob();
+            })
             .then(blob => {
+              console.log("6️⃣ Blob received, size:", blob.size);
               const url = URL.createObjectURL(blob);
+              console.log("7️⃣ Blob URL created:", url);
               e.target.src = url;
             })
             .catch(err => {
-              console.error("Fetch fallback also failed:", err);
-              e.target.src = ''; // Clear the src
-              e.target.alt = 'Failed to load image';
-              // Show fallback
-              const parent = e.target.parentNode;
-              const fallback = document.createElement('div');
-              fallback.innerHTML = '❌ Failed to load image';
-              fallback.style.color = '#fff';
-              fallback.style.padding = '20px';
-              parent.appendChild(fallback);
+              console.error("8️⃣ Fetch failed:", err);
+              e.target.alt = 'Failed to load';
             });
           }}
         />
@@ -903,7 +907,6 @@ function ChatMonitorPage() {
     </motion.div>
   )}
 </AnimatePresence>
-
       {/* Header */}
       <div style={styles.header}>
         <div>

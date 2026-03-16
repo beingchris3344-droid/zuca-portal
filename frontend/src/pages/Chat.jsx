@@ -324,14 +324,14 @@ function Chat() {
       
       const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
       
-      const parsedMessages = response.data.map(msg => ({
-        ...msg,
-        attachments: parseAttachments(msg.attachments),
-        files: msg.files || [],
-        isOwn: msg.userId === user?.id
-      }));
-      
-      setMessages(parsedMessages);
+      const parsedMessages = response.data.reverse().map(msg => ({
+  ...msg,
+  attachments: parseAttachments(msg.attachments),
+  files: msg.files || [],
+  isOwn: msg.userId === user?.id
+}));
+
+setMessages(parsedMessages);
       
       parsedMessages.forEach(msg => {
         if (!msg.isOwn && !msg.readReceipts?.some(r => r.userId === user?.id)) {
@@ -1212,32 +1212,6 @@ function Chat() {
       
       
 
-      {/* File Previews */}
-      {selectedFiles.length > 0 && (
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 20, opacity: 0 }}
-          style={styles.previewContainer}
-        >
-          <div style={styles.previewScroller}>
-            {selectedFiles.map((file, index) => {
-              const preview = getFilePreview(file);
-              return (
-                <div key={index} style={styles.previewItem}>
-                  {preview ? (
-                    <img src={preview} alt="preview" style={styles.previewImage} />
-                  ) : (
-                    <div style={styles.previewIcon}>📎</div>
-                  )}
-                  <button style={styles.previewRemove} onClick={() => removeFile(index)}>×</button>
-                  <div style={styles.previewName}>{file.name}</div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
       {/* File Previews */}
       {selectedFiles.length > 0 && (
         <motion.div 

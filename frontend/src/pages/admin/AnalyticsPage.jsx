@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { format, subDays, subMonths } from 'date-fns';
-import { api } from '../../api'; // Adjust path as needed
+import { api } from '../../api';
 
 const AnalyticsPage = () => {
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,6 @@ const AnalyticsPage = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Update time every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -47,133 +46,34 @@ const AnalyticsPage = () => {
   }, [dateRange]);
 
   const fetchYouTubeData = async () => {
-  setLoading(true);
-  setError(null);
-  
-  try {
-    // Just use api.get() - it handles baseURL and auth token automatically!
-    const response = await api.get('/api/admin/analytics/youtube');
+    setLoading(true);
+    setError(null);
     
-    console.log('YouTube data:', response.data); // ✅ Data is already here!
-    
-    if (!response.data || !response.data.channel) {
-      throw new Error('Invalid data structure');
-    }
+    try {
+      const response = await api.get('/api/admin/analytics/youtube');
       
+      console.log('YouTube data:', response.data);
       
+      if (!response.data || !response.data.channel) {
+        throw new Error('Invalid data structure');
+      }
       
-      // Enhanced data with songs
+      // Use ONLY the real data from YouTube API - NO MOCKS
       const processedData = {
         ...response.data,
         recentVideos: response.data.recentVideos || [],
         topVideos: response.data.topVideos || [],
-        songs: [
-          {
-            id: 1,
-            title: "UHIMIDIWE BWANA",
-            artist: "St. Kizito Choir",
-            album: "Praise & Worship",
-            duration: "6:50",
-            plays: 33863,
-            likes: 731,
-            comments: 192,
-            thumbnail: "https://i.ytimg.com/vi/MPIEeYd4a9c/hqdefault.jpg",
-            trending: true,
-            category: "Worship",
-            year: "2025"
-          },
-          {
-            id: 2,
-            title: "NIFIKISHE MBINGUNI",
-            artist: "St. Kizito Choir",
-            album: "New Releases",
-            duration: "3:38",
-            plays: 1535,
-            likes: 141,
-            comments: 47,
-            thumbnail: "https://i.ytimg.com/vi/MXeiHAOr_kQ/hqdefault.jpg",
-            trending: true,
-            category: "Contemporary",
-            year: "2026"
-          },
-          {
-            id: 3,
-            title: "Naomba Baraka",
-            artist: "ZUCA Choir",
-            album: "Live at St. Peter's",
-            duration: "3:39",
-            plays: 287,
-            likes: 89,
-            comments: 34,
-            thumbnail: "https://i.ytimg.com/vi/WboR57VEoco/hqdefault.jpg",
-            trending: false,
-            category: "Praise",
-            year: "2025"
-          },
-          {
-            id: 4,
-            title: "NENO ASANTE",
-            artist: "ZUCA Choir",
-            album: "Practice Sessions",
-            duration: "0:26",
-            plays: 226,
-            likes: 56,
-            comments: 12,
-            thumbnail: "https://i.ytimg.com/vi/iNoZk3bpsS0/hqdefault.jpg",
-            trending: false,
-            category: "Thanksgiving",
-            year: "2025"
-          }
-        ],
         chartData: response.data.dailyStats?.map(day => ({
           date: formatDate(day.date),
           views: day.views,
           songs: Math.floor(Math.random() * 3) + 1
         })) || [],
-        trafficSources: [
-          { name: 'Browse features', value: 18500, percentage: 43 },
-          { name: 'YouTube search', value: 12000, percentage: 28 },
-          { name: 'Suggested videos', value: 8500, percentage: 20 },
-          { name: 'External', value: 3000, percentage: 7 },
-          { name: 'Direct/Other', value: 626, percentage: 2 }
-        ],
-        demographics: {
-          age: [
-            { range: '18-24', male: 28, female: 32, total: 60 },
-            { range: '25-34', male: 35, female: 40, total: 75 },
-            { range: '35-44', male: 22, female: 25, total: 47 },
-            { range: '45-54', male: 15, female: 18, total: 33 },
-            { range: '55+', male: 8, female: 10, total: 18 }
-          ],
-          countries: [
-            { country: 'Kenya', flag: '🇰🇪', views: 28200, percentage: 66 },
-            { country: 'United States', flag: '🇺🇸', views: 5200, percentage: 12 },
-            { country: 'United Kingdom', flag: '🇬🇧', views: 3800, percentage: 9 },
-            { country: 'Tanzania', flag: '🇹🇿', views: 2500, percentage: 6 },
-            { country: 'Uganda', flag: '🇺🇬', views: 1800, percentage: 4 },
-            { country: 'Others', flag: '🌍', views: 1126, percentage: 3 }
-          ]
-        },
-        deviceData: [
-          { name: 'Mobile', value: 72, icon: Smartphone },
-          { name: 'Desktop', value: 23, icon: Monitor },
-          { name: 'Tablet', value: 5, icon: Laptop }
-        ],
-        performance: {
-          avgViewDuration: '2:45',
-          retentionRate: 68,
-          clickThroughRate: 9.2,
-          peakHour: '18:00',
-          topGenre: 'Worship',
-          totalSongs: 24,
-          totalAlbums: 4,
-          weeklyGrowth: '+15%'
-        },
-        hourlyData: Array.from({ length: 24 }, (_, i) => ({
-          hour: i,
-          views: Math.floor(Math.random() * 800) + 200,
-          songs: Math.floor(Math.random() * 5) + 1
-        }))
+        songs: response.data.songs || [],
+        trafficSources: response.data.trafficSources || [],
+        demographics: response.data.demographics || { age: [], countries: [] },
+        deviceData: response.data.deviceData || [],
+        performance: response.data.performance || {},
+        hourlyData: response.data.hourlyData || []
       };
       
       setData(processedData);
@@ -210,7 +110,7 @@ const AnalyticsPage = () => {
     return parts.join(':');
   };
 
-  const MetricCard = ({ title, value, subValue, change, icon: Icon, trend = 'up' }) => (
+  const MetricCard = ({ title, value, subValue, change, icon: Icon }) => (
     <div className="metric-card glass-effect">
       <div className="metric-card-inner">
         <div className="metric-header">
@@ -249,11 +149,11 @@ const AnalyticsPage = () => {
           <div className="song-stats">
             <span className="stat-item">
               <Eye className="stat-icon" />
-              {song.plays.toLocaleString()}
+              {song.plays?.toLocaleString()}
             </span>
             <span className="stat-item">
               <ThumbsUp className="stat-icon" />
-              {song.likes.toLocaleString()}
+              {song.likes?.toLocaleString()}
             </span>
             <span className="stat-item">
               <MessageCircle className="stat-icon" />
@@ -327,7 +227,6 @@ const AnalyticsPage = () => {
 
   return (
     <div className="analytics-container">
-      {/* Floating Background Elements */}
       <div className="floating-bg">
         <div className="blob blob-1"></div>
         <div className="blob blob-2"></div>
@@ -335,9 +234,7 @@ const AnalyticsPage = () => {
         <div className="blob blob-4"></div>
       </div>
 
-      {/* Main Content */}
       <div className="analytics-content">
-        {/* Header */}
         <div className="header-card glass-effect">
           <div className="header-top">
             <div className="header-left">
@@ -376,7 +273,6 @@ const AnalyticsPage = () => {
             </div>
           </div>
 
-          {/* Quick Stats */}
           <div className="quick-stats">
             <div className="quick-stat-item">
               <Video className="quick-stat-icon" />
@@ -396,12 +292,11 @@ const AnalyticsPage = () => {
             <div className="quick-stat-item">
               <Music2 className="quick-stat-icon" />
               <span className="quick-stat-label">Songs</span>
-              <span className="quick-stat-value">{data?.performance?.totalSongs || 24}</span>
+              <span className="quick-stat-value">{data?.performance?.totalSongs || 0}</span>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="tabs-container">
           {['Overview', 'Content', 'Songs', 'Audience', 'Revenue', 'Real-time'].map((tab) => (
             <button
@@ -415,7 +310,6 @@ const AnalyticsPage = () => {
           ))}
         </div>
 
-        {/* KPI Cards Grid - Responsive */}
         <div className="kpi-grid">
           <MetricCard
             title="Total Subscribers"
@@ -433,37 +327,35 @@ const AnalyticsPage = () => {
           />
           <MetricCard
             title="Last 28 Days"
-            value={data?.trends?.views?.current?.toLocaleString() || '4,845'}
-            subValue={`${data?.trends?.videos?.current || 6} new videos`}
+            value={data?.trends?.views?.current?.toLocaleString() || '0'}
+            subValue={`${data?.trends?.videos?.current || 0} new videos`}
             change={data?.trends?.views?.change || 0}
             icon={Activity}
           />
           <MetricCard
             title="Engagement Rate"
-            value={`${data?.engagementRate || '10.0'}%`}
+            value={`${data?.engagementRate || '0'}%`}
             subValue="Avg. likes + comments"
             change={2.3}
             icon={Heart}
           />
           <MetricCard
             title="Est. Revenue"
-            value="$1,423"
+            value="$0"
             subValue="Last 28 days"
-            change={15.8}
+            change={0}
             icon={DollarSign}
           />
           <MetricCard
             title="Total Songs"
-            value={data?.performance?.totalSongs || 24}
-            subValue={`${data?.performance?.totalAlbums || 4} albums`}
-            change={8.5}
+            value={data?.performance?.totalSongs || 0}
+            subValue={`${data?.performance?.totalAlbums || 0} albums`}
+            change={0}
             icon={Music2}
           />
         </div>
 
-        {/* Performance Chart and Traffic Sources - Responsive */}
         <div className="charts-row">
-          {/* Performance Chart */}
           <div className="chart-card glass-effect chart-main">
             <div className="chart-header">
               <h3 className="chart-title">Performance Overview</h3>
@@ -521,7 +413,6 @@ const AnalyticsPage = () => {
             </div>
           </div>
 
-          {/* Traffic Sources */}
           <div className="chart-card glass-effect chart-side">
             <h3 className="chart-title">Traffic Sources</h3>
             <div className="pie-chart-container">
@@ -560,7 +451,7 @@ const AnalyticsPage = () => {
                   </div>
                   <div className="traffic-right">
                     <span className="traffic-percent">{source.percentage}%</span>
-                    <span className="traffic-value">({source.value.toLocaleString()})</span>
+                    <span className="traffic-value">({source.value?.toLocaleString()})</span>
                   </div>
                 </div>
               ))}
@@ -568,7 +459,6 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Songs Section - NEW */}
         <div className="songs-section">
           <div className="section-header">
             <h2 className="section-title">
@@ -587,9 +477,7 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Top Content and Demographics - Responsive */}
         <div className="content-row">
-          {/* Top Content */}
           <div className="content-card glass-effect content-main">
             <h3 className="chart-title">Top Performing Content</h3>
             <div className="top-content-list">
@@ -603,8 +491,8 @@ const AnalyticsPage = () => {
                   <div className="content-info">
                     <h4 className="content-title">{video.title}</h4>
                     <div className="content-stats">
-                      <span><Eye className="stat-icon-small" />{video.views.toLocaleString()}</span>
-                      <span><ThumbsUp className="stat-icon-small" />{video.likes.toLocaleString()}</span>
+                      <span><Eye className="stat-icon-small" />{video.views?.toLocaleString()}</span>
+                      <span><ThumbsUp className="stat-icon-small" />{video.likes?.toLocaleString()}</span>
                       <span><MessageCircle className="stat-icon-small" />{video.comments}</span>
                     </div>
                   </div>
@@ -617,15 +505,13 @@ const AnalyticsPage = () => {
             </div>
           </div>
 
-          {/* Demographics */}
           <div className="content-card glass-effect content-side">
             <h3 className="chart-title">Audience Demographics</h3>
             
-            {/* Age Distribution */}
             <div className="demographics-section">
               <h4 className="demographics-subtitle">Age Distribution</h4>
               <div className="age-list">
-                {data?.demographics.age.map((group) => (
+                {data?.demographics?.age?.map((group) => (
                   <div key={group.range} className="age-item">
                     <div className="age-header">
                       <span className="age-range">{group.range}</span>
@@ -644,11 +530,10 @@ const AnalyticsPage = () => {
               </div>
             </div>
 
-            {/* Top Countries */}
             <div className="demographics-section">
               <h4 className="demographics-subtitle">Top Countries</h4>
               <div className="countries-list">
-                {data?.demographics.countries.map((country) => (
+                {data?.demographics?.countries?.map((country) => (
                   <div key={country.country} className="country-item">
                     <div className="country-left">
                       <span className="country-flag">{country.flag}</span>
@@ -656,7 +541,7 @@ const AnalyticsPage = () => {
                     </div>
                     <div className="country-right">
                       <span className="country-percent">{country.percentage}%</span>
-                      <span className="country-views">({country.views.toLocaleString()})</span>
+                      <span className="country-views">({country.views?.toLocaleString()})</span>
                     </div>
                   </div>
                 ))}
@@ -665,77 +550,76 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Performance Metrics and Hourly Activity */}
         <div className="metrics-row">
-          {/* Device Breakdown */}
           <div className="metrics-card glass-effect">
             <h3 className="chart-title">Device Type</h3>
             <div className="device-list">
-              {data?.deviceData.map((device) => (
-                <div key={device.name} className="device-item">
-                  <div className="device-info">
-                    <device.icon className="device-icon" />
-                    <span className="device-name">{device.name}</span>
+              {data?.deviceData?.map((device) => {
+                const Icon = device.icon || Monitor;
+                return (
+                  <div key={device.name} className="device-item">
+                    <div className="device-info">
+                      <Icon className="device-icon" />
+                      <span className="device-name">{device.name}</span>
+                    </div>
+                    <div className="device-bar-container">
+                      <div className="device-bar" style={{ width: `${device.value}%` }} />
+                    </div>
+                    <span className="device-value">{device.value}%</span>
                   </div>
-                  <div className="device-bar-container">
-                    <div className="device-bar" style={{ width: `${device.value}%` }} />
-                  </div>
-                  <span className="device-value">{device.value}%</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Key Metrics */}
           <div className="metrics-card glass-effect">
             <h3 className="chart-title">Key Metrics</h3>
             <div className="key-metrics-grid">
               <div className="key-metric-item">
                 <ClockIcon className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.avgViewDuration}</span>
+                  <span className="key-metric-value">{data?.performance?.avgViewDuration || 'N/A'}</span>
                   <span className="key-metric-label">Avg Duration</span>
                 </div>
               </div>
               <div className="key-metric-item">
                 <TrendUp className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.retentionRate}%</span>
+                  <span className="key-metric-value">{data?.performance?.retentionRate || 0}%</span>
                   <span className="key-metric-label">Retention</span>
                 </div>
               </div>
               <div className="key-metric-item">
                 <Target className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.clickThroughRate}%</span>
+                  <span className="key-metric-value">{data?.performance?.clickThroughRate || 0}%</span>
                   <span className="key-metric-label">CTR</span>
                 </div>
               </div>
               <div className="key-metric-item">
                 <Zap className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.peakHour}</span>
+                  <span className="key-metric-value">{data?.performance?.peakHour || 'N/A'}</span>
                   <span className="key-metric-label">Peak Hour</span>
                 </div>
               </div>
               <div className="key-metric-item">
                 <Music2 className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.topGenre}</span>
+                  <span className="key-metric-value">{data?.performance?.topGenre || 'N/A'}</span>
                   <span className="key-metric-label">Top Genre</span>
                 </div>
               </div>
               <div className="key-metric-item">
                 <Rocket className="key-metric-icon" />
                 <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance.weeklyGrowth}</span>
+                  <span className="key-metric-value">{data?.performance?.weeklyGrowth || '0%'}</span>
                   <span className="key-metric-label">Weekly Growth</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Hourly Activity */}
           <div className="metrics-card glass-effect">
             <h3 className="chart-title">Hourly Activity</h3>
             <div className="hourly-chart">
@@ -761,17 +645,16 @@ const AnalyticsPage = () => {
             <div className="hourly-stats">
               <div className="hourly-stat">
                 <span className="hourly-stat-label">Peak hour</span>
-                <span className="hourly-stat-value">{data?.performance.peakHour}</span>
+                <span className="hourly-stat-value">{data?.performance?.peakHour || 'N/A'}</span>
               </div>
               <div className="hourly-stat">
                 <span className="hourly-stat-label">Avg hourly</span>
-                <span className="hourly-stat-value">450 views</span>
+                <span className="hourly-stat-value">0 views</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recent Uploads - Responsive Grid */}
         <div className="recent-uploads-card glass-effect">
           <div className="section-header">
             <h3 className="chart-title">Recent Uploads</h3>
@@ -790,9 +673,9 @@ const AnalyticsPage = () => {
                 <div className="recent-info">
                   <h4 className="recent-title">{video.title}</h4>
                   <div className="recent-stats">
-                    <span>{video.views.toLocaleString()} views</span>
+                    <span>{video.views?.toLocaleString()} views</span>
                     <span>•</span>
-                    <span>{video.likes.toLocaleString()} likes</span>
+                    <span>{video.likes?.toLocaleString()} likes</span>
                   </div>
                   <div className="recent-date">
                     {format(new Date(video.publishedAt), 'MMM d, yyyy')}
@@ -803,16 +686,15 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Channel Footer */}
         <div className="channel-footer glass-effect">
           <div className="footer-left">
             <img src={data?.channel?.thumbnail || 'https://via.placeholder.com/40'} alt="channel" className="footer-avatar" />
             <div className="footer-info">
               <span className="footer-name">{data?.channel?.name}</span>
-              <span className="footer-id">Channel ID: {data?.channel?.id || 'UCJ7NvR5_ZUwhtM16sJY4anQ'}</span>
+              <span className="footer-id">Channel ID: {data?.channel?.id || 'N/A'}</span>
             </div>
             <span className="footer-separator">•</span>
-            <span className="footer-joined">Joined July 2025</span>
+            <span className="footer-joined">Joined {data?.channel?.joinedDate ? format(new Date(data.channel.joinedDate), 'MMMM yyyy') : 'N/A'}</span>
           </div>
           <div className="footer-right">
             <span className="footer-badge">Verified</span>
@@ -821,14 +703,12 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Copyright */}
         <div className="copyright">
           © {new Date().getFullYear()} ZUCA Portal | Analytics Dashboard
           <p>Portal Built By | CHRISTECH WEBSYS</p>
         </div>
       </div>
 
-      {/* Now Playing Bar */}
       {selectedSong && (
         <NowPlayingBar song={selectedSong} onClose={() => setSelectedSong(null)} />
       )}
@@ -842,7 +722,6 @@ const AnalyticsPage = () => {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Floating Background */
         .floating-bg {
           position: fixed;
           inset: 0;
@@ -901,7 +780,6 @@ const AnalyticsPage = () => {
           66% { transform: translate(-20px, 20px) scale(0.9); }
         }
 
-        /* Glass Effect */
         .glass-effect {
           background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
@@ -910,7 +788,6 @@ const AnalyticsPage = () => {
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
-        /* Main Content */
         .analytics-content {
           position: relative;
           z-index: 1;
@@ -918,7 +795,6 @@ const AnalyticsPage = () => {
           margin: 0 auto;
         }
 
-        /* Header */
         .header-card {
           border-radius: 30px;
           padding: 25px 30px;
@@ -1041,7 +917,6 @@ const AnalyticsPage = () => {
           to { transform: rotate(360deg); }
         }
 
-        /* Quick Stats */
         .quick-stats {
           display: flex;
           gap: 20px;
@@ -1074,7 +949,6 @@ const AnalyticsPage = () => {
           font-weight: bold;
         }
 
-        /* Tabs */
         .tabs-container {
           display: flex;
           gap: 10px;
@@ -1111,12 +985,29 @@ const AnalyticsPage = () => {
           height: 16px;
         }
 
-        /* KPI Grid - Responsive */
         .kpi-grid {
           display: grid;
           grid-template-columns: repeat(6, 1fr);
           gap: 20px;
           margin-bottom: 25px;
+        }
+
+        @media (max-width: 1400px) {
+          .kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        @media (max-width: 1200px) {
+          .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 768px) {
+          .kpi-grid {
+            grid-template-columns: 1fr;
+          }
         }
 
         .metric-card {
@@ -1195,12 +1086,17 @@ const AnalyticsPage = () => {
           margin-left: 4px;
         }
 
-        /* Charts Row - Responsive */
         .charts-row {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: 25px;
           margin-bottom: 25px;
+        }
+
+        @media (max-width: 1200px) {
+          .charts-row {
+            grid-template-columns: 1fr;
+          }
         }
 
         .chart-card {
@@ -1293,7 +1189,6 @@ const AnalyticsPage = () => {
           font-size: 12px;
         }
 
-        /* Songs Section */
         .songs-section {
           margin-bottom: 25px;
         }
@@ -1347,6 +1242,24 @@ const AnalyticsPage = () => {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 20px;
+        }
+
+        @media (max-width: 1400px) {
+          .songs-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        @media (max-width: 1200px) {
+          .songs-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 768px) {
+          .songs-grid {
+            grid-template-columns: 1fr;
+          }
         }
 
         .song-card {
@@ -1477,12 +1390,17 @@ const AnalyticsPage = () => {
           font-size: 10px;
         }
 
-        /* Content Row - Responsive */
         .content-row {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: 25px;
           margin-bottom: 25px;
+        }
+
+        @media (max-width: 1200px) {
+          .content-row {
+            grid-template-columns: 1fr;
+          }
         }
 
         .content-card {
@@ -1588,7 +1506,6 @@ const AnalyticsPage = () => {
           font-size: 10px;
         }
 
-        /* Demographics */
         .demographics-section {
           margin-bottom: 25px;
         }
@@ -1702,12 +1619,17 @@ const AnalyticsPage = () => {
           font-size: 11px;
         }
 
-        /* Metrics Row - Responsive */
         .metrics-row {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 25px;
           margin-bottom: 25px;
+        }
+
+        @media (max-width: 1200px) {
+          .metrics-row {
+            grid-template-columns: 1fr;
+          }
         }
 
         .metrics-card {
@@ -1773,6 +1695,12 @@ const AnalyticsPage = () => {
           gap: 15px;
         }
 
+        @media (max-width: 576px) {
+          .key-metrics-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         .key-metric-item {
           display: flex;
           align-items: center;
@@ -1831,7 +1759,6 @@ const AnalyticsPage = () => {
           font-size: 14px;
         }
 
-        /* Recent Uploads */
         .recent-uploads-card {
           border-radius: 25px;
           padding: 20px;
@@ -1844,9 +1771,21 @@ const AnalyticsPage = () => {
           gap: 15px;
         }
 
+        @media (max-width: 992px) {
+          .recent-uploads-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         .recent-item {
           display: flex;
           gap: 12px;
+        }
+
+        @media (max-width: 768px) {
+          .recent-item {
+            flex-direction: column;
+          }
         }
 
         .recent-thumb-wrapper {
@@ -1854,6 +1793,14 @@ const AnalyticsPage = () => {
           width: 120px;
           height: 68px;
           flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+          .recent-thumb-wrapper {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+          }
         }
 
         .recent-thumb {
@@ -1899,7 +1846,6 @@ const AnalyticsPage = () => {
           color: rgba(255,255,255,0.4);
         }
 
-        /* Channel Footer */
         .channel-footer {
           border-radius: 20px;
           padding: 15px 20px;
@@ -1909,11 +1855,27 @@ const AnalyticsPage = () => {
           margin-bottom: 20px;
         }
 
+        @media (max-width: 768px) {
+          .channel-footer {
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-start;
+          }
+        }
+
         .footer-left {
           display: flex;
           align-items: center;
           gap: 15px;
           flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+          .footer-left {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+          }
         }
 
         .footer-avatar {
@@ -1927,6 +1889,14 @@ const AnalyticsPage = () => {
           align-items: center;
           gap: 8px;
           flex-wrap: wrap;
+        }
+
+        @media (max-width: 576px) {
+          .footer-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+          }
         }
 
         .footer-name {
@@ -1943,6 +1913,12 @@ const AnalyticsPage = () => {
           color: rgba(255,255,255,0.4);
         }
 
+        @media (max-width: 576px) {
+          .footer-separator {
+            display: none;
+          }
+        }
+
         .footer-joined {
           color: rgba(255,255,255,0.4);
           font-size: 12px;
@@ -1954,6 +1930,13 @@ const AnalyticsPage = () => {
           flex-wrap: wrap;
         }
 
+        @media (max-width: 768px) {
+          .footer-right {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+
         .footer-badge {
           padding: 4px 10px;
           background: rgba(255,255,255,0.05);
@@ -1963,7 +1946,6 @@ const AnalyticsPage = () => {
           font-size: 11px;
         }
 
-        /* Copyright */
         .copyright {
           text-align: center;
           color: rgba(255,255,255,0.3);
@@ -1974,7 +1956,6 @@ const AnalyticsPage = () => {
           margin-top: 4px;
         }
 
-        /* Now Playing Bar */
         .now-playing-bar {
           position: fixed;
           bottom: 0;
@@ -1999,6 +1980,12 @@ const AnalyticsPage = () => {
           gap: 15px;
         }
 
+        @media (max-width: 576px) {
+          .now-playing-content {
+            flex-wrap: wrap;
+          }
+        }
+
         .now-playing-thumb {
           width: 48px;
           height: 48px;
@@ -2008,6 +1995,13 @@ const AnalyticsPage = () => {
 
         .now-playing-info {
           flex: 1;
+        }
+
+        @media (max-width: 576px) {
+          .now-playing-info {
+            width: 100%;
+            order: -1;
+          }
         }
 
         .now-playing-title {
@@ -2064,7 +2058,6 @@ const AnalyticsPage = () => {
           background: rgba(255,255,255,0.2);
         }
 
-        /* Loading Animation */
         .loading-container {
           min-height: 100vh;
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%);
@@ -2147,7 +2140,6 @@ const AnalyticsPage = () => {
           100% { transform: translateX(100%); }
         }
 
-        /* Error State */
         .error-container {
           min-height: 100vh;
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%);
@@ -2207,260 +2199,6 @@ const AnalyticsPage = () => {
           width: 16px;
           height: 16px;
           margin-right: 8px;
-        }
-
-        /* ========== RESPONSIVE DESIGN ========== */
-
-        /* Desktop Large (1200px - 1600px) */
-        @media (max-width: 1400px) {
-          .kpi-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-          
-          .songs-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-
-        /* Desktop Medium (992px - 1200px) */
-        @media (max-width: 1200px) {
-          .kpi-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          
-          .songs-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          
-          .charts-row,
-          .content-row,
-          .metrics-row {
-            grid-template-columns: 1fr;
-          }
-          
-          .chart-card.chart-main,
-          .content-card.content-main {
-            order: 1;
-          }
-          
-          .chart-card.chart-side,
-          .content-card.content-side {
-            order: 2;
-          }
-        }
-
-        /* Tablet (768px - 992px) */
-        @media (max-width: 992px) {
-          .header-top {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .header-right {
-            width: 100%;
-            justify-content: flex-start;
-          }
-          
-          .quick-stats {
-            gap: 15px;
-          }
-          
-          .recent-uploads-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        /* Mobile Large (576px - 768px) */
-        @media (max-width: 768px) {
-          .analytics-container {
-            padding: 15px;
-          }
-          
-          .kpi-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .songs-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .metrics-row {
-            grid-template-columns: 1fr;
-          }
-          
-          .footer-left {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-          }
-          
-          .footer-right {
-            width: 100%;
-            justify-content: flex-start;
-          }
-          
-          .channel-footer {
-            flex-direction: column;
-            gap: 15px;
-            align-items: flex-start;
-          }
-          
-          .quick-stats {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .header-meta {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .tabs-container {
-            overflow-x: auto;
-            padding-bottom: 5px;
-            -webkit-overflow-scrolling: touch;
-          }
-          
-          .tab-btn {
-            white-space: nowrap;
-          }
-          
-          .recent-item {
-            flex-direction: column;
-          }
-          
-          .recent-thumb-wrapper {
-            width: 100%;
-            height: auto;
-            aspect-ratio: 16/9;
-          }
-          
-          .content-thumb-wrapper {
-            width: 80px;
-            height: 45px;
-          }
-          
-          .top-content-item {
-            flex-wrap: wrap;
-          }
-          
-          .content-engagement {
-            width: 100%;
-            text-align: left;
-            margin-left: 42px;
-          }
-        }
-
-        /* Mobile Small (< 576px) */
-        @media (max-width: 576px) {
-          .header-card {
-            padding: 20px 15px;
-          }
-          
-          .logo-wrapper {
-            padding: 8px;
-          }
-          
-          .logo-icon {
-            width: 24px;
-            height: 24px;
-          }
-          
-          .header-title {
-            font-size: 22px;
-          }
-          
-          .metric-card {
-            padding: 15px;
-          }
-          
-          .metric-value {
-            font-size: 20px;
-          }
-          
-          .chart-card,
-          .content-card,
-          .metrics-card {
-            padding: 15px;
-          }
-          
-          .key-metrics-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .footer-info {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 5px;
-          }
-          
-          .footer-separator {
-            display: none;
-          }
-          
-          .now-playing-content {
-            flex-wrap: wrap;
-          }
-          
-          .now-playing-info {
-            width: 100%;
-            order: -1;
-          }
-        }
-
-        /* Extra Small Mobile (< 400px) */
-        @media (max-width: 400px) {
-          .header-right {
-            flex-wrap: wrap;
-          }
-          
-          .date-selector {
-            width: 100%;
-          }
-          
-          .refresh-btn,
-          .download-btn {
-            flex: 1;
-          }
-          
-          .song-stats {
-            flex-wrap: wrap;
-          }
-          
-          .content-stats {
-            flex-wrap: wrap;
-          }
-        }
-
-        /* Print Styles */
-        @media print {
-          .floating-bg,
-          .tabs-container,
-          .refresh-btn,
-          .download-btn,
-          .now-playing-bar {
-            display: none;
-          }
-          
-          .analytics-container {
-            background: white;
-            padding: 0;
-          }
-          
-          .glass-effect {
-            background: white;
-            border: 1px solid #ddd;
-            box-shadow: none;
-          }
-          
-          .metric-title,
-          .metric-value,
-          .metric-subvalue,
-          .chart-title,
-          .content-title,
-          .recent-title {
-            color: black;
-          }
         }
       `}</style>
     </div>

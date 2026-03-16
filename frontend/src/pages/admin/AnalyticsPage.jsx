@@ -51,10 +51,9 @@ const AnalyticsPage = () => {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/admin/analytics/youtube', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      const response = await fetch('https://zuca-portal2.onrender.com/api/admin/analytics/youtube', {
+  headers: { Authorization: `Bearer ${token}` }
+});
       if (!response.ok) throw new Error('Failed to fetch YouTube data');
       
       const youtubeData = await response.json();

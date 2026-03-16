@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const http = require("http");
+const axios = require("axios");
 
 // ================== EXPRESS & MIDDLEWARE ==================
 const express = require("express");
@@ -62,6 +63,7 @@ const markAsRead = (userId) => {
   userNotifs.forEach(n => n.read = true);
   return userNotifs;
 };
+
 
 // ================== SOCKET.IO ==================
 const { Server } = require("socket.io");
@@ -156,9 +158,181 @@ const hasRole = (req, allowedRoles) => {
 };
 
 
-// ====================
-// PUBLIC SONGS ROUTES (no auth needed)
-// ====================
+// TEMPORARY DEBUG ENDPOINT - NO AUTH REQUIRED
+app.get("/api/chat/debug/public-files", async (req, res) => {
+  try {
+    const files = await prisma.file.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        size: true,
+        createdAt: true,
+        messageId: true
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      count: files.length,
+      files: files 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TEMPORARY PUBLIC FILE VIEWER
+app.get("/api/chat/debug/public-file/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileBuffer = Buffer.from(file.data, 'base64');
+
+    res.setHeader('Content-Type', file.type);
+    res.setHeader('Content-Disposition', `inline; filename="${file.name}"`);
+    res.send(fileBuffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ================== YOUTUBE ANALYTICS ROUTE ==================
+app.get("/api/admin/analytics/youtube", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+    const apiKey = process.env.YOUTUBE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "YouTube API key not configured" });
+    }
+
+    // Get channel statistics
+    const channelResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${apiKey}`
+    );
+    
+    const channelStats = channelResponse.data.items[0];
+
+    // Get recent videos (last 50)
+    const videosResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&order=date&maxResults=50&type=video`
+    );
+
+    // Get detailed video statistics
+    const videoIds = videosResponse.data.items.map(v => v.id.videoId).join(',');
+    const videoStatsResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${videoIds}&part=statistics,contentDetails`
+    );
+
+    // Process video data
+    const videos = videosResponse.data.items.map((video, index) => {
+      const stats = videoStatsResponse.data.items.find(v => v.id === video.id.videoId) || {};
+      const publishedAt = new Date(video.snippet.publishedAt);
+      
+      // Calculate engagement rate
+      const views = parseInt(stats.statistics?.viewCount || 0);
+      const likes = parseInt(stats.statistics?.likeCount || 0);
+      const comments = parseInt(stats.statistics?.commentCount || 0);
+      const engagement = views > 0 ? ((likes + comments) / views) * 100 : 0;
+      
+      return {
+        id: video.id.videoId,
+        title: video.snippet.title,
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium?.url,
+        publishedAt: publishedAt.toISOString(),
+        views: parseInt(stats.statistics?.viewCount || 0),
+        likes: parseInt(stats.statistics?.likeCount || 0),
+        comments: parseInt(stats.statistics?.commentCount || 0),
+        duration: stats.contentDetails?.duration || 'PT0S',
+        engagement
+      };
+    });
+
+    // Calculate trends (last 28 days vs previous 28 days)
+    const now = new Date();
+    const currentPeriodStart = new Date(now);
+    currentPeriodStart.setDate(now.getDate() - 28);
+    const previousPeriodStart = new Date(currentPeriodStart);
+    previousPeriodStart.setDate(currentPeriodStart.getDate() - 28);
+
+    const currentVideos = videos.filter(v => new Date(v.publishedAt) >= currentPeriodStart);
+    const previousVideos = videos.filter(v => {
+      const date = new Date(v.publishedAt);
+      return date >= previousPeriodStart && date < currentPeriodStart;
+    });
+
+    const currentViews = currentVideos.reduce((sum, v) => sum + v.views, 0);
+    const previousViews = previousVideos.reduce((sum, v) => sum + v.views, 0);
+
+    // Generate daily stats for chart
+    const dailyStats = {};
+    videos.forEach(video => {
+      const date = video.publishedAt.split('T')[0];
+      if (!dailyStats[date]) {
+        dailyStats[date] = { views: 0, videos: 0 };
+      }
+      dailyStats[date].views += video.views;
+      dailyStats[date].videos += 1;
+    });
+
+    const chartData = Object.entries(dailyStats)
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30);
+
+    // Get top videos by views
+    const topVideos = [...videos].sort((a, b) => b.views - a.views).slice(0, 5);
+
+    // Calculate average engagement
+    const avgEngagement = videos.reduce((sum, v) => sum + v.engagement, 0) / videos.length || 0;
+
+    const response = {
+      channel: {
+        id: channelStats.id,
+        name: channelStats.snippet.title,
+        thumbnail: channelStats.snippet.thumbnails.default?.url,
+        subscribers: parseInt(channelStats.statistics.subscriberCount || 0),
+        totalViews: parseInt(channelStats.statistics.viewCount || 0),
+        totalVideos: parseInt(channelStats.statistics.videoCount || 0),
+        joinedDate: channelStats.snippet.publishedAt
+      },
+      recentVideos: videos.slice(0, 10),
+      topVideos,
+      trends: {
+        views: {
+          current: currentViews,
+          previous: previousViews,
+          change: previousViews > 0 ? ((currentViews - previousViews) / previousViews) * 100 : 0
+        },
+        videos: {
+          current: currentVideos.length,
+          previous: previousVideos.length,
+          change: previousVideos.length > 0 ? ((currentVideos.length - previousVideos.length) / previousVideos.length) * 100 : 0
+        }
+      },
+      dailyStats: chartData,
+      engagementRate: avgEngagement.toFixed(1)
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("YouTube Analytics Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // ====================
 // SIMPLE PAGINATED SONGS
@@ -3591,18 +3765,247 @@ app.get("/api/jumuia/:jumuiaId/notifications", authenticate, checkJumuiaAccess, 
   }
 });
 
-// ================== EXISTING CHAT ROUTES ==================
+// ================== ENHANCED CHAT WITH DATABASE FILE STORAGE ==================
+
+// Multer config - Store in memory for database storage
+const chatUpload = multer({
+  storage: multer.memoryStorage(), // Store in memory, not disk
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit (optional, remove if you want unlimited)
+  fileFilter: (req, file, cb) => {
+    // Allow all file types
+    cb(null, true);
+  },
+});
+
+// Ensure default chat room exists
 async function ensureDefaultChatRoom() {
   const room = await prisma.chatRoom.findFirst({ where: { name: "default" } });
   if (!room) await prisma.chatRoom.create({ data: { name: "default" } });
 }
 ensureDefaultChatRoom();
 
+// ================== FILE UPLOAD & MANAGEMENT ==================
+
+// Upload files to database
+app.post("/api/chat/upload", authenticate, chatUpload.array("files", 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    const uploadedFiles = [];
+
+    for (const file of req.files) {
+      // Convert buffer to base64
+      const base64Data = file.buffer.toString('base64');
+
+      // Store in database
+      const dbFile = await prisma.file.create({
+        data: {
+          name: file.originalname,
+          type: file.mimetype,
+          size: file.size,
+          data: base64Data,
+          userId: req.user.userId
+        }
+      });
+
+      // FIXED: Use dynamic URL from request - NO HARDCODING!
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const baseUrl = `${protocol}://${host}`;
+      
+      uploadedFiles.push({
+        id: dbFile.id,
+        name: dbFile.name,
+        type: dbFile.type,
+        size: dbFile.size,
+        url: `${baseUrl}/api/chat/files/${dbFile.id}`
+      });
+    }
+
+    res.json(uploadedFiles);
+  } catch (err) {
+    console.error("Error uploading files:", err);
+    res.status(500).json({ error: "Failed to upload files" });
+  }
+});
+
+// Serve files from database - accepts token in header OR query param
+app.get("/api/chat/files/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const { token } = req.query;
+    
+    // Check for token in header or query param
+    let userId = null;
+    let authToken = null;
+    
+    // First check query param
+    if (token) {
+      authToken = token;
+    } else {
+      // Then check header
+      const authHeader = req.headers.authorization;
+      if (authHeader) {
+        authToken = authHeader.split(" ")[1];
+      }
+    }
+    
+    // Verify token
+    if (!authToken) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    
+    try {
+      const decoded = jwt.verify(authToken, JWT_SECRET);
+      userId = decoded.userId;
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    
+    // Get file from database
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Optional: Check if user has access to this file
+    // You can add additional checks here if needed
+
+    // Convert base64 back to buffer
+    const fileBuffer = Buffer.from(file.data, 'base64');
+
+    // Set proper headers for image display
+    res.setHeader('Content-Type', file.type);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Length', file.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // Send file
+    res.send(fileBuffer);
+  } catch (err) {
+    console.error("Error serving file:", err);
+    res.status(500).json({ error: "Failed to serve file" });
+  }
+});
+
+// Download file (forces download instead of inline display)
+app.get("/api/chat/files/:fileId/download", authenticate, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileBuffer = Buffer.from(file.data, 'base64');
+
+    res.setHeader('Content-Type', file.type);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Length', file.size);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    res.send(fileBuffer);
+  } catch (err) {
+    console.error("Error downloading file:", err);
+    res.status(500).json({ error: "Failed to download file" });
+  }
+});
+
+// Delete file (soft delete by removing message association)
+app.delete("/api/chat/files/:fileId", authenticate, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      include: { message: true }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Check if user owns the file or is admin
+    if (file.userId !== req.user.userId && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // If file is attached to a message, remove the association first
+    if (file.messageId) {
+      await prisma.file.update({
+        where: { id: fileId },
+        data: { messageId: null }
+      });
+    }
+
+    // Delete the file from database
+    await prisma.file.delete({
+      where: { id: fileId }
+    });
+
+    // Emit file deleted event
+    io.emit("file_deleted", { fileId, messageId: file.messageId });
+
+    res.json({ message: "File deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting file:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get files for a specific message
+app.get("/api/chat/messages/:messageId/files", authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    const files = await prisma.file.findMany({
+      where: { 
+        messageId,
+        message: { isDeleted: false }
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        size: true,
+        createdAt: true,
+        userId: true
+      }
+    });
+
+    const filesWithUrls = files.map(f => ({
+      ...f,
+      url: `/api/chat/files/${f.id}`,
+      thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+    }));
+
+    res.json(filesWithUrls);
+  } catch (err) {
+    console.error("Error fetching message files:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== BASIC CHAT ROUTES (keep for compatibility) ==================
+
 app.get("/api/chat", authenticate, async (req, res) => {
   try {
     const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
     const messages = await prisma.message.findMany({
-      where: { roomId: defaultRoom.id },
+      where: { 
+        roomId: defaultRoom.id,
+        isDeleted: false 
+      },
       include: { 
         user: { 
           select: { 
@@ -3612,15 +4015,29 @@ app.get("/api/chat", authenticate, async (req, res) => {
             role: true,
             profileImage: true 
           } 
-        } 
+        },
+        files: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            size: true
+          }
+        }
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
     });
     
     const formattedMessages = messages.map(m => ({
-      ...m,
+    
       createdAt: m.createdAt.toISOString(),
-      attachments: m.attachments ? JSON.parse(m.attachments) : []
+      attachments: m.attachments ? JSON.parse(m.attachments) : [],
+      files: m.files.map(f => ({
+
+        ...f,
+        url: `/api/chat/files/${f.id}`,
+        thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+      }))
     }));
     
     res.json(formattedMessages);
@@ -3640,6 +4057,7 @@ app.post("/api/chat", authenticate, async (req, res) => {
 
     const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
     
+    // Create message
     const message = await prisma.message.create({ 
       data: { 
         content: content || "",
@@ -3649,6 +4067,20 @@ app.post("/api/chat", authenticate, async (req, res) => {
         attachments: attachments ? JSON.stringify(attachments) : null
       } 
     });
+
+    // If there are file IDs in attachments, link them to this message
+    if (attachments && attachments.length > 0) {
+      const fileIds = attachments
+        .filter(a => a.id) // Only items that have an id (our new file system)
+        .map(a => a.id);
+      
+      if (fileIds.length > 0) {
+        await prisma.file.updateMany({
+          where: { id: { in: fileIds } },
+          data: { messageId: message.id }
+        });
+      }
+    }
     
     const messageWithUser = await prisma.message.findUnique({
       where: { id: message.id },
@@ -3661,14 +4093,27 @@ app.post("/api/chat", authenticate, async (req, res) => {
             role: true,
             profileImage: true 
           } 
-        } 
+        },
+        files: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            size: true
+          }
+        }
       }
     });
     
     const formattedMessage = {
       ...messageWithUser,
       createdAt: messageWithUser.createdAt.toISOString(),
-      attachments: messageWithUser.attachments ? JSON.parse(messageWithUser.attachments) : []
+      attachments: messageWithUser.attachments ? JSON.parse(messageWithUser.attachments) : [],
+      files: messageWithUser.files.map(f => ({
+        ...f,
+        url: `/api/chat/files/${f.id}`,
+        thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+      }))
     };
     
     io.emit("new_message", formattedMessage);
@@ -3680,63 +4125,7 @@ app.post("/api/chat", authenticate, async (req, res) => {
   }
 });
 
-app.delete("/api/chat/:id", requireAdmin, async (req, res) => {
-  try {
-    await prisma.message.delete({ where: { id: req.params.id } });
-    io.emit("message_deleted", { id: req.params.id });
-    res.json({ message: "Message deleted" });
-  } catch (err) {
-    console.error("Error deleting message:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ================== ENHANCED CHAT ==================
-const chatUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const chatDir = path.join(__dirname, "uploads/chat");
-      if (!fs.existsSync(chatDir)) fs.mkdirSync(chatDir, { recursive: true });
-      cb(null, chatDir);
-    },
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `chat_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`);
-    },
-  }),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|pdf|doc|docx|txt/;
-    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowedTypes.test(file.mimetype.split("/")[1]);
-    if (ext || mime) cb(null, true);
-    else cb(new Error("File type not allowed"), false);
-  },
-});
-
-app.use("/uploads/chat", express.static(path.join(__dirname, "uploads/chat")));
-
-app.post("/api/chat/upload", authenticate, chatUpload.array("files", 5), async (req, res) => {
-  try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: "No files uploaded" });
-    }
-
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const uploadedFiles = req.files.map(file => ({
-      name: file.originalname,
-      url: `${baseUrl}/uploads/chat/${file.filename}`,
-      type: file.mimetype,
-      size: file.size,
-      filename: file.filename
-    }));
-
-    res.json(uploadedFiles);
-  } catch (err) {
-    console.error("Error uploading files:", err);
-    res.status(500).json({ error: "Failed to upload files" });
-  }
-});
+// ================== ENHANCED CHAT ROUTES ==================
 
 app.get("/api/chat/enhanced", authenticate, async (req, res) => {
   try {
@@ -3755,6 +4144,16 @@ app.get("/api/chat/enhanced", authenticate, async (req, res) => {
             email: true,
             role: true,
             profileImage: true
+          }
+        },
+        files: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            size: true,
+            createdAt: true,
+            userId: true
           }
         },
         reactions: {
@@ -3782,10 +4181,21 @@ app.get("/api/chat/enhanced", authenticate, async (req, res) => {
           include: {
             user: {
               select: { id: true, fullName: true }
+            },
+            files: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                size: true
+              }
             }
           }
         },
         replies: {
+          where: { isDeleted: false },
+          take: 3,
+          orderBy: { createdAt: 'desc' },
           include: {
             user: {
               select: { id: true, fullName: true }
@@ -3793,7 +4203,7 @@ app.get("/api/chat/enhanced", authenticate, async (req, res) => {
           }
         }
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" }, // 👈 CHANGE THIS FROM "asc" TO "desc"
     });
 
     const formattedMessages = messages.map(m => ({
@@ -3802,6 +4212,11 @@ app.get("/api/chat/enhanced", authenticate, async (req, res) => {
       updatedAt: m.updatedAt?.toISOString(),
       deletedAt: m.deletedAt?.toISOString(),
       attachments: m.attachments ? JSON.parse(m.attachments) : [],
+      files: m.files.map(f => ({
+        ...f,
+        url: `/api/chat/files/${f.id}`,
+        thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+      })),
       reactions: m.reactions.map(r => ({
         ...r,
         createdAt: r.createdAt.toISOString()
@@ -3828,20 +4243,49 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
   try {
     const { content, replyToId, attachments } = req.body;
     
-    if (!content || content.trim() === "") {
+    if ((!content || content.trim() === "") && (!attachments || attachments.length === 0)) {
       return res.status(400).json({ error: "Message cannot be empty" });
     }
 
     const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
-    
+
+    if (!defaultRoom) {
+      return res.status(404).json({ error: "Chat room not found" });
+    }
+
+    // Create message
     const message = await prisma.message.create({
       data: {
-        content: content.trim(),
+        content: content || "",
         userId: req.user.userId,
         roomId: defaultRoom.id,
-        replyToId: replyToId || null,
-        attachments: attachments ? JSON.stringify(attachments) : null,
-      },
+        replyToId: replyToId || null
+      }
+    });
+
+    // Link files if any
+    const fileIds = [];
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        if (attachment.id) {
+          fileIds.push(attachment.id);
+        }
+      }
+      
+      if (fileIds.length > 0) {
+        await prisma.file.updateMany({
+          where: { 
+            id: { in: fileIds },
+            userId: req.user.userId // Ensure user owns these files
+          },
+          data: { messageId: message.id }
+        });
+      }
+    }
+
+    // Get full message with relations
+    const fullMessage = await prisma.message.findUnique({
+      where: { id: message.id },
       include: {
         user: {
           select: {
@@ -3850,6 +4294,15 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
             email: true,
             role: true,
             profileImage: true
+          }
+        },
+        files: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            size: true,
+            createdAt: true
           }
         },
         replyTo: {
@@ -3874,56 +4327,64 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
       data: { lastMessageAt: new Date() }
     });
 
-    const mentionRegex = /@(\w+)/g;
-    let match;
-    const mentions = [];
-    while ((match = mentionRegex.exec(content)) !== null) {
-      const username = match[1];
-      const mentionedUser = await prisma.user.findFirst({
-        where: { fullName: { contains: username, mode: 'insensitive' } }
-      });
-      if (mentionedUser && mentionedUser.id !== req.user.userId) {
-        mentions.push({
-          userId: mentionedUser.id,
-          messageId: message.id
+    // Handle mentions
+    if (content) {
+      const mentionRegex = /@(\w+)/g;
+      let match;
+      const mentions = [];
+      
+      while ((match = mentionRegex.exec(content)) !== null) {
+        const username = match[1];
+        const mentionedUser = await prisma.user.findFirst({
+          where: { fullName: { contains: username, mode: 'insensitive' } }
         });
-      }
-    }
-
-    if (mentions.length > 0) {
-      await prisma.mention.createMany({
-        data: mentions
-      });
-
-      const now = new Date();
-      const notifications = mentions.map(m => ({
-        id: `mention-${message.id}-${m.userId}-${Date.now()}`,
-        userId: m.userId,
-        type: "mention",
-        title: "👤 You were mentioned",
-        message: `${req.user.fullName} mentioned you: ${content.substring(0, 50)}...`,
-        read: false,
-        createdAt: now,
-      }));
-
-      await prisma.notification.createMany({
-        data: notifications
-      });
-
-      if (io) {
-        notifications.forEach(notif => {
-          io.to(notif.userId).emit("new_notification", {
-            ...notif,
-            createdAt: now.toISOString()
+        if (mentionedUser && mentionedUser.id !== req.user.userId) {
+          mentions.push({
+            userId: mentionedUser.id,
+            messageId: message.id
           });
+        }
+      }
+
+      if (mentions.length > 0) {
+        await prisma.mention.createMany({
+          data: mentions
         });
+
+        const now = new Date();
+        const notifications = mentions.map(m => ({
+          id: `mention-${message.id}-${m.userId}-${Date.now()}`,
+          userId: m.userId,
+          type: "mention",
+          title: "👤 You were mentioned",
+          message: `${req.user.fullName} mentioned you: ${content.substring(0, 50)}...`,
+          read: false,
+          createdAt: now,
+        }));
+
+        await prisma.notification.createMany({
+          data: notifications
+        });
+
+        if (io) {
+          notifications.forEach(notif => {
+            io.to(notif.userId).emit("new_notification", {
+              ...notif,
+              createdAt: now.toISOString()
+            });
+          });
+        }
       }
     }
 
     const formattedMessage = {
-      ...message,
-      createdAt: message.createdAt.toISOString(),
-      attachments: message.attachments ? JSON.parse(message.attachments) : [],
+      ...fullMessage,
+      createdAt: fullMessage.createdAt.toISOString(),
+      files: fullMessage.files.map(f => ({
+        ...f,
+        url: `/api/chat/files/${f.id}`,
+        thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+      }))
     };
 
     io.emit("new_message", formattedMessage);
@@ -3935,6 +4396,92 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
   }
 });
 
+// ================== MESSAGE MANAGEMENT ==================
+
+// Delete message (soft delete)
+app.delete("/api/chat/:id", authenticate, async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: { files: true }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Check if user is authorized (message owner or admin)
+    if (message.userId !== req.user.userId && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Soft delete the message
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user.userId
+      }
+    });
+
+    // Option 1: Keep files but remove message association
+    await prisma.file.updateMany({
+      where: { messageId },
+      data: { messageId: null }
+    });
+
+    // Option 2: Delete files completely (uncomment if you want this)
+    // await prisma.file.deleteMany({
+    //   where: { messageId }
+    // });
+
+    io.emit("message_deleted", { id: messageId });
+
+    res.json({ message: "Message deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting message:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Hard delete message (admin only)
+app.delete("/api/chat/:id/hard", requireAdmin, async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: { files: true }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Delete associated files from database
+    await prisma.file.deleteMany({
+      where: { messageId }
+    });
+
+    // Delete the message
+    await prisma.message.delete({
+      where: { id: messageId }
+    });
+
+    io.emit("message_permanently_deleted", { id: messageId });
+
+    res.json({ message: "Message and associated files permanently deleted" });
+  } catch (err) {
+    console.error("Error hard deleting message:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== REACTIONS ==================
+
 app.post("/api/chat/:messageId/reactions", authenticate, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -3942,6 +4489,18 @@ app.post("/api/chat/:messageId/reactions", authenticate, async (req, res) => {
 
     if (!reaction) {
       return res.status(400).json({ error: "Reaction is required" });
+    }
+
+    // Check if message exists and is not deleted
+    const message = await prisma.message.findFirst({
+      where: { 
+        id: messageId,
+        isDeleted: false
+      }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
     }
 
     const existing = await prisma.messageReaction.findUnique({
@@ -3958,6 +4517,13 @@ app.post("/api/chat/:messageId/reactions", authenticate, async (req, res) => {
       await prisma.messageReaction.delete({
         where: { id: existing.id }
       });
+      
+      io.emit("reaction_removed", { 
+        messageId, 
+        userId: req.user.userId, 
+        reaction 
+      });
+      
       res.json({ message: "Reaction removed", action: "removed" });
     } else {
       const newReaction = await prisma.messageReaction.create({
@@ -3988,6 +4554,8 @@ app.post("/api/chat/:messageId/reactions", authenticate, async (req, res) => {
   }
 });
 
+// ================== MESSAGE EDITING ==================
+
 app.put("/api/chat/:messageId", authenticate, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -3997,8 +4565,11 @@ app.put("/api/chat/:messageId", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Message cannot be empty" });
     }
 
-    const message = await prisma.message.findUnique({
-      where: { id: messageId }
+    const message = await prisma.message.findFirst({
+      where: { 
+        id: messageId,
+        isDeleted: false
+      }
     });
 
     if (!message) {
@@ -4038,9 +4609,22 @@ app.put("/api/chat/:messageId", authenticate, async (req, res) => {
   }
 });
 
+// ================== READ RECEIPTS ==================
+
 app.post("/api/chat/:messageId/read", authenticate, async (req, res) => {
   try {
     const { messageId } = req.params;
+
+    const message = await prisma.message.findFirst({
+      where: { 
+        id: messageId,
+        isDeleted: false
+      }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
 
     const existing = await prisma.readReceipt.findUnique({
       where: {
@@ -4082,12 +4666,17 @@ app.post("/api/chat/:messageId/read", authenticate, async (req, res) => {
   }
 });
 
+// ================== PINNED MESSAGES ==================
+
 app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res) => {
   try {
     const { messageId } = req.params;
 
-    const message = await prisma.message.findUnique({
-      where: { id: messageId },
+    const message = await prisma.message.findFirst({
+      where: { 
+        id: messageId,
+        isDeleted: false 
+      },
       include: { room: true }
     });
 
@@ -4125,6 +4714,14 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
             include: {
               user: {
                 select: { id: true, fullName: true }
+              },
+              files: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  size: true
+                }
               }
             }
           }
@@ -4133,7 +4730,16 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
 
       const formattedPin = {
         ...pin,
-        createdAt: pin.createdAt.toISOString()
+        createdAt: pin.createdAt.toISOString(),
+        message: {
+          ...pin.message,
+          createdAt: pin.message.createdAt.toISOString(),
+          files: pin.message.files.map(f => ({
+            ...f,
+            url: `/api/chat/files/${f.id}`,
+            thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+          }))
+        }
       };
 
       io.emit("message_pinned", formattedPin);
@@ -4146,7 +4752,7 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
             userId: message.userId,
             type: "pin",
             title: "📌 Your message was pinned",
-            message: `Your message was pinned by ${req.user.fullName}`,
+            message: `Your message was pinned by ${user.fullName}`,
             read: false,
             createdAt: now,
           }
@@ -4171,12 +4777,23 @@ app.get("/api/chat/pinned", authenticate, async (req, res) => {
     const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
     
     const pins = await prisma.pin.findMany({
-      where: { roomId: defaultRoom.id },
+      where: { 
+        roomId: defaultRoom.id,
+        message: { isDeleted: false }
+      },
       include: {
         message: {
           include: {
             user: {
               select: { id: true, fullName: true, role: true }
+            },
+            files: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                size: true
+              }
             }
           }
         },
@@ -4193,7 +4810,12 @@ app.get("/api/chat/pinned", authenticate, async (req, res) => {
       message: {
         ...pin.message,
         createdAt: pin.message.createdAt.toISOString(),
-        attachments: pin.message.attachments ? JSON.parse(pin.message.attachments) : []
+        attachments: pin.message.attachments ? JSON.parse(pin.message.attachments) : [],
+        files: pin.message.files.map(f => ({
+          ...f,
+          url: `/api/chat/files/${f.id}`,
+          thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+        }))
       }
     }));
 
@@ -4203,6 +4825,8 @@ app.get("/api/chat/pinned", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ================== USER BLOCKING ==================
 
 app.post("/api/chat/block/:userId", authenticate, async (req, res) => {
   try {
@@ -4259,6 +4883,8 @@ app.get("/api/chat/blocked", authenticate, async (req, res) => {
   }
 });
 
+// ================== ONLINE USERS ==================
+
 app.get("/api/chat/online", authenticate, async (req, res) => {
   try {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -4289,6 +4915,8 @@ app.get("/api/chat/online", authenticate, async (req, res) => {
   }
 });
 
+// ================== SEARCH MESSAGES ==================
+
 app.get("/api/chat/search", authenticate, async (req, res) => {
   try {
     const { q, userId, from, to } = req.query;
@@ -4317,6 +4945,14 @@ app.get("/api/chat/search", authenticate, async (req, res) => {
       include: {
         user: {
           select: { id: true, fullName: true, role: true }
+        },
+        files: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            size: true
+          }
         }
       },
       orderBy: { createdAt: "desc" },
@@ -4326,12 +4962,42 @@ app.get("/api/chat/search", authenticate, async (req, res) => {
     const formattedMessages = messages.map(m => ({
       ...m,
       createdAt: m.createdAt.toISOString(),
-      attachments: m.attachments ? JSON.parse(m.attachments) : []
+      attachments: m.attachments ? JSON.parse(m.attachments) : [],
+      files: m.files.map(f => ({
+        ...f,
+        url: `/api/chat/files/${f.id}`,
+        thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+      }))
     }));
 
     res.json(formattedMessages);
   } catch (err) {
     console.error("Error searching messages:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DEBUG: Check files in database
+app.get("/api/chat/debug/files", authenticate, async (req, res) => {
+  try {
+    const files = await prisma.file.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        size: true,
+        createdAt: true,
+        messageId: true,
+        userId: true
+      }
+    });
+    
+    console.log(`📊 Found ${files.length} files in database`);
+    res.json(files);
+  } catch (err) {
+    console.error("Debug error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -5598,6 +6264,9 @@ async function createAndSendNotification({ userId, type, title, message, data = 
 
   return notif;
 }
+
+
+
 
 // ================== NOTIFICATIONS ==================
 app.post("/api/notify", authenticate, async (req, res) => {

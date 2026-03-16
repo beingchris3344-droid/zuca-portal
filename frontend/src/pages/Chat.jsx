@@ -20,11 +20,27 @@ function Chat() {
   // Chat input states
   const [newMessage, setNewMessage] = useState("");
   const [replyTo, setReplyTo] = useState(null);
+  const [editMessage, setEditMessage] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [showMediaPreview, setShowMediaPreview] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
+
+  // WhatsApp-style long press
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [showMessageActions, setShowMessageActions] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState(null);
+  const [touchPosition, setTouchPosition] = useState({ x: 0, y: 0 });
+
+  // Reactions and pins
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [showPinned, setShowPinned] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -32,6 +48,7 @@ function Chat() {
   const refreshTimerRef = useRef(null);
   const lastScrollPositionRef = useRef(0);
   const isUserScrollingRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -68,38 +85,268 @@ function Chat() {
     }
   };
 
-  // Fetch messages with WhatsApp scroll logic
+  // Fetch pinned messages
+  const fetchPinnedMessages = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/chat/pinned`, { headers });
+      setPinnedMessages(response.data);
+    } catch (err) {
+      console.error("Error fetching pinned messages:", err);
+    }
+  };
+
+  // Pin/Unpin message
+  const togglePinMessage = async (messageId) => {
+    try {
+      const response = await axios.post(`${BASE_URL}/api/chat/${messageId}/pin`, {}, { headers });
+      if (response.data.message === "Message unpinned") {
+        showNotification("Message unpinned", "success");
+        setPinnedMessages(prev => prev.filter(p => p.messageId !== messageId));
+      } else {
+        showNotification("Message pinned", "success");
+        fetchPinnedMessages(); // Refresh pins
+      }
+      setShowMessageActions(false);
+      setSelectedMessage(null);
+    } catch (err) {
+      console.error("Error pinning message:", err);
+      showNotification("Failed to pin message", "error");
+    }
+  };
+
+  // Fetch blocked users
+  const fetchBlockedUsers = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/chat/blocked`, { headers });
+      setBlockedUsers(response.data);
+    } catch (err) {
+      console.error("Error fetching blocked users:", err);
+    }
+  };
+
+  // Block/Unblock user
+  const toggleBlockUser = async (userId) => {
+    try {
+      const response = await axios.post(`${BASE_URL}/api/chat/block/${userId}`, {}, { headers });
+      showNotification(response.data.message, "success");
+      fetchBlockedUsers(); // Refresh blocked list
+    } catch (err) {
+      console.error("Error blocking user:", err);
+      showNotification("Failed to block user", "error");
+    }
+  };
+
+  // Search messages
+  const searchMessages = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearching(true);
+    try {
+      const response = await axios.get(`${BASE_URL}/api/chat/search?q=${encodeURIComponent(query)}`, { headers });
+      setSearchResults(response.data);
+    } catch (err) {
+      console.error("Error searching messages:", err);
+      showNotification("Search failed", "error");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery) {
+      const timeout = setTimeout(() => {
+        searchMessages(searchQuery);
+      }, 500);
+      return () => clearTimeout(timeout);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
+
+  // WhatsApp-style long press handlers
+  const handleTouchStart = (e, message) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    setTouchPosition({ x: touch.clientX, y: touch.clientY });
+    
+    const timer = setTimeout(() => {
+      setSelectedMessage(message);
+      setShowMessageActions(true);
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500);
+    
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchMove = (e) => {
+    if (longPressTimer) {
+      const touch = e.touches[0];
+      const distance = Math.sqrt(
+        Math.pow(touch.clientX - touchPosition.x, 2) + 
+        Math.pow(touch.clientY - touchPosition.y, 2)
+      );
+      if (distance > 10) {
+        clearTimeout(longPressTimer);
+        setLongPressTimer(null);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Edit message
+  const handleEditMessage = async () => {
+    if (!editMessage || !editMessage.content.trim()) return;
+
+    try {
+      const response = await axios.put(
+        `${BASE_URL}/api/chat/${editMessage.id}`,
+        { content: editMessage.content },
+        { headers }
+      );
+
+      setMessages(prev => prev.map(msg => 
+        msg.id === editMessage.id ? { ...msg, content: response.data.content, isEdited: true } : msg
+      ));
+      setEditMessage(null);
+      showNotification("Message edited", "success");
+    } catch (err) {
+      console.error("Error editing message:", err);
+      showNotification("Failed to edit message", "error");
+    }
+  };
+
+  // Delete message (soft delete)
+  const handleDeleteMessage = async (messageId) => {
+    if (!window.confirm("Delete this message?")) return;
+
+    try {
+      await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      setShowMessageActions(false);
+      setSelectedMessage(null);
+      showNotification("Message deleted", "success");
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      showNotification("Failed to delete message", "error");
+    }
+  };
+
+  // Hard delete message (admin only)
+  const handleHardDeleteMessage = async (messageId) => {
+    if (!window.confirm("Permanently delete this message and its files? This cannot be undone!")) return;
+
+    try {
+      await axios.delete(`${BASE_URL}/api/chat/${messageId}/hard`, { headers });
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      setShowMessageActions(false);
+      setSelectedMessage(null);
+      showNotification("Message permanently deleted", "success");
+    } catch (err) {
+      console.error("Error hard deleting message:", err);
+      showNotification("Failed to delete message", "error");
+    }
+  };
+
+  // Add reaction
+  const addReaction = async (messageId, reaction) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/api/chat/${messageId}/reactions`,
+        { reaction },
+        { headers }
+      );
+
+      if (response.data.action === "removed") {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              reactions: msg.reactions?.filter(r => r.userId !== user.id || r.reaction !== reaction)
+            };
+          }
+          return msg;
+        }));
+      } else {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              reactions: [...(msg.reactions || []), response.data]
+            };
+          }
+          return msg;
+        }));
+      }
+      setShowMessageActions(false);
+      setSelectedMessage(null);
+    } catch (err) {
+      console.error("Error adding reaction:", err);
+    }
+  };
+
+  // Reply to message
+  const handleReply = (message) => {
+    setReplyTo(message);
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+    document.querySelector('textarea')?.focus();
+  };
+
+  // Mark message as read
+  const markAsRead = async (messageId) => {
+    try {
+      await axios.post(`${BASE_URL}/api/chat/${messageId}/read`, {}, { headers });
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  // Fetch messages
   const fetchMessages = async (isInitialLoad = false) => {
     try {
       const container = chatContainerRef.current;
       
-      // Store current scroll position before fetching
       if (container && !isInitialLoad) {
         lastScrollPositionRef.current = container.scrollTop;
       }
       
-      const response = await axios.get(`${BASE_URL}/api/chat`, { headers });
+      const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
       
       const parsedMessages = response.data.map(msg => ({
         ...msg,
         attachments: parseAttachments(msg.attachments),
+        files: msg.files || [],
         isOwn: msg.userId === user?.id
       }));
       
       setMessages(parsedMessages);
       
-      // WhatsApp scroll logic
+      parsedMessages.forEach(msg => {
+        if (!msg.isOwn && !msg.readReceipts?.some(r => r.userId === user?.id)) {
+          markAsRead(msg.id);
+        }
+      });
+      
       setTimeout(() => {
         if (container) {
           if (isInitialLoad) {
-            // On initial load, scroll to bottom (latest messages)
             container.scrollTop = container.scrollHeight;
           } else {
-            // On refresh, maintain position if user was scrolling
             if (isUserScrollingRef.current) {
               container.scrollTop = lastScrollPositionRef.current;
             } else {
-              // If user wasn't scrolling, check if they were near bottom
               const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
               if (wasNearBottom) {
                 container.scrollTop = container.scrollHeight;
@@ -161,15 +408,16 @@ function Chat() {
     if (user) {
       fetchMessages(true);
       fetchOnlineCount();
+      fetchPinnedMessages();
+      fetchBlockedUsers();
     }
 
-    // Silent refresh in background - no scroll interference
     refreshTimerRef.current = setInterval(() => {
       if (user && hasInitialLoad) {
         fetchMessages(false);
         fetchOnlineCount();
       }
-    }, 5000); // Longer interval, less noticeable
+    }, 5000);
 
     return () => {
       if (refreshTimerRef.current) {
@@ -252,11 +500,12 @@ function Chat() {
         attachments: attachments.length > 0 ? attachments : undefined
       };
 
-      const response = await axios.post(`${BASE_URL}/api/chat`, payload, { headers });
+      const response = await axios.post(`${BASE_URL}/api/chat/enhanced`, payload, { headers });
       
       const newMsg = {
         ...response.data,
         attachments: parseAttachments(response.data.attachments),
+        files: response.data.files || [],
         isOwn: true,
         user: {
           ...response.data.user,
@@ -273,7 +522,6 @@ function Chat() {
         fileInputRef.current.value = "";
       }
 
-      // Auto-scroll to new message
       setTimeout(() => {
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -298,7 +546,11 @@ function Chat() {
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (editMessage) {
+        handleEditMessage();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -329,15 +581,35 @@ function Chat() {
     return groups;
   };
 
-  // Get file preview
+  // Get file preview URL
   const getFilePreview = (file) => {
-    if (file.type.startsWith('image/')) {
+    if (file.type?.startsWith('image/')) {
       return URL.createObjectURL(file);
     }
     return null;
   };
 
+  // Cleanup object URLs
+  useEffect(() => {
+    return () => {
+      selectedFiles.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [selectedFiles]);
+
+  // Get reactions for a message
+  const getReactionsForMessage = (messageId) => {
+    const msg = messages.find(m => m.id === messageId);
+    return msg?.reactions || [];
+  };
+
   const messageGroups = groupMessagesByDate();
+
+  // Common emojis for reactions
+  const commonReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
 
   if (loading) {
     return (
@@ -385,14 +657,279 @@ function Chat() {
         )}
       </AnimatePresence>
 
-      {/* Online Users Button - Floating */}
-      <button 
-        style={styles.onlineButton}
-        onClick={() => setShowOnlineList(!showOnlineList)}
-      >
-        <span style={styles.onlineButtonDot}></span>
-        <span>{onlineCount}</span>
-      </button>
+      {/* WhatsApp-style Message Actions Modal */}
+      <AnimatePresence>
+        {showMessageActions && selectedMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={styles.actionOverlay}
+            onClick={() => {
+              setShowMessageActions(false);
+              setSelectedMessage(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 50 }}
+              style={styles.actionModal}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={styles.actionHeader}>
+                <div style={styles.actionAvatar}>
+                  {selectedMessage.user?.fullName?.charAt(0).toUpperCase()}
+                </div>
+                <div style={styles.actionUserInfo}>
+                  <span style={styles.actionUserName}>{selectedMessage.user?.fullName}</span>
+                  <span style={styles.actionTime}>{formatMessageTime(selectedMessage.createdAt)}</span>
+                </div>
+              </div>
+              
+              <div style={styles.actionPreview}>
+                {selectedMessage.content || (selectedMessage.files?.length > 0 ? '📎 Attachment' : '')}
+              </div>
+
+              <div style={styles.actionGrid}>
+                {commonReactions.map(emoji => (
+                  <button
+                    key={emoji}
+                    style={styles.actionEmoji}
+                    onClick={() => addReaction(selectedMessage.id, emoji)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              <div style={styles.actionDivider} />
+
+              <div style={styles.actionList}>
+                <button style={styles.actionItem} onClick={() => handleReply(selectedMessage)}>
+                  <span style={styles.actionIcon}>↩️</span>
+                  <span>Reply</span>
+                </button>
+
+                {selectedMessage.content && (
+                  <button style={styles.actionItem} onClick={() => {
+                    navigator.clipboard.writeText(selectedMessage.content);
+                    showNotification("Copied to clipboard", "success");
+                    setShowMessageActions(false);
+                    setSelectedMessage(null);
+                  }}>
+                    <span style={styles.actionIcon}>📋</span>
+                    <span>Copy</span>
+                  </button>
+                )}
+
+                {selectedMessage.isOwn && (
+                  <button style={styles.actionItem} onClick={() => {
+                    setEditMessage(selectedMessage);
+                    setShowMessageActions(false);
+                    setSelectedMessage(null);
+                  }}>
+                    <span style={styles.actionIcon}>✏️</span>
+                    <span>Edit</span>
+                  </button>
+                )}
+
+                {user?.role === 'admin' && (
+                  <button style={styles.actionItem} onClick={() => togglePinMessage(selectedMessage.id)}>
+                    <span style={styles.actionIcon}>
+                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? '📌' : '📍'}
+                    </span>
+                    <span>
+                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? 'Unpin' : 'Pin'}
+                    </span>
+                  </button>
+                )}
+
+                {(selectedMessage.isOwn || user?.role === 'admin') && (
+                  <button style={{...styles.actionItem, color: '#ff4444'}} onClick={() => handleDeleteMessage(selectedMessage.id)}>
+                    <span style={styles.actionIcon}>🗑️</span>
+                    <span>Delete</span>
+                  </button>
+                )}
+
+                {user?.role === 'admin' && (
+                  <button style={{...styles.actionItem, color: '#ff0000'}} onClick={() => handleHardDeleteMessage(selectedMessage.id)}>
+                    <span style={styles.actionIcon}>⚠️</span>
+                    <span>Delete Permanently</span>
+                  </button>
+                )}
+
+                {!selectedMessage.isOwn && (
+                  <button style={styles.actionItem} onClick={() => toggleBlockUser(selectedMessage.userId)}>
+                    <span style={styles.actionIcon}>
+                      {blockedUsers.some(b => b.id === selectedMessage.userId) ? '🔓' : '🔒'}
+                    </span>
+                    <span>
+                      {blockedUsers.some(b => b.id === selectedMessage.userId) ? 'Unblock' : 'Block'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <button style={styles.actionCancel} onClick={() => {
+                setShowMessageActions(false);
+                setSelectedMessage(null);
+              }}>
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Message Modal */}
+      <AnimatePresence>
+        {editMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={styles.modalOverlay}
+            onClick={() => setEditMessage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              style={styles.editModal}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 style={styles.editModalTitle}>Edit Message</h3>
+              <textarea
+                value={editMessage.content}
+                onChange={(e) => setEditMessage({ ...editMessage, content: e.target.value })}
+                style={styles.editModalInput}
+                rows="3"
+                autoFocus
+              />
+              <div style={styles.editModalButtons}>
+                <button onClick={() => setEditMessage(null)} style={styles.editModalCancel}>Cancel</button>
+                <button onClick={handleEditMessage} style={styles.editModalSave}>Save</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned Messages Panel */}
+      <AnimatePresence>
+        {showPinned && (
+          <motion.div
+            initial={{ x: 300 }}
+            animate={{ x: 0 }}
+            exit={{ x: 300 }}
+            style={styles.pinnedPanel}
+          >
+            <div style={styles.pinnedHeader}>
+              <h3>📌 Pinned Messages</h3>
+              <button onClick={() => setShowPinned(false)}>✕</button>
+            </div>
+            <div style={styles.pinnedList}>
+              {pinnedMessages.length === 0 ? (
+                <p style={styles.noPinned}>No pinned messages</p>
+              ) : (
+                pinnedMessages.map(pin => (
+                  <div key={pin.id} style={styles.pinnedItem}>
+                    <div style={styles.pinnedItemHeader}>
+                      <span style={styles.pinnedItemUser}>{pin.message.user.fullName}</span>
+                      <span style={styles.pinnedItemTime}>{formatMessageTime(pin.message.createdAt)}</span>
+                    </div>
+                    <p style={styles.pinnedItemContent}>
+                      {pin.message.content || (pin.message.files?.length > 0 ? '📎 Attachments' : '')}
+                    </p>
+                    <button 
+                      onClick={() => {
+                        togglePinMessage(pin.message.id);
+                        setShowPinned(false);
+                      }}
+                      style={styles.pinnedItemUnpin}
+                    >
+                      Unpin
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Search Panel */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ y: -100 }}
+            animate={{ y: 0 }}
+            exit={{ y: -100 }}
+            style={styles.searchPanel}
+          >
+            <div style={styles.searchHeader}>
+              <input
+                type="text"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+                autoFocus
+              />
+              <button onClick={() => setShowSearch(false)} style={styles.searchClose}>✕</button>
+            </div>
+            {searching && <div style={styles.searchSpinner} />}
+            {searchResults.length > 0 && (
+              <div style={styles.searchResults}>
+                {searchResults.map(msg => (
+                  <div key={msg.id} style={styles.searchResult} onClick={() => {
+                    const element = document.getElementById(`msg-${msg.id}`);
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth' });
+                      setShowSearch(false);
+                    }
+                  }}>
+                    <div style={styles.searchResultHeader}>
+                      <span style={styles.searchResultUser}>{msg.user.fullName}</span>
+                      <span style={styles.searchResultTime}>{formatMessageTime(msg.createdAt)}</span>
+                    </div>
+                    <p style={styles.searchResultContent}>{msg.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header Actions */}
+      <div style={styles.headerActions}>
+        <button 
+          style={styles.headerButton}
+          onClick={() => setShowSearch(!showSearch)}
+        >
+          🔍
+        </button>
+
+        <button 
+          style={styles.headerButton}
+          onClick={() => setShowPinned(!showPinned)}
+        >
+          📌
+          {pinnedMessages.length > 0 && (
+            <span style={styles.headerBadge}>{pinnedMessages.length}</span>
+          )}
+        </button>
+
+        <button 
+          style={styles.onlineButton}
+          onClick={() => setShowOnlineList(!showOnlineList)}
+        >
+          <span style={styles.onlineButtonDot}></span>
+          <span>{onlineCount}</span>
+        </button>
+      </div>
 
       {/* Online Users Dropdown */}
       <AnimatePresence>
@@ -411,23 +948,26 @@ function Chat() {
               {onlineUsers.length === 0 ? (
                 <p style={styles.noOnline}>No one online</p>
               ) : (
-                onlineUsers.map(u => (
-                  <div key={u.id} style={styles.onlineItem}>
-                    <div style={styles.onlineItemAvatar}>
-                      {u.fullName?.charAt(0).toUpperCase()}
-                      <span style={styles.onlineItemDot}></span>
+                onlineUsers.map(u => {
+                  const isBlocked = blockedUsers.some(b => b.id === u.id);
+                  return (
+                    <div key={u.id} style={styles.onlineItem}>
+                      <div style={styles.onlineItemAvatar}>
+                        {u.fullName?.charAt(0).toUpperCase()}
+                        <span style={styles.onlineItemDot}></span>
+                      </div>
+                      <span style={styles.onlineItemName}>{u.fullName}</span>
+                      {u.role === 'admin' && <span style={styles.adminChip}>Admin</span>}
                     </div>
-                    <span style={styles.onlineItemName}>{u.fullName}</span>
-                    {u.role === 'admin' && <span style={styles.adminChip}>Admin</span>}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Messages Area */}
+            {/* Messages Area */}
       <div style={styles.messagesWrapper}>
         <div style={styles.messagesContainer} ref={chatContainerRef}>
           {messages.length === 0 ? (
@@ -447,16 +987,34 @@ function Chat() {
                   const isOwn = msg.userId === user?.id;
                   const isAdmin = msg.user?.role === "admin" || msg.user?.role === "ADMIN";
                   const attachments = msg.attachments || [];
+                  const files = msg.files || [];
+                  const reactions = getReactionsForMessage(msg.id);
+                  const isPinned = pinnedMessages.some(p => p.messageId === msg.id);
+                  const isBlocked = blockedUsers.some(b => b.id === msg.userId);
+
+                  if (isBlocked && !isOwn) return null;
 
                   return (
                     <div
                       key={msg.id}
+                      id={`msg-${msg.id}`}
                       style={{
                         ...styles.messageRow,
                         ...(isOwn ? styles.messageRowOwn : {}),
                       }}
+                      onTouchStart={(e) => handleTouchStart(e, msg)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchCancel={handleTouchEnd}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setSelectedMessage(msg);
+                        setShowMessageActions(true);
+                        if (navigator.vibrate) {
+                          navigator.vibrate(50);
+                        }
+                      }}
                     >
-                      {/* Avatar for others */}
                       {!isOwn && (
                         <div style={styles.messageAvatar}>
                           {msg.user?.fullName?.charAt(0).toUpperCase()}
@@ -468,7 +1026,6 @@ function Chat() {
                         ...styles.messageBubbleWrapper,
                         ...(isOwn ? styles.messageBubbleWrapperOwn : {}),
                       }}>
-                        {/* Sender name */}
                         {!isOwn && (
                           <span style={styles.messageSenderName}>
                             {msg.user?.fullName}
@@ -480,7 +1037,12 @@ function Chat() {
                           </span>
                         )}
 
-                        {/* Reply indicator */}
+                        {isPinned && (
+                          <div style={styles.pinIndicator}>
+                            📌 Pinned
+                          </div>
+                        )}
+
                         {msg.replyTo && (
                           <div style={styles.replyPreview}>
                             <span style={styles.replyIcon}>↪️</span>
@@ -490,21 +1052,91 @@ function Chat() {
                           </div>
                         )}
 
-                        {/* Message bubble */}
                         <div style={{
                           ...styles.messageBubble,
                           ...(isOwn ? styles.messageBubbleOwn : {}),
                         }}>
-                          {/* Text content */}
+                          {msg.isEdited && (
+                            <span style={styles.editedIndicator}>(edited) </span>
+                          )}
+
                           {msg.content && (
                             <p style={styles.messageText}>{msg.content}</p>
                           )}
 
-                          {/* Attachments */}
+                          {/* Files from database */}
+                          {files.length > 0 && (
+                            <div style={styles.attachments}>
+                              {files.map((file) => {
+                                const isImage = file.type?.startsWith('image/') || 
+                                                file.name?.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|jfif)$/i) ||
+                                                false;
+                                
+                                const token = localStorage.getItem('token');
+                                const fileUrl = `${BASE_URL}/api/chat/files/${file.id}?token=${token}`;
+                                const debugUrl = `${BASE_URL}/api/chat/debug/public-file/${file.id}`;
+                                
+                                return isImage ? (
+                                  <div 
+                                    key={file.id} 
+                                    style={styles.imageWrapper}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowMediaPreview(fileUrl);
+                                    }}
+                                  >
+                                    <img 
+                                      src={fileUrl}
+                                      alt={file.name} 
+                                      style={styles.attachmentImage}
+                                      onError={(e) => {
+                                        console.error("Auth failed, trying debug:", fileUrl);
+                                        e.target.src = debugUrl;
+                                        e.target.onerror = (e2) => {
+                                          console.error("Debug also failed:", debugUrl);
+                                          e2.target.style.display = 'none';
+                                          const parent = e2.target.parentNode;
+                                          const fallback = document.createElement('div');
+                                          fallback.innerHTML = '🖼️';
+                                          fallback.style.fontSize = '40px';
+                                          fallback.style.textAlign = 'center';
+                                          fallback.style.padding = '20px';
+                                          parent.appendChild(fallback);
+                                        };
+                                      }}
+                                    />
+                                    <span style={styles.imageSizeBadge}>
+                                      {(file.size / 1024).toFixed(0)}KB
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <a
+                                    key={file.id}
+                                    href={fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={styles.fileAttachment}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span style={styles.fileIcon}>📎</span>
+                                    <span style={styles.fileName}>{file.name}</span>
+                                    <span style={styles.fileSize}>
+                                      {(file.size / 1024).toFixed(0)}KB
+                                    </span>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Legacy attachments */}
                           {attachments.length > 0 && (
                             <div style={styles.attachments}>
                               {attachments.map((att, i) => {
                                 const imageUrl = att.url || att;
+                                const fullImageUrl = imageUrl.startsWith('http') 
+                                  ? imageUrl 
+                                  : `${BASE_URL}${imageUrl}`;
                                 const isImage = att.type?.startsWith('image/') || 
                                                att.mimetype?.startsWith('image/') ||
                                                /\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl);
@@ -513,14 +1145,17 @@ function Chat() {
                                   <div 
                                     key={i} 
                                     style={styles.imageWrapper}
-                                    onClick={() => setShowMediaPreview(imageUrl)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowMediaPreview(fullImageUrl);
+                                    }}
                                   >
                                     <img 
-                                      src={imageUrl} 
+                                      src={fullImageUrl} 
                                       alt="attachment" 
                                       style={styles.attachmentImage}
                                       onError={(e) => {
-                                        console.error("Image failed to load:", imageUrl);
+                                        console.error("Legacy image failed:", fullImageUrl);
                                         e.target.style.display = 'none';
                                       }}
                                     />
@@ -528,10 +1163,11 @@ function Chat() {
                                 ) : (
                                   <a
                                     key={i}
-                                    href={imageUrl}
+                                    href={fullImageUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={styles.fileAttachment}
+                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <span style={styles.fileIcon}>📎</span>
                                     <span style={styles.fileName}>{att.name || 'File'}</span>
@@ -541,37 +1177,67 @@ function Chat() {
                             </div>
                           )}
 
-                          {/* Message footer with time and status */}
+                          {reactions.length > 0 && (
+                            <div style={styles.reactions}>
+                              {reactions.map((reaction, i) => (
+                                <span key={i} style={styles.reaction}>
+                                  {reaction.reaction}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
                           <div style={styles.messageFooter}>
                             <span style={styles.messageTime}>
                               {formatMessageTime(msg.createdAt)}
                             </span>
                             {isOwn && (
                               <span style={styles.messageStatus}>
-                                {msg.isEdited ? '✓✓' : '✓'}
+                                {msg.readReceipts?.length > 0 ? '✓✓' : '✓'}
                               </span>
                             )}
                           </div>
-                        </div>
-
-                        {/* Reply button */}
-                        <button 
-                          style={styles.replyButton}
-                          onClick={() => setReplyTo(msg)}
-                        >
-                          ↩️
-                        </button>
-                      </div>
-                    </div>
+                        </div> {/* Closes messageBubble */}
+                      </div> {/* Closes messageBubbleWrapper */}
+                    </div> // Closes messageRow
                   );
                 })}
-              </div>
+              </div> // Closes date group
             ))
           )}
           <div ref={messagesEndRef} />
-        </div>
-      </div>
+        </div> // Closes messagesContainer
+      </div> 
+      
+      
+      
 
+      {/* File Previews */}
+      {selectedFiles.length > 0 && (
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          style={styles.previewContainer}
+        >
+          <div style={styles.previewScroller}>
+            {selectedFiles.map((file, index) => {
+              const preview = getFilePreview(file);
+              return (
+                <div key={index} style={styles.previewItem}>
+                  {preview ? (
+                    <img src={preview} alt="preview" style={styles.previewImage} />
+                  ) : (
+                    <div style={styles.previewIcon}>📎</div>
+                  )}
+                  <button style={styles.previewRemove} onClick={() => removeFile(index)}>×</button>
+                  <div style={styles.previewName}>{file.name}</div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
       {/* File Previews */}
       {selectedFiles.length > 0 && (
         <motion.div 
@@ -642,23 +1308,26 @@ function Chat() {
           />
 
           <textarea
-            value={newMessage}
-            onChange={handleTyping}
+            value={editMessage ? editMessage.content : newMessage}
+            onChange={editMessage ? 
+              (e) => setEditMessage({ ...editMessage, content: e.target.value }) : 
+              handleTyping
+            }
             onKeyPress={handleKeyPress}
-            placeholder="Type a message"
+            placeholder={editMessage ? "Edit message..." : "Type a message"}
             style={styles.messageInput}
             rows="1"
           />
 
           <button
-            onClick={handleSendMessage}
-            disabled={sending || (selectedFiles.length === 0 && !newMessage.trim())}
+            onClick={editMessage ? handleEditMessage : handleSendMessage}
+            disabled={sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)}
             style={{
               ...styles.sendButton,
-              ...((sending || (selectedFiles.length === 0 && !newMessage.trim())) && styles.sendButtonDisabled),
+              ...((sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)) && styles.sendButtonDisabled),
             }}
           >
-            {sending ? "..." : "Send"}
+            {sending ? "..." : (editMessage ? "Save" : "Send")}
           </button>
         </div>
 
@@ -676,7 +1345,11 @@ function Chat() {
                   key={emoji}
                   style={styles.emoji}
                   onClick={() => {
-                    setNewMessage(prev => prev + emoji);
+                    if (editMessage) {
+                      setEditMessage({ ...editMessage, content: editMessage.content + emoji });
+                    } else {
+                      setNewMessage(prev => prev + emoji);
+                    }
                     setShowEmojiPicker(false);
                   }}
                 >
@@ -716,24 +1389,19 @@ function Chat() {
           100% { opacity: 1; }
         }
         
-        .message-row:hover .reply-button {
-          opacity: 1 !important;
-        }
-        
         .attach-button:hover, .emoji-button:hover {
           background: rgba(255,255,255,0.1) !important;
         }
         
         .emoji:hover {
           transform: scale(1.1);
-          background: rgb(255, 255, 255) !important;
+          background: rgba(255,255,255,0.1) !important;
         }
         
         .send-button:hover:not(:disabled) {
           background: #008f72 !important;
         }
 
-        /* Custom scrollbar - subtle */
         ::-webkit-scrollbar {
           width: 4px;
           height: 4px;
@@ -751,12 +1419,16 @@ function Chat() {
         ::-webkit-scrollbar-thumb:hover {
           background: rgba(255,255,255,0.3);
         }
+
+        .message-row {
+          touch-action: pan-y pinch-zoom;
+        }
       `}</style>
     </div>
   );
 }
 
-// WhatsApp-like Styles - WITH TRANSPARENT BACKGROUND
+// WhatsApp-like Styles
 const styles = {
   container: {
     width: "100%",
@@ -768,7 +1440,7 @@ const styles = {
     color: "#fff",
     borderRadius: "16px",
     position: "relative",
-    background: "rgba(30, 119, 179, 0.47)", // Semi-transparent background
+    background: "rgba(30, 119, 179, 0.47)",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
     boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
@@ -795,11 +1467,45 @@ const styles = {
   notificationError: {
     background: "rgba(234, 0, 56, 0.9)",
   },
-  // Online Users Button - Floating
-  onlineButton: {
+  headerActions: {
     position: "absolute",
     top: "12px",
     right: "12px",
+    display: "flex",
+    gap: "8px",
+    zIndex: 10,
+  },
+  headerButton: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "20px",
+    background: "rgba(32, 44, 51, 0.8)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "#fff",
+    fontSize: "18px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  headerBadge: {
+    position: "absolute",
+    top: "-4px",
+    right: "-4px",
+    width: "16px",
+    height: "16px",
+    borderRadius: "8px",
+    background: "#ff4444",
+    color: "#fff",
+    fontSize: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onlineButton: {
     background: "rgba(32, 44, 51, 0.8)",
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
@@ -813,7 +1519,6 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     cursor: "pointer",
-    zIndex: 10,
     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
   },
   onlineButtonDot: {
@@ -825,7 +1530,7 @@ const styles = {
   },
   onlineDropdown: {
     position: "absolute",
-    top: "52px",
+    top: "60px",
     right: "12px",
     width: "280px",
     background: "rgba(32, 44, 51, 0.9)",
@@ -866,7 +1571,7 @@ const styles = {
   onlineItem: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: "8px",
     padding: "8px 12px",
     borderRadius: "8px",
     "&:hover": {
@@ -920,7 +1625,358 @@ const styles = {
     padding: "20px",
     fontSize: "14px",
   },
-  // Messages Wrapper
+  actionOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(5px)",
+    WebkitBackdropFilter: "blur(5px)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 10000,
+    padding: "20px",
+  },
+  actionModal: {
+    width: "100%",
+    maxWidth: "400px",
+    background: "rgba(32, 44, 51, 0.95)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    borderRadius: "20px",
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 -4px 20px rgba(0,0,0,0.3)",
+  },
+  actionHeader: {
+    padding: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+  },
+  actionAvatar: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "50%",
+    background: "#00a884",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#fff",
+  },
+  actionUserInfo: {
+    flex: 1,
+  },
+  actionUserName: {
+    display: "block",
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: "4px",
+  },
+  actionTime: {
+    fontSize: "12px",
+    color: "rgba(255,255,255,0.5)",
+  },
+  actionPreview: {
+    padding: "16px 20px",
+    fontSize: "14px",
+    color: "rgba(255,255,255,0.8)",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+    maxHeight: "100px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  actionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "8px",
+    padding: "16px",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+  },
+  actionEmoji: {
+    width: "100%",
+    aspectRatio: "1/1",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "12px",
+    color: "#fff",
+    fontSize: "24px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    "&:hover": {
+      background: "rgba(255,255,255,0.1)",
+    },
+  },
+  actionDivider: {
+    height: "8px",
+    background: "rgba(255,255,255,0.03)",
+  },
+  actionList: {
+    padding: "8px",
+  },
+  actionItem: {
+    width: "100%",
+    padding: "16px",
+    background: "none",
+    border: "none",
+    borderRadius: "12px",
+    color: "#fff",
+    fontSize: "16px",
+    textAlign: "left",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    "&:hover": {
+      background: "rgba(255,255,255,0.05)",
+    },
+  },
+  actionIcon: {
+    fontSize: "20px",
+    width: "24px",
+  },
+  actionCancel: {
+    width: "100%",
+    padding: "16px",
+    background: "rgba(255,255,255,0.05)",
+    border: "none",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
+    color: "#ff4444",
+    fontSize: "16px",
+    fontWeight: "600",
+    cursor: "pointer",
+    "&:hover": {
+      background: "rgba(255,68,68,0.1)",
+    },
+  },
+  pinnedPanel: {
+    position: "absolute",
+    top: "60px",
+    right: "12px",
+    width: "300px",
+    height: "400px",
+    background: "rgba(32, 44, 51, 0.9)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    borderRadius: "12px",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    zIndex: 100,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  pinnedHeader: {
+    padding: "16px",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    "& h3": {
+      fontSize: "16px",
+      fontWeight: "600",
+      margin: 0,
+      color: "#fff",
+    },
+    "& button": {
+      background: "none",
+      border: "none",
+      fontSize: "18px",
+      cursor: "pointer",
+      padding: "4px 8px",
+      color: "rgba(255,255,255,0.6)",
+    },
+  },
+  pinnedList: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "12px",
+  },
+  noPinned: {
+    textAlign: "center",
+    color: "rgba(255,255,255,0.5)",
+    padding: "20px",
+    fontSize: "14px",
+  },
+  pinnedItem: {
+    background: "rgba(255,255,255,0.05)",
+    borderRadius: "8px",
+    padding: "12px",
+    marginBottom: "8px",
+    position: "relative",
+  },
+  pinnedItemHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "4px",
+  },
+  pinnedItemUser: {
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#00a884",
+  },
+  pinnedItemTime: {
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.4)",
+  },
+  pinnedItemContent: {
+    fontSize: "13px",
+    color: "#fff",
+    margin: "4px 0",
+    wordBreak: "break-word",
+  },
+  pinnedItemUnpin: {
+    background: "none",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "4px",
+    padding: "4px 8px",
+    color: "#fff",
+    fontSize: "11px",
+    cursor: "pointer",
+    marginTop: "8px",
+  },
+  searchPanel: {
+    position: "absolute",
+    top: "60px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "400px",
+    background: "rgba(32, 44, 51, 0.9)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    borderRadius: "12px",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    zIndex: 100,
+    overflow: "hidden",
+  },
+  searchHeader: {
+    padding: "12px",
+    display: "flex",
+    gap: "8px",
+  },
+  searchInput: {
+    flex: 1,
+    padding: "10px 12px",
+    borderRadius: "20px",
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    fontSize: "14px",
+    outline: "none",
+  },
+  searchClose: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "18px",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "#fff",
+    fontSize: "16px",
+    cursor: "pointer",
+  },
+  searchSpinner: {
+    width: "24px",
+    height: "24px",
+    margin: "12px auto",
+    border: "2px solid rgba(255,255,255,0.1)",
+    borderTopColor: "#00a884",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  },
+  searchResults: {
+    maxHeight: "300px",
+    overflowY: "auto",
+    padding: "8px",
+  },
+  searchResult: {
+    padding: "12px",
+    background: "rgba(255,255,255,0.03)",
+    borderRadius: "8px",
+    marginBottom: "4px",
+    cursor: "pointer",
+    "&:hover": {
+      background: "rgba(255,255,255,0.08)",
+    },
+  },
+  searchResultHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "4px",
+  },
+  searchResultUser: {
+    fontSize: "12px",
+    fontWeight: "600",
+    color: "#00a884",
+  },
+  searchResultTime: {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.4)",
+  },
+  searchResultContent: {
+    fontSize: "13px",
+    color: "#fff",
+    wordBreak: "break-word",
+  },
+  editModal: {
+    width: "400px",
+    background: "rgba(32, 44, 51, 0.95)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    borderRadius: "16px",
+    padding: "24px",
+    border: "1px solid rgba(255,255,255,0.1)",
+  },
+  editModalTitle: {
+    fontSize: "18px",
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: "16px",
+  },
+  editModalInput: {
+    width: "100%",
+    padding: "12px",
+    borderRadius: "8px",
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    fontSize: "14px",
+    marginBottom: "16px",
+    outline: "none",
+  },
+  editModalButtons: {
+    display: "flex",
+    gap: "12px",
+    justifyContent: "flex-end",
+  },
+  editModalCancel: {
+    padding: "8px 16px",
+    borderRadius: "20px",
+    background: "none",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "#fff",
+    fontSize: "14px",
+    cursor: "pointer",
+  },
+  editModalSave: {
+    padding: "8px 16px",
+    borderRadius: "20px",
+    background: "#00a884",
+    border: "none",
+    color: "#fff",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
   messagesWrapper: {
     flex: 1,
     overflow: "hidden",
@@ -980,6 +2036,7 @@ const styles = {
     width: "100%",
     padding: "0 4px",
     boxSizing: "border-box",
+    touchAction: "pan-y pinch-zoom",
   },
   messageRowOwn: {
     justifyContent: "flex-end",
@@ -1027,6 +2084,12 @@ const styles = {
     textOverflow: "ellipsis",
     maxWidth: "200px",
   },
+  pinIndicator: {
+    fontSize: "11px",
+    color: "#ffd700",
+    marginLeft: "4px",
+    marginBottom: "2px",
+  },
   replyPreview: {
     display: "flex",
     alignItems: "center",
@@ -1067,6 +2130,12 @@ const styles = {
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
   },
+  editedIndicator: {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.4)",
+    fontStyle: "italic",
+    marginRight: "4px",
+  },
   messageText: {
     fontSize: "14px",
     lineHeight: "1.5",
@@ -1083,12 +2152,19 @@ const styles = {
     marginTop: "4px",
   },
   imageWrapper: {
+    position: "relative",
     maxWidth: "200px",
+    minWidth: "100px",
+    minHeight: "100px",
     cursor: "pointer",
     borderRadius: "8px",
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.1)",
     boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+    background: "rgba(255,255,255,0.05)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   attachmentImage: {
     width: "100%",
@@ -1096,6 +2172,20 @@ const styles = {
     maxHeight: "150px",
     objectFit: "cover",
     display: "block",
+    backgroundColor: "#f0f0f0",
+  },
+  imageSizeBadge: {
+    position: "absolute",
+    bottom: "4px",
+    right: "4px",
+    background: "rgba(0,0,0,0.6)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
+    color: "#fff",
+    fontSize: "9px",
+    padding: "2px 4px",
+    borderRadius: "4px",
+    zIndex: 2,
   },
   fileAttachment: {
     display: "flex",
@@ -1119,6 +2209,23 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    flex: 1,
+  },
+  fileSize: {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.4)",
+    marginLeft: "4px",
+  },
+  reactions: {
+    display: "flex",
+    gap: "4px",
+    marginTop: "4px",
+  },
+  reaction: {
+    fontSize: "12px",
+    background: "rgba(255,255,255,0.1)",
+    padding: "2px 6px",
+    borderRadius: "12px",
   },
   messageFooter: {
     display: "flex",
@@ -1135,21 +2242,6 @@ const styles = {
     fontSize: "11px",
     color: "rgba(255,255,255,0.6)",
   },
-  replyButton: {
-    position: "absolute",
-    bottom: "0",
-    right: "-30px",
-    background: "none",
-    border: "none",
-    fontSize: "14px",
-    cursor: "pointer",
-    padding: "4px",
-    opacity: 0,
-    transition: "opacity 0.2s",
-    color: "rgba(255,255,255,0.6)",
-    filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.2))",
-  },
-  // Preview Container
   previewContainer: {
     background: "rgba(32, 44, 51, 0.8)",
     backdropFilter: "blur(10px)",
@@ -1224,7 +2316,6 @@ const styles = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  // Reply Bar
   replyBar: {
     background: "rgba(32, 44, 51, 0.8)",
     backdropFilter: "blur(10px)",
@@ -1266,7 +2357,6 @@ const styles = {
     color: "rgba(255,255,255,0.6)",
     flexShrink: 0,
   },
-  // Input Area
   inputWrapper: {
     background: "rgba(250, 244, 244, 0.44)",
     backdropFilter: "blur(10px)",
@@ -1362,11 +2452,11 @@ const styles = {
     fontSize: "15px",
     minHeight: "20px",
     maxHeight: "100px",
-   
     fontFamily: "inherit",
     fontWeight: "600",
     minWidth: 0,
     width: "100%",
+    resize: "none",
     "::placeholder": {
       color: "rgb(12, 12, 12)",
     },
@@ -1387,7 +2477,7 @@ const styles = {
     cursor: "pointer",
     whiteSpace: "nowrap",
     flexShrink: 0,
-   
+    transition: "background 0.2s",
   },
   sendButtonDisabled: {
     opacity: 0.5,

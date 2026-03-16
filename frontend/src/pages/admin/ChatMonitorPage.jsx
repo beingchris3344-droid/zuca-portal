@@ -34,9 +34,17 @@ function ChatMonitorPage() {
   const [refreshInterval, setRefreshInterval] = useState(5000);
   const [activeTab, setActiveTab] = useState("all");
   
+  // WhatsApp-style long press
+  const [showMessageActions, setShowMessageActions] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState(null);
+  const [touchPosition, setTouchPosition] = useState({ x: 0, y: 0 });
+  
   // Scroll preservation states
   const [userInteracted, setUserInteracted] = useState(false);
   const chatContainerRef = useRef(null);
+  const lastScrollPositionRef = useRef(0);
+  const isUserScrollingRef = useRef(false);
+  const hasInitialLoadRef = useRef(false);
   
   // Chat input states
   const [newMessage, setNewMessage] = useState("");
@@ -59,6 +67,9 @@ function ChatMonitorPage() {
   const headers = { Authorization: `Bearer ${token}` };
   const [user, setUser] = useState(null);
 
+  // Common emojis for reactions
+  const commonReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
+
   // Check authentication and get user
   useEffect(() => {
     if (!token) {
@@ -75,20 +86,17 @@ function ChatMonitorPage() {
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
   };
 
-  // Helper function to parse attachments safely - FIXED: Better parsing for image URLs
+  // Helper function to parse attachments safely
   const parseAttachments = (attachments) => {
     if (!attachments) return [];
     try {
-      // If it's already an array, return it
       if (Array.isArray(attachments)) {
         return attachments;
       }
-      // If it's a string, try to parse it
       if (typeof attachments === 'string') {
         const parsed = JSON.parse(attachments);
         return Array.isArray(parsed) ? parsed : [parsed];
       }
-      // If it's a single object, wrap in array
       if (typeof attachments === 'object') {
         return [attachments];
       }
@@ -99,47 +107,130 @@ function ChatMonitorPage() {
     }
   };
 
-  // Fetch messages with scroll preservation
-  const fetchMessages = async () => {
+  // WhatsApp-style long press handlers
+  const handleTouchStart = (e, msg) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    setTouchPosition({ x: touch.clientX, y: touch.clientY });
+    
+    const timer = setTimeout(() => {
+      setSelectedMessage(msg);
+      setShowMessageActions(true);
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500);
+    
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchMove = (e) => {
+    if (longPressTimer) {
+      const touch = e.touches[0];
+      const distance = Math.sqrt(
+        Math.pow(touch.clientX - touchPosition.x, 2) + 
+        Math.pow(touch.clientY - touchPosition.y, 2)
+      );
+      if (distance > 10) {
+        clearTimeout(longPressTimer);
+        setLongPressTimer(null);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Handle right click (desktop)
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    setSelectedMessage(msg);
+    setShowMessageActions(true);
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+  };
+
+  // Fetch messages with WhatsApp-style scroll behavior
+  const fetchMessages = async (isInitialLoad = false) => {
     try {
-      // Store current scroll position and whether user is near bottom
       const container = chatContainerRef.current;
-      const wasNearBottom = container ? container.scrollHeight - container.scrollTop - container.clientHeight < 100 : false;
-      const scrollPosition = container?.scrollTop || 0;
+      
+      if (container && !isInitialLoad) {
+        lastScrollPositionRef.current = container.scrollTop;
+      }
       
       const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
       
-      // Parse attachments for each message - FIXED: Better handling of attachment URLs
-      const parsedMessages = response.data.map(msg => ({
+      const parsedMessages = response.data
+      .map(msg => ({
         ...msg,
-        attachments: parseAttachments(msg.attachments)
-      }));
+        attachments: parseAttachments(msg.attachments),
+        files: msg.files || []
+      }))
+      .reverse(); 
       
       setMessages(parsedMessages);
       calculateStats(parsedMessages);
       
-        // Auto-scroll to new message
       setTimeout(() => {
-        if (chatContainerRef.current) {
-          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        if (container) {
+          if (isInitialLoad) {
+            container.scrollTop = container.scrollHeight;
+          } else {
+            const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+            if (wasNearBottom) {
+              container.scrollTop = container.scrollHeight;
+            } else {
+              container.scrollTop = lastScrollPositionRef.current;
+            }
+          }
         }
       }, 100);
-
-     
       
     } catch (err) {
       console.error("Error fetching messages:", err);
       showNotification("Failed to fetch messages", "error");
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+        hasInitialLoadRef.current = true;
+      }
     }
   };
+
+  // Detect user scroll to prevent auto-scroll interference
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const handleScrollStart = () => {
+      isUserScrollingRef.current = true;
+    };
+
+    const handleScrollEnd = () => {
+      setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 150);
+    };
+
+    container.addEventListener('scroll', handleScrollStart);
+    container.addEventListener('scrollend', handleScrollEnd);
+
+    return () => {
+      container.removeEventListener('scroll', handleScrollStart);
+      container.removeEventListener('scrollend', handleScrollEnd);
+    };
+  }, []);
 
   // Fetch pinned messages
   const fetchPinnedMessages = async () => {
     try {
       const response = await axios.get(`${BASE_URL}/api/chat/pinned`, { headers });
-      // Parse attachments for pinned messages
       const parsedPins = response.data.map(pin => ({
         ...pin,
         message: {
@@ -175,15 +266,21 @@ function ChatMonitorPage() {
 
   // Initial data fetch
   useEffect(() => {
-    fetchMessages();
-    fetchPinnedMessages();
-    fetchOnlineUsers();
-    fetchStats();
+    const loadInitialData = async () => {
+      await fetchMessages(true);
+      fetchPinnedMessages();
+      fetchOnlineUsers();
+      fetchStats();
+    };
+    
+    loadInitialData();
 
     if (autoRefresh) {
       refreshTimerRef.current = setInterval(() => {
-        fetchMessages();
-        fetchOnlineUsers();
+        if (hasInitialLoadRef.current) {
+          fetchMessages(false);
+          fetchOnlineUsers();
+        }
       }, refreshInterval);
     }
 
@@ -193,19 +290,6 @@ function ChatMonitorPage() {
       }
     };
   }, [autoRefresh, refreshInterval]);
-
-  // Detect user scroll interaction
-  useEffect(() => {
-    const container = chatContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      setUserInteracted(true);
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Calculate stats from messages
   const calculateStats = (messageData) => {
@@ -316,10 +400,10 @@ function ChatMonitorPage() {
 
       const response = await axios.post(`${BASE_URL}/api/chat/enhanced`, payload, { headers });
       
-      // Parse attachments for the new message
       const newMsg = {
         ...response.data,
-        attachments: parseAttachments(response.data.attachments)
+        attachments: parseAttachments(response.data.attachments),
+        files: response.data.files || []
       };
 
       setMessages(prev => [...prev, newMsg]);
@@ -331,8 +415,13 @@ function ChatMonitorPage() {
         fileInputRef.current.value = "";
       }
 
-      // Reset user interaction flag when sending a message
       setUserInteracted(false);
+      
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 100);
       
       showNotification("Message sent", "success");
     } catch (error) {
@@ -344,15 +433,15 @@ function ChatMonitorPage() {
   };
 
   // Delete message
-  const handleDeleteMessage = async () => {
-    if (!messageToDelete) return;
-
+  const handleDeleteMessage = async (messageId) => {
     try {
-      await axios.delete(`${BASE_URL}/api/chat/${messageToDelete.id}`, { headers });
-      setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
-      showNotification("Message deleted successfully");
+      await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      setShowMessageActions(false);
+      setSelectedMessage(null);
       setShowDeleteModal(false);
       setMessageToDelete(null);
+      showNotification("Message deleted successfully");
     } catch (err) {
       console.error("Error deleting message:", err);
       showNotification("Failed to delete message", "error");
@@ -371,6 +460,8 @@ function ChatMonitorPage() {
         fetchPinnedMessages();
         showNotification("Message pinned");
       }
+      setShowMessageActions(false);
+      setSelectedMessage(null);
     } catch (err) {
       console.error("Error pinning message:", err);
       showNotification("Failed to pin message", "error");
@@ -381,15 +472,38 @@ function ChatMonitorPage() {
   const handleAddReaction = async (messageId, reaction) => {
     try {
       await axios.post(`${BASE_URL}/api/chat/${messageId}/reactions`, { reaction }, { headers });
-      fetchMessages();
+      fetchMessages(false);
+      setShowMessageActions(false);
+      setSelectedMessage(null);
     } catch (err) {
       console.error("Error adding reaction:", err);
     }
   };
 
+  // Reply to message
+  const handleReply = (message) => {
+    setReplyTo(message);
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+    setTimeout(() => {
+      const input = document.querySelector('textarea');
+      if (input) input.focus();
+    }, 100);
+  };
+
+  // Copy message
+  const handleCopy = (content) => {
+    navigator.clipboard.writeText(content);
+    showNotification("Copied to clipboard", "success");
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  };
+
   // Mute user
   const handleMuteUser = (userId) => {
     setMutedUsers(prev => [...prev, userId]);
+    setShowMessageActions(false);
+    setSelectedMessage(null);
     showNotification("User muted", "success");
   };
 
@@ -514,7 +628,7 @@ function ChatMonitorPage() {
 
   // Get file preview URL
   const getFilePreview = (file) => {
-    if (file.type.startsWith('image/')) {
+    if (file.type?.startsWith('image/')) {
       return URL.createObjectURL(file);
     }
     return null;
@@ -549,6 +663,122 @@ function ChatMonitorPage() {
             }}
           >
             {notification.type === "success" ? "✅" : "⚠️"} {notification.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* WhatsApp-style Message Actions Modal */}
+      <AnimatePresence>
+        {showMessageActions && selectedMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={actionModalStyles.overlay}
+            onClick={() => {
+              setShowMessageActions(false);
+              setSelectedMessage(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 50 }}
+              style={actionModalStyles.modal}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={actionModalStyles.header}>
+                <div style={actionModalStyles.avatar}>
+                  {selectedMessage.user?.fullName?.charAt(0).toUpperCase()}
+                </div>
+                <div style={actionModalStyles.userInfo}>
+                  <span style={actionModalStyles.userName}>{selectedMessage.user?.fullName}</span>
+                  <span style={actionModalStyles.time}>{formatTime(selectedMessage.createdAt)}</span>
+                </div>
+              </div>
+              
+              <div style={actionModalStyles.preview}>
+                {selectedMessage.content || (selectedMessage.files?.length > 0 ? '📎 Attachment' : '')}
+              </div>
+
+              <div style={actionModalStyles.grid}>
+                {commonReactions.map(emoji => (
+                  <button
+                    key={emoji}
+                    style={actionModalStyles.emoji}
+                    onClick={() => handleAddReaction(selectedMessage.id, emoji)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              <div style={actionModalStyles.divider} />
+
+              <div style={actionModalStyles.list}>
+                <button style={actionModalStyles.item} onClick={() => handleReply(selectedMessage)}>
+                  <span style={actionModalStyles.icon}>↩️</span>
+                  <span>Reply</span>
+                </button>
+
+                {selectedMessage.content && (
+                  <button style={actionModalStyles.item} onClick={() => handleCopy(selectedMessage.content)}>
+                    <span style={actionModalStyles.icon}>📋</span>
+                    <span>Copy</span>
+                  </button>
+                )}
+
+                {user?.role === 'admin' && (
+                  <button style={actionModalStyles.item} onClick={() => handlePinMessage(selectedMessage.id)}>
+                    <span style={actionModalStyles.icon}>
+                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? '📌' : '📍'}
+                    </span>
+                    <span>
+                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? 'Unpin' : 'Pin'}
+                    </span>
+                  </button>
+                )}
+
+                <button 
+                  style={{...actionModalStyles.item, color: '#ff4d6d'}} 
+                  onClick={() => {
+                    setShowDeleteModal(true);
+                    setMessageToDelete(selectedMessage);
+                    setShowMessageActions(false);
+                  }}
+                >
+                  <span style={actionModalStyles.icon}>🗑️</span>
+                  <span>Delete</span>
+                </button>
+
+                {selectedMessage.user?.id !== user?.id && (
+                  <button 
+                    style={actionModalStyles.item} 
+                    onClick={() => mutedUsers.includes(selectedMessage.user?.id) 
+                      ? handleUnmuteUser(selectedMessage.user?.id) 
+                      : handleMuteUser(selectedMessage.user?.id)
+                    }
+                  >
+                    <span style={actionModalStyles.icon}>
+                      {mutedUsers.includes(selectedMessage.user?.id) ? '🔊' : '🔇'}
+                    </span>
+                    <span>
+                      {mutedUsers.includes(selectedMessage.user?.id) ? 'Unmute' : 'Mute'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <button 
+                style={actionModalStyles.cancel} 
+                onClick={() => {
+                  setShowMessageActions(false);
+                  setSelectedMessage(null);
+                }}
+              >
+                Cancel
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -588,7 +818,7 @@ function ChatMonitorPage() {
                 </button>
                 <button
                   style={styles.modalDeleteBtn}
-                  onClick={handleDeleteMessage}
+                  onClick={() => handleDeleteMessage(messageToDelete.id)}
                 >
                   Delete
                 </button>
@@ -599,27 +829,80 @@ function ChatMonitorPage() {
       </AnimatePresence>
 
       {/* Media Preview Modal */}
-      <AnimatePresence>
-        {showMediaPreview && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={styles.modalOverlay}
-            onClick={() => setShowMediaPreview(null)}
-          >
-            <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
-              <img src={showMediaPreview} alt="preview" style={styles.modalImage} />
-              <button
-                style={styles.modalClose}
-                onClick={() => setShowMediaPreview(null)}
-              >
-                ×
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+<AnimatePresence>
+  {showMediaPreview && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={styles.modalOverlay}
+      onClick={() => setShowMediaPreview(null)}
+    >
+      <motion.div
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.8 }}
+        style={styles.modalContent}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Debug info - remove after fixing */}
+        <div style={{
+          position: 'absolute',
+          top: '-30px',
+          left: 0,
+          color: '#fff',
+          fontSize: '12px',
+          background: 'rgba(0,0,0,0.5)',
+          padding: '4px 8px',
+          borderRadius: '4px'
+        }}>
+          Loading: {showMediaPreview}
+        </div>
+
+        <img 
+          src={showMediaPreview}
+          alt="preview" 
+          style={styles.modalImage}
+          onError={(e) => {
+            console.error("Modal image failed to load:", showMediaPreview);
+            e.target.onerror = null;
+            
+            // Try with a different approach - fetch with headers
+            const token = localStorage.getItem('token');
+            fetch(showMediaPreview.split('?')[0], {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+            .then(response => response.blob())
+            .then(blob => {
+              const url = URL.createObjectURL(blob);
+              e.target.src = url;
+            })
+            .catch(err => {
+              console.error("Fetch fallback also failed:", err);
+              e.target.src = ''; // Clear the src
+              e.target.alt = 'Failed to load image';
+              // Show fallback
+              const parent = e.target.parentNode;
+              const fallback = document.createElement('div');
+              fallback.innerHTML = '❌ Failed to load image';
+              fallback.style.color = '#fff';
+              fallback.style.padding = '20px';
+              parent.appendChild(fallback);
+            });
+          }}
+        />
+        <button
+          style={styles.modalClose}
+          onClick={() => setShowMediaPreview(null)}
+        >
+          ×
+        </button>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Header */}
       <div style={styles.header}>
@@ -638,7 +921,7 @@ function ChatMonitorPage() {
           </label>
           <button
             onClick={() => {
-              fetchMessages();
+              fetchMessages(false);
               fetchOnlineUsers();
               fetchPinnedMessages();
             }}
@@ -712,7 +995,7 @@ function ChatMonitorPage() {
           </div>
         </div>
 
-        {/* Messages Area - WhatsApp Style - FIXED: Added background image */}
+        {/* Messages Area - WhatsApp Style */}
         <div 
           style={{
             ...styles.messagesArea,
@@ -735,17 +1018,21 @@ function ChatMonitorPage() {
               const isAdmin = msg.user?.role === "admin";
               const isPinned = pinnedMessages.some(p => p.messageId === msg.id);
               const attachments = msg.attachments || [];
+              const files = msg.files || [];
               const showAvatar = index === 0 || filteredMessages[index - 1]?.user?.id !== msg.user?.id;
 
               return (
-                <motion.div
+                <div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
                   style={{
                     ...styles.messageWrapper,
                     ...(isOwn ? styles.messageWrapperOwn : {}),
                   }}
+                  onTouchStart={(e) => handleTouchStart(e, msg)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchEnd}
+                  onContextMenu={(e) => handleContextMenu(e, msg)}
                 >
                   {!isOwn && showAvatar && (
                     <div style={styles.messageAvatar}>
@@ -780,23 +1067,102 @@ function ChatMonitorPage() {
                         <p style={styles.messageText}>{msg.content}</p>
                       )}
 
-                      {/* Attachments - WhatsApp Style - FIXED: Better image handling */}
-                      {attachments && attachments.length > 0 && (
+                      {/* Files from database - FIXED with token in URL */}
+                      {files && files.length > 0 && (
+                        <div style={styles.messageAttachments}>
+                          {files.map((file) => {
+                            const isImage = file.type?.startsWith('image/') || 
+                                          file.name?.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|jfif)$/i) ||
+                                          false;
+                            
+                            const token = localStorage.getItem('token');
+                            const fileUrl = `${BASE_URL}/api/chat/files/${file.id}?token=${token}`;
+                            const debugUrl = `${BASE_URL}/api/chat/debug/public-file/${file.id}`;
+                            
+                            return isImage ? (
+                              <div 
+                                key={file.id} 
+                                style={styles.imageAttachment}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowMediaPreview(fileUrl);
+                                }}
+                              >
+                                <img 
+                                  src={fileUrl}
+                                  alt={file.name} 
+                                  style={styles.attachmentImage}
+                                  onError={(e) => {
+                                    console.error("Auth failed, trying debug:", fileUrl);
+                                    e.target.src = debugUrl;
+                                    e.target.onerror = (e2) => {
+                                      console.error("Debug also failed:", debugUrl);
+                                      e2.target.style.display = 'none';
+                                      const parent = e2.target.parentNode;
+                                      const fallback = document.createElement('div');
+                                      fallback.innerHTML = '🖼️';
+                                      fallback.style.fontSize = '40px';
+                                      fallback.style.textAlign = 'center';
+                                      fallback.style.padding = '20px';
+                                      fallback.style.background = 'rgba(255,255,255,0.1)';
+                                      fallback.style.borderRadius = '8px';
+                                      parent.appendChild(fallback);
+                                    };
+                                  }}
+                                />
+                                {file.size && (
+                                  <span style={styles.imageSizeBadge}>
+                                    {(file.size / 1024).toFixed(0)}KB
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <a
+                                key={file.id}
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={styles.fileAttachment}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span style={styles.fileIcon}>📎</span>
+                                <span style={styles.fileName}>{file.name}</span>
+                                <span style={styles.fileSize}>
+                                  {(file.size / 1024).toFixed(0)}KB
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Legacy attachments */}
+                      {attachments.length > 0 && (
                         <div style={styles.messageAttachments}>
                           {attachments.map((att, i) => {
-                            // Handle different attachment formats
-                            const attachmentUrl = att.url || att;
-                            const attachmentType = att.type || (att.url ? att.url.split('.').pop() : '');
+                            const imageUrl = att.url || att;
+                            const fullImageUrl = imageUrl.startsWith('http') 
+                              ? imageUrl 
+                              : `${BASE_URL}${imageUrl}`;
+                            const isImage = att.type?.startsWith('image/') || 
+                                           att.mimetype?.startsWith('image/') ||
+                                           /\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl);
                             
-                            return attachmentType?.startsWith("image/") || att.mimetype?.startsWith("image/") ? (
-                              <div key={i} style={styles.imageAttachment}>
+                            return isImage ? (
+                              <div 
+                                key={i} 
+                                style={styles.imageAttachment}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowMediaPreview(fullImageUrl);
+                                }}
+                              >
                                 <img
-                                  src={attachmentUrl}
+                                  src={fullImageUrl}
                                   alt="attachment"
                                   style={styles.attachmentImage}
-                                  onClick={() => setShowMediaPreview(attachmentUrl)}
                                   onError={(e) => {
-                                    console.error("Image failed to load:", attachmentUrl);
+                                    console.error("Legacy image failed:", fullImageUrl);
                                     e.target.style.display = 'none';
                                   }}
                                 />
@@ -804,10 +1170,11 @@ function ChatMonitorPage() {
                             ) : (
                               <a
                                 key={i}
-                                href={attachmentUrl}
+                                href={fullImageUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={styles.fileAttachment}
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 <span style={styles.fileIcon}>📎</span>
                                 <span style={styles.fileName}>{att.name || 'File'}</span>
@@ -817,7 +1184,7 @@ function ChatMonitorPage() {
                         </div>
                       )}
 
-                      {/* Reactions - WhatsApp Style */}
+                      {/* Reactions */}
                       {msg.reactions && msg.reactions.length > 0 && (
                         <div style={styles.messageReactions}>
                           {msg.reactions.map((r, i) => (
@@ -879,7 +1246,7 @@ function ChatMonitorPage() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })
           )}
@@ -1202,7 +1569,144 @@ function ChatMonitorPage() {
   );
 }
 
-// WhatsApp-like Styles with Admin Section Below
+// Action Modal Styles (Separate to avoid conflicts)
+const actionModalStyles = {
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(5px)",
+    WebkitBackdropFilter: "blur(5px)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 10000,
+    padding: "20px",
+  },
+  modal: {
+    width: "100%",
+    maxWidth: "400px",
+    background: "#202c33",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    borderRadius: "20px",
+    overflow: "hidden",
+    border: "1px solid #3a4a52",
+    boxShadow: "0 -4px 20px rgba(0,0,0,0.3)",
+  },
+  header: {
+    padding: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    borderBottom: "1px solid #3a4a52",
+  },
+  avatar: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "50%",
+    background: "#00a884",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#fff",
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    display: "block",
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: "4px",
+  },
+  time: {
+    fontSize: "12px",
+    color: "#8696a0",
+  },
+  preview: {
+    padding: "16px 20px",
+    fontSize: "14px",
+    color: "#d1d7db",
+    borderBottom: "1px solid #3a4a52",
+    maxHeight: "100px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "8px",
+    padding: "16px",
+    borderBottom: "1px solid #3a4a52",
+  },
+  emoji: {
+    width: "100%",
+    aspectRatio: "1/1",
+    background: "#2a3942",
+    border: "1px solid #3a4a52",
+    borderRadius: "12px",
+    color: "#fff",
+    fontSize: "24px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    "&:hover": {
+      background: "#374248",
+    },
+  },
+  divider: {
+    height: "8px",
+    background: "#1e2a32",
+  },
+  list: {
+    padding: "8px",
+  },
+  item: {
+    width: "100%",
+    padding: "16px",
+    background: "none",
+    border: "none",
+    borderRadius: "12px",
+    color: "#fff",
+    fontSize: "16px",
+    textAlign: "left",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    "&:hover": {
+      background: "#2a3942",
+    },
+  },
+  icon: {
+    fontSize: "20px",
+    width: "24px",
+  },
+  cancel: {
+    width: "100%",
+    padding: "16px",
+    background: "#2a3942",
+    border: "none",
+    borderTop: "1px solid #3a4a52",
+    color: "#ff4d6d",
+    fontSize: "16px",
+    fontWeight: "600",
+    cursor: "pointer",
+    "&:hover": {
+      background: "#3a4a52",
+    },
+  },
+};
+
+// WhatsApp-like Styles with Admin Section Below (Your original styles)
 const styles = {
   container: {
     minHeight: "100vh",
@@ -1380,7 +1884,6 @@ const styles = {
     height: "500px",
     overflowY: "auto",
     padding: "24px",
-    // background will be set inline with the imported image
   },
   noMessages: {
     textAlign: "center",
@@ -1483,7 +1986,25 @@ const styles = {
     marginBottom: "4px",
   },
   imageAttachment: {
+    position: "relative",
     maxWidth: "200px",
+    minWidth: "100px",
+    minHeight: "100px",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "1px solid #3a4a52",
+    background: "#2a3942",
+  },
+  imageSizeBadge: {
+    position: "absolute",
+    bottom: "4px",
+    right: "4px",
+    background: "rgba(0,0,0,0.6)",
+    color: "#fff",
+    fontSize: "9px",
+    padding: "2px 4px",
+    borderRadius: "4px",
+    zIndex: 2,
   },
   attachmentImage: {
     width: "100%",
@@ -1518,6 +2039,11 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  fileSize: {
+    fontSize: "10px",
+    color: "#8696a0",
+    marginLeft: "4px",
   },
   messageReactions: {
     display: "flex",

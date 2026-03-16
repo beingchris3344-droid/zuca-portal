@@ -67,7 +67,7 @@ export default function HymnBook() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-    }, 1000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [searchTerm]);

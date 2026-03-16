@@ -225,7 +225,7 @@ function AdminDashboard() {
       // Process announcements - REAL DATA
       if (announcementsRes.status === 'fulfilled') {
         const announcementData = announcementsRes.value.data || [];
-        setAnnouncements(announcementData.slice(0, 5));
+setAnnouncements(Array.isArray(announcementData) ? announcementData.slice(0, 5) : []);
         setStats(prev => ({ 
           ...prev, 
           totalAnnouncements: announcementData.length 
@@ -235,7 +235,7 @@ function AdminDashboard() {
       // Process programs - REAL DATA
       if (programsRes.status === 'fulfilled') {
         const programData = programsRes.value.data || [];
-        setMassPrograms(programData.slice(0, 3));
+setMassPrograms(Array.isArray(programData) ? programData.slice(0, 3) : []);
         setStats(prev => ({ 
           ...prev, 
           totalPrograms: programData.length 
@@ -273,7 +273,7 @@ function AdminDashboard() {
       // Add recent user registrations
       if (usersRes.status === 'fulfilled') {
         const userData = usersRes.value.data || [];
-        userData.slice(0, 3).forEach(user => {
+(Array.isArray(userData) ? userData.slice(0, 3) : []).forEach(user => {
           if (user.createdAt) {
             activities.push({
               id: `user-${user.id}`,
@@ -293,7 +293,7 @@ function AdminDashboard() {
       // Add recent pledges from REAL data
       if (contributionsRes.status === 'fulfilled') {
         const contribData = contributionsRes.value.data || [];
-        contribData.slice(0, 3).forEach(contribution => {
+(Array.isArray(contribData) ? contribData.slice(0, 3) : []).forEach(contribution => {
           if (contribution.pledges) {
             contribution.pledges.slice(0, 2).forEach(pledge => {
               if (pledge.createdAt && pledge.user) {
@@ -571,7 +571,7 @@ function AdminDashboard() {
           <div style={styles.headerLeft}>
             <h1 style={styles.pageTitle}>Dashboard</h1>
             <p style={styles.pageSubtitle}>
-              {error ? '⚠️ Error loading data' : 'Welcome back, Administrator'}
+              {error ? 'welcome Admin' : 'Welcome back, Administrator'}
             </p>
           </div>
           

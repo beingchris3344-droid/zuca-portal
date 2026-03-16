@@ -115,9 +115,16 @@ useEffect(() => {
 
   return (
     <div className="admin-layout">
+      {/* Floating Background Elements */}
+      <div className="floating-bg">
+        <div className="blob blob-1"></div>
+        <div className="blob blob-2"></div>
+        <div className="blob blob-3"></div>
+      </div>
+
       {/* Top Bar */}
       <motion.header 
-        className="top-bar"
+        className="top-bar glass-effect"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 100 }}
@@ -125,20 +132,21 @@ useEffect(() => {
         <div className="top-bar-left">
           {isMobile && (
             <motion.button 
-              className="menu-btn"
+              className="menu-btn glass-effect"
               onClick={() => setMenuOpen(true)}
               whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
             >
               ☰
             </motion.button>
           )}
           <img src={logoImg} alt="ZUCA" className="logo-small" />
-          <span className="university-name">ZETECH UNIVERSITY</span>
+          <span className="university-name gradient-text">ZETECH UNIVERSITY</span>
         </div>
 
         <div className="top-bar-right">
           {/* Online Members Count - Always Visible */}
-          <div className="online-indicator">
+          <div className="online-indicator glass-effect">
             <span className="online-dot"></span>
             <span className="online-count">{onlineMembers} online</span>
           </div>
@@ -146,9 +154,10 @@ useEffect(() => {
           {/* Notifications */}
           <div className="notification-container" ref={notificationRef}>
             <motion.button 
-              className="notification-btn"
+              className="notification-btn glass-effect"
               onClick={() => setShowNotifications(!showNotifications)}
               whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
             >
               🔔
               {notifications.length > 0 && (
@@ -159,15 +168,21 @@ useEffect(() => {
             <AnimatePresence>
               {showNotifications && (
                 <motion.div 
-                  className="notification-dropdown"
+                  className="notification-dropdown glass-card"
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                 >
                   <div className="notification-header">
-                    <h3>Notifications</h3>
+                    <h3 className="gradient-text">Notifications</h3>
                     {notifications.length > 0 && (
-                      <button onClick={() => setNotifications([])}>Clear</button>
+                      <motion.button 
+                        onClick={() => setNotifications([])}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Clear
+                      </motion.button>
                     )}
                   </div>
                   <div className="notification-list">
@@ -175,7 +190,14 @@ useEffect(() => {
     <div className="notification-empty">No new notifications</div>
   ) : (
     notifications.map((notif, index) => (
-      <div key={index} className={`notification-item ${notif.type || ''}`}>
+      <motion.div 
+        key={index} 
+        className={`notification-item glass-effect ${notif.type || ''}`}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.05 }}
+        whileHover={{ x: 5 }}
+      >
         <div className="notification-icon">
           {notif.icon || (notif.type === 'message' ? '💬' : '📌')}
         </div>
@@ -186,7 +208,7 @@ useEffect(() => {
             {new Date(notif.createdAt).toLocaleTimeString()}
           </div>
         </div>
-      </div>
+      </motion.div>
     ))
   )}
 </div>
@@ -197,8 +219,9 @@ useEffect(() => {
 
           {/* Admin Profile */}
           <motion.div 
-            className="admin-profile"
+            className="admin-profile glass-effect"
             whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
           >
             <div className="admin-avatar">AD</div>
           </motion.div>
@@ -207,7 +230,7 @@ useEffect(() => {
 
       {/* Sidebar */}
       <motion.aside
-        className={`sidebar ${isMobile ? 'sidebar-mobile' : ''}`}
+        className={`sidebar glass-card ${isMobile ? 'sidebar-mobile' : ''}`}
         initial={false}
         animate={{ 
           x: isMobile ? (menuOpen ? 0 : "-100%") : 0,
@@ -216,10 +239,17 @@ useEffect(() => {
       >
         <div className="sidebar-header">
           <img src={logoImg} alt="ZUCA" className="sidebar-logo" />
-          <h2 className="sidebar-title">ZETECH UNIVERSITY</h2>
+          <h2 className="sidebar-title gradient-text">ZETECH UNIVERSITY</h2>
           <p className="sidebar-subtitle">Catholic Action</p>
           {isMobile && (
-            <button className="sidebar-close" onClick={() => setMenuOpen(false)}>✕</button>
+            <motion.button 
+              className="sidebar-close glass-effect"
+              onClick={() => setMenuOpen(false)}
+              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+            >
+              ✕
+            </motion.button>
           )}
         </div>
 
@@ -233,31 +263,37 @@ useEffect(() => {
             >
               {({ isActive }) => (
                 <motion.div
-                  className={`nav-item ${isActive ? 'active' : ''}`}
-                  whileHover={{ x: 5 }}
+                  className={`nav-item glass-effect ${isActive ? 'active' : ''}`}
+                  whileHover={{ x: 5, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.03 }}
                 >
                   <span className="nav-icon">{item.icon}</span>
                   <span className="nav-label">{item.label}</span>
+                  {isActive && <span className="active-indicator"></span>}
                 </motion.div>
               )}
             </NavLink>
           ))}
         </nav>
 
-        <button 
-          className="logout-btn"
+        <motion.button 
+          className="logout-btn glass-effect"
           onClick={handleLogout}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           🚪 Sign Out
-        </button>
+        </motion.button>
       </motion.aside>
 
       {/* Mobile Overlay */}
       <AnimatePresence>
         {isMobile && menuOpen && (
           <motion.div 
-            className="mobile-overlay"
+            className="mobile-overlay glass-effect"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -268,14 +304,96 @@ useEffect(() => {
 
       {/* Main Content */}
       <main className="main-content">
-        <Outlet />
+        <div className="content-wrapper glass-card">
+          <Outlet />
+        </div>
       </main>
+
+      {/* Copyright Footer */}
+      <div className="copyright-footer">
+        <p>© {new Date().getFullYear()} ZUCA Portal | Built for Unity & Faith</p>
+        <p>Portal Built By | CHRISTECH WEBSYS</p>
+      </div>
 
       <style>{`
         .admin-layout {
           min-height: 100vh;
-          background: #f5f7fa;
+          background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          position: relative;
+          overflow-x: hidden;
+        }
+
+        /* Floating Background Elements */
+        .floating-bg {
+          position: fixed;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .blob {
+          position: absolute;
+          width: 500px;
+          height: 500px;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.15;
+          animation: float 20s infinite;
+        }
+
+        .blob-1 {
+          top: -100px;
+          right: -100px;
+          background: #ff0000;
+          animation-delay: 0s;
+        }
+
+        .blob-2 {
+          bottom: -100px;
+          left: -100px;
+          background: #007bff;
+          animation-delay: -5s;
+        }
+
+        .blob-3 {
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 600px;
+          height: 600px;
+          background: #8b5cf6;
+          animation-delay: -10s;
+        }
+
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
+        /* Glass Effect Classes */
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .gradient-text {
+          background: linear-gradient(135deg, #fff, #a5b4fc);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
 
         /* Top Bar */
@@ -285,14 +403,12 @@ useEffect(() => {
           left: 0;
           right: 0;
           height: 70px;
-          background: white;
-          border-bottom: 1px solid #e5e7eb;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 24px;
           z-index: 100;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .top-bar-left {
@@ -305,28 +421,29 @@ useEffect(() => {
         .menu-btn {
           width: 44px;
           height: 44px;
-          border: none;
-          background: #f3f4f6;
-          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
           font-size: 22px;
-          color: #374151;
+          color: white;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
         }
 
         .logo-small {
           height: 36px;
           width: auto;
           flex-shrink: 0;
+          filter: drop-shadow(0 0 12px rgba(0, 198, 255, 0.5));
         }
 
         .university-name {
           font-size: 16px;
           font-weight: 700;
-          color: #111827;
           white-space: nowrap;
         }
 
@@ -338,15 +455,13 @@ useEffect(() => {
           justify-content: flex-end;
         }
 
-        /* Online Indicator - Always Visible */
+        /* Online Indicator */
         .online-indicator {
           display: flex;
           align-items: center;
           gap: 8px;
           padding: 6px 14px;
-          background: #f3f4f6;
           border-radius: 30px;
-          white-space: nowrap;
         }
 
         .online-dot {
@@ -355,12 +470,13 @@ useEffect(() => {
           background: #10b981;
           border-radius: 50%;
           animation: pulse 2s infinite;
+          box-shadow: 0 0 12px #10b981;
         }
 
         .online-count {
           font-size: 14px;
           font-weight: 600;
-          color: #374151;
+          color: white;
         }
 
         /* Notifications */
@@ -371,16 +487,15 @@ useEffect(() => {
         .notification-btn {
           width: 44px;
           height: 44px;
-          border: none;
-          background: #f3f4f6;
-          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
           font-size: 20px;
           cursor: pointer;
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #374151;
+          color: white;
           flex-shrink: 0;
         }
 
@@ -388,7 +503,7 @@ useEffect(() => {
           position: absolute;
           top: -4px;
           right: -4px;
-          background: #ef4444;
+          background: linear-gradient(135deg, #ef4444, #dc2626);
           color: white;
           font-size: 11px;
           font-weight: 600;
@@ -398,25 +513,23 @@ useEffect(() => {
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 2px solid white;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
         }
 
         .notification-dropdown {
-          position: absolute;
-          top: 52px;
+          position: fixed;
+          top: 80px;
           right: 0;
           width: 340px;
-          background: white;
-          border-radius: 16px;
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-          border: 1px solid #e5e7eb;
+          border-radius: 20px;
           z-index: 1000;
           overflow: hidden;
         }
 
         .notification-header {
           padding: 16px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -425,17 +538,23 @@ useEffect(() => {
         .notification-header h3 {
           font-size: 16px;
           font-weight: 600;
-          color: #111827;
           margin: 0;
         }
 
         .notification-header button {
-          border: none;
-          background: none;
-          color: #6b7280;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+          color: rgba(255, 255, 255, 0.8);
           font-size: 13px;
           cursor: pointer;
-          padding: 4px 8px;
+          padding: 6px 12px;
+          border-radius: 20px;
+          transition: all 0.2s;
+        }
+
+        .notification-header button:hover {
+          background: rgba(255, 255, 255, 0.1);
         }
 
         .notification-list {
@@ -446,7 +565,7 @@ useEffect(() => {
         .notification-empty {
           padding: 40px 20px;
           text-align: center;
-          color: #9ca3af;
+          color: rgba(255, 255, 255, 0.5);
           font-size: 14px;
         }
 
@@ -454,24 +573,26 @@ useEffect(() => {
           display: flex;
           gap: 12px;
           padding: 12px 16px;
-          border-bottom: 1px solid #f3f4f6;
-          transition: background 0.2s;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          transition: all 0.2s;
+          cursor: pointer;
         }
 
         .notification-item:hover {
-          background: #f9fafb;
+          background: rgba(255, 255, 255, 0.1);
         }
 
         .notification-icon {
           width: 36px;
           height: 36px;
-          background: #f3f4f6;
+          background: rgba(255, 255, 255, 0.1);
           border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 18px;
           flex-shrink: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .notification-content {
@@ -481,14 +602,20 @@ useEffect(() => {
         .notification-title {
           font-size: 14px;
           font-weight: 600;
-          color: #111827;
+          color: white;
           margin-bottom: 4px;
         }
 
         .notification-message {
           font-size: 13px;
-          color: #6b7280;
+          color: rgba(255, 255, 255, 0.7);
           line-height: 1.4;
+        }
+
+        .notification-time {
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.4);
+          margin-top: 4px;
         }
 
         /* Admin Profile */
@@ -500,14 +627,15 @@ useEffect(() => {
         .admin-avatar {
           width: 44px;
           height: 44px;
-          background: #111827;
+          background: linear-gradient(135deg, #007bff, #00c6ff);
           color: white;
-          border-radius: 10px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 600;
           font-size: 16px;
+          box-shadow: 0 8px 16px rgba(0, 123, 255, 0.3);
         }
 
         /* Sidebar */
@@ -517,13 +645,12 @@ useEffect(() => {
           left: 0;
           width: 280px;
           height: calc(100vh - 70px);
-          background: white;
-          border-right: 1px solid #e5e7eb;
           padding: 24px 20px;
           display: flex;
           flex-direction: column;
           z-index: 90;
           overflow-y: auto;
+          border-right: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .sidebar-mobile {
@@ -532,14 +659,14 @@ useEffect(() => {
           left: 0;
           height: 100vh;
           z-index: 1000;
-          box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+          box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3);
         }
 
         .sidebar-header {
           position: relative;
           text-align: center;
           padding-bottom: 24px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           margin-bottom: 24px;
         }
 
@@ -547,18 +674,18 @@ useEffect(() => {
           width: 70px;
           height: auto;
           margin-bottom: 12px;
+          filter: drop-shadow(0 0 12px rgba(0, 198, 255, 0.5));
         }
 
         .sidebar-title {
           font-size: 16px;
           font-weight: 700;
-          color: #111827;
           margin: 0 0 4px 0;
         }
 
         .sidebar-subtitle {
           font-size: 13px;
-          color: #6b7280;
+          color: rgba(255, 255, 255, 0.6);
           margin: 0;
         }
 
@@ -568,11 +695,10 @@ useEffect(() => {
           right: -8px;
           width: 36px;
           height: 36px;
-          border: none;
-          background: #f3f4f6;
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 10px;
           font-size: 16px;
-          color: #374151;
+          color: white;
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -589,19 +715,32 @@ useEffect(() => {
 
         .nav-item {
           padding: 12px 16px;
-          border-radius: 10px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           gap: 12px;
-          color: #4b5563;
+          color: rgba(255, 255, 255, 0.7);
           transition: all 0.2s;
           cursor: pointer;
+          position: relative;
+          overflow: hidden;
         }
 
         .nav-item.active {
-          background: #f3f4f6;
-          color: #111827;
-          font-weight: 500;
+          background: linear-gradient(135deg, rgba(0, 123, 255, 0.2), rgba(0, 198, 255, 0.2));
+          color: white;
+          border: 1px solid rgba(0, 198, 255, 0.3);
+          box-shadow: 0 4px 12px rgba(0, 198, 255, 0.2);
+        }
+
+        .nav-item.active::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          height: 100%;
+          width: 3px;
+          background: linear-gradient(135deg, #007bff, #00c6ff);
         }
 
         .nav-icon {
@@ -614,14 +753,24 @@ useEffect(() => {
           font-weight: 500;
         }
 
+        .active-indicator {
+          position: absolute;
+          right: 12px;
+          width: 6px;
+          height: 6px;
+          background: #00c6ff;
+          border-radius: 50%;
+          box-shadow: 0 0 10px #00c6ff;
+        }
+
         /* Logout Button */
         .logout-btn {
           margin-top: 20px;
           padding: 14px;
-          border: none;
-          border-radius: 10px;
-          background: #fee2e2;
-          color: #dc2626;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          border-radius: 12px;
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+          color: #fca5a5;
           font-size: 15px;
           font-weight: 600;
           display: flex;
@@ -630,17 +779,21 @@ useEffect(() => {
           gap: 8px;
           cursor: pointer;
           transition: all 0.2s;
+          backdrop-filter: blur(10px);
         }
 
         .logout-btn:hover {
-          background: #fecaca;
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.3));
+          color: white;
+          border-color: rgba(239, 68, 68, 0.5);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
         }
 
         /* Mobile Overlay */
         .mobile-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0, 0, 0, 0.5);
           backdrop-filter: blur(4px);
           z-index: 95;
         }
@@ -651,20 +804,68 @@ useEffect(() => {
           padding: 90px 24px 24px;
           min-height: 100vh;
           transition: margin-left 0.3s;
+          position: relative;
+          z-index: 1;
         }
 
-        /* Animation */
+        .content-wrapper {
+          border-radius: 30px;
+          padding: 24px;
+          min-height: calc(100vh - 114px);
+        }
+
+        /* Copyright Footer */
+        .copyright-footer {
+          position: fixed;
+          bottom: 10px;
+          right: 24px;
+          text-align: right;
+          color: rgba(255, 255, 255, 0.3);
+          font-size: 11px;
+          z-index: 50;
+          pointer-events: none;
+        }
+
+        .copyright-footer p {
+          margin: 2px 0;
+        }
+
+        /* Animations */
         @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.5; }
-          100% { opacity: 1; }
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.1); box-shadow: 0 0 20px #10b981; }
+          100% { opacity: 1; transform: scale(1); }
         }
 
-        /* Responsive Design - Mobile */
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Responsive Design */
         @media (max-width: 768px) {
           .main-content {
             margin-left: 0;
             padding: 90px 16px 24px;
+          }
+
+          .copyright-footer {
+            right: 16px;
           }
 
           .top-bar-left {
@@ -681,7 +882,6 @@ useEffect(() => {
           }
 
           .online-indicator {
-            display: flex; /* Always visible */
             padding: 4px 10px;
           }
 
@@ -737,11 +937,11 @@ useEffect(() => {
 
         @media (max-width: 360px) {
           .university-name {
-            display: none; /* Hide text on very small phones, show only logo */
+            display: none;
           }
           
           .online-count {
-            display: none; /* Hide text, show only dot */
+            display: none;
           }
           
           .online-indicator {

@@ -74,7 +74,7 @@ export default function AdminHymns() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-    }, 1000);
+    }, 2000);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 

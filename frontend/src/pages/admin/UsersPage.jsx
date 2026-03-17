@@ -1238,7 +1238,7 @@ const styles = {
   },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gridTemplateColumns: "repeat(2, 1fr)",
     gap: "20px",
     marginBottom: "24px",
     position: "relative",
@@ -1393,6 +1393,7 @@ const styles = {
     borderRadius: "12px",
     border: "1px solid rgba(255,255,255,0.1)",
     overflow: "hidden",
+    width: "100%",
     position: "relative",
     zIndex: 1,
   },
@@ -1400,6 +1401,7 @@ const styles = {
     maxHeight: "600px",
     overflowY: "auto",
     overflowX: "auto",
+    width: "100%",
     position: "relative",
   },
   table: {

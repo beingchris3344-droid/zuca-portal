@@ -705,7 +705,7 @@ const styles = {
   container: {
     padding: "32px",
     minHeight: "100vh",
-    background: "#0a8f8c99",
+    background: "#8ce1dc99",
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     color: "#1e293b",
     borderRadius: "30px",
@@ -779,8 +779,9 @@ const styles = {
     gap: "12px",
   },
   exportBtn: {
-    padding: "10px 9px",
+    padding: "9px 9px",
     borderRadius: "9px",
+    marginTop: "30px",
     border: "1px solid #e2e8f0",
     background: "#fff",
     color: "#475569",
@@ -793,8 +794,9 @@ const styles = {
     transition: "all 0.2s",
   },
   primaryBtn: {
-    padding: "10px 20px",
-    borderRadius: "8px",
+    padding: "9px 9px",
+    borderRadius: "9px",
+    marginTop: "30px",
     border: "none",
     background: "#2563eb",
     color: "#fff",
@@ -809,7 +811,7 @@ const styles = {
   },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gridTemplateColumns: "repeat(2, 1fr)",
     gap: "20px",
     marginBottom: "32px",
   },
@@ -983,6 +985,7 @@ const styles = {
   jumuiaIcon: {
     width: "40px",
     height: "40px",
+    
     borderRadius: "10px",
     background: "#f1f5f9",
     display: "flex",
@@ -994,11 +997,19 @@ const styles = {
     flex: 1,
   },
   jumuiaName: {
-    fontSize: "16px",
-    fontWeight: "800",
-    color: "#0f172a",
-    margin: "0 0 4px 0",
-  },
+  fontSize: "14px",           // ← Extra large
+  fontWeight: "800",          // ← Extra bold
+  color: "#0f172a",
+  margin: "0 0 12px 0",
+  letterSpacing: "-0.03em",
+  lineHeight: "1.1",
+  display: "block",
+  borderBottom: "3px solid #3b82f6",  // ← Solid blue underline
+  paddingBottom: "10px",
+  textTransform: "uppercase",  // ← Optional: all caps
+  fontFamily: "'Inter', -apple-system, sans-serif" // ← Optional: clean font
+},
+  
   jumuiaMeta: {
     display: "flex",
     alignItems: "center",
@@ -1006,7 +1017,7 @@ const styles = {
     flexWrap: "wrap",
   },
   metaBadge: {
-    padding: "4px 10px",
+    padding: "4px 3px",
     borderRadius: "20px",
     background: "#f1f5f9",
     color: "#475569",
@@ -1024,14 +1035,17 @@ const styles = {
   },
   // ADDED: View Full Page button style
   viewFullBtn: {
-    padding: "8px 16px",
-    borderRadius: "6px",
+   
+    padding: "3px 5px",
+    borderRadius: "9px",
+    
     border: "none",
     background: "#2563eb",
     color: "#fff",
     fontSize: "13px",
     fontWeight: "500",
     cursor: "pointer",
+  
     display: "flex",
     alignItems: "center",
     gap: "6px",

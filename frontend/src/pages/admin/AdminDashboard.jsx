@@ -1039,10 +1039,10 @@ const styles = {
   dashboard: {
     minHeight: "100vh",
     backgroundSize: "cover",
-    backgroundPosition: "center",
+    backgroundPosition: "cover",
     backgroundAttachment: "fixed",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    position: "relative"
+    position: "full"
   },
   overlay: {
     position: "absolute",
@@ -1085,8 +1085,8 @@ const styles = {
     maxWidth: "1400px",
     margin: "0 auto",
     width: "100%",
-    marginTop: "30px",
-    padding: "20px",
+    marginTop: "10px",
+    padding: "6px",
     position: "relative",
     zIndex: 1
   },
@@ -1741,9 +1741,9 @@ style.textContent = `
   }
 
   /* Mobile Styles */
-  @media (max-width: 768px) {
+  @media (max-width: 800px) {
     .stats-grid {
-      grid-template-columns: repeat(3, 1fr) !important;
+      grid-template-columns: repeat(1, 1fr) !important;
       gap: 8px !important;
     }
     

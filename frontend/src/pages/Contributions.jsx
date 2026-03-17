@@ -517,6 +517,8 @@ function Contributions() {
         .stats-grid {
           max-width: 1200px;
           margin: 0 auto 24px;
+
+        margin-bottom: 20px;
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 12px;
@@ -528,8 +530,10 @@ function Contributions() {
         }
         .stat-card {
           background: white;
+          margin-bottom: 10px;
           border-radius: 16px;
           padding: 16px;
+          margintop: 43px;
           display: flex;
           align-items: center;
           gap: 12px;
@@ -538,7 +542,7 @@ function Contributions() {
         .stat-icon {
           width: 40px;
           height: 40px;
-          background: #f1f5f9;
+          background: #45e41dab;
           border-radius: 12px;
           display: flex;
           align-items: center;
@@ -595,12 +599,16 @@ function Contributions() {
         .filter-btn.active {
           background: #0f172a;
           border-color: #0f172a;
+          gap: 6px;
           color: white;
         }
         .filter-count {
           font-size: 12px;
           background: rgba(255,255,255,0.2);
-          padding: 2px 6px;
+          padding: 1px 6px;
+          gap: 6px;
+          margin-Top: 80px;
+          margin: 0px auto;
           border-radius: 12px;
         }
         .filter-btn.active .filter-count {
@@ -1010,7 +1018,7 @@ const ContributionCard = ({
         }
         .card-title {
           font-size: 18px;
-          font-weight: 600;
+          font-weight: 800;
           color: #0f172a;
           margin: 0 0 4px 0;
         }

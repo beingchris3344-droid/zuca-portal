@@ -131,8 +131,8 @@ function Landing2() {
         </div>
       </div>
 
-      {/* Simple Navigation */}
-      <nav style={{ ...navStyle, background: scrollY > 50 ? "rgba(33, 33, 222, 0.9)" : "transparent", backdropFilter: scrollY > 50 ? "blur(10px)" : "none" }}>
+      {/* Simple Navigation - Only nav links, no buttons here anymore */}
+      <nav style={{ ...navStyle, background: scrollY > 50 ? "rgba(11, 11, 31, 0.9)" : "transparent", backdropFilter: scrollY > 50 ? "blur(10px)" : "none" }}>
         <div style={navContentStyle}>
           <div style={logoContainerStyle}>
             <img src={logo} alt="ZUCA Logo" style={logoStyle} />
@@ -143,17 +143,6 @@ function Landing2() {
             <a href="#about" style={navLinkStyle}>About</a>
             <a href="#connect" style={navLinkStyle}>Connect</a>
             <a href="#mass" style={navLinkStyle}>Mass</a>
-            
-            {/* ONE-CLICK INSTALL BUTTON - This is what you wanted! */}
-            {showInstallButton && (
-              <button onClick={handleInstallClick} style={navInstallButtonStyle}>
-                <FaDownload style={{ marginRight: "8px" }} />
-                📲 Install App
-              </button>
-            )}
-            
-            <button onClick={() => navigate("/login")} style={navButtonStyle}>Login</button>
-            <button onClick={() => navigate("/register")} style={navButtonPrimaryStyle}>Join Us</button>
           </div>
         </div>
       </nav>
@@ -162,6 +151,30 @@ function Landing2() {
       <section id="home" style={heroStyle(bg)}>
         <div style={heroOverlayStyle} />
         <div style={heroContentStyle}>
+          {/* BIG MEDIUM CARD - Logo + Install + Login + Register */}
+          <div style={bigActionCardStyle}>
+            <div style={bigActionCardContent}>
+              {/* Logo on left */}
+              <img src={logo} alt="ZUCA Logo" style={bigActionLogoStyle} />
+              
+              {/* Buttons on right */}
+              <div style={bigActionButtonsStyle}>
+                {showInstallButton && (
+                  <button onClick={handleInstallClick} style={bigActionInstallStyle}>
+                    <FaDownload style={{ marginRight: "5px" }} />
+                    Install
+                  </button>
+                )}
+                <button onClick={() => navigate("/login")} style={bigActionLoginStyle}>
+                  Login
+                </button>
+                <button onClick={() => navigate("/register")} style={bigActionRegisterStyle}>
+                  Join Us
+                </button>
+              </div>
+            </div>
+          </div>
+
           <img src={logo} alt="ZUCA Logo" style={heroLogoStyle} />
           <h1 style={heroTitleStyle}>
             <span style={heroMassIconStyle}>Zetech University Catholic Action </span>
@@ -189,23 +202,11 @@ function Landing2() {
               MEMBER LOGIN
             </button>
           </div>
-
-          {/* Hero Install Button */}
-          {showInstallButton && (
-            <div style={{ marginTop: "30px" }}>
-              <button onClick={handleInstallClick} style={heroInstallButtonStyle}>
-                <FaDownload style={{ marginRight: "10px" }} />
-                Install App Now
-              </button>
-              <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>
-                📱 Works on Android, iPhone & Desktop • No download needed
-              </p>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* Mass Schedule Section - Prominent */}
+      {/* Rest of your code exactly the same from here... */}
+      {/* Mass Schedule Section */}
       <section id="mass" className="fade-section" style={massSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={massHeaderStyle}>
@@ -246,7 +247,7 @@ function Landing2() {
         </div>
       </section>
 
-      {/* Social Media Section - Medium Icons */}
+      {/* Social Media Section */}
       <section id="connect" className="fade-section" style={socialSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
@@ -311,7 +312,7 @@ function Landing2() {
         </div>
       </section>
 
-      {/* About Section - Simple */}
+      {/* About Section */}
       <section id="about" className="fade-section" style={aboutSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
@@ -371,7 +372,7 @@ function Landing2() {
         </div>
       </section>
 
-      {/* Footer with Credit */}
+      {/* Footer */}
       <footer style={footerStyle}>
         <div style={footerContentStyle}>
           <div style={footerSocialMinStyle}>
@@ -484,26 +485,26 @@ const pageWrapper = {
 
 // Top Bar
 const topBarStyle = {
-  background: "#141c60c0",
-  padding: "8px",
+  background: "#141c6000",
+  padding: "1px",
   position: "fixed",
   top: 0,
   left: 0,
   right: 0,
-  zIndex: 1001,
-  borderBottom: "4px solid rgba(13, 123, 197, 0.97)"
+  
+  borderBottom: "4px solid rgba(13, 123, 197, 0)"
 };
 
 const topBarContentStyle = {
-  maxWidth: "1300px",
+  maxWidth: "1px",
   margin: "0 auto",
-  padding: "0 50px",
+  padding: "0 px",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  fontSize: "12px",
+  fontSize: "1px",
   flexWrap: "wrap",
-  gap: "1px"
+  gap: "0px"
 };
 
 const topBarLeftStyle = {
@@ -530,7 +531,7 @@ const topBarMassStyle = {
 // Navigation
 const navStyle = {
   position: "fixed",
-  top: "40px",
+  top: "1px",
   left: 0,
   right: 0,
   zIndex: 1000,
@@ -541,28 +542,28 @@ const navStyle = {
 const navContentStyle = {
   maxWidth: "1200px",
   margin: "0 auto",
-  padding: "0 15px",
+  padding: "0 10px",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   flexWrap: "wrap",
-  gap: "15px"
+  gap: "10px"
 };
 
 const logoContainerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "8px"
+  gap: "1px"
 };
 
 const logoStyle = {
-  width: "40px",
+  width: "30px",
   height: "auto"
 };
 
 const logoTextStyle = {
   fontSize: "20px",
-  fontWeight: "700",
+  fontWeight: "900",
   background: "linear-gradient(135deg, #fff, #00c6ff)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent"
@@ -579,13 +580,65 @@ const navLinkStyle = {
   color: "#fff",
   textDecoration: "none",
   fontSize: "14px",
-  fontWeight: "500",
+  fontWeight: "600",
+  background: "rgba(33, 191, 222, 0.9)",
+  borderRadius: "50px",
+  padding: "5px 6px 4px 4px",
   transition: "color 0.3s"
 };
 
-const navButtonStyle = {
-  padding: "6px 16px",
-  borderRadius: "20px",
+// NEW BIG CARD STYLES - Added at the top
+const bigActionCardStyle = {
+  position: "absolute",
+  marginTop: "-75px",
+  right: "20px",
+  background: "rgba(32, 32, 41, 0.78)",
+  backdropFilter: "blur(10px)",
+  borderRadius: "50px",
+  padding: "8px",
+  border: "1px solid rgba(255,255,255,0.2)",
+  boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+  zIndex: 1002
+};
+
+const bigActionCardContent = {
+  display: "flex",
+  alignItems: "center",
+  gap: "15px",
+  background: "rgba(255,255,255,0.1)",
+  borderRadius: "50px",
+  padding: "5px 10px 5px 5px"
+};
+
+const bigActionLogoStyle = {
+  width: "45px",
+  height: "45px",
+  borderRadius: "50%",
+  border: "2px solid #00c6ff"
+};
+
+const bigActionButtonsStyle = {
+  display: "flex",
+  gap: "8px",
+  alignItems: "center"
+};
+
+const bigActionInstallStyle = {
+  padding: "8px 16px",
+  borderRadius: "30px",
+  border: "none",
+  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
+  color: "#000",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center"
+};
+
+const bigActionLoginStyle = {
+  padding: "8px 16px",
+  borderRadius: "30px",
   border: "1px solid rgba(255,255,255,0.2)",
   background: "linear-gradient(135deg, #0c992d)",
   color: "#eaedeb",
@@ -594,9 +647,9 @@ const navButtonStyle = {
   cursor: "pointer"
 };
 
-const navButtonPrimaryStyle = {
-  padding: "6px 16px",
-  borderRadius: "20px",
+const bigActionRegisterStyle = {
+  padding: "8px 16px",
+  borderRadius: "30px",
   border: "none",
   background: "linear-gradient(135deg, #2896b5, #007bff)",
   color: "#fff",
@@ -605,19 +658,8 @@ const navButtonPrimaryStyle = {
   cursor: "pointer"
 };
 
-const navInstallButtonStyle = {
-  padding: "6px 16px",
-  borderRadius: "20px",
-  border: "none",
-  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
-  color: "#000",
-  fontSize: "14px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  marginRight: "5px"
-};
+// Keep all your existing button styles but remove them from nav
+// (navInstallButtonStyle, navButtonStyle, navButtonPrimaryStyle can be removed or kept - won't be used)
 
 const heroInstallButtonStyle = {
   padding: "14px 30px",

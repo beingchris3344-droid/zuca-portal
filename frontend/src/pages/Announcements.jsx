@@ -948,14 +948,15 @@ const iconStyle = {
   alignItems: "center",
   justifyContent: "center",
   fontSize: "1.2em",
-  fontWeight: "600",
+  fontWeight: "700",
 };
 
 // Container
 const container = {
-  padding: "2rem",
+  padding: "0rem",
   maxWidth: "1400px",
   margin: "0 auto",
+  marginRight: "9px",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
   minHeight: "80vh",
   position: "relative",
@@ -1003,7 +1004,7 @@ const loadingSubtitle = {
 
 // Header Section
 const headerSection = {
-  marginBottom: "2.5rem",
+  marginTop: "1rem",
 };
 
 const headerTop = {
@@ -1012,7 +1013,7 @@ const headerTop = {
   alignItems: "center",
   flexWrap: "wrap",
   gap: "2rem",
-  marginBottom: "2rem",
+  marginBottom: "1rem",
 };
 
 const titleWrapper = {
@@ -1022,10 +1023,10 @@ const titleWrapper = {
 };
 
 const titleIcon = {
-  width: "60px",
+  width: "50px",
   height: "60px",
   borderRadius: "16px",
-  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+  background: "linear-gradient(135deg, #3b83f600, #2564eb00)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1035,9 +1036,10 @@ const titleIcon = {
 };
 
 const title = {
-  fontSize: "2.5rem",
+  fontSize: "34px",
   fontWeight: "800",
   color: "#f3f6fd",
+  marginRight: "2px",
   margin: 0,
   letterSpacing: "-0.02em",
 };
@@ -1065,6 +1067,7 @@ const statCard = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
+  
   minWidth: "100px",
   cursor: "pointer",
   transition: "all 0.2s",
@@ -1106,10 +1109,10 @@ const activeFilterIndicator = {
 // Controls
 const controlsBar = {
   display: "flex",
-  gap: "1rem",
+  gap: "01rem",
   flexWrap: "wrap",
   alignItems: "center",
-  marginBottom: "1.5rem",
+  marginBottom: "0rem",
 };
 
 // Search
@@ -1165,6 +1168,7 @@ const searchClear = {
 const filterWrapper = {
   display: "flex",
   gap: "0.75rem",
+  marginTop: "0px",
   alignItems: "center",
   flexWrap: "wrap",
 };
@@ -1286,11 +1290,13 @@ const refreshIcon = {
 const resultsInfo = {
   display: "flex",
   justifyContent: "space-between",
+  marginTop: "0px",
   alignItems: "center",
   padding: "1rem 0",
   borderBottom: "2px solid #e2e8f0",
   flexWrap: "wrap",
-  gap: "1rem",
+  gap: "0",
+  marginBottom: "0px",
 };
 
 const resultsLeft = {
@@ -1364,7 +1370,7 @@ const selectToolbar = {
   border: "2px solid #3b82f6",
   borderRadius: "16px",
   padding: "1rem",
-  marginBottom: "1.5rem",
+  marginBottom: "0rem",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
@@ -1550,8 +1556,11 @@ const listView = {
 const card = {
   background: "#ffffff",
   borderRadius: "24px",
-  padding: "1.75rem",
+  padding: "0.75rem",
   border: "2px solid #e2e8f0",
+  marginBottom: "0px",
+  marginRight: "25px",
+  marginLeft: "0px",
   boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
   display: "flex",
   flexDirection: "column",

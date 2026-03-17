@@ -717,7 +717,7 @@ const AnalyticsPage = () => {
         .analytics-container {
           min-height: 100vh;
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
-          padding: 20px;
+          padding: 9px;
           position: relative;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
@@ -1403,16 +1403,20 @@ const AnalyticsPage = () => {
           }
         }
 
-        .content-card {
-          border-radius: 25px;
-          padding: 20px;
-        }
+        .content-main {
+  border-radius: 25px;
+  padding: 20px;
+  width: 100%;
+  overflow-x: auto;              /* ← Simple fix */
+  -webkit-overflow-scrolling: touch;
+}
 
-        .top-content-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
+.top-content-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 550px;              /* ← Width that shows all columns */
+}
 
         .top-content-item {
           display: flex;
@@ -1697,7 +1701,7 @@ const AnalyticsPage = () => {
 
         @media (max-width: 576px) {
           .key-metrics-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr);
           }
         }
 

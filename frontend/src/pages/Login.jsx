@@ -16,6 +16,8 @@ function Login() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [loginMode, setLoginMode] = useState("normal");
   const [detectedRole, setDetectedRole] = useState(null);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isCheckingAutoLogin, setIsCheckingAutoLogin] = useState(true);
   const navigate = useNavigate();
 
   // Track mouse for subtle parallax
@@ -29,6 +31,61 @@ function Login() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  // CRITICAL: Check for saved session and AUTO-LOGIN
+  useEffect(() => {
+    const autoLogin = async () => {
+      const token = localStorage.getItem('token');
+      const userJson = localStorage.getItem('user');
+      const rememberMeFlag = localStorage.getItem('rememberMe') === 'true';
+      
+      // If remember me was checked and we have token, auto-login
+      if (rememberMeFlag && token && userJson) {
+        try {
+          console.log('Auto-login: Found saved session, logging in automatically...');
+          
+          // Optional: Verify token with backend (recommended)
+          // You can add a verification endpoint later
+          
+          const userData = JSON.parse(userJson);
+          
+          // Redirect based on role (don't even show login page)
+          if (userData.role === "admin") {
+            navigate("/admin");
+          } else if (userData.role === "jumuia_leader") {
+            navigate(`/jumuia/${userData.jumuiaCode}`);
+          } else if (userData.role === "treasurer") {
+            navigate("/treasurer");
+          } else if (userData.role === "secretary") {
+            navigate("/secretary");
+          } else if (userData.role === "choir_moderator") {
+            navigate("/choir");
+          } else {
+            navigate("/dashboard");
+          }
+          return; // Exit early - user is redirected
+        } catch (error) {
+          console.error('Auto-login failed:', error);
+          // Clear corrupted data
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('rememberMe');
+        }
+      }
+      
+      // If no auto-login, just show the login form
+      setIsCheckingAutoLogin(false);
+      
+      // Still pre-fill email if saved (for convenience)
+      const savedEmail = localStorage.getItem('rememberedEmail');
+      if (savedEmail) {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    };
+
+    autoLogin();
+  }, [navigate]);
 
   // Auto-detect if this is a role login based on password format
   useEffect(() => {
@@ -73,7 +130,7 @@ function Login() {
         greeting: "We've missed you ✨",
         title: "Welcome back to",
         subtitle: "ZUCA Portal",
-        color: "#00c6ff" // Blue for normal
+        color: "#1ce43a" // Blue for normal
       };
     }
 
@@ -132,83 +189,139 @@ function Login() {
   };
 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setLoginError("");
+    e.preventDefault();
+    setLoading(true);
+    setLoginError("");
 
-  // Simulate a moment of anticipation
-  await new Promise(resolve => setTimeout(resolve, 800));
+    // Simulate a moment of anticipation
+    await new Promise(resolve => setTimeout(resolve, 800));
 
-  try {
-    // Choose endpoint based on detected mode
-    const endpoint = loginMode === "normal" ? "/api/login" : "/api/role-login";
-    
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json();
-
-    if (res.ok && data.token) {
-      // For jumuia leaders, add jumuiaCode if it's missing
-      if (data.user.role === 'jumuia_leader' && !data.user.jumuiaCode) {
-        // Get the password from the input field
-        const passwordInput = document.querySelector('input[type="password"]');
-        const password = passwordInput ? passwordInput.value : '';
-        
-        // Extract jumuiaCode from password (e.g., "stgregory" from "stgregoryZ#002")
-        let jumuiaCode = null;
-        
-        if (password.startsWith('stmichael')) jumuiaCode = 'stmichael';
-        else if (password.startsWith('stbenedict')) jumuiaCode = 'stbenedict';
-        else if (password.startsWith('stperegrine')) jumuiaCode = 'stperegrine';
-        else if (password.startsWith('christtheking')) jumuiaCode = 'christtheking';
-        else if (password.startsWith('stgregory')) jumuiaCode = 'stgregory';
-        else if (password.startsWith('stpacificus')) jumuiaCode = 'stpacificus';
-        
-        // If still not found, try from jumuia name
-        if (!jumuiaCode && data.user.jumuia) {
-          jumuiaCode = data.user.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
-        }
-        
-        // Add the missing fields
-        data.user.jumuiaCode = jumuiaCode;
-        data.user.specialRole = 'jumuia_leader';
-        
-        console.log('Added jumuiaCode:', jumuiaCode);
-      }
+    try {
+      // Choose endpoint based on detected mode
+      const endpoint = loginMode === "normal" ? "/api/login" : "/api/role-login";
       
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      const res = await fetch(`${BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      // Redirect based on role
-      setTimeout(() => {
-        if (data.user.role === "admin") {
-          navigate("/admin");
-        } else if (data.user.role === "jumuia_leader") {
-          navigate(`/jumuia/${data.user.jumuiaCode}`);
-        } else if (data.user.role === "treasurer") {
-          navigate("/treasurer");
-        } else if (data.user.role === "secretary") {
-          navigate("/secretary");
-        } else if (data.user.role === "choir_moderator") {
-          navigate("/choir");
-        } else {
-          navigate("/dashboard");
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        // For jumuia leaders, add jumuiaCode if it's missing
+        if (data.user.role === 'jumuia_leader' && !data.user.jumuiaCode) {
+          // Get the password from the input field
+          const passwordInput = document.querySelector('input[type="password"]');
+          const password = passwordInput ? passwordInput.value : '';
+          
+          // Extract jumuiaCode from password (e.g., "stgregory" from "stgregoryZ#002")
+          let jumuiaCode = null;
+          
+          if (password.startsWith('stmichael')) jumuiaCode = 'stmichael';
+          else if (password.startsWith('stbenedict')) jumuiaCode = 'stbenedict';
+          else if (password.startsWith('stperegrine')) jumuiaCode = 'stperegrine';
+          else if (password.startsWith('christtheking')) jumuiaCode = 'christtheking';
+          else if (password.startsWith('stgregory')) jumuiaCode = 'stgregory';
+          else if (password.startsWith('stpacificus')) jumuiaCode = 'stpacificus';
+          
+          // If still not found, try from jumuia name
+          if (!jumuiaCode && data.user.jumuia) {
+            jumuiaCode = data.user.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+          }
+          
+          // Add the missing fields
+          data.user.jumuiaCode = jumuiaCode;
+          data.user.specialRole = 'jumuia_leader';
+          
+          console.log('Added jumuiaCode:', jumuiaCode);
         }
-      }, 500);
-    } else {
-      setLoginError(data.error || "Those credentials don't match our records");
+        
+        // Store token and user data
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        // Handle Remember Me - THIS IS THE KEY PART
+        if (rememberMe) {
+          // Set remember me flag - this will trigger auto-login next time
+          localStorage.setItem('rememberMe', 'true');
+          localStorage.setItem('rememberedEmail', email);
+          
+          // Set expiry timestamp (optional, for cleanup)
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          localStorage.setItem('rememberExpiry', expiryDate.toISOString());
+          
+          console.log('✅ Remember me ENABLED - will auto-login for 30 days');
+        } else {
+          // Clear remember me flag - no auto-login
+          localStorage.setItem('rememberMe', 'false');
+          localStorage.removeItem('rememberedEmail');
+          localStorage.removeItem('rememberExpiry');
+          
+          // For session-only, you might want to use sessionStorage instead
+          // But we'll keep as is for now
+          console.log('❌ Remember me DISABLED - session only');
+        }
+
+        // Redirect based on role
+        setTimeout(() => {
+          if (data.user.role === "admin") {
+            navigate("/admin");
+          } else if (data.user.role === "jumuia_leader") {
+            navigate(`/jumuia/${data.user.jumuiaCode}`);
+          } else if (data.user.role === "treasurer") {
+            navigate("/treasurer");
+          } else if (data.user.role === "secretary") {
+            navigate("/secretary");
+          } else if (data.user.role === "choir_moderator") {
+            navigate("/choir");
+          } else {
+            navigate("/dashboard");
+          }
+        }, 500);
+      } else {
+        setLoginError(data.error || "Those credentials don't match our records");
+      }
+    } catch (err) {
+      console.error("Login Error:", err);
+      setLoginError("Connection issue. Please check your network.");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("Login Error:", err);
-    setLoginError("Connection issue. Please check your network.");
-  } finally {
-    setLoading(false);
+  };
+
+  // If checking auto-login, show loading spinner
+  if (isCheckingAutoLogin) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        color: "white"
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            width: "50px",
+            height: "50px",
+            border: "3px solid rgba(255,255,255,0.1)",
+            borderTopColor: "#00c6ff",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            margin: "0 auto 20px"
+          }} />
+          <p>Checking for saved session...</p>
+        </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
   }
-};
 
   // Animation variants
   const containerVariants = {
@@ -498,6 +611,24 @@ function Login() {
             </div>
           </motion.div>
 
+          {/* Remember Me Checkbox */}
+          <motion.div variants={childVariants} style={rememberMeContainerStyle}>
+            <label style={rememberMeLabelStyle}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={checkboxStyle}
+              />
+              <motion.span
+                animate={{ color: rememberMe ? welcome.color : "rgba(255,255,255,0.7)" }}
+                style={rememberMeTextStyle}
+              >
+                Keep me signed in for 30 days
+              </motion.span>
+            </label>
+          </motion.div>
+
           {/* Forgot Password Link */}
           <motion.div variants={childVariants} style={forgotContainerStyle}>
             <Link to="/forgot-password" style={forgotLinkStyle}>
@@ -741,12 +872,13 @@ const inputStyle = {
   borderRadius: "16px",
   border: "1px solid transparent",
   outline: "none",
-  background: "rgba(255,255,255,0.12)",
+  background: "rgba(225, 26, 26, 0.12)",
   color: "white",
   fontSize: "15px",
   boxSizing: "border-box",
   backdropFilter: "blur(5px)",
   transition: "all 0.3s ease",
+  
 };
 
 const fieldGlowStyle = {
@@ -776,6 +908,33 @@ const eyeStyle = {
   opacity: 0.7,
   transition: "all 0.3s",
   zIndex: 2,
+};
+
+// Remember Me Styles
+const rememberMeContainerStyle = {
+  marginBottom: "15px",
+  display: "flex",
+  alignItems: "center",
+};
+
+const rememberMeLabelStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  cursor: "pointer",
+};
+
+const checkboxStyle = {
+  width: "18px",
+  height: "18px",
+  cursor: "pointer",
+  accentColor: "#00c6ff",
+};
+
+const rememberMeTextStyle = {
+  fontSize: "13px",
+  color: "rgba(255,255,255,0.7)",
+  transition: "color 0.3s",
 };
 
 const forgotContainerStyle = {

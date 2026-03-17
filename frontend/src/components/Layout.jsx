@@ -311,7 +311,7 @@ function Layout() {
         </motion.div>
       </main>
 
-      {/* Global styles - CRITICAL FOR SCROLLING */}
+      {/* Global styles - FIXED FOR NO MARGINS AND OPTIMAL SPACE USAGE */}
       <style>
         {`
           @keyframes gradientMove {
@@ -320,100 +320,124 @@ function Layout() {
             100% { background-position: 0% 50%; }
           }
 
-          /* FIXED: Proper scrolling for entire app */
+          /* CRITICAL FIXES: Remove all margins and optimize space */
           html, body, #root {
             height: 100%;
             width: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: visible; /* or just remove it entirely */ /* Prevent double scrollbars */
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden;
           }
 
           body {
-            min-height: 100vh;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
           }
 
-          /* Main content area - THIS IS THE KEY SCROLLING CONTAINER */
+          /* Remove default margins from all elements inside content */
+          .page-content * {
+            max-width: 100%;
+          }
+
+          /* FIX: Hide scrollbars but keep functionality */
           main {
-            height: 100vh !important;
-            overflow-y: auto !important;
-            overflow-x: visible !important;
-            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: transparent transparent; /* Firefox */
+            -ms-overflow-style: none;  /* IE and Edge */
           }
-
-          /* Page content container */
+          
+          main::-webkit-scrollbar {
+            width: 0px;  /* Remove scrollbar space */
+            height: 0px;
+            background: transparent;  /* Optional: just make scrollbar invisible */
+          }
+          
+          /* For the inner content container */
           .page-content {
-            height: calc(100% - 80px) !important; /* Adjust based on header height */
-            overflow-y: auto !important;
-            overflow-x: auto !important;
-            padding-bottom: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
+            -ms-overflow-style: -ms-autohiding-scrollbar;
           }
-
-          /* Ensure all pages can scroll */
-          .page-content > * {
-            height: auto;
-            min-height: 100%;
+          
+          .page-content::-webkit-scrollbar {
+            width: 4px;  /* Thin scrollbar */
+            height: 4px;
           }
-
-          /* Force all admin pages to scroll properly */
-          .contributions-page,
-          .users-page,
-          .admin-page,
-          .chat-monitor-page,
-          .jumuia-management-page,
-          .dashboard-page,
-          .announcements-page,
-          .mass-programs-page,
-          .chat-page,
-          .jumuia-contributions-page,
-          .join-jumuia-page {
-            height: auto !important;
-            min-height: 100% !important;
-            overflow: visible !important;
-          }
-
-          /* Custom Scrollbar Styling */
-          ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-          }
-
-          ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 4px;
-          }
-
-          ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 4px;
-          }
-
-          ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.4);
-          }
-
-          /* Sidebar scrollbar */
-          .sidebar-scroll::-webkit-scrollbar {
-            width: 4px;
-          }
-          .sidebar-scroll::-webkit-scrollbar-thumb {
+          
+          .page-content::-webkit-scrollbar-thumb {
             background: rgba(255,255,255,0.2);
             border-radius: 4px;
           }
-          .sidebar-scroll::-webkit-scrollbar-track {
+          
+          .page-content::-webkit-scrollbar-track {
             background: transparent;
           }
 
-          /* Mobile Responsive */
+          /* Mobile-specific fixes */
           @media (max-width: 900px) {
+            /* Show hamburger menu on mobile */
             .mobile-hamburger {
               display: flex !important;
             }
             
+            /* Remove all padding/margins on mobile */
             main {
-              height: 100vh !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
+            
+            .page-content {
+              padding: 12px !important; /* Minimal padding for content, not margins */
+            }
+            
+            /* Make cards and tables use full width */
+            .page-content .card,
+            .page-content .table-container,
+            .page-content [class*="card"],
+            .page-content [class*="Card"],
+            .page-content [class*="table"],
+            .page-content [class*="Table"] {
+              margin-left: 0 !important;
+              margin-right: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              border-radius: 8px !important; /* Slightly smaller radius on mobile */
+            }
+            
+            /* Force tables to not overflow */
+            .page-content table {
+              display: block;
+              width: 100%;
+              overflow-x: auto;
+              -webkit-overflow-scrolling: touch;
+              white-space: nowrap;
+            }
+            
+            /* Make table cells more compact on mobile if needed */
+            .page-content th,
+            .page-content td {
+              padding: 8px !important;
+              white-space: nowrap;
+            }
+            
+            /* Grid layouts should use full width */
+            .page-content .grid,
+            .page-content [class*="grid"] {
+              margin: 0 !important;
+              width: 100% !important;
+            }
+          }
+
+          /* Desktop scrollbar styling - minimal but visible */
+          @media (min-width: 901px) {
+            .page-content::-webkit-scrollbar {
+              width: 6px;
+              height: 6px;
+            }
+          }
+
+          /* Sidebar scrollbar - minimal */
+          .sidebar-scroll::-webkit-scrollbar {
+            width: 3px;
           }
 
           /* Z-index hierarchy */
@@ -423,10 +447,6 @@ function Layout() {
 
           .mobile-backdrop {
             z-index: 40 !important;
-          }
-
-          .user-dropdown {
-            z-index: 100 !important;
           }
 
           header {
@@ -448,15 +468,17 @@ function Layout() {
 // ==================== Styles ====================
 
 const containerStyle = (bg) => ({
-  minHeight: "100vh",
   height: "100vh",
+  width: "100vw",
   backgroundImage: `url(${bg})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",
   position: "relative",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  overflow: "hidden", // Prevent double scrollbars
+  overflow: "hidden",
+  margin: 0,
+  padding: 0,
 });
 
 const overlayStyle = {
@@ -482,15 +504,15 @@ const sidebarStyle = {
   top: 0,
   height: "100vh",
   width: "280px",
-  background: "rgba(22, 82, 210, 0.29)",
+  background: "rgba(22, 82, 210, 0.43)",
   backdropFilter: "blur(10px)",
-  borderRight: "1px solid rgba(255,255,255,0.1)",
+  borderRight: "1px solid rgba(255, 255, 255, 0.86)",
   padding: "24px 16px",
   display: "flex",
   flexDirection: "column",
   zIndex: 50,
   boxShadow: "4px 0 20px rgba(0,0,0,0.2)",
-  overflowY: "hidden", // Sidebar itself doesn't scroll, its content does
+  overflowY: "hidden",
 };
 
 const logoSection = {
@@ -568,7 +590,7 @@ const userBadgeInfo = {
 const userBadgeName = {
   display: "block",
   color: "#fff",
-  fontSize: "14px",
+  fontSize: "18px",
   fontWeight: "500",
   marginBottom: "2px",
 };
@@ -583,8 +605,8 @@ const userBadgeRole = {
 
 const navContainer = (shadow) => ({
   flex: 1,
-  overflowY: "auto", // This makes the nav scrollable
-  paddingRight: "8px",
+  overflowY: "auto",
+  paddingRight: "4px",
   transition: "box-shadow 0.3s",
   boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.3)" : "none",
 });
@@ -596,12 +618,13 @@ const navStyle = {
 };
 
 const navItemStyle = (isActive) => ({
-  padding: "12px 16px",
+  padding: "21px 16px",
   borderRadius: "12px",
   textDecoration: "none",
   color: isActive ? "#fff" : "#fff",
-  fontWeight: "800",
-  fontSize: "14px",
+  fontWeight: "600",
+  fontSize: "20px",
+  fontFamily: "'Inter', 'Tahoma', Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
   backgroundColor: isActive ? "rgba(0, 200, 255, 0.63)" : "transparent",
   border: isActive ? "1px solid rgba(0,198,255,0.3)" : "1px solid transparent",
   display: "flex",
@@ -659,16 +682,17 @@ const logoutIconStyle = {
   fontSize: "16px",
 };
 
-// FIXED: Main content style - THIS IS THE KEY
+// FIXED: Main content style - NO MARGINS ON MOBILE
 const mainContentStyle = (isMobile, menuOpen) => ({
   marginLeft: isMobile ? 0 : "280px",
-  padding: "24px",
+  padding: isMobile ? 0 : "24px", // No padding on mobile
   position: "relative",
   zIndex: 1,
-  height: "100vh", // Fixed height instead of min-height
-  overflowY: "auto", // THIS ENABLES SCROLLING
+  height: "100vh",
+  overflowY: "auto",
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
+  width: isMobile ? "100%" : `calc(100% - 280px)`,
 });
 
 const headerStyle = {
@@ -683,7 +707,11 @@ const headerStyle = {
   border: "1px solid rgba(27, 25, 25, 0.83)",
   position: "relative",
   zIndex: 30,
-  flexShrink: 0, // Prevent header from shrinking
+  flexShrink: 0,
+  // Mobile header fixes
+  marginLeft: 0,
+  marginRight: 0,
+  width: "auto",
 };
 
 const headerLeftStyle = {
@@ -692,8 +720,9 @@ const headerLeftStyle = {
   gap: "16px",
 };
 
+// FIXED: Hamburger style - now visible on mobile
 const hamburgerStyle = {
-  display: "none",
+  display: "none", // Hidden by default
   background: "rgba(145, 137, 137, 0.35)",
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: "10px",
@@ -702,6 +731,10 @@ const hamburgerStyle = {
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
+  // This media query makes it visible on mobile
+  "@media (max-width: 900px)": {
+    display: "flex",
+  },
 };
 
 const hamburgerIconStyle = {
@@ -713,6 +746,9 @@ const pageTitleStyle = {
   color: "#ffffff",
   fontSize: "18px",
   fontWeight: "600",
+  "@media (max-width: 900px)": {
+    fontSize: "16px",
+  },
 };
 
 const headerRightStyle = {
@@ -721,6 +757,9 @@ const headerRightStyle = {
   gap: "20px",
   position: "relative",
   zIndex: 31,
+  "@media (max-width: 900px)": {
+    gap: "10px",
+  },
 };
 
 const notificationWrapperStyle = {
@@ -745,6 +784,10 @@ const userMenuTriggerStyle = {
   cursor: "pointer",
   position: "relative",
   zIndex: 101,
+  "@media (max-width: 900px)": {
+    padding: "4px 8px",
+    gap: "4px",
+  },
 };
 
 const headerAvatarStyle = {
@@ -753,6 +796,10 @@ const headerAvatarStyle = {
   borderRadius: "36px",
   objectFit: "cover",
   border: "2px solid #00c6ff",
+  "@media (max-width: 900px)": {
+    width: "32px",
+    height: "32px",
+  },
 };
 
 const headerAvatarFallbackStyle = {
@@ -766,17 +813,28 @@ const headerAvatarFallbackStyle = {
   fontSize: "16px",
   fontWeight: "600",
   color: "#fff",
+  "@media (max-width: 900px)": {
+    width: "32px",
+    height: "32px",
+    fontSize: "14px",
+  },
 };
 
 const userNameStyle = {
   color: "#00b2f8",
   fontSize: "14px",
   fontWeight: "800",
+  "@media (max-width: 900px)": {
+    display: "none", // Hide username on mobile to save space
+  },
 };
 
 const dropdownArrowStyle = {
   color: "rgba(255, 255, 255, 0.16)",
   fontSize: "10px",
+  "@media (max-width: 900px)": {
+    display: "none", // Hide arrow on mobile
+  },
 };
 
 const userDropdownStyle = {
@@ -790,6 +848,10 @@ const userDropdownStyle = {
   boxShadow: "0 10px 25px -5px rgba(0,0,0,0.5)",
   zIndex: 102,
   overflow: "hidden",
+  "@media (max-width: 900px)": {
+    width: "200px",
+    right: "-10px",
+  },
 };
 
 const userDropdownHeader = {
@@ -828,14 +890,19 @@ const dropdownLogoutIcon = {
   fontSize: "16px",
 };
 
-// FIXED: Content style - where your pages actually render
+// FIXED: Content style - minimal padding, full width
 const contentStyle = {
-  height: "calc(100% - 80px)", // Subtract header height
+  height: "calc(100vh - 80px)", // Full height minus header
   overflowY: "auto",
-  overflowX: "auto",
+  overflowX: "hidden",
   position: "relative",
   zIndex: 1,
-  paddingRight: "4px", // Space for scrollbar
+  padding: 0, // No padding by default
+  // Mobile specific overrides will be in the global styles
+  "@media (max-width: 900px)": {
+    padding: "12px", // Minimal padding for content on mobile
+    height: "calc(100vh - 70px)", // Slightly adjust for mobile header
+  },
 };
 
 export default Layout;

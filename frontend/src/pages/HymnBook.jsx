@@ -83,7 +83,7 @@ export default function HymnBook() {
       
       const params = new URLSearchParams({
         page: pageNum,
-        limit: 20
+        limit: 5
       });
       
       if (search) {
@@ -724,8 +724,8 @@ const recentRef = {
 // Songs Grid
 const songsGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "10px",
+  gridTemplateColumns: "repeat(1, 1fr)",
+  gap: "11px",
 };
 
 const songsList = {

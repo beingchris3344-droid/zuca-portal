@@ -243,7 +243,7 @@ export default function RoleManagement() {
         .role-management {
           min-height: 100vh;
           padding: 32px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #141724 0%, #525e81 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
@@ -253,7 +253,7 @@ export default function RoleManagement() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #141519c7 0%, #764ba2 100%);
           color: white;
         }
 

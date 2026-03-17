@@ -378,14 +378,14 @@ useEffect(() => {
           background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 0px solid rgba(255, 255, 255, 0.1);
         }
 
         .glass-card {
           background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 0px solid rgba(255, 255, 255, 0.1);
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
@@ -543,7 +543,7 @@ useEffect(() => {
 
         .notification-header button {
           border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(10px);
           color: rgba(255, 255, 255, 0.8);
           font-size: 13px;
@@ -573,13 +573,13 @@ useEffect(() => {
           display: flex;
           gap: 12px;
           padding: 12px 16px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.84);
           transition: all 0.2s;
           cursor: pointer;
         }
 
         .notification-item:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.94);
         }
 
         .notification-icon {
@@ -608,7 +608,7 @@ useEffect(() => {
 
         .notification-message {
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.7);
+          color: rgba(255, 255, 255, 0.01);
           line-height: 1.4;
         }
 
@@ -650,7 +650,7 @@ useEffect(() => {
           flex-direction: column;
           z-index: 90;
           overflow-y: auto;
-          border-right: 1px solid rgba(255, 255, 255, 0.1);
+          border-right: 1px solid rgba(255, 255, 255, 0.14);
         }
 
         .sidebar-mobile {
@@ -659,7 +659,7 @@ useEffect(() => {
           left: 0;
           height: 100vh;
           z-index: 1000;
-          box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3);
+          box-shadow: 4px 0 30px rgba(0, 0, 0, 0.93);
         }
 
         .sidebar-header {
@@ -685,7 +685,7 @@ useEffect(() => {
 
         .sidebar-subtitle {
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.6);
+          color: rgba(255, 255, 255, 0.93);
           margin: 0;
         }
 
@@ -710,7 +710,7 @@ useEffect(() => {
           flex: 1;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 12px;
         }
 
         .nav-item {
@@ -719,8 +719,9 @@ useEffect(() => {
           display: flex;
           align-items: center;
           gap: 12px;
-          color: rgba(255, 255, 255, 0.7);
+          color: rgb(255, 255, 255);
           transition: all 0.2s;
+        
           cursor: pointer;
           position: relative;
           overflow: hidden;
@@ -767,9 +768,9 @@ useEffect(() => {
         .logout-btn {
           margin-top: 20px;
           padding: 14px;
-          border: 1px solid rgba(239, 68, 68, 0.3);
+          border: 1px solid rgb(255, 0, 0);
           border-radius: 12px;
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+          background: linear-gradient(135deg, rgb(255, 0, 0), rgba(50, 19, 19, 0.2));
           color: #fca5a5;
           font-size: 15px;
           font-weight: 600;
@@ -802,17 +803,28 @@ useEffect(() => {
         .main-content {
           margin-left: 280px;
           padding: 90px 24px 24px;
+          border-radius: 0px;
           min-height: 100vh;
           transition: margin-left 0.3s;
           position: relative;
           z-index: 1;
         }
 
-        .content-wrapper {
-          border-radius: 30px;
-          padding: 24px;
-          min-height: calc(100vh - 114px);
-        }
+        
+
+       .content-wrapper {
+  border-radius: 0px;           /* Remove border radius for edge-to-edge */
+  padding: 0px;                 /* Remove padding */
+  margin: 0;                    /* Remove all margins */
+  position: relative;
+  min-height: calc(100vh - 114px);
+  width: 100%;                  /* Force full width */
+  max-width: 100%;              /* Ensure it never constrains */
+  box-sizing: border-box;
+  border-radius: 40px;
+  left: 0;
+  right: 0;
+}
 
         /* Copyright Footer */
         .copyright-footer {
@@ -858,10 +870,11 @@ useEffect(() => {
         }
 
         /* Responsive Design */
-        @media (max-width: 768px) {
+        @media (max-width: 852px) {
           .main-content {
-            margin-left: 0;
-            padding: 90px 16px 24px;
+            margin-left: -0;
+            margin-right: 0;
+            padding: 80px 0px 20px;
           }
 
           .copyright-footer {
@@ -897,12 +910,12 @@ useEffect(() => {
 
         @media (max-width: 480px) {
           .top-bar {
-            padding: 0 16px;
+            padding: 0 0px;
           }
 
           .university-name {
             font-size: 14px;
-            max-width: 120px;
+            max-width: 70px;
             overflow: hidden;
             text-overflow: ellipsis;
           }

@@ -56,7 +56,7 @@ export default function SongsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ date: "", venue: "", songs: {} });
   const [formError, setFormError] = useState("");
-  const [isFormOpen, setIsFormOpen] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedPrograms, setExpandedPrograms] = useState({});
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [searchTerm, setSearchTerm] = useState("");

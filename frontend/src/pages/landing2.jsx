@@ -134,18 +134,18 @@ function Landing2() {
       {/* Simple Navigation - Only nav links, no buttons here anymore */}
       <nav style={{ ...navStyle, background: scrollY > 50 ? "rgba(11, 11, 31, 0.9)" : "transparent", backdropFilter: scrollY > 50 ? "blur(10px)" : "none" }}>
         <div style={navContentStyle}>
-          <div style={logoContainerStyle}>
-            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-            <span style={logoTextStyle}>ZUCA</span>
-          </div>
-          <div style={navLinksStyle}>
-            <a href="#home" style={navLinkStyle}>Home</a>
-            <a href="#about" style={navLinkStyle}>About</a>
-            <a href="#connect" style={navLinkStyle}>Connect</a>
-            <a href="#mass" style={navLinkStyle}>Mass</a>
-          </div>
-        </div>
-      </nav>
+      <div style={logoContainerStyle}>
+        <img src={logo} alt="ZUCA Logo" style={logoStyle} />
+        <span style={logoTextStyle}>ZUCA</span>
+      </div>
+      <div style={navLinksStyle}>
+        <a href="#home" style={navLinkStyle}>Home</a>
+        <a href="#about" style={navLinkStyle}>About</a>
+        <a href="#connect" style={navLinkStyle}>Connect</a>
+        <a href="#mass" style={navLinkStyle}>Mass</a>
+      </div>
+    </div>
+  </nav>
 
       {/* Hero Section */}
       <section id="home" style={heroStyle(bg)}>
@@ -571,7 +571,7 @@ const logoTextStyle = {
 
 const navLinksStyle = {
   display: "flex",
-  gap: "20px",
+  gap: "10px",
   alignItems: "center",
   flexWrap: "wrap"
 };
@@ -579,19 +579,19 @@ const navLinksStyle = {
 const navLinkStyle = {
   color: "#fff",
   textDecoration: "none",
-  fontSize: "14px",
-  fontWeight: "600",
-  background: "rgba(33, 191, 222, 0.9)",
+  fontSize: "10px",
+  fontWeight: "700",
+  
   borderRadius: "50px",
-  padding: "5px 6px 4px 4px",
+  padding: "5px 5px 4px 4px",
   transition: "color 0.3s"
 };
 
 // NEW BIG CARD STYLES - Added at the top
 const bigActionCardStyle = {
   position: "absolute",
-  marginTop: "-75px",
-  right: "20px",
+  marginTop: "-40px",
+  right: "-10px",
   background: "rgba(32, 32, 41, 0.78)",
   backdropFilter: "blur(10px)",
   borderRadius: "50px",

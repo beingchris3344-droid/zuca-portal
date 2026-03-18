@@ -17,9 +17,12 @@ import {
   FaClock,
   FaLocationArrow,
   FaDownload,
-  FaMobileAlt
+  FaMobileAlt,
+  FaBars,
+  FaTimes,
+  FaChevronDown
 } from "react-icons/fa";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
 import bg from "../assets/background2.webp";
 import NotificationPrompt from '../components/NotificationPrompt';
@@ -30,9 +33,20 @@ function Landing2() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(true);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('home');
+  const heroRef = useRef(null);
+  const aboutRef = useRef(null);
+  const massRef = useRef(null);
+  const connectRef = useRef(null);
+  const contactRef = useRef(null);
 
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+      updateActiveSection();
+    };
+    
     window.addEventListener("scroll", handleScroll);
     
     // Fade-in on scroll observer
@@ -60,6 +74,48 @@ function Landing2() {
       observer.disconnect();
     };
   }, []);
+
+  const updateActiveSection = () => {
+    const sections = [
+      { id: 'home', ref: heroRef },
+      { id: 'about', ref: aboutRef },
+      { id: 'mass', ref: massRef },
+      { id: 'connect', ref: connectRef },
+      { id: 'contact', ref: contactRef }
+    ];
+
+    const scrollPosition = window.scrollY + 100;
+
+    for (const section of sections) {
+      if (section.ref.current) {
+        const { offsetTop, offsetHeight } = section.ref.current;
+        if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
+          setActiveSection(section.id);
+          break;
+        }
+      }
+    }
+  };
+
+  const scrollToSection = (sectionId) => {
+    const sectionRef = {
+      home: heroRef,
+      about: aboutRef,
+      mass: massRef,
+      connect: connectRef,
+      contact: contactRef
+    }[sectionId];
+
+    if (sectionRef?.current) {
+      const offset = 80;
+      const elementPosition = sectionRef.current.offsetTop - offset;
+      window.scrollTo({
+        top: elementPosition,
+        behavior: 'smooth'
+      });
+    }
+    setMobileMenuOpen(false);
+  };
 
   // PWA Install Prompt Handler
   useEffect(() => {
@@ -131,50 +187,53 @@ function Landing2() {
         </div>
       </div>
 
-      {/* Simple Navigation - Only nav links, no buttons here anymore */}
+      {/* Simple Navigation - Only nav links */}
       <nav style={{ ...navStyle, background: scrollY > 50 ? "rgba(11, 11, 31, 0.9)" : "transparent", backdropFilter: scrollY > 50 ? "blur(10px)" : "none" }}>
         <div style={navContentStyle}>
-      <div style={logoContainerStyle}>
-        <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-        <span style={logoTextStyle}>ZUCA</span>
-      </div>
-      <div style={navLinksStyle}>
-        <a href="#home" style={navLinkStyle}>Home</a>
-        <a href="#about" style={navLinkStyle}>About</a>
-        <a href="#connect" style={navLinkStyle}>Connect</a>
-        <a href="#mass" style={navLinkStyle}>Mass</a>
-      </div>
-    </div>
-  </nav>
+          <div style={logoContainerStyle}>
+            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
+            <span style={logoTextStyle}>ZUCA</span>
+          </div>
+          <div style={navLinksStyle}>
+            <a href="#home" style={navLinkStyle}>Home</a>
+            <a href="#about" style={navLinkStyle}>About</a>
+            <a href="#connect" style={navLinkStyle}>Connect</a>
+            <a href="#mass" style={navLinkStyle}>Mass</a>
+          </div>
+        </div>
+      </nav>
 
       {/* Hero Section */}
-      <section id="home" style={heroStyle(bg)}>
+      <section id="home" ref={heroRef} style={heroStyle(bg)}>
         <div style={heroOverlayStyle} />
         <div style={heroContentStyle}>
-          {/* BIG MEDIUM CARD - Logo + Install + Login + Register */}
-          <div style={bigActionCardStyle}>
-            <div style={bigActionCardContent}>
-              {/* Logo on left */}
-              <img src={logo} alt="ZUCA Logo" style={bigActionLogoStyle} />
-              
-              {/* Buttons on right */}
-              <div style={bigActionButtonsStyle}>
-                {showInstallButton && (
-                  <button onClick={handleInstallClick} style={bigActionInstallStyle}>
-                    <FaDownload style={{ marginRight: "5px" }} />
-                    Install
+          {/* FLOATING OVAL CARD - Properly centered on all devices */}
+          <div style={floatingCardWrapperStyle}>
+            <div style={floatingCardStyle}>
+              <div style={floatingCardContentStyle}>
+                {/* Logo on left */}
+                <img src={logo} alt="ZUCA Logo" style={floatingCardLogoStyle} />
+                
+                {/* Buttons on right */}
+                <div style={floatingCardButtonsStyle}>
+                  {showInstallButton && (
+                    <button onClick={handleInstallClick} style={floatingCardInstallStyle}>
+                      <FaDownload style={{ marginRight: "5px" }} />
+                      Install
+                    </button>
+                  )}
+                  <button onClick={() => navigate("/login")} style={floatingCardLoginStyle}>
+                    Login
                   </button>
-                )}
-                <button onClick={() => navigate("/login")} style={bigActionLoginStyle}>
-                  Login
-                </button>
-                <button onClick={() => navigate("/register")} style={bigActionRegisterStyle}>
-                  Join Us
-                </button>
+                  <button onClick={() => navigate("/register")} style={floatingCardRegisterStyle}>
+                    Join Us
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
+          {/* Rest of hero content - exactly as original */}
           <img src={logo} alt="ZUCA Logo" style={heroLogoStyle} />
           <h1 style={heroTitleStyle}>
             <span style={heroMassIconStyle}>Zetech University Catholic Action </span>
@@ -190,7 +249,7 @@ function Landing2() {
             <FaChurch style={heroMassIconStyle} />
             <div style={heroMassTextStyle}>
               <strong style={{ color: "#00c6ff" }}>Wednesday Mass:</strong> 4:30 PM
-              <span style={{ display: "block", fontSize: "14px", color: "#94a3b8" }}>Annex Building 002:</span>
+              <span style={{ display: "block", fontSize: "14px", color: "#94a3b8" }}>Annex Building 002</span>
             </div>
           </div>
           
@@ -205,9 +264,9 @@ function Landing2() {
         </div>
       </section>
 
-      {/* Rest of your code exactly the same from here... */}
+      {/* Rest of your sections exactly as they were - keeping everything intact */}
       {/* Mass Schedule Section */}
-      <section id="mass" className="fade-section" style={massSectionStyle}>
+      <section id="mass" ref={massRef} className="fade-section" style={massSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={massHeaderStyle}>
             <FaPray style={massIconStyle} />
@@ -248,7 +307,7 @@ function Landing2() {
       </section>
 
       {/* Social Media Section */}
-      <section id="connect" className="fade-section" style={socialSectionStyle}>
+      <section id="connect" ref={connectRef} className="fade-section" style={socialSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
             <FaHeart style={sectionIconStyle} />
@@ -313,7 +372,7 @@ function Landing2() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="fade-section" style={aboutSectionStyle}>
+      <section id="about" ref={aboutRef} className="fade-section" style={aboutSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
             <img src={logo} alt="ZUCA Logo" style={logoStyle} />
@@ -336,7 +395,7 @@ function Landing2() {
               </div>
               <div style={activityItemStyle}>
                 <FaUsers style={activityIconStyle} />
-                <span>Jumuias</span>
+                <span>Jumuiyas</span>
               </div>
               <div style={activityItemStyle}>
                 <FaHandsHelping style={activityIconStyle} />
@@ -348,7 +407,7 @@ function Landing2() {
       </section>
 
       {/* Contact Section */}
-      <section className="fade-section" style={contactSectionStyle}>
+      <section className="fade-section" ref={contactRef} style={contactSectionStyle}>
         <div style={sectionContainerStyle}>
           <div style={sectionHeaderStyle}>
             <FaEnvelope style={sectionIconLightStyle} />
@@ -491,7 +550,6 @@ const topBarStyle = {
   top: 0,
   left: 0,
   right: 0,
-  
   borderBottom: "4px solid rgba(13, 123, 197, 0)"
 };
 
@@ -581,49 +639,58 @@ const navLinkStyle = {
   textDecoration: "none",
   fontSize: "10px",
   fontWeight: "700",
-  
   borderRadius: "50px",
   padding: "5px 5px 4px 4px",
   transition: "color 0.3s"
 };
 
-// NEW BIG CARD STYLES - Added at the top
-const bigActionCardStyle = {
-  position: "absolute",
-  marginTop: "-40px",
-  right: "-10px",
+// FLOATING CARD - NEW WRAPPER FOR PROPER CENTERING
+const floatingCardWrapperStyle = {
+  display: "flex",
+  justifyContent: "center",
+  width: "100%",
+  marginBottom: "30px"
+};
+
+const floatingCardStyle = {
   background: "rgba(32, 32, 41, 0.78)",
   backdropFilter: "blur(10px)",
-  borderRadius: "50px",
+  borderRadius: "60px",
   padding: "8px",
   border: "1px solid rgba(255,255,255,0.2)",
   boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-  zIndex: 1002
+  zIndex: 1002,
+  display: "inline-block",
+  maxWidth: "100%"
 };
 
-const bigActionCardContent = {
+const floatingCardContentStyle = {
   display: "flex",
   alignItems: "center",
   gap: "15px",
   background: "rgba(255,255,255,0.1)",
-  borderRadius: "50px",
-  padding: "5px 10px 5px 5px"
+  borderRadius: "60px",
+  padding: "5px 10px 5px 5px",
+  flexWrap: "wrap",
+  justifyContent: "center"
 };
 
-const bigActionLogoStyle = {
+const floatingCardLogoStyle = {
   width: "45px",
   height: "45px",
   borderRadius: "50%",
   border: "2px solid #00c6ff"
 };
 
-const bigActionButtonsStyle = {
+const floatingCardButtonsStyle = {
   display: "flex",
   gap: "8px",
-  alignItems: "center"
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "center"
 };
 
-const bigActionInstallStyle = {
+const floatingCardInstallStyle = {
   padding: "8px 16px",
   borderRadius: "30px",
   border: "none",
@@ -636,7 +703,7 @@ const bigActionInstallStyle = {
   alignItems: "center"
 };
 
-const bigActionLoginStyle = {
+const floatingCardLoginStyle = {
   padding: "8px 16px",
   borderRadius: "30px",
   border: "1px solid rgba(255,255,255,0.2)",
@@ -647,7 +714,7 @@ const bigActionLoginStyle = {
   cursor: "pointer"
 };
 
-const bigActionRegisterStyle = {
+const floatingCardRegisterStyle = {
   padding: "8px 16px",
   borderRadius: "30px",
   border: "none",
@@ -656,24 +723,6 @@ const bigActionRegisterStyle = {
   fontSize: "14px",
   fontWeight: "500",
   cursor: "pointer"
-};
-
-// Keep all your existing button styles but remove them from nav
-// (navInstallButtonStyle, navButtonStyle, navButtonPrimaryStyle can be removed or kept - won't be used)
-
-const heroInstallButtonStyle = {
-  padding: "14px 30px",
-  borderRadius: "40px",
-  border: "none",
-  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
-  color: "#000",
-  fontSize: "16px",
-  fontWeight: "700",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 10px 20px -5px rgba(255,215,0,0.3)"
 };
 
 const footerInstallButtonStyle = {
@@ -714,7 +763,8 @@ const heroContentStyle = {
   position: "relative",
   zIndex: 2,
   textAlign: "center",
-  maxWidth: "800px"
+  maxWidth: "800px",
+  width: "100%"
 };
 
 const heroLogoStyle = {

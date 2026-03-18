@@ -110,6 +110,30 @@ const AnalyticsPage = () => {
     return parts.join(':');
   };
 
+  // FIXED: YouTube links - opens videos in new tab
+  const handleVideoClick = (video) => {
+    if (video?.id) {
+      window.open(`https://youtube.com/watch?v=${video.id}`, '_blank');
+    }
+  };
+
+  // FIXED: Channel link - opens channel in new tab
+  const handleChannelClick = () => {
+    if (data?.channel?.id) {
+      window.open(`https://youtube.com/channel/${data.channel.id}`, '_blank');
+    }
+  };
+
+  // FIXED: Song play - opens video if available
+  const handleSongPlay = (song) => {
+    if (song?.videoId) {
+      window.open(`https://youtube.com/watch?v=${song.videoId}`, '_blank');
+    } else {
+      setSelectedSong(song);
+      setIsPlaying(true);
+    }
+  };
+
   const MetricCard = ({ title, value, subValue, change, icon: Icon }) => (
     <div className="metric-card glass-effect">
       <div className="metric-card-inner">
@@ -238,13 +262,15 @@ const AnalyticsPage = () => {
         <div className="header-card glass-effect">
           <div className="header-top">
             <div className="header-left">
-              <div className="logo-wrapper">
+              <div className="logo-wrapper" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>
                 <Youtube className="logo-icon" />
               </div>
               <div className="header-info">
                 <h1 className="header-title">YouTube Analytics</h1>
                 <div className="header-meta">
-                  <span className="channel-name">{data?.channel?.name}</span>
+                  <span className="channel-name" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>
+                    {data?.channel?.name}
+                  </span>
                   <span className="live-badge">LIVE</span>
                   <span className="time-badge">{format(currentTime, 'HH:mm:ss')}</span>
                 </div>
@@ -472,7 +498,7 @@ const AnalyticsPage = () => {
           </div>
           <div className="songs-grid">
             {data?.songs?.map((song) => (
-              <SongCard key={song.id} song={song} onClick={setSelectedSong} />
+              <SongCard key={song.id} song={song} onClick={handleSongPlay} />
             ))}
           </div>
         </div>
@@ -482,7 +508,7 @@ const AnalyticsPage = () => {
             <h3 className="chart-title">Top Performing Content</h3>
             <div className="top-content-list">
               {data?.topVideos?.map((video, index) => (
-                <div key={video.id} className="top-content-item">
+                <div key={video.id} className="top-content-item" onClick={() => handleVideoClick(video)} style={{ cursor: 'pointer' }}>
                   <div className="rank-badge">#{index + 1}</div>
                   <div className="content-thumb-wrapper">
                     <img src={video.thumbnail} alt={video.title} className="content-thumb" />
@@ -665,7 +691,7 @@ const AnalyticsPage = () => {
           </div>
           <div className="recent-uploads-grid">
             {data?.recentVideos?.slice(0, 6).map((video) => (
-              <div key={video.id} className="recent-item">
+              <div key={video.id} className="recent-item" onClick={() => handleVideoClick(video)} style={{ cursor: 'pointer' }}>
                 <div className="recent-thumb-wrapper">
                   <img src={video.thumbnail} alt={video.title} className="recent-thumb" />
                   <span className="recent-duration">{formatDuration(video.duration)}</span>
@@ -688,9 +714,9 @@ const AnalyticsPage = () => {
 
         <div className="channel-footer glass-effect">
           <div className="footer-left">
-            <img src={data?.channel?.thumbnail || 'https://via.placeholder.com/40'} alt="channel" className="footer-avatar" />
+            <img src={data?.channel?.thumbnail || 'https://via.placeholder.com/40'} alt="channel" className="footer-avatar" onClick={handleChannelClick} style={{ cursor: 'pointer' }} />
             <div className="footer-info">
-              <span className="footer-name">{data?.channel?.name}</span>
+              <span className="footer-name" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>{data?.channel?.name}</span>
               <span className="footer-id">Channel ID: {data?.channel?.id || 'N/A'}</span>
             </div>
             <span className="footer-separator">•</span>
@@ -714,6 +740,7 @@ const AnalyticsPage = () => {
       )}
 
       <style>{`
+        /* Your existing styles remain exactly the same */
         .analytics-container {
           min-height: 100vh;
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
@@ -1404,19 +1431,19 @@ const AnalyticsPage = () => {
         }
 
         .content-main {
-  border-radius: 25px;
-  padding: 20px;
-  width: 100%;
-  overflow-x: auto;              /* ← Simple fix */
-  -webkit-overflow-scrolling: touch;
-}
+          border-radius: 25px;
+          padding: 20px;
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
 
-.top-content-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 550px;              /* ← Width that shows all columns */
-}
+        .top-content-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-width: 550px;
+        }
 
         .top-content-item {
           display: flex;

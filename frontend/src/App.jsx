@@ -18,7 +18,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import HymnBook from './pages/HymnBook';
 import HymnLyrics from './pages/HymnLyrics';
-
+import LiturgicalCalendar from './pages/LiturgicalCalendar';
 import JumuiaDashboard from "./pages/JumuiaDashboard";import JoinJumuia from "./pages/JoinJumuia";
 import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
 
@@ -49,6 +49,7 @@ function App() {
 
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/home" element={<Home />} />
+        <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -66,6 +67,7 @@ function App() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
+          
 <Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
 <Route path="/join-jumuia" element={<JoinJumuia />} />
 <Route path="/hymns" element={<HymnBook />} />

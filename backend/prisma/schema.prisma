@@ -550,3 +550,28 @@ model JumuiaReadReceipt {
   @@index([userId])
   @@map("jumuia_read_receipts")
 }
+
+model LiturgicalDay {
+  id            Int      @id @default(autoincrement())
+  date          DateTime @unique(map: "liturgical_day_date_unique") // Added map parameter
+  season        String   // advent, christmas, lent, easter, ordinary
+  seasonName    String   // "Advent", "Christmas Time", etc.
+  celebration   String   // "Sunday of the Word of God", etc.
+  celebrationType String // solemnity, feast, memorial, optional memorial, weekday
+  liturgicalColor String  // green, white, purple, red, rose
+  rank          String   // "Solemnity", "Feast", "Memorial", etc.
+  yearCycle     String?  // A, B, or C for Sunday cycle
+  weekdayCycle  String?  // I or II for weekday cycle
+  weekNumber    Int?     // Week of the season
+  holyDayOfObligation Boolean @default(false)
+  
+  // Optional: Store readings
+  readings      Json?    // Store as JSON array
+  
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([date], name: "liturgical_day_date_unique") // Added name parameter
+  @@map("liturgical_days")
+}

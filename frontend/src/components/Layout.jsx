@@ -97,6 +97,8 @@ function Layout() {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
+    
+  
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },
     { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },

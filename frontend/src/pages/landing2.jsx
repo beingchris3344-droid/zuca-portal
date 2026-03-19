@@ -225,6 +225,9 @@ function Landing2() {
                   <button onClick={() => navigate("/login")} style={floatingCardLoginStyle}>
                     Login
                   </button>
+                  <button onClick={() => navigate("/liturgical-calendar")} style={floatingCardRegisterStyle}>
+  📅 Liturgical Calendar
+</button>
                   <button onClick={() => navigate("/register")} style={floatingCardRegisterStyle}>
                     Join Us
                   </button>

@@ -19,6 +19,7 @@ const LiturgicalCalendar = () => {
   const [showLegend, setShowLegend] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showModal, setShowModal] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   // Check screen size on resize
   useEffect(() => {
@@ -32,45 +33,45 @@ const LiturgicalCalendar = () => {
   // REAL liturgical seasons with proper Catholic colors
   const liturgicalSeasons = {
     advent: { 
-      color: '#800080', // Purple
+      color: '#800080',
       name: 'Advent', 
-      icon: <Star size={isMobile ? 12 : 16} color="#FFD700" />,
+      icon: <Star size={isMobile ? 10 : 16} color="#FFD700" />,
       bg: 'rgba(128, 0, 128, 0.25)',
       border: '#800080',
       textColor: '#fff',
       description: 'Season of waiting and preparation'
     },
     christmas: { 
-      color: '#FFFFFF', // White
+      color: '#FFFFFF',
       name: 'Christmas', 
-      icon: <Sparkles size={isMobile ? 12 : 16} color="#FFD700" />,
+      icon: <Sparkles size={isMobile ? 10 : 16} color="#FFD700" />,
       bg: 'rgba(255, 255, 255, 0.25)',
       border: '#FFD700',
       textColor: '#000',
       description: 'Celebrate the birth of our Lord'
     },
     lent: { 
-      color: '#800080', // Purple
+      color: '#800080',
       name: 'Lent', 
-      icon: <Cloud size={isMobile ? 12 : 16} color="#FFA500" />,
+      icon: <Cloud size={isMobile ? 10 : 16} color="#FFA500" />,
       bg: 'rgba(128, 0, 128, 0.25)',
       border: '#800080',
       textColor: '#fff',
       description: 'Prayer, fasting, and almsgiving'
     },
     easter: { 
-      color: '#FFFFFF', // White
+      color: '#FFFFFF',
       name: 'Easter', 
-      icon: <Sun size={isMobile ? 12 : 16} color="#FFD700" />,
+      icon: <Sun size={isMobile ? 10 : 16} color="#FFD700" />,
       bg: 'rgba(255, 255, 255, 0.25)',
       border: '#FFD700',
       textColor: '#000',
       description: 'Rejoice in the Resurrection'
     },
     ordinary: { 
-      color: '#008000', // Green
+      color: '#008000',
       name: 'Ordinary Time', 
-      icon: <Leaf size={isMobile ? 12 : 16} color="#98FB98" />,
+      icon: <Leaf size={isMobile ? 10 : 16} color="#98FB98" />,
       bg: 'rgba(0, 128, 0, 0.25)',
       border: '#008000',
       textColor: '#fff',
@@ -81,35 +82,35 @@ const LiturgicalCalendar = () => {
   // Celebration types with distinct colors
   const celebrationTypes = {
     solemnity: { 
-      color: '#FFD700', // Gold
+      color: '#FFD700',
       bg: 'rgba(255, 215, 0, 0.3)',
       border: '#FFD700',
       label: 'Solemnity',
       icon: '👑'
     },
     feast: { 
-      color: '#00c6ff', // Blue
+      color: '#00c6ff',
       bg: 'rgba(0, 198, 255, 0.3)',
       border: '#00c6ff',
       label: 'Feast',
       icon: '⭐'
     },
     memorial: { 
-      color: '#98FB98', // Light green
+      color: '#98FB98',
       bg: 'rgba(152, 251, 152, 0.3)',
       border: '#98FB98',
       label: 'Memorial',
       icon: '🕊️'
     },
     'optional memorial': { 
-      color: '#DDA0DD', // Plum
+      color: '#DDA0DD',
       bg: 'rgba(221, 160, 221, 0.3)',
       border: '#DDA0DD',
       label: 'Optional Memorial',
       icon: '🌸'
     },
     weekday: { 
-      color: '#94a3b8', // Gray
+      color: '#94a3b8',
       bg: 'rgba(148, 163, 184, 0.2)',
       border: '#94a3b8',
       label: 'Weekday',
@@ -140,10 +141,7 @@ const LiturgicalCalendar = () => {
       const year = currentDate.getFullYear();
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
       
-      console.log(`Fetching month: ${year}/${month}`);
-      
       const response = await publicApi.get(`/api/calendar/month/${year}/${month}`);
-      console.log('Month data:', response.data);
       
       const dataByDay = {};
       if (Array.isArray(response.data)) {
@@ -231,21 +229,19 @@ const LiturgicalCalendar = () => {
   };
 
   const handleDayClick = (day) => {
-  setSelectedDay(day);
-  setShowModal(true); // This opens the modal
-};
+    setSelectedDay(day);
+    setShowModal(true);
+  };
 
-const closeModal = () => {
-  setShowModal(false);
-  setSelectedDay(null); // Optional: clear selected day when closing
-};
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedDay(null);
+  };
 
   const goToToday = () => {
     setCurrentDate(new Date());
     setSelectedDay(null);
   };
-
- 
 
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
@@ -281,18 +277,10 @@ const closeModal = () => {
   const getCelebrationShort = (celebration) => {
     if (!celebration) return '';
     if (isMobile) {
-      const words = celebration.split(' ');
-      if (words.length > 2) {
-        return words.slice(0, 2).join(' ') + '…';
-      }
       if (celebration.length > 12) {
         return celebration.substring(0, 10) + '…';
       }
       return celebration;
-    }
-    const words = celebration.split(' ');
-    if (words.length > 4) {
-      return words.slice(0, 3).join(' ') + '…';
     }
     if (celebration.length > 25) {
       return celebration.substring(0, 22) + '…';
@@ -321,6 +309,63 @@ const closeModal = () => {
     }
   };
 
+  // Mobile-optimized list view
+  const renderListView = () => {
+    const daysInMonth = getDaysInMonth();
+    const today = new Date();
+    const items = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayData = monthData[day];
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const isToday = date.toDateString() === today.toDateString();
+      const dayOfWeek = date.getDay();
+      const isSunday = dayOfWeek === 0;
+      const celebrationType = dayData ? getCelebrationTypeInfo(dayData.celebrationType) : celebrationTypes.weekday;
+      
+      items.push(
+        <div 
+          key={`list-${day}`}
+          onClick={() => handleDayClick(day)}
+          style={{
+            ...styles.listItem,
+            backgroundColor: isToday ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255,255,255,0.03)',
+            borderLeft: `4px solid ${celebrationType.border}`,
+          }}
+        >
+          <div style={styles.listItemLeft}>
+            <div style={styles.listItemDay}>
+              <span style={styles.listItemDayNumber}>{day}</span>
+              <span style={styles.listItemDayName}>{fullDayNames[dayOfWeek].substring(0, 3)}</span>
+            </div>
+            <div style={styles.listItemContent}>
+              <div style={styles.listItemCelebration}>
+                <span style={styles.listItemIcon}>{getTypeIcon(dayData?.celebrationType)}</span>
+                <span style={styles.listItemCelebrationText}>
+                  {dayData?.celebration || 'No celebration'}
+                </span>
+              </div>
+              {dayData && (
+                <div style={styles.listItemMeta}>
+                  <span style={styles.listItemSeason}>{dayData.seasonName}</span>
+                  {dayData.holyDayOfObligation && (
+                    <span style={styles.listItemHoly}>⛪ Holy Day</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {dayData && (
+            <div style={styles.listItemRight}>
+              <span style={styles.listItemArrow}>→</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return items;
+  };
+
   const renderCalendarGrid = () => {
     const daysInMonth = getDaysInMonth();
     const firstDay = getFirstDayOfMonth();
@@ -335,8 +380,8 @@ const closeModal = () => {
         <div key={`header-${index}`} style={{
           ...styles.dayHeader,
           color: isWeekend ? '#FFD700' : 'rgba(255,255,255,0.8)',
-          fontSize: isMobile ? '12px' : '14px',
-          padding: isMobile ? '5px 0' : '10px 0',
+          fontSize: isMobile ? '11px' : '14px',
+          padding: isMobile ? '4px 0' : '10px 0',
         }}>
           {day}
         </div>
@@ -356,15 +401,13 @@ const closeModal = () => {
       const dayOfWeek = new Date(currentDate.getFullYear(), currentDate.getMonth(), day).getDay();
       const isSunday = dayOfWeek === 0;
       
-      const firstReading = dayData ? getFirstReading(dayData.readings) : null;
-      
       let cellStyle = {
         ...styles.dayCell,
         background: dayData ? celebrationType.bg : 'rgba(255,255,255,0.02)',
         border: isToday ? (isMobile ? '2px solid #FFD700' : '3px solid #FFD700') : 
                 `1px solid ${dayData ? celebrationType.border : 'rgba(255,255,255,0.1)'}`,
-        minHeight: isMobile ? '65px' : '100px',
-        padding: isMobile ? '4px 2px' : '10px',
+        minHeight: isMobile ? '50px' : '100px',
+        padding: isMobile ? '2px' : '10px',
         aspectRatio: isMobile ? '1 / 1' : 'auto',
       };
       
@@ -379,10 +422,10 @@ const closeModal = () => {
             backgroundColor: isSunday ? 'rgba(255,215,0,0.2)' : 'transparent',
             color: isSunday ? '#FFD700' : 'white',
             fontWeight: isSunday ? 'bold' : 'normal',
-            fontSize: isMobile ? '14px' : '16px',
-            width: isMobile ? '22px' : '24px',
-            height: isMobile ? '22px' : '24px',
-            marginBottom: isMobile ? '2px' : '6px',
+            fontSize: isMobile ? '13px' : '16px',
+            width: isMobile ? '20px' : '24px',
+            height: isMobile ? '20px' : '24px',
+            marginBottom: isMobile ? '1px' : '6px',
           }}>
             {day}
           </div>
@@ -391,33 +434,23 @@ const closeModal = () => {
             <>
               <div style={{
                 ...styles.dayCelebration,
-                fontSize: isMobile ? '8px' : '11px',
+                fontSize: isMobile ? '7px' : '11px',
                 lineHeight: isMobile ? '1.1' : '1.3',
                 marginBottom: isMobile ? '1px' : '6px',
-                maxHeight: isMobile ? '28px' : 'none',
+                maxHeight: isMobile ? '20px' : 'none',
                 overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: isMobile ? 2 : 3,
+                WebkitBoxOrient: 'vertical',
               }}>
                 {getCelebrationShort(dayData.celebration)}
               </div>
-              
-              {firstReading && (
-                <div style={{
-                  ...styles.dayVerse,
-                  fontSize: isMobile ? '7px' : '9px',
-                  marginBottom: isMobile ? '1px' : '4px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {isMobile ? firstReading.split(' ')[0] : firstReading}
-                </div>
-              )}
               
               <div style={styles.dayMeta}>
                 <span style={{
                   ...styles.dayType,
                   fontSize: isMobile ? '8px' : '12px',
-                  padding: isMobile ? '1px 3px' : '2px 6px',
+                  padding: isMobile ? '1px 2px' : '2px 6px',
                   backgroundColor: celebrationType.bg,
                   color: celebrationType.color,
                   border: `1px solid ${celebrationType.border}`,
@@ -428,7 +461,7 @@ const closeModal = () => {
                 {dayData.holyDayOfObligation && (
                   <span style={{
                     ...styles.holyBadge,
-                    fontSize: isMobile ? '10px' : '14px',
+                    fontSize: isMobile ? '9px' : '14px',
                   }} title="Holy Day of Obligation">
                     ⛪
                   </span>
@@ -480,7 +513,7 @@ const closeModal = () => {
       <div style={styles.modalOverlay} onClick={onClose}>
         <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
           <button style={styles.modalCloseButton} onClick={onClose}>
-            <X size={24} />
+            <X size={isMobile ? 20 : 24} />
           </button>
           
           <div style={styles.modalHeader}>
@@ -488,7 +521,6 @@ const closeModal = () => {
           </div>
           
           <div style={styles.modalBody}>
-            {/* Celebration */}
             <div style={styles.modalSection}>
               <div style={styles.modalCelebration}>
                 <span style={styles.modalCelebrationIcon}>{getTypeIcon(dayData.celebrationType)}</span>
@@ -496,7 +528,6 @@ const closeModal = () => {
               </div>
             </div>
             
-            {/* Season Badge */}
             <div style={styles.modalSection}>
               <div style={{
                 ...styles.modalSeasonBadge,
@@ -508,7 +539,6 @@ const closeModal = () => {
               </div>
             </div>
             
-            {/* Details Grid */}
             <div style={styles.modalDetailsGrid}>
               <div style={styles.modalDetailItem}>
                 <span style={styles.modalDetailLabel}>Type</span>
@@ -549,10 +579,8 @@ const closeModal = () => {
               )}
             </div>
             
-            {/* Readings */}
             {renderReadings(dayData.readings)}
             
-            {/* Year Cycle if available */}
             {dayData.yearCycle && (
               <div style={styles.modalFooter}>
                 <span style={styles.modalCycle}>{dayData.yearCycle}</span>
@@ -590,96 +618,75 @@ const closeModal = () => {
 
       <div style={styles.content}>
         {/* Header */}
-        <div style={{
-          ...styles.header,
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'flex-start' : 'center',
-          gap: isMobile ? '10px' : '20px',
-          marginBottom: isMobile ? '15px' : '30px',
-        }}>
+        <div style={styles.header}>
           <div style={styles.headerLeft}>
-            <img src={logo} alt="ZUCA Logo" style={{
-              ...styles.logo,
-              width: isMobile ? '35px' : '50px',
-              height: isMobile ? '35px' : '50px',
-            }} />
-            <h1 style={{
-              ...styles.title,
-              fontSize: isMobile ? '20px' : '32px',
-            }}>Liturgical Calendar</h1>
+            <img src={logo} alt="ZUCA Logo" style={styles.logo} />
+            <h1 style={styles.title}>Liturgical Calendar</h1>
           </div>
-          <Link to="/" style={{
-            ...styles.homeLink,
-            fontSize: isMobile ? '13px' : '16px',
-            padding: isMobile ? '5px 10px' : '8px 16px',
-          }}>
+          <Link to="/" style={styles.homeLink}>
             ← Back
           </Link>
         </div>
 
         {error && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={20} />
-            <span>{error}</span>
+            <AlertCircle size={16} />
+            <span style={styles.errorText}>{error}</span>
             <button onClick={fetchMonthData} style={styles.retryButton}>
-              <RefreshCw size={14} />
+              <RefreshCw size={12} />
             </button>
           </div>
         )}
 
         {/* Month Navigation */}
-        <div style={{
-          ...styles.navigation,
-          padding: isMobile ? '5px 10px' : '10px 20px',
-          marginBottom: isMobile ? '10px' : '20px',
-        }}>
-          <button onClick={() => changeMonth(-1)} style={{
-            ...styles.navButton,
-            width: isMobile ? '32px' : '40px',
-            height: isMobile ? '32px' : '40px',
-          }}>
+        <div style={styles.navigation}>
+          <button onClick={() => changeMonth(-1)} style={styles.navButton}>
             <ChevronLeft size={isMobile ? 18 : 24} />
           </button>
           <div style={styles.monthDisplay}>
-            <h2 style={{
-              ...styles.monthYear,
-              fontSize: isMobile ? '16px' : '24px',
-            }}>
+            <h2 style={styles.monthYear}>
               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
             </h2>
-            <button onClick={goToToday} style={{
-              ...styles.todayButton,
-              padding: isMobile ? '3px 8px' : '6px 16px',
-              fontSize: isMobile ? '11px' : '14px',
-            }}>
+            <button onClick={goToToday} style={styles.todayButton}>
               Today
             </button>
           </div>
-          <button onClick={() => changeMonth(1)} style={{
-            ...styles.navButton,
-            width: isMobile ? '32px' : '40px',
-            height: isMobile ? '32px' : '40px',
-          }}>
+          <button onClick={() => changeMonth(1)} style={styles.navButton}>
             <ChevronRight size={isMobile ? 18 : 24} />
           </button>
         </div>
+
+        {/* View Toggle for Mobile */}
+        {isMobile && (
+          <div style={styles.viewToggle}>
+            <button 
+              onClick={() => setViewMode('grid')}
+              style={{
+                ...styles.viewToggleButton,
+                backgroundColor: viewMode === 'grid' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: viewMode === 'grid' ? '#FFD700' : 'rgba(255,255,255,0.7)',
+              }}
+            >
+              Grid
+            </button>
+            <button 
+              onClick={() => setViewMode('list')}
+              style={{
+                ...styles.viewToggleButton,
+                backgroundColor: viewMode === 'list' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: viewMode === 'list' ? '#FFD700' : 'rgba(255,255,255,0.7)',
+              }}
+            >
+              List
+            </button>
+          </div>
+        )}
 
         {/* Legend Toggle for Mobile */}
         {isMobile && (
           <button 
             onClick={() => setShowLegend(!showLegend)}
-            style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '20px',
-              padding: '6px 12px',
-              color: 'white',
-              fontSize: '12px',
-              marginBottom: '10px',
-              cursor: 'pointer',
-              width: '100%',
-              textAlign: 'center',
-            }}
+            style={styles.legendToggle}
           >
             {showLegend ? 'Hide Legend' : 'Show Legend'}
           </button>
@@ -687,52 +694,46 @@ const closeModal = () => {
 
         {/* Legend */}
         {(showLegend || !isMobile) && (
-          <div style={{
-            ...styles.legend,
-            padding: isMobile ? '8px 10px' : '15px 20px',
-            gap: isMobile ? '6px' : '15px',
-            marginBottom: isMobile ? '10px' : '20px',
-          }}>
+          <div style={styles.legend}>
             <div style={styles.legendItem}>
-              <span style={{...styles.legendDot, width: isMobile ? '12px' : '16px', height: isMobile ? '12px' : '16px'}}></span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>Purple</span>
+              <span style={{...styles.legendDot, backgroundColor: '#800080'}}></span>
+              <span>Purple</span>
             </div>
             <div style={styles.legendItem}>
-              <span style={{...styles.legendDot, width: isMobile ? '12px' : '16px', height: isMobile ? '12px' : '16px', backgroundColor: '#FFFFFF', border: '1px solid #FFD700'}}></span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>White</span>
+              <span style={{...styles.legendDot, backgroundColor: '#FFFFFF', border: '1px solid #FFD700'}}></span>
+              <span>White</span>
             </div>
             <div style={styles.legendItem}>
-              <span style={{...styles.legendDot, width: isMobile ? '12px' : '16px', height: isMobile ? '12px' : '16px', backgroundColor: '#008000'}}></span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>Green</span>
+              <span style={{...styles.legendDot, backgroundColor: '#008000'}}></span>
+              <span>Green</span>
             </div>
             <div style={styles.legendItem}>
               <span style={styles.legendIcon}>👑</span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>Solemnity</span>
+              <span>Solemnity</span>
             </div>
             <div style={styles.legendItem}>
               <span style={styles.legendIcon}>⭐</span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>Feast</span>
+              <span>Feast</span>
             </div>
             <div style={styles.legendItem}>
               <span style={styles.legendIcon}>🕊️</span>
-              <span style={{fontSize: isMobile ? '10px' : '13px'}}>Memorial</span>
+              <span>Memorial</span>
             </div>
           </div>
         )}
 
-        {/* Calendar Grid */}
-        <div style={{
-          ...styles.calendarWrapper,
-          padding: isMobile ? '8px' : '20px',
-          marginBottom: isMobile ? '10px' : '20px',
-        }}>
-          <div style={{
-            ...styles.calendarGrid,
-            gap: isMobile ? '2px' : '8px',
-          }}>
-            {renderCalendarGrid()}
+        {/* Calendar Display */}
+        {isMobile && viewMode === 'list' ? (
+          <div style={styles.listView}>
+            {renderListView()}
           </div>
-        </div>
+        ) : (
+          <div style={styles.calendarWrapper}>
+            <div style={styles.calendarGrid}>
+              {renderCalendarGrid()}
+            </div>
+          </div>
+        )}
 
         {/* Modal Popup */}
         {selectedDay && monthData[selectedDay] && (
@@ -766,12 +767,6 @@ const closeModal = () => {
         @keyframes slideUp {
           from { transform: translateY(50px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
-        }
-
-        @media (max-width: 480px) {
-          .calendar-grid {
-            gap: 1px !important;
-          }
         }
       `}</style>
     </div>
@@ -839,7 +834,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '15px',
     flexWrap: 'wrap',
     gap: '10px',
     width: '100%',
@@ -852,17 +847,27 @@ const styles = {
   },
 
   logo: {
+    width: '35px',
+    height: '35px',
     borderRadius: '50%',
     border: '2px solid #00c6ff',
+    '@media (min-width: 768px)': {
+      width: '50px',
+      height: '50px',
+    },
   },
 
   title: {
     color: 'white',
     fontWeight: 'bold',
     margin: 0,
+    fontSize: '20px',
     background: 'linear-gradient(135deg, #fff, #00c6ff)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
+    '@media (min-width: 768px)': {
+      fontSize: '32px',
+    },
   },
 
   homeLink: {
@@ -871,6 +876,12 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '20px',
     border: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '5px 10px',
+    fontSize: '13px',
+    '@media (min-width: 768px)': {
+      padding: '8px 16px',
+      fontSize: '16px',
+    },
   },
 
   errorBanner: {
@@ -886,6 +897,10 @@ const styles = {
     fontSize: '13px',
     width: '100%',
     boxSizing: 'border-box',
+  },
+
+  errorText: {
+    flex: 1,
   },
 
   retryButton: {
@@ -911,20 +926,30 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.05)',
     backdropFilter: 'blur(10px)',
     borderRadius: '40px',
+    padding: '5px 10px',
     width: '100%',
     boxSizing: 'border-box',
+    '@media (min-width: 768px)': {
+      padding: '10px 20px',
+    },
   },
 
   navButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '50%',
+    width: '32px',
+    height: '32px',
     color: 'white',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    '@media (min-width: 768px)': {
+      width: '40px',
+      height: '40px',
+    },
   },
 
   monthDisplay: {
@@ -936,6 +961,10 @@ const styles = {
   monthYear: {
     color: 'white',
     margin: 0,
+    fontSize: '16px',
+    '@media (min-width: 768px)': {
+      fontSize: '24px',
+    },
   },
 
   todayButton: {
@@ -944,15 +973,60 @@ const styles = {
     borderRadius: '16px',
     color: '#00c6ff',
     cursor: 'pointer',
+    padding: '3px 8px',
+    fontSize: '11px',
+    '@media (min-width: 768px)': {
+      padding: '6px 16px',
+      fontSize: '14px',
+    },
+  },
+
+  viewToggle: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '10px',
+    width: '100%',
+  },
+
+  viewToggleButton: {
+    flex: 1,
+    padding: '8px',
+    borderRadius: '20px',
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: 'rgba(255,255,255,0.05)',
+    cursor: 'pointer',
+    fontSize: '14px',
+    transition: 'all 0.2s ease',
+  },
+
+  legendToggle: {
+    background: 'rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    borderRadius: '20px',
+    padding: '6px 12px',
+    color: 'white',
+    fontSize: '12px',
+    marginBottom: '10px',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'center',
   },
 
   legend: {
     display: 'flex',
     flexWrap: 'wrap',
+    gap: '6px',
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '12px',
+    padding: '8px 10px',
+    marginBottom: '10px',
     width: '100%',
     boxSizing: 'border-box',
+    '@media (min-width: 768px)': {
+      gap: '15px',
+      padding: '15px 20px',
+      marginBottom: '20px',
+    },
   },
 
   legendItem: {
@@ -960,27 +1034,51 @@ const styles = {
     alignItems: 'center',
     gap: '4px',
     color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: '10px',
+    '@media (min-width: 768px)': {
+      fontSize: '13px',
+      gap: '8px',
+    },
   },
 
   legendDot: {
+    width: '12px',
+    height: '12px',
     borderRadius: '4px',
+    '@media (min-width: 768px)': {
+      width: '16px',
+      height: '16px',
+    },
   },
 
   legendIcon: {
-    fontSize: '14px',
+    fontSize: '12px',
+    '@media (min-width: 768px)': {
+      fontSize: '14px',
+    },
   },
 
   calendarWrapper: {
     background: 'rgba(255, 255, 255, 0.03)',
     borderRadius: '16px',
+    padding: '8px',
+    marginBottom: '10px',
     width: '100%',
     boxSizing: 'border-box',
+    '@media (min-width: 768px)': {
+      padding: '20px',
+      marginBottom: '20px',
+    },
   },
 
   calendarGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
+    gridTemplateColumns: 'repeat(5,1fr)',
+    gap: '8px',
     width: '100%',
+    '@media (min-width: 768px)': {
+      gap: '8px',
+    },
   },
 
   dayHeader: {
@@ -999,10 +1097,15 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
+    marginBottom:'10px',
     display: 'flex',
     flexDirection: 'column',
     width: '100%',
     boxSizing: 'border-box',
+    '&:hover': {
+      transform: 'scale(1.02)',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+    },
   },
 
   dayNumber: {
@@ -1017,16 +1120,12 @@ const styles = {
     fontWeight: '500',
   },
 
-  dayVerse: {
-    color: '#FFD700',
-    fontWeight: 'bold',
-  },
-
   dayMeta: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
+    marginTop: 'auto',
   },
 
   dayType: {
@@ -1038,6 +1137,94 @@ const styles = {
 
   holyBadge: {
     lineHeight: 1,
+  },
+
+  // List View Styles
+  listView: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginBottom: '15px',
+    width: '100%',
+  },
+
+  listItem: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '10px',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+
+  listItemLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    flex: 1,
+  },
+
+  listItemDay: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    minWidth: '40px',
+  },
+
+  listItemDayNumber: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: 'white',
+  },
+
+  listItemDayName: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.5)',
+  },
+
+  listItemContent: {
+    flex: 1,
+  },
+
+  listItemCelebration: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '2px',
+  },
+
+  listItemIcon: {
+    fontSize: '14px',
+  },
+
+  listItemCelebrationText: {
+    color: 'white',
+    fontSize: '13px',
+    fontWeight: '500',
+  },
+
+  listItemMeta: {
+    display: 'flex',
+    gap: '8px',
+    fontSize: '10px',
+  },
+
+  listItemSeason: {
+    color: 'rgba(255,255,255,0.5)',
+  },
+
+  listItemHoly: {
+    color: '#FFD700',
+  },
+
+  listItemRight: {
+    marginLeft: '8px',
+  },
+
+  listItemArrow: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: '16px',
   },
 
   // Modal Styles

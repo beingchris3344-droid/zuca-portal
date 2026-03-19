@@ -6117,6 +6117,195 @@ app.put("/api/pledges/:pledgeId/messages/read", authenticate, async (req, res) =
   }
 });
 
+// ================== GLOBAL PLEDGE ACTIONS ==================
+// ADD THIS AFTER YOUR EXISTING PLEDGE ROUTES
+
+app.put("/api/pledges/:pledgeId/approve", authenticate, async (req, res) => {
+  try {
+    const { pledgeId } = req.params;
+    
+    const pledge = await prisma.pledge.findUnique({
+      where: { id: pledgeId },
+      include: { 
+        contributionType: true,
+        user: true 
+      }
+    });
+
+    if (!pledge) {
+      return res.status(404).json({ error: "Pledge not found" });
+    }
+
+    // Check if user is authorized (admin or treasurer)
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId }
+    });
+
+    const isAdmin = user.role === "admin";
+    const isTreasurer = user.specialRole === "treasurer";
+
+    if (!isAdmin && !isTreasurer) {
+      return res.status(403).json({ error: "Not authorized to approve pledges" });
+    }
+
+    if (pledge.pendingAmount === 0) {
+      return res.status(400).json({ error: "No pending amount to approve" });
+    }
+
+    const newAmountPaid = pledge.amountPaid + pledge.pendingAmount;
+    const newStatus = newAmountPaid >= pledge.contributionType.amountRequired ? "COMPLETED" : "APPROVED";
+
+    const updated = await prisma.pledge.update({
+      where: { id: pledgeId },
+      data: {
+        amountPaid: newAmountPaid,
+        pendingAmount: 0,
+        status: newStatus,
+        approvedById: req.user.userId,
+        approvedAt: new Date()
+      },
+      include: {
+        user: true,
+        contributionType: true
+      }
+    });
+
+    // Create notification for the user
+    const notification = await prisma.notification.create({
+      data: {
+        userId: pledge.userId,
+        type: "pledge_approved",
+        title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
+        message: newStatus === "COMPLETED" 
+          ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
+          : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+        data: { pledgeId: updated.id },
+        read: false,
+        createdAt: new Date()
+      }
+    });
+
+    io.to(pledge.userId).emit("new_notification", {
+      ...notification,
+      createdAt: notification.createdAt.toISOString()
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Error approving pledge:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/pledges/:pledgeId/manual-add", authenticate, async (req, res) => {
+  try {
+    const { pledgeId } = req.params;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Valid amount required" });
+    }
+
+    const pledge = await prisma.pledge.findUnique({
+      where: { id: pledgeId },
+      include: { 
+        contributionType: true,
+        user: true 
+      }
+    });
+
+    if (!pledge) {
+      return res.status(404).json({ error: "Pledge not found" });
+    }
+
+    // Check if user is authorized (admin or treasurer)
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId }
+    });
+
+    const isAdmin = user.role === "admin";
+    const isTreasurer = user.specialRole === "treasurer";
+
+    if (!isAdmin && !isTreasurer) {
+      return res.status(403).json({ error: "Not authorized to add payments" });
+    }
+
+    let newPendingAmount = pledge.pendingAmount;
+    let newAmountPaid = pledge.amountPaid;
+    let approvedById = null;
+    let approvedAt = null;
+    
+    if (pledge.pendingAmount > 0) {
+      // First pay off pending amount
+      if (amount <= pledge.pendingAmount) {
+        // Partial payment of pending
+        newPendingAmount = pledge.pendingAmount - amount;
+      } else {
+        // Pays off all pending + extra goes to paid
+        newPendingAmount = 0;
+        newAmountPaid = pledge.amountPaid + (amount - pledge.pendingAmount);
+        approvedById = req.user.userId;
+        approvedAt = new Date();
+      }
+    } else {
+      // No pending, all goes to paid
+      newAmountPaid = pledge.amountPaid + amount;
+    }
+
+    // Check if total would exceed required amount
+    if (newAmountPaid > pledge.contributionType.amountRequired) {
+      return res.status(400).json({ error: "Total paid cannot exceed required amount" });
+    }
+
+    const newStatus = newAmountPaid >= pledge.contributionType.amountRequired ? "COMPLETED" : pledge.status;
+
+    const updated = await prisma.pledge.update({
+      where: { id: pledgeId },
+      data: {
+        amountPaid: newAmountPaid,
+        pendingAmount: newPendingAmount,
+        status: newStatus,
+        approvedById,
+        approvedAt,
+        createdByAdmin: true
+      }
+    });
+
+    // Create notification
+    let title = "💰 Payment Added";
+    let message = `KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
+    
+    if (newStatus === "COMPLETED") {
+      title = "🎉 Pledge Completed!";
+      message = `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
+    } else if (pledge.pendingAmount > 0 && newPendingAmount === 0) {
+      message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId: pledge.userId,
+        type: "payment_added",
+        title,
+        message,
+        data: { pledgeId: updated.id },
+        read: false,
+        createdAt: new Date()
+      }
+    });
+
+    io.to(pledge.userId).emit("new_notification", {
+      ...notification,
+      createdAt: notification.createdAt.toISOString()
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Error adding manual payment:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================== USER STATS ==================
 app.get("/api/user/contribution-stats", authenticate, async (req, res) => {
   try {

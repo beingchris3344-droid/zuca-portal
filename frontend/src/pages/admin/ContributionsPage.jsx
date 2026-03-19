@@ -27,6 +27,7 @@ const Icons = {
   Spinner: () => <svg className="spinner-small" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32"><animate attributeName="stroke-dashoffset" values="32;0" dur="1s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>,
   Trash: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
   Copy: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  UserPlus: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
 };
 
 // Check if user has access to this page (Admin or Treasurer)
@@ -51,7 +52,7 @@ const checkAccess = () => {
 function ContributionsPage() {
   const navigate = useNavigate();
   
-  // ALL HOOKS AT THE TOP - in the same order every render
+  // ALL HOOKS AT THE TOP
   const [hasAccess, setHasAccess] = useState(false);
   const [userRole, setUserRole] = useState("");
   const [contributionTypes, setContributionTypes] = useState([]);
@@ -69,6 +70,7 @@ function ContributionsPage() {
   const [selectedPledges, setSelectedPledges] = useState([]);
   const [selectedCampaigns, setSelectedCampaigns] = useState([]);
   const [selectAllCampaigns, setSelectAllCampaigns] = useState(false);
+  const [selectAll, setSelectAll] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [expandedMember, setExpandedMember] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
@@ -82,6 +84,7 @@ function ContributionsPage() {
     dateTo: '',
   });
   const exportMenuRef = useRef(null);
+  const refreshTimeoutRef = useRef(null);
 
   // Loading states
   const [creatingCampaign, setCreatingCampaign] = useState(false);
@@ -170,80 +173,123 @@ function ContributionsPage() {
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
   };
 
+  // Debounced silent refresh
   const silentRefresh = useCallback(async () => {
     if (refreshing) return;
     
-    setRefreshing(true);
-    try {
-      const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
-      setContributionTypes(typesRes.data);
-      console.log('Background refresh completed');
-    } catch (err) {
-      console.error("Background refresh error:", err);
-    } finally {
-      setRefreshing(false);
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
     }
-  }, [headers]);
 
+    refreshTimeoutRef.current = setTimeout(async () => {
+      setRefreshing(true);
+      try {
+        const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
+        setContributionTypes(prev => {
+          const newTypes = typesRes.data;
+          return prev.map(oldType => {
+            const updatedType = newTypes.find(t => t.id === oldType.id);
+            if (updatedType) {
+              return {
+                ...updatedType,
+                pledges: updatedType.pledges?.map(newPledge => {
+                  const oldPledge = oldType.pledges?.find(p => p.id === newPledge.id);
+                  if (oldPledge && updatingPledges[oldPledge.id]) {
+                    return { ...newPledge, ...oldPledge };
+                  }
+                  return newPledge;
+                })
+              };
+            }
+            return oldType;
+          });
+        });
+      } catch (err) {
+        console.error("Background refresh error:", err);
+      } finally {
+        setRefreshing(false);
+        refreshTimeoutRef.current = null;
+      }
+    }, 1000);
+  }, [headers, refreshing, updatingPledges]);
+
+  // Periodic background refresh
   useEffect(() => {
-    const interval = setInterval(() => {
-      silentRefresh();
-    }, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(silentRefresh, 30000);
+    return () => {
+      clearInterval(interval);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
   }, [silentRefresh]);
 
+  // Initial fetch
   const fetchAll = async () => {
-  setLoading(true);
-  try {
-    const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
-    
-    console.log("All contributions:", typesRes.data);
-    console.log("jumuiaId values:", typesRes.data.map(c => ({ 
-      title: c.title, 
-      jumuiaId: c.jumuiaId,
-      isGlobal: !c.jumuiaId
-    })));
-    
-    // Filter out jumuia-specific contributions
-    const globalContributions = typesRes.data.filter(c => !c.jumuiaId);
-    
-    console.log("Global contributions:", globalContributions);
-    console.log("Filtered out (jumuia) contributions:", typesRes.data.filter(c => c.jumuiaId));
-    
-    setContributionTypes(globalContributions);
-  } catch (err) {
-    console.error("Fetch error:", err);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
+      // Show ALL contributions for admin/treasurer
+      setContributionTypes(typesRes.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchAll();
     }
   }, [token]);
 
-  // MOVED: summaryStats useMemo BEFORE any conditional returns
+  // Accurate summary stats
   const summaryStats = useMemo(() => {
     const totalCampaigns = contributionTypes.length;
-    const totalMembers = new Set(contributionTypes.flatMap(t => t.pledges?.map(p => p.userId) || [])).size;
+    
+    const uniqueMembers = new Set();
+    contributionTypes.forEach(type => {
+      type.pledges?.forEach(pledge => {
+        if (pledge.userId) uniqueMembers.add(pledge.userId);
+      });
+    });
+    
     const pendingCount = contributionTypes.reduce((sum, t) => 
-      sum + (t.pledges?.filter(p => p.status === "PENDING" && p.pendingAmount > 0).length || 0), 0);
+      sum + (t.pledges?.filter(p => p.pendingAmount > 0).length || 0), 0);
+    
+    const approvedCount = contributionTypes.reduce((sum, t) => 
+      sum + (t.pledges?.filter(p => p.status === "APPROVED" && p.amountPaid > 0).length || 0), 0);
+    
+    const completedCount = contributionTypes.reduce((sum, t) => 
+      sum + (t.pledges?.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= t.amountRequired).length || 0), 0);
+    
     const totalCollected = contributionTypes.reduce((sum, t) => 
       sum + (t.pledges?.reduce((s, p) => s + (p.amountPaid || 0), 0) || 0), 0);
+    
+    const totalPendingAmount = contributionTypes.reduce((sum, t) => 
+      sum + (t.pledges?.reduce((s, p) => s + (p.pendingAmount || 0), 0) || 0), 0);
 
-    return { totalCampaigns, totalMembers, pendingCount, totalCollected };
+    return { 
+      totalCampaigns, 
+      totalMembers: uniqueMembers.size, 
+      pendingCount,
+      approvedCount,
+      completedCount,
+      totalCollected,
+      totalPendingAmount
+    };
   }, [contributionTypes]);
 
-  // Conditional return AFTER all hooks
   if (!hasAccess) {
     return null;
   }
 
   const isAdmin = userRole === "admin";
   const isTreasurer = userRole === "treasurer";
-  const canModify = isAdmin || isTreasurer; // Both can modify
+  const canModify = isAdmin || isTreasurer;
 
+  // Optimistic update helper
   const optimisticUpdate = (pledgeId, updates) => {
     setContributionTypes(prevTypes => {
       return prevTypes.map(type => ({
@@ -255,43 +301,55 @@ function ContributionsPage() {
     });
   };
 
+  // Accurate campaign stats calculation
   const calculateTypeStats = (type) => {
     const pledges = type.pledges || [];
-    
-    const activePledges = pledges.filter(p => 
-      (p.pendingAmount || 0) > 0 || (p.amountPaid || 0) > 0
-    );
     
     const totalApproved = pledges.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
     const totalPending = pledges.reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
     
-    const totalPossible = pledges.length * type.amountRequired;
-    const completion = totalPossible > 0 ? (totalApproved / totalPossible) * 100 : 0;
+    const totalRequired = pledges.length * type.amountRequired;
+    const completion = totalRequired > 0 ? (totalApproved / totalRequired) * 100 : 0;
     
-    const contributors = new Set(activePledges.map(p => p.userId)).size;
+    const activeContributors = new Set(
+      pledges
+        .filter(p => (p.pendingAmount || 0) > 0 || (p.amountPaid || 0) > 0)
+        .map(p => p.userId)
+    );
     
-    const pendingCount = pledges.filter(p => 
-      p.status === "PENDING" && (p.pendingAmount || 0) > 0
-    ).length;
-    
-    const completedCount = pledges.filter(p => 
-      p.status === "COMPLETED" || 
-      (p.amountPaid || 0) >= type.amountRequired
-    ).length;
+    // FIXED: Proper categorization
+    const pendingPledges = pledges.filter(p => p.pendingAmount > 0);
+    const approvedPledges = pledges.filter(p => p.status === "APPROVED" && p.amountPaid > 0 && p.amountPaid < type.amountRequired);
+    const completedPledges = pledges.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= type.amountRequired);
+    const partiallyPaidPledges = pledges.filter(p => 
+      p.amountPaid > 0 && 
+      p.amountPaid < type.amountRequired && 
+      p.pendingAmount === 0 && 
+      p.status !== "APPROVED"
+    );
+    const noPledgePledges = pledges.filter(p => 
+      p.pendingAmount === 0 && 
+      p.amountPaid === 0 && 
+      p.status !== "APPROVED" && 
+      p.status !== "COMPLETED"
+    );
     
     return {
       totalApproved,
       totalPending,
-      pendingCount,
-      completedCount,
+      pendingCount: pendingPledges.length,
+      approvedCount: approvedPledges.length,
+      completedCount: completedPledges.length,
+      partiallyPaidCount: partiallyPaidPledges.length,
+      noPledgeCount: noPledgePledges.length,
       completion: Math.min(completion, 100),
-      contributors,
+      contributors: activeContributors.size,
       totalMembers: pledges.length,
       perMemberAmount: type.amountRequired,
     };
   };
 
-  // Handle add contribution type - Both Admin and Treasurer can create
+  // Handle add contribution type
   const handleAddContributionType = async () => {
     if (!canModify) {
       showNotification("You don't have permission to create campaigns", "error");
@@ -321,14 +379,13 @@ function ContributionsPage() {
       setNewContribution({ title: "", description: "", amountRequired: "", deadline: "" });
       showNotification("Campaign created successfully");
     } catch (err) {
-      console.error(err);
       showNotification(err.response?.data?.error || "Failed to create campaign", "error");
     } finally {
       setCreatingCampaign(false);
     }
   };
 
-  // Handle delete contribution type - Both can delete
+  // Handle delete contribution type
   const handleDeleteContributionType = async (id) => {
     if (!canModify) {
       showNotification("You don't have permission to delete campaigns", "error");
@@ -351,7 +408,7 @@ function ContributionsPage() {
     }
   };
 
-  // Bulk delete campaigns - Both can do
+  // Bulk delete campaigns
   const handleBulkDeleteCampaigns = async () => {
     if (!canModify) {
       showNotification("You don't have permission to delete campaigns", "error");
@@ -363,7 +420,7 @@ function ContributionsPage() {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to permanently delete ${selectedCampaigns.length} selected campaigns? This action cannot be undone and will delete all associated pledges.`)) return;
+    if (!window.confirm(`Are you sure you want to permanently delete ${selectedCampaigns.length} selected campaigns?`)) return;
 
     setBulkDeletingCampaigns(true);
 
@@ -375,12 +432,10 @@ function ContributionsPage() {
       );
 
       setContributionTypes(prev => prev.filter(campaign => !selectedCampaigns.includes(campaign.id)));
-      
       setSelectedCampaigns([]);
       setSelectAllCampaigns(false);
-      showNotification(response.data.message || `${selectedCampaigns.length} campaigns permanently deleted`, "success");
+      showNotification(response.data.message || `${selectedCampaigns.length} campaigns deleted`, "success");
     } catch (err) {
-      console.error("Bulk delete error:", err);
       showNotification(err.response?.data?.error || "Failed to delete campaigns", "error");
       fetchAll();
     } finally {
@@ -388,7 +443,7 @@ function ContributionsPage() {
     }
   };
 
-  // Bulk duplicate campaigns - Both can do
+  // Bulk duplicate campaigns
   const handleBulkDuplicateCampaigns = async () => {
     if (!canModify) {
       showNotification("You don't have permission to duplicate campaigns", "error");
@@ -410,12 +465,10 @@ function ContributionsPage() {
       );
 
       setContributionTypes(prev => [...response.data.campaigns, ...prev]);
-      
       setSelectedCampaigns([]);
       setSelectAllCampaigns(false);
-      showNotification(response.data.message || `${selectedCampaigns.length} campaigns duplicated successfully`, "success");
+      showNotification(response.data.message || `${selectedCampaigns.length} campaigns duplicated`, "success");
     } catch (err) {
-      console.error("Bulk duplicate error:", err);
       showNotification(err.response?.data?.error || "Failed to duplicate campaigns", "error");
     } finally {
       setBulkDuplicatingCampaigns(false);
@@ -437,7 +490,7 @@ function ContributionsPage() {
     setSelectAllCampaigns(!selectAllCampaigns);
   };
 
-  // Handle approve pledge - Both can approve
+  // Handle approve pledge - FIXED: No fetchAll() on success
   const handleApprovePledge = async (pledgeId, p, type) => {
     if (!canModify) {
       showNotification("You don't have permission to approve pledges", "error");
@@ -459,8 +512,13 @@ function ContributionsPage() {
     try {
       await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/approve`, {}, { headers });
       showNotification("Pledge approved successfully");
+      silentRefresh(); // Background refresh
     } catch (err) {
-      fetchAll();
+      optimisticUpdate(pledgeId, {
+        amountPaid: p.amountPaid,
+        pendingAmount: p.pendingAmount,
+        status: p.status
+      });
       showNotification(err.response?.data?.error || "Approval failed", "error");
     } finally {
       setUpdatingPledges(prev => ({ ...prev, [pledgeId]: false }));
@@ -472,7 +530,7 @@ function ContributionsPage() {
     setPledgeMessageThread({ pledgeId, userName });
   };
 
-  // Handle manual add - Both can add
+  // Handle manual add - FIXED: Proper categorization
   const handleManualAdd = async (pledgeId, p, type) => {
     if (!canModify) {
       showNotification("You don't have permission to add payments", "error");
@@ -488,27 +546,25 @@ function ContributionsPage() {
     setUpdatingPledges(prev => ({ ...prev, [pledgeId]: true }));
     setAddingManual(pledgeId);
 
-    // Calculate how the payment should be applied - FIRST PAY OFF PENDING
+    // Calculate new amounts
     let newPendingAmount = p.pendingAmount;
     let newAmountPaid = p.amountPaid;
+    let newStatus = p.status;
     
     if (p.pendingAmount > 0) {
-      // First pay off pending amount
       if (addAmount <= p.pendingAmount) {
-        // Partial payment of pending
         newPendingAmount = p.pendingAmount - addAmount;
-        // amountPaid stays the same
+        newStatus = "PENDING"; // Still pending if not fully paid
       } else {
-        // Pays off all pending + extra goes to paid
         newPendingAmount = 0;
         newAmountPaid = p.amountPaid + (addAmount - p.pendingAmount);
+        newStatus = newAmountPaid >= type.amountRequired ? "COMPLETED" : "APPROVED";
       }
     } else {
-      // No pending, all goes to paid
       newAmountPaid = p.amountPaid + addAmount;
+      newStatus = newAmountPaid >= type.amountRequired ? "COMPLETED" : 
+                  (newAmountPaid > 0 ? "APPROVED" : p.status);
     }
-
-    const newStatus = newAmountPaid >= type.amountRequired ? "COMPLETED" : p.status;
 
     optimisticUpdate(pledgeId, {
       amountPaid: newAmountPaid,
@@ -530,15 +586,21 @@ function ContributionsPage() {
       
       if (p.pendingAmount > 0) {
         if (newPendingAmount === 0) {
-          showNotification(`✅ Payment cleared the pending pledge! ${newAmountPaid >= type.amountRequired ? 'Campaign completed!' : ''}`, "success");
+          showNotification(`✅ Payment cleared the pending pledge!`, "success");
         } else {
           showNotification(`✅ Payment applied. Remaining pending: KES ${newPendingAmount.toLocaleString()}`, "success");
         }
       } else {
         showNotification(`✅ Amount added successfully`, "success");
       }
+      
+      silentRefresh(); // Background refresh
     } catch (err) {
-      fetchAll();
+      optimisticUpdate(pledgeId, {
+        amountPaid: p.amountPaid,
+        pendingAmount: p.pendingAmount,
+        status: p.status
+      });
       showNotification(err.response?.data?.error || "Failed to add", "error");
     } finally {
       setUpdatingPledges(prev => ({ ...prev, [pledgeId]: false }));
@@ -546,7 +608,7 @@ function ContributionsPage() {
     }
   };
 
-  // Handle edit message - Both can edit
+  // Handle edit message
   const handleEditMessage = async (pledgeId) => {
     if (!canModify) {
       showNotification("You don't have permission to edit messages", "error");
@@ -567,6 +629,7 @@ function ContributionsPage() {
         { headers }
       );
       showNotification("Message updated");
+      silentRefresh();
     } catch (err) {
       fetchAll();
       showNotification(err.response?.data?.error || "Failed to update message", "error");
@@ -575,7 +638,7 @@ function ContributionsPage() {
     }
   };
 
-  // Handle reset pledge - Both can reset
+  // Handle reset pledge
   const handleResetPledge = async (pledgeId) => {
     if (!canModify) {
       showNotification("You don't have permission to reset pledges", "error");
@@ -597,6 +660,7 @@ function ContributionsPage() {
     try {
       await axios.put(`${BASE_URL}/api/pledges/${pledgeId}/reset`, {}, { headers });
       showNotification("Pledge reset");
+      silentRefresh();
     } catch (err) {
       fetchAll();
       showNotification(err.response?.data?.error || "Reset failed", "error");
@@ -606,7 +670,7 @@ function ContributionsPage() {
     }
   };
 
-  // Handle bulk approve - Both can do
+  // Handle bulk approve
   const handleBulkApprove = async () => {
     if (!canModify) {
       showNotification("You don't have permission to bulk approve", "error");
@@ -617,7 +681,7 @@ function ContributionsPage() {
       const pledge = contributionTypes
         .flatMap(t => t.pledges || [])
         .find(p => p.id === id);
-      return pledge && pledge.pendingAmount > 0 && pledge.status === "PENDING";
+      return pledge && pledge.pendingAmount > 0;
     });
 
     if (!pendingSelected.length) {
@@ -635,10 +699,13 @@ function ContributionsPage() {
         .find(p => p.id === id);
       
       if (pledge) {
+        const newPaid = pledge.amountPaid + pledge.pendingAmount;
+        const newStatus = newPaid >= pledge.contributionType?.amountRequired ? "COMPLETED" : "APPROVED";
+        
         optimisticUpdate(id, {
-          amountPaid: pledge.amountPaid + pledge.pendingAmount,
+          amountPaid: newPaid,
           pendingAmount: 0,
-          status: "APPROVED"
+          status: newStatus
         });
       }
     });
@@ -648,8 +715,8 @@ function ContributionsPage() {
         await axios.put(`${BASE_URL}/api/pledges/${id}/approve`, {}, { headers });
       }
       setSelectedPledges([]);
-      setSelectAll(false);
       showNotification(`${pendingSelected.length} pledges approved`);
+      silentRefresh();
     } catch (err) {
       fetchAll();
       showNotification(err.response?.data?.error || "Bulk approve failed", "error");
@@ -667,36 +734,24 @@ function ContributionsPage() {
     );
   };
 
-  const filterPledgesByStatus = (pledges) => {
-    if (activeTab === "all") return pledges;
-    if (activeTab === "pending") return pledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0);
-    if (activeTab === "approved") return pledges.filter(p => p.status === "APPROVED");
-    if (activeTab === "completed") return pledges.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= (p.contributionType?.amountRequired || 0));
-    return pledges;
+  // FIXED: Proper status text function
+  const getStatusText = (pledge, type) => {
+    if ((pledge.amountPaid || 0) >= (type.amountRequired || 0)) return "COMPLETED";
+    if (pledge.status === "APPROVED") return "APPROVED";
+    if (pledge.pendingAmount > 0) return "PENDING";
+    if (pledge.amountPaid > 0) return "PARTIALLY PAID";
+    return "NO PLEDGE";
   };
 
-  const filterPledgesBySearch = (pledges) => {
-    if (!searchTerm) return pledges;
-    return pledges.filter(p => 
-      p.user?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  };
-
+  // FIXED: Proper status style function
   const getStatusStyle = (status, completed) => {
     if (completed) return "completed";
+    if (status === "PARTIALLY PAID") return "approved";
     switch(status) {
       case "APPROVED": return "approved";
       case "PENDING": return "pending";
       default: return "default";
     }
-  };
-
-  const getStatusText = (pledge, type) => {
-    if ((pledge.amountPaid || 0) >= (type.amountRequired || 0)) return "COMPLETED";
-    if (pledge.status === "APPROVED") return "APPROVED";
-    if (pledge.status === "PENDING" && pledge.pendingAmount > 0) return "PENDING";
-    if (pledge.amountPaid > 0) return "APPROVED";
-    return "NO PLEDGE";
   };
 
   // Export functions
@@ -838,14 +893,6 @@ function ContributionsPage() {
             border-top: 1px solid #cccccc;
             padding-top: 10px;
           }
-          th:nth-child(1) { width: 15%; }
-          th:nth-child(2) { width: 15%; }
-          th:nth-child(3) { width: 10%; }
-          th:nth-child(4) { width: 10%; }
-          th:nth-child(5) { width: 10%; }
-          th:nth-child(6) { width: 8%; }
-          th:nth-child(7) { width: 22%; }
-          th:nth-child(8) { width: 10%; }
         </style>
       </head>
       <body>
@@ -854,9 +901,6 @@ function ContributionsPage() {
         <div class="header-info">
           <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
           <p><strong>Total Records:</strong> ${cleanData.length}</p>
-          <p><strong>Campaign:</strong> ${exportOptions.campaign === 'all' ? 'All Campaigns' : contributionTypes.find(t => t.id === exportOptions.campaign)?.title}</p>
-          <p><strong>Status Filter:</strong> ${exportOptions.status.charAt(0).toUpperCase() + exportOptions.status.slice(1)}</p>
-          ${exportOptions.dateFrom ? `<p><strong>Date Range:</strong> ${new Date(exportOptions.dateFrom).toLocaleDateString()} to ${exportOptions.dateTo ? new Date(exportOptions.dateTo).toLocaleDateString() : 'Present'}</p>` : ''}
         </div>
 
         <div class="table-container">
@@ -891,7 +935,6 @@ function ContributionsPage() {
 
         <div class="footer">
           <p>Generated by ZUCA Portal - Contributions Management System</p>
-          <p>This is a system-generated document</p>
         </div>
       </body>
       </html>
@@ -912,9 +955,9 @@ function ContributionsPage() {
         
         if (status !== 'all') {
           if (status === 'pending') {
-            filteredPledges = filteredPledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0);
+            filteredPledges = filteredPledges.filter(p => p.pendingAmount > 0);
           } else if (status === 'approved') {
-            filteredPledges = filteredPledges.filter(p => p.status === "APPROVED");
+            filteredPledges = filteredPledges.filter(p => p.status === "APPROVED" && p.amountPaid > 0);
           } else if (status === 'completed') {
             filteredPledges = filteredPledges.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= type.amountRequired);
           }
@@ -937,7 +980,7 @@ function ContributionsPage() {
             AmountRequired: type.amountRequired,
             AmountPaid: pledge.amountPaid || 0,
             PendingAmount: pledge.pendingAmount || 0,
-            Status: (pledge.amountPaid || 0) >= type.amountRequired ? "COMPLETED" : pledge.status,
+            Status: getStatusText(pledge, type),
             Message: pledge.message || "-",
             Date: new Date(pledge.createdAt).toLocaleDateString(),
           });
@@ -950,9 +993,9 @@ function ContributionsPage() {
         
         if (status !== 'all') {
           if (status === 'pending') {
-            filteredPledges = filteredPledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0);
+            filteredPledges = filteredPledges.filter(p => p.pendingAmount > 0);
           } else if (status === 'approved') {
-            filteredPledges = filteredPledges.filter(p => p.status === "APPROVED");
+            filteredPledges = filteredPledges.filter(p => p.status === "APPROVED" && p.amountPaid > 0);
           } else if (status === 'completed') {
             filteredPledges = filteredPledges.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= type.amountRequired);
           }
@@ -975,7 +1018,7 @@ function ContributionsPage() {
             AmountRequired: type.amountRequired,
             AmountPaid: pledge.amountPaid || 0,
             PendingAmount: pledge.pendingAmount || 0,
-            Status: (pledge.amountPaid || 0) >= type.amountRequired ? "COMPLETED" : pledge.status,
+            Status: getStatusText(pledge, type),
             Message: pledge.message || "-",
             Date: new Date(pledge.createdAt).toLocaleDateString(),
           });
@@ -1177,7 +1220,7 @@ function ContributionsPage() {
           <span className="stat-icon">📊</span>
           <div>
             <span className="stat-value">{summaryStats.totalCampaigns}</span>
-            <span className="stat-label">Active Campaigns</span>
+            <span className="stat-label">Campaigns</span>
           </div>
         </div>
         <div className="stat-card">
@@ -1195,6 +1238,20 @@ function ContributionsPage() {
           </div>
         </div>
         <div className="stat-card">
+          <span className="stat-icon">✓</span>
+          <div>
+            <span className="stat-value">{summaryStats.approvedCount}</span>
+            <span className="stat-label">Approved</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-icon">✅</span>
+          <div>
+            <span className="stat-value">{summaryStats.completedCount}</span>
+            <span className="stat-label">Completed</span>
+          </div>
+        </div>
+        <div className="stat-card">
           <span className="stat-icon">💰</span>
           <div>
             <span className="stat-value">KES {summaryStats.totalCollected.toLocaleString()}</span>
@@ -1203,7 +1260,7 @@ function ContributionsPage() {
         </div>
       </div>
 
-      {/* Create Campaign Form - Visible to both Admin and Treasurer */}
+      {/* Create Campaign Form */}
       {canModify && (
         <div className="create-campaign">
           <h2 className="section-title">Create New Campaign</h2>
@@ -1246,7 +1303,7 @@ function ContributionsPage() {
         </div>
       )}
 
-      {/* Campaign Selection Header - Visible to both */}
+      {/* Campaign Selection Header */}
       {canModify && (
         <div className="campaign-selection-header">
           <label className="checkbox-label">
@@ -1289,12 +1346,35 @@ function ContributionsPage() {
           const isSelected = selectedCampaigns.includes(type.id);
           
           let filteredPledges = type.pledges || [];
-          filteredPledges = filterPledgesBySearch(filteredPledges);
+          if (searchTerm) {
+            filteredPledges = filteredPledges.filter(p => 
+              p.user?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+          }
           
-          const pendingPledges = filteredPledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0);
-          const approvedPledges = filteredPledges.filter(p => p.status === "APPROVED");
-          const completedPledges = filteredPledges.filter(p => p.status === "COMPLETED" || (p.amountPaid || 0) >= type.amountRequired);
-          const noPledge = filteredPledges.filter(p => !p.pendingAmount && !p.amountPaid);
+          // FIXED: Proper categorization for display
+          const pendingPledges = filteredPledges.filter(p => p.pendingAmount > 0);
+          const approvedPledges = filteredPledges.filter(p => 
+            p.status === "APPROVED" && 
+            p.amountPaid > 0 && 
+            p.amountPaid < type.amountRequired
+          );
+          const partiallyPaidPledges = filteredPledges.filter(p => 
+            p.amountPaid > 0 && 
+            p.amountPaid < type.amountRequired && 
+            p.pendingAmount === 0 && 
+            p.status !== "APPROVED"
+          );
+          const completedPledges = filteredPledges.filter(p => 
+            p.status === "COMPLETED" || 
+            (p.amountPaid || 0) >= type.amountRequired
+          );
+          const noPledgePledges = filteredPledges.filter(p => 
+            p.pendingAmount === 0 && 
+            p.amountPaid === 0 && 
+            p.status !== "APPROVED" && 
+            p.status !== "COMPLETED"
+          );
 
           return (
             <motion.div
@@ -1303,7 +1383,7 @@ function ContributionsPage() {
               animate={{ y: 0, opacity: 1 }}
               className="campaign-card"
             >
-              {/* Campaign Header with Checkbox */}
+              {/* Campaign Header */}
               <div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
                 <div className="campaign-header-left">
                   {canModify && (
@@ -1324,6 +1404,9 @@ function ContributionsPage() {
                       <span className="campaign-target">KES {type.amountRequired?.toLocaleString()} per member</span>
                       {type.deadline && (
                         <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
+                      )}
+                      {type.jumuiaId && (
+                        <span className="campaign-jumuia-badge">Jumuia Campaign</span>
                       )}
                     </div>
                   </div>
@@ -1389,6 +1472,12 @@ function ContributionsPage() {
                         Approved ({approvedPledges.length})
                       </button>
                       <button 
+                        className={`tab-btn ${activeTab === 'partial' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('partial')}
+                      >
+                        Partial ({partiallyPaidPledges.length})
+                      </button>
+                      <button 
                         className={`tab-btn ${activeTab === 'completed' ? 'active' : ''}`}
                         onClick={() => setActiveTab('completed')}
                       >
@@ -1396,7 +1485,7 @@ function ContributionsPage() {
                       </button>
                     </div>
 
-                    {/* Bulk Actions for Members - Visible to both */}
+                    {/* Bulk Actions */}
                     {canModify && selectedPledges.length > 0 && (
                       <div className="bulk-actions">
                         <span className="selected-count">{selectedPledges.length} selected</span>
@@ -1408,7 +1497,7 @@ function ContributionsPage() {
                     )}
                   </div>
 
-                  {/* Members List */}
+                  {/* Members List - FIXED: Show all categories */}
                   <div className="members-list">
                     {activeTab === 'all' && (
                       <>
@@ -1443,6 +1532,8 @@ function ContributionsPage() {
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
                                 canModify={canModify}
+                                getStatusText={getStatusText}
+                                getStatusStyle={getStatusStyle}
                               />
                             ))}
                           </div>
@@ -1478,6 +1569,45 @@ function ContributionsPage() {
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
                                 canModify={canModify}
+                                getStatusText={getStatusText}
+                                getStatusStyle={getStatusStyle}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {partiallyPaidPledges.length > 0 && (
+                          <div className="member-section">
+                            <h4 className="section-heading partial-heading">
+                              💰 Partially Paid ({partiallyPaidPledges.length})
+                            </h4>
+                            {partiallyPaidPledges.map((pledge) => (
+                              <MemberRow
+                                key={pledge.id}
+                                pledge={pledge}
+                                type={type}
+                                isExpanded={expandedMember === pledge.id}
+                                onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
+                                onManualAdd={canModify ? handleManualAdd : null}
+                                onEditMessage={canModify ? handleEditMessage : null}
+                                onReset={canModify ? handleResetPledge : null}
+                                onSelect={canModify ? toggleSelectPledge : null}
+                                onOpenMessage={handleOpenMessage}
+                                isSelected={selectedPledges.includes(pledge.id)}
+                                inputValue={pledgeInputs[pledge.id]}
+                                onInputChange={(id, field, value) => 
+                                  setPledgeInputs({
+                                    ...pledgeInputs,
+                                    [id]: { ...pledgeInputs[id], [field]: value }
+                                  })
+                                }
+                                isUpdating={updatingPledges[pledge.id]}
+                                approvingId={approvingPledge}
+                                addingId={addingManual}
+                                resettingId={resettingPledge}
+                                canModify={canModify}
+                                getStatusText={getStatusText}
+                                getStatusStyle={getStatusStyle}
                               />
                             ))}
                           </div>
@@ -1511,17 +1641,19 @@ function ContributionsPage() {
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
                                 canModify={canModify}
+                                getStatusText={getStatusText}
+                                getStatusStyle={getStatusStyle}
                               />
                             ))}
                           </div>
                         )}
 
-                        {noPledge.length > 0 && (
+                        {noPledgePledges.length > 0 && (
                           <div className="member-section">
                             <h4 className="section-heading default-heading">
-                              📭 No Pledge ({noPledge.length})
+                              📭 No Pledge ({noPledgePledges.length})
                             </h4>
-                            {noPledge.map((pledge) => (
+                            {noPledgePledges.map((pledge) => (
                               <MemberRow
                                 key={pledge.id}
                                 pledge={pledge}
@@ -1545,6 +1677,8 @@ function ContributionsPage() {
                                 addingId={addingManual}
                                 resettingId={resettingPledge}
                                 canModify={canModify}
+                                getStatusText={getStatusText}
+                                getStatusStyle={getStatusStyle}
                               />
                             ))}
                           </div>
@@ -1580,6 +1714,8 @@ function ContributionsPage() {
                             addingId={addingManual}
                             resettingId={resettingPledge}
                             canModify={canModify}
+                            getStatusText={getStatusText}
+                            getStatusStyle={getStatusStyle}
                           />
                         ))}
                       </>
@@ -1612,6 +1748,42 @@ function ContributionsPage() {
                             addingId={addingManual}
                             resettingId={resettingPledge}
                             canModify={canModify}
+                            getStatusText={getStatusText}
+                            getStatusStyle={getStatusStyle}
+                          />
+                        ))}
+                      </>
+                    )}
+
+                    {activeTab === 'partial' && (
+                      <>
+                        {partiallyPaidPledges.map((pledge) => (
+                          <MemberRow
+                            key={pledge.id}
+                            pledge={pledge}
+                            type={type}
+                            isExpanded={expandedMember === pledge.id}
+                            onToggle={() => setExpandedMember(expandedMember === pledge.id ? null : pledge.id)}
+                            onManualAdd={canModify ? handleManualAdd : null}
+                            onEditMessage={canModify ? handleEditMessage : null}
+                            onReset={canModify ? handleResetPledge : null}
+                            onSelect={canModify ? toggleSelectPledge : null}
+                            onOpenMessage={handleOpenMessage}
+                            isSelected={selectedPledges.includes(pledge.id)}
+                            inputValue={pledgeInputs[pledge.id]}
+                            onInputChange={(id, field, value) => 
+                              setPledgeInputs({
+                                ...pledgeInputs,
+                                [id]: { ...pledgeInputs[id], [field]: value }
+                              })
+                            }
+                            isUpdating={updatingPledges[pledge.id]}
+                            approvingId={approvingPledge}
+                            addingId={addingManual}
+                            resettingId={resettingPledge}
+                            canModify={canModify}
+                            getStatusText={getStatusText}
+                            getStatusStyle={getStatusStyle}
                           />
                         ))}
                       </>
@@ -1642,13 +1814,15 @@ function ContributionsPage() {
                             addingId={addingManual}
                             resettingId={resettingPledge}
                             canModify={canModify}
+                            getStatusText={getStatusText}
+                            getStatusStyle={getStatusStyle}
                           />
                         ))}
                       </>
                     )}
                   </div>
 
-                  {/* Campaign Footer - Visible to both */}
+                  {/* Campaign Footer */}
                   {canModify && (
                     <div className="campaign-footer">
                       <button 
@@ -1879,9 +2053,14 @@ function ContributionsPage() {
         /* Stats Grid */
         .stats-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(6, 1fr);
           gap: 16px;
           margin-bottom: 24px;
+        }
+        @media (max-width: 1200px) {
+          .stats-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
         }
         @media (max-width: 768px) {
           .stats-grid {
@@ -2080,6 +2259,9 @@ function ContributionsPage() {
           font-weight: 600;
           color: #0f172a;
           margin: 0 0 8px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
         .campaign-meta {
           display: flex;
@@ -2096,6 +2278,13 @@ function ContributionsPage() {
         .campaign-deadline {
           font-size: 13px;
           color: #64748b;
+        }
+        .campaign-jumuia-badge {
+          font-size: 11px;
+          background: #f59e0b20;
+          color: #f59e0b;
+          padding: 2px 8px;
+          border-radius: 12px;
         }
         .campaign-progress-info {
           display: flex;
@@ -2244,6 +2433,10 @@ function ContributionsPage() {
         .approved-heading {
           color: #059669;
           border-bottom-color: #d1fae5;
+        }
+        .partial-heading {
+          color: #8b5cf6;
+          border-bottom-color: #ede9fe;
         }
         .completed-heading {
           color: #2563eb;
@@ -2501,7 +2694,7 @@ function ContributionsPage() {
   );
 }
 
-// Member Row Component
+// Member Row Component - Updated to use passed status functions
 function MemberRow({ 
   pledge, 
   type, 
@@ -2520,11 +2713,13 @@ function MemberRow({
   approvingId,
   addingId,
   resettingId,
-  canModify 
+  canModify,
+  getStatusText,
+  getStatusStyle
 }) {
-  const status = (pledge.amountPaid || 0) >= (type.amountRequired || 0) ? "COMPLETED" : pledge.status;
-  const canApprove = pledge.pendingAmount > 0 && pledge.status === "PENDING";
+  const status = getStatusText(pledge, type);
   const isCompleted = status === "COMPLETED";
+  const canApprove = pledge.pendingAmount > 0;
   const remaining = type.amountRequired - (pledge.amountPaid || 0);
   
   const isApproving = approvingId === pledge.id;
@@ -2554,7 +2749,9 @@ function MemberRow({
           <div className="member-name">{pledge.user?.fullName || "Unknown"}</div>
           <div className="member-amounts">
             <span className="amount-paid">Paid: KES {pledge.amountPaid?.toLocaleString() || 0}</span>
-            <span className="amount-pending">Pending: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
+            {pledge.pendingAmount > 0 && (
+              <span className="amount-pending">Pending: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
+            )}
           </div>
         </div>
         <div className="member-status">
@@ -2634,11 +2831,6 @@ function MemberRow({
                   color: '#d97706'
                 }}>
                   ⏳ Pending Approval: KES {pledge.pendingAmount.toLocaleString()}
-                  {!canModify && (
-                    <div style={{ fontSize: '11px', marginTop: '4px' }}>
-                      An admin or treasurer will review your pledge
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -2677,16 +2869,6 @@ function MemberRow({
       )}
     </div>
   );
-}
-
-// Helper function
-function getStatusStyle(status, completed) {
-  if (completed) return "completed";
-  switch(status) {
-    case "APPROVED": return "approved";
-    case "PENDING": return "pending";
-    default: return "default";
-  }
 }
 
 export default ContributionsPage;

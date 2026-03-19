@@ -97,10 +97,11 @@ function Layout() {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    
+    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
   
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },
+  
     { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
     { path: "/contributions", label: "Contributions", icon: "💰" },
     { path: "/hymns", label: "Hymn Book", icon: "🎵" },
@@ -620,12 +621,12 @@ const navStyle = {
 };
 
 const navItemStyle = (isActive) => ({
-  padding: "21px 16px",
+  padding: "11px 16px",
   borderRadius: "12px",
   textDecoration: "none",
   color: isActive ? "#fff" : "#fff",
   fontWeight: "600",
-  fontSize: "20px",
+  fontSize: "16px",
   fontFamily: "'Inter', 'Tahoma', Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
   backgroundColor: isActive ? "rgba(0, 200, 255, 0.63)" : "transparent",
   border: isActive ? "1px solid rgba(0,198,255,0.3)" : "1px solid transparent",

@@ -777,7 +777,7 @@ const LiturgicalCalendar = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%)',
+    background: 'linear-gradient(135deg, #080308cf 0%, #1a0033 50%, #0a0a1e 100%)',
     padding: '8px',
     position: 'relative',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -1073,8 +1073,9 @@ const styles = {
 
   calendarGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5,1fr)',
+    gridTemplateColumns: 'repeat(7,1fr)',
     gap: '8px',
+    marginLeft: '-10px',
     width: '100%',
     '@media (min-width: 768px)': {
       gap: '8px',

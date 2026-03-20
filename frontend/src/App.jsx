@@ -21,6 +21,7 @@ import HymnLyrics from './pages/HymnLyrics';
 import LiturgicalCalendar from './pages/LiturgicalCalendar';
 import JumuiaDashboard from "./pages/JumuiaDashboard";import JoinJumuia from "./pages/JoinJumuia";
 import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
+import FullReadings from './pages/FullReadings';
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -28,7 +29,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
 import RoleManagement from "./pages/admin/RoleManagement";
 import ActivityPage from "./pages/admin/ActivityPage";
-import AnalyticsPage from "./pages/admin/AnalyticsPage";
+import YoutubeAnalyticsPage from './pages/admin/YoutubeAnalyticsPage';
 import SongsPage from "./pages/admin/SongsPage";
 import AdminHymns from './pages/admin/Hymns';
 import AnnouncementsPage from "./pages/admin/AnnouncementsPage";
@@ -49,6 +50,7 @@ function App() {
 
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/home" element={<Home />} />
+        <Route path="/readings/:date" element={<FullReadings />} />
         <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -68,10 +70,10 @@ function App() {
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
           
-<Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
-<Route path="/join-jumuia" element={<JoinJumuia />} />
-<Route path="/hymns" element={<HymnBook />} />
-<Route path="/hymn/:id" element={<HymnLyrics />} />
+          <Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
+          <Route path="/join-jumuia" element={<JoinJumuia />} />
+          <Route path="/hymns" element={<HymnBook />} />
+          <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
         </Route>
 
@@ -99,7 +101,7 @@ function App() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="activity" element={<ActivityPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
           <Route path="/admin/hymns" element={<AdminHymns />} />
           <Route path="roles" element={<RoleManagement />} />

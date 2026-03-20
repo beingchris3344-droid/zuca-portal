@@ -758,7 +758,7 @@ const SearchModal = ({ onClose }) => {
       if (value.trim().length > 2 || searchType === 'date') {
         performSearch();
       }
-    }, 500);
+    }, 2200);
     
     setDebounceTimer(timer);
   };

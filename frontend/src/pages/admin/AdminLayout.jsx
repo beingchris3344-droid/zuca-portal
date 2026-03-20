@@ -104,7 +104,7 @@ useEffect(() => {
     { label: "Role Management", path: "roles", icon: "👑" },
     { label: "Manage Jumuia", path: "jumuia-management", icon: "⛪" },
     { label: "Activity", path: "activity", icon: "📈" },
-    { label: "Analytics", path: "analytics", icon: "📊" },
+    { label: "YouTube Analytics", path: "analytics", icon: "▶️" },
     { label: "Songs Program", path: "songs", icon: "🎵" },
     { label: "Hymn Book", path: "hymns", icon: "📖" }, 
     { label: "Announcements", path: "announcements", icon: "📢" },

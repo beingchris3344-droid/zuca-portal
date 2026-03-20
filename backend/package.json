@@ -6,7 +6,13 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "prisma generate && prisma migrate deploy",
+    "postbuild": "node clean-and-repopulate-all.js",
+    "populate": "node clean-and-repopulate-all.js",
+    "populate:dev": "node clean-and-repopulate-all.js",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.js"
   },
   "author": "ZUCA",
   "license": "ISC",

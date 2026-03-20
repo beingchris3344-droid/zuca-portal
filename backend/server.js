@@ -357,30 +357,35 @@ app.get("/api/calendar/search/season/:season", async (req, res) => {
 app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
   try {
     const { year, month, day } = req.params;
-    const date = new Date(year, month - 1, day);
-    date.setHours(0, 0, 0, 0);
     
-    const liturgicalDay = await prisma.liturgicalDay.findUnique({
-      where: { date: date }
+    // Create date range for the entire day (UTC)
+    const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    
+    console.log(`🔍 Looking for readings between ${startDate.toISOString()} and ${endDate.toISOString()}`);
+    
+    const liturgicalDay = await prisma.liturgicalDay.findFirst({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate
+        }
+      }
     });
     
     if (!liturgicalDay) {
       return res.status(404).json({ error: "No readings found for this date" });
     }
     
-    // If readings exist, return them with full details
-    if (liturgicalDay.readings) {
-  // For now, return what we have
-  res.json({
-    date: liturgicalDay.date,
-    celebration: liturgicalDay.celebration,
-    season: liturgicalDay.seasonName,
-    yearCycle: liturgicalDay.yearCycle,
-    readings: liturgicalDay.readings
-  });
-    } else {
-      res.status(404).json({ error: "No readings available for this date" });
-    }
+    // Return the readings
+    res.json({
+      date: liturgicalDay.date,
+      celebration: liturgicalDay.celebration,
+      season: liturgicalDay.seasonName,
+      yearCycle: liturgicalDay.yearCycle,
+      readings: liturgicalDay.readings
+    });
+    
   } catch (error) {
     console.error("Readings error:", error);
     res.status(500).json({ error: error.message });

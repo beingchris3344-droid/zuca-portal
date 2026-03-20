@@ -135,9 +135,116 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================
+app.get("/api/debug/null-readings", async (req, res) => {
+  try {
+    const { year, month, limit = 100 } = req.query;
+    
+    let dateFilter = {};
+    
+    if (year) {
+      const startDate = new Date(parseInt(year), 0, 1);
+      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59, 999);
+      dateFilter = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+    
+    if (month && year) {
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+      dateFilter = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+    
+    // For JSON fields, we need to use special operators
+    const nullReadings = await prisma.liturgicalDay.findMany({
+      where: {
+        ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
+        // Check if readings is null using the correct JSON operator
+        readings: {
+          equals: null  // This is the correct way to check null for JSON fields
+        }
+      },
+      select: {
+        date: true,
+        celebration: true,
+        season: true,
+        yearCycle: true,
+        createdAt: true
+      },
+      orderBy: {
+        date: 'asc'
+      },
+      take: parseInt(limit)
+    });
+    
+    res.json({
+      count: nullReadings.length,
+      year: year || 'all',
+      month: month || 'all',
+      dates: nullReadings.map(d => ({
+        date: d.date.toISOString().split('T')[0],
+        celebration: d.celebration,
+        season: d.season,
+        yearCycle: d.yearCycle
+      }))
+    });
+    
+  } catch (error) {
+    console.error("Error finding null readings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add this endpoint to find "fallback" entries
+app.get("/api/debug/fallback-readings", async (req, res) => {
+  try {
+    const { year, month, limit = 100 } = req.query;
+    
+    let dateFilter = {};
+    if (year) {
+      const startDate = new Date(parseInt(year), 0, 1);
+      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59, 999);
+      dateFilter = { gte: startDate, lte: endDate };
+    }
+    
+    const fallbackEntries = await prisma.liturgicalDay.findMany({
+      where: {
+        ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
+        // Find entries where readings.source = "fallback"
+        readings: {
+          path: ['source'],
+          equals: 'fallback'
+        }
+      },
+      select: {
+        date: true,
+        celebration: true,
+        season: true,
+        yearCycle: true,
+        createdAt: true
+      },
+      orderBy: { date: 'asc' },
+      take: parseInt(limit)
+    });
+    
+    res.json({
+      count: fallbackEntries.length,
+      dates: fallbackEntries.map(d => d.date.toISOString().split('T')[0])
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // ================== CALENDAR ROUTES (PUBLIC - NO AUTH NEEDED) ==================
 const calendarService = require('./services/calendarService');
+const infiniteCalendar = require('./services/infiniteCalendar');
 
 
 // ================== BASIC CALENDAR ROUTES ==================
@@ -159,7 +266,14 @@ app.get("/api/calendar/date/:year/:month/:day", async (req, res) => {
   try {
     const { year, month, day } = req.params;
     const date = new Date(year, month - 1, day);
-    const liturgicalDay = await calendarService.getOrCreateLiturgicalDay(date);
+    
+    // This now works for ANY year - past, present, or future!
+    const liturgicalDay = await infiniteCalendar.getReadingsForAnyDate(date, prisma);
+    
+    if (!liturgicalDay) {
+      return res.status(404).json({ error: "No readings found for this date" });
+    }
+    
     res.json(liturgicalDay);
   } catch (error) {
     console.error("Calendar error:", error);
@@ -179,62 +293,9 @@ app.get("/api/calendar/month/:year/:month", async (req, res) => {
   }
 });
 
-// ================== SEARCH ROUTES (FIXED) ==================
+/// ================== SEARCH ROUTES (COMPLETELY FIXED) ==================
 
-// Search by date - supports "2025" (year only) or "2025-03-19" (full date)
-app.get("/api/calendar/search/date/:date", async (req, res) => {
-  try {
-    const { date } = req.params;
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-    
-    console.log(`🔍 Searching for date: ${date}`);
-    
-    let startDate, endDate;
-    
-    // Check if it's a year-only search (e.g., "2025")
-    if (/^\d{4}$/.test(date)) {
-      // Year only
-      const year = parseInt(date);
-      startDate = new Date(year, 0, 1);
-      endDate = new Date(year, 11, 31, 23, 59, 59, 999);
-      console.log(`📅 Year search: ${year} (${startDate} to ${endDate})`);
-    } 
-    // Check if it's a full date (YYYY-MM-DD)
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      const [year, month, day] = date.split('-').map(Number);
-      startDate = new Date(year, month - 1, day);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(year, month - 1, day);
-      endDate.setHours(23, 59, 59, 999);
-      console.log(`📅 Date search: ${date}`);
-    } 
-    else {
-      return res.status(400).json({ 
-        error: "Invalid date format. Use YYYY or YYYY-MM-DD" 
-      });
-    }
-    
-    const results = await prisma.liturgicalDay.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      orderBy: {
-        date: 'asc'
-      }
-    });
-    
-    console.log(`✅ Found ${results.length} results for ${date}`);
-    res.json(results);
-    
-  } catch (error) {
-    console.error("❌ Date search error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+
 
 // Search by Bible verse (e.g., "John 3:16", "Psalm 23")
 app.get("/api/calendar/search/verse/:verse", async (req, res) => {
@@ -245,8 +306,10 @@ app.get("/api/calendar/search/verse/:verse", async (req, res) => {
     
     console.log(`🔍 Searching for verse: ${verse}`);
     
-    // Get all days with readings
-    const allDays = await prisma.liturgicalDay.findMany({
+    const verseLower = verse.toLowerCase().trim();
+    
+    // Better verse search - look inside readings JSON
+    const results = await prisma.liturgicalDay.findMany({
       where: {
         readings: {
           not: null
@@ -254,25 +317,31 @@ app.get("/api/calendar/search/verse/:verse", async (req, res) => {
       }
     });
     
-    const verseLower = verse.toLowerCase().trim();
-    
-    // Filter by verse in any reading field
-    const results = allDays.filter(day => {
+    // Filter client-side for better matching
+    const filtered = results.filter(day => {
       if (!day.readings) return false;
       
-      const readings = day.readings;
-      const readingsStr = JSON.stringify(readings).toLowerCase();
+      const readingsStr = JSON.stringify(day.readings).toLowerCase();
       
-      // Simple contains check (works for most cases)
-      return readingsStr.includes(verseLower);
+      // Check for exact verse patterns
+      const patterns = [
+        verseLower,
+        verseLower.replace(':', ' '),
+        verseLower.replace(/\s+/g, ''),
+        verseLower.replace(':', '')
+      ];
+      
+      return patterns.some(pattern => readingsStr.includes(pattern));
     });
     
-    console.log(`✅ Found ${results.length} results for verse: ${verse}`);
-    res.json(results);
+    console.log(`✅ Found ${filtered.length} results for verse: ${verse}`);
+    res.json(filtered);
     
   } catch (error) {
     console.error("❌ Verse search error:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    await prisma.$disconnect();
   }
 });
 
@@ -287,18 +356,23 @@ app.get("/api/calendar/search/keyword/:keyword", async (req, res) => {
     
     const keywordLower = keyword.toLowerCase().trim();
     
+    // If keyword is too short, return empty
+    if (keywordLower.length < 2) {
+      return res.json([]);
+    }
+    
     const results = await prisma.liturgicalDay.findMany({
       where: {
         OR: [
           { celebration: { contains: keywordLower, mode: 'insensitive' } },
           { seasonName: { contains: keywordLower, mode: 'insensitive' } },
-          { rank: { contains: keywordLower, mode: 'insensitive' } },
-          { yearCycle: { contains: keywordLower, mode: 'insensitive' } }
+          { rank: { contains: keywordLower, mode: 'insensitive' } }
         ]
       },
       orderBy: {
         date: 'asc'
-      }
+      },
+      take: 50 // Limit results for performance
     });
     
     console.log(`✅ Found ${results.length} results for keyword: ${keyword}`);
@@ -307,10 +381,12 @@ app.get("/api/calendar/search/keyword/:keyword", async (req, res) => {
   } catch (error) {
     console.error("❌ Keyword search error:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    await prisma.$disconnect();
   }
 });
 
-// Search by liturgical season
+// Search by liturgical season - FIXED to handle "all"
 app.get("/api/calendar/search/season/:season", async (req, res) => {
   try {
     const { season } = req.params;
@@ -320,14 +396,17 @@ app.get("/api/calendar/search/season/:season", async (req, res) => {
     
     console.log(`🔍 Searching for season: ${season}, year: ${year || 'all'}`);
     
-    const whereClause = {
-      season: season.toLowerCase()
-    };
+    let whereClause = {};
     
-    // Add year filter if provided
+    // Only add season filter if not "all"
+    if (season !== 'all') {
+      whereClause.season = season.toLowerCase();
+    }
+    
+    // Add year filter if provided and not "all"
     if (year && year !== 'all') {
-      const startDate = new Date(parseInt(year), 0, 1);
-      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59, 999);
+      const startDate = new Date(Date.UTC(parseInt(year), 0, 1));
+      const endDate = new Date(Date.UTC(parseInt(year), 11, 31, 23, 59, 59, 999));
       
       whereClause.date = {
         gte: startDate,
@@ -335,11 +414,17 @@ app.get("/api/calendar/search/season/:season", async (req, res) => {
       };
     }
     
+    // If no filters at all, return empty (or could return recent days)
+    if (Object.keys(whereClause).length === 0) {
+      return res.json([]);
+    }
+    
     const results = await prisma.liturgicalDay.findMany({
       where: whereClause,
       orderBy: {
         date: 'asc'
-      }
+      },
+      take: 100 // Limit results for performance
     });
     
     console.log(`✅ Found ${results.length} results for season: ${season}`);
@@ -348,6 +433,114 @@ app.get("/api/calendar/search/season/:season", async (req, res) => {
   } catch (error) {
     console.error("❌ Season search error:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+// Search by date - COMPLETELY FIXED for all years
+app.get("/api/calendar/search/date/:date", async (req, res) => {
+  try {
+    const { date } = req.params;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const infiniteCalendar = require('./services/infiniteCalendar');
+    
+    console.log(`🔍 Searching for date: ${date}`);
+    
+    let startDate, endDate;
+    let results = [];
+    
+    // Check if it's a year-only search (e.g., "2050", "2100")
+    if (/^\d{4}$/.test(date)) {
+      const year = parseInt(date);
+      
+      // For ANY year (past or future), use infinite calendar to generate samples
+      console.log(`🔮 Year ${year} - using infinite calendar for samples`);
+      
+      // Generate first day of each month as representative samples
+      for (let month = 0; month < 12; month++) {
+        const sampleDate = new Date(year, month, 1);
+        const reading = await infiniteCalendar.getReadingsForAnyDate(sampleDate, prisma);
+        
+        if (reading) {
+          results.push({
+            id: `generated-${year}-${month + 1}`,
+            date: sampleDate,
+            celebration: reading.celebration,
+            season: reading.season,
+            seasonName: reading.seasonName,
+            yearCycle: reading.yearCycle,
+            readings: reading.readings ? {
+              firstReading: reading.readings.firstReading ? { citation: reading.readings.firstReading.citation } : null,
+              gospel: reading.readings.gospel ? { citation: reading.readings.gospel.citation } : null
+            } : null
+          });
+        }
+      }
+      
+      console.log(`✅ Generated ${results.length} sample days for ${year}`);
+      return res.json(results);
+    }
+    
+    // Check if it's a full date (YYYY-MM-DD)
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number);
+      
+      // For future years > 2035, use infinite calendar directly
+      if (year > 2035) {
+        console.log(`🔮 Date ${date} beyond database - using infinite calendar`);
+        
+        const targetDate = new Date(year, month - 1, day);
+        const reading = await infiniteCalendar.getReadingsForAnyDate(targetDate, prisma);
+        
+        if (reading) {
+          return res.json([{
+            id: `generated-${date}`,
+            date: targetDate,
+            celebration: reading.celebration,
+            season: reading.season,
+            seasonName: reading.seasonName,
+            yearCycle: reading.yearCycle,
+            readings: reading.readings ? {
+              firstReading: reading.readings.firstReading ? { citation: reading.readings.firstReading.citation } : null,
+              gospel: reading.readings.gospel ? { citation: reading.readings.gospel.citation } : null
+            } : null
+          }]);
+        }
+        return res.json([]);
+      }
+      
+      // For years in database, do regular search
+      startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      
+      results = await prisma.liturgicalDay.findMany({
+        where: {
+          date: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      });
+    } 
+    else {
+      return res.status(400).json({ 
+        error: "Invalid date format. Use YYYY or YYYY-MM-DD" 
+      });
+    }
+    
+    console.log(`✅ Found ${results.length} results for ${date}`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error("❌ Date search error:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    await prisma.$disconnect();
   }
 });
 
@@ -357,29 +550,42 @@ app.get("/api/calendar/search/season/:season", async (req, res) => {
 app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
   try {
     const { year, month, day } = req.params;
+    const yearNum = parseInt(year);
     
-    // Create date range for the entire day (UTC)
-    const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    console.log(`🔍 Getting readings for ${year}-${month}-${day}`);
     
-    console.log(`🔍 Looking for readings between ${startDate.toISOString()} and ${endDate.toISOString()}`);
+    let liturgicalDay = null;
     
-    const liturgicalDay = await prisma.liturgicalDay.findFirst({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate
+    // For years 2024-2035, check database first
+    if (yearNum >= 2024 && yearNum <= 2035) {
+      const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      
+      liturgicalDay = await prisma.liturgicalDay.findFirst({
+        where: {
+          date: {
+            gte: startDate,
+            lte: endDate
+          }
         }
-      }
-    });
+      });
+    }
+    
+    // For years before 2024 or after 2035, use infinite calendar
+    if (!liturgicalDay) {
+      console.log(`🔮 Using infinite calendar for ${year}-${month}-${day}`);
+      const infiniteCalendar = require('./services/infiniteCalendar');
+      const targetDate = new Date(year, month - 1, day);
+      liturgicalDay = await infiniteCalendar.getReadingsForAnyDate(targetDate, prisma);
+    }
     
     if (!liturgicalDay) {
       return res.status(404).json({ error: "No readings found for this date" });
     }
     
-    // Return the readings
+    // Return the readings with the REQUESTED date (not the mapped date)
     res.json({
-      date: liturgicalDay.date,
+      date: new Date(year, month - 1, day), // Return the requested date!
       celebration: liturgicalDay.celebration,
       season: liturgicalDay.seasonName,
       yearCycle: liturgicalDay.yearCycle,
@@ -391,7 +597,6 @@ app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // ================== ADMIN/POPULATION ROUTES ==================
 
 // POPULATE - Generate and store calendar data for a month
@@ -522,6 +727,7 @@ app.get("/api/calendar/debug/:year/:month", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // DEBUG - Get database statistics
 app.get("/api/calendar/stats", async (req, res) => {

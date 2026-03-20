@@ -637,11 +637,11 @@ const navContentStyle = {
 const logoContainerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "17px"
+  gap: "13px"
 };
 
 const logoStyle = {
-  width: "50px",
+  width: "40px",
   height: "auto"
 };
 
@@ -702,8 +702,8 @@ const floatingCardContentStyle = {
 };
 
 const floatingCardLogoStyle = {
-  width: "45px",
-  height: "45px",
+  width: "65px",
+  height: "65px",
   borderRadius: "50%",
   border: "2px solid #00c6ff"
 };

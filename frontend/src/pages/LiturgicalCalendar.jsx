@@ -698,46 +698,59 @@ const LiturgicalCalendar = () => {
     );
   };
 
-// SearchModal Component - FIXED with real data from your stats endpoint
-const SearchModal = ({ onClose }) => {
+// SearchModal Component - ALL YEARS ARE TEXT INPUTS
+const SearchModal = ({ onClose, navigate }) => {
   const [availableSeasons, setAvailableSeasons] = useState(['all']);
-  const [availableYears, setAvailableYears] = useState(['all']);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [debounceTimer, setDebounceTimer] = useState(null);
   const [loadingFilters, setLoadingFilters] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchType, setSearchType] = useState('keyword');
+  const [selectedSeason, setSelectedSeason] = useState('all');
+  const [selectedYear, setSelectedYear] = useState('all');
+  const [messageInfo, setMessageInfo] = useState({ show: false, text: '' });
+  
+  // Date search specific states
+  const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
+  const [searchMonth, setSearchMonth] = useState('all');
+  const [searchDay, setSearchDay] = useState('all');
+  
+  const months = [
+    { value: 'all', label: 'All Months' },
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' }
+  ];
+  
+  // Generate days (1-31) + "All Days"
+  const days = ['all', ...Array.from({ length: 31 }, (_, i) => (i + 1).toString())];
 
-  // Fetch available seasons and years from database
+  // Fetch available seasons from database
   useEffect(() => {
     const fetchFilters = async () => {
       setLoadingFilters(true);
       try {
-        // Use your existing stats endpoint
         const response = await publicApi.get('/api/calendar/stats');
         
-        if (response.data) {
-          // Extract seasons from bySeason array
-          if (response.data.bySeason && response.data.bySeason.length > 0) {
-            const seasons = response.data.bySeason.map(s => s.season);
-            setAvailableSeasons(['all', ...seasons]);
-          } else {
-            // Fallback if no data
-            setAvailableSeasons(['all', 'advent', 'christmas', 'lent', 'easter', 'ordinary']);
-          }
-          
-          // Extract years from byYear array
-          if (response.data.byYear && response.data.byYear.length > 0) {
-            const years = response.data.byYear.map(y => y.year.toString());
-            setAvailableYears(['all', ...years.sort()]);
-          } else {
-            // Fallback if no data
-            setAvailableYears(['all', '2024', '2025', '2026', '2027', '2028']);
-          }
+        if (response.data?.bySeason && response.data.bySeason.length > 0) {
+          const seasons = response.data.bySeason.map(s => s.season);
+          setAvailableSeasons(['all', ...seasons]);
+        } else {
+          setAvailableSeasons(['all', 'advent', 'christmas', 'lent', 'easter', 'ordinary']);
         }
       } catch (err) {
         console.error('Error fetching filters:', err);
-        // Fallback to defaults if API fails
         setAvailableSeasons(['all', 'advent', 'christmas', 'lent', 'easter', 'ordinary']);
-        setAvailableYears(['all', '2024', '2025', '2026', '2027', '2028']);
       } finally {
         setLoadingFilters(false);
       }
@@ -746,21 +759,165 @@ const SearchModal = ({ onClose }) => {
     fetchFilters();
   }, []);
 
-  // Handle search with debounce
+  // Handle date search
+  const performDateSearch = async () => {
+    if (!searchYear || searchYear.trim() === '') {
+      setMessageInfo({ show: true, text: 'Please enter a year' });
+      return;
+    }
+    
+    setSearchLoading(true);
+    setMessageInfo({ show: false, text: '' });
+    
+    try {
+      let response;
+      
+      // CASE 1: Specific date (month AND day selected)
+      if (searchMonth !== 'all' && searchDay !== 'all') {
+        const monthPadded = searchMonth.padStart(2, '0');
+        const dayPadded = searchDay.padStart(2, '0');
+        const endpoint = `/api/calendar/search/date/${searchYear}-${monthPadded}-${dayPadded}`;
+        console.log(`🔍 Searching specific date: ${searchYear}-${monthPadded}-${dayPadded}`);
+        response = await publicApi.get(endpoint);
+        
+        // For future years, try direct calendar route
+        if (response.data.length === 0 && parseInt(searchYear) > 2035) {
+          const calendarResponse = await publicApi.get(`/api/calendar/date/${searchYear}/${searchMonth}/${searchDay}`);
+          if (calendarResponse.data && !calendarResponse.data.error) {
+            setSearchResults([calendarResponse.data]);
+            setSearchLoading(false);
+            return;
+          }
+        }
+        setSearchResults(response.data);
+      }
+      // CASE 2: Entire month (month selected, day = all)
+      else if (searchMonth !== 'all' && searchDay === 'all') {
+        console.log(`🔍 Searching month: ${searchYear}/${searchMonth}`);
+        response = await publicApi.get(`/api/calendar/month/${searchYear}/${searchMonth}`);
+        setSearchResults(response.data);
+      }
+      // CASE 3: Entire year (month = all, day = all)
+      else {
+        console.log(`🔍 Searching year: ${searchYear}`);
+        response = await publicApi.get(`/api/calendar/search/date/${searchYear}`);
+        setSearchResults(response.data);
+      }
+      
+      // Show helpful message if no results
+      if (response && response.data.length === 0) {
+        if (searchMonth !== 'all' && searchDay !== 'all') {
+          setMessageInfo({ 
+            show: true, 
+            text: `No readings found for ${months.find(m => m.value === searchMonth)?.label} ${searchDay}, ${searchYear}` 
+          });
+        } else if (parseInt(searchYear) > 2035) {
+          setMessageInfo({ 
+            show: true, 
+            text: `Data for ${searchYear} is available! Select a specific date to view readings.` 
+          });
+        } else {
+          setMessageInfo({ 
+            show: true, 
+            text: `No results found for ${searchYear}` 
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Date search error:', err);
+      setSearchResults([]);
+      setMessageInfo({ show: true, text: 'Error searching. Please try again.' });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Handle keyword/verse search with debounce
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setLocalSearchQuery(value);
     
     if (debounceTimer) clearTimeout(debounceTimer);
     
+    if (!value.trim()) {
+      setSearchResults([]);
+      setMessageInfo({ show: false, text: '' });
+      return;
+    }
+    
     const timer = setTimeout(() => {
-      setSearchQuery(value);
-      if (value.trim().length > 2 || searchType === 'date') {
-        performSearch();
-      }
-    }, 2200);
+      performTextSearch(value);
+    }, 500);
     
     setDebounceTimer(timer);
+  };
+
+  const performTextSearch = async (query) => {
+    if (!query.trim()) return;
+    
+    setSearchLoading(true);
+    setMessageInfo({ show: false, text: '' });
+    
+    try {
+      let endpoint = '';
+      
+      if (searchType === 'keyword') {
+        endpoint = `/api/calendar/search/keyword/${encodeURIComponent(query)}`;
+      } else if (searchType === 'verse') {
+        endpoint = `/api/calendar/search/verse/${encodeURIComponent(query)}`;
+      }
+      
+      const response = await publicApi.get(endpoint);
+      setSearchResults(response.data);
+      
+      if (response.data.length === 0) {
+        setMessageInfo({ show: true, text: 'No results found' });
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+      setMessageInfo({ show: true, text: 'Error searching. Please try again.' });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Handle season search - now with text input for year
+  const performSeasonSearch = async () => {
+    if (selectedSeason === 'all' && selectedYear === 'all') {
+      setMessageInfo({ 
+        show: true, 
+        text: 'Please select a specific season or enter a year to search' 
+      });
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearchLoading(true);
+    setMessageInfo({ show: false, text: '' });
+    
+    try {
+      let endpoint = `/api/calendar/search/season/${selectedSeason}`;
+      if (selectedYear !== 'all') {
+        endpoint += `?year=${selectedYear}`;
+      }
+      
+      const response = await publicApi.get(endpoint);
+      setSearchResults(response.data);
+      
+      if (response.data.length === 0) {
+        setMessageInfo({ 
+          show: true, 
+          text: 'No results found for this combination' 
+        });
+      }
+    } catch (err) {
+      console.error('Season search error:', err);
+      setSearchResults([]);
+      setMessageInfo({ show: true, text: 'Error searching. Please try again.' });
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   // Cleanup timer
@@ -774,7 +931,7 @@ const SearchModal = ({ onClose }) => {
     <div style={styles.modalOverlay} onClick={onClose}>
       <div style={{...styles.modalContent, maxWidth: '600px'}} onClick={(e) => e.stopPropagation()}>
         <button style={styles.modalCloseButton} onClick={onClose}>
-          <X size={isMobile ? 20 : 24} />
+          <X size={24} />
         </button>
         
         <div style={styles.modalHeader}>
@@ -786,9 +943,28 @@ const SearchModal = ({ onClose }) => {
           <div style={styles.searchTypeSelector}>
             <button
               onClick={() => {
-                setSearchType('date');
+                setSearchType('keyword');
                 setLocalSearchQuery('');
                 setSearchResults([]);
+                setMessageInfo({ show: false, text: '' });
+              }}
+              style={{
+                ...styles.searchTypeButton,
+                backgroundColor: searchType === 'keyword' ? 'rgba(0,198,255,0.2)' : 'transparent',
+                borderColor: searchType === 'keyword' ? '#00c6ff' : 'rgba(255,255,255,0.2)',
+              }}
+            >
+              <Hash size={16} />
+              <span>Keyword</span>
+            </button>
+            <button
+              onClick={() => {
+                setSearchType('date');
+                setSearchMonth('all');
+                setSearchDay('all');
+                setSearchYear(new Date().getFullYear().toString());
+                setSearchResults([]);
+                setMessageInfo({ show: false, text: '' });
               }}
               style={{
                 ...styles.searchTypeButton,
@@ -804,6 +980,7 @@ const SearchModal = ({ onClose }) => {
                 setSearchType('verse');
                 setLocalSearchQuery('');
                 setSearchResults([]);
+                setMessageInfo({ show: false, text: '' });
               }}
               style={{
                 ...styles.searchTypeButton,
@@ -816,24 +993,10 @@ const SearchModal = ({ onClose }) => {
             </button>
             <button
               onClick={() => {
-                setSearchType('keyword');
-                setLocalSearchQuery('');
-                setSearchResults([]);
-              }}
-              style={{
-                ...styles.searchTypeButton,
-                backgroundColor: searchType === 'keyword' ? 'rgba(0,198,255,0.2)' : 'transparent',
-                borderColor: searchType === 'keyword' ? '#00c6ff' : 'rgba(255,255,255,0.2)',
-              }}
-            >
-              <Hash size={16} />
-              <span>Keyword</span>
-            </button>
-            <button
-              onClick={() => {
                 setSearchType('season');
                 setLocalSearchQuery('');
                 setSearchResults([]);
+                setMessageInfo({ show: false, text: '' });
               }}
               style={{
                 ...styles.searchTypeButton,
@@ -846,29 +1009,104 @@ const SearchModal = ({ onClose }) => {
             </button>
           </div>
           
-          {/* Search Input */}
-          {searchType !== 'season' && (
+          {/* Date Search Section - YEAR IS TEXT INPUT */}
+          {searchType === 'date' && (
+            <div style={styles.dateSearchContainer}>
+              <div style={styles.filterRow}>
+                {/* Year Input - TEXT FIELD */}
+                <div style={styles.filterGroup}>
+                  <label style={styles.filterLabel}>Year:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 2024, 2050, 2100"
+                    value={searchYear}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow numbers
+                      if (/^\d*$/.test(value) && value.length <= 4) {
+                        setSearchYear(value);
+                        setSearchResults([]);
+                        setMessageInfo({ show: false, text: '' });
+                      }
+                    }}
+                    style={styles.yearInput}
+                  />
+                </div>
+                
+                <div style={styles.filterGroup}>
+                  <label style={styles.filterLabel}>Month:</label>
+                  <select
+                    value={searchMonth}
+                    onChange={(e) => {
+                      setSearchMonth(e.target.value);
+                      setSearchDay('all');
+                      setSearchResults([]);
+                      setMessageInfo({ show: false, text: '' });
+                    }}
+                    style={styles.filterSelect}
+                  >
+                    {months.map(month => (
+                      <option key={month.value} value={month.value}>{month.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div style={styles.filterGroup}>
+                  <label style={styles.filterLabel}>Day:</label>
+                  <select
+                    value={searchDay}
+                    onChange={(e) => {
+                      setSearchDay(e.target.value);
+                      setSearchResults([]);
+                      setMessageInfo({ show: false, text: '' });
+                    }}
+                    style={styles.filterSelect}
+                    disabled={searchMonth === 'all'}
+                  >
+                    {days.map(day => (
+                      <option key={day} value={day}>
+                        {day === 'all' ? 'All Days' : day}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <button onClick={performDateSearch} style={styles.searchButtonLarge}>
+                <Search size={18} />
+                <span>Search Dates</span>
+              </button>
+              
+              <p style={styles.searchHint}>
+                {searchYear && searchMonth === 'all' 
+                  ? `Searching entire year ${searchYear}` 
+                  : searchYear && searchDay === 'all' 
+                    ? `Searching ${months.find(m => m.value === searchMonth)?.label} ${searchYear}`
+                    : searchYear && `Searching ${months.find(m => m.value === searchMonth)?.label} ${searchDay}, ${searchYear}`
+                }
+              </p>
+            </div>
+          )}
+          
+          {/* Keyword/Verse Search Input */}
+          {(searchType === 'keyword' || searchType === 'verse') && (
             <div style={styles.searchInputContainer}>
               <input
                 type="text"
                 placeholder={
-                  searchType === 'date' ? 'Enter date (YYYY or YYYY-MM-DD)' :
-                  searchType === 'verse' ? 'Enter verse (e.g., John 3:16)' :
+                  searchType === 'verse' ? 'Enter Bible verse (e.g., John 3:16)' :
                   'Enter keyword (e.g., "Joseph", "Lent")'
                 }
                 value={localSearchQuery}
                 onChange={handleSearchChange}
-                onKeyPress={(e) => e.key === 'Enter' && performSearch()}
                 style={styles.searchInput}
                 autoFocus
               />
-              <button onClick={performSearch} style={styles.searchButton}>
-                <Search size={18} />
-              </button>
+              {searchLoading && <div style={styles.searchInputSpinner}></div>}
             </div>
           )}
           
-          {/* Season Filters */}
+          {/* Season Filters - YEAR IS NOW TEXT INPUT */}
           {searchType === 'season' && (
             <div style={styles.seasonFilters}>
               {loadingFilters ? (
@@ -878,49 +1116,49 @@ const SearchModal = ({ onClose }) => {
                 </div>
               ) : (
                 <>
-                  <div style={styles.filterGroup}>
-                    <label style={styles.filterLabel}>Season:</label>
-                    <select
-                      value={selectedSeason}
-                      onChange={(e) => {
-                        setSelectedSeason(e.target.value);
-                        setSearchResults([]);
-                      }}
-                      style={styles.filterSelect}
-                    >
-                      {availableSeasons.map(season => (
-                        <option key={season} value={season}>
-                          {season === 'all' ? 'All Seasons' : 
-                           season === 'advent' ? 'Advent' :
-                           season === 'christmas' ? 'Christmas' :
-                           season === 'lent' ? 'Lent' :
-                           season === 'easter' ? 'Easter' :
-                           season === 'ordinary' ? 'Ordinary Time' :
-                           season.charAt(0).toUpperCase() + season.slice(1)}
-                        </option>
-                      ))}
-                    </select>
+                  <div style={styles.filterRow}>
+                    <div style={styles.filterGroup}>
+                      <label style={styles.filterLabel}>Season:</label>
+                      <select
+                        value={selectedSeason}
+                        onChange={(e) => {
+                          setSelectedSeason(e.target.value);
+                          setSearchResults([]);
+                          setMessageInfo({ show: false, text: '' });
+                        }}
+                        style={styles.filterSelect}
+                      >
+                        {availableSeasons.map(season => (
+                          <option key={season} value={season}>
+                            {season === 'all' ? 'All Seasons' : 
+                             season.charAt(0).toUpperCase() + season.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div style={styles.filterGroup}>
+                      <label style={styles.filterLabel}>Year:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., 2024, 2050, 2100 (or 'all')"
+                        value={selectedYear === 'all' ? '' : selectedYear}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '' || value.toLowerCase() === 'all') {
+                            setSelectedYear('all');
+                          } else if (/^\d{4}$/.test(value)) {
+                            setSelectedYear(value);
+                          }
+                          setSearchResults([]);
+                          setMessageInfo({ show: false, text: '' });
+                        }}
+                        style={styles.yearInput}
+                      />
+                    </div>
                   </div>
                   
-                  <div style={styles.filterGroup}>
-                    <label style={styles.filterLabel}>Year:</label>
-                    <select
-                      value={selectedYear}
-                      onChange={(e) => {
-                        setSelectedYear(e.target.value);
-                        setSearchResults([]);
-                      }}
-                      style={styles.filterSelect}
-                    >
-                      {availableYears.map(year => (
-                        <option key={year} value={year}>
-                          {year === 'all' ? 'All Years' : year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <button onClick={performSearch} style={styles.searchButtonLarge}>
+                  <button onClick={performSeasonSearch} style={styles.searchButtonLarge}>
                     <Search size={18} />
                     <span>Search Season</span>
                   </button>
@@ -949,8 +1187,9 @@ const SearchModal = ({ onClose }) => {
                     style={styles.searchResultItem}
                     onClick={() => {
                       const resultDate = new Date(result.date);
-                      setCurrentDate(resultDate);
+                      const formattedDate = `${resultDate.getFullYear()}-${String(resultDate.getMonth() + 1).padStart(2, '0')}-${String(resultDate.getDate()).padStart(2, '0')}`;
                       onClose();
+                      navigate(`/readings/${formattedDate}`);
                     }}
                   >
                     <div style={styles.searchResultDate}>
@@ -964,13 +1203,9 @@ const SearchModal = ({ onClose }) => {
                     <div style={styles.searchResultCelebration}>
                       {result.celebration}
                     </div>
-                    {result.readings && (
-                      <div style={styles.searchResultReadings}>
-                        {result.readings.firstReading && (
-                          <span style={styles.searchResultReading}>
-                            📖 {result.readings.firstReading.citation}
-                          </span>
-                        )}
+                    {result.readings?.firstReading && (
+                      <div style={styles.searchResultReading}>
+                        📖 {result.readings.firstReading.citation}
                       </div>
                     )}
                     <ArrowRight size={14} style={styles.searchResultArrow} />
@@ -980,10 +1215,11 @@ const SearchModal = ({ onClose }) => {
             </div>
           )}
           
-          {!searchLoading && localSearchQuery && searchResults.length === 0 && (
-            <div style={styles.noResults}>
-              <Info size={24} />
-              <p>No results found</p>
+          {/* Message Display */}
+          {!searchLoading && messageInfo.show && (
+            <div style={styles.messageBox}>
+              <Info size={20} />
+              <p>{messageInfo.text}</p>
             </div>
           )}
         </div>
@@ -991,7 +1227,8 @@ const SearchModal = ({ onClose }) => {
     </div>
   );
 };
-
+          
+         
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -1146,7 +1383,7 @@ const SearchModal = ({ onClose }) => {
           <DayModal day={selectedDay} onClose={closeModal} />
         )}
         
-        {searchModal && <SearchModal onClose={closeSearch} />}
+        {searchModal && <SearchModal onClose={closeSearch} navigate={navigate} />}
 
         {/* Footer */}
         <div style={styles.footer}>
@@ -1340,6 +1577,24 @@ const styles = {
       fontSize: '16px',
     },
   },
+
+  yearInput: {
+  padding: '10px',
+  borderRadius: '8px',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  background: 'rgba(255, 255, 255, 0.05)',
+  color: 'white',
+  fontSize: '14px',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+  '&:focus': {
+    borderColor: '#00c6ff',
+  },
+  '&::placeholder': {
+    color: 'rgba(255,255,255,0.3)',
+  },
+},
 
   errorBanner: {
     background: 'rgba(239, 68, 68, 0.1)',
@@ -1784,6 +2039,25 @@ const styles = {
     fontSize: '13px',
     border: '1px solid',
   },
+
+  dateSearchContainer: {
+  marginBottom: '15px',
+},
+
+filterRow: {
+  display: 'flex',
+  gap: '10px',
+  marginBottom: '15px',
+  flexWrap: 'wrap',
+},
+
+searchHint: {
+  color: 'rgba(255,255,255,0.5)',
+  fontSize: '12px',
+  marginTop: '10px',
+  fontStyle: 'italic',
+  textAlign: 'center',
+},
 
   modalDetailsGrid: {
     display: 'grid',

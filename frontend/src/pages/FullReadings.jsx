@@ -84,13 +84,20 @@ const FullReadings = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  // Parse the UTC date
+  const date = new Date(dateString);
+  
+  // Use UTC methods to avoid timezone shift
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  const weekday = weekdays[date.getUTCDay()];
+  const month = months[date.getUTCMonth()];
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  
+  return `${weekday}, ${month} ${day}, ${year}`;
+};
 
   const getSeasonColor = (season) => {
     const colors = {

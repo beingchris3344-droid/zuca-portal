@@ -136,82 +136,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
-
-
-// ================== AUTH MIDDLEWARE ==================
-function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: "No token" });
-
-  const token = authHeader.split(" ")[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ message: "Invalid token" });
-  }
-}
-
-function requireAdmin(req, res, next) {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
-  next();
-}
-
-const hasRole = (req, allowedRoles) => {
-  return allowedRoles.includes(req.user.role);
-};
-
-
-// TEMPORARY DEBUG ENDPOINT - NO AUTH REQUIRED
-app.get("/api/chat/debug/public-files", async (req, res) => {
-  try {
-    const files = await prisma.file.findMany({
-      take: 20,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        size: true,
-        createdAt: true,
-        messageId: true
-      }
-    });
-    
-    res.json({ 
-      success: true, 
-      count: files.length,
-      files: files 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// TEMPORARY PUBLIC FILE VIEWER
-app.get("/api/chat/debug/public-file/:fileId", async (req, res) => {
-  try {
-    const { fileId } = req.params;
-    
-    const file = await prisma.file.findUnique({
-      where: { id: fileId }
-    });
-
-    if (!file) {
-      return res.status(404).json({ error: "File not found" });
-    }
-
-    const fileBuffer = Buffer.from(file.data, 'base64');
-
-    res.setHeader('Content-Type', file.type);
-    res.setHeader('Content-Disposition', `inline; filename="${file.name}"`);
-    res.send(fileBuffer);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ================== CALENDAR ROUTES (PUBLIC - NO AUTH NEEDED) ==================
 const calendarService = require('./services/calendarService');
 
@@ -446,15 +370,14 @@ app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
     
     // If readings exist, return them with full details
     if (liturgicalDay.readings) {
-      // You might want to fetch full text from a Bible API here
-      // For now, return what we have
-      res.json({
-        date: liturgicalDay.date,
-        celebration: liturgicalDay.celebration,
-        season: liturgicalDay.seasonName,
-        yearCycle: liturgicalDay.yearCycle,
-        readings: liturgicalDay.readings
-      });
+  // For now, return what we have
+  res.json({
+    date: liturgicalDay.date,
+    celebration: liturgicalDay.celebration,
+    season: liturgicalDay.seasonName,
+    yearCycle: liturgicalDay.yearCycle,
+    readings: liturgicalDay.readings
+  });
     } else {
       res.status(404).json({ error: "No readings available for this date" });
     }
@@ -748,6 +671,85 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
     res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
+
+
+
+
+// ================== AUTH MIDDLEWARE ==================
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: "No token" });
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ message: "Invalid token" });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+  next();
+}
+
+const hasRole = (req, allowedRoles) => {
+  return allowedRoles.includes(req.user.role);
+};
+
+
+// TEMPORARY DEBUG ENDPOINT - NO AUTH REQUIRED
+app.get("/api/chat/debug/public-files", async (req, res) => {
+  try {
+    const files = await prisma.file.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        size: true,
+        createdAt: true,
+        messageId: true
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      count: files.length,
+      files: files 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TEMPORARY PUBLIC FILE VIEWER
+app.get("/api/chat/debug/public-file/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileBuffer = Buffer.from(file.data, 'base64');
+
+    res.setHeader('Content-Type', file.type);
+    res.setHeader('Content-Disposition', `inline; filename="${file.name}"`);
+    res.send(fileBuffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 
 // ================== YOUTUBE ANALYTICS ROUTE ==================

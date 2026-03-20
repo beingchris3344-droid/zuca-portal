@@ -215,6 +215,9 @@ app.get("/api/chat/debug/public-file/:fileId", async (req, res) => {
 // ================== CALENDAR ROUTES (PUBLIC - NO AUTH NEEDED) ==================
 const calendarService = require('./services/calendarService');
 
+
+// ================== BASIC CALENDAR ROUTES ==================
+
 // Get today's liturgical info
 app.get("/api/calendar/today", async (req, res) => {
   try {
@@ -252,6 +255,217 @@ app.get("/api/calendar/month/:year/:month", async (req, res) => {
   }
 });
 
+// ================== SEARCH ROUTES (FIXED) ==================
+
+// Search by date - supports "2025" (year only) or "2025-03-19" (full date)
+app.get("/api/calendar/search/date/:date", async (req, res) => {
+  try {
+    const { date } = req.params;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    console.log(`🔍 Searching for date: ${date}`);
+    
+    let startDate, endDate;
+    
+    // Check if it's a year-only search (e.g., "2025")
+    if (/^\d{4}$/.test(date)) {
+      // Year only
+      const year = parseInt(date);
+      startDate = new Date(year, 0, 1);
+      endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+      console.log(`📅 Year search: ${year} (${startDate} to ${endDate})`);
+    } 
+    // Check if it's a full date (YYYY-MM-DD)
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number);
+      startDate = new Date(year, month - 1, day);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(year, month - 1, day);
+      endDate.setHours(23, 59, 59, 999);
+      console.log(`📅 Date search: ${date}`);
+    } 
+    else {
+      return res.status(400).json({ 
+        error: "Invalid date format. Use YYYY or YYYY-MM-DD" 
+      });
+    }
+    
+    const results = await prisma.liturgicalDay.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      orderBy: {
+        date: 'asc'
+      }
+    });
+    
+    console.log(`✅ Found ${results.length} results for ${date}`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error("❌ Date search error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search by Bible verse (e.g., "John 3:16", "Psalm 23")
+app.get("/api/calendar/search/verse/:verse", async (req, res) => {
+  try {
+    const { verse } = req.params;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    console.log(`🔍 Searching for verse: ${verse}`);
+    
+    // Get all days with readings
+    const allDays = await prisma.liturgicalDay.findMany({
+      where: {
+        readings: {
+          not: null
+        }
+      }
+    });
+    
+    const verseLower = verse.toLowerCase().trim();
+    
+    // Filter by verse in any reading field
+    const results = allDays.filter(day => {
+      if (!day.readings) return false;
+      
+      const readings = day.readings;
+      const readingsStr = JSON.stringify(readings).toLowerCase();
+      
+      // Simple contains check (works for most cases)
+      return readingsStr.includes(verseLower);
+    });
+    
+    console.log(`✅ Found ${results.length} results for verse: ${verse}`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error("❌ Verse search error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search by keyword (in celebration name, season, etc.)
+app.get("/api/calendar/search/keyword/:keyword", async (req, res) => {
+  try {
+    const { keyword } = req.params;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    console.log(`🔍 Searching for keyword: ${keyword}`);
+    
+    const keywordLower = keyword.toLowerCase().trim();
+    
+    const results = await prisma.liturgicalDay.findMany({
+      where: {
+        OR: [
+          { celebration: { contains: keywordLower, mode: 'insensitive' } },
+          { seasonName: { contains: keywordLower, mode: 'insensitive' } },
+          { rank: { contains: keywordLower, mode: 'insensitive' } },
+          { yearCycle: { contains: keywordLower, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: {
+        date: 'asc'
+      }
+    });
+    
+    console.log(`✅ Found ${results.length} results for keyword: ${keyword}`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error("❌ Keyword search error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search by liturgical season
+app.get("/api/calendar/search/season/:season", async (req, res) => {
+  try {
+    const { season } = req.params;
+    const { year } = req.query;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    console.log(`🔍 Searching for season: ${season}, year: ${year || 'all'}`);
+    
+    const whereClause = {
+      season: season.toLowerCase()
+    };
+    
+    // Add year filter if provided
+    if (year && year !== 'all') {
+      const startDate = new Date(parseInt(year), 0, 1);
+      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59, 999);
+      
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+    
+    const results = await prisma.liturgicalDay.findMany({
+      where: whereClause,
+      orderBy: {
+        date: 'asc'
+      }
+    });
+    
+    console.log(`✅ Found ${results.length} results for season: ${season}`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error("❌ Season search error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================== FULL READINGS ROUTES ==================
+
+// Get full readings for a specific date with all details
+app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
+  try {
+    const { year, month, day } = req.params;
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    
+    const liturgicalDay = await prisma.liturgicalDay.findUnique({
+      where: { date: date }
+    });
+    
+    if (!liturgicalDay) {
+      return res.status(404).json({ error: "No readings found for this date" });
+    }
+    
+    // If readings exist, return them with full details
+    if (liturgicalDay.readings) {
+      // You might want to fetch full text from a Bible API here
+      // For now, return what we have
+      res.json({
+        date: liturgicalDay.date,
+        celebration: liturgicalDay.celebration,
+        season: liturgicalDay.seasonName,
+        yearCycle: liturgicalDay.yearCycle,
+        readings: liturgicalDay.readings
+      });
+    } else {
+      res.status(404).json({ error: "No readings available for this date" });
+    }
+  } catch (error) {
+    console.error("Readings error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================== ADMIN/POPULATION ROUTES ==================
+
 // POPULATE - Generate and store calendar data for a month
 app.get("/api/calendar/populate/:year/:month", async (req, res) => {
   try {
@@ -276,15 +490,73 @@ app.get("/api/calendar/populate/:year/:month", async (req, res) => {
   }
 });
 
+// POPULATE - Generate multiple months or years
+app.post("/api/calendar/populate-range", async (req, res) => {
+  try {
+    const { startYear, startMonth, endYear, endMonth } = req.body;
+    
+    const results = {
+      total: 0,
+      months: []
+    };
+    
+    for (let year = startYear; year <= endYear; year++) {
+      const monthStart = (year === startYear) ? startMonth : 1;
+      const monthEnd = (year === endYear) ? endMonth : 12;
+      
+      for (let month = monthStart; month <= monthEnd; month++) {
+        console.log(`📅 Populating ${year}/${month}`);
+        const days = await calendarService.getLiturgicalMonth(year, month - 1);
+        results.total += days.length;
+        results.months.push({ year, month, count: days.length });
+        
+        // Small delay to avoid overwhelming
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully populated ${results.total} days`,
+      results
+    });
+  } catch (error) {
+    console.error("Range population error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// REFRESH - Update readings for a specific date
+app.get("/api/calendar/refresh/:year/:month/:day", async (req, res) => {
+  try {
+    const { year, month, day } = req.params;
+    const date = new Date(year, month - 1, day);
+    
+    const updated = await calendarService.refreshReadings(date);
+    
+    if (updated) {
+      res.json({ 
+        success: true, 
+        message: "Readings refreshed successfully",
+        data: updated 
+      });
+    } else {
+      res.status(404).json({ error: "Date not found or refresh failed" });
+    }
+  } catch (error) {
+    console.error("Refresh error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================== DEBUG ROUTES ==================
+
 // DEBUG - Check what's in your database
 app.get("/api/calendar/debug/:year/:month", async (req, res) => {
   try {
     const { year, month } = req.params;
     const yearNum = parseInt(year);
     const monthNum = parseInt(month) - 1;
-    
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
     
     const startDate = new Date(yearNum, monthNum, 1);
     const endDate = new Date(yearNum, monthNum + 1, 0);
@@ -301,14 +573,21 @@ app.get("/api/calendar/debug/:year/:month", async (req, res) => {
       }
     });
     
+    // Count days with readings
+    const withReadings = existingDays.filter(d => d.readings && 
+      (d.readings.firstReading || d.readings.gospel)).length;
+    
     res.json({
       message: `Found ${existingDays.length} days in database for ${year}/${month}`,
       count: existingDays.length,
+      withReadings: withReadings,
+      withoutReadings: existingDays.length - withReadings,
       days: existingDays.map(d => ({
         date: d.date,
         celebration: d.celebration,
         season: d.season,
-        color: d.liturgicalColor
+        color: d.liturgicalColor,
+        hasReadings: !!(d.readings && (d.readings.firstReading || d.readings.gospel))
       }))
     });
   } catch (error) {
@@ -316,20 +595,102 @@ app.get("/api/calendar/debug/:year/:month", async (req, res) => {
   }
 });
 
-// DEBUG - Test Romcal directly (fixed version)
+// DEBUG - Get database statistics
+app.get("/api/calendar/stats", async (req, res) => {
+  try {
+    const totalDays = await prisma.liturgicalDay.count();
+    const withReadings = await prisma.liturgicalDay.count({
+      where: {
+        readings: {
+          not: null
+        }
+      }
+    });
+    
+    const bySeason = await prisma.liturgicalDay.groupBy({
+      by: ['season'],
+      _count: true
+    });
+    
+    const byYear = await prisma.$queryRaw`
+      SELECT EXTRACT(YEAR FROM date) as year, COUNT(*) 
+      FROM liturgical_days 
+      GROUP BY year 
+      ORDER BY year ASC
+    `;
+    
+    res.json({
+      totalDays,
+      withReadings,
+      withoutReadings: totalDays - withReadings,
+      bySeason,
+      byYear
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TEMPORARY: Delete all data for a specific month
+app.delete("/api/calendar/delete-month/:year/:month", async (req, res) => {
+  try {
+    const { year, month } = req.params;
+    const yearNum = parseInt(year);
+    const monthNum = parseInt(month) - 1;
+    
+    const startDate = new Date(yearNum, monthNum, 1);
+    const endDate = new Date(yearNum, monthNum + 1, 0);
+    
+    const deleted = await prisma.liturgicalDay.deleteMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate
+        }
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Deleted ${deleted.count} days for ${year}/${month}` 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TEMPORARY: Delete a specific date
+app.delete("/api/calendar/delete-date/:year/:month/:day", async (req, res) => {
+  try {
+    const { year, month, day } = req.params;
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    
+    const deleted = await prisma.liturgicalDay.delete({
+      where: { date: date }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Deleted ${date.toDateString()}` 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================== TEST/DEBUG ROUTES ==================
+
+// DEBUG - Test Romcal directly
 app.get("/api/calendar/test-romcal", async (req, res) => {
   try {
     const romcal = require('romcal');
-    
-    // Try to see what methods are available
     const methods = Object.keys(romcal);
     
-    // Try to get a sample date
     let sample = null;
     let error = null;
     
     try {
-      // Try different possible method names
       if (typeof romcal.calendarForYear === 'function') {
         sample = await romcal.calendarForYear({ year: 2026 });
       } else if (typeof romcal.generate === 'function') {
@@ -359,26 +720,16 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
     
     console.log(`Testing Romcal for ${year}-${month}-${day}`);
     
-    // Try to get calendar for the year
     const calendar = await romcal.calendarFor({
       year: parseInt(year),
       country: 'general',
       locale: 'en'
     });
     
-    // Log what we got
     console.log(`Romcal returned ${calendar?.length || 0} items`);
     
-    if (calendar && calendar.length > 0) {
-      // Show first item as sample
-      const sample = calendar[0];
-      console.log('Sample item:', JSON.stringify(sample, null, 2));
-    }
-    
-    // Try to find the specific day
     const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     const dayData = calendar.find(item => {
-      // Check different possible date fields
       return item.date === dateStr || 
              item.day === dateStr || 
              (item.dateStr === dateStr);
@@ -398,36 +749,6 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
   }
 });
 
-// TEMPORARY: Delete all data for a specific month
-app.get("/api/calendar/delete-month/:year/:month", async (req, res) => {
-  try {
-    const { year, month } = req.params;
-    const yearNum = parseInt(year);
-    const monthNum = parseInt(month) - 1;
-    
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-    
-    const startDate = new Date(yearNum, monthNum, 1);
-    const endDate = new Date(yearNum, monthNum + 1, 0);
-    
-    const deleted = await prisma.liturgicalDay.deleteMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate
-        }
-      }
-    });
-    
-    res.json({ 
-      success: true, 
-      message: `Deleted ${deleted.count} days for ${year}/${month}` 
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // ================== YOUTUBE ANALYTICS ROUTE ==================
 app.get("/api/admin/analytics/youtube", authenticate, requireAdmin, async (req, res) => {

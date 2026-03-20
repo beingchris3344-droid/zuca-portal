@@ -17,6 +17,9 @@ import {
   FaClock,
   FaLocationArrow,
   FaDownload,
+  FaUserPlus,
+  FaSignInAlt,
+  FaCalendarAlt,
   FaMobileAlt,
   FaBars,
   FaTimes,
@@ -236,34 +239,46 @@ function Landing2() {
             </div>
           </div>
 
-          {/* Rest of hero content - exactly as original */}
-          <img src={logo} alt="ZUCA Logo" style={heroLogoStyle} />
-          <h1 style={heroTitleStyle}>
-            <span style={heroMassIconStyle}>Zetech University Catholic Action </span>
-            <br />
-            <span style={gradientTextStyle}>Z U C A - PORTAL</span>
-          </h1>
-          <p style={heroSubtitleStyle}>
-            Join us on this spiritual journey as we use the power of music to inspire, uplift, and evangelize. Don't forget to like, share, and subscribe for more inspiring content from Zetech Catholic Action!
-          </p>
+         {/* Welcome Card - With ZUCA Logo, Title, Welcome Message, and Register/Login */}
+<div style={welcomeCardStyle}>
+  <div style={welcomeCardHeaderStyle}>
+    <img src={logo} alt="ZUCA Logo" style={welcomeCardLogoStyle} />
+    <h2 style={welcomeCardTitleStyle}>Zetech University</h2>
+  </div>
+  
+  <div style={welcomeCardSubtitleStyle}>
+    CATHOLIC ACTION
+  </div>
+  
+  <p style={welcomeCardTextStyle}>
+    Welcome to the Zetech University Catholic Action Portal. Here you can view announcements, explore mass schedules and other relevant programs, and connect with members — all in one powerful platform.
+  </p>
+
+  <div style={welcomeCardButtonsStyle}>
+    <button onClick={() => navigate("/register")} style={welcomeButtonPrimaryStyle}>
+      <FaUserPlus style={buttonIconStyle} />
+      REGISTER
+    </button>
+    <button onClick={() => navigate("/login")} style={welcomeButtonSecondaryStyle}>
+      <FaSignInAlt style={buttonIconStyle} />
+      MEMBER LOGIN
+    </button>
+  </div>
+</div>
+
+
+
+{/* Mass Info Card */}
+<div style={massInfoCardStyle}>
+  <FaChurch style={massInfoIconStyle} />
+  <div style={massInfoTextStyle}>
+    <strong>Wednesday Mass:</strong> 4:30 PM
+    <span style={massInfoLocationStyle}>Annex Building 002</span>
+  </div>
+</div>
           
           {/* Simple Mass Info Card */}
-          <div style={heroMassCardStyle}>
-            <FaChurch style={heroMassIconStyle} />
-            <div style={heroMassTextStyle}>
-              <strong style={{ color: "#00c6ff" }}>Wednesday Mass:</strong> 4:30 PM
-              <span style={{ display: "block", fontSize: "14px", color: "#94a3b8" }}>Annex Building 002</span>
-            </div>
-          </div>
           
-          <div style={heroButtonsStyle}>
-            <button onClick={() => navigate("/register")} style={heroButtonPrimaryStyle}>
-              REGISTER ZUCA
-            </button>
-            <button onClick={() => navigate("/login")} style={heroButtonSecondaryStyle}>
-              MEMBER LOGIN
-            </button>
-          </div>
         </div>
       </section>
 
@@ -568,6 +583,14 @@ const topBarContentStyle = {
   gap: "0px"
 };
 
+const heroContentStyle = {
+  position: "relative",
+  zIndex: 2,
+  textAlign: "center",
+  maxWidth: "900px",
+  width: "100%"
+};
+
 const topBarLeftStyle = {
   display: "flex",
   alignItems: "center",
@@ -614,17 +637,17 @@ const navContentStyle = {
 const logoContainerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "1px"
+  gap: "17px"
 };
 
 const logoStyle = {
-  width: "30px",
+  width: "50px",
   height: "auto"
 };
 
 const logoTextStyle = {
-  fontSize: "20px",
-  fontWeight: "900",
+  fontSize: "30px",
+  fontWeight: "1000",
   background: "linear-gradient(135deg, #fff, #00c6ff)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent"
@@ -659,7 +682,7 @@ const floatingCardStyle = {
   background: "rgba(32, 32, 41, 0.78)",
   backdropFilter: "blur(10px)",
   borderRadius: "60px",
-  padding: "8px",
+  padding: "6px",
   border: "1px solid rgba(255,255,255,0.2)",
   boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
   zIndex: 1002,
@@ -673,7 +696,7 @@ const floatingCardContentStyle = {
   gap: "15px",
   background: "rgba(255,255,255,0.1)",
   borderRadius: "60px",
-  padding: "5px 10px 5px 5px",
+  padding: "7px 10px 7px 7px",
   flexWrap: "wrap",
   justifyContent: "center"
 };
@@ -687,7 +710,8 @@ const floatingCardLogoStyle = {
 
 const floatingCardButtonsStyle = {
   display: "flex",
-  gap: "8px",
+  gap: "9px",
+  marginRight: "9px",
   alignItems: "center",
   flexWrap: "wrap",
   justifyContent: "center"
@@ -700,6 +724,8 @@ const floatingCardInstallStyle = {
   background: "linear-gradient(135deg, #ffd700, #ffaa00)",
   color: "#000",
   fontSize: "14px",
+  
+ 
   fontWeight: "600",
   cursor: "pointer",
   display: "flex",
@@ -712,6 +738,7 @@ const floatingCardLoginStyle = {
   border: "1px solid rgba(255,255,255,0.2)",
   background: "linear-gradient(135deg, #0c992d)",
   color: "#eaedeb",
+ 
   fontSize: "14px",
   fontWeight: "500",
   cursor: "pointer"
@@ -742,10 +769,67 @@ const footerInstallButtonStyle = {
   justifyContent: "center"
 };
 
-// Hero Section
+// Welcome Card Styles
+const welcomeCardStyle = {
+  background: "rgba(255,255,255,0.1)",
+  backdropFilter: "blur(10px)",
+  borderRadius: "24px",
+  padding: "40px 30px",
+  margin: "0 auto 25px",
+  maxWidth: "600px",
+  border: "1px solid rgba(255,255,255,0.2)",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.1)"
+};
+
+const heroOverlayStyle = {
+  position: "absolute",
+  inset: 0,
+  background: "linear-gradient(135deg, rgba(10,10,30,0.95), rgba(30,0,80,0.9))"
+};
+
+const welcomeCardHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "15px",
+  marginBottom: "10px"
+};
+
+const welcomeCardLogoStyle = {
+  width: "60px",
+  height: "60px",
+  borderRadius: "50%",
+  border: "2px solid #00c6ff"
+};
+
+const welcomeCardTitleStyle = {
+  fontSize: "clamp(20px, 4vw, 24px)",
+  fontWeight: "600",
+  color: "#fff",
+  margin: 0
+};
+
+const welcomeCardSubtitleStyle = {
+  fontSize: "clamp(24px, 5vw, 32px)",
+  fontWeight: "800",
+  background: "linear-gradient(135deg, #00c6ff, #007bff)",
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  marginBottom: "20px",
+  letterSpacing: "2px"
+};
+
+const welcomeCardTextStyle = {
+  fontSize: "clamp(14px, 3vw, 16px)",
+  color: "#cbd5e1",
+  lineHeight: "1.6",
+  marginBottom: "30px",
+  maxWidth: "500px",
+  margin: "0 auto 30px"
+};
+
 const heroStyle = (bg) => ({
   minHeight: "100vh",
-  height: "auto",
   backgroundImage: `url(${bg})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
@@ -753,48 +837,104 @@ const heroStyle = (bg) => ({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "100px 15px 60px"
+  padding: "80px 20px"
 });
 
-const heroOverlayStyle = {
-  position: "absolute",
-  inset: 0,
-  background: "linear-gradient(135deg, rgba(10,10,30,0.9), rgba(30,0,80,0.85))"
+const welcomeCardButtonsStyle = {
+  display: "flex",
+  gap: "15px",
+  justifyContent: "center",
+  flexWrap: "wrap"
 };
 
-const heroContentStyle = {
-  position: "relative",
-  zIndex: 2,
-  textAlign: "center",
-  maxWidth: "800px",
-  width: "100%"
+const buttonIconStyle = {
+  marginRight: "8px"
 };
 
-const heroLogoStyle = {
-  width: "150px",
-  height: "auto",
-  marginTop: "26px"
-};
-
-const heroTitleStyle = {
-  fontSize: "clamp(28px, 6vw, 48px)",
-  fontWeight: "800",
-  marginBottom: "15px",
-  lineHeight: "1.2"
-};
-
-const gradientTextStyle = {
+const welcomeButtonPrimaryStyle = {
+  padding: "12px 30px",
+  borderRadius: "30px",
+  border: "none",
   background: "linear-gradient(135deg, #00c6ff, #007bff)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent"
+  color: "#fff",
+  fontSize: "16px",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center"
 };
 
-const heroSubtitleStyle = {
-  fontSize: "clamp(14px, 3vw, 16px)",
-  color: "#cbd5e1",
-  marginBottom: "40px",
-  maxWidth: "600px",
-  margin: "0 auto 30px"
+const welcomeButtonSecondaryStyle = {
+  padding: "12px 30px",
+  borderRadius: "30px",
+  border: "2px solid #00c6ff",
+  background: "transparent",
+  color: "#fff",
+  fontSize: "16px",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center"
+};
+
+// Floating Action Buttons Styles
+const floatingActionsStyle = {
+  display: "flex",
+  gap: "15px",
+  justifyContent: "center",
+  marginBottom: "25px",
+  flexWrap: "wrap"
+};
+
+const floatingActionButtonStyle = {
+  padding: "10px 20px",
+  borderRadius: "30px",
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.1)",
+  backdropFilter: "blur(5px)",
+  color: "#fff",
+  fontSize: "14px",
+  fontWeight: "500",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  transition: "all 0.3s ease"
+};
+
+const floatingActionIconStyle = {
+  fontSize: "14px",
+  color: "#00c6ff"
+};
+
+// Mass Info Card Styles
+const massInfoCardStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "12px",
+  background: "rgba(255,255,255,0.1)",
+  backdropFilter: "blur(5px)",
+  padding: "12px 24px",
+  borderRadius: "50px",
+  border: "1px solid rgba(255,255,255,0.2)",
+  margin: "0 auto"
+};
+
+const massInfoIconStyle = {
+  fontSize: "20px",
+  color: "#00c6ff"
+};
+
+const massInfoTextStyle = {
+  fontSize: "16px",
+  color: "#fff"
+};
+
+const massInfoLocationStyle = {
+  display: "block",
+  fontSize: "14px",
+  color: "#94a3b8",
+  marginTop: "2px"
 };
 
 const heroMassCardStyle = {

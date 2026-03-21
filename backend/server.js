@@ -130,7 +130,7 @@ const upload = multer({
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
-  "https://zetechca.vercel.app"
+  "https://zetechcatholic.vercel.app"
 ];
 
 app.use(cors({

@@ -13,6 +13,8 @@ const Icons = {
   Info: () => <span style={iconStyle}>ℹ️</span>,
   Error: () => <span style={iconStyle}>⚠️</span>,
   Empty: () => <span style={iconStyle}>📋</span>,
+  WhatsApp: () => <span style={iconStyle}>💬</span>,
+  Link: () => <span style={iconStyle}>🔗</span>,
 };
 
 function JoinJumuia() {
@@ -68,6 +70,20 @@ function JoinJumuia() {
       alert(err.response?.data?.error || "Unable to join. Please try again.");
     } finally {
       setJoiningId(null);
+    }
+  };
+
+  // Handle WhatsApp link click - only works if user has joined this jumuia
+  const handleWhatsAppClick = (jumuia, e) => {
+    if (joinedJumuia !== jumuia.id) {
+      e.preventDefault();
+      alert(`Please join ${jumuia.name} first to access their WhatsApp group.`);
+      return;
+    }
+    
+    if (!jumuia.whatsappLink) {
+      e.preventDefault();
+      alert("No WhatsApp group link available for this jumuia.");
     }
   };
 
@@ -237,6 +253,33 @@ function JoinJumuia() {
                   {j.description && (
                     <p style={cardDescription}>{j.description}</p>
                   )}
+                  
+                  {/* WhatsApp Group Link Section */}
+                  {j.whatsappLink && (
+                    <div style={whatsappSection}>
+                      <div style={whatsappHeader}>
+                        <Icons.WhatsApp />
+                        <span style={whatsappLabel}>WhatsApp Group</span>
+                      </div>
+                      <a
+                        href={j.whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => handleWhatsAppClick(j, e)}
+                        style={{
+                          ...whatsappLink,
+                          ...(joinedJumuia !== j.id && whatsappLinkDisabled),
+                        }}
+                      >
+                        <Icons.Link />
+                        <span>
+                          {joinedJumuia === j.id 
+                            ? "Join WhatsApp Group →" 
+                            : "Join this jumuia first to access"}
+                        </span>
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Footer with Action */}
@@ -289,7 +332,7 @@ function JoinJumuia() {
       {!joinedJumuia && jumuiaList.length > 0 && (
         <motion.div variants={itemVariants} style={infoNote}>
           <span style={infoIcon}><Icons.Info /></span>
-          <span>Choose one jumuia to join. You can change your selection later.</span>
+          <span>Choose one jumuia to join. After joining, you'll be able to access their WhatsApp group link.</span>
         </motion.div>
       )}
 
@@ -304,6 +347,54 @@ function JoinJumuia() {
     </motion.div>
   );
 }
+
+// ====== ADDITIONAL STYLES FOR WHATSAPP SECTION ======
+
+const whatsappSection = {
+  marginTop: "1rem",
+  paddingTop: "0.75rem",
+  borderTop: "1px solid #e5e7eb",
+};
+
+const whatsappHeader = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  marginBottom: "0.5rem",
+  fontSize: "0.8rem",
+  color: "#6b7280",
+  fontWeight: "500",
+};
+
+const whatsappLabel = {
+  fontSize: "0.75rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+};
+
+const whatsappLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  padding: "0.5rem 0.75rem",
+  backgroundColor: "#25D366",
+  color: "#ffffff",
+  textDecoration: "none",
+  borderRadius: "8px",
+  fontSize: "0.85rem",
+  fontWeight: "500",
+  transition: "all 0.2s ease",
+  cursor: "pointer",
+  width: "100%",
+  justifyContent: "center",
+};
+
+const whatsappLinkDisabled = {
+  backgroundColor: "#d1d5db",
+  color: "#6b7280",
+  cursor: "not-allowed",
+  pointerEvents: "auto", // Still allows click to show alert
+};
 
 // ====== PROFESSIONAL STYLES ======
 
@@ -529,7 +620,6 @@ const cardIcon = {
   alignItems: "center",
   justifyContent: "center",
   fontSize: "1.25rem",
-
   color: "#d4dce7",
   border: "1px solid #e5e7eb",
   fontWeight: "700"

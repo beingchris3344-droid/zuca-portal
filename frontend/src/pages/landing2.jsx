@@ -247,8 +247,11 @@ function Landing2() {
   </div>
   
   <div style={welcomeCardSubtitleStyle}>
-    CATHOLIC ACTION
-  </div>
+    CATHOLIC ACTION 
+    </div>
+    <div style={ZucaNameStyle}>
+      (Z.U.C.A)
+    </div>
   
   <p style={welcomeCardTextStyle}>
     Welcome to the Zetech University Catholic Action Portal. Here you can view announcements, explore mass schedules and other relevant programs, and connect with members — all in one powerful platform.
@@ -694,7 +697,7 @@ const floatingCardContentStyle = {
   display: "flex",
   alignItems: "center",
   gap: "15px",
-  background: "rgba(255,255,255,0.1)",
+  background: "rgba(16, 75, 238, 0.17)",
   borderRadius: "60px",
   padding: "7px 10px 7px 7px",
   flexWrap: "wrap",
@@ -735,7 +738,7 @@ const floatingCardInstallStyle = {
 const floatingCardLoginStyle = {
   padding: "8px 16px",
   borderRadius: "30px",
-  border: "1px solid rgba(255,255,255,0.2)",
+  border: "1px solid rgba(193, 22, 22, 0.2)",
   background: "linear-gradient(135deg, #0c992d)",
   color: "#eaedeb",
  
@@ -771,7 +774,7 @@ const footerInstallButtonStyle = {
 
 // Welcome Card Styles
 const welcomeCardStyle = {
-  background: "rgba(255,255,255,0.1)",
+  background: "rgba(31, 97, 196, 0.1)",
   backdropFilter: "blur(10px)",
   borderRadius: "24px",
   padding: "40px 30px",
@@ -784,7 +787,7 @@ const welcomeCardStyle = {
 const heroOverlayStyle = {
   position: "absolute",
   inset: 0,
-  background: "linear-gradient(135deg, rgba(10,10,30,0.95), rgba(30,0,80,0.9))"
+  background: "linear-gradient(135deg, rgba(10,10,30,0.95), rgba(10, 177, 29, 0.22))"
 };
 
 const welcomeCardHeaderStyle = {
@@ -795,6 +798,9 @@ const welcomeCardHeaderStyle = {
   marginBottom: "10px"
 };
 
+
+
+
 const welcomeCardLogoStyle = {
   width: "60px",
   height: "60px",
@@ -804,19 +810,41 @@ const welcomeCardLogoStyle = {
 
 const welcomeCardTitleStyle = {
   fontSize: "clamp(20px, 4vw, 24px)",
-  fontWeight: "600",
+  fontWeight: "900",
   color: "#fff",
   margin: 0
 };
 
+
+const ZucaNameStyle = {
+  fontSize: "clamp(20px, 20vw, 24px)",
+  fontWeight: "900",
+  color: "#fff",
+  margin: 0,
+  background: "linear-gradient(135deg, #ebeeef, #e9ecef)",
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  letterSpacing: "2px",
+    display: "text",
+
+    marginBottom: "10px",
+
+  borderBottom: "5px solid",
+  borderImage: "linear-gradient(135deg, #e1ecee, #ebeff4) 1"
+};
+
 const welcomeCardSubtitleStyle = {
   fontSize: "clamp(24px, 5vw, 32px)",
-  fontWeight: "800",
+  fontWeight: "900",
   background: "linear-gradient(135deg, #00c6ff, #007bff)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent",
-  marginBottom: "20px",
-  letterSpacing: "2px"
+  marginBottom: "10px",
+  letterSpacing: "2px",
+  display: "inline-block",
+  borderBottom: "3px solid",
+  borderImage: "linear-gradient(135deg, #00c6ff, #007bff) 1"
+
 };
 
 const welcomeCardTextStyle = {

@@ -15,6 +15,7 @@ const cors = require("cors");
 const multer = require("multer");
 
 const app = express();
+const server = http.createServer(app); 
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -66,19 +67,20 @@ const markAsRead = (userId) => {
 
 // ================== SOCKET.IO ==================
 // In your backend server.js
-const io = new Server(server, {
+// ================== SOCKET.IO ==================
+const { Server } = require("socket.io");  // ← ADD THIS IMPORT
+
+const io = new Server(server, {  // ← Now server is defined
   cors: {
     origin: ["http://localhost:3000", "http://localhost:5173", "https://zetechcatholic.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
   },
-  // Allow both WebSocket and polling
   transports: ['websocket', 'polling'],
   allowEIO3: true,
   pingTimeout: 60000,
   pingInterval: 25000,
 });
-
 // ================== CORS ==================
 const allowedOrigins = [
   "http://localhost:3000",

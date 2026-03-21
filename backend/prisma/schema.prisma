@@ -275,6 +275,7 @@ model Jumuia {
   id        String   @id @default(uuid())
   name      String   @unique // "ST. MICHAEL", "ST. BENEDICT", etc.
   code      String   @unique // "stmichael", "stbenedict", etc. (for login)
+  whatsappLink String?  @map("whatsapp_link")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

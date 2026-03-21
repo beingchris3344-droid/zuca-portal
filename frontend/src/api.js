@@ -12,7 +12,7 @@ if (hostname === "localhost") {
   BASE_URL = "https://zuca-portal-iypb.vercel.app";
 }
 
-// Create axios instances with credentials
+// Create axios instances
 export const publicApi = axios.create({
   baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
@@ -33,13 +33,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ========== SOCKET.IO SETUP - NO CREDENTIALS ==========
+// ========== SOCKET.IO SETUP - NORMAL ==========
+// Will work on Render, and on Vercel it will use whatever works
 export const socket = io(BASE_URL, {
-  transports: ['polling'],  // Only polling
+  withCredentials: true,
   autoConnect: true,
-  // No withCredentials - this was causing the CORS error
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,
   reconnectionDelay: 1000,
 });
 
@@ -51,8 +51,8 @@ socket.on('connect_error', (error) => {
   console.log('❌ Socket connection error:', error.message);
 });
 
-socket.on('disconnect', () => {
-  console.log('🔌 Socket disconnected');
+socket.on('disconnect', (reason) => {
+  console.log('🔌 Socket disconnected:', reason);
 });
 
 // ========== END SOCKET.IO ==========

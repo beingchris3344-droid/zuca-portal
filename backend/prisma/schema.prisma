@@ -347,9 +347,11 @@ model Media {
   sizeFormatted String
   type          String
   url           String
+  thumbnailUrl  String? 
   category      String          @default("uncategorized")
   tags          String[]
   isPublic      Boolean         @default(true)
+  isFeatured    Boolean         @default(false)
   uploadedById  String
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

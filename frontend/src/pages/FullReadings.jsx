@@ -51,10 +51,12 @@ const FullReadings = () => {
   
   try {
     const [year, month, day] = date.split('-');
-    // Make sure to create date at UTC midnight to match database
-    const searchDate = new Date(Date.UTC(year, month - 1, day));
+    console.log('Fetching readings for date:', `${year}-${month}-${day}`);
     
     const response = await publicApi.get(`/api/calendar/readings/${year}/${month}/${day}`);
+    console.log('Received reading for date:', response.data.date);
+    console.log('Celebration:', response.data.celebration);
+    
     setReadingData(response.data);
   } catch (err) {
     console.error('Error fetching readings:', err);
@@ -84,17 +86,17 @@ const FullReadings = () => {
   };
 
   const formatDate = (dateString) => {
-  // Parse the UTC date
+  // Parse the date
   const date = new Date(dateString);
   
-  // Use UTC methods to avoid timezone shift
+  // Use local methods for correct display
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
-  const weekday = weekdays[date.getUTCDay()];
-  const month = months[date.getUTCMonth()];
-  const day = date.getUTCDate();
-  const year = date.getUTCFullYear();
+  const weekday = weekdays[date.getDay()];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  const year = date.getFullYear();
   
   return `${weekday}, ${month} ${day}, ${year}`;
 };

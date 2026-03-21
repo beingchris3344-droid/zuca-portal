@@ -44,9 +44,6 @@ function Login() {
         try {
           console.log('Auto-login: Found saved session, logging in automatically...');
           
-          // Optional: Verify token with backend (recommended)
-          // You can add a verification endpoint later
-          
           const userData = JSON.parse(userJson);
           
           // Redirect based on role (don't even show login page)
@@ -60,6 +57,8 @@ function Login() {
             navigate("/secretary");
           } else if (userData.role === "choir_moderator") {
             navigate("/choir");
+          } else if (userData.role === "media_moderator") {
+            navigate("/media-moderator");
           } else {
             navigate("/dashboard");
           }
@@ -104,6 +103,9 @@ function Login() {
       } else if (password.startsWith("choir")) {
         setLoginMode("role");
         setDetectedRole("choir_moderator");
+      } else if (password.startsWith("media")) {
+        setLoginMode("role");
+        setDetectedRole("media_moderator");
       } else {
         setLoginMode("normal");
         setDetectedRole(null);
@@ -163,6 +165,13 @@ function Login() {
           subtitle: "Lead the songs of praise",
           color: "#ec4899" // Pink
         };
+      case "media_moderator":
+        return {
+          greeting: "📸 Media Moderator",
+          title: "Welcome, Photographer!",
+          subtitle: "Capture and share memories",
+          color: "#3b82f6" // Blue
+        };
       default:
         return {
           greeting: "Special access",
@@ -184,6 +193,7 @@ function Login() {
       case "treasurer": return "💰";
       case "secretary": return "📝";
       case "choir_moderator": return "🎵";
+      case "media_moderator": return "📸";
       default: return null;
     }
   };
@@ -241,26 +251,21 @@ function Login() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Handle Remember Me - THIS IS THE KEY PART
+        // Handle Remember Me
         if (rememberMe) {
-          // Set remember me flag - this will trigger auto-login next time
           localStorage.setItem('rememberMe', 'true');
           localStorage.setItem('rememberedEmail', email);
           
-          // Set expiry timestamp (optional, for cleanup)
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 30);
           localStorage.setItem('rememberExpiry', expiryDate.toISOString());
           
           console.log('✅ Remember me ENABLED - will auto-login for 30 days');
         } else {
-          // Clear remember me flag - no auto-login
           localStorage.setItem('rememberMe', 'false');
           localStorage.removeItem('rememberedEmail');
           localStorage.removeItem('rememberExpiry');
           
-          // For session-only, you might want to use sessionStorage instead
-          // But we'll keep as is for now
           console.log('❌ Remember me DISABLED - session only');
         }
 
@@ -276,6 +281,8 @@ function Login() {
             navigate("/secretary");
           } else if (data.user.role === "choir_moderator") {
             navigate("/choir");
+          } else if (data.user.role === "media_moderator") {
+            navigate("/media-moderator");
           } else {
             navigate("/dashboard");
           }
@@ -457,7 +464,7 @@ function Login() {
               style={{
                 fontSize: "32px",
                 fontWeight: "700",
-                color: welcome.color, // Solid color instead of gradient
+                color: welcome.color,
                 letterSpacing: "0.5px",
               }}
               animate={{

@@ -103,7 +103,7 @@ useEffect(() => {
     { label: "Users", path: "users", icon: "👥" },
     { label: "Role Management", path: "roles", icon: "👑" },
     { label: "Manage Jumuia", path: "jumuia-management", icon: "⛪" },
-    { label: "Activity", path: "activity", icon: "📈" },
+    { label: "ZUCA Media", path: "media", icon: "🎥" },
     { label: "YouTube Analytics", path: "analytics", icon: "▶️" },
     { label: "Songs Program", path: "songs", icon: "🎵" },
     { label: "Hymn Book", path: "hymns", icon: "📖" }, 

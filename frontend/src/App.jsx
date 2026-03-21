@@ -19,13 +19,16 @@ import ResetPassword from "./pages/ResetPassword";
 import HymnBook from './pages/HymnBook';
 import HymnLyrics from './pages/HymnLyrics';
 import LiturgicalCalendar from './pages/LiturgicalCalendar';
-import JumuiaDashboard from "./pages/JumuiaDashboard";import JoinJumuia from "./pages/JoinJumuia";
+import JumuiaDashboard from "./pages/JumuiaDashboard";
+import JoinJumuia from "./pages/JoinJumuia";
 import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
 import FullReadings from './pages/FullReadings';
+import GalleryPage from "./pages/gallery";
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminMediaPage from "./pages/admin/MediaPage";
 import UsersPage from "./pages/admin/UsersPage";
 import RoleManagement from "./pages/admin/RoleManagement";
 import ActivityPage from "./pages/admin/ActivityPage";
@@ -41,6 +44,7 @@ import SecurityPage from "./pages/admin/SecurityPage";
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
 
+
 function App() {
   return (
     <BrowserRouter>
@@ -54,6 +58,7 @@ function App() {
         <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
@@ -110,6 +115,7 @@ function App() {
           <Route path="jumuia-management" element={<JumuiaManagement />} />
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
+          <Route path="media" element={<AdminMediaPage />} />
         </Route>
 
         {/* ================= SECRETARY (Announcements only) ================= */}
@@ -161,6 +167,19 @@ function App() {
           }
         >
           <Route index element={<JumuiaManagement />} />
+        </Route>
+
+        {/* ================= MEDIA MODERATOR (Media management only) ================= */}
+        <Route
+  path="/media-moderator"
+  element={
+    <RoleRoute allowedRoles={["media_moderator"]}>
+      <RoleLayout />
+    </RoleRoute>
+  }
+>
+          <Route index element={<Navigate to="media" replace />} />
+          <Route path="media" element={<AdminMediaPage />} />
         </Route>
 
         {/* ================= CATCH ALL ================= */}

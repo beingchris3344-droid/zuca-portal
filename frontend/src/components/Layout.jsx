@@ -98,6 +98,7 @@ function Layout() {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
+    { path: "/gallery", label: "gallery", icon: "💾"},
   
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },

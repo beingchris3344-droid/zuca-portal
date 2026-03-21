@@ -92,7 +92,7 @@ export default function RoleManagement() {
       <div className="header">
         <div>
           <h1>Role Management</h1>
-          <p className="subtitle">Assign special roles to users (Jumuia Leaders, Treasurer, Secretary, Choir Moderator)</p>
+          <p className="subtitle">Assign special roles to users (Jumuia Leaders, Treasurer, Secretary, Choir Moderator, Media Moderator)</p>
         </div>
       </div>
 
@@ -486,7 +486,8 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
       'jumuia_leader': 'Jumuia Leader',
       'treasurer': 'Treasurer',
       'secretary': 'Secretary',
-      'choir_moderator': 'Choir Moderator'
+      'choir_moderator': 'Choir Moderator',
+      'media_moderator': 'Media Moderator'
     };
     return roles[user.specialRole];
   };
@@ -543,6 +544,7 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
             <option value="treasurer">Treasurer</option>
             <option value="secretary">Secretary</option>
             <option value="choir_moderator">Choir Moderator</option>
+            <option value="media_moderator">Media Moderator</option>
           </select>
         </div>
 
@@ -701,7 +703,8 @@ function getSpecialRoleStyle(role) {
     'jumuia_leader': { background: 'rgba(139, 92, 246, 0.2)', color: '#7c3aed' },
     'treasurer': { background: 'rgba(245, 158, 11, 0.2)', color: '#d97706' },
     'secretary': { background: 'rgba(16, 185, 129, 0.2)', color: '#059669' },
-    'choir_moderator': { background: 'rgba(236, 72, 153, 0.2)', color: '#db2777' }
+    'choir_moderator': { background: 'rgba(236, 72, 153, 0.2)', color: '#db2777' },
+    'media_moderator': { background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }
   };
   return styles[role] || {};
 }

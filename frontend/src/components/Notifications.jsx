@@ -1,5 +1,5 @@
 // frontend/src/components/Notifications.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiBell, FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -20,17 +20,40 @@ export default function Notifications({ userId }) {
   
   // Store dismissed notifications in localStorage (persists across refreshes)
   const [dismissedIds, setDismissedIds] = useState(() => {
+    if (!userId) return new Set();
     const saved = localStorage.getItem(`dismissed_notifications_${userId}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
   // Save dismissed IDs to localStorage whenever they change
   useEffect(() => {
+    if (!userId) return;
     localStorage.setItem(
       `dismissed_notifications_${userId}`, 
       JSON.stringify([...dismissedIds])
     );
   }, [dismissedIds, userId]);
+
+  // Fetch notifications - FILTER OUT DISMISSED ONES
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Filter out dismissed notifications
+      const filtered = res.data.filter(n => !dismissedIds.has(n.id));
+      setNotifications(filtered);
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, dismissedIds]);
 
   // Connect to Socket.IO for real-time updates
   useEffect(() => {
@@ -86,9 +109,10 @@ export default function Notifications({ userId }) {
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
-  }, [userId, dismissedIds]);
+  }, [userId, dismissedIds, fetchNotifications]);
 
   // Request notification permission
   useEffect(() => {
@@ -97,30 +121,10 @@ export default function Notifications({ userId }) {
     }
   }, []);
 
-  // Fetch notifications - FILTER OUT DISMISSED ONES
-  const fetchNotifications = async () => {
-    if (!userId) return;
-    
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      // Filter out dismissed notifications
-      const filtered = res.data.filter(n => !dismissedIds.has(n.id));
-      setNotifications(filtered);
-    } catch (err) {
-      console.error("Error fetching notifications:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Initial fetch
   useEffect(() => {
     fetchNotifications();
-  }, [userId, dismissedIds]); // Re-fetch when dismissed IDs change
+  }, [fetchNotifications]);
 
   // Update unread count
   useEffect(() => {
@@ -146,6 +150,8 @@ export default function Notifications({ userId }) {
         pageType = 'contribution';
       } else if (pagePath.includes('/jumuia-contributions')) {
         pageType = 'contribution';
+      } else if (pagePath.includes('/gallery')) {
+        pageType = 'new_media';
       } else if (pagePath.includes('/dashboard')) {
         return;
       }
@@ -240,20 +246,18 @@ export default function Notifications({ userId }) {
     }
   };
 
-  // FIXED: Dismiss all notifications PERMANENTLY (stored in localStorage)
+  // Dismiss all notifications PERMANENTLY (stored in localStorage)
   const dismissAllFromDropdown = () => {
-    // Add all current notification IDs to dismissed set
     const newDismissed = new Set(dismissedIds);
     notifications.forEach(n => newDismissed.add(n.id));
     setDismissedIds(newDismissed);
     
-    // Clear notifications from state
     setNotifications([]);
     setShowDropdown(false);
     console.log("All notifications permanently dismissed");
   };
 
-  // FIXED: Dismiss single notification PERMANENTLY
+  // Dismiss single notification PERMANENTLY
   const dismissNotification = (notificationId) => {
     const newDismissed = new Set(dismissedIds);
     newDismissed.add(notificationId);
@@ -280,6 +284,19 @@ export default function Notifications({ userId }) {
         break;
       case 'contribution':
         path = '/contributions';
+        break;
+      case 'new_media':
+        path = '/gallery';
+        break;
+      case 'media_comment':
+        if (notif.data?.mediaId) {
+          path = `/gallery?media=${notif.data.mediaId}`;
+        } else {
+          path = '/gallery';
+        }
+        break;
+      case 'media_like':
+        path = '/gallery';
         break;
     }
     
@@ -315,6 +332,9 @@ export default function Notifications({ userId }) {
       case 'program': return '⛪';
       case 'event': return '📅';
       case 'contribution': return '💰';
+      case 'new_media': return '📸';
+      case 'media_comment': return '💬';
+      case 'media_like': return '❤️';
       default: return '🔔';
     }
   };
@@ -495,7 +515,6 @@ export default function Notifications({ userId }) {
   );
 }
 
-// Updated styles
 const styles = {
   container: {
     position: "relative",
@@ -702,7 +721,7 @@ const styles = {
     display: "flex",
     gap: "12px",
     padding: "16px 20px",
-    paddingRight: "48px", // Make space for dismiss button
+    paddingRight: "48px",
     borderBottom: "1px solid #f1f5f9",
     cursor: "pointer",
     transition: "background 0.2s",
@@ -717,7 +736,7 @@ const styles = {
     display: "flex",
     gap: "12px",
     padding: "16px 20px",
-    paddingRight: "48px", // Make space for dismiss button
+    paddingRight: "48px",
     borderBottom: "1px solid #f1f5f9",
     cursor: "pointer",
     transition: "background 0.2s",
@@ -849,12 +868,10 @@ style.textContent = `
     100% { opacity: 1; }
   }
   
-  /* Fix for dropdown being under content */
   .notifications-dropdown {
     z-index: 9999999 !important;
   }
   
-  /* Mobile optimizations */
   @media (max-width: 480px) {
     .notification-item {
       padding: 16px !important;
@@ -867,17 +884,14 @@ style.textContent = `
     }
   }
   
-  /* Remove tap highlight on mobile */
   button, div[role="button"] {
     -webkit-tap-highlight-color: transparent;
   }
   
-  /* Smooth scrolling */
   .notifications-list {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Hover effects - FIXED with proper CSS */
   .mark-all-button:hover {
     background: #dbeafe !important;
   }

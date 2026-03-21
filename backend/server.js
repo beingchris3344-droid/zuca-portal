@@ -5,6 +5,10 @@ const fs = require("fs");
 const crypto = require("crypto");
 const http = require("http");
 const axios = require("axios");
+// Add this with your other requires
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 // ================== EXPRESS & MIDDLEWARE ==================
 const express = require("express");
@@ -91,6 +95,14 @@ const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 app.use("/uploads", express.static(uploadDir));
 
+// Ensure uploads folder exists
+
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Add this line - Create thumbnails directory
+const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
+if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
+
 // ================== MULTER CONFIG ==================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -113,6 +125,7 @@ const upload = multer({
   },
 });
 
+
 // ================== CORS ==================
 const allowedOrigins = [
   "http://localhost:3000",
@@ -134,6 +147,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+
+
 
 // ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================
 app.get("/api/debug/null-readings", async (req, res) => {
@@ -546,11 +562,15 @@ app.get("/api/calendar/search/date/:date", async (req, res) => {
 
 // ================== FULL READINGS ROUTES ==================
 
+// ================== FULL READINGS ROUTES ==================
+
 // Get full readings for a specific date with all details
 app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
   try {
     const { year, month, day } = req.params;
     const yearNum = parseInt(year);
+    const monthNum = parseInt(month) - 1;
+    const dayNum = parseInt(day);
     
     console.log(`🔍 Getting readings for ${year}-${month}-${day}`);
     
@@ -558,8 +578,8 @@ app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
     
     // For years 2024-2035, check database first
     if (yearNum >= 2024 && yearNum <= 2035) {
-      const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-      const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      const startDate = new Date(Date.UTC(yearNum, monthNum, dayNum, 0, 0, 0));
+      const endDate = new Date(Date.UTC(yearNum, monthNum, dayNum, 23, 59, 59, 999));
       
       liturgicalDay = await prisma.liturgicalDay.findFirst({
         where: {
@@ -575,7 +595,7 @@ app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
     if (!liturgicalDay) {
       console.log(`🔮 Using infinite calendar for ${year}-${month}-${day}`);
       const infiniteCalendar = require('./services/infiniteCalendar');
-      const targetDate = new Date(year, month - 1, day);
+      const targetDate = new Date(Date.UTC(yearNum, monthNum, dayNum));
       liturgicalDay = await infiniteCalendar.getReadingsForAnyDate(targetDate, prisma);
     }
     
@@ -583,13 +603,43 @@ app.get("/api/calendar/readings/:year/:month/:day", async (req, res) => {
       return res.status(404).json({ error: "No readings found for this date" });
     }
     
-    // Return the readings with the REQUESTED date (not the mapped date)
+    // FIX: Return the date as a string, not a Date object
+    // This prevents timezone shifting
+    const responseDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    
+    // FIX: Get the correct day of week for the ACTUAL date
+    const actualDate = new Date(Date.UTC(yearNum, monthNum, dayNum));
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const actualDayOfWeek = daysOfWeek[actualDate.getUTCDay()];
+    
+    // FIX: Correct the celebration name to use the actual day of week
+    let celebration = liturgicalDay.celebration;
+    
+    // Check if celebration starts with the correct day
+    if (!celebration.startsWith(actualDayOfWeek)) {
+      // Try to extract week number and season
+      const weekMatch = celebration.match(/(\d+)(?:st|nd|rd|th) week of (.+)/i);
+      if (weekMatch) {
+        const weekNum = weekMatch[1];
+        const season = weekMatch[2];
+        const getOrdinalSuffix = (num) => {
+          if (num === 1) return 'st';
+          if (num === 2) return 'nd';
+          if (num === 3) return 'rd';
+          return 'th';
+        };
+        celebration = `${actualDayOfWeek} of the ${weekNum}${getOrdinalSuffix(parseInt(weekNum))} week of ${season}`;
+      } else {
+        // If no week pattern, just prefix with day
+        celebration = `${actualDayOfWeek} - ${celebration}`;
+      }
+    }
+    
+    // Return with CORRECT date string (not Date object)
     res.json({
-      date: new Date(year, month - 1, day), // Return the requested date!
-      celebration: liturgicalDay.celebration,
-      season: liturgicalDay.seasonName,
-      yearCycle: liturgicalDay.yearCycle,
-      readings: liturgicalDay.readings
+      ...liturgicalDay,
+      date: responseDate, // Return as string, not Date object!
+      celebration: celebration, // Corrected celebration with actual day
     });
     
   } catch (error) {
@@ -882,6 +932,670 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
     res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
+
+// ==================== MEDIA GALLERY - COMPLETE ====================
+
+// Create media temp directory
+const mediaTempDir = path.join(__dirname, "uploads/media-temp");
+if (!fs.existsSync(mediaTempDir)) fs.mkdirSync(mediaTempDir, { recursive: true });
+
+// Multer config (same as profile upload)
+const mediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, mediaTempDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `media_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`);
+  },
+});
+
+const mediaUpload = multer({
+  storage: mediaStorage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+// Helper: Get media type
+function getMediaType(mimetype) {
+  if (mimetype.startsWith('image/')) return 'image';
+  if (mimetype.startsWith('video/')) return 'video';
+  if (mimetype.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
+// Helper: Format file size
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+
+// Helper function to generate video thumbnail
+async function generateVideoThumbnail(videoPath, outputDir, outputName) {
+  return new Promise((resolve, reject) => {
+    const outputPath = path.join(outputDir, outputName);
+    
+    ffmpeg(videoPath)
+      .screenshots({
+        timestamps: ['00:00:02'], // Take screenshot at 2 seconds
+        filename: outputName,
+        folder: outputDir,
+        size: '320x180'
+      })
+      .on('end', () => {
+        console.log('✅ Thumbnail generated:', outputName);
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        console.error('❌ Thumbnail generation failed:', err.message);
+        reject(err);
+      });
+  });
+}
+
+// ==================== ADMIN MEDIA MANAGEMENT ====================
+
+// 1. Upload media (Admin, Secretary & Media Moderator)
+app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10), async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Allow admin, secretary, OR media_moderator
+    if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
+      return res.status(403).json({ error: "Only admins, secretaries, and media moderators can upload media" });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    const { category, tags, isPublic, isFeatured, description } = req.body;
+    const uploadedMedia = [];
+
+    for (const file of req.files) {
+      const mediaType = getMediaType(file.mimetype);
+      const fileName = `media_${Date.now()}_${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
+      const filePath = `media/${fileName}`;
+      let thumbnailUrl = null;
+      
+      // Upload original file to Supabase
+      const { error: uploadError } = await supabase.storage
+        .from("media")
+        .upload(filePath, fs.createReadStream(file.path), {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError);
+        fs.unlinkSync(file.path);
+        return res.status(500).json({ error: `Failed to upload ${file.originalname}` });
+      }
+
+      const publicURL = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${filePath}`;
+      
+      // ========== GENERATE THUMBNAIL FOR VIDEOS ==========
+      if (mediaType === 'video') {
+        try {
+          const thumbFileName = `thumb_${fileName.replace(path.extname(fileName), '.jpg')}`;
+          
+          // Generate thumbnail using FFmpeg
+          await generateVideoThumbnail(file.path, thumbnailsDir, thumbFileName);
+          
+          // Upload thumbnail to Supabase
+          const thumbFilePath = `media/thumbnails/${thumbFileName}`;
+          const { error: thumbError } = await supabase.storage
+            .from("media")
+            .upload(thumbFilePath, fs.createReadStream(path.join(thumbnailsDir, thumbFileName)), {
+              contentType: 'image/jpeg',
+              upsert: true,
+            });
+          
+          if (!thumbError) {
+            thumbnailUrl = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${thumbFilePath}`;
+            console.log('✅ Thumbnail uploaded for:', file.originalname);
+          } else {
+            console.error('Thumbnail upload error:', thumbError);
+          }
+          
+          // Clean up temp thumbnail file
+          try {
+            if (fs.existsSync(path.join(thumbnailsDir, thumbFileName))) {
+              fs.unlinkSync(path.join(thumbnailsDir, thumbFileName));
+            }
+          } catch(e) {
+            console.error('Error cleaning up thumbnail:', e);
+          }
+          
+        } catch (thumbErr) {
+          console.error('❌ Thumbnail generation failed for:', file.originalname, thumbErr.message);
+          // Continue without thumbnail - video will show placeholder
+        }
+      }
+      
+      // Clean up temp file
+      fs.unlinkSync(file.path);
+      
+      // Save to database with thumbnail URL
+      const media = await prisma.media.create({
+        data: {
+          title: file.originalname.replace(/\.[^/.]+$/, ""),
+          description: description || null,
+          filename: fileName,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          sizeFormatted: formatFileSize(file.size),
+          type: mediaType,
+          url: publicURL,
+          thumbnailUrl: thumbnailUrl,  
+          category: category || "uncategorized",
+          tags: tags ? tags.split(',').map(t => t.trim()) : [],
+          isPublic: isPublic === 'true',
+          isFeatured: isFeatured === 'true',
+          uploadedById: req.user.userId
+        }
+      });
+
+      uploadedMedia.push(media);
+    }
+
+  
+    // Add this after your for loop and before res.status(201).json
+// Create notifications for all users if media is public
+if (uploadedMedia.length > 0 && isPublic === 'true') {
+  const users = await prisma.user.findMany({ select: { id: true, fullName: true } });
+  const now = new Date();
+  
+  const notifications = users.map(user => ({
+    id: `media-${uploadedMedia[0].id}-${user.id}-${Date.now()}`,
+    userId: user.id,
+    type: "new_media",
+    title: "📸 New Gallery Update",
+    message: `ZUCA added new ${uploadedMedia.length} item(s) to the gallery`,
+    read: false,
+    createdAt: now,
+  }));
+
+  await prisma.notification.createMany({ data: notifications });
+  
+  notifications.forEach(notif => {
+    io.to(notif.userId).emit("new_notification", {
+      ...notif,
+      createdAt: now.toISOString()
+    });
+  });
+  
+  console.log(`✅ Created ${notifications.length} media notifications`);
+}
+
+    res.status(201).json({ success: true, media: uploadedMedia });
+  } catch (err) {
+    console.error("Media upload error:", err);
+    // Clean up any remaining temp files
+    if (req.files) {
+      req.files.forEach(file => {
+        try {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        } catch(e) {}
+      });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Get all media (Admin panel)
+app.get("/api/admin/media", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Allow admin, secretary, OR media_moderator
+    if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { page = 1, limit = 20, category, type, search } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const where = {};
+    if (category && category !== 'all') where.category = category;
+    if (type && type !== 'all') where.type = type;
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    const [media, total] = await Promise.all([
+      prisma.media.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          uploadedBy: { select: { id: true, fullName: true, profileImage: true } },
+          _count: { select: { likes: true, views: true, comments: true, downloads: true, shares: true } }
+        }
+      }),
+      prisma.media.count({ where })
+    ]);
+    
+    res.json({ media, pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Update media metadata
+app.put("/api/admin/media/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, tags, isPublic, isFeatured } = req.body;
+    
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Allow admin, secretary, OR media_moderator
+    if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const media = await prisma.media.update({
+      where: { id },
+      data: {
+        title,
+        description,
+        category,
+        tags: tags ? tags.split(',').map(t => t.trim()) : undefined,
+        isPublic: isPublic !== undefined ? isPublic : undefined,
+        isFeatured: isFeatured !== undefined ? isFeatured : undefined,
+        updatedAt: new Date()
+      }
+    });
+    
+    res.json({ success: true, media });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Delete media
+app.delete("/api/admin/media/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Allow admin, secretary, OR media_moderator
+    if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const media = await prisma.media.findUnique({ where: { id } });
+    if (!media) return res.status(404).json({ error: "Media not found" });
+    
+    // Delete from Supabase - main file
+    const filePath = `media/${media.filename}`;
+    await supabase.storage.from("media").remove([filePath]);
+    
+    // Delete thumbnail if it exists
+    if (media.thumbnailUrl) {
+      try {
+        const thumbFileName = `thumb_${media.filename.replace(path.extname(media.filename), '.jpg')}`;
+        const thumbPath = `media/thumbnails/${thumbFileName}`;
+        await supabase.storage.from("media").remove([thumbPath]);
+        console.log('✅ Thumbnail deleted for:', media.filename);
+      } catch(e) {
+        console.error('Error deleting thumbnail:', e);
+      }
+    }
+    
+    // Delete from database (cascade deletes all related records)
+    await prisma.media.delete({ where: { id } });
+    
+    res.json({ success: true, message: "Media deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== PUBLIC MEDIA ROUTES ====================
+
+// 5. Get public media (Frontpage)
+app.get("/api/media/public", async (req, res) => {
+  try {
+    const { page = 1, limit = 12, category, type, sortBy = 'latest', featured = false } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const where = {
+      isPublic: true,
+      ...(category && category !== 'all' && { category }),
+      ...(type && type !== 'all' && { type }),
+      ...(featured === 'true' && { isFeatured: true })
+    };
+    
+    let orderBy = {};
+    switch(sortBy) {
+      case 'latest': orderBy = { createdAt: 'desc' }; break;
+      case 'popular': orderBy = { likes: { _count: 'desc' } }; break;
+      case 'mostViewed': orderBy = { views: { _count: 'desc' } }; break;
+      default: orderBy = { createdAt: 'desc' };
+    }
+    
+    const [media, total] = await Promise.all([
+      prisma.media.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy,
+        include: {
+          uploadedBy: { select: { id: true, fullName: true, profileImage: true } },
+          _count: { select: { likes: true, views: true, comments: true, downloads: true, shares: true } }
+        }
+      }),
+      prisma.media.count({ where })
+    ]);
+    
+    res.json({ media, pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Get single media with details
+app.get("/api/media/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.userId || null;
+    
+    const media = await prisma.media.findFirst({
+      where: { id, isPublic: true },
+      include: {
+        uploadedBy: { select: { id: true, fullName: true, profileImage: true } },
+        comments: {
+          include: { user: { select: { id: true, fullName: true, profileImage: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        },
+        _count: { select: { likes: true, views: true, comments: true, downloads: true, shares: true } }
+      }
+    });
+    
+    if (!media) return res.status(404).json({ error: "Media not found" });
+    
+    // Track view (if authenticated)
+    if (userId) {
+      try {
+        await prisma.mediaView.create({
+          data: { mediaId: id, userId, viewedAt: new Date() }
+        });
+      } catch (err) {
+        // Ignore duplicate view errors
+      }
+    }
+    
+    res.json(media);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Get featured media
+app.get("/api/media/featured", async (req, res) => {
+  try {
+    const { limit = 6 } = req.query;
+    
+    const media = await prisma.media.findMany({
+      where: { isPublic: true, isFeatured: true },
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        uploadedBy: { select: { id: true, fullName: true, profileImage: true } },
+        _count: { select: { likes: true, views: true } }
+      }
+    });
+    
+    res.json(media);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== MEDIA INTERACTIONS ====================
+
+// 8. Like/Unlike media
+app.post("/api/media/:id/like", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    const existing = await prisma.mediaLike.findUnique({
+      where: { mediaId_userId: { mediaId: id, userId } }
+    });
+    
+    if (existing) {
+      await prisma.mediaLike.delete({ where: { id: existing.id } });
+      res.json({ liked: false, action: 'unliked' });
+    } else {
+      await prisma.mediaLike.create({ data: { mediaId: id, userId } });
+      res.json({ liked: true, action: 'liked' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. Check if user liked media
+app.get("/api/media/:id/liked", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    const like = await prisma.mediaLike.findUnique({
+      where: { mediaId_userId: { mediaId: id, userId } }
+    });
+    
+    res.json({ liked: !!like });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. Add comment
+app.post("/api/media/:id/comments", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const userId = req.user.userId;
+    
+    if (!content || content.trim() === "") {
+      return res.status(400).json({ error: "Comment cannot be empty" });
+    }
+    
+    const comment = await prisma.mediaComment.create({
+      data: {
+        content: content.trim(),
+        mediaId: id,
+        userId
+      },
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } }
+      }
+    });
+    
+    // Notify media owner
+    const media = await prisma.media.findUnique({ where: { id }, select: { uploadedById: true } });
+    if (media && media.uploadedById !== userId) {
+      const notification = await prisma.notification.create({
+        data: {
+          id: `comment-${comment.id}-${Date.now()}`,
+          userId: media.uploadedById,
+          type: "media_comment",
+          title: "💬 New Comment",
+          message: `${comment.user.fullName} commented on your media`,
+          read: false,
+          createdAt: new Date()
+        }
+      });
+      io.to(media.uploadedById).emit("new_notification", {
+        ...notification,
+        createdAt: notification.createdAt.toISOString()
+      });
+    }
+    
+    res.status(201).json(comment);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11. Get comments for media
+app.get("/api/media/:id/comments", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const [comments, total] = await Promise.all([
+      prisma.mediaComment.findMany({
+        where: { mediaId: id },
+        include: { user: { select: { id: true, fullName: true, profileImage: true } } },
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.mediaComment.count({ where: { mediaId: id } })
+    ]);
+    
+    res.json({ comments, pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12. Delete comment (owner, media owner, or admin)
+app.delete("/api/media/comments/:commentId", authenticate, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    
+    const comment = await prisma.mediaComment.findUnique({
+      where: { id: commentId },
+      include: { media: true }
+    });
+    
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+    
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const isAdmin = user.role === "admin";
+    const isOwner = comment.userId === req.user.userId;
+    const isMediaOwner = comment.media.uploadedById === req.user.userId;
+    
+    if (!isAdmin && !isOwner && !isMediaOwner) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    await prisma.mediaComment.delete({ where: { id: commentId } });
+    
+    res.json({ success: true, message: "Comment deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 13. Track download
+app.post("/api/media/:id/download", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    await prisma.mediaDownload.create({
+      data: { mediaId: id, userId, downloadedAt: new Date() }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 14. Track share
+app.post("/api/media/:id/share", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { platform } = req.body;
+    const userId = req.user.userId;
+    
+    await prisma.mediaShare.create({
+      data: { mediaId: id, userId, platform: platform || 'direct', sharedAt: new Date() }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 15. Get media stats (Admin & Media Moderator)
+app.get("/api/admin/media/stats", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    // Allow admin OR media_moderator
+    if (user.role !== "admin" && user.specialRole !== "media_moderator") {
+      return res.status(403).json({ error: "Admin or Media Moderator only" });
+    }
+    
+    const [totalMedia, totalViews, totalLikes, totalComments, totalDownloads, totalShares, byType, byCategory] = await Promise.all([
+      prisma.media.count(),
+      prisma.mediaView.count(),
+      prisma.mediaLike.count(),
+      prisma.mediaComment.count(),
+      prisma.mediaDownload.count(),
+      prisma.mediaShare.count(),
+      prisma.media.groupBy({ by: ['type'], _count: true }),
+      prisma.media.groupBy({ by: ['category'], _count: true })
+    ]);
+    
+    const topMedia = await prisma.media.findMany({
+      take: 10,
+      orderBy: { views: { _count: 'desc' } },
+      include: {
+        _count: { select: { views: true, likes: true, comments: true, downloads: true, shares: true } }
+      }
+    });
+    
+    res.json({
+      totalMedia, totalViews, totalLikes, totalComments, totalDownloads, totalShares,
+      byType, byCategory, topMedia
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// 16. Get trending media (most interacted in last 7 days)
+app.get("/api/media/trending", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    const media = await prisma.media.findMany({
+      where: { isPublic: true, createdAt: { gte: sevenDaysAgo } },
+      take: parseInt(limit),
+      orderBy: [
+        { likes: { _count: 'desc' } },
+        { views: { _count: 'desc' } }
+      ],
+      include: {
+        uploadedBy: { select: { id: true, fullName: true, profileImage: true } },
+        _count: { select: { likes: true, views: true, comments: true } }
+      }
+    });
+    
+    res.json(media);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
 
 
 
@@ -1748,7 +2462,8 @@ app.post("/api/role-login", async (req, res) => {
       { prefix: "stpacificus", role: "jumuia_leader", jumuiaCode: "stpacificus", jumuiaName: "ST. PACIFICUS" },
       { prefix: "treasurer", role: "treasurer" },
       { prefix: "secretary", role: "secretary" },
-      { prefix: "choir", role: "choir_moderator" }
+      { prefix: "choir", role: "choir_moderator" },
+      { prefix: "media", role: "media_moderator" }
     ];
 
     let matchedRole = null;
@@ -1826,6 +2541,10 @@ app.post("/api/role-login", async (req, res) => {
         permissions = ["view_mass_programs", "manage_announcements"];
         accessLevel = "choir_moderator";
         break;
+      case "media_moderator":  
+    permissions = ["manage_media"];
+    accessLevel = "media_moderator";
+    break;
     }
 
     const token = jwt.sign(
@@ -5837,7 +6556,7 @@ app.put("/api/users/:id/role", requireAdmin, async (req, res) => {
     const { role, specialRole, assignedJumuiaId } = req.body;
 
     const allowedRoles = ["member", "admin"];
-    const allowedSpecialRoles = ["jumuia_leader", "treasurer", "secretary", "choir_moderator", null];
+    const allowedSpecialRoles = ["jumuia_leader", "treasurer", "secretary", "choir_moderator", "media_moderator", null];
 
     if (role && !allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role" });

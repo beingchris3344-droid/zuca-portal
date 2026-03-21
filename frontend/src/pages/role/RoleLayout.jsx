@@ -33,7 +33,7 @@ export default function RoleLayout() {
           icon: "🎵", 
           name: "Choir Moderator", 
           color: "#ec4899",
-          description: "Manage mass programs"
+          description: "Manage mass programs & songs"
         };
       case "jumuia_leader":
         return { 
@@ -41,6 +41,13 @@ export default function RoleLayout() {
           name: "Jumuia Leader", 
           color: "#8b5cf6",
           description: "Manage your jumuia"
+        };
+      case "media_moderator":  // ← ADD THIS
+        return { 
+          icon: "📸", 
+          name: "Media Moderator", 
+          color: "#3b82f6",
+          description: "Manage gallery & media"
         };
       default:
         return { 

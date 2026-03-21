@@ -65,15 +65,18 @@ const markAsRead = (userId) => {
 };
 
 // ================== SOCKET.IO ==================
-const { Server } = require("socket.io");
-const server = http.createServer(app);
-
+// In your backend server.js
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:3000", "http://localhost:5173", "https://zetechcatholic.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
   },
+  // Allow both WebSocket and polling
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // ================== CORS ==================

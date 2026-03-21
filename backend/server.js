@@ -91,17 +91,17 @@ app.use((req, res, next) => {
 });
 
 // Ensure uploads folder exists
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-app.use("/uploads", express.static(uploadDir));
+//const uploadDir = path.join(__dirname, "uploads");
+//if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+//app.use("/uploads", express.static(uploadDir));
 
 // Ensure uploads folder exists
 
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+//if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Add this line - Create thumbnails directory
-const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
-if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
+//const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
+//if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
 
 // ================== MULTER CONFIG ==================
 const storage = multer.diskStorage({
@@ -936,11 +936,11 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
 // ==================== MEDIA GALLERY - COMPLETE ====================
 
 // Create media temp directory
-const mediaTempDir = path.join(__dirname, "uploads/media-temp");
-if (!fs.existsSync(mediaTempDir)) fs.mkdirSync(mediaTempDir, { recursive: true });
+//const mediaTempDir = path.join(__dirname, "uploads/media-temp");
+//if (!fs.existsSync(mediaTempDir)) fs.mkdirSync(mediaTempDir, { recursive: true });
 
 // Multer config (same as profile upload)
-const mediaStorage = multer.diskStorage({
+const mediaStorage = multer.memoryStorage({
   destination: (req, file, cb) => cb(null, mediaTempDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -1020,11 +1020,11 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10)
       
       // Upload original file to Supabase
       const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(filePath, fs.createReadStream(file.path), {
-          contentType: file.mimetype,
-          upsert: true,
-        });
+  .from("media")
+  .upload(filePath, file.buffer, {  // Use file.buffer instead of createReadStream
+    contentType: file.mimetype,
+    upsert: true,
+  });
 
       if (uploadError) {
         console.error("Supabase upload error:", uploadError);
@@ -4595,7 +4595,7 @@ const jumuiaChatUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       const chatDir = path.join(__dirname, "uploads/jumuia-chat");
-      if (!fs.existsSync(chatDir)) fs.mkdirSync(chatDir, { recursive: true });
+      //if (!fs.existsSync(chatDir)) fs.mkdirSync(chatDir, { recursive: true });
       cb(null, chatDir);
     },
     filename: (req, file, cb) => {

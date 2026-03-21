@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { socket } from "./api";
 
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -46,6 +48,58 @@ import RoleLayout from "./pages/role/RoleLayout";
 
 
 function App() {
+  // Socket.IO connection setup
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+    
+    if (token && user) {
+      try {
+        const userData = JSON.parse(user);
+        // Join the user's personal room for notifications
+        socket.emit("join", userData.id);
+        console.log("📡 Joined socket room for user:", userData.id);
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
+    }
+    
+    // Listen for new notifications
+    socket.on("new_notification", (notification) => {
+      console.log("🔔 New notification received:", notification);
+      // You can dispatch an event or update state here
+      // For example, show a toast notification
+      if (window.showNotification) {
+        window.showNotification(notification.title, notification.message);
+      }
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      socket.off("new_notification");
+    };
+  }, []);
+  
+  // Optional: Listen for user login/logout events
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const token = localStorage.getItem("token");
+      const user = localStorage.getItem("user");
+      
+      if (token && user) {
+        try {
+          const userData = JSON.parse(user);
+          socket.emit("join", userData.id);
+        } catch (e) {}
+      } else {
+        socket.emit("leave-all");
+      }
+    };
+    
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -171,13 +225,13 @@ function App() {
 
         {/* ================= MEDIA MODERATOR (Media management only) ================= */}
         <Route
-  path="/media-moderator"
-  element={
-    <RoleRoute allowedRoles={["media_moderator"]}>
-      <RoleLayout />
-    </RoleRoute>
-  }
->
+          path="/media-moderator"
+          element={
+            <RoleRoute allowedRoles={["media_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
           <Route index element={<Navigate to="media" replace />} />
           <Route path="media" element={<AdminMediaPage />} />
         </Route>

@@ -1,5 +1,6 @@
 // frontend/src/api.js
 import axios from "axios";
+import { io } from "socket.io-client";
 
 const hostname = window.location.hostname;
 
@@ -38,6 +39,28 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// ========== SOCKET.IO SETUP ==========
+export const socket = io(BASE_URL, {
+  transports: ['websocket', 'polling'],
+  autoConnect: true,
+  withCredentials: true
+});
+
+// Socket connection logging
+socket.on('connect', () => {
+  console.log('✅ Socket connected! ID:', socket.id);
+});
+
+socket.on('connect_error', (error) => {
+  console.log('❌ Socket connection error:', error.message);
+});
+
+socket.on('disconnect', () => {
+  console.log('🔌 Socket disconnected');
+});
+
+// ========== END SOCKET.IO ==========
 
 // Export your existing URL helpers
 export const CONTRIBUTION_TYPES_URL = `${BASE_URL}/api/contribution-types`;

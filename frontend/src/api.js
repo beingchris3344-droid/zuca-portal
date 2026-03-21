@@ -11,7 +11,7 @@ if (hostname === "localhost") {
 } 
 else {
   // Production (deployed frontend) → backend URL
-  BASE_URL = "https://zuca-portal2.onrender.com";
+  BASE_URL = "https://zuca-portal-iypb.vercel.app/";
 }
 
 // Create a public API instance (NO authentication)

@@ -7,31 +7,24 @@ const hostname = window.location.hostname;
 let BASE_URL;
 
 if (hostname === "localhost") {
-  // Local development
   BASE_URL = "http://localhost:5000";
-} 
-else {
-  // Production (deployed frontend) → backend URL
+} else {
   BASE_URL = "https://zuca-portal-iypb.vercel.app";
 }
 
-// Create a public API instance (NO authentication)
+// Create axios instances with credentials
 export const publicApi = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
-// Create an authenticated API instance (WITH authentication)
 export const api = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
-// Add token interceptor ONLY to the authenticated api
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -40,18 +33,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ========== SOCKET.IO SETUP FOR VERCELL ==========
-// Use polling only - WebSockets don't work well on Vercel free tier
+// ========== SOCKET.IO SETUP - NO CREDENTIALS ==========
 export const socket = io(BASE_URL, {
-  transports: ['polling'],  // Changed from 'websocket', 'polling' to just 'polling'
+  transports: ['polling'],  // Only polling
   autoConnect: true,
-  withCredentials: true,
+  // No withCredentials - this was causing the CORS error
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
 });
 
-// Socket connection logging
 socket.on('connect', () => {
   console.log('✅ Socket connected! ID:', socket.id);
 });
@@ -66,7 +57,6 @@ socket.on('disconnect', () => {
 
 // ========== END SOCKET.IO ==========
 
-// Export your existing URL helpers
 export const CONTRIBUTION_TYPES_URL = `${BASE_URL}/api/contribution-types`;
 export const CONTRIBUTION_TYPE_URL = (id) => `${BASE_URL}/api/contribution-types/${id}`;
 export const PLEDGE_URL = (id) => `${BASE_URL}/api/pledges/${id}`;

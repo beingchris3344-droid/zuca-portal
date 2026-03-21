@@ -5,7 +5,6 @@ const fs = require("fs");
 const crypto = require("crypto");
 const http = require("http");
 const axios = require("axios");
-// Add this with your other requires
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -16,9 +15,6 @@ const cors = require("cors");
 const multer = require("multer");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -68,63 +64,17 @@ const markAsRead = (userId) => {
   return userNotifs;
 };
 
-
 // ================== SOCKET.IO ==================
 const { Server } = require("socket.io");
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: ["http://localhost:3000", "http://localhost:5173", "https://zetechcatholic.vercel.app"],
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
-
-
-
-// ================== MIDDLEWARE ==================
-app.use(cors({ origin: "*" }));
-app.use(express.json());
-app.use((req, res, next) => {
-  console.log(req.method, req.path, req.body);
-  next();
-});
-
-// Ensure uploads folder exists
-//const uploadDir = path.join(__dirname, "uploads");
-//if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-//app.use("/uploads", express.static(uploadDir));
-
-// Ensure uploads folder exists
-
-//if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// Add this line - Create thumbnails directory
-//const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
-//if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
-
-// ================== MULTER CONFIG ==================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `profile_${req.params.id}_${Date.now()}${ext}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp/;
-    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowedTypes.test(file.mimetype);
-
-    if (ext && mime) cb(null, true);
-    else cb(new Error("Only images allowed"));
-  },
-});
-
 
 // ================== CORS ==================
 const allowedOrigins = [
@@ -142,13 +92,39 @@ app.use(cors({
     }
     return callback(null, true);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ================== MIDDLEWARE ==================
+app.use((req, res, next) => {
+  console.log(req.method, req.path, req.body);
+  next();
+});
 
+// ================== MULTER CONFIG FOR PROFILE UPLOADS ==================
+// Use memory storage for Vercel
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedTypes.test(file.mimetype);
+
+    if (ext && mime) cb(null, true);
+    else cb(new Error("Only images allowed"));
+  },
+});
+
+// ... rest of your server.js continues...
 
 
 // ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================

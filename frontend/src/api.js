@@ -40,11 +40,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ========== SOCKET.IO SETUP ==========
+// ========== SOCKET.IO SETUP FOR VERCELL ==========
+// Use polling only - WebSockets don't work well on Vercel free tier
 export const socket = io(BASE_URL, {
-  transports: ['websocket', 'polling'],
+  transports: ['polling'],  // Changed from 'websocket', 'polling' to just 'polling'
   autoConnect: true,
-  withCredentials: true
+  withCredentials: true,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
 });
 
 // Socket connection logging

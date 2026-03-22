@@ -1265,9 +1265,12 @@ const SearchModal = ({ onClose, navigate }) => {
               <Search size={isMobile ? 16 : 20} />
               <span>{isMobile ? '' : 'Search'}</span>
             </button>
-            <Link to="/" style={styles.homeLink}>
-              ← Back
-            </Link>
+            <button 
+  onClick={() => navigate(-1)} 
+  style={styles.homeLink}
+>
+  ← Back
+</button>
           </div>
         </div>
 

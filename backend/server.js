@@ -72,6 +72,7 @@ const server = http.createServer(app);
 // ================== CORS CONFIGURATION - SINGLE PLACE ==================
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:5000",
   "http://localhost:5173",
   "https://zetechcatholic.vercel.app",
   "https://zuca-backend-iw9p.onrender.com",
@@ -116,18 +117,26 @@ const io = new Server(server, {
 });
 
 // ================== UPLOAD DIRECTORIES ==================
-// Comment out for Vercel, uncomment for Render
-// const uploadDir = path.join(__dirname, "uploads");
-// if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-// app.use("/uploads", express.static(uploadDir));
+ //Comment out for Vercel, uncomment for Render
+ const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+ app.use("/uploads", express.static(uploadDir));
 
-// const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
-// if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
+ const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
+ if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
 
 // ================== MULTER CONFIG FOR PROFILE UPLOADS ==================
-// Use memory storage for Vercel
+// Use disk storage for Render
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `profile_${req.params.id}_${Date.now()}${ext}`);
+  },
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp/;
@@ -138,8 +147,6 @@ const upload = multer({
     else cb(new Error("Only images allowed"));
   },
 });
-
-
 
 
 

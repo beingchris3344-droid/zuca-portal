@@ -26,6 +26,7 @@ import JoinJumuia from "./pages/JoinJumuia";
 import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
 import FullReadings from './pages/FullReadings';
 import GalleryPage from "./pages/gallery";
+import Landing from "./pages/Landing";
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -105,6 +106,7 @@ function App() {
       <Routes>
         {/* ================= LANDING PAGE ================= */}
         <Route path="/" element={<Landing2 />} />
+        
 
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/home" element={<Home />} />
@@ -115,6 +117,8 @@ function App() {
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/landing" element={<Landing />} />
+
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route

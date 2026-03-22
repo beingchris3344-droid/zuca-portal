@@ -19,8 +19,6 @@ import {
   FaDownload,
   FaUserPlus,
   FaSignInAlt,
-  FaCalendarAlt,
-  FaMobileAlt,
   FaBars,
   FaTimes,
   FaChevronDown
@@ -61,7 +59,7 @@ function Landing2() {
           }
         });
       },
-      { threshold: 0.2 }
+      { threshold: 0.1 }
     );
     
     document.querySelectorAll(".fade-section").forEach(section => observer.observe(section));
@@ -110,7 +108,7 @@ function Landing2() {
     }[sectionId];
 
     if (sectionRef?.current) {
-      const offset = 80;
+      const offset = 70;
       const elementPosition = sectionRef.current.offsetTop - offset;
       window.scrollTo({
         top: elementPosition,
@@ -176,250 +174,230 @@ function Landing2() {
   };
 
   return (
-    <div style={pageWrapper}>
-      {/* Simple Top Bar with Just Basic Info */}
-      <div style={topBarStyle}>
-        <div style={topBarContentStyle}>
-          <div style={topBarLeftStyle}>
-            <FaHandsHelping style={topBarHeartStyle} />
+    <div className="landing-wrapper">
+      {/* Top Bar - Hidden on mobile */}
+      <div className="top-bar">
+        <div className="top-bar-content">
+          <div className="top-bar-left">
+            <FaHandsHelping className="top-bar-icon" />
             <span>Zetech Catholic Action • Faith & Fellowship</span>
           </div>
-          <div style={topBarRightStyle}>
-            <span style={topBarMassStyle}>Weekly Mass: Wednesday 4:30 PM</span>
+          <div className="top-bar-right">
+            <span className="mass-badge">Weekly Mass: Wednesday 4:30 PM</span>
           </div>
         </div>
       </div>
 
-      {/* Simple Navigation - Only nav links */}
-      <nav style={{ ...navStyle, background: scrollY > 50 ? "rgba(11, 11, 31, 0.9)" : "transparent", backdropFilter: scrollY > 50 ? "blur(10px)" : "none" }}>
-        <div style={navContentStyle}>
-          <div style={logoContainerStyle}>
-            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-            <span style={logoTextStyle}>ZUCA</span>
+      {/* Navigation */}
+      <nav className={`navbar ${scrollY > 50 ? 'navbar-scrolled' : ''}`}>
+        <div className="nav-container">
+          <div className="logo-container">
+            <img src={logo} alt="ZUCA Logo" className="logo-img" />
+            <span className="logo-text">ZUCA</span>
           </div>
-          <div style={navLinksStyle}>
-            <a href="#home" style={navLinkStyle}>Home</a>
-            <a href="#about" style={navLinkStyle}>About</a>
-            <a href="#connect" style={navLinkStyle}>Connect</a>
-            <a href="#mass" style={navLinkStyle}>Mass</a>
+          
+          {/* Desktop Navigation */}
+          <div className="nav-links-desktop">
+            <button onClick={() => scrollToSection('home')} className={`nav-link ${activeSection === 'home' ? 'active' : ''}`}>Home</button>
+            <button onClick={() => scrollToSection('about')} className={`nav-link ${activeSection === 'about' ? 'active' : ''}`}>About</button>
+            <button onClick={() => scrollToSection('connect')} className={`nav-link ${activeSection === 'connect' ? 'active' : ''}`}>Connect</button>
+            <button onClick={() => scrollToSection('mass')} className={`nav-link ${activeSection === 'mass' ? 'active' : ''}`}>Mass</button>
           </div>
+          
+          {/* Mobile Menu Button */}
+          <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            {mobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+          </button>
+        </div>
+        
+        {/* Mobile Navigation */}
+        <div className={`nav-links-mobile ${mobileMenuOpen ? 'open' : ''}`}>
+          <button onClick={() => scrollToSection('home')} className="nav-link-mobile">Home</button>
+          <button onClick={() => scrollToSection('about')} className="nav-link-mobile">About</button>
+          <button onClick={() => scrollToSection('connect')} className="nav-link-mobile">Connect</button>
+          <button onClick={() => scrollToSection('mass')} className="nav-link-mobile">Mass</button>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section id="home" ref={heroRef} style={heroStyle(bg)}>
-        <div style={heroOverlayStyle} />
-        <div style={heroContentStyle}>
-          {/* FLOATING OVAL CARD - Properly centered on all devices */}
-          <div style={floatingCardWrapperStyle}>
-            <div style={floatingCardStyle}>
-              <div style={floatingCardContentStyle}>
-                {/* Logo on left */}
-                <img src={logo} alt="ZUCA Logo" style={floatingCardLogoStyle} />
-                
-                {/* Buttons on right */}
-                <div style={floatingCardButtonsStyle}>
+      <section id="home" ref={heroRef} className="hero-section">
+        <div className="hero-overlay"></div>
+        <div className="hero-container">
+          {/* Floating Action Buttons */}
+          <div className="floating-actions">
+            <div className="floating-card">
+              <div className="floating-card-inner">
+                <img src={logo} alt="ZUCA Logo" className="floating-logo" />
+                <div className="floating-buttons">
                   {showInstallButton && (
-                    <button onClick={handleInstallClick} style={floatingCardInstallStyle}>
-                      <FaDownload style={{ marginRight: "5px" }} />
-                       Install
+                    <button onClick={handleInstallClick} className="btn-install">
+                      <FaDownload /> Install
                     </button>
                   )}
-                  <button onClick={() => navigate("/gallery")} style={floatingCardLoginStyle}>
-                    ˙✧˖°📷 ༘ ⋆｡˚ ZUCA GALLERY
+                  <button onClick={() => navigate("/gallery")} className="btn-gallery">
+                    📷 ZUCA GALLERY
                   </button>
-                  <button onClick={() => navigate("/liturgical-calendar")} style={floatingCardRegisterStyle}>
-  📅 Liturgical Calendar
-</button>
-                  <button onClick={() => navigate("/register")} style={floatingCardRegisterStyle}>
-                    𝖩𝗈𝗂𝗇 ➥ Us
+                  <button onClick={() => navigate("/liturgical-calendar")} className="btn-calendar">
+                    📅 Liturgical Calendar
+                  </button>
+                  <button onClick={() => navigate("/register")} className="btn-register">
+                    Join Us
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-         {/* Welcome Card - With ZUCA Logo, Title, Welcome Message, and Register/Login */}
-<div style={welcomeCardStyle}>
-  <div style={welcomeCardHeaderStyle}>
-    <img src={logo} alt="ZUCA Logo" style={welcomeCardLogoStyle} />
-    <h2 style={welcomeCardTitleStyle}>Zetech University</h2>
-  </div>
-  
-  <div style={welcomeCardSubtitleStyle}>
-    CATHOLIC ACTION 
-    </div>
-    <div style={ZucaNameStyle}>
-      (Z.U.C.A)
-    </div>
-  
-  <p style={welcomeCardTextStyle}>
-    Welcome to the Zetech University Catholic Action Portal. Here you can view announcements, explore mass schedules and other relevant programs, and connect with members — all in one powerful platform.
-  </p>
+          {/* Welcome Card */}
+          <div className="welcome-card">
+            <div className="welcome-header">
+              <img src={logo} alt="ZUCA Logo" className="welcome-logo" />
+              <h2 className="welcome-title">Zetech University</h2>
+            </div>
+            <div className="welcome-subtitle">CATHOLIC ACTION</div>
+            <div className="zuca-name">(Z.U.C.A)</div>
+            <p className="welcome-text">
+              Welcome to the Zetech University Catholic Action Portal. Here you can view announcements, 
+              explore mass schedules and other relevant programs, and connect with members — all in one powerful platform.
+            </p>
+            <div className="welcome-buttons">
+              <button onClick={() => navigate("/register")} className="btn-primary">
+                <FaUserPlus /> REGISTER
+              </button>
+              <button onClick={() => navigate("/login")} className="btn-secondary">
+                <FaSignInAlt /> MEMBER LOGIN
+              </button>
+            </div>
+          </div>
 
-  <div style={welcomeCardButtonsStyle}>
-    <button onClick={() => navigate("/register")} style={welcomeButtonPrimaryStyle}>
-      <FaUserPlus style={buttonIconStyle} />
-      REGISTER
-    </button>
-    <button onClick={() => navigate("/login")} style={welcomeButtonSecondaryStyle}>
-      <FaSignInAlt style={buttonIconStyle} />
-      MEMBER LOGIN
-    </button>
-  </div>
-</div>
-
-
-
-{/* Mass Info Card */}
-<div style={massInfoCardStyle}>
-  <FaChurch style={massInfoIconStyle} />
-  <div style={massInfoTextStyle}>
-    <strong>Wednesday Mass:</strong> 4:30 PM
-    <span style={massInfoLocationStyle}>Annex Building 002</span>
-  </div>
-</div>
-          
-          {/* Simple Mass Info Card */}
-          
+          {/* Mass Info Card */}
+          <div className="mass-info-card">
+            <FaChurch className="mass-info-icon" />
+            <div className="mass-info-text">
+              <strong>Wednesday Mass:</strong> 4:30 PM
+              <span className="mass-location">Annex Building 002</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Rest of your sections exactly as they were - keeping everything intact */}
       {/* Mass Schedule Section */}
-      <section id="mass" ref={massRef} className="fade-section" style={massSectionStyle}>
-        <div style={sectionContainerStyle}>
-          <div style={massHeaderStyle}>
-            <FaPray style={massIconStyle} />
-            <h2 style={massTitleStyle}>Weekly Mass & Choir Practice</h2>
-            <p style={massSubtitleStyle}>Join us in prayer and Jumuia</p>
+      <section id="mass" ref={massRef} className="section mass-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <FaPray className="section-icon" />
+            <h2 className="section-title">Weekly Mass & Choir Practice</h2>
+            <p className="section-subtitle">Join us in prayer and Jumuia</p>
           </div>
 
-          <div style={massCardsStyle}>
-            <div style={massCardStyle}>
-              <FaChurch style={massCardIconStyle} />
-              <h3 style={massCardTitleStyle}>Wednesday Mass</h3>
-              <div style={massTimeStyle}>
-                <FaClock style={massTimeIconStyle} />
+          <div className="mass-cards">
+            <div className="mass-card">
+              <FaChurch className="card-icon" />
+              <h3 className="card-title">Wednesday Mass</h3>
+              <div className="card-info">
+                <FaClock className="info-icon" />
                 <span>4:30 PM</span>
               </div>
-              <div style={massLocationStyle}>
-                <FaLocationArrow style={massLocationIconStyle} />
+              <div className="card-info">
+                <FaLocationArrow className="info-icon" />
                 <span>Annex Building 002</span>
               </div>
-              <p style={massNoteStyle}>come join us!</p>
+              <p className="card-note">come join us!</p>
             </div>
 
-            <div style={massCardStyle}>
-              <FaPray style={massCardIconStyle} />
-              <h3 style={massCardTitleStyle}>Daily Choir Practice</h3>
-              <div style={massTimeStyle}>
-                <FaClock style={massTimeIconStyle} />
+            <div className="mass-card">
+              <FaPray className="card-icon" />
+              <h3 className="card-title">Daily Choir Practice</h3>
+              <div className="card-info">
+                <FaClock className="info-icon" />
                 <span>4:00 PM - 6:00 PM</span>
               </div>
-              <div style={massLocationStyle}>
-                <FaLocationArrow style={massLocationIconStyle} />
+              <div className="card-info">
+                <FaLocationArrow className="info-icon" />
                 <span>ZETECH ANNEX 002</span>
               </div>
-              <p style={massNoteStyle}>All are welcome to attend</p>
+              <p className="card-note">All are welcome to attend</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Social Media Section */}
-      <section id="connect" ref={connectRef} className="fade-section" style={socialSectionStyle}>
-        <div style={sectionContainerStyle}>
-          <div style={sectionHeaderStyle}>
-            <FaHeart style={sectionIconStyle} />
-            <h2 style={sectionTitleLightStyle}>Connect With Us</h2>
-            <p style={sectionSubtitleStyle}>Follow our community on social media</p>
+      <section id="connect" ref={connectRef} className="section social-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <FaHeart className="section-icon" />
+            <h2 className="section-title-light">Connect With Us</h2>
+            <p className="section-subtitle-light">Follow our community on social media</p>
           </div>
 
-          <div style={socialGridStyle}>
-            <a 
-              href="https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              style={socialCardStyle}
-            >
-              <div style={{ ...socialIconCircleStyle, background: "radial-gradient(circle at 30% 30%, #f09433, #d62976, #962fbf)" }}>
-                <FaInstagram style={socialIconStyle} />
+          <div className="social-grid">
+            <a href="https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3" target="_blank" rel="noopener noreferrer" className="social-card">
+              <div className="social-icon-circle instagram">
+                <FaInstagram />
               </div>
-              <span style={socialPlatformStyle}>Instagram</span>
-              <span style={socialHandleStyle}>@zetechcatholicaction</span>
+              <span className="social-platform">Instagram</span>
+              <span className="social-handle">@zetechcatholicaction</span>
             </a>
 
-            <a 
-              href="https://www.facebook.com/share/1ELDK56qEJ" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              style={socialCardStyle}
-            >
-              <div style={{ ...socialIconCircleStyle, background: "#1877F2" }}>
-                <FaFacebookF style={socialIconStyle} />
+            <a href="https://www.facebook.com/share/1ELDK56qEJ" target="_blank" rel="noopener noreferrer" className="social-card">
+              <div className="social-icon-circle facebook">
+                <FaFacebookF />
               </div>
-              <span style={socialPlatformStyle}>Facebook</span>
-              <span style={socialHandleStyle}>Zetech Catholic Action</span>
+              <span className="social-platform">Facebook</span>
+              <span className="social-handle">Zetech Catholic Action</span>
             </a>
 
-            <a 
-              href="https://www.youtube.com/@zetechUniversityCatholic" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              style={socialCardStyle}
-            >
-              <div style={{ ...socialIconCircleStyle, background: "#FF0000" }}>
-                <FaYoutube style={socialIconStyle} />
+            <a href="https://www.youtube.com/@zetechUniversityCatholic" target="_blank" rel="noopener noreferrer" className="social-card">
+              <div className="social-icon-circle youtube">
+                <FaYoutube />
               </div>
-              <span style={socialPlatformStyle}>YouTube</span>
-              <span style={socialHandleStyle}>Subscribe for New Releases</span>
+              <span className="social-platform">YouTube</span>
+              <span className="social-handle">Subscribe for New Releases</span>
             </a>
 
-            <a 
-              href="https://www.tiktok.com/@zetechcatholicaction?_t=ZM-8yeypKK8YpM&_r=1" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              style={socialCardStyle}
-            >
-              <div style={{ ...socialIconCircleStyle, background: "#000000" }}>
-                <FaTiktok style={socialIconStyle} />
+            <a href="https://www.tiktok.com/@zetechcatholicaction?_t=ZM-8yeypKK8YpM&_r=1" target="_blank" rel="noopener noreferrer" className="social-card">
+              <div className="social-icon-circle tiktok">
+                <FaTiktok />
               </div>
-              <span style={socialPlatformStyle}>TikTok</span>
-              <span style={socialHandleStyle}>@zetechcatholicaction</span>
+              <span className="social-platform">TikTok</span>
+              <span className="social-handle">@zetechcatholicaction</span>
             </a>
           </div>
         </div>
       </section>
 
       {/* About Section */}
-      <section id="about" ref={aboutRef} className="fade-section" style={aboutSectionStyle}>
-        <div style={sectionContainerStyle}>
-          <div style={sectionHeaderStyle}>
-            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-            <h2 style={sectionTitleDarkStyle}>Our Community</h2>
+      <section id="about" ref={aboutRef} className="section about-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <img src={logo} alt="ZUCA Logo" className="about-logo" />
+            <h2 className="section-title-dark">Our Community</h2>
           </div>
 
-          <div style={aboutContentStyle}>
-            <p style={aboutTextStyle}>
-              Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. Our mission is to spread the message of hope, love, and faith within our campus community and beyond. Our songs will be an expression of our devotion and a call to all to embrace God's grace.
+          <div className="about-content">
+            <p className="about-text">
+              Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship 
+              through music and action. Our mission is to spread the message of hope, love, and faith within 
+              our campus community and beyond. Our songs will be an expression of our devotion and a call to 
+              all to embrace God's grace.
             </p>
 
-            <div style={activitiesGridStyle}>
-              <div style={activityItemStyle}>
-                <FaChurch style={activityIconStyle} />
+            <div className="activities-grid">
+              <div className="activity-item">
+                <FaChurch className="activity-icon" />
                 <span>Weekly Mass</span>
               </div>
-              <div style={activityItemStyle}>
-                <FaMusic style={activityIconStyle} />
+              <div className="activity-item">
+                <FaMusic className="activity-icon" />
                 <span>St Kizito Choir</span>
               </div>
-              <div style={activityItemStyle}>
-                <FaUsers style={activityIconStyle} />
+              <div className="activity-item">
+                <FaUsers className="activity-icon" />
                 <span>Jumuiyas</span>
               </div>
-              <div style={activityItemStyle}>
-                <FaHandsHelping style={activityIconStyle} />
+              <div className="activity-item">
+                <FaHandsHelping className="activity-icon" />
                 <span>Outdoor functions</span>
               </div>
             </div>
@@ -428,24 +406,24 @@ function Landing2() {
       </section>
 
       {/* Contact Section */}
-      <section className="fade-section" ref={contactRef} style={contactSectionStyle}>
-        <div style={sectionContainerStyle}>
-          <div style={sectionHeaderStyle}>
-            <FaEnvelope style={sectionIconLightStyle} />
-            <h2 style={sectionTitleLightStyle}>Get In Touch</h2>
+      <section className="section contact-section fade-section" ref={contactRef}>
+        <div className="container">
+          <div className="section-header">
+            <FaEnvelope className="section-icon-light" />
+            <h2 className="section-title-light">Get In Touch</h2>
           </div>
 
-          <div style={contactSimpleGridStyle}>
-            <div style={contactSimpleItemStyle}>
-              <FaMapMarkerAlt style={contactSimpleIconStyle} />
+          <div className="contact-grid">
+            <div className="contact-item">
+              <FaMapMarkerAlt className="contact-icon" />
               <span>Zetech C/A, Ruiru</span>
             </div>
-            <div style={contactSimpleItemStyle}>
-              <FaEnvelope style={contactSimpleIconStyle} />
-              <a href="mailto:zucaportal2025@gmail.com" style={contactSimpleLinkStyle}>zucaportal2025@gmail.com</a>
+            <div className="contact-item">
+              <FaEnvelope className="contact-icon" />
+              <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zucaportal2025@gmail.com</a>
             </div>
-            <div style={contactSimpleItemStyle}>
-              <FaPhone style={contactSimpleIconStyle} />
+            <div className="contact-item">
+              <FaPhone className="contact-icon" />
               <span>zuca406@gmail.com</span>
             </div>
           </div>
@@ -453,41 +431,39 @@ function Landing2() {
       </section>
 
       {/* Footer */}
-      <footer style={footerStyle}>
-        <div style={footerContentStyle}>
-          <div style={footerSocialMinStyle}>
-            <a href="https://www.instagram.com/zetechcatholicaction" target="_blank" rel="noopener noreferrer" style={footerSocialMinIconStyle}>
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-social">
+            <a href="https://www.instagram.com/zetechcatholicaction" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
               <FaInstagram />
             </a>
-            <a href="https://www.facebook.com/share/1ELDK56qEJ" target="_blank" rel="noopener noreferrer" style={footerSocialMinIconStyle}>
+            <a href="https://www.facebook.com/share/1ELDK56qEJ" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
               <FaFacebookF />
             </a>
-            <a href="https://www.youtube.com/@zetechUniversityCatholic" target="_blank" rel="noopener noreferrer" style={footerSocialMinIconStyle}>
+            <a href="https://www.youtube.com/@zetechUniversityCatholic" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
               <FaYoutube />
             </a>
-            <a href="https://www.tiktok.com/@zetechcatholicaction" target="_blank" rel="noopener noreferrer" style={footerSocialMinIconStyle}>
+            <a href="https://www.tiktok.com/@zetechcatholicaction" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
               <FaTiktok />
             </a>
           </div>
 
-          {/* Footer Download Button */}
           {showInstallButton && (
-            <div style={{ marginBottom: "20px" }}>
-              <button onClick={handleInstallClick} style={footerInstallButtonStyle}>
-                <FaDownload style={{ marginRight: "8px" }} />
-                Install ZUCA App
+            <div className="footer-install">
+              <button onClick={handleInstallClick} className="btn-install-footer">
+                <FaDownload /> Install ZUCA App
               </button>
             </div>
           )}
 
-          <div style={creditStyle}>
+          <div className="footer-credit">
             <span>Built with</span>
-            <FaHeart style={creditHeartStyle} />
+            <FaHeart className="credit-heart" />
             <span>by</span>
-            <span style={creditNameStyle}> @CHRISTECH WEBSYS;</span>
+            <span className="credit-name">@CHRISTECH WEBSYS</span>
           </div>
 
-          <div style={copyrightStyle}>
+          <div className="footer-copyright">
             <p>© {new Date().getFullYear()} Zetech Catholic Action Portal</p>
           </div>
         </div>
@@ -501,850 +477,891 @@ function Landing2() {
         }} />
       )}
 
-      <style>
-        {`
-          html, body {
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-            overflow-y: auto !important;
-            height: auto !important;
+      <style jsx>{`
+        /* Reset and Base Styles */
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+
+        .landing-wrapper {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'TimesNewRoman', Roboto, sans-serif;
+          color: #ffffff;
+          overflow-x: hidden;
+          min-height: 100vh;
+          background: #0a0a1e;
+        }
+
+        /* Top Bar */
+        .top-bar {
+          background: rgba(20, 28, 96, 0.95);
+          padding: 8px 20px;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1001;
+          backdrop-filter: blur(10px);
+        }
+
+        .top-bar-content {
+          max-width: 1200px;
+          margin: 0 auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 12px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .top-bar-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .top-bar-icon {
+          color: #ffd700;
+          font-size: 12px;
+        }
+
+        .mass-badge {
+          background: rgba(255, 255, 255, 0.1);
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+        }
+
+        /* Navigation */
+        .navbar {
+          position: fixed;
+          top: 36px;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          transition: all 0.3s ease;
+          background: transparent;
+        }
+
+        .navbar-scrolled {
+          background: rgba(11, 11, 31, 0.95);
+          backdrop-filter: blur(10px);
+          top: 0;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 12px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .logo-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .logo-img {
+          width: 40px;
+          height: auto;
+        }
+
+        .logo-text {
+          font-size: 24px;
+          font-weight: 800;
+          background: linear-gradient(135deg, #fff, #00c6ff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .nav-links-desktop {
+          display: flex;
+          gap: 30px;
+        }
+
+        .nav-link {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 16px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 8px 0;
+          position: relative;
+          transition: all 0.3s;
+        }
+
+        .nav-link::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 0;
+          height: 2px;
+          background: linear-gradient(90deg, #00c6ff, #007bff);
+          transition: width 0.3s;
+        }
+
+        .nav-link:hover::after,
+        .nav-link.active::after {
+          width: 100%;
+        }
+
+        .mobile-menu-btn {
+          display: none;
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 8px;
+        }
+
+        .nav-links-mobile {
+          display: none;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: rgba(11, 11, 31, 0.98);
+          backdrop-filter: blur(10px);
+          flex-direction: column;
+          padding: 20px;
+          gap: 15px;
+          transform: translateY(-100%);
+          transition: transform 0.3s ease;
+        }
+
+        .nav-links-mobile.open {
+          transform: translateY(0);
+          display: flex;
+        }
+
+        .nav-link-mobile {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 18px;
+          padding: 12px;
+          text-align: center;
+          cursor: pointer;
+          border-radius: 10px;
+          transition: background 0.3s;
+        }
+
+        .nav-link-mobile:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hero Section */
+        .hero-section {
+          min-height: 100vh;
+          background-image: url(${bg});
+          background-size: cover;
+          background-position: center;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 100px 20px 60px;
+        }
+
+        .hero-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(10, 10, 30, 0.85), rgba(10, 177, 29, 0.2));
+        }
+
+        .hero-container {
+          position: relative;
+          z-index: 2;
+          max-width: 900px;
+          width: 100%;
+          text-align: center;
+        }
+
+        /* Floating Actions */
+        .floating-actions {
+          margin-bottom: 30px;
+        }
+
+        .floating-card {
+          background: rgba(32, 32, 41, 0.78);
+          backdrop-filter: blur(10px);
+          border-radius: 60px;
+          padding: 6px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          display: inline-block;
+          max-width: 100%;
+        }
+
+        .floating-card-inner {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          background: rgba(16, 75, 238, 0.17);
+          border-radius: 60px;
+          padding: 7px 20px 7px 7px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .floating-logo {
+          width: 55px;
+          height: 55px;
+          border-radius: 50%;
+          border: 2px solid #00c6ff;
+        }
+
+        .floating-buttons {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .btn-install,
+        .btn-gallery,
+        .btn-calendar,
+        .btn-register {
+          padding: 8px 20px;
+          border-radius: 30px;
+          border: none;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: transform 0.2s;
+        }
+
+        .btn-install {
+          background: linear-gradient(135deg, #ffd700, #ffaa00);
+          color: #000;
+        }
+
+        .btn-gallery {
+          background: linear-gradient(135deg, #0c992d, #0a7a24);
+          color: white;
+        }
+
+        .btn-calendar {
+          background: linear-gradient(135deg, #2896b5, #007bff);
+          color: white;
+        }
+
+        .btn-register {
+          background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+          color: white;
+        }
+
+        .btn-install:hover,
+        .btn-gallery:hover,
+        .btn-calendar:hover,
+        .btn-register:hover {
+          transform: translateY(-2px);
+        }
+
+        /* Welcome Card */
+        .welcome-card {
+          background: rgba(31, 97, 196, 0.15);
+          backdrop-filter: blur(10px);
+          border-radius: 24px;
+          padding: clamp(30px, 5vw, 40px) clamp(20px, 4vw, 30px);
+          margin: 0 auto 25px;
+          max-width: 600px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .welcome-header {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 15px;
+          margin-bottom: 15px;
+          flex-wrap: wrap;
+        }
+
+        .welcome-logo {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          border: 2px solid #00c6ff;
+        }
+
+        .welcome-title {
+          font-size: clamp(20px, 5vw, 24px);
+          font-weight: 800;
+          color: white;
+        }
+
+        .welcome-subtitle {
+          font-size: clamp(24px, 6vw, 32px);
+          font-weight: 900;
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin-bottom: 10px;
+        }
+
+        .zuca-name {
+          font-size: clamp(16px, 4vw, 20px);
+          font-weight: 600;
+          color: #cbd5e1;
+          margin-bottom: 20px;
+        }
+
+        .welcome-text {
+          font-size: clamp(14px, 3vw, 16px);
+          color: #cbd5e1;
+          line-height: 1.6;
+          margin-bottom: 30px;
+        }
+
+        .welcome-buttons {
+          display: flex;
+          gap: 15px;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+          padding: 12px 28px;
+          border-radius: 30px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: transform 0.2s;
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          color: white;
+        }
+
+        .btn-secondary {
+          background: transparent;
+          border: 2px solid #00c6ff;
+          color: white;
+        }
+
+        .btn-primary:hover,
+        .btn-secondary:hover {
+          transform: translateY(-2px);
+        }
+
+        /* Mass Info Card */
+        .mass-info-card {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(5px);
+          padding: 12px 24px;
+          border-radius: 50px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          margin: 0 auto;
+        }
+
+        .mass-info-icon {
+          font-size: 20px;
+          color: #00c6ff;
+        }
+
+        .mass-info-text {
+          font-size: 14px;
+          text-align: left;
+        }
+
+        .mass-location {
+          display: block;
+          font-size: 12px;
+          color: #94a3b8;
+          margin-top: 2px;
+        }
+
+        /* General Section Styles */
+        .section {
+          padding: 60px 20px;
+        }
+
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .section-header {
+          text-align: center;
+          margin-bottom: 50px;
+        }
+
+        .section-icon {
+          font-size: 48px;
+          color: #00c6ff;
+          margin-bottom: 20px;
+        }
+
+        .section-icon-light {
+          font-size: 48px;
+          color: #00c6ff;
+          margin-bottom: 20px;
+        }
+
+        .section-title {
+          font-size: clamp(28px, 5vw, 36px);
+          font-weight: 800;
+          margin-bottom: 15px;
+          color: white;
+        }
+
+        .section-title-light {
+          font-size: clamp(28px, 5vw, 36px);
+          font-weight: 800;
+          margin-bottom: 15px;
+          color: white;
+        }
+
+        .section-title-dark {
+          font-size: clamp(28px, 5vw, 36px);
+          font-weight: 800;
+          margin-bottom: 15px;
+          color: #0a0a25;
+        }
+
+        .section-subtitle,
+        .section-subtitle-light {
+          font-size: 16px;
+          color: #94a3b8;
+        }
+
+        /* Mass Section */
+        .mass-section {
+          background: linear-gradient(135deg, #1e3a8a, #0f172a);
+        }
+
+        .mass-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 30px;
+          max-width: 700px;
+          margin: 0 auto;
+        }
+
+        .mass-card {
+          background: rgba(255, 255, 255, 0.08);
+          padding: 35px 25px;
+          border-radius: 20px;
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          transition: transform 0.3s;
+        }
+
+        .mass-card:hover {
+          transform: translateY(-5px);
+        }
+
+        .card-icon {
+          font-size: 48px;
+          color: #00c6ff;
+          margin-bottom: 20px;
+        }
+
+        .card-title {
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          color: white;
+        }
+
+        .card-info {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-bottom: 12px;
+          color: #cbd5e1;
+          font-size: 14px;
+        }
+
+        .info-icon {
+          font-size: 14px;
+          color: #00c6ff;
+        }
+
+        .card-note {
+          font-size: 13px;
+          color: #94a3b8;
+          font-style: italic;
+          margin-top: 15px;
+        }
+
+        /* Social Section */
+        .social-section {
+          background: #0a0a25;
+        }
+
+        .social-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 25px;
+          max-width: 900px;
+          margin: 0 auto;
+        }
+
+        .social-card {
+          padding: 30px 20px;
+          border-radius: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          text-decoration: none;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          transition: all 0.3s;
+          cursor: pointer;
+        }
+
+        .social-card:hover {
+          transform: translateY(-5px);
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .social-icon-circle {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          margin-bottom: 5px;
+        }
+
+        .social-icon-circle.instagram {
+          background: radial-gradient(circle at 30% 30%, #f09433, #d62976, #962fbf);
+        }
+
+        .social-icon-circle.facebook {
+          background: #1877F2;
+        }
+
+        .social-icon-circle.youtube {
+          background: #FF0000;
+        }
+
+        .social-icon-circle.tiktok {
+          background: #000000;
+        }
+
+        .social-platform {
+          font-size: 16px;
+          font-weight: 600;
+          color: white;
+        }
+
+        .social-handle {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+
+        /* About Section */
+        .about-section {
+          background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+        }
+
+        .about-logo {
+          width: 70px;
+          height: auto;
+          margin-bottom: 20px;
+        }
+
+        .about-content {
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .about-text {
+          font-size: 18px;
+          line-height: 1.7;
+          color: #1e293b;
+          text-align: center;
+          margin-bottom: 40px;
+        }
+
+        .activities-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 15px;
+          max-width: 500px;
+          margin: 0 auto;
+        }
+
+        .activity-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 12px 20px;
+          background: white;
+          border-radius: 12px;
+          font-size: 14px;
+          color: #1e293b;
+          font-weight: 500;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .activity-icon {
+          font-size: 18px;
+          color: #00c6ff;
+        }
+
+        /* Contact Section */
+        .contact-section {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+        }
+
+        .contact-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 20px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .contact-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 15px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 12px;
+          font-size: 14px;
+          color: white;
+        }
+
+        .contact-icon {
+          font-size: 18px;
+          color: #00c6ff;
+        }
+
+        .contact-link {
+          color: white;
+          text-decoration: none;
+          transition: color 0.3s;
+        }
+
+        .contact-link:hover {
+          color: #00c6ff;
+        }
+
+        /* Footer */
+        .footer {
+          background: #0f0f1a;
+          padding: 40px 20px 20px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .footer-content {
+          max-width: 1200px;
+          margin: 0 auto;
+          text-align: center;
+        }
+
+        .footer-social {
+          display: flex;
+          justify-content: center;
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+
+        .footer-social-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 18px;
+          transition: all 0.3s;
+        }
+
+        .footer-social-icon:hover {
+          background: #00c6ff;
+          transform: translateY(-3px);
+        }
+
+        .footer-install {
+          margin-bottom: 25px;
+        }
+
+        .btn-install-footer {
+          padding: 12px 28px;
+          border-radius: 30px;
+          border: none;
+          background: linear-gradient(135deg, #ffd700, #ffaa00);
+          color: #000;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .footer-credit {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          margin-bottom: 15px;
+          font-size: 14px;
+          color: #94a3b8;
+        }
+
+        .credit-heart {
+          color: #ff6b6b;
+        }
+
+        .credit-name {
+          color: #00c6ff;
+          font-weight: 600;
+        }
+
+        .footer-copyright {
+          font-size: 12px;
+          color: #64748b;
+        }
+
+        /* Animations */
+        .fade-section {
+          opacity: 0;
+          transform: translateY(30px);
+          transition: all 0.8s ease;
+        }
+
+        .fade-section.fade-in {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+          .top-bar {
+            display: none;
           }
-          
-          body {
-            min-height: 100vh;
-            overflow-y: auto !important;
+
+          .navbar {
+            top: 0;
           }
-          
-          #root {
-            min-height: 100vh;
-            overflow-y: auto !important;
+
+          .nav-links-desktop {
+            display: none;
           }
-          
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+
+          .mobile-menu-btn {
+            display: block;
           }
-          
-          .fade-section {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: all 0.8s ease;
+
+          .floating-card-inner {
+            padding: 7px 15px;
           }
-          
-          .fade-section.fade-in {
-            opacity: 1;
-            transform: translateY(0);
+
+          .floating-logo {
+            width: 45px;
+            height: 45px;
           }
-          
-          @media (max-width: 768px) {
-            nav {
-              padding: 10px 0;
-            }
-            
-            .social-card {
-              margin: 10px;
-            }
+
+          .btn-install,
+          .btn-gallery,
+          .btn-calendar,
+          .btn-register {
+            padding: 6px 14px;
+            font-size: 11px;
           }
-        `}
-      </style>
+
+          .mass-cards {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+
+          .social-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+          }
+
+          .activities-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .contact-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .section {
+            padding: 40px 16px;
+          }
+
+          .welcome-buttons {
+            flex-direction: column;
+            gap: 12px;
+          }
+
+          .btn-primary,
+          .btn-secondary {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .social-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .floating-buttons {
+            flex-direction: column;
+            width: 100%;
+          }
+
+          .btn-install,
+          .btn-gallery,
+          .btn-calendar,
+          .btn-register {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .mass-info-card {
+            flex-direction: column;
+            text-align: center;
+            padding: 15px;
+          }
+
+          .mass-info-text {
+            text-align: center;
+          }
+        }
+      `}</style>
     </div>
   );
 }
-
-// ========== STYLES ==========
-
-const pageWrapper = {
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'TimesNewRoman', Roboto, sans-serif",
-  color: "#ffffff",
-  overflowX: "hidden",
-  overflowY: "auto",
-  minHeight: "100vh",
-  position: "relative"
-};
-
-// Top Bar
-const topBarStyle = {
-  background: "#141c6000",
-  padding: "1px",
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  borderBottom: "4px solid rgba(13, 123, 197, 0)"
-};
-
-const topBarContentStyle = {
-  maxWidth: "1px",
-  margin: "0 auto",
-  padding: "0 px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  fontSize: "1px",
-  flexWrap: "wrap",
-  gap: "0px"
-};
-
-const heroContentStyle = {
-  position: "relative",
-  zIndex: 2,
-  textAlign: "center",
-  maxWidth: "900px",
-  width: "100%"
-};
-
-const topBarLeftStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  color: "#ffffff"
-};
-
-const topBarHeartStyle = {
-  color: "#efeff3",
-  fontSize: "12px"
-};
-
-const topBarRightStyle = {
-  color: "#ffffff",
-  fontWeight: "900"
-};
-
-const topBarMassStyle = {
-  fontSize: "13px"
-};
-
-// Navigation
-const navStyle = {
-  position: "fixed",
-  top: "1px",
-  left: 0,
-  right: 0,
-  zIndex: 1000,
-  transition: "all 0.3s ease",
-  padding: "10px 0"
-};
-
-const navContentStyle = {
-  maxWidth: "1200px",
-  margin: "0 auto",
-  padding: "0 10px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexWrap: "wrap",
-  gap: "10px"
-};
-
-const logoContainerStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "13px"
-};
-
-const logoStyle = {
-  width: "40px",
-  height: "auto"
-};
-
-const logoTextStyle = {
-  fontSize: "30px",
-  fontWeight: "1000",
-  background: "linear-gradient(135deg, #fff, #00c6ff)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent"
-};
-
-const navLinksStyle = {
-  display: "flex",
-  gap: "10px",
-  alignItems: "center",
-  flexWrap: "wrap"
-};
-
-const navLinkStyle = {
-  color: "#fff",
-  textDecoration: "none",
-  fontSize: "10px",
-  fontWeight: "700",
-  borderRadius: "50px",
-  padding: "5px 5px 4px 4px",
-  transition: "color 0.3s"
-};
-
-// FLOATING CARD - NEW WRAPPER FOR PROPER CENTERING
-const floatingCardWrapperStyle = {
-  display: "flex",
-  justifyContent: "center",
-  width: "100%",
-  marginBottom: "30px"
-};
-
-const floatingCardStyle = {
-  background: "rgba(32, 32, 41, 0.78)",
-  backdropFilter: "blur(10px)",
-  borderRadius: "60px",
-  padding: "6px",
-  border: "1px solid rgba(255,255,255,0.2)",
-  boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-  zIndex: 1002,
-  display: "inline-block",
-  maxWidth: "100%"
-};
-
-const floatingCardContentStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "15px",
-  background: "rgba(16, 75, 238, 0.17)",
-  borderRadius: "60px",
-  padding: "7px 10px 7px 7px",
-  flexWrap: "wrap",
-  justifyContent: "center"
-};
-
-const floatingCardLogoStyle = {
-  width: "65px",
-  height: "65px",
-  borderRadius: "50%",
-  border: "2px solid #00c6ff"
-};
-
-const floatingCardButtonsStyle = {
-  display: "flex",
-  gap: "9px",
-  marginRight: "9px",
-  alignItems: "center",
-  flexWrap: "wrap",
-  justifyContent: "center"
-};
-
-const floatingCardInstallStyle = {
-  padding: "8px 16px",
-  borderRadius: "30px",
-  border: "none",
-  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
-  color: "#000",
-  fontSize: "14px",
-  
- 
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center"
-};
-
-const floatingCardLoginStyle = {
-  padding: "8px 16px",
-  borderRadius: "30px",
-  border: "1px solid rgba(193, 22, 22, 0.2)",
-  background: "linear-gradient(135deg, #0c992d)",
-  color: "#eaedeb",
- 
-  fontSize: "14px",
-  fontWeight: "500",
-  cursor: "pointer"
-};
-
-const floatingCardRegisterStyle = {
-  padding: "8px 16px",
-  borderRadius: "30px",
-  border: "none",
-  background: "linear-gradient(135deg, #2896b5, #007bff)",
-  color: "#fff",
-  fontSize: "14px",
-  fontWeight: "500",
-  cursor: "pointer"
-};
-
-const footerInstallButtonStyle = {
-  padding: "10px 24px",
-  borderRadius: "30px",
-  border: "none",
-  background: "linear-gradient(135deg, #ffd700, #ffaa00)",
-  color: "#000",
-  fontSize: "14px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center"
-};
-
-// Welcome Card Styles
-const welcomeCardStyle = {
-  background: "rgba(31, 97, 196, 0.1)",
-  backdropFilter: "blur(10px)",
-  borderRadius: "24px",
-  padding: "40px 30px",
-  margin: "0 auto 25px",
-  maxWidth: "600px",
-  border: "1px solid rgba(255,255,255,0.2)",
-  boxShadow: "0 8px 32px rgba(0,0,0,0.1)"
-};
-
-const heroOverlayStyle = {
-  position: "absolute",
-  inset: 0,
-  background: "linear-gradient(135deg, rgba(10,10,30,0.95), rgba(10, 177, 29, 0.22))"
-};
-
-const welcomeCardHeaderStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "15px",
-  marginBottom: "10px"
-};
-
-
-
-
-const welcomeCardLogoStyle = {
-  width: "60px",
-  height: "60px",
-  borderRadius: "50%",
-  border: "2px solid #00c6ff"
-};
-
-const welcomeCardTitleStyle = {
-  fontSize: "clamp(20px, 4vw, 24px)",
-  fontWeight: "900",
-  color: "#fff",
-  margin: 0
-};
-
-
-const ZucaNameStyle = {
-  fontSize: "clamp(20px, 20vw, 24px)",
-  fontWeight: "900",
-  color: "#fff",
-  margin: 0,
-  background: "linear-gradient(135deg, #ebeeef, #e9ecef)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  letterSpacing: "2px",
-    display: "text",
-
-    marginBottom: "10px",
-
-  borderBottom: "5px solid",
-  borderImage: "linear-gradient(135deg, #e1ecee, #ebeff4) 1"
-};
-
-const welcomeCardSubtitleStyle = {
-  fontSize: "clamp(24px, 5vw, 32px)",
-  fontWeight: "900",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  marginBottom: "10px",
-  letterSpacing: "2px",
-  display: "inline-block",
-  borderBottom: "3px solid",
-  borderImage: "linear-gradient(135deg, #00c6ff, #007bff) 1"
-
-};
-
-const welcomeCardTextStyle = {
-  fontSize: "clamp(14px, 3vw, 16px)",
-  color: "#cbd5e1",
-  lineHeight: "1.6",
-  marginBottom: "30px",
-  maxWidth: "500px",
-  margin: "0 auto 30px"
-};
-
-const heroStyle = (bg) => ({
-  minHeight: "100vh",
-  backgroundImage: `url(${bg})`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  position: "relative",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "80px 20px"
-});
-
-const welcomeCardButtonsStyle = {
-  display: "flex",
-  gap: "15px",
-  justifyContent: "center",
-  flexWrap: "wrap"
-};
-
-const buttonIconStyle = {
-  marginRight: "8px"
-};
-
-const welcomeButtonPrimaryStyle = {
-  padding: "12px 30px",
-  borderRadius: "30px",
-  border: "none",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center"
-};
-
-const welcomeButtonSecondaryStyle = {
-  padding: "12px 30px",
-  borderRadius: "30px",
-  border: "2px solid #00c6ff",
-  background: "transparent",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center"
-};
-
-// Floating Action Buttons Styles
-const floatingActionsStyle = {
-  display: "flex",
-  gap: "15px",
-  justifyContent: "center",
-  marginBottom: "25px",
-  flexWrap: "wrap"
-};
-
-const floatingActionButtonStyle = {
-  padding: "10px 20px",
-  borderRadius: "30px",
-  border: "1px solid rgba(255,255,255,0.2)",
-  background: "rgba(255,255,255,0.1)",
-  backdropFilter: "blur(5px)",
-  color: "#fff",
-  fontSize: "14px",
-  fontWeight: "500",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  transition: "all 0.3s ease"
-};
-
-const floatingActionIconStyle = {
-  fontSize: "14px",
-  color: "#00c6ff"
-};
-
-// Mass Info Card Styles
-const massInfoCardStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "12px",
-  background: "rgba(255,255,255,0.1)",
-  backdropFilter: "blur(5px)",
-  padding: "12px 24px",
-  borderRadius: "50px",
-  border: "1px solid rgba(255,255,255,0.2)",
-  margin: "0 auto"
-};
-
-const massInfoIconStyle = {
-  fontSize: "20px",
-  color: "#00c6ff"
-};
-
-const massInfoTextStyle = {
-  fontSize: "16px",
-  color: "#fff"
-};
-
-const massInfoLocationStyle = {
-  display: "block",
-  fontSize: "14px",
-  color: "#94a3b8",
-  marginTop: "2px"
-};
-
-const heroMassCardStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "12px",
-  background: "rgba(222, 219, 236, 0.19)",
-  padding: "12px 20px",
-  borderRadius: "40px",
-  width: "fit-content",
-  margin: "0 auto 30px",
-  border: "1px solid rgb(126, 148, 250)"
-};
-
-const heroMassIconStyle = {
-  fontSize: "20px",
-  color: "#00c6ff"
-};
-
-const heroMassTextStyle = {
-  fontSize: "19px",
-  textAlign: "left"
-};
-
-const heroButtonsStyle = {
-  display: "flex",
-  gap: "15px",
-  justifyContent: "center",
-  flexWrap: "wrap"
-};
-
-const heroButtonPrimaryStyle = {
-  padding: "12px 30px",
-  borderRadius: "30px",
-  border: "none",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
-  color: "#fff",
-  fontSize: "15px",
-  fontWeight: "600",
-  cursor: "pointer"
-};
-
-const heroButtonSecondaryStyle = {
-  padding: "12px 30px",
-  borderRadius: "30px",
-  border: "2px solid #00c6ff",
-  background: "transparent",
-  color: "#fff",
-  fontSize: "15px",
-  fontWeight: "600",
-  cursor: "pointer"
-};
-
-// Mass Section
-const massSectionStyle = {
-  padding: "60px 15px",
-  background: "linear-gradient(135deg, #375bd1c5, #0a0a0cfe)"
-};
-
-const sectionContainerStyle = {
-  maxWidth: "1200px",
-  margin: "0 auto"
-};
-
-const massHeaderStyle = {
-  textAlign: "center",
-  marginBottom: "40px"
-};
-
-const massIconStyle = {
-  fontSize: "60px",
-  color: "#f5f9f6",
-  marginBottom: "25px"
-};
-
-const massTitleStyle = {
-  fontSize: "clamp(24px, 5vw, 32px)",
-  fontWeight: "1000",
-  marginBottom: "10px",
-  color: "#ffffff"
-};
-
-const massSubtitleStyle = {
-  fontSize: "15px",
-  color: "#94a3b8"
-};
-
-const massCardsStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-  gap: "25px",
-  maxWidth: "600px",
-  margin: "0 auto"
-};
-
-const massCardStyle = {
-  background: "rgba(75, 71, 71, 0.7)",
-  padding: "30px 20px",
-  borderRadius: "20px",
-  textAlign: "center",
-  border: "1px solid rgba(255,255,255,0.1)"
-};
-
-const massCardIconStyle = {
-  fontSize: "30px",
-  color: "#00c6ff",
-  marginBottom: "15px"
-};
-
-const massCardTitleStyle = {
-  fontSize: "18px",
-  fontWeight: "600",
-  marginBottom: "15px",
-  color: "#fff"
-};
-
-const massTimeStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  marginBottom: "10px",
-  color: "#cbd5e1",
-  fontSize: "15px"
-};
-
-const massTimeIconStyle = {
-  fontSize: "14px",
-  color: "#00c6ff"
-};
-
-const massLocationStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  marginBottom: "15px",
-  color: "#cbd5e1",
-  fontSize: "14px"
-};
-
-const massLocationIconStyle = {
-  fontSize: "14px",
-  color: "#00c6ff"
-};
-
-const massNoteStyle = {
-  fontSize: "13px",
-  color: "#94a3b8",
-  fontStyle: "italic"
-};
-
-// Social Section
-const socialSectionStyle = {
-  padding: "60px 15px",
-  background: "#0a0a25"
-};
-
-const sectionHeaderStyle = {
-  textAlign: "center",
-  marginBottom: "40px"
-};
-
-const sectionIconStyle = {
-  fontSize: "30px",
-  color: "#f9f3f3",
-  marginBottom: "15px"
-};
-
-const sectionTitleLightStyle = {
-  fontSize: "clamp(22px, 5vw, 30px)",
-  fontWeight: "700",
-  marginBottom: "10px",
-  color: "#fff"
-};
-
-const sectionSubtitleStyle = {
-  fontSize: "17px",
-  color: "#94a3b8",
-  maxWidth: "500px",
-  margin: "0 auto"
-};
-
-const socialGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "20px",
-  maxWidth: "800px",
-  margin: "0 auto"
-};
-
-const socialCardStyle = {
-  padding: "25px 15px",
-  borderRadius: "20px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "10px",
-  textDecoration: "none",
-  color: "#fff",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  transition: "all 0.3s",
-  cursor: "pointer"
-};
-
-const socialIconCircleStyle = {
-  width: "50px",
-  height: "50px",
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  marginBottom: "5px"
-};
-
-const socialIconStyle = {
-  fontSize: "24px",
-  color: "#fff"
-};
-
-const socialPlatformStyle = {
-  fontSize: "16px",
-  fontWeight: "600"
-};
-
-const socialHandleStyle = {
-  fontSize: "12px",
-  opacity: 0.8
-};
-
-// About Section
-const aboutSectionStyle = {
-  padding: "60px 15px",
-  background: "#a5c3be8f"
-};
-
-const sectionTitleDarkStyle = {
-  fontSize: "clamp(22px, 5vw, 30px)",
-  fontWeight: "700",
-  marginBottom: "20px",
-  color: "#0a0a25"
-};
-
-const aboutContentStyle = {
-  maxWidth: "700px",
-  margin: "0 auto"
-};
-
-const aboutTextStyle = {
-  fontSize: "18px",
-  lineHeight: "1.5",
-  color: "#1742d1",
-  marginBottom: "50px",
-  textAlign: "center"
-};
-
-const activitiesGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "15px",
-  maxWidth: "400px",
-  margin: "0 auto"
-};
-
-const activityItemStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "10px",
-  background: "#47474c4e",
-  borderRadius: "10px",
-  boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-  fontSize: "14px",
-  color: "#1e293b"
-};
-
-const activityIconStyle = {
-  fontSize: "16px",
-  color: "#00c6ff"
-};
-
-// Contact Section
-const contactSectionStyle = {
-  padding: "50px 15px",
-  background: "linear-gradient(135deg, #0f172aa0, #1e293b)"
-};
-
-const sectionIconLightStyle = {
-  fontSize: "30px",
-  color: "#00c6ff",
-  marginBottom: "15px"
-};
-
-const contactSimpleGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-  gap: "15px",
-  maxWidth: "700px",
-  margin: "0 auto"
-};
-
-const contactSimpleItemStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  padding: "12px",
-  background: "rgba(255,255,255,0.05)",
-  borderRadius: "10px",
-  fontSize: "14px",
-  color: "#fff"
-};
-
-const contactSimpleIconStyle = {
-  fontSize: "16px",
-  color: "#00c6ff"
-};
-
-const contactSimpleLinkStyle = {
-  color: "#fff",
-  textDecoration: "none"
-};
-
-// Footer
-const footerStyle = {
-  background: "#131315d6",
-  padding: "40px 15px 20px",
-  borderTop: "1px solid rgba(255,255,255,0.1)"
-};
-
-const footerContentStyle = {
-  maxWidth: "1200px",
-  margin: "0 auto",
-  textAlign: "center"
-};
-
-const footerSocialMinStyle = {
-  display: "flex",
-  justifyContent: "center",
-  gap: "15px",
-  marginBottom: "20px"
-};
-
-const footerSocialMinIconStyle = {
-  width: "36px",
-  height: "36px",
-  borderRadius: "50%",
-  background: "rgba(7, 7, 7, 0.69)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "#ffffff",
-  fontSize: "16px",
-  transition: "all 0.3s",
-  cursor: "pointer"
-};
-
-const creditStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "6px",
-  marginBottom: "15px",
-  fontSize: "14px",
-  color: "#94a3b8"
-};
-
-const creditHeartStyle = {
-  fontSize: "14px",
-  color: "#f8f8f8"
-};
-
-const creditNameStyle = {
-  color: "#00c6ff",
-  fontWeight: "600"
-};
-
-const copyrightStyle = {
-  fontSize: "13px",
-  color: "#64748b"
-};
 
 export default Landing2;

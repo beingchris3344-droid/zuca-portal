@@ -12,6 +12,7 @@ import {
   ArrowLeft, Sparkles, Compass
 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 // Adaptive Video Player Component
 const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => {
@@ -492,10 +493,13 @@ export default function GalleryPage() {
     }
   };
 
-  const goBack = () => {
-    window.history.back();
-  };
+    const navigate = useNavigate();
 
+
+  const goBack = () => {
+    console.log('Going to dashboard');
+    window.history.back();
+};
   const getMediaIcon = (type) => {
     switch(type) {
       case 'video': return <Video className="media-icon" />;

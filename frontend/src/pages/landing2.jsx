@@ -222,17 +222,17 @@ function Landing2() {
                   {showInstallButton && (
                     <button onClick={handleInstallClick} style={floatingCardInstallStyle}>
                       <FaDownload style={{ marginRight: "5px" }} />
-                      Install
+                       Install
                     </button>
                   )}
                   <button onClick={() => navigate("/gallery")} style={floatingCardLoginStyle}>
-                    ZUCA GALLERY
+                    ˙✧˖°📷 ༘ ⋆｡˚ ZUCA GALLERY
                   </button>
                   <button onClick={() => navigate("/liturgical-calendar")} style={floatingCardRegisterStyle}>
   📅 Liturgical Calendar
 </button>
                   <button onClick={() => navigate("/register")} style={floatingCardRegisterStyle}>
-                    Join Us
+                    𝖩𝗈𝗂𝗇 ➥ Us
                   </button>
                 </div>
               </div>

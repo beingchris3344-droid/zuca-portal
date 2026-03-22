@@ -225,8 +225,8 @@ function Landing2() {
                       Install
                     </button>
                   )}
-                  <button onClick={() => navigate("/login")} style={floatingCardLoginStyle}>
-                    Login
+                  <button onClick={() => navigate("/gallery")} style={floatingCardLoginStyle}>
+                    ZUCA GALLERY
                   </button>
                   <button onClick={() => navigate("/liturgical-calendar")} style={floatingCardRegisterStyle}>
   📅 Liturgical Calendar

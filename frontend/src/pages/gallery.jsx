@@ -9,7 +9,7 @@ import {
   ThumbsUp, ThumbsDown, Bookmark, Share, ExternalLink,
   Facebook, Twitter, Instagram, Copy, Check, AlertCircle,
   VolumeX, SkipBack, SkipForward, Repeat, Shuffle, Send,
-  ArrowLeft
+  ArrowLeft, Sparkles, Compass
 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 
@@ -33,6 +33,9 @@ export default function GalleryPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [trendingMedia, setTrendingMedia] = useState([]);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStage, setLoadingStage] = useState(0);
+  const [showContent, setShowContent] = useState(false);
   
   // Comments state
   const [comments, setComments] = useState([]);
@@ -41,6 +44,32 @@ export default function GalleryPage() {
   
   const videoRef = useRef(null);
   const modalRef = useRef(null);
+
+  // Stunning loading animation sequence
+  useEffect(() => {
+    if (loading) {
+      const stages = [
+        { progress: 15, message: "Waking up the gallery...", icon: "✨", description: "Starting the visual journey" },
+        { progress: 30, message: "Gathering memories...", icon: "📸", description: "Collecting precious moments" },
+        { progress: 45, message: "Polishing moments...", icon: "✨", description: "Enhancing every detail" },
+        { progress: 60, message: "Almost there...", icon: "🎨", description: "Adding the final touches" },
+        { progress: 75, message: "Adding finishing touches...", icon: "🌟", description: "Making it perfect" },
+        { progress: 90, message: "Preparing your experience...", icon: "🎭", description: "Almost ready to reveal" },
+        { progress: 100, message: "Welcome to the gallery!", icon: "🎉", description: "Your memories await" }
+      ];
+      
+      let currentStage = 0;
+      const stageInterval = setInterval(() => {
+        if (currentStage < stages.length - 1) {
+          currentStage++;
+          setLoadingStage(currentStage);
+          setLoadingProgress(stages[currentStage].progress);
+        }
+      }, 800);
+      
+      return () => clearInterval(stageInterval);
+    }
+  }, [loading]);
 
   // Real-time clock
   useEffect(() => {
@@ -62,6 +91,10 @@ export default function GalleryPage() {
 
   const fetchMedia = async () => {
     setLoading(true);
+    setLoadingProgress(0);
+    setLoadingStage(0);
+    setShowContent(false);
+    
     try {
       const params = new URLSearchParams({
         category: filters.category,
@@ -70,10 +103,20 @@ export default function GalleryPage() {
       });
       const res = await publicApi.get(`/api/media/public?${params}`);
       setMedia(res.data.media || []);
+      
+      setTimeout(() => {
+        setLoadingProgress(100);
+        setTimeout(() => {
+          setShowContent(true);
+          setTimeout(() => {
+            setLoading(false);
+          }, 500);
+        }, 300);
+      }, 500);
     } catch (error) {
       console.error('Error fetching media:', error);
-    } finally {
       setLoading(false);
+      setShowContent(true);
     }
   };
 
@@ -253,15 +296,6 @@ export default function GalleryPage() {
     }
   };
 
-  const handleVideoSeek = (e) => {
-    if (videoRef.current) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = x / rect.width;
-      videoRef.current.currentTime = percentage * videoRef.current.duration;
-    }
-  };
-
   const toggleFullscreen = () => {
     if (!modalRef.current) return;
     if (!document.fullscreenElement) {
@@ -298,17 +332,461 @@ export default function GalleryPage() {
     { id: 'retreat', name: 'Retreats', icon: Zap }
   ];
 
+  const stages = [
+    { progress: 15, message: "Waking up the gallery...", icon: "✨", description: "Starting the visual journey" },
+    { progress: 30, message: "Gathering memories...", icon: "📸", description: "Collecting precious moments" },
+    { progress: 45, message: "Polishing moments...", icon: "✨", description: "Enhancing every detail" },
+    { progress: 60, message: "Almost there...", icon: "🎨", description: "Adding the final touches" },
+    { progress: 75, message: "Adding finishing touches...", icon: "🌟", description: "Making it perfect" },
+    { progress: 90, message: "Preparing your experience...", icon: "🎭", description: "Almost ready to reveal" },
+    { progress: 100, message: "Welcome to the gallery!", icon: "🎉", description: "Your memories await" }
+  ];
+
+  const currentStage = stages[loadingStage] || stages[0];
+
+  // Stunning loading screen
   if (loading) {
     return (
-      <div className="simple-loading">
-        <div className="simple-spinner"></div>
-        <p>Loading gallery...</p>
+      <div className="premium-loading-screen">
+        <div className="loading-gradient-bg">
+          <div className="gradient-orb orb-1"></div>
+          <div className="gradient-orb orb-2"></div>
+          <div className="gradient-orb orb-3"></div>
+          <div className="gradient-orb orb-4"></div>
+        </div>
+
+        <div className="loading-glass-container">
+          <div className="loading-content-wrapper">
+            <div className="loading-logo-section">
+              <div className="logo-animation">
+                <div className="logo-ring ring-1"></div>
+                <div className="logo-ring ring-2"></div>
+                <div className="logo-ring ring-3"></div>
+                <div className="logo-icon-container">
+                  <Camera className="logo-camera" size={56} />
+                  <div className="logo-sparkle">
+                    <Sparkles size={24} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="loading-text-section">
+              <div className="loading-stage-icon">
+                <span className="stage-icon">{currentStage.icon}</span>
+              </div>
+              <h2 className="loading-main-message">
+                {currentStage.message}
+              </h2>
+              <p className="loading-description">
+                {currentStage.description}
+              </p>
+            </div>
+
+            <div className="loading-progress-section">
+              <div className="progress-label">
+                <span className="progress-text">Loading gallery</span>
+                <span className="progress-percentage">{Math.min(Math.floor(loadingProgress), 100)}%</span>
+              </div>
+              <div className="glass-progress-bar">
+                <div 
+                  className="glass-progress-fill"
+                  style={{ width: `${Math.min(loadingProgress, 100)}%` }}
+                >
+                  <div className="progress-glow"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="loading-particles">
+              {[...Array(12)].map((_, i) => (
+                <div 
+                  key={i}
+                  className="particle"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 2}s`,
+                    animationDuration: `${2 + Math.random() * 3}s`
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="loading-quote">
+              <div className="quote-content">
+                <Compass size={16} />
+                <span>Every picture tells a story</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <style jsx>{`
+          .premium-loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
+          }
+
+          .loading-gradient-bg {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+          }
+
+          .gradient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            animation: floatOrb 20s ease-in-out infinite;
+          }
+
+          .orb-1 {
+            width: 500px;
+            height: 500px;
+            top: -200px;
+            right: -200px;
+            background: radial-gradient(circle, rgba(59,130,246,0.3), rgba(99,102,241,0.1));
+          }
+
+          .orb-2 {
+            width: 400px;
+            height: 400px;
+            bottom: -150px;
+            left: -150px;
+            background: radial-gradient(circle, rgba(139,92,246,0.3), rgba(59,130,246,0.1));
+            animation-delay: -5s;
+          }
+
+          .orb-3 {
+            width: 600px;
+            height: 600px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(6,182,212,0.2), rgba(59,130,246,0.05));
+            animation-delay: -10s;
+          }
+
+          .orb-4 {
+            width: 350px;
+            height: 350px;
+            top: 20%;
+            right: 20%;
+            background: radial-gradient(circle, rgba(245,158,11,0.2), rgba(139,92,246,0.1));
+            animation-delay: -15s;
+          }
+
+          @keyframes floatOrb {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(50px, -50px) scale(1.1); }
+            66% { transform: translate(-30px, 30px) scale(0.9); }
+          }
+
+          .loading-glass-container {
+            position: relative;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 48px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: containerGlow 2s ease-in-out infinite;
+          }
+
+          @keyframes containerGlow {
+            0%, 100% {
+              box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+              border-color: rgba(255, 255, 255, 0.1);
+            }
+            50% {
+              box-shadow: 0 25px 50px -12px rgba(59, 130, 246, 0.3);
+              border-color: rgba(59, 130, 246, 0.3);
+            }
+          }
+
+          .loading-content-wrapper {
+            padding: 60px 80px;
+            text-align: center;
+            min-width: 500px;
+          }
+
+          .loading-logo-section {
+            margin-bottom: 40px;
+          }
+
+          .logo-animation {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+          }
+
+          .logo-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            animation: ringPulse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+          }
+
+          .ring-1 {
+            border-top-color: #3b82f6;
+            border-right-color: #3b82f6;
+          }
+
+          .ring-2 {
+            border-bottom-color: #8b5cf6;
+            border-left-color: #8b5cf6;
+            animation-delay: 0.3s;
+            width: 90%;
+            height: 90%;
+            top: 5%;
+            left: 5%;
+          }
+
+          .ring-3 {
+            border-top-color: #06b6d4;
+            border-right-color: #06b6d4;
+            animation-delay: 0.6s;
+            width: 70%;
+            height: 70%;
+            top: 15%;
+            left: 15%;
+          }
+
+          @keyframes ringPulse {
+            0% {
+              transform: scale(0.8);
+              opacity: 0;
+            }
+            50% {
+              transform: scale(1);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(1.2);
+              opacity: 0;
+            }
+          }
+
+          .logo-icon-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .logo-camera {
+            color: white;
+            filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.5));
+            animation: cameraPulse 2s ease-in-out infinite;
+          }
+
+          .logo-sparkle {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            animation: sparkleRotate 3s linear infinite;
+          }
+
+          @keyframes cameraPulse {
+            0%, 100% {
+              transform: scale(1);
+              filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.5));
+            }
+            50% {
+              transform: scale(1.05);
+              filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.8));
+            }
+          }
+
+          @keyframes sparkleRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+
+          .loading-text-section {
+            margin-bottom: 40px;
+          }
+
+          .loading-stage-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            animation: bounceIcon 1s ease-in-out infinite;
+          }
+
+          @keyframes bounceIcon {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+
+          .loading-main-message {
+            font-size: 28px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+            animation: gradientShift 3s ease infinite;
+          }
+
+          @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+          }
+
+          .loading-description {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            letter-spacing: 0.5px;
+          }
+
+          .loading-progress-section {
+            margin-bottom: 40px;
+          }
+
+          .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+          }
+
+          .progress-text {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+
+          .progress-percentage {
+            font-weight: 600;
+            color: #3b82f6;
+          }
+
+          .glass-progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+          }
+
+          .glass-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+            border-radius: 10px;
+            position: relative;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+          }
+
+          .progress-glow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 1.5s infinite;
+          }
+
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+
+          .loading-particles {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+          }
+
+          .particle {
+            position: absolute;
+            bottom: -10px;
+            width: 2px;
+            height: 10px;
+            background: linear-gradient(to top, #3b82f6, transparent);
+            border-radius: 2px;
+            animation: particleFloat linear infinite;
+            opacity: 0;
+          }
+
+          @keyframes particleFloat {
+            0% {
+              transform: translateY(0) rotate(0deg);
+              opacity: 0;
+            }
+            10% {
+              opacity: 0.5;
+            }
+            90% {
+              opacity: 0.5;
+            }
+            100% {
+              transform: translateY(-100vh) rotate(360deg);
+              opacity: 0;
+            }
+          }
+
+          .loading-quote {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          .quote-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            letter-spacing: 0.5px;
+          }
+
+          @media (max-width: 768px) {
+            .loading-content-wrapper {
+              padding: 40px 30px;
+              min-width: auto;
+              width: 90%;
+            }
+            .logo-animation {
+              width: 80px;
+              height: 80px;
+            }
+            .logo-camera {
+              width: 40px;
+              height: 40px;
+            }
+            .loading-main-message {
+              font-size: 20px;
+            }
+            .loading-stage-icon {
+              font-size: 36px;
+            }
+          }
+        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="gallery-container">
+    <div className={`gallery-container ${showContent ? 'content-fade-in' : ''}`}>
       <div className="floating-bg">
         <div className="blob blob-1"></div>
         <div className="blob blob-2"></div>
@@ -317,52 +795,104 @@ export default function GalleryPage() {
       </div>
 
       <div className="gallery-content">
-        {/* Hero Section with Back Button */}
+        {/* Hero Section */}
         <div className="hero-card glass-effect">
           <div className="hero-top">
             <div className="hero-left">
               <button className="back-button" onClick={goBack} aria-label="Go back">
                 <ArrowLeft size={24} />
               </button>
-              <div className="logo-wrapper"><Camera className="logo-icon" /></div>
+              <div className="logo-wrapper">
+                <Camera className="logo-icon" />
+              </div>
               <div className="hero-info">
                 <h1 className="hero-title">ZUCA Media Gallery</h1>
                 <div className="hero-meta">
-                  <span className="stat-badge"><ImageIcon size={14} /> {media.length} Memories</span>
-                  <span className="live-badge">LIVE</span>
+                  <span className="stat-badge">
+                    <ImageIcon size={14} /> {media.length} Memories
+                  </span>
+                  <span className="live-badge pulse-live">LIVE</span>
                   <span className="time-badge">{format(currentTime, 'HH:mm:ss')}</span>
                 </div>
               </div>
             </div>
             <div className="hero-right">
               <div className="view-toggle">
-                <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}><LayoutGrid size={16} /></button>
-                <button className={`view-btn ${viewMode === 'compact' ? 'active' : ''}`} onClick={() => setViewMode('compact')}><Grid3x3 size={16} /></button>
+                <button 
+                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} 
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button 
+                  className={`view-btn ${viewMode === 'compact' ? 'active' : ''}`} 
+                  onClick={() => setViewMode('compact')}
+                >
+                  <Grid3x3 size={16} />
+                </button>
               </div>
             </div>
           </div>
           <div className="quick-stats">
-            <div className="quick-stat-item"><Camera className="quick-stat-icon" /><span className="quick-stat-label">Total Media</span><span className="quick-stat-value">{media.length}</span></div>
-            <div className="quick-stat-item"><Heart className="quick-stat-icon" /><span className="quick-stat-label">Total Likes</span><span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.likes || 0), 0).toLocaleString()}</span></div>
-            <div className="quick-stat-item"><Eye className="quick-stat-icon" /><span className="quick-stat-label">Total Views</span><span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.views || 0), 0).toLocaleString()}</span></div>
-            <div className="quick-stat-item"><MessageCircle className="quick-stat-icon" /><span className="quick-stat-label">Comments</span><span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.comments || 0), 0).toLocaleString()}</span></div>
+            <div className="quick-stat-item">
+              <Camera className="quick-stat-icon" />
+              <span className="quick-stat-label">Total Media</span>
+              <span className="quick-stat-value">{media.length}</span>
+            </div>
+            <div className="quick-stat-item">
+              <Heart className="quick-stat-icon" />
+              <span className="quick-stat-label">Total Likes</span>
+              <span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.likes || 0), 0).toLocaleString()}</span>
+            </div>
+            <div className="quick-stat-item">
+              <Eye className="quick-stat-icon" />
+              <span className="quick-stat-label">Total Views</span>
+              <span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.views || 0), 0).toLocaleString()}</span>
+            </div>
+            <div className="quick-stat-item">
+              <MessageCircle className="quick-stat-icon" />
+              <span className="quick-stat-label">Comments</span>
+              <span className="quick-stat-value">{media.reduce((sum, m) => sum + (m._count?.comments || 0), 0).toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
         {/* Trending Section */}
         {trendingMedia.length > 0 && (
           <div className="trending-section glass-effect">
-            <div className="trending-header"><TrendingUp size={20} className="trending-icon" /><h2 className="trending-title">Trending Now</h2><span className="trending-badge">🔥 Hot</span></div>
+            <div className="trending-header">
+              <TrendingUp size={20} className="trending-icon" />
+              <h2 className="trending-title">Trending Now</h2>
+              <span className="trending-badge">🔥 Hot</span>
+            </div>
             <div className="trending-scroll">
               {trendingMedia.map((item) => (
-                <div key={item.id} className="trending-card" onClick={() => handleSelectMedia(item)}>
+                <div 
+                  key={item.id} 
+                  className="trending-card" 
+                  onClick={() => handleSelectMedia(item)}
+                >
                   <div className="trending-media">
-                    {item.type === 'image' ? <img src={item.url} alt={item.title} /> : 
-                     item.type === 'video' && item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.title} /> :
-                     <div className="trending-placeholder">{getMediaIcon(item.type)}</div>}
-                    <div className="trending-overlay"><Play size={24} /></div>
+                    {item.type === 'image' ? (
+                      <img src={item.url} alt={item.title} />
+                    ) : item.type === 'video' && item.thumbnailUrl ? (
+                      <img src={item.thumbnailUrl} alt={item.title} />
+                    ) : (
+                      <div className="trending-placeholder">
+                        {getMediaIcon(item.type)}
+                      </div>
+                    )}
+                    <div className="trending-overlay">
+                      <Play size={24} />
+                    </div>
                   </div>
-                  <div className="trending-info"><h4>{item.title}</h4><div className="trending-stats"><span><Eye size={12} /> {item._count?.views || 0}</span><span><Heart size={12} /> {item._count?.likes || 0}</span></div></div>
+                  <div className="trending-info">
+                    <h4>{item.title}</h4>
+                    <div className="trending-stats">
+                      <span><Eye size={12} /> {item._count?.views || 0}</span>
+                      <span><Heart size={12} /> {item._count?.likes || 0}</span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -372,26 +902,56 @@ export default function GalleryPage() {
         {/* Filters Bar */}
         <div className="filters-bar glass-effect">
           <div className="categories-scroll">
-            {categories.map(cat => { const Icon = cat.icon; return (
-              <button key={cat.id} onClick={() => setFilters({ ...filters, category: cat.id })} className={`category-btn ${filters.category === cat.id ? 'active' : ''}`}>
-                <Icon size={16} /><span>{cat.name}</span>
-              </button>
-            );})}
+            {categories.map(cat => {
+              const Icon = cat.icon;
+              return (
+                <button 
+                  key={cat.id} 
+                  onClick={() => setFilters({ ...filters, category: cat.id })} 
+                  className={`category-btn ${filters.category === cat.id ? 'active' : ''}`}
+                >
+                  <Icon size={16} />
+                  <span>{cat.name}</span>
+                </button>
+              );
+            })}
           </div>
           <div className="sort-selector">
-            <select value={filters.sortBy} onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })} className="sort-select">
-              <option value="latest">Latest First</option><option value="popular">Most Liked</option><option value="mostViewed">Most Viewed</option>
+            <select 
+              value={filters.sortBy} 
+              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })} 
+              className="sort-select"
+            >
+              <option value="latest">Latest First</option>
+              <option value="popular">Most Liked</option>
+              <option value="mostViewed">Most Viewed</option>
             </select>
           </div>
         </div>
 
         {/* Media Grid */}
         {media.length === 0 ? (
-          <div className="empty-state glass-effect"><Camera size={64} className="empty-icon" /><h3>No media yet</h3><p>Be the first to share memories from our community</p>{user && (user.role === 'admin' || user.specialRole === 'secretary') && (<a href="/admin/media" className="upload-link"><Camera size={18} /> Upload Now</a>)}</div>
+          <div className="empty-state glass-effect">
+            <Camera size={64} className="empty-icon" />
+            <h3>No media yet</h3>
+            <p>Be the first to share memories from our community</p>
+            {user && (user.role === 'admin' || user.specialRole === 'secretary') && (
+              <a href="/admin/media" className="upload-link">
+                <Camera size={18} /> Upload Now
+              </a>
+            )}
+          </div>
         ) : (
           <div className={`media-grid ${viewMode}`}>
             {media.map((item, index) => (
-              <div key={item.id} className={`media-card glass-effect ${hoveredCard === item.id ? 'hovered' : ''}`} onClick={() => handleSelectMedia(item)} onMouseEnter={() => setHoveredCard(item.id)} onMouseLeave={() => setHoveredCard(null)} style={{ animationDelay: `${index * 0.05}s` }}>
+              <div 
+                key={item.id} 
+                className={`media-card glass-effect ${hoveredCard === item.id ? 'hovered' : ''}`} 
+                onClick={() => handleSelectMedia(item)} 
+                onMouseEnter={() => setHoveredCard(item.id)} 
+                onMouseLeave={() => setHoveredCard(null)}
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
                 <div className="card-media">
                   {item.type === 'image' ? (
                     <img src={item.url} alt={item.title} className="card-image" loading="lazy" />
@@ -405,23 +965,63 @@ export default function GalleryPage() {
                           <span>Video</span>
                         </div>
                       )}
-                      <div className="play-overlay"><Play size={32} /></div>
+                      <div className="play-overlay">
+                        <Play size={32} />
+                      </div>
                     </div>
                   ) : (
-                    <div className="card-file">{getMediaIcon(item.type)}<span>{item.type}</span></div>
+                    <div className="card-file">
+                      {getMediaIcon(item.type)}
+                      <span>{item.type}</span>
+                    </div>
                   )}
-                  <div className="card-overlay"><button className="quick-view-btn"><Eye size={18} /> Quick View</button></div>
-                  {item.isFeatured && (<div className="featured-badge"><Star size={12} /> Featured</div>)}
-                  <button className={`save-badge ${savedMedia[item.id] ? 'saved' : ''}`} onClick={(e) => { e.stopPropagation(); handleSave(item.id); }}><Bookmark size={12} /></button>
+                  <div className="card-overlay">
+                    <button className="quick-view-btn">
+                      <Eye size={18} /> Quick View
+                    </button>
+                  </div>
+                  {item.isFeatured && (
+                    <div className="featured-badge">
+                      <Star size={12} /> Featured
+                    </div>
+                  )}
+                  <button 
+                    className={`save-badge ${savedMedia[item.id] ? 'saved' : ''}`} 
+                    onClick={(e) => { e.stopPropagation(); handleSave(item.id); }}
+                  >
+                    <Bookmark size={12} />
+                  </button>
                 </div>
                 <div className="card-info">
                   <h3 className="card-title">{item.title}</h3>
                   <div className="card-stats">
-                    <button id={`like-${item.id}`} className={`stat-btn ${likedMedia[item.id] ? 'liked' : ''}`} onClick={(e) => { e.stopPropagation(); handleLike(item.id); }}><Heart size={14} /><span>{item._count.likes}</span></button>
-                    <div className="stat"><Eye size={14} /><span>{item._count.views}</span></div>
-                    <div className="stat"><MessageCircle size={14} /><span>{item._count.comments}</span></div>
+                    <button 
+                      id={`like-${item.id}`} 
+                      className={`stat-btn ${likedMedia[item.id] ? 'liked' : ''}`} 
+                      onClick={(e) => { e.stopPropagation(); handleLike(item.id); }}
+                    >
+                      <Heart size={14} />
+                      <span>{item._count.likes}</span>
+                    </button>
+                    <div className="stat">
+                      <Eye size={14} />
+                      <span>{item._count.views}</span>
+                    </div>
+                    <div className="stat">
+                      <MessageCircle size={14} />
+                      <span>{item._count.comments}</span>
+                    </div>
                   </div>
-                  <div className="card-meta"><span className="meta-user"><User size={12} />{item.uploadedBy?.fullName?.split(' ')[0] || 'Anonymous'}</span><span className="meta-date"><Clock size={12} />{timeAgo(item.createdAt)}</span></div>
+                  <div className="card-meta">
+                    <span className="meta-user">
+                      <User size={12} />
+                      {item.uploadedBy?.fullName?.split(' ')[0] || 'Anonymous'}
+                    </span>
+                    <span className="meta-date">
+                      <Clock size={12} />
+                      {timeAgo(item.createdAt)}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -434,13 +1034,21 @@ export default function GalleryPage() {
         <div className="media-modal" onClick={() => setSelectedMedia(null)}>
           <div className="modal-glass" ref={modalRef} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <button className="modal-close" onClick={() => setSelectedMedia(null)}><X size={24} /></button>
+              <button className="modal-close" onClick={() => setSelectedMedia(null)}>
+                <X size={24} />
+              </button>
               <div className="modal-title-bar">
                 <h2>{selectedMedia.title}</h2>
                 <div className="modal-actions">
-                  <button onClick={() => handleSave(selectedMedia.id)} className="action-icon"><Bookmark size={20} className={savedMedia[selectedMedia.id] ? 'saved' : ''} /></button>
-                  <button onClick={() => handleShare(selectedMedia)} className="action-icon"><Share2 size={20} /></button>
-                  <button onClick={() => handleDownload(selectedMedia)} className="action-icon"><Download size={20} /></button>
+                  <button onClick={() => handleSave(selectedMedia.id)} className="action-icon">
+                    <Bookmark size={20} className={savedMedia[selectedMedia.id] ? 'saved' : ''} />
+                  </button>
+                  <button onClick={() => handleShare(selectedMedia)} className="action-icon">
+                    <Share2 size={20} />
+                  </button>
+                  <button onClick={() => handleDownload(selectedMedia)} className="action-icon">
+                    <Download size={20} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -475,37 +1083,88 @@ export default function GalleryPage() {
               </div>
               
               <div className="modal-info">
-                {selectedMedia.description && <p className="modal-description">{selectedMedia.description}</p>}
+                {selectedMedia.description && (
+                  <p className="modal-description">{selectedMedia.description}</p>
+                )}
                 <div className="modal-stats">
-                  <button className={`stat-large ${likedMedia[selectedMedia.id] ? 'liked' : ''}`} onClick={() => handleLike(selectedMedia.id)}><ThumbsUp size={20} /><span>{selectedMedia._count.likes} Likes</span></button>
-                  <div className="stat-large"><Eye size={20} /><span>{selectedMedia._count.views} Views</span></div>
-                  <div className="stat-large"><MessageCircle size={20} /><span>{selectedMedia._count.comments} Comments</span></div>
+                  <button 
+                    className={`stat-large ${likedMedia[selectedMedia.id] ? 'liked' : ''}`} 
+                    onClick={() => handleLike(selectedMedia.id)}
+                  >
+                    <ThumbsUp size={20} />
+                    <span>{selectedMedia._count.likes} Likes</span>
+                  </button>
+                  <div className="stat-large">
+                    <Eye size={20} />
+                    <span>{selectedMedia._count.views} Views</span>
+                  </div>
+                  <div className="stat-large">
+                    <MessageCircle size={20} />
+                    <span>{selectedMedia._count.comments} Comments</span>
+                  </div>
                 </div>
-                <div className="modal-meta"><span>📅 {formatDate(selectedMedia.createdAt)}</span><span>👤 {selectedMedia.uploadedBy?.fullName || 'Anonymous'}</span><span>📁 {selectedMedia.category}</span></div>
+                <div className="modal-meta">
+                  <span>📅 {formatDate(selectedMedia.createdAt)}</span>
+                  <span>👤 {selectedMedia.uploadedBy?.fullName || 'Anonymous'}</span>
+                  <span>📁 {selectedMedia.category}</span>
+                </div>
                 
                 <div className="comments-section">
                   <h3><MessageCircle size={18} /> Comments ({commentsPagination.total})</h3>
                   
                   {user ? (
                     <div className="comment-input">
-                      <div className="comment-avatar">{user.profileImage ? <img src={user.profileImage} alt={user.fullName} /> : <div className="avatar-placeholder">{user.fullName?.charAt(0) || 'U'}</div>}</div>
+                      <div className="comment-avatar">
+                        {user.profileImage ? 
+                          <img src={user.profileImage} alt={user.fullName} /> : 
+                          <div className="avatar-placeholder">{user.fullName?.charAt(0) || 'U'}</div>
+                        }
+                      </div>
                       <div className="comment-input-wrapper">
-                        <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment..." onKeyPress={(e) => e.key === 'Enter' && !commentLoading && handleComment()} disabled={commentLoading} />
-                        <button onClick={handleComment} disabled={!comment.trim() || commentLoading}>{commentLoading ? <><div className="btn-spinner"></div>Posting...</> : <><Send size={16} /> Post</>}</button>
+                        <input 
+                          type="text" 
+                          value={comment} 
+                          onChange={(e) => setComment(e.target.value)} 
+                          placeholder="Add a comment..." 
+                          onKeyPress={(e) => e.key === 'Enter' && !commentLoading && handleComment()} 
+                          disabled={commentLoading} 
+                        />
+                        <button onClick={handleComment} disabled={!comment.trim() || commentLoading}>
+                          {commentLoading ? (
+                            <>
+                              <div className="btn-spinner"></div>
+                              Posting...
+                            </>
+                          ) : (
+                            <>
+                              <Send size={16} /> Post
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="login-to-comment"><p>Please <a href="/login">login</a> to comment</p></div>
+                    <div className="login-to-comment">
+                      <p>Please <a href="/login">login</a> to comment</p>
+                    </div>
                   )}
                   
                   <div className="comments-list-container">
                     {commentsLoading && comments.length === 0 ? (
-                      <div className="comments-loading"><div className="spinner"></div><p>Loading comments...</p></div>
+                      <div className="comments-loading">
+                        <div className="spinner"></div>
+                        <p>Loading comments...</p>
+                      </div>
                     ) : comments.length > 0 ? (
                       <>
                         {comments.map((c) => (
                           <div key={c.id} className="comment-item">
-                            <div className="comment-avatar">{c.user?.profileImage ? <img src={c.user.profileImage} alt={c.user.fullName} /> : <div className="avatar-placeholder small">{c.user?.fullName?.charAt(0) || 'A'}</div>}</div>
+                            <div className="comment-avatar">
+                              {c.user?.profileImage ? 
+                                <img src={c.user.profileImage} alt={c.user.fullName} /> : 
+                                <div className="avatar-placeholder small">{c.user?.fullName?.charAt(0) || 'A'}</div>
+                              }
+                            </div>
                             <div className="comment-content">
                               <div className="comment-header">
                                 <span className="comment-author">{c.user?.fullName || 'Anonymous'}</span>
@@ -515,10 +1174,18 @@ export default function GalleryPage() {
                             </div>
                           </div>
                         ))}
-                        {commentsPagination.page < commentsPagination.totalPages && (<button onClick={loadMoreComments} className="load-more-comments">Load more comments ({commentsPagination.total - comments.length} remaining)</button>)}
+                        {commentsPagination.page < commentsPagination.totalPages && (
+                          <button onClick={loadMoreComments} className="load-more-comments">
+                            Load more comments ({commentsPagination.total - comments.length} remaining)
+                          </button>
+                        )}
                       </>
                     ) : (
-                      <div className="no-comments"><MessageCircle size={40} strokeWidth={1} /><p>No comments yet</p><span>Be the first to share your thoughts</span></div>
+                      <div className="no-comments">
+                        <MessageCircle size={40} strokeWidth={1} />
+                        <p>No comments yet</p>
+                        <span>Be the first to share your thoughts</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -532,9 +1199,28 @@ export default function GalleryPage() {
       {showShareModal && (
         <div className="share-modal" onClick={() => setShowShareModal(false)}>
           <div className="share-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="share-header"><h3>Share this media</h3><button onClick={() => setShowShareModal(false)}><X size={20} /></button></div>
-            <div className="share-url"><input type="text" value={`${window.location.origin}/gallery?media=${selectedMedia?.id}`} readOnly /><button onClick={() => copyToClipboard(`${window.location.origin}/gallery?media=${selectedMedia?.id}`)}>{copied ? <Check size={18} /> : <Copy size={18} />}{copied ? 'Copied!' : 'Copy'}</button></div>
-            <div className="share-platforms"><button className="facebook"><Facebook size={24} /> Facebook</button><button className="twitter"><Twitter size={24} /> Twitter</button><button className="instagram"><Instagram size={24} /> Instagram</button></div>
+            <div className="share-header">
+              <h3>Share this media</h3>
+              <button onClick={() => setShowShareModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="share-url">
+              <input 
+                type="text" 
+                value={`${window.location.origin}/gallery?media=${selectedMedia?.id}`} 
+                readOnly 
+              />
+              <button onClick={() => copyToClipboard(`${window.location.origin}/gallery?media=${selectedMedia?.id}`)}>
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div className="share-platforms">
+              <button className="facebook"><Facebook size={24} /> Facebook</button>
+              <button className="twitter"><Twitter size={24} /> Twitter</button>
+              <button className="instagram"><Instagram size={24} /> Instagram</button>
+            </div>
           </div>
         </div>
       )}
@@ -546,6 +1232,22 @@ export default function GalleryPage() {
           position: relative;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+
+        .content-fade-in {
+          animation: contentFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes contentFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
         .floating-bg {
           position: fixed;
           inset: 0;
@@ -553,6 +1255,7 @@ export default function GalleryPage() {
           pointer-events: none;
           z-index: 0;
         }
+
         .blob {
           position: absolute;
           border-radius: 50%;
@@ -560,17 +1263,25 @@ export default function GalleryPage() {
           opacity: 0.08;
           animation: float 20s infinite;
         }
+
         .blob-1 { width: 500px; height: 500px; top: -100px; right: -100px; background: #3b82f6; }
         .blob-2 { width: 400px; height: 400px; bottom: -100px; left: -100px; background: #8b5cf6; animation-delay: -5s; }
         .blob-3 { width: 600px; height: 600px; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #6366f1; animation-delay: -10s; }
         .blob-4 { width: 300px; height: 300px; top: 20%; right: 20%; background: #06b6d4; animation-delay: -15s; }
-        @keyframes float { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } }
+
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
         .glass-effect {
           background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
           border: 1px solid rgba(255, 255, 255, 0.1);
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
+
         .gallery-content {
           position: relative;
           z-index: 1;
@@ -578,11 +1289,13 @@ export default function GalleryPage() {
           margin: 0 auto;
           padding: 20px;
         }
+
         .hero-card {
           border-radius: 30px;
           padding: 25px 30px;
           margin-bottom: 25px;
         }
+
         .hero-top {
           display: flex;
           justify-content: space-between;
@@ -590,7 +1303,9 @@ export default function GalleryPage() {
           flex-wrap: wrap;
           gap: 20px;
         }
+
         .hero-left { display: flex; align-items: center; gap: 15px; }
+
         .back-button {
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -604,59 +1319,354 @@ export default function GalleryPage() {
           cursor: pointer;
           transition: all 0.3s ease;
         }
+
         .back-button:hover {
           background: rgba(255, 255, 255, 0.2);
           transform: scale(1.05);
         }
-        .logo-wrapper { padding: 12px; background: linear-gradient(135deg, #3b82f6, #6366f1); border-radius: 15px; box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3); }
+
+        .logo-wrapper { 
+          padding: 12px; 
+          background: linear-gradient(135deg, #3b82f6, #6366f1); 
+          border-radius: 15px; 
+          box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+
         .logo-icon { width: 30px; height: 30px; color: white; }
-        .hero-title { font-size: 28px; font-weight: bold; color: white; margin-bottom: 5px; }
+
+        .hero-title { 
+          font-size: 28px; 
+          font-weight: bold; 
+          color: white; 
+          margin-bottom: 5px;
+          background: linear-gradient(135deg, #fff, #3b82f6);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
         .hero-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .stat-badge { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 20px; font-size: 12px; color: rgba(255,255,255,0.8); }
-        .live-badge { padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; color: #10b981; font-size: 12px; }
-        .time-badge { padding: 2px 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: rgba(255,255,255,0.8); font-size: 12px; }
-        .view-toggle { display: flex; gap: 8px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 4px; }
-        .view-btn { padding: 8px 12px; background: transparent; border: none; border-radius: 8px; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.3s; }
-        .view-btn.active { background: rgba(255,255,255,0.2); color: white; }
-        .quick-stats { display: flex; gap: 30px; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; }
-        .quick-stat-item { display: flex; align-items: center; gap: 8px; }
-        .quick-stat-icon { width: 18px; height: 18px; color: rgba(255,255,255,0.6); }
-        .quick-stat-label { color: rgba(255,255,255,0.7); font-size: 13px; }
-        .quick-stat-value { color: white; font-size: 14px; font-weight: bold; }
-        .trending-section { border-radius: 20px; padding: 20px; margin-bottom: 25px; }
-        .trending-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+
+        .stat-badge { 
+          display: flex; 
+          align-items: center; 
+          gap: 5px; 
+          padding: 4px 10px; 
+          background: rgba(255,255,255,0.1); 
+          border-radius: 20px; 
+          font-size: 12px; 
+          color: rgba(255,255,255,0.8); 
+        }
+
+        .live-badge { 
+          padding: 2px 8px; 
+          background: rgba(16, 185, 129, 0.2); 
+          border: 1px solid rgba(16, 185, 129, 0.3); 
+          border-radius: 12px; 
+          color: #10b981; 
+          font-size: 12px; 
+        }
+
+        .pulse-live {
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+
+        .time-badge { 
+          padding: 2px 8px; 
+          background: rgba(255,255,255,0.1); 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 12px; 
+          color: rgba(255,255,255,0.8); 
+          font-size: 12px; 
+        }
+
+        .view-toggle { 
+          display: flex; 
+          gap: 8px; 
+          background: rgba(255,255,255,0.1); 
+          border-radius: 12px; 
+          padding: 4px; 
+        }
+
+        .view-btn { 
+          padding: 8px 12px; 
+          background: transparent; 
+          border: none; 
+          border-radius: 8px; 
+          color: rgba(255,255,255,0.6); 
+          cursor: pointer; 
+          transition: all 0.3s; 
+        }
+
+        .view-btn.active { 
+          background: rgba(255,255,255,0.2); 
+          color: white; 
+        }
+
+        .quick-stats { 
+          display: flex; 
+          gap: 30px; 
+          margin-top: 20px; 
+          padding-top: 20px; 
+          border-top: 1px solid rgba(255,255,255,0.1); 
+          flex-wrap: wrap; 
+        }
+
+        .quick-stat-item { 
+          display: flex; 
+          align-items: center; 
+          gap: 8px; 
+          transition: transform 0.3s ease;
+        }
+
+        .quick-stat-item:hover {
+          transform: translateY(-2px);
+        }
+
+        .quick-stat-icon { 
+          width: 18px; 
+          height: 18px; 
+          color: rgba(255,255,255,0.6); 
+        }
+
+        .quick-stat-label { 
+          color: rgba(255,255,255,0.7); 
+          font-size: 13px; 
+        }
+
+        .quick-stat-value { 
+          color: white; 
+          font-size: 14px; 
+          font-weight: bold; 
+        }
+
+        .trending-section { 
+          border-radius: 20px; 
+          padding: 20px; 
+          margin-bottom: 25px; 
+        }
+
+        .trending-header { 
+          display: flex; 
+          align-items: center; 
+          gap: 10px; 
+          margin-bottom: 15px; 
+        }
+
         .trending-icon { color: #f59e0b; }
-        .trending-title { color: white; font-size: 18px; font-weight: 600; }
-        .trending-badge { padding: 2px 8px; background: rgba(245, 158, 11, 0.2); border-radius: 12px; color: #f59e0b; font-size: 12px; }
-        .trending-scroll { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; }
-        .trending-card { min-width: 180px; background: rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.3s; }
-        .trending-card:hover { transform: translateY(-4px); }
-        .trending-media { position: relative; aspect-ratio: 16/9; background: #1a1a2e; }
-        .trending-media img { width: 100%; height: 100%; object-fit: cover; }
-        .trending-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }
-        .trending-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+
+        .trending-title { 
+          color: white; 
+          font-size: 18px; 
+          font-weight: 600; 
+        }
+
+        .trending-badge { 
+          padding: 2px 8px; 
+          background: rgba(245, 158, 11, 0.2); 
+          border-radius: 12px; 
+          color: #f59e0b; 
+          font-size: 12px; 
+        }
+
+        .trending-scroll { 
+          display: flex; 
+          gap: 15px; 
+          overflow-x: auto; 
+          padding-bottom: 10px; 
+        }
+
+        .trending-card { 
+          min-width: 180px; 
+          background: rgba(255,255,255,0.05); 
+          border-radius: 12px; 
+          overflow: hidden; 
+          cursor: pointer; 
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        .trending-card:hover { 
+          transform: translateY(-4px) scale(1.02); 
+          box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+        }
+
+        .trending-media { 
+          position: relative; 
+          aspect-ratio: 16/9; 
+          background: #1a1a2e; 
+        }
+
+        .trending-media img { 
+          width: 100%; 
+          height: 100%; 
+          object-fit: cover; 
+        }
+
+        .trending-placeholder { 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          height: 100%; 
+        }
+
+        .trending-overlay { 
+          position: absolute; 
+          inset: 0; 
+          background: rgba(0,0,0,0.5); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          opacity: 0; 
+          transition: opacity 0.3s; 
+        }
+
         .trending-card:hover .trending-overlay { opacity: 1; }
+
         .trending-info { padding: 10px; }
-        .trending-info h4 { color: white; font-size: 12px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .trending-stats { display: flex; gap: 10px; font-size: 10px; color: rgba(255,255,255,0.5); }
-        .trending-stats span { display: flex; align-items: center; gap: 3px; }
-        .filters-bar { border-radius: 20px; padding: 15px 20px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
-        .categories-scroll { display: flex; gap: 10px; flex-wrap: wrap; }
-        .category-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 25px; color: rgba(255,255,255,0.8); font-size: 13px; cursor: pointer; transition: all 0.3s; }
-        .category-btn:hover { background: rgba(255,255,255,0.1); }
-        .category-btn.active { background: linear-gradient(90deg, #3b82f6, #6366f1); border-color: transparent; color: white; }
-        .sort-select { padding: 8px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: white; font-size: 13px; cursor: pointer; outline: none; }
-        .sort-select option { background: #1a0033; }
-        .media-grid { display: grid; gap: 20px; }
-        .media-grid.grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-        .media-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-        .media-card { border-radius: 30px; overflow: hidden; cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease; animation: fadeInUp 0.5s ease forwards; opacity: 0; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .media-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
-        .card-media { position: relative; aspect-ratio: 1/1; background: linear-gradient(135deg, #1a1a2e, #1a50e2); overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        .card-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
-        .media-card:hover .card-image { transform: scale(1.05); }
-        .video-preview { position: relative; width: 100%; height: 100%; }
+
+        .trending-info h4 { 
+          color: white; 
+          font-size: 12px; 
+          margin-bottom: 5px; 
+          white-space: nowrap; 
+          overflow: hidden; 
+          text-overflow: ellipsis; 
+        }
+
+        .trending-stats { 
+          display: flex; 
+          gap: 10px; 
+          font-size: 10px; 
+          color: rgba(255,255,255,0.5); 
+        }
+
+        .trending-stats span { 
+          display: flex; 
+          align-items: center; 
+          gap: 3px; 
+        }
+
+        .filters-bar { 
+          border-radius: 20px; 
+          padding: 15px 20px; 
+          margin-bottom: 25px; 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          flex-wrap: wrap; 
+          gap: 15px; 
+        }
+
+        .categories-scroll { 
+          display: flex; 
+          gap: 10px; 
+          flex-wrap: wrap; 
+        }
+
+        .category-btn { 
+          display: flex; 
+          align-items: center; 
+          gap: 8px; 
+          padding: 8px 16px; 
+          background: rgba(255,255,255,0.05); 
+          border: 1px solid rgba(255,255,255,0.1); 
+          border-radius: 25px; 
+          color: rgba(255,255,255,0.8); 
+          font-size: 13px; 
+          cursor: pointer; 
+          transition: all 0.3s; 
+        }
+
+        .category-btn:hover { 
+          background: rgba(255,255,255,0.1); 
+          transform: translateY(-2px); 
+        }
+
+        .category-btn.active { 
+          background: linear-gradient(90deg, #3b82f6, #6366f1); 
+          border-color: transparent; 
+          color: white; 
+        }
+
+        .sort-select { 
+          padding: 8px 16px; 
+          background: rgba(255,255,255,0.1); 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 12px; 
+          color: white; 
+          font-size: 13px; 
+          cursor: pointer; 
+          outline: none; 
+        }
+
+        .media-grid { 
+          display: grid; 
+          gap: 20px; 
+        }
+
+        .media-grid.grid { 
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+        }
+
+        .media-grid.compact { 
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+        }
+
+        .media-card { 
+          border-radius: 30px; 
+          overflow: hidden; 
+          cursor: pointer; 
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+          animation: fadeInUp 0.5s ease forwards; 
+          opacity: 0; 
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .media-card:hover { 
+          transform: translateY(-8px) scale(1.02); 
+          box-shadow: 0 20px 40px rgba(0,0,0,0.3); 
+        }
+
+        .card-media { 
+          position: relative; 
+          aspect-ratio: 1/1; 
+          background: linear-gradient(135deg, #1a1a2e, #1a50e2); 
+          overflow: hidden; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+        }
+
+        .card-image { 
+          width: 100%; 
+          height: 100%; 
+          object-fit: cover; 
+          transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        .media-card:hover .card-image { transform: scale(1.1); }
+
+        .video-preview { 
+          position: relative; 
+          width: 100%; 
+          height: 100%; 
+        }
+
         .video-placeholder {
           display: flex;
           flex-direction: column;
@@ -666,44 +1676,288 @@ export default function GalleryPage() {
           background: linear-gradient(135deg, #1a1a2e, #0f47e0);
           color: rgba(255, 255, 255, 0.5);
         }
-        .video-placeholder svg {
-          margin-bottom: 8px;
+
+        .video-placeholder svg { margin-bottom: 8px; }
+
+        .play-overlay { 
+          position: absolute; 
+          inset: 0; 
+          background: rgba(0,0,0,0.5); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
         }
-        .play-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-        .card-file { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-        .media-icon { width: 48px; height: 48px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
-        .card-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+
+        .card-file { 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center; 
+          height: 100%; 
+        }
+
+        .media-icon { 
+          width: 48px; 
+          height: 48px; 
+          color: rgba(255,255,255,0.5); 
+          margin-bottom: 8px; 
+        }
+
+        .card-overlay { 
+          position: absolute; 
+          inset: 0; 
+          background: rgba(0,0,0,0.6); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          opacity: 0; 
+          transition: opacity 0.3s; 
+        }
+
         .media-card:hover .card-overlay { opacity: 1; }
-        .quick-view-btn { padding: 8px 16px; background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.3); border-radius: 25px; color: white; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        .featured-badge { position: absolute; top: 10px; left: 10px; padding: 4px 8px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 12px; color: white; font-size: 10px; display: flex; align-items: center; gap: 4px; }
-        .save-badge { position: absolute; top: 10px; right: 10px; padding: 6px; background: rgba(0,0,0,0.6); border-radius: 50%; border: none; color: white; cursor: pointer; transition: all 0.3s; }
-        .save-badge.saved { color: #f59e0b; background: rgba(0,0,0,0.8); }
+
+        .quick-view-btn { 
+          padding: 8px 16px; 
+          background: rgba(255,255,255,0.2); 
+          backdrop-filter: blur(5px); 
+          border: 1px solid rgba(255,255,255,0.3); 
+          border-radius: 25px; 
+          color: white; 
+          font-size: 12px; 
+          cursor: pointer; 
+          display: flex; 
+          align-items: center; 
+          gap: 6px; 
+        }
+
+        .featured-badge { 
+          position: absolute; 
+          top: 10px; 
+          left: 10px; 
+          padding: 4px 8px; 
+          background: linear-gradient(135deg, #f59e0b, #d97706); 
+          border-radius: 12px; 
+          color: white; 
+          font-size: 10px; 
+          display: flex; 
+          align-items: center; 
+          gap: 4px; 
+        }
+
+        .save-badge { 
+          position: absolute; 
+          top: 10px; 
+          right: 10px; 
+          padding: 6px; 
+          background: rgba(0,0,0,0.6); 
+          border-radius: 50%; 
+          border: none; 
+          color: white; 
+          cursor: pointer; 
+          transition: all 0.3s; 
+        }
+
+        .save-badge:hover { transform: scale(1.1); }
+
+        .save-badge.saved { color: #f59e0b; }
+
         .card-info { padding: 15px; }
-        .card-title { font-size: 14px; font-weight: 600; color: white; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-stats { display: flex; gap: 16px; margin-bottom: 10px; }
-        .stat-btn, .stat { display: flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255,255,255,0.6); background: none; border: none; cursor: pointer; }
+
+        .card-title { 
+          font-size: 14px; 
+          font-weight: 600; 
+          color: white; 
+          margin-bottom: 8px; 
+          white-space: nowrap; 
+          overflow: hidden; 
+          text-overflow: ellipsis; 
+        }
+
+        .card-stats { 
+          display: flex; 
+          gap: 16px; 
+          margin-bottom: 10px; 
+        }
+
+        .stat-btn, .stat { 
+          display: flex; 
+          align-items: center; 
+          gap: 4px; 
+          font-size: 11px; 
+          color: rgba(255,255,255,0.6); 
+          background: none; 
+          border: none; 
+          cursor: pointer; 
+        }
+
         .stat-btn.liked { color: #ef4444; }
-        .card-meta { display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.4); }
-        .meta-user, .meta-date { display: flex; align-items: center; gap: 4px; }
-        @keyframes likeAnimation { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+
+        .card-meta { 
+          display: flex; 
+          justify-content: space-between; 
+          font-size: 10px; 
+          color: rgba(255,255,255,0.4); 
+        }
+
+        .meta-user, .meta-date { 
+          display: flex; 
+          align-items: center; 
+          gap: 4px; 
+        }
+
+        @keyframes likeAnimation {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.3); }
+          100% { transform: scale(1); }
+        }
+
         .animate-like { animation: likeAnimation 0.3s ease; }
-        .empty-state { text-align: center; padding: 80px 20px; border-radius: 30px; }
-        .empty-icon { color: rgba(255,255,255,0.3); margin-bottom: 20px; }
-        .empty-state h3 { color: white; font-size: 20px; margin-bottom: 10px; }
-        .empty-state p { color: rgba(255,255,255,0.6); margin-bottom: 20px; }
-        .upload-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 24px; background: linear-gradient(90deg, #3b82f6, #6366f1); border-radius: 25px; color: white; text-decoration: none; font-size: 14px; font-weight: 500; }
-        .media-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,0.9); }
-        .modal-glass { max-width: 1200px; width: 100%; max-height: 90vh; background: rgba(0,0,0,0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.2); border-radius: 30px; overflow: hidden; animation: modalIn 0.3s ease; display: flex; flex-direction: column; }
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .modal-close { background: rgba(255,255,255,0.1); border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; transition: all 0.3s; }
-        .modal-close:hover { background: rgba(255,255,255,0.2); }
-        .modal-title-bar { flex: 1; margin-left: 20px; display: flex; justify-content: space-between; align-items: center; }
-        .modal-title-bar h2 { color: white; font-size: 18px; margin: 0; }
-        .modal-actions { display: flex; gap: 15px; }
-        .action-icon { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; transition: color 0.3s; }
-        .action-icon:hover { color: white; }
-        .modal-body { display: flex; flex-direction: row; flex: 1; min-height: 500px; overflow: hidden; }
+
+        .empty-state { 
+          text-align: center; 
+          padding: 80px 20px; 
+          border-radius: 30px; 
+        }
+
+        .empty-icon { 
+          color: rgba(255,255,255,0.3); 
+          margin-bottom: 20px; 
+          animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+
+        .empty-state h3 { 
+          color: white; 
+          font-size: 20px; 
+          margin-bottom: 10px; 
+        }
+
+        .empty-state p { 
+          color: rgba(255,255,255,0.6); 
+          margin-bottom: 20px; 
+        }
+
+        .upload-link { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 8px; 
+          padding: 10px 24px; 
+          background: linear-gradient(90deg, #3b82f6, #6366f1); 
+          border-radius: 25px; 
+          color: white; 
+          text-decoration: none; 
+          font-size: 14px; 
+          font-weight: 500; 
+        }
+
+        .media-modal { 
+          position: fixed; 
+          inset: 0; 
+          z-index: 1000; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          padding: 20px; 
+          background: rgba(0,0,0,0.9); 
+          animation: fadeIn 0.2s ease; 
+        }
+
+        .modal-glass { 
+          max-width: 1200px; 
+          width: 100%; 
+          max-height: 90vh; 
+          background: rgba(0,0,0,0.8); 
+          backdrop-filter: blur(20px); 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 30px; 
+          overflow: hidden; 
+          animation: scaleIn 0.3s ease; 
+          display: flex; 
+          flex-direction: column; 
+        }
+
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        .modal-header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          padding: 20px; 
+          border-bottom: 1px solid rgba(255,255,255,0.1); 
+        }
+
+        .modal-close { 
+          background: rgba(255,255,255,0.1); 
+          border: none; 
+          border-radius: 50%; 
+          width: 40px; 
+          height: 40px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          color: white; 
+          cursor: pointer; 
+          transition: all 0.3s; 
+        }
+
+        .modal-close:hover { 
+          background: rgba(255,255,255,0.2); 
+          transform: rotate(90deg); 
+        }
+
+        .modal-title-bar { 
+          flex: 1; 
+          margin-left: 20px; 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+        }
+
+        .modal-title-bar h2 { 
+          color: white; 
+          font-size: 18px; 
+          margin: 0; 
+        }
+
+        .modal-actions { 
+          display: flex; 
+          gap: 15px; 
+        }
+
+        .action-icon { 
+          background: none; 
+          border: none; 
+          color: rgba(255,255,255,0.7); 
+          cursor: pointer; 
+          transition: all 0.3s; 
+        }
+
+        .action-icon:hover { 
+          color: white; 
+          transform: scale(1.1); 
+        }
+
+        .modal-body { 
+          display: flex; 
+          flex-direction: row; 
+          flex: 1; 
+          min-height: 500px; 
+          overflow: hidden; 
+        }
+
         .modal-media { 
           flex: 1; 
           display: flex; 
@@ -714,63 +1968,168 @@ export default function GalleryPage() {
           background: #000000;
           min-height: 500px;
         }
+
         .modal-media img { 
           max-width: 100%; 
           max-height: 70vh; 
           width: auto;
           height: auto;
-          
           object-fit: contain; 
           border-radius: 12px;
         }
+
         .video-player-wrapper { 
           position: relative; 
           width: 100%;
           height: 100%;
           display: flex;
-          
           align-items: center;
           justify-content: center;
         }
+
         .video-player { 
           max-width: 100%;
           max-height: 70vh;
           width: auto;
           height: auto;
-          
           object-fit: contain;
           border-radius: 12px;
         }
-        .video-player::-webkit-media-controls {
-          overflow: visible !important;
-          
+
+        .modal-info { 
+          width: 380px; 
+          padding: 30px; 
+          overflow-y: auto; 
+          border-left: 1px solid rgba(255,255,255,0.1); 
         }
-        .video-player::-webkit-media-controls-enclosure {
-          border-radius: 8px;
-          background: transparent;
-          
-          margin-bottom: 10px;
+
+        .modal-description { 
+          color: rgba(255,255,255,0.7); 
+          margin-bottom: 20px; 
+          line-height: 1.5; 
         }
-        .modal-info { width: 380px; padding: 30px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.1); }
-        .modal-description { color: rgba(255,255,255,0.7); margin-bottom: 20px; line-height: 1.5; }
-        .modal-stats { display: flex; gap: 24px; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
-        .stat-large { display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); font-size: 14px; }
+
+        .modal-stats { 
+          display: flex; 
+          gap: 24px; 
+          padding: 15px 0; 
+          border-top: 1px solid rgba(255,255,255,0.1); 
+          border-bottom: 1px solid rgba(255,255,255,0.1); 
+          margin-bottom: 20px; 
+        }
+
+        .stat-large { 
+          display: flex; 
+          align-items: center; 
+          gap: 8px; 
+          background: none; 
+          border: none; 
+          cursor: pointer; 
+          color: rgba(255,255,255,0.7); 
+          font-size: 14px; 
+        }
+
         .stat-large.liked { color: #ef4444; }
-        .modal-meta { display: flex; gap: 16px; font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 25px; flex-wrap: wrap; }
-        .comments-section h3 { display: flex; align-items: center; gap: 8px; font-size: 16px; color: white; margin-bottom: 15px; }
-        .comment-input { display: flex; gap: 12px; margin-bottom: 20px; }
-        .comment-avatar { width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .avatar-placeholder { width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #6366f1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: bold; }
-        .avatar-placeholder.small { width: 32px; height: 32px; font-size: 12px; }
-        .comment-input-wrapper { flex: 1; display: flex; gap: 10px; }
-        .comment-input-wrapper input { flex: 1; padding: 10px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 25px; color: white; outline: none; }
-        .comment-input-wrapper button { padding: 9px 20px; background: linear-gradient(90deg, #3b82f6, #6366f1); border: none; border-radius: 25px; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s; }
-        .comment-input-wrapper button:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
-        .login-to-comment { text-align: center; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px; }
-        .login-to-comment p { color: rgba(255,255,255,0.6); }
-        .login-to-comment a { color: #3b82f6; text-decoration: none; }
+
+        .modal-meta { 
+          display: flex; 
+          gap: 16px; 
+          font-size: 12px; 
+          color: rgba(255,255,255,0.5); 
+          margin-bottom: 25px; 
+          flex-wrap: wrap; 
+        }
+
+        .comments-section h3 { 
+          display: flex; 
+          align-items: center; 
+          gap: 8px; 
+          font-size: 16px; 
+          color: white; 
+          margin-bottom: 15px; 
+        }
+
+        .comment-input { 
+          display: flex; 
+          gap: 12px; 
+          margin-bottom: 20px; 
+        }
+
+        .comment-avatar { 
+          width: 32px; 
+          height: 32px; 
+          background: rgba(255,255,255,0.1); 
+          border-radius: 50%; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          overflow: hidden; 
+        }
+
+        .avatar-placeholder { 
+          width: 32px; 
+          height: 32px; 
+          background: linear-gradient(135deg, #3b82f6, #6366f1); 
+          border-radius: 50%; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          color: white; 
+          font-size: 14px; 
+          font-weight: bold; 
+        }
+
+        .avatar-placeholder.small { 
+          width: 32px; 
+          height: 32px; 
+          font-size: 12px; 
+        }
+
+        .comment-input-wrapper { 
+          flex: 1; 
+          display: flex; 
+          gap: 10px; 
+        }
+
+        .comment-input-wrapper input { 
+          flex: 1; 
+          padding: 10px 16px; 
+          background: rgba(255,255,255,0.1); 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 25px; 
+          color: white; 
+          outline: none; 
+        }
+
+        .comment-input-wrapper button { 
+          padding: 9px 20px; 
+          background: linear-gradient(90deg, #3b82f6, #6366f1); 
+          border: none; 
+          border-radius: 25px; 
+          color: white; 
+          cursor: pointer; 
+          display: flex; 
+          align-items: center; 
+          gap: 6px; 
+        }
+
+        .btn-spinner { 
+          width: 14px; 
+          height: 14px; 
+          border: 2px solid rgba(255,255,255,0.3); 
+          border-top-color: white; 
+          border-radius: 50%; 
+          animation: spin 0.6s linear infinite; 
+        }
+
+        .login-to-comment { 
+          text-align: center; 
+          padding: 20px; 
+          background: rgba(255,255,255,0.05); 
+          border-radius: 12px; 
+          margin-bottom: 20px; 
+        }
+
         .comments-list-container {
           flex: 1;
           overflow-y: auto;
@@ -778,17 +2137,23 @@ export default function GalleryPage() {
           padding-right: 4px;
           margin-bottom: 16px;
         }
+
         .comment-item {
           display: flex;
           gap: 12px;
           margin-bottom: 20px;
           padding-bottom: 12px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          animation: fadeIn 0.3s ease;
         }
-        .comment-content {
-          flex: 1;
-          min-width: 0;
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
+
+        .comment-content { flex: 1; }
+
         .comment-header {
           display: flex;
           justify-content: space-between;
@@ -797,89 +2162,163 @@ export default function GalleryPage() {
           gap: 6px;
           margin-bottom: 4px;
         }
+
         .comment-author {
           font-weight: 600;
           font-size: 12px;
           color: white;
         }
+
         .comment-date {
           font-size: 10px;
           color: rgba(255,255,255,0.4);
         }
+
         .comment-text {
           font-size: 12px;
           color: rgba(255,255,255,0.8);
           line-height: 1.4;
           word-break: break-word;
         }
-        .comments-loading { text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.6); }
-        .spinner { width: 30px; height: 30px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
-        .load-more-comments { width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 25px; color: rgba(255,255,255,0.7); font-size: 12px; cursor: pointer; margin-top: 15px; transition: all 0.3s; }
-        .load-more-comments:hover { background: rgba(255,255,255,0.1); color: white; }
-        .no-comments { text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.4); }
-        .no-comments svg { margin-bottom: 12px; opacity: 0.5; }
-        .no-comments p { font-size: 14px; margin-bottom: 4px; }
-        .no-comments span { font-size: 12px; }
-        .share-modal { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); }
-        .share-modal-content { background: #1a1a2e; border-radius: 20px; padding: 25px; width: 400px; max-width: 90%; }
-        .share-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .share-header h3 { color: white; margin: 0; }
-        .share-url { display: flex; gap: 10px; margin-bottom: 20px; }
-        .share-url input { flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; }
-        .share-url button { padding: 8px 16px; background: #3b82f6; border: none; border-radius: 8px; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        .share-platforms { display: flex; gap: 15px; }
-        .share-platforms button { flex: 1; padding: 10px; border: none; border-radius: 10px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        .comments-loading { 
+          text-align: center; 
+          padding: 40px 20px; 
+          color: rgba(255,255,255,0.6); 
+        }
+
+        .spinner { 
+          width: 30px; 
+          height: 30px; 
+          border: 2px solid rgba(255,255,255,0.2); 
+          border-top-color: #3b82f6; 
+          border-radius: 50%; 
+          animation: spin 0.8s linear infinite; 
+          margin: 0 auto 12px; 
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .load-more-comments { 
+          width: 100%; 
+          padding: 10px; 
+          background: rgba(255,255,255,0.05); 
+          border: 1px solid rgba(255,255,255,0.1); 
+          border-radius: 25px; 
+          color: rgba(255,255,255,0.7); 
+          font-size: 12px; 
+          cursor: pointer; 
+          margin-top: 15px; 
+        }
+
+        .no-comments { 
+          text-align: center; 
+          padding: 40px 20px; 
+          color: rgba(255,255,255,0.4); 
+        }
+
+        .share-modal { 
+          position: fixed; 
+          inset: 0; 
+          z-index: 1100; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          background: rgba(0,0,0,0.8); 
+          animation: fadeIn 0.2s ease; 
+        }
+
+        .share-modal-content { 
+          background: #1a1a2e; 
+          border-radius: 20px; 
+          padding: 25px; 
+          width: 400px; 
+          max-width: 90%; 
+          animation: scaleIn 0.2s ease; 
+        }
+
+        .share-header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          margin-bottom: 20px; 
+        }
+
+        .share-url { 
+          display: flex; 
+          gap: 10px; 
+          margin-bottom: 20px; 
+        }
+
+        .share-url input { 
+          flex: 1; 
+          padding: 10px; 
+          background: rgba(255,255,255,0.1); 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 8px; 
+          color: white; 
+        }
+
+        .share-url button { 
+          padding: 8px 16px; 
+          background: #3b82f6; 
+          border: none; 
+          border-radius: 8px; 
+          color: white; 
+          cursor: pointer; 
+        }
+
+        .share-platforms { 
+          display: flex; 
+          gap: 15px; 
+        }
+
+        .share-platforms button { 
+          flex: 1; 
+          padding: 10px; 
+          border: none; 
+          border-radius: 10px; 
+          color: white; 
+          cursor: pointer; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          gap: 8px; 
+        }
+
         .facebook { background: #1877f2; }
         .twitter { background: #1da1f2; }
         .instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
-        .save-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 30px; z-index: 1200; animation: fadeInOut 2s ease; }
-        .simple-loading { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f0f1a; color: #fff; gap: 16px; }
-        .simple-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(20px); } 15% { opacity: 1; transform: translateX(-50%) translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(20px); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .save-toast { 
+          position: fixed; 
+          bottom: 20px; 
+          left: 50%; 
+          transform: translateX(-50%); 
+          background: #333; 
+          color: white; 
+          padding: 12px 24px; 
+          border-radius: 30px; 
+          z-index: 1200; 
+          animation: fadeInOut 2s ease; 
+        }
+
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+          85% { opacity: 1; }
+          100% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+        }
+
         @media (max-width: 768px) {
           .modal-body { flex-direction: column; min-height: auto; }
-          .modal-media { 
-            max-height: 50vh; 
-            min-height: 300px;
-            padding: 16px;
-          }
-          .modal-media video {
-            max-height: 45vh;
-            width: 100%;
-          }
-          .video-player {
-            max-height: 45vh;
-          }
-          .modal-info {
-            width: 100%;
-            max-height: 50vh;
-            overflow-y: auto;
-            padding: 16px;
-            border-left: none;
-            border-top: 1px solid rgba(255,255,255,0.1);
-          }
-          .modal-stats { gap: 16px; padding: 10px 0; }
-          .comments-section h3 { margin-bottom: 10px; font-size: 14px; }
-          .comment-input { margin-bottom: 12px; }
-          .comment-input-wrapper input { padding: 8px 12px; font-size: 12px; }
-          .comment-input-wrapper button { padding: 6px 12px; font-size: 12px; }
-          .comments-list-container { max-height: 250px; }
-          .comment-avatar { width: 28px; height: 28px; }
-          .avatar-placeholder { width: 28px; height: 28px; font-size: 12px; }
-          .comment-author { font-size: 11px; }
-          .comment-text { font-size: 11px; }
-          .comment-header { flex-direction: column; gap: 2px; }
+          .modal-media { max-height: 50vh; min-height: 300px; padding: 16px; }
+          .modal-info { width: 100%; max-height: 50vh; overflow-y: auto; padding: 16px; border-left: none; border-top: 1px solid rgba(255,255,255,0.1); }
           .hero-title { font-size: 24px; }
           .media-grid.grid, .media-grid.compact { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-          .back-button {
-            width: 38px;
-            height: 38px;
-          }
-          .back-button svg {
-            width: 20px;
-            height: 20px;
-          }
+          .back-button { width: 38px; height: 38px; }
         }
       `}</style>
     </div>

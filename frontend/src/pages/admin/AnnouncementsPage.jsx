@@ -1,15 +1,15 @@
 // frontend/src/pages/admin/AnnouncementsPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiPlus, FiX, FiEdit2, FiTrash2, FiBell, 
   FiClock, FiCalendar, FiCheck, FiAlertCircle,
-  FiRefreshCw, FiSearch, FiFilter, FiTag
+  FiRefreshCw, FiSearch, FiFilter, FiTag, FiLoader
 } from "react-icons/fi";
 import { MdOutlineAnnouncement } from "react-icons/md";
 import { BsMegaphone } from "react-icons/bs";
 import axios from "axios";
-import io from "socket.io-client";
+import { toast, Toaster } from "react-hot-toast";
 import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
 
@@ -28,44 +28,66 @@ export default function AdminAnnouncements() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: "", type: "" });
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  
+  // Loading states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const socketRef = useRef(null);
 
   // Socket connection for real-time updates
   useEffect(() => {
-    const socket = io(BASE_URL);
-    
-    socket.on('connect', () => {
-      console.log('Connected to announcements feed');
-    });
+    const initSocket = async () => {
+      try {
+        const { io } = await import("socket.io-client");
+        const socket = io(BASE_URL, {
+          withCredentials: true,
+          transports: ['polling', 'websocket'],
+        });
+        socketRef.current = socket;
 
-    socket.on('new_announcement', (announcement) => {
-      setAnnouncements(prev => [announcement, ...prev]);
-      showNotification("New announcement posted!", "success");
-    });
+        socket.on('connect', () => {
+          console.log('Connected to announcements feed');
+        });
 
-    socket.on('announcement_updated', (updated) => {
-      setAnnouncements(prev => 
-        prev.map(a => a.id === updated.id ? updated : a)
-      );
-      showNotification("Announcement updated", "success");
-    });
+        socket.on('new_announcement', (announcement) => {
+          setAnnouncements(prev => [announcement, ...prev]);
+          toast.success("New announcement posted!", {
+            icon: '🔔',
+            duration: 3000,
+          });
+        });
 
-    socket.on('announcement_deleted', (id) => {
-      setAnnouncements(prev => prev.filter(a => a.id !== id));
-      showNotification("Announcement deleted", "info");
-    });
+        socket.on('announcement_updated', (updated) => {
+          setAnnouncements(prev => 
+            prev.map(a => a.id === updated.id ? updated : a)
+          );
+        });
 
-    return () => socket.disconnect();
+        socket.on('announcement_deleted', (id) => {
+          setAnnouncements(prev => prev.filter(a => a.id !== id));
+        });
+
+        socket.on('connect_error', (error) => {
+          console.log('Socket connection error:', error.message);
+        });
+      } catch (err) {
+        console.log('Socket.IO not available, falling back to polling');
+      }
+    };
+
+    initSocket();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, []);
-
-  // Show notification
-  const showNotification = (message, type = "success") => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
-  };
 
   // Fetch announcements
   const fetchAnnouncements = async (isRefresh = false) => {
@@ -81,7 +103,7 @@ export default function AdminAnnouncements() {
     } catch (err) {
       console.error("Fetch Announcements Error:", err);
       setError("Failed to load announcements.");
-      showNotification("Failed to load announcements", "error");
+      toast.error("Failed to load announcements");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,13 +115,36 @@ export default function AdminAnnouncements() {
   }, []);
 
   const handleAdd = async () => {
+    // Prevent double submission
+    if (isSubmitting) return;
+    
     if (!title.trim() || !content.trim()) {
-      showNotification("Title and content are required", "error");
+      toast.error("Title and content are required");
       return;
     }
 
+    setIsSubmitting(true);
+    
+    const newAnnouncement = {
+      id: Date.now().toString(),
+      title: title.trim(),
+      content: content.trim(),
+      category: category,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Optimistic update
+    setAnnouncements(prev => [newAnnouncement, ...prev]);
+    setTitle("");
+    setContent("");
+    setCategory("General");
+    setShowForm(false);
+    
+    const loadingToast = toast.loading("Publishing announcement...");
+
     try {
-      await axios.post(
+      const res = await axios.post(
         `${BASE_URL}/api/announcements`,
         { 
           title: title.trim(), 
@@ -109,23 +154,54 @@ export default function AdminAnnouncements() {
         { headers }
       );
       
-      setTitle("");
-      setContent("");
-      setCategory("General");
-      setShowForm(false);
-      showNotification("Announcement published successfully!", "success");
+      // Replace optimistic with real data
+      setAnnouncements(prev => 
+        prev.map(a => a.id === newAnnouncement.id ? res.data : a)
+      );
       
+      toast.success("Announcement published!", { id: loadingToast });
     } catch (err) {
       console.error("Add Announcement Error:", err);
-      showNotification("Failed to publish announcement", "error");
+      // Remove optimistic on error
+      setAnnouncements(prev => prev.filter(a => a.id !== newAnnouncement.id));
+      toast.error("Failed to publish announcement", { id: loadingToast });
+      // Re-open form on error
+      setShowForm(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleUpdate = async (id) => {
+    // Prevent double submission
+    if (isUpdating) return;
+    
     if (!editTitle.trim() || !editContent.trim()) {
-      showNotification("Title and content are required", "error");
+      toast.error("Title and content are required");
       return;
     }
+
+    setIsUpdating(true);
+    
+    const originalAnnouncement = announcements.find(a => a.id === id);
+    
+    // Optimistic update
+    setAnnouncements(prev => 
+      prev.map(a => a.id === id ? {
+        ...a,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        category: editCategory,
+        updatedAt: new Date().toISOString()
+      } : a)
+    );
+    
+    setEditingId(null);
+    setEditTitle("");
+    setEditContent("");
+    setEditCategory("");
+    
+    const loadingToast = toast.loading("Updating announcement...");
 
     try {
       await axios.put(
@@ -138,27 +214,42 @@ export default function AdminAnnouncements() {
         { headers }
       );
       
-      setEditingId(null);
-      setEditTitle("");
-      setEditContent("");
-      setEditCategory("");
-      showNotification("Announcement updated successfully!", "success");
-      
+      toast.success("Announcement updated!", { id: loadingToast });
     } catch (err) {
       console.error("Update Announcement Error:", err);
-      showNotification("Failed to update announcement", "error");
+      // Revert optimistic update
+      setAnnouncements(prev => 
+        prev.map(a => a.id === id ? originalAnnouncement : a)
+      );
+      toast.error("Failed to update announcement", { id: loadingToast });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this announcement?")) return;
+    if (isDeleting) return;
+    
+    setIsDeleting(true);
+    setDeleteConfirmId(null);
+    
+    const originalAnnouncement = announcements.find(a => a.id === id);
+    
+    // Optimistic delete
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    
+    const loadingToast = toast.loading("Deleting announcement...");
 
     try {
       await axios.delete(`${BASE_URL}/api/announcements/${id}`, { headers });
-      showNotification("Announcement deleted", "info");
+      toast.success("Announcement deleted", { id: loadingToast });
     } catch (err) {
       console.error("Delete Announcement Error:", err);
-      showNotification("Failed to delete announcement", "error");
+      // Revert optimistic delete
+      setAnnouncements(prev => [originalAnnouncement, ...prev]);
+      toast.error("Failed to delete announcement", { id: loadingToast });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -228,29 +319,53 @@ export default function AdminAnnouncements() {
     }
   };
 
+  // Delete confirmation modal
+  const DeleteConfirmModal = ({ id, onConfirm, onCancel }) => (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="confirm-icon">
+          <FiAlertCircle />
+        </div>
+        <h3>Delete Announcement</h3>
+        <p>Are you sure you want to delete this announcement? This action cannot be undone.</p>
+        <div className="confirm-buttons">
+          <button className="btn-cancel" onClick={onCancel} disabled={isDeleting}>
+            Cancel
+          </button>
+          <button className="btn-confirm-delete" onClick={() => onConfirm(id)} disabled={isDeleting}>
+            {isDeleting ? <FiLoader className="spinning" /> : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div 
       className="announcements-page"
       style={{ backgroundImage: `url(${backgroundImg})` }}
     >
-      {/* Dark Overlay */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#1e293b',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          },
+          success: {
+            iconTheme: { primary: '#10b981', secondary: '#fff' },
+          },
+          error: {
+            iconTheme: { primary: '#ef4444', secondary: '#fff' },
+          },
+        }}
+      />
+      
       <div className="overlay"></div>
-
-      {/* Notification */}
-      <AnimatePresence>
-        {notification.show && (
-          <motion.div 
-            className={`notification ${notification.type}`}
-            initial={{ x: 300, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 300, opacity: 0 }}
-          >
-            {notification.type === 'success' && <FiCheck />}
-            {notification.type === 'error' && <FiAlertCircle />}
-            <span>{notification.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="content-wrapper">
         {/* Header */}
@@ -276,6 +391,7 @@ export default function AdminAnnouncements() {
             <button 
               className="btn-primary"
               onClick={() => setShowForm(!showForm)}
+              disabled={isSubmitting}
             >
               {showForm ? <FiX /> : <FiPlus />}
               <span>{showForm ? 'Cancel' : 'New Announcement'}</span>
@@ -351,6 +467,7 @@ export default function AdminAnnouncements() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="form-input"
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -360,6 +477,7 @@ export default function AdminAnnouncements() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="form-select"
+                  disabled={isSubmitting}
                 >
                   <option value="General">General</option>
                   <option value="Mass">Mass</option>
@@ -377,6 +495,7 @@ export default function AdminAnnouncements() {
                   onChange={(e) => setContent(e.target.value)}
                   rows={5}
                   className="form-textarea"
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -384,14 +503,26 @@ export default function AdminAnnouncements() {
                 <button 
                   className="btn-secondary"
                   onClick={() => setShowForm(false)}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button 
-                  className="btn-primary"
+                  className={`btn-primary ${isSubmitting ? 'loading' : ''}`}
                   onClick={handleAdd}
+                  disabled={isSubmitting}
                 >
-                  Publish Announcement
+                  {isSubmitting ? (
+                    <>
+                      <FiLoader className="spinning" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck />
+                      Publish Announcement
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -458,11 +589,13 @@ export default function AdminAnnouncements() {
                           onChange={(e) => setEditTitle(e.target.value)}
                           className="edit-input"
                           placeholder="Title"
+                          disabled={isUpdating}
                         />
                         <select
                           value={editCategory}
                           onChange={(e) => setEditCategory(e.target.value)}
                           className="edit-select"
+                          disabled={isUpdating}
                         >
                           <option value="General">General</option>
                           <option value="Mass">Mass</option>
@@ -476,19 +609,29 @@ export default function AdminAnnouncements() {
                           rows={4}
                           className="edit-textarea"
                           placeholder="Content"
+                          disabled={isUpdating}
                         />
                         <div className="edit-actions">
                           <button 
                             className="btn-secondary btn-small"
                             onClick={cancelEdit}
+                            disabled={isUpdating}
                           >
                             Cancel
                           </button>
                           <button 
-                            className="btn-primary btn-small"
+                            className={`btn-primary btn-small ${isUpdating ? 'loading' : ''}`}
                             onClick={() => handleUpdate(announcement.id)}
+                            disabled={isUpdating}
                           >
-                            Save Changes
+                            {isUpdating ? (
+                              <>
+                                <FiLoader className="spinning" />
+                                Saving...
+                              </>
+                            ) : (
+                              'Save Changes'
+                            )}
                           </button>
                         </div>
                       </div>
@@ -515,13 +658,15 @@ export default function AdminAnnouncements() {
                               className="action-btn edit"
                               onClick={() => startEdit(announcement)}
                               title="Edit"
+                              disabled={isUpdating || isDeleting}
                             >
                               <FiEdit2 />
                             </button>
                             <button 
                               className="action-btn delete"
-                              onClick={() => handleDelete(announcement.id)}
+                              onClick={() => setDeleteConfirmId(announcement.id)}
                               title="Delete"
+                              disabled={isUpdating || isDeleting}
                             >
                               <FiTrash2 />
                             </button>
@@ -545,6 +690,15 @@ export default function AdminAnnouncements() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <DeleteConfirmModal 
+          id={deleteConfirmId}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
+      )}
 
       <style>{`
         .announcements-page {
@@ -572,34 +726,6 @@ export default function AdminAnnouncements() {
           margin: 0 auto;
           position: relative;
           z-index: 1;
-        }
-
-        /* Notification */
-        .notification {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          padding: 12px 20px;
-          border-radius: 10px;
-          color: white;
-          font-size: 14px;
-          font-weight: 500;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          z-index: 9999;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          background: white;
-          color: #1e293b;
-        }
-        .notification.success {
-          border-left: 4px solid #10b981;
-        }
-        .notification.error {
-          border-left: 4px solid #ef4444;
-        }
-        .notification.info {
-          border-left: 4px solid #3b82f6;
         }
 
         /* Header */
@@ -675,9 +801,6 @@ export default function AdminAnnouncements() {
           opacity: 0.5;
           cursor: not-allowed;
         }
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
 
         .btn-primary {
           background: white;
@@ -694,13 +817,21 @@ export default function AdminAnnouncements() {
           gap: 8px;
           box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
           transform: translateY(-2px);
           box-shadow: 0 6px 10px -1px rgba(0,0,0,0.15);
         }
+        .btn-primary:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+          transform: none;
+        }
+        .btn-primary.loading {
+          opacity: 0.8;
+        }
 
         .btn-secondary {
-          background: white;
+          background: #f1f5f9;
           color: #1e293b;
           border: 1px solid #e2e8f0;
           padding: 10px 20px;
@@ -713,8 +844,12 @@ export default function AdminAnnouncements() {
           align-items: center;
           gap: 8px;
         }
-        .btn-secondary:hover {
-          background: #f8fafc;
+        .btn-secondary:hover:not(:disabled) {
+          background: #e2e8f0;
+        }
+        .btn-secondary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .btn-small {
@@ -887,9 +1022,11 @@ export default function AdminAnnouncements() {
           border-color: #3b82f6;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
-        .form-input::placeholder,
-        .form-textarea::placeholder {
-          color: #94a3b8;
+        .form-input:disabled,
+        .form-select:disabled,
+        .form-textarea:disabled {
+          background: #f8fafc;
+          cursor: not-allowed;
         }
 
         .form-textarea {
@@ -926,6 +1063,10 @@ export default function AdminAnnouncements() {
           border: 3px solid rgba(255,255,255,0.2);
           border-top-color: white;
           border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        .spinning {
           animation: spin 1s linear infinite;
         }
 
@@ -1024,8 +1165,6 @@ export default function AdminAnnouncements() {
           font-weight: 600;
           padding: 4px 10px;
           border-radius: 20px;
-          background: #f1f5f9;
-          color: #475569;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -1064,13 +1203,17 @@ export default function AdminAnnouncements() {
           cursor: pointer;
           transition: all 0.2s;
         }
-        .action-btn.edit:hover {
+        .action-btn.edit:hover:not(:disabled) {
           background: #dbeafe;
           color: #2563eb;
         }
-        .action-btn.delete:hover {
+        .action-btn.delete:hover:not(:disabled) {
           background: #fee2e2;
           color: #dc2626;
+        }
+        .action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .card-title {
@@ -1123,6 +1266,12 @@ export default function AdminAnnouncements() {
           border-color: #3b82f6;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
+        .edit-input:disabled,
+        .edit-select:disabled,
+        .edit-textarea:disabled {
+          background: #f8fafc;
+          cursor: not-allowed;
+        }
 
         .edit-textarea {
           resize: vertical;
@@ -1133,6 +1282,114 @@ export default function AdminAnnouncements() {
           display: flex;
           justify-content: flex-end;
           gap: 8px;
+        }
+
+        /* Delete Confirmation Modal */
+        .confirm-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        }
+
+        .confirm-modal {
+          background: white;
+          border-radius: 20px;
+          padding: 24px;
+          max-width: 400px;
+          width: 90%;
+          text-align: center;
+          animation: fadeInUp 0.2s ease;
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .confirm-icon {
+          width: 56px;
+          height: 56px;
+          background: #fee2e2;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+          font-size: 28px;
+          color: #ef4444;
+        }
+
+        .confirm-modal h3 {
+          font-size: 20px;
+          font-weight: 600;
+          color: #1e293b;
+          margin: 0 0 8px;
+        }
+
+        .confirm-modal p {
+          font-size: 14px;
+          color: #64748b;
+          margin: 0 0 24px;
+        }
+
+        .confirm-buttons {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+
+        .btn-cancel {
+          padding: 10px 20px;
+          background: #f1f5f9;
+          border: none;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #475569;
+          cursor: pointer;
+          transition: all 0.2s;
+          flex: 1;
+        }
+        .btn-cancel:hover:not(:disabled) {
+          background: #e2e8f0;
+        }
+
+        .btn-confirm-delete {
+          padding: 10px 20px;
+          background: #ef4444;
+          border: none;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 500;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s;
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .btn-confirm-delete:hover:not(:disabled) {
+          background: #dc2626;
+        }
+        .btn-confirm-delete:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
         }
 
         /* Responsive */

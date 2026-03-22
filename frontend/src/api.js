@@ -9,7 +9,7 @@ let BASE_URL;
 if (hostname === "localhost") {
   BASE_URL = "http://localhost:5000";
 } else {
-  BASE_URL = "https://zuca-portal-iypb.vercel.app";
+  BASE_URL = "https://zuca-backend-iw9p.onrender.com";
 }
 
 // Create axios instances

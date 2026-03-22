@@ -13,6 +13,214 @@ import {
 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 
+// Adaptive Video Player Component
+const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => {
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isMuted, setIsMuted] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
+  const [aspectRatioClass, setAspectRatioClass] = useState('video-aspect-auto');
+  const controlsTimeoutRef = useRef(null);
+
+  // Detect video dimensions on load
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleLoadedMetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      setVideoDimensions({ width, height });
+      setDuration(video.duration);
+      
+      // Determine aspect ratio for optimal display
+      const ratio = width / height;
+      if (ratio > 2.35) {
+        setAspectRatioClass('video-aspect-ultrawide');
+      } else if (Math.abs(ratio - 16/9) < 0.1) {
+        setAspectRatioClass('video-aspect-widescreen');
+      } else if (Math.abs(ratio - 4/3) < 0.1) {
+        setAspectRatioClass('video-aspect-standard');
+      } else if (Math.abs(ratio - 1) < 0.1) {
+        setAspectRatioClass('video-aspect-square');
+      } else if (ratio < 0.75) {
+        setAspectRatioClass('video-aspect-portrait');
+      } else {
+        setAspectRatioClass('video-aspect-auto');
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+  }, []);
+
+  // Auto-hide controls
+  useEffect(() => {
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 2000);
+    }
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, [isPlaying, showControls]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const current = videoRef.current.currentTime;
+      const prog = (current / videoRef.current.duration) * 100;
+      setProgress(prog);
+      setCurrentTime(current);
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      videoRef.current?.pause();
+    } else {
+      videoRef.current?.play();
+    }
+    setIsPlaying(!isPlaying);
+    setShowControls(true);
+  };
+
+  const handleVolumeToggle = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+    setShowControls(true);
+  };
+
+  const handleSeek = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    if (videoRef.current && videoRef.current.duration) {
+      const newTime = percentage * videoRef.current.duration;
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 2000);
+    }
+  };
+
+  return (
+    <div 
+      ref={containerRef}
+      className={`adaptive-video-container ${aspectRatioClass} ${isFullscreen ? 'fullscreen-mode' : ''}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => isPlaying && setShowControls(false)}
+    >
+      {!isPlaying && thumbnailUrl && !videoRef.current?.currentTime ? (
+        <div className="video-thumbnail-overlay">
+          <img src={thumbnailUrl} alt={title} className="video-thumbnail-img" />
+          <div className="thumbnail-gradient"></div>
+          <button className="play-button-large" onClick={handlePlayPause}>
+            <div className="play-icon-wrapper">
+              <Play size={48} fill="white" />
+            </div>
+          </button>
+          {title && <h3 className="video-title-overlay">{title}</h3>}
+        </div>
+      ) : null}
+
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay={autoPlay}
+        playsInline
+        onTimeUpdate={handleTimeUpdate}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        className="adaptive-video-element"
+        onClick={handlePlayPause}
+      />
+
+      {/* Custom Controls */}
+      {showControls && isPlaying && (
+        <div className="video-controls-custom">
+          <div className="controls-backdrop"></div>
+          <div className="controls-container">
+            <div className="progress-bar-container" onClick={handleSeek}>
+              <div className="progress-bar-track">
+                <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                <div 
+                  className="progress-bar-handle" 
+                  style={{ left: `${progress}%` }}
+                />
+              </div>
+            </div>
+            
+            <div className="controls-buttons-container">
+              <div className="controls-left">
+                <button onClick={handlePlayPause} className="control-btn">
+                  {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
+                </button>
+                <button onClick={handleVolumeToggle} className="control-btn">
+                  {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                </button>
+                <div className="time-display">
+                  <span>{formatTime(currentTime)}</span>
+                  <span> / </span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+              
+              <div className="controls-right">
+                <button onClick={toggleFullscreen} className="control-btn">
+                  <Maximize2 size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Play/Pause Overlay for Quick Interaction */}
+      {isPlaying && showControls && (
+        <div className="quick-play-pause-overlay" onClick={handlePlayPause}>
+          {isPlaying ? <Pause size={48} className="quick-icon" /> : <Play size={48} className="quick-icon" />}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function GalleryPage() {
   const [media, setMedia] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,22 +235,17 @@ export default function GalleryPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [videoPlaying, setVideoPlaying] = useState(false);
-  const [videoMuted, setVideoMuted] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [hoveredCard, setHoveredCard] = useState(null);
   const [trendingMedia, setTrendingMedia] = useState([]);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingStage, setLoadingStage] = useState(0);
   const [showContent, setShowContent] = useState(false);
+   const [hoveredCard, setHoveredCard] = useState(null);
   
   // Comments state
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsPagination, setCommentsPagination] = useState({ page: 1, totalPages: 1, total: 0 });
   
-  const videoRef = useRef(null);
   const modalRef = useRef(null);
 
   // Stunning loading animation sequence
@@ -286,24 +489,6 @@ export default function GalleryPage() {
       }
     } catch (error) {
       console.error('Download error:', error);
-    }
-  };
-
-  const handleVideoTimeUpdate = () => {
-    if (videoRef.current) {
-      const progress = (videoRef.current.currentTime / videoRef.current.duration) * 100;
-      setVideoProgress(progress);
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (!modalRef.current) return;
-    if (!document.fullscreenElement) {
-      modalRef.current.requestFullscreen();
-      setFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setFullscreen(false);
     }
   };
 
@@ -1058,19 +1243,12 @@ export default function GalleryPage() {
                 {selectedMedia.type === 'image' ? (
                   <img src={selectedMedia.url} alt={selectedMedia.title} />
                 ) : selectedMedia.type === 'video' ? (
-                  <div className="video-player-wrapper">
-                    <video 
-                      ref={videoRef} 
-                      src={selectedMedia.url} 
-                      controls 
-                      autoPlay 
-                      playsInline 
-                      onTimeUpdate={handleVideoTimeUpdate} 
-                      onPlay={() => setVideoPlaying(true)} 
-                      onPause={() => setVideoPlaying(false)} 
-                      className="video-player" 
-                    />
-                  </div>
+                  <AdaptiveVideoPlayer 
+                    src={selectedMedia.url} 
+                    thumbnailUrl={selectedMedia.thumbnailUrl}
+                    title={selectedMedia.title}
+                    autoPlay={true}
+                  />
                 ) : (
                   <div className="file-preview">
                     {getMediaIcon(selectedMedia.type)}
@@ -1862,7 +2040,7 @@ export default function GalleryPage() {
           align-items: center; 
           justify-content: center; 
           padding: 20px; 
-          background: rgba(0,0,0,0.9); 
+          background: linear-gradient(90deg, #0f1011, #84868077); 
           animation: fadeIn 0.2s ease; 
         }
 
@@ -1870,7 +2048,7 @@ export default function GalleryPage() {
           max-width: 1200px; 
           width: 100%; 
           max-height: 90vh; 
-          background: rgba(0,0,0,0.8); 
+          background: linear-gradient(90deg, #09090a, #000000); 
           backdrop-filter: blur(20px); 
           border: 1px solid rgba(255,255,255,0.2); 
           border-radius: 30px; 
@@ -1964,7 +2142,6 @@ export default function GalleryPage() {
           align-items: center; 
           justify-content: center; 
           padding: 20px;
-          aspect-ratio: 15/16;
           background: #000000;
           min-height: 500px;
         }
@@ -1978,22 +2155,290 @@ export default function GalleryPage() {
           border-radius: 12px;
         }
 
-        .video-player-wrapper { 
-          position: relative; 
+        /* Adaptive Video Player Styles */
+        .adaptive-video-container {
+          position: relative;
           width: 100%;
           height: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
+          background: #000;
+          border-radius: 12px;
+          overflow: hidden;
         }
 
-        .video-player { 
-          max-width: 100%;
-          max-height: 70vh;
-          width: auto;
-          height: auto;
+        .adaptive-video-container.video-aspect-widescreen {
+          aspect-ratio: 16 / 9;
+        }
+
+        .adaptive-video-container.video-aspect-ultrawide {
+          aspect-ratio: 21 / 9;
+        }
+
+        .adaptive-video-container.video-aspect-standard {
+          aspect-ratio: 4 / 3;
+        }
+
+        .adaptive-video-container.video-aspect-square {
+          aspect-ratio: 1 / 1;
+        }
+
+        .adaptive-video-container.video-aspect-portrait {
+          aspect-ratio: 9 / 16;
+        }
+
+        .adaptive-video-container.video-aspect-auto {
+          aspect-ratio: auto;
+          min-height: 400px;
+        }
+
+        .adaptive-video-container.fullscreen-mode {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 9999;
+          background: black;
+          border-radius: 0;
+        }
+
+        .adaptive-video-element {
+          width: 100%;
+          height: 100%;
           object-fit: contain;
-          border-radius: 12px;
+          cursor: pointer;
+        }
+
+        .video-thumbnail-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          cursor: pointer;
+          z-index: 2;
+        }
+
+        .video-thumbnail-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .thumbnail-gradient {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6));
+        }
+
+        .play-button-large {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: none;
+          border: none;
+          cursor: pointer;
+          z-index: 3;
+          transition: transform 0.2s ease;
+        }
+
+        .play-button-large:hover {
+          transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .play-icon-wrapper {
+          width: 80px;
+          height: 80px;
+          background: rgba(59, 130, 246, 0.9);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          backdrop-filter: blur(4px);
+          transition: all 0.3s ease;
+        }
+
+        .play-button-large:hover .play-icon-wrapper {
+          background: #3b82f6;
+          transform: scale(1.05);
+        }
+
+        .video-title-overlay {
+          position: absolute;
+          bottom: 20px;
+          left: 20px;
+          color: white;
+          font-size: 14px;
+          font-weight: 500;
+          background: rgba(0,0,0,0.5);
+          padding: 6px 12px;
+          border-radius: 20px;
+          backdrop-filter: blur(4px);
+          z-index: 3;
+        }
+
+        .video-controls-custom {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 10;
+          animation: slideUp 0.2s ease;
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+
+        .controls-backdrop {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 80px;
+          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+          pointer-events: none;
+        }
+
+        .controls-container {
+          position: relative;
+          padding: 12px 16px;
+          z-index: 1;
+        }
+
+        .progress-bar-container {
+          width: 100%;
+          padding: 8px 0;
+          cursor: pointer;
+          margin-bottom: 8px;
+        }
+
+        .progress-bar-track {
+          width: 100%;
+          height: 4px;
+          background: rgba(255,255,255,0.3);
+          border-radius: 2px;
+          position: relative;
+          cursor: pointer;
+          transition: height 0.2s ease;
+        }
+
+        .progress-bar-track:hover {
+          height: 6px;
+        }
+
+        .progress-bar-fill {
+          position: absolute;
+          left: 0;
+          top: 0;
+          height: 100%;
+          background: linear-gradient(90deg, #3b82f6, #6366f1);
+          border-radius: 2px;
+          transition: width 0.1s linear;
+        }
+
+        .progress-bar-handle {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 12px;
+          height: 12px;
+          background: white;
+          border-radius: 50%;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+
+        .progress-bar-container:hover .progress-bar-handle {
+          opacity: 1;
+        }
+
+        .controls-buttons-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .controls-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .controls-right {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .control-btn {
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .control-btn:hover {
+          background: rgba(255,255,255,0.2);
+          transform: scale(1.05);
+        }
+
+        .time-display {
+          color: white;
+          font-size: 12px;
+          font-family: monospace;
+        }
+
+        .quick-play-pause-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0,0,0,0.3);
+          cursor: pointer;
+          z-index: 5;
+          animation: fadeIn 0.2s ease;
+        }
+
+        .quick-icon {
+          color: white;
+          filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+          animation: pulseIcon 0.2s ease;
+        }
+
+        @keyframes pulseIcon {
+          0% {
+            transform: scale(0.8);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
         .modal-info { 
@@ -2125,7 +2570,7 @@ export default function GalleryPage() {
         .login-to-comment { 
           text-align: center; 
           padding: 20px; 
-          background: rgba(255,255,255,0.05); 
+          background: rgba(255, 255, 255, 0.96); 
           border-radius: 12px; 
           margin-bottom: 20px; 
         }
@@ -2319,6 +2764,17 @@ export default function GalleryPage() {
           .hero-title { font-size: 24px; }
           .media-grid.grid, .media-grid.compact { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
           .back-button { width: 38px; height: 38px; }
+          .play-icon-wrapper {
+            width: 60px;
+            height: 60px;
+          }
+          .play-icon-wrapper svg {
+            width: 32px;
+            height: 32px;
+          }
+          .adaptive-video-container.video-aspect-portrait {
+            max-height: 70vh;
+          }
         }
       `}</style>
     </div>

@@ -710,7 +710,8 @@ export default function GalleryPage() {
           align-items: center; 
           justify-content: center; 
           padding: 20px;
-          background: #000;
+          aspect-ratio: 15/16;
+          background: #000000;
           min-height: 500px;
         }
         .modal-media img { 
@@ -718,6 +719,7 @@ export default function GalleryPage() {
           max-height: 70vh; 
           width: auto;
           height: auto;
+          
           object-fit: contain; 
           border-radius: 12px;
         }
@@ -726,6 +728,7 @@ export default function GalleryPage() {
           width: 100%;
           height: 100%;
           display: flex;
+          
           align-items: center;
           justify-content: center;
         }
@@ -734,15 +737,18 @@ export default function GalleryPage() {
           max-height: 70vh;
           width: auto;
           height: auto;
+          
           object-fit: contain;
           border-radius: 12px;
         }
         .video-player::-webkit-media-controls {
           overflow: visible !important;
+          
         }
         .video-player::-webkit-media-controls-enclosure {
           border-radius: 8px;
-          background: rgba(0, 0, 0, 0.7);
+          background: transparent;
+          
           margin-bottom: 10px;
         }
         .modal-info { width: 380px; padding: 30px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.1); }

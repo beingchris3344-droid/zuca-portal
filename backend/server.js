@@ -16,9 +16,6 @@ const cors = require("cors");
 const multer = require("multer");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -68,52 +65,69 @@ const markAsRead = (userId) => {
   return userNotifs;
 };
 
-
 // ================== SOCKET.IO ==================
 const { Server } = require("socket.io");
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
+// ================== CORS CONFIGURATION - SINGLE PLACE ==================
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://zetechcatholic.vercel.app",
+  "https://zuca-backend-iw9p.onrender.com",
+  "https://zucaportal.onrender.com"
+];
+
+// CORS for Express
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'CORS policy does not allow access from this origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
   },
-});
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
+// Handle preflight requests
+app.options('*', cors());
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ================== MIDDLEWARE ==================
-app.use(cors({ origin: "*" }));
-app.use(express.json());
 app.use((req, res, next) => {
   console.log(req.method, req.path, req.body);
   next();
 });
 
-// Ensure uploads folder exists
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-app.use("/uploads", express.static(uploadDir));
-
-// Ensure uploads folder exists
-
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// Add this line - Create thumbnails directory
-const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
-if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
-
-// ================== MULTER CONFIG ==================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `profile_${req.params.id}_${Date.now()}${ext}`);
+// CORS for Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
+// ================== UPLOAD DIRECTORIES ==================
+// Comment out for Vercel, uncomment for Render
+// const uploadDir = path.join(__dirname, "uploads");
+// if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+// app.use("/uploads", express.static(uploadDir));
+
+// const thumbnailsDir = path.join(__dirname, "uploads/thumbnails");
+// if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
+
+// ================== MULTER CONFIG FOR PROFILE UPLOADS ==================
+// Use memory storage for Vercel
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp/;
@@ -125,30 +139,7 @@ const upload = multer({
   },
 });
 
-
-// ================== CORS ==================
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://zucaportal.onrender.com"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'CORS policy does not allow access from this origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-
+// ... rest of your server.js continues (all your routes, etc.)
 
 
 // ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================

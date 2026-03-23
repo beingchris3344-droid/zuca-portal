@@ -1073,7 +1073,7 @@ setMessages(parsedMessages);
                                                 false;
                                 
                                 const token = localStorage.getItem('token');
-                                const fileUrl = `${BASE_URL}/api/chat/files/${file.id}?token=${token}`;
+                                const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
                                 const debugUrl = `${BASE_URL}/api/chat/debug/public-file/${file.id}`;
                                 
                                 return isImage ? (

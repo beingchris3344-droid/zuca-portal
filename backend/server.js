@@ -1596,8 +1596,44 @@ app.get("/api/media/trending", async (req, res) => {
 
 
 
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end(); // No content
+});
 
 
+
+// ================== PUBLIC FILE ACCESS (NO TOKEN NEEDED) ==================
+app.get("/api/public/files/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileBuffer = Buffer.from(file.data, 'base64');
+
+    res.setHeader('Content-Type', file.type);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Length', file.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    res.send(fileBuffer);
+  } catch (err) {
+    console.error("Error serving file:", err);
+    res.status(500).json({ error: "Failed to serve file" });
+  }
+});
+
+// ================== AUTH MIDDLEWARE ==================
+function authenticate(req, res, next) {
+  // ... your auth code here
+}
 
 
 

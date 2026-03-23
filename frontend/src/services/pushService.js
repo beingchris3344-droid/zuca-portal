@@ -1,9 +1,60 @@
 // frontend/src/services/pushService.js
+import badgeManager from '../utils/badgeManager';
+
 class PushNotificationService {
   constructor() {
     this.swRegistration = null;
     this.vapidPublicKey = null;
     this.permission = 'default';
+    this.notificationCallbacks = []; // For in-app notifications
+  }
+
+  // Register a callback for incoming notifications
+  onNotification(callback) {
+    this.notificationCallbacks.push(callback);
+    return () => {
+      this.notificationCallbacks = this.notificationCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  // Handle in-app notification
+  handleInAppNotification(notification) {
+    console.log('📱 In-app notification received:', notification);
+    this.notificationCallbacks.forEach(callback => {
+      try {
+        callback(notification);
+      } catch (err) {
+        console.error('Error in notification callback:', err);
+      }
+    });
+  }
+
+  // Setup in-app notifications listener
+  setupInAppNotifications() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'REGISTER_CLIENT',
+        userId: localStorage.getItem('userId')
+      });
+    }
+    
+    // Listen for messages from service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+          console.log('Notification clicked from service worker:', event.data.payload);
+          // Handle navigation
+          if (event.data.payload.url) {
+            window.location.href = event.data.payload.url;
+          }
+        }
+      });
+    }
+  }
+
+  // Update badge count
+  async updateBadgeCount(count) {
+    return badgeManager.updateBadgeCount(count);
   }
 
   async init() {
@@ -12,6 +63,9 @@ class PushNotificationService {
       const data = await res.json();
       this.vapidPublicKey = data.publicKey;
       console.log('VAPID key loaded');
+      
+      // Setup in-app notifications after initialization
+      this.setupInAppNotifications();
     } catch (err) {
       console.error('Failed to get VAPID key:', err);
     }
@@ -112,6 +166,10 @@ class PushNotificationService {
       }
 
       console.log('Push subscription saved to server');
+      
+      // Load badge count after subscription
+      badgeManager.loadCount();
+      
       return true;
     } catch (err) {
       console.error('Failed to subscribe to push:', err);

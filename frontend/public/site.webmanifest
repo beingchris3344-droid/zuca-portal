@@ -1,18 +1,61 @@
 {
-  "name": "ZUCA APP",
+  "name": "ZUCA Portal - Catholic Action",
   "short_name": "ZUCA",
-  "start_url": "/",
+  "description": "Zetech University Catholic Action - Faith, Fellowship & Community",
+  "start_url": "/dashboard",
   "display": "standalone",
+  "theme_color": "#1a1a2e",
+  "background_color": "#0a0a1e",
+  "orientation": "portrait",
+  "scope": "/",
+  "categories": ["lifestyle", "education", "social", "religion"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Home",
+      "description": "Go to dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Gallery",
+      "short_name": "Gallery",
+      "description": "View media gallery",
+      "url": "/gallery",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Liturgical Calendar",
+      "short_name": "Calendar",
+      "description": "View mass and readings",
+      "url": "/liturgical-calendar",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Announcements",
+      "short_name": "News",
+      "description": "Latest announcements",
+      "url": "/announcements",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

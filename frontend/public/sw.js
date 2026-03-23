@@ -1,9 +1,10 @@
-// public/sw.js
-const CACHE_NAME = 'zuca-portal-v1';
+// public/sw.js - Enhanced for WhatsApp-like notifications
+const CACHE_NAME = 'zuca-portal-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/site.webmanifest',
   '/favicon.ico',
   '/android-chrome-192x192.png',
   '/android-chrome-512x512.png'
@@ -11,12 +12,11 @@ const urlsToCache = [
 
 // Install event - cache assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing...');
-  // Perform install steps
+  console.log('[SW] Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
+        console.log('[SW] Caching assets');
         return cache.addAll(urlsToCache);
       })
       .then(() => self.skipWaiting())
@@ -25,19 +25,19 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating...');
+  console.log('[SW] Activating...');
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            // Delete old caches
+            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => clients.claim())
+    }).then(() => self.clients.claim())
   );
 });
 
@@ -46,127 +46,166 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache hit - return response
         if (response) {
           return response;
         }
-        // Clone the request because it's a stream
         const fetchRequest = event.request.clone();
         
-        return fetch(fetchRequest).then(
-          (response) => {
-            // Check if valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            
-            // Clone the response because it's a stream
-            const responseToCache = response.clone();
-            
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-            
+        return fetch(fetchRequest).then((response) => {
+          if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
           }
-        );
+          
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          
+          return response;
+        });
       })
   );
 });
 
-// Push notification event
+// ========== PUSH NOTIFICATIONS ==========
 self.addEventListener('push', (event) => {
-  console.log('Push received:', event);
+  console.log('[SW] 📱 Push received:', event);
   
   let data = {};
+  let notificationTitle = 'ZUCA Portal';
+  let notificationOptions = {
+    body: 'You have a new notification',
+    icon: '/android-chrome-192x192.png',
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    timestamp: Date.now(),
+    requireInteraction: true,
+    silent: false,
+    tag: 'zuca-notification',
+    renotify: true,
+    data: {
+      url: '/',
+      type: 'notification',
+      timestamp: Date.now()
+    },
+    actions: [
+      {
+        action: 'view',
+        title: '📖 View Details'
+      },
+      {
+        action: 'dismiss',
+        title: '❌ Dismiss'
+      }
+    ]
+  };
   
   try {
     if (event.data) {
       data = event.data.json();
-      console.log('Push data:', data);
-    } else {
-      data = {
-        title: 'ZUCA Portal',
-        body: 'You have a new notification',
-        icon: '/android-chrome-192x192.png',
-        badge: '/favicon.ico',
-        url: '/'
+      console.log('[SW] Push data:', data);
+      
+      notificationTitle = data.title || 'ZUCA Portal';
+      notificationOptions = {
+        body: data.body || 'You have a new notification',
+        icon: data.icon || '/android-chrome-192x192.png',
+        badge: data.badge || '/favicon.ico',
+        vibrate: data.vibrate || [200, 100, 200],
+        timestamp: data.timestamp || Date.now(),
+        requireInteraction: data.requireInteraction !== false,
+        silent: data.silent || false,
+        tag: data.tag || `zuca-${data.type || 'notification'}-${data.id || Date.now()}`,
+        renotify: data.renotify !== false,
+        data: {
+          url: data.url || '/',
+          type: data.type || 'notification',
+          id: data.id,
+          entityId: data.entityId,
+          timestamp: Date.now()
+        },
+        actions: [
+          {
+            action: 'view',
+            title: '📖 View Details'
+          },
+          {
+            action: 'dismiss',
+            title: '❌ Dismiss'
+          }
+        ]
       };
     }
   } catch (err) {
-    console.error('Error parsing push data:', err);
-    data = {
-      title: 'ZUCA Portal',
-      body: 'You have a new notification',
-      icon: '/android-chrome-192x192.png',
-      badge: '/favicon.ico',
-      url: '/'
-    };
+    console.error('[SW] Error parsing push data:', err);
   }
 
-  const title = data.title || 'ZUCA Portal';
-  const options = {
-    body: data.body || 'You have a new notification',
-    icon: data.icon || '/android-chrome-192x192.png',
-    badge: data.badge || '/favicon.ico',
-    vibrate: [200, 100, 200],
-    data: {
-      url: data.url || '/',
-      type: data.type || 'notification',
-      timestamp: Date.now()
-    },
-    actions: [
-      { action: 'open', title: 'Open App' },
-      { action: 'close', title: 'Dismiss' }
-    ],
-    tag: data.type || 'notification',
-    renotify: true,
-    silent: false,
-    requireInteraction: false
-  };
-
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.showNotification(notificationTitle, notificationOptions)
+      .then(() => {
+        console.log('[SW] Notification shown');
+      })
   );
 });
 
-// Notification click event
+// ========== NOTIFICATION CLICK HANDLER ==========
 self.addEventListener('notificationclick', (event) => {
-  console.log('Notification clicked:', event);
+  console.log('[SW] 🔔 Notification clicked:', event);
   
-  event.notification.close();
-
-  // Get the URL from notification data
-  const urlToOpen = event.notification.data?.url || '/';
-
-  // Handle action buttons
-  if (event.action === 'close') {
+  const notification = event.notification;
+  const action = event.action;
+  const data = notification.data || {};
+  
+  notification.close();
+  
+  if (action === 'dismiss') {
+    console.log('[SW] Notification dismissed');
     return;
   }
-
-  // Open or focus the app
+  
+  let urlToOpen = data.url || '/';
+  
+  if (data.type === 'announcement' && data.id) {
+    urlToOpen = `/announcements/${data.id}`;
+  } else if (data.type === 'gallery') {
+    urlToOpen = '/gallery';
+  } else if (data.type === 'mass' || data.type === 'calendar') {
+    urlToOpen = '/liturgical-calendar';
+  } else if (data.type === 'event' && data.entityId) {
+    urlToOpen = `/events/${data.entityId}`;
+  }
+  
+  console.log('[SW] Opening URL:', urlToOpen);
+  
   event.waitUntil(
-    clients.matchAll({
+    self.clients.matchAll({
       type: 'window',
       includeUncontrolled: true
     }).then((clientList) => {
-      // Check if there's already a window open
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
-        if (client.url === urlToOpen && 'focus' in client) {
+        if (client.url === urlToOpen || client.url.includes('/dashboard')) {
           return client.focus();
         }
       }
-      // Open new window if none exists
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
+      return self.clients.openWindow(urlToOpen);
     })
   );
 });
 
-// Notification close event (optional)
-self.addEventListener('notificationclose', (event) => {
-  console.log('Notification closed:', event);
+// ========== MESSAGE HANDLER FROM APP ==========
+self.addEventListener('message', (event) => {
+  console.log('[SW] Message from app:', event.data);
+  
+  if (event.data.type === 'UPDATE_BADGE') {
+    const count = event.data.count || 0;
+    if (self.navigator && self.navigator.setAppBadge) {
+      if (count > 0) {
+        self.navigator.setAppBadge(count);
+        console.log(`[SW] Badge updated to ${count}`);
+      } else {
+        self.navigator.clearAppBadge();
+        console.log('[SW] Badge cleared');
+      }
+    }
+  }
 });

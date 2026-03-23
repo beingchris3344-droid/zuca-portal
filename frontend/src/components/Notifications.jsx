@@ -6,6 +6,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
+import badgeManager from "../utils/badgeManager";
+import pushService from "../services/pushService";
+import soundManager from "../utils/soundManager"; // ADDED SOUND IMPORT
 
 export default function Notifications({ userId }) {
   const navigate = useNavigate();
@@ -81,18 +84,48 @@ export default function Notifications({ userId }) {
         return;
       }
       
+      // 👇 PLAY SOUND FOR NEW NOTIFICATION
+      if (soundManager) {
+        soundManager.playNotificationSound();
+      }
+      
       setNotifications(prev => {
         const exists = prev.some(n => n.id === notification.id);
         if (exists) return prev;
         
+        // Show in-app toast notification (like WhatsApp popup)
+        if (window.showInAppToast) {
+          window.showInAppToast({
+            title: notification.title || "New Notification",
+            message: notification.message,
+            body: notification.message,
+            type: notification.type,
+            id: notification.id,
+            entityId: notification.entityId,
+            createdAt: notification.createdAt,
+            data: notification.data
+          });
+        }
+        
+        // Also show browser notification if permission granted
         if (Notification.permission === "granted") {
           new Notification(notification.title || "New Notification", {
             body: notification.message,
-            icon: "/favicon.ico",
+            icon: "/android-chrome-192x192.png",
             badge: "/favicon.ico",
-            tag: notification.id
+            tag: notification.id,
+            vibrate: [200, 100, 200],
+            data: {
+              url: `/dashboard`,
+              id: notification.id,
+              type: notification.type,
+              entityId: notification.entityId
+            }
           });
         }
+        
+        // Update badge count (like WhatsApp)
+        badgeManager.incrementBadge();
         
         return [notification, ...prev];
       });
@@ -126,11 +159,18 @@ export default function Notifications({ userId }) {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Update unread count
+  // Update unread count and badge
   useEffect(() => {
     const unread = notifications.filter(n => !n.read).length;
     setUnreadCount(unread);
+    // Update app badge (like WhatsApp)
+    badgeManager.updateBadgeCount(unread);
   }, [notifications]);
+
+  // Load badge count on mount
+  useEffect(() => {
+    badgeManager.loadCount();
+  }, []);
 
   // Auto-mark notifications as read when viewing their pages
   useEffect(() => {
@@ -218,6 +258,9 @@ export default function Notifications({ userId }) {
         )
       );
 
+      // Decrement badge count
+      badgeManager.decrementBadge();
+
       const token = localStorage.getItem("token");
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
@@ -234,6 +277,9 @@ export default function Notifications({ userId }) {
       setNotifications(prev =>
         prev.map(n => ({ ...n, read: true }))
       );
+
+      // Clear badge count
+      badgeManager.updateBadgeCount(0);
 
       const token = localStorage.getItem("token");
       await axios.put(`${BASE_URL}/api/notifications/${userId}/read-all`, {}, {
@@ -254,6 +300,8 @@ export default function Notifications({ userId }) {
     
     setNotifications([]);
     setShowDropdown(false);
+    // Clear badge
+    badgeManager.updateBadgeCount(0);
     console.log("All notifications permanently dismissed");
   };
 
@@ -264,6 +312,10 @@ export default function Notifications({ userId }) {
     setDismissedIds(newDismissed);
     
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    
+    // Update badge after dismissal
+    const newUnreadCount = notifications.filter(n => n.id !== notificationId && !n.read).length;
+    badgeManager.updateBadgeCount(newUnreadCount);
   };
 
   const handleNotificationClick = (notif) => {
@@ -357,7 +409,7 @@ export default function Notifications({ userId }) {
             animate={{ scale: 1 }}
             style={styles.badge}
           >
-            {unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>
         )}
         {isLoading && unreadCount === 0 && (

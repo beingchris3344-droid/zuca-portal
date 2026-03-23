@@ -235,7 +235,7 @@ function Landing2() {
                     </button>
                   )}
                   <button onClick={() => navigate("/gallery")} className="btn-gallery">
-                    📷 ZUCA GALLERY
+                    ˙✧°📷⋆°ZUCA GALLERY
                   </button>
                   <button onClick={() => navigate("/liturgical-calendar")} className="btn-calendar">
                     📅 Liturgical Calendar

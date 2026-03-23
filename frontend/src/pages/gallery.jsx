@@ -14,9 +14,9 @@ import {
 import { format, formatDistance } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
-// Adaptive Video Player Component
-const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => {
-  const videoRef = useRef(null);
+// Adaptive Media Player Component (Supports Video & Audio)
+const AdaptiveMediaPlayer = ({ src, thumbnailUrl, title, type = 'video', autoPlay = false }) => {
+  const mediaRef = useRef(null);
   const containerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(false);
@@ -25,45 +25,21 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
   const [currentTime, setCurrentTime] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
-  const [aspectRatioClass, setAspectRatioClass] = useState('video-aspect-auto');
+  const [isAudio, setIsAudio] = useState(type === 'audio');
+  const [audioArtwork, setAudioArtwork] = useState(thumbnailUrl || null);
   const controlsTimeoutRef = useRef(null);
 
-  // Detect video dimensions on load
+  // Detect if it's an audio file by extension or type prop
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleLoadedMetadata = () => {
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      setVideoDimensions({ width, height });
-      setDuration(video.duration);
-      
-      // Determine aspect ratio for optimal display
-      const ratio = width / height;
-      if (ratio > 2.35) {
-        setAspectRatioClass('video-aspect-ultrawide');
-      } else if (Math.abs(ratio - 16/9) < 0.1) {
-        setAspectRatioClass('video-aspect-widescreen');
-      } else if (Math.abs(ratio - 4/3) < 0.1) {
-        setAspectRatioClass('video-aspect-standard');
-      } else if (Math.abs(ratio - 1) < 0.1) {
-        setAspectRatioClass('video-aspect-square');
-      } else if (ratio < 0.75) {
-        setAspectRatioClass('video-aspect-portrait');
-      } else {
-        setAspectRatioClass('video-aspect-auto');
-      }
-    };
-
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-  }, []);
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'webm'];
+    const fileExtension = src?.split('.').pop()?.toLowerCase();
+    const isAudioFile = audioExtensions.includes(fileExtension) || type === 'audio';
+    setIsAudio(isAudioFile);
+  }, [src, type]);
 
   // Auto-hide controls
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && !isAudio) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 2000);
@@ -71,30 +47,40 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     };
-  }, [isPlaying, showControls]);
+  }, [isPlaying, showControls, isAudio]);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      const current = videoRef.current.currentTime;
-      const prog = (current / videoRef.current.duration) * 100;
-      setProgress(prog);
-      setCurrentTime(current);
+    if (mediaRef.current) {
+      const current = mediaRef.current.currentTime;
+      const dur = mediaRef.current.duration;
+      if (dur && !isNaN(dur)) {
+        const prog = (current / dur) * 100;
+        setProgress(prog);
+        setCurrentTime(current);
+        setDuration(dur);
+      }
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (mediaRef.current) {
+      setDuration(mediaRef.current.duration);
     }
   };
 
   const handlePlayPause = () => {
     if (isPlaying) {
-      videoRef.current?.pause();
+      mediaRef.current?.pause();
     } else {
-      videoRef.current?.play();
+      mediaRef.current?.play();
     }
     setIsPlaying(!isPlaying);
     setShowControls(true);
   };
 
   const handleVolumeToggle = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
+    if (mediaRef.current) {
+      mediaRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
     }
     setShowControls(true);
@@ -104,14 +90,15 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    if (videoRef.current && videoRef.current.duration) {
-      const newTime = percentage * videoRef.current.duration;
-      videoRef.current.currentTime = newTime;
+    if (mediaRef.current && mediaRef.current.duration) {
+      const newTime = percentage * mediaRef.current.duration;
+      mediaRef.current.currentTime = newTime;
       setCurrentTime(newTime);
     }
   };
 
   const toggleFullscreen = () => {
+    if (isAudio) return; // Audio doesn't support fullscreen
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen();
@@ -123,13 +110,14 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
   };
 
   const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleMouseMove = () => {
+    if (isAudio) return;
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     if (isPlaying) {
@@ -139,14 +127,75 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
     }
   };
 
+  // Audio Player UI
+  if (isAudio) {
+    return (
+      <div className="audio-player-container glass-effect" ref={containerRef}>
+        <div className="audio-artwork">
+          {audioArtwork ? (
+            <img src={audioArtwork} alt={title} className="audio-artwork-img" />
+          ) : (
+            <div className="audio-artwork-placeholder">
+              <Music2 size={64} />
+            </div>
+          )}
+          <div className="audio-wave-animation">
+            {[...Array(20)].map((_, i) => (
+              <div 
+                key={i} 
+                className={`wave-bar ${isPlaying ? 'active' : ''}`}
+                style={{ animationDelay: `${i * 0.05}s`, height: `${20 + Math.sin(i) * 10}px` }}
+              />
+            ))}
+          </div>
+        </div>
+        
+        <div className="audio-info">
+          <h3 className="audio-title">{title || 'Audio Track'}</h3>
+          <div className="audio-controls">
+            <button onClick={handlePlayPause} className="audio-play-btn">
+              {isPlaying ? <Pause size={28} fill="white" /> : <Play size={28} fill="white" />}
+            </button>
+            
+            <div className="audio-progress-container" onClick={handleSeek}>
+              <div className="audio-progress-track">
+                <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+            
+            <div className="audio-time">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </div>
+            
+            <button onClick={handleVolumeToggle} className="audio-volume-btn">
+              {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+            </button>
+          </div>
+        </div>
+        
+        <audio
+          ref={mediaRef}
+          src={src}
+          autoPlay={autoPlay}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+        />
+      </div>
+    );
+  }
+
+  // Video Player UI
   return (
     <div 
       ref={containerRef}
-      className={`adaptive-video-container ${aspectRatioClass} ${isFullscreen ? 'fullscreen-mode' : ''}`}
+      className={`adaptive-video-container ${isFullscreen ? 'fullscreen-mode' : ''}`}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
-      {!isPlaying && thumbnailUrl && !videoRef.current?.currentTime ? (
+      {!isPlaying && thumbnailUrl && !mediaRef.current?.currentTime ? (
         <div className="video-thumbnail-overlay">
           <img src={thumbnailUrl} alt={title} className="video-thumbnail-img" />
           <div className="thumbnail-gradient"></div>
@@ -160,11 +209,12 @@ const AdaptiveVideoPlayer = ({ src, thumbnailUrl, title, autoPlay = false }) => 
       ) : null}
 
       <video
-        ref={videoRef}
+        ref={mediaRef}
         src={src}
         autoPlay={autoPlay}
         playsInline
         onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
@@ -1158,6 +1208,20 @@ export default function GalleryPage() {
                         <Play size={32} />
                       </div>
                     </div>
+                  ) : item.type === 'audio' ? (
+                    <div className="audio-preview">
+                      {item.thumbnailUrl ? (
+                        <img src={item.thumbnailUrl} alt={item.title} className="card-image" />
+                      ) : (
+                        <div className="audio-placeholder">
+                          <Music2 size={48} />
+                          <span>Audio</span>
+                        </div>
+                      )}
+                      <div className="play-overlay">
+                        <Play size={32} />
+                      </div>
+                    </div>
                   ) : (
                     <div className="card-file">
                       {getMediaIcon(item.type)}
@@ -1247,11 +1311,20 @@ export default function GalleryPage() {
                 {selectedMedia.type === 'image' ? (
                   <img src={selectedMedia.url} alt={selectedMedia.title} />
                 ) : selectedMedia.type === 'video' ? (
-                  <AdaptiveVideoPlayer 
+                  <AdaptiveMediaPlayer 
                     src={selectedMedia.url} 
                     thumbnailUrl={selectedMedia.thumbnailUrl}
                     title={selectedMedia.title}
+                    type="video"
                     autoPlay={true}
+                  />
+                ) : selectedMedia.type === 'audio' ? (
+                  <AdaptiveMediaPlayer 
+                    src={selectedMedia.url} 
+                    thumbnailUrl={selectedMedia.thumbnailUrl}
+                    title={selectedMedia.title}
+                    type="audio"
+                    autoPlay={false}
                   />
                 ) : (
                   <div className="file-preview">
@@ -1843,13 +1916,13 @@ export default function GalleryPage() {
 
         .media-card:hover .card-image { transform: scale(1.1); }
 
-        .video-preview { 
+        .video-preview, .audio-preview { 
           position: relative; 
           width: 100%; 
           height: 100%; 
         }
 
-        .video-placeholder {
+        .video-placeholder, .audio-placeholder {
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -1859,7 +1932,7 @@ export default function GalleryPage() {
           color: rgba(255, 255, 255, 0.5);
         }
 
-        .video-placeholder svg { margin-bottom: 8px; }
+        .video-placeholder svg, .audio-placeholder svg { margin-bottom: 8px; }
 
         .play-overlay { 
           position: absolute; 
@@ -2159,7 +2232,163 @@ export default function GalleryPage() {
           border-radius: 12px;
         }
 
-        /* Adaptive Video Player Styles */
+        /* Audio Player Styles */
+        .audio-player-container {
+          width: 100%;
+          max-width: 600px;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(12px);
+          border-radius: 20px;
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+        }
+
+        .audio-artwork {
+          position: relative;
+          width: 200px;
+          height: 200px;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .audio-artwork-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .audio-artwork-placeholder {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+        }
+
+        .audio-wave-animation {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          gap: 4px;
+          padding: 12px;
+          background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+        }
+
+        .wave-bar {
+          width: 4px;
+          background: linear-gradient(to top, #3b82f6, #8b5cf6);
+          border-radius: 2px;
+          transition: height 0.1s ease;
+        }
+
+        .wave-bar.active {
+          animation: wavePulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes wavePulse {
+          from { height: 20px; opacity: 0.5; }
+          to { height: 40px; opacity: 1; }
+        }
+
+        .audio-info {
+          width: 100%;
+          text-align: center;
+        }
+
+        .audio-title {
+          color: white;
+          font-size: 18px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .audio-controls {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .audio-play-btn {
+          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          border: none;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .audio-play-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        }
+
+        .audio-progress-container {
+          flex: 1;
+          min-width: 200px;
+          cursor: pointer;
+        }
+
+        .audio-progress-track {
+          width: 100%;
+          height: 4px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 2px;
+          position: relative;
+        }
+
+        .audio-progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+          border-radius: 2px;
+          width: 0%;
+          transition: width 0.1s linear;
+        }
+
+        .audio-time {
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 12px;
+          font-family: monospace;
+        }
+
+        .audio-volume-btn {
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          border-radius: 50%;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: white;
+          transition: all 0.2s;
+        }
+
+        .audio-volume-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Video Player Styles */
         .adaptive-video-container {
           position: relative;
           width: 100%;
@@ -2170,31 +2399,6 @@ export default function GalleryPage() {
           background: #000;
           border-radius: 12px;
           overflow: hidden;
-        }
-
-        .adaptive-video-container.video-aspect-widescreen {
-          aspect-ratio: 16 / 9;
-        }
-
-        .adaptive-video-container.video-aspect-ultrawide {
-          aspect-ratio: 21 / 9;
-        }
-
-        .adaptive-video-container.video-aspect-standard {
-          aspect-ratio: 4 / 3;
-        }
-
-        .adaptive-video-container.video-aspect-square {
-          aspect-ratio: 1 / 1;
-        }
-
-        .adaptive-video-container.video-aspect-portrait {
-          aspect-ratio: 9 / 16;
-        }
-
-        .adaptive-video-container.video-aspect-auto {
-          aspect-ratio: auto;
-          min-height: 400px;
         }
 
         .adaptive-video-container.fullscreen-mode {
@@ -2574,7 +2778,7 @@ export default function GalleryPage() {
         .login-to-comment { 
           text-align: center; 
           padding: 20px; 
-          background: rgba(255, 255, 255, 0.96); 
+          background: rgb(255, 255, 255); 
           border-radius: 12px; 
           margin-bottom: 20px; 
         }
@@ -2776,8 +2980,20 @@ export default function GalleryPage() {
             width: 32px;
             height: 32px;
           }
-          .adaptive-video-container.video-aspect-portrait {
-            max-height: 70vh;
+          .audio-player-container {
+            padding: 16px;
+          }
+          .audio-artwork {
+            width: 150px;
+            height: 150px;
+          }
+          .audio-controls {
+            flex-wrap: wrap;
+          }
+          .audio-progress-container {
+            min-width: 150px;
+            width: 100%;
+            order: 1;
           }
         }
       `}</style>

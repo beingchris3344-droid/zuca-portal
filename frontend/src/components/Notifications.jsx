@@ -76,24 +76,27 @@ export default function Notifications({ userId }) {
     });
 
     socketRef.current.on('new_notification', (notification) => {
-      console.log('🔔 New notification received:', notification);
-      
-      // Don't add if it was previously dismissed
-      if (dismissedIds.has(notification.id)) {
-        console.log('Notification was previously dismissed, ignoring');
-        return;
-      }
-      
-      // 👇 PLAY SOUND FOR NEW NOTIFICATION
-      if (soundManager) {
+  try {
+    console.log('🔔 New notification received:', notification);
+    
+    if (dismissedIds.has(notification.id)) {
+      console.log('Notification was previously dismissed, ignoring');
+      return;
+    }
+    
+    // Sound - safe
+    try {
+      if (soundManager && soundManager.playNotificationSound) {
         soundManager.playNotificationSound();
       }
+    } catch(e) { console.log('Sound error:', e); }
+    
+    setNotifications(prev => {
+      const exists = prev.some(n => n.id === notification.id);
+      if (exists) return prev;
       
-      setNotifications(prev => {
-        const exists = prev.some(n => n.id === notification.id);
-        if (exists) return prev;
-        
-        // Show in-app toast notification (like WhatsApp popup)
+      // In-app toast - safe
+      try {
         if (window.showInAppToast) {
           window.showInAppToast({
             title: notification.title || "New Notification",
@@ -106,9 +109,11 @@ export default function Notifications({ userId }) {
             data: notification.data
           });
         }
-        
-        // Also show browser notification if permission granted
-        if (Notification.permission === "granted") {
+      } catch(e) { console.log('Toast error:', e); }
+      
+      // Browser notification - ONLY when app is in background
+      try {
+        if (document.hidden && Notification.permission === "granted") {
           new Notification(notification.title || "New Notification", {
             body: notification.message,
             icon: "/android-chrome-192x192.png",
@@ -123,13 +128,22 @@ export default function Notifications({ userId }) {
             }
           });
         }
-        
-        // Update badge count (like WhatsApp)
-        badgeManager.incrementBadge();
-        
-        return [notification, ...prev];
-      });
+      } catch(e) { console.log('Browser notif error:', e); }
+      
+      // Badge - safe
+      try {
+        if (badgeManager && badgeManager.incrementBadge) {
+          badgeManager.incrementBadge();
+        }
+      } catch(e) { console.log('Badge error:', e); }
+      
+      return [notification, ...prev];
     });
+    
+  } catch(err) {
+    console.error('Notification handler crashed:', err);
+  }
+});
 
     socketRef.current.on('new_notification_batch', () => {
       fetchNotifications();

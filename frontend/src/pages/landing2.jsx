@@ -495,7 +495,7 @@ function Landing2() {
 
         /* Top Bar */
         .top-bar {
-          background: rgba(20, 28, 96, 0.95);
+          background: rgba(30, 46, 192, 0.95);
           padding: 8px 20px;
           position: fixed;
           top: 0;
@@ -697,15 +697,15 @@ function Landing2() {
           border-radius: 60px;
           padding: 6px;
           border: 1px solid rgba(255, 255, 255, 0.2);
-          display: inline-block;
-          max-width: 100%;
+          
+          max-width: 1500;
         }
 
         .floating-card-inner {
           display: flex;
           align-items: center;
           gap: 15px;
-          background: rgba(16, 75, 238, 0.17);
+          background: rgba(2, 10, 31, 0.47);
           border-radius: 60px;
           padding: 7px 20px 7px 7px;
           flex-wrap: wrap;
@@ -720,46 +720,80 @@ function Landing2() {
         }
 
         .floating-buttons {
-          display: flex;
-          gap: 10px;
+          gap: 20px;
           flex-wrap: wrap;
           justify-content: center;
         }
 
-        .btn-install,
-        .btn-gallery,
-        .btn-calendar,
-        .btn-register {
+        .{
           padding: 8px 20px;
           border-radius: 30px;
           border: none;
           font-size: 13px;
-          font-weight: 600;
+          font-weight: 900;
           cursor: pointer;
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 9px;
           transition: transform 0.2s;
         }
 
         .btn-install {
           background: linear-gradient(135deg, #ffd700, #ffaa00);
           color: #000;
+          padding: 45px 20px;
+          border-radius: 30px;
+          border: none;
+          font-size: 19px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          cursor: pointer;
+          gap: 5px;
+          transition: transform 0.2s;
         }
 
         .btn-gallery {
           background: linear-gradient(135deg, #0c992d, #0a7a24);
           color: white;
+          padding: 8px 20px;
+          border-radius: 30px;
+          border: none;
+          font-size: 19px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          cursor: pointer;
+          gap: 5px;
+          transition: transform 0.2s;
         }
+        
 
         .btn-calendar {
           background: linear-gradient(135deg, #2896b5, #007bff);
           color: white;
+          padding: 8px 20px;
+          border-radius: 30px;
+          border: none;
+          font-size: 19px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          cursor: pointer;
+          gap: 5px;
+          transition: transform 0.2s;
+        
         }
 
         .btn-register {
-          background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+          background: linear-gradient(135deg, #fe1111, #ee5a52);
           color: white;
+        padding: 20px 2px;
+          border-radius: 30px;
+          border: none;
+          font-size: 19px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          cursor: pointer;
+          gap: 5px;
+          transition: transform 0.2s;
         }
 
         .btn-install:hover,
@@ -1056,7 +1090,7 @@ function Landing2() {
         }
 
         .social-icon-circle.facebook {
-          background: #1877F2;
+          background: #ffffff;
         }
 
         .social-icon-circle.youtube {

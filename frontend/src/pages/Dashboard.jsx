@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
+import ProfileImageCropper from '../components/ProfileImageCropper';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ function Dashboard() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingStage, setLoadingStage] = useState(0);
   const [showContent, setShowContent] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [showCropper, setShowCropper] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -112,12 +115,16 @@ function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleImageUpload = async (e) => {
+  const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file || !user) return;
+    setSelectedImageFile(file);
+    setShowCropper(true);
+  };
 
+  const handleImageUpload = async (croppedFile) => {
     const formData = new FormData();
-    formData.append("profile", file);
+    formData.append("profile", croppedFile);
 
     try {
       const token = localStorage.getItem("token");
@@ -820,7 +827,7 @@ function Dashboard() {
               <div className="avatar-actions">
                 <label className="upload-button">
                   <span>📸</span> Change
-                  <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                  <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
                 </label>
                 {profileImage && (
                   <button onClick={handleRemovePhoto} className="remove-button">
@@ -923,6 +930,21 @@ function Dashboard() {
           <p className="footer-text">ZUCA Portal • Member Dashboard • v2.0</p>
         </motion.div>
       </div>
+
+      {/* Image Cropper Modal */}
+      {showCropper && (
+        <ProfileImageCropper
+          imageFile={selectedImageFile}
+          onCropComplete={(croppedFile) => {
+            setShowCropper(false);
+            handleImageUpload(croppedFile);
+          }}
+          onClose={() => {
+            setShowCropper(false);
+            setSelectedImageFile(null);
+          }}
+        />
+      )}
 
       <style jsx>{`
         .dashboard-container {

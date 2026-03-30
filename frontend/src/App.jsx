@@ -9,6 +9,7 @@ import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
 
 import Layout from "./components/Layout";
+import 'react-image-crop/dist/ReactCrop.css';
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import RoleRoute from "./components/RoleRoute";

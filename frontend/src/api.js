@@ -2,12 +2,16 @@
 import axios from "axios";
 import { io } from "socket.io-client";
 
-const hostname = window.location.hostname;
-
 let BASE_URL;
 
-if (hostname === "localhost") {
+const hostname = window.location.hostname;
+
+if (hostname === "localhost" || hostname === "127.0.0.1") {
   BASE_URL = "http://localhost:5000";
+} else if (hostname === "192.168.100.141") {
+  BASE_URL = "http://192.168.100.141:5000";
+} else if (hostname === "http://10.92.196.169") {
+  BASE_URL = "http://10.92.196.169:5000";
 } else {
   BASE_URL = "https://zuca-backend-iw9p.onrender.com";
 }

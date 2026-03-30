@@ -19,7 +19,7 @@ export default defineConfig({
         name: "ZucaPortal",
         short_name: "ZucaPortal",
         description: "ZucaPortal app - manage contributions and users easily",
-        theme_color: "#4F46E5",
+        theme_color: "#ffffff",
         background_color: "#ffffff",
         display: "standalone",  // opens like a real app
         start_url: "/",

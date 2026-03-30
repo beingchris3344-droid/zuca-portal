@@ -74,6 +74,9 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5000",
   "http://localhost:5173",
+  "http://10.92.196.169:5173",
+  "http://100.79.107.46:5173",
+  "http://192.168.100.141:5173",
   "https://zetechcatholic.vercel.app",
   "https://zuca-backend-iw9p.onrender.com",
   "https://zucaportal.onrender.com"
@@ -7960,10 +7963,15 @@ async function createAndSendNotification({ userId, type, title, message, data = 
     createdAt: notif.createdAt.toISOString()
   });
 
-  await sendPushNotification(userId, title, message, { type, ...data });
+try {
+    await sendPushNotification(userId, title, message, { type, ...data });
+  } catch (err) {
+    console.log('Push not sent (user may not have PWA installed):', err.message);
+  }
 
   return notif;
 }
+
 
 
 

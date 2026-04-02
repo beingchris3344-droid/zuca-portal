@@ -1,66 +1,55 @@
-// src/components/InAppNotification.jsx
+// src/components/InAppNotification.jsx - WITHOUT soundManager
+
 import React, { useState, useEffect } from 'react';
 import { X, Bell, Megaphone, Calendar, Heart, MessageCircle, Camera, DollarSign } from 'lucide-react';
-import soundManager from '../utils/soundManager';
+// DELETE: import soundManager from '../utils/soundManager';
 
 const InAppNotification = ({ notification, onClose }) => {
   const [isVisible, setIsVisible] = useState(true);
 
-  // Combined useEffect - plays sound and auto-closes after 5 seconds
   useEffect(() => {
-    // Play sound when notification appears
-    soundManager.playNotificationSound();
+    // DELETE THIS WHOLE SECTION:
+    // if (notification.type === 'message') {
+    //   soundManager.playMessageSound();
+    // } else {
+    //   soundManager.playNotificationSound();
+    // }
     
-    // Auto close after 5 seconds
+    // Just auto close after 5 seconds - NO CUSTOM SOUND
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(onClose, 300);
     }, 5000);
     
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [notification, onClose]);
 
-  if (!isVisible) return null;
-
+  // Rest of your component stays the same...
   const getIcon = () => {
     switch(notification.type) {
-      case 'announcement':
-        return <Megaphone size={20} />;
+      case 'announcement': return <Megaphone size={20} />;
       case 'event':
-      case 'program':
-        return <Calendar size={20} />;
-      case 'message':
-        return <MessageCircle size={20} />;
-      case 'contribution':
-        return <DollarSign size={20} />;
+      case 'program': return <Calendar size={20} />;
+      case 'message': return <MessageCircle size={20} />;
+      case 'contribution': return <DollarSign size={20} />;
       case 'new_media':
       case 'media_comment':
-      case 'media_like':
-        return <Camera size={20} />;
-      default:
-        return <Bell size={20} />;
+      case 'media_like': return <Camera size={20} />;
+      default: return <Bell size={20} />;
     }
   };
 
   const getColor = () => {
     switch(notification.type) {
-      case 'announcement':
-        return '#00c6ff';
+      case 'announcement': return '#00c6ff';
       case 'event':
-      case 'program':
-        return '#8b5cf6';
-      case 'message':
-        return '#10b981';
-      case 'contribution':
-        return '#f59e0b';
-      case 'new_media':
-        return '#ec489a';
-      case 'media_comment':
-        return '#3b82f6';
-      case 'media_like':
-        return '#ef4444';
-      default:
-        return '#3b82f6';
+      case 'program': return '#8b5cf6';
+      case 'message': return '#10b981';
+      case 'contribution': return '#f59e0b';
+      case 'new_media': return '#ec489a';
+      case 'media_comment': return '#3b82f6';
+      case 'media_like': return '#ef4444';
+      default: return '#3b82f6';
     }
   };
 
@@ -68,44 +57,24 @@ const InAppNotification = ({ notification, onClose }) => {
     let path = '/dashboard';
     
     switch(notification.type) {
-      case 'announcement':
-        path = '/announcements';
-        break;
-      case 'program':
-        path = '/mass-programs';
-        break;
-      case 'message':
-        path = '/chat';
-        break;
-      case 'contribution':
-        path = '/contributions';
-        break;
-      case 'new_media':
-        path = '/gallery';
-        break;
+      case 'announcement': path = '/announcements'; break;
+      case 'program': path = '/mass-programs'; break;
+      case 'message': path = '/chat'; break;
+      case 'contribution': path = '/contributions'; break;
+      case 'new_media': path = '/gallery'; break;
       case 'media_comment':
-        if (notification.entityId) {
-          path = `/gallery?media=${notification.entityId}`;
-        } else {
-          path = '/gallery';
-        }
+        path = notification.entityId ? `/gallery?media=${notification.entityId}` : '/gallery';
         break;
-      case 'media_like':
-        path = '/gallery';
-        break;
+      case 'media_like': path = '/gallery'; break;
     }
     
-    // Safe navigation - use window.location if useNavigate is not available
     try {
-      // Try to use React Router navigation
       if (window.navigate) {
         window.navigate(path);
       } else {
-        // Fallback to regular navigation
         window.location.href = path;
       }
     } catch (err) {
-      // Last resort
       window.location.href = path;
     }
     
@@ -122,6 +91,8 @@ const InAppNotification = ({ notification, onClose }) => {
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return notifTime.toLocaleDateString();
   };
+
+  if (!isVisible) return null;
 
   return (
     <div 

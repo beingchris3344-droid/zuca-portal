@@ -1,77 +1,49 @@
-// src/utils/badgeManager.js
 class BadgeManager {
   constructor() {
-    this.unreadCount = 0;
-    this.listeners = [];
+    this.count = 0;
   }
 
-  // Update badge count on app icon
-  async updateBadgeCount(count) {
-    this.unreadCount = Math.max(0, count);
+  async update(count) {
+    this.count = Math.max(0, count);
+    localStorage.setItem('zuca_badge', this.count);
     
-    // Save to localStorage
-    localStorage.setItem('zuca_unread_count', this.unreadCount);
-    
-    // Update app badge (like WhatsApp)
-    if ('setAppBadge' in navigator) {
+    // Update app badge
+    if (navigator.setAppBadge) {
       try {
-        if (this.unreadCount > 0) {
-          await navigator.setAppBadge(this.unreadCount);
-          console.log(`📱 App badge set to ${this.unreadCount}`);
+        if (this.count > 0) {
+          await navigator.setAppBadge(this.count);
         } else {
           await navigator.clearAppBadge();
-          console.log('📱 App badge cleared');
         }
-      } catch (err) {
-        console.error('Badge error:', err);
+        console.log(`📱 Badge: ${this.count}`);
+      } catch (e) {
+        // Silent fail
       }
     }
     
-    // Notify service worker
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    // Notify SW
+    if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({
         type: 'UPDATE_BADGE',
-        count: this.unreadCount
+        count: this.count
       });
     }
     
-    // Notify all listeners
-    this.listeners.forEach(listener => listener(this.unreadCount));
-    
-    return this.unreadCount;
+    return this.count;
   }
 
-  // Increment badge count by 1
-  incrementBadge() {
-    return this.updateBadgeCount(this.unreadCount + 1);
+  increment() {
+    return this.update(this.count + 1);
   }
 
-  // Decrement badge count by 1
-  decrementBadge() {
-    return this.updateBadgeCount(Math.max(0, this.unreadCount - 1));
+  decrement() {
+    return this.update(Math.max(0, this.count - 1));
   }
 
-  // Get current unread count
-  getUnreadCount() {
-    return this.unreadCount;
-  }
-
-  // Add listener for badge changes
-  addListener(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(cb => cb !== callback);
-    };
-  }
-
-  // Load saved count from storage
-  loadCount() {
-    const saved = localStorage.getItem('zuca_unread_count');
-    if (saved) {
-      this.unreadCount = parseInt(saved, 10);
-      this.updateBadgeCount(this.unreadCount);
-    }
-    return this.unreadCount;
+  load() {
+    const saved = localStorage.getItem('zuca_badge');
+    this.count = saved ? parseInt(saved) : 0;
+    return this.count;
   }
 }
 

@@ -769,7 +769,7 @@ function Landing2() {
 }
 
 .btn-calendar {
-  background: linear-gradient(135deg, #2896b5, #007bff);
+  background: linear-gradient(135deg, #2896b5, #f6f8fb);
   color: white;
 }
 

@@ -99,19 +99,20 @@ useEffect(() => {
   };
 
   const navItems = [
-    { label: "Dashboard", path: "", icon: "📊" },
-    { label: "Users", path: "users", icon: "👥" },
-    { label: "Role Management", path: "roles", icon: "👑" },
-    { label: "Manage Jumuia", path: "jumuia-management", icon: "⛪" },
-    { label: "ZUCA Media", path: "media", icon: "🎥" },
-    { label: "YouTube Analytics", path: "analytics", icon: "▶️" },
-    { label: "Songs Program", path: "songs", icon: "🎵" },
-    { label: "Hymn Book", path: "hymns", icon: "📖" }, 
-    { label: "Pending Songs", path: "pending-songs", icon: "⏳" },
-    { label: "Announcements", path: "announcements", icon: "📢" },
-    { label: "Contributions", path: "contributions", icon: "💰" },
-    { label: "Chat Monitor", path: "chat", icon: "💬" },
-    { label: "Security", path: "security", icon: "🔒" },
+    { label: "ADMIN DASHBOARD", path: "", icon: "📊" },
+    { label: "USER MANUAL", path: "security", icon: "🔒" },
+    { label: "ALL USERS", path: "users", icon: "👥" },
+    { label: "ROLE MANAGEMENT", path: "roles", icon: "👑" },
+    { label: "JUMUIA MANAGEMENT", path: "jumuia-management", icon: "⛪" },
+    { label: "ZUCA GALLERY", path: "media", icon: "🎥" },
+    { label: " ZUCA YOUTUBE ANALYTICS", path: "analytics", icon: "▶️" },
+    { label: "MASS PROGRAM", path: "songs", icon: "🎵" },
+    { label: "HYMN BOOK", path: "hymns", icon: "📖" }, 
+    { label: "PENDING SONGS", path: "pending-songs", icon: "⏳" },
+    { label: "GEN ANNOUNCEMENTS", path: "announcements", icon: "📢" },
+    { label: "GEN CONTRIBUTIONS", path: "contributions", icon: "💰" },
+    { label: "CHAT MONITOR", path: "chat", icon: "💬" },
+    
   ];
 
   return (

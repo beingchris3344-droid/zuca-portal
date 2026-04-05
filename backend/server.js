@@ -2275,6 +2275,70 @@ app.delete("/api/admin/songs/:id", authenticate, async (req, res) => {
   }
 });
 
+// GET all pending songs (for admin page)
+app.get("/api/admin/pending-songs", authenticate, async (req, res) => {
+  try {
+    // Check if user is admin or choir_moderator
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const pendingSongs = await prisma.pendingSong.findMany({
+      where: { status: "pending" },
+      include: {
+        program: {
+          select: {
+            date: true,
+            venue: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    res.json(pendingSongs);
+  } catch (err) {
+    console.error("Error fetching pending songs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Mark pending song as completed (when admin adds lyrics)
+app.put("/api/admin/pending-songs/:id/complete", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    await prisma.pendingSong.update({
+      where: { id },
+      data: { status: "completed" }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error completing pending song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================== UPDATE LAST ACTIVE ==================
 async function updateLastActive(req, res, next) {
   if (req.user?.userId) {
@@ -3127,33 +3191,79 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       }
     });
 
-    // Add songs
-    for (const [type, title] of Object.entries(songsData)) {
-      if (!title || title.trim() === "") continue;
-      
-      let song = await prisma.song.findFirst({ 
-        where: { title: title.trim() } 
-      });
-      
-      if (!song) {
-        song = await prisma.song.create({ 
-          data: { 
-            title: title.trim(),
-            composer: "",
-            lyrics: "",
-            reference: ""
-          } 
-        });
+  // Add songs
+for (const [type, title] of Object.entries(songsData)) {
+  if (!title || title.trim() === "") continue;
+  
+  // Try exact match first
+  let song = await prisma.song.findFirst({ 
+    where: { 
+      title: {
+        equals: title.trim(),
+        mode: 'insensitive'
       }
-      
-      await prisma.massProgramSong.create({
-        data: {
-          type,
-          massProgramId: newProgram.id,
-          songId: song.id
+    } 
+  });
+
+  // If not found, try partial match (contains)
+  if (!song) {
+    song = await prisma.song.findFirst({ 
+      where: { 
+        title: {
+          contains: title.trim(),
+          mode: 'insensitive'
         }
+      } 
+    });
+  }
+
+  // If still not found, try word-by-word matching
+  if (!song) {
+    const words = title.trim().split(/\s+/).filter(w => w.length > 2);
+    for (const word of words) {
+      song = await prisma.song.findFirst({ 
+        where: { 
+          title: {
+            contains: word,
+            mode: 'insensitive'
+          }
+        } 
       });
+      if (song) break;
     }
+  }
+  
+  // If song doesn't exist, create placeholder and pending record
+  if (!song) {
+    // Create placeholder song
+    song = await prisma.song.create({ 
+      data: { 
+        title: title.trim(),
+        composer: "",
+        lyrics: "[Pending - Add lyrics]",
+        reference: ""
+      } 
+    });
+    
+    // Create pending record (ONLY when song was missing)
+    await prisma.pendingSong.create({
+      data: {
+        title: title.trim(),
+        type: type,
+        programId: newProgram.id,
+        status: "pending"
+      }
+    });
+  }
+  
+  await prisma.massProgramSong.create({
+    data: {
+      type,
+      massProgramId: newProgram.id,
+      songId: song.id
+    }
+  });
+}
 
     // Fetch complete program with songs
     const completeProgram = await prisma.massProgram.findUnique({
@@ -3211,6 +3321,8 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
   }
 });
 
+
+
 // UPDATE mass program (admin/choir moderator only)
 app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   try {
@@ -3244,34 +3356,79 @@ app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
       where: { massProgramId: id } 
     });
 
-    // Add updated songs
-    for (const [type, title] of Object.entries(songsData)) {
-      if (!title || title.trim() === "") continue;
-      
-      let song = await prisma.song.findFirst({ 
-        where: { title: title.trim() } 
-      });
-      
-      if (!song) {
-        song = await prisma.song.create({ 
-          data: { 
-            title: title.trim(),
-            composer: "",
-            lyrics: "",
-            reference: ""
-          } 
-        });
+   // Add updated songs
+for (const [type, title] of Object.entries(songsData)) {
+  if (!title || title.trim() === "") continue;
+  
+  // Try exact match first
+  let song = await prisma.song.findFirst({ 
+    where: { 
+      title: {
+        equals: title.trim(),
+        mode: 'insensitive'
       }
-      
-      await prisma.massProgramSong.create({
-        data: {
-          type,
-          massProgramId: id,
-          songId: song.id
-        }
-      });
-    }
+    } 
+  });
 
+  // If not found, try partial match (contains)
+  if (!song) {
+    song = await prisma.song.findFirst({ 
+      where: { 
+        title: {
+          contains: title.trim(),
+          mode: 'insensitive'
+        }
+      } 
+    });
+  }
+
+  // If still not found, try word-by-word matching
+  if (!song) {
+    const words = title.trim().split(/\s+/).filter(w => w.length > 2);
+    for (const word of words) {
+      song = await prisma.song.findFirst({ 
+        where: { 
+          title: {
+            contains: word,
+            mode: 'insensitive'
+          }
+        } 
+      });
+      if (song) break;
+    }
+  }
+  
+  // If song doesn't exist, create placeholder and pending record
+  if (!song) {
+    // Create placeholder song
+    song = await prisma.song.create({ 
+      data: { 
+        title: title.trim(),
+        composer: "",
+        lyrics: "[Pending - Add lyrics]",
+        reference: ""
+      } 
+    });
+    
+    // Create pending record
+    await prisma.pendingSong.create({
+      data: {
+        title: title.trim(),
+        type: type,
+        programId: id,
+        status: "pending"
+      }
+    });
+  }
+  
+  await prisma.massProgramSong.create({
+    data: {
+      type,
+      massProgramId: id,
+      songId: song.id
+    }
+  });
+}
     // Fetch updated program
     const updatedProgram = await prisma.massProgram.findUnique({
       where: { id },

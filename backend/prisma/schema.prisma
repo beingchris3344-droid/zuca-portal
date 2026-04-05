@@ -104,6 +104,7 @@ model MassProgram {
   author    User?   @relation("UserMassPrograms", fields: [createdBy], references: [id])
 
   songs MassProgramSong[]
+  pendingSongs PendingSong[]
 }
 
 model Song {
@@ -551,6 +552,20 @@ model JumuiaReadReceipt {
   @@index([messageId])
   @@index([userId])
   @@map("jumuia_read_receipts")
+}
+
+model PendingSong {
+  id        String   @id @default(uuid())
+  title     String
+  type      String?
+  programId String?
+  createdAt DateTime @default(now())
+  status    String   @default("pending")
+  
+  program   MassProgram? @relation(fields: [programId], references: [id], onDelete: Cascade)
+  
+  @@index([status])
+  @@index([createdAt])
 }
 
 model LiturgicalDay {

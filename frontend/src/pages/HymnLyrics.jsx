@@ -72,7 +72,9 @@ export default function HymnLyrics() {
 
   const copyToClipboard = () => {
     if (!song) return;
-    const text = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${song.lyrics || ''}`;
+    // Strip bold markers for plain text copy
+    const stripBold = (text) => text.replace(/\*\*([^*]+)\*\*/g, '$1');
+    const text = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${stripBold(song.lyrics || '')}`;
     navigator.clipboard.writeText(text);
     showToast("📋 Lyrics copied!");
   };
@@ -98,7 +100,43 @@ export default function HymnLyrics() {
     setTimeout(() => toast.remove(), 3000);
   };
 
-  // ========== DOWNLOAD FUNCTIONS ==========
+  // NEW: Parse bold text from **markers**
+  const parseBoldText = (line) => {
+    if (!line) return null;
+    
+    // Split by ** markers, keeping them as delimiters
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Bold text - remove the ** markers
+        const boldContent = part.slice(2, -2);
+        return <strong key={index} style={{ fontWeight: '700', color: '#4f46e5' }}>{boldContent}</strong>;
+      }
+      // Normal text
+      return part;
+    });
+  };
+
+  // Format lyrics with bold support
+  const formatLyrics = (lyrics) => {
+    if (!lyrics) return [];
+    // Split by double newlines for verses
+    const verses = lyrics.split(/\n\s*\n/);
+    return verses.filter(verse => verse.trim() !== '');
+  };
+
+  // Render a verse with proper bold formatting
+  const renderVerse = (verse) => {
+    const lines = verse.split('\n');
+    return lines.map((line, lineIndex) => (
+      <p key={lineIndex} style={{ ...verseLine, fontSize: `${fontSize}px` }}>
+        {line.trim() === '' ? '\u00A0' : parseBoldText(line)}
+      </p>
+    ));
+  };
+
+  // ========== DOWNLOAD FUNCTIONS (updated for bold text) ==========
   const downloadAsImage = async () => {
     try {
       showToast("📸 Preparing image...");
@@ -113,13 +151,18 @@ export default function HymnLyrics() {
       element.style.borderRadius = '16px';
       element.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)';
       
-      // Format lyrics
-      const verses = song.lyrics ? song.lyrics.split('\n\n') : [];
-      const lyricsHtml = verses.map(verse => 
-        `<div style="margin-bottom: 24px;">${verse.split('\n').map(line => 
-          `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${line || ' '}</p>`
-        ).join('')}</div>`
-      ).join('');
+      // Format lyrics with bold support
+      const verses = formatLyrics(song.lyrics);
+      const lyricsHtml = verses.map(verse => {
+        const lines = verse.split('\n');
+        const linesHtml = lines.map(line => {
+          // Parse bold markers for HTML
+          const boldRegex = /\*\*([^*]+)\*\*/g;
+          const parsedLine = line.replace(boldRegex, '<strong style="color: #4f46e5;">$1</strong>');
+          return `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${parsedLine || ' '}</p>`;
+        }).join('');
+        return `<div style="margin-bottom: 24px;">${linesHtml}</div>`;
+      }).join('');
       
       element.innerHTML = `
         <div style="text-align: center; margin-bottom: 30px;">
@@ -197,13 +240,15 @@ export default function HymnLyrics() {
         y += 20;
       }
       
-      // Lyrics
+      // Lyrics - strip bold markers for PDF (or keep as bold if using html2pdf)
       pdf.setFontSize(fontSize);
       pdf.setTextColor(30, 41, 59);
       pdf.setFont('helvetica', 'normal');
       
       if (song.lyrics) {
-        const verses = song.lyrics.split('\n\n');
+        // Strip bold markers for clean PDF text
+        const cleanLyrics = song.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
+        const verses = cleanLyrics.split(/\n\s*\n/);
         
         verses.forEach(verse => {
           const lines = verse.split('\n');
@@ -243,13 +288,17 @@ export default function HymnLyrics() {
     try {
       showToast("📝 Preparing Word document...");
       
-      // Format lyrics with proper HTML
-      const verses = song.lyrics ? song.lyrics.split('\n\n') : [];
-      const lyricsHtml = verses.map(verse => 
-        `<div style="margin-bottom: 24px;">${verse.split('\n').map(line => 
-          `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${line || '<br/>'}</p>`
-        ).join('')}</div>`
-      ).join('');
+      // Format lyrics with bold support
+      const verses = formatLyrics(song.lyrics);
+      const lyricsHtml = verses.map(verse => {
+        const lines = verse.split('\n');
+        const linesHtml = lines.map(line => {
+          const boldRegex = /\*\*([^*]+)\*\*/g;
+          const parsedLine = line.replace(boldRegex, '<strong style="color: #4f46e5;">$1</strong>');
+          return `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${parsedLine || '<br/>'}</p>`;
+        }).join('');
+        return `<div style="margin-bottom: 24px;">${linesHtml}</div>`;
+      }).join('');
       
       // Create HTML content
       const htmlContent = `
@@ -287,6 +336,9 @@ export default function HymnLyrics() {
               text-align: center;
               font-size: ${fontSize}px;
             }
+            strong {
+              color: #4f46e5;
+            }
             .footer {
               text-align: center;
               margin-top: 40px;
@@ -298,11 +350,7 @@ export default function HymnLyrics() {
         <body>
           <h1>${song.title}</h1>
           ${song.reference ? `<div class="reference">${song.reference}</div>` : ''}
-          ${verses.map(verse => 
-            `<div class="verse">${verse.split('\n').map(line => 
-              `<p>${line || '<br/>'}</p>`
-            ).join('')}</div>`
-          ).join('')}
+          ${lyricsHtml}
           <div class="footer">
             ZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}
           </div>
@@ -332,8 +380,9 @@ export default function HymnLyrics() {
     try {
       showToast("📄 Preparing text file...");
       
-      // Format as plain text
-      const textContent = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${'='.repeat(50)}\n\n${song.lyrics || ''}\n\n${'='.repeat(50)}\nZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}`;
+      // Strip bold markers for plain text
+      const stripBold = (text) => text.replace(/\*\*([^*]+)\*\*/g, '$1');
+      const textContent = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${'='.repeat(50)}\n\n${stripBold(song.lyrics || '')}\n\n${'='.repeat(50)}\nZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}`;
       
       // Create blob and download
       const blob = new Blob([textContent], { type: 'text/plain' });
@@ -351,12 +400,6 @@ export default function HymnLyrics() {
       console.error('Text download failed:', error);
       showToast("❌ Failed to download text file");
     }
-  };
-
-  // Format lyrics with proper spacing
-  const formatLyrics = (lyrics) => {
-    if (!lyrics) return [];
-    return lyrics.split('\n\n').filter(verse => verse.trim() !== '');
   };
 
   if (loading) {
@@ -459,21 +502,17 @@ export default function HymnLyrics() {
         )}
       </div>
 
-      {/* Lyrics Display */}
+      {/* Lyrics Display with Bold Support */}
       <div style={lyricsContainer}>
         {verses.length > 0 ? (
           verses.map((verse, index) => (
             <div key={index} style={verseBlock}>
-              {verse.split('\n').map((line, lineIndex) => (
-                <p key={lineIndex} style={{ ...verseLine, fontSize: `${fontSize}px` }}>
-                  {line || '\u00A0'}
-                </p>
-              ))}
+              {renderVerse(verse)}
             </div>
           ))
         ) : (
           <p style={{ ...verseLine, fontSize: `${fontSize}px`, textAlign: 'center' }}>
-            {song.lyrics || 'No lyrics available'}
+            {song.lyrics ? parseBoldText(song.lyrics) : 'No lyrics available'}
           </p>
         )}
       </div>

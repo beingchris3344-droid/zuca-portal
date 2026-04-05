@@ -773,10 +773,7 @@ function Landing2() {
   color: white;
 }
 
-.btn-register {
-  background: linear-gradient(135deg, #fe1111, #ee5a52);
-  color: white;
-}
+
 
 /* Hover */
 .floating-buttons button:hover {

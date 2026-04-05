@@ -244,55 +244,85 @@ export default function SongsPage() {
   };
 
   const checkForDuplicates = () => {
-    if (programs.length === 0) return true;
+  if (programs.length === 0) return true;
 
-    const parseDate = (str) => {
-      if (!str) return new Date(0);
-      const [year, month, day] = str.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    };
-
-    const sortedPrograms = [...programs]
-      .filter(p => p.id !== editingId)
-      .sort((a, b) => parseDate(b.date) - parseDate(a.date));
-
-    const lastProgram = sortedPrograms[0];
-
-    if (lastProgram) {
-      const normalize = (str) =>
-        str?.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
-
-      const duplicateSongs = songFields
-        .filter(f => normalize(form.songs[f.key]) === normalize(lastProgram[f.key]))
-        .map(f => f.label);
-
-      if (duplicateSongs.length > 0) {
-        const getOrdinal = (n) => {
-          if (n > 3 && n < 21) return n + "th";
-          switch (n % 10) {
-            case 1: return n + "st";
-            case 2: return n + "nd";
-            case 3: return n + "rd";
-            default: return n + "th";
-          }
-        };
-
-        const formatDate = (dateStr) => {
-          const date = new Date(dateStr);
-          const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
-          const dayNumber = getOrdinal(date.getDate());
-          const monthName = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
-          const year = date.getFullYear();
-          return `${dayName} ${dayNumber} ${monthName} ${year}`;
-        };
-
-        setFormError(`Cannot add: ${duplicateSongs.join(", ")}. Already used on ${formatDate(lastProgram.date)}`);
-        return false;
-      }
-    }
-    return true;
+  const parseDate = (str) => {
+    if (!str) return new Date(0);
+    const [year, month, day] = str.split("-").map(Number);
+    return new Date(year, month - 1, day);
   };
 
+  const sortedPrograms = [...programs]
+    .filter(p => p.id !== editingId)
+    .sort((a, b) => parseDate(b.date) - parseDate(a.date));
+
+  const lastProgram = sortedPrograms[0];
+  
+  if (!lastProgram) return true;
+
+  // Fuzzy matching helper (same logic as backend)
+  const doTitlesMatch = (inputTitle, existingTitle) => {
+    if (!inputTitle || !existingTitle) return false;
+    
+    const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const normalizedInput = normalize(inputTitle);
+    const normalizedExisting = normalize(existingTitle);
+    
+    // Exact match after normalization
+    if (normalizedInput === normalizedExisting) return true;
+    
+    // Partial match (contains)
+    if (normalizedExisting.includes(normalizedInput) || normalizedInput.includes(normalizedExisting)) return true;
+    
+    // Word-by-word matching
+    const inputWords = normalizedInput.split(/\s+/).filter(w => w.length > 2);
+    for (const word of inputWords) {
+      if (normalizedExisting.includes(word)) return true;
+    }
+    
+    return false;
+  };
+
+  const duplicateSongs = [];
+
+  for (const field of songFields) {
+    const inputTitle = form.songs[field.key];
+    const lastSongTitle = lastProgram[field.key];
+    
+    if (!inputTitle || !lastSongTitle) continue;
+    
+    // Check using fuzzy matching
+    if (doTitlesMatch(inputTitle, lastSongTitle)) {
+      duplicateSongs.push(field.label);
+    }
+  }
+
+  if (duplicateSongs.length > 0) {
+    const getOrdinal = (n) => {
+      if (n > 3 && n < 21) return n + "th";
+      switch (n % 10) {
+        case 1: return n + "st";
+        case 2: return n + "nd";
+        case 3: return n + "rd";
+        default: return n + "th";
+      }
+    };
+
+    const formatDate = (dateStr) => {
+      const date = new Date(dateStr);
+      const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+      const dayNumber = getOrdinal(date.getDate());
+      const monthName = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+      const year = date.getFullYear();
+      return `${dayName} ${dayNumber} ${monthName} ${year}`;
+    };
+
+    setFormError(`⚠️ Sorry man gotcha!!🫵😂, zuca Cannot add: ${duplicateSongs.join(", ")}. it was Already sung on ${formatDate(lastProgram.date)} #There are losts of other songs🫡!!`);
+    return false;
+  }
+  
+  return true;
+};
   const handleSubmit = async (e) => {
     e.preventDefault();
 

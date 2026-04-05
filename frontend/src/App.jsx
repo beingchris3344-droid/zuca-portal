@@ -50,6 +50,7 @@ import ContributionsPage from "./pages/admin/ContributionsPage";
 import JumuiaManagement from "./pages/admin/JumuiaManagement";
 import ChatMonitorPage from "./pages/admin/ChatMonitorPage";
 import SecurityPage from "./pages/admin/SecurityPage";
+import PendingSongs from "./pages/admin/PendingSongs";
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -257,6 +258,7 @@ function App() {
             <Route path="chat" element={<ChatMonitorPage />} />
             <Route path="security" element={<SecurityPage />} />
             <Route path="media" element={<AdminMediaPage />} />
+            <Route path="/admin/pending-songs" element={<PendingSongs />} />
           </Route>
 
           {/* ================= SECRETARY (Announcements only) ================= */}

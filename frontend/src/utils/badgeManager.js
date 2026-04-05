@@ -45,6 +45,19 @@ class BadgeManager {
     this.count = saved ? parseInt(saved) : 0;
     return this.count;
   }
+
+  // Alias methods for App.jsx compatibility
+  updateBadgeCount(count) {
+    return this.update(count);
+  }
+
+  loadCount() {
+    return this.load();
+  }
+
+  incrementBadge() {
+    return this.increment();
+  }
 }
 
 export default new BadgeManager();

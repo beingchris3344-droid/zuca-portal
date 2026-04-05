@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { 
   FiShare2, 
   FiCalendar, 
@@ -162,6 +163,7 @@ const songFields = [
 const mobileCompactFields = songFields.slice(0, 6);
 
 export default function MassPrograms() {
+  const navigate = useNavigate();
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState([]);
@@ -210,6 +212,32 @@ export default function MassPrograms() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  /// Function to navigate to hymn in hymn book
+const navigateToHymn = async (hymnTitle, e) => {
+  e.stopPropagation();
+  
+  if (!hymnTitle || hymnTitle === '—' || hymnTitle.trim() === '') return;
+  
+  try {
+    // Search for the hymn
+    const response = await axios.get(
+      `${BASE_URL}/api/songs?search=${encodeURIComponent(hymnTitle)}&limit=5`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    
+    const songs = response.data.songs || [];
+    
+    if (songs && songs.length > 0) {
+      // Navigate directly to the song by ID
+      navigate(`/hymn/${songs[0].id}`);
+    } else {
+      showToast(`"${hymnTitle}" not found in hymn book`);
+    }
+  } catch (err) {
+    console.error("Error finding hymn:", err);
+    showToast(`Could not find "${hymnTitle}"`);
+  }
+};
   // Fetch programs
   const fetchPrograms = useCallback(async () => {
   try {
@@ -765,7 +793,7 @@ export default function MassPrograms() {
   const toggleFavorite = (id) => {
     const newFavorites = favorites.includes(id) 
       ? favorites.filter(x => x !== id)
-      : [...favorites, id];
+      : [...new Set([...favorites, id])];
     setFavorites(newFavorites);
     showToast(newFavorites.includes(id) ? "❤️ Added to favorites" : "❤️ Removed from favorites");
   };
@@ -1034,12 +1062,6 @@ export default function MassPrograms() {
                             transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
                           }}
                           whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            navigator.clipboard.writeText(value);
-                            highlightSong(p.id, f.key);
-                            showToast('📋 Copied: ' + value.substring(0, 30) + '...');
-                          }}
                         >
                           <div style={songHeader}>
                             <div style={{ ...songIcon, color: f.color }}>{f.icon}</div>
@@ -1057,7 +1079,14 @@ export default function MassPrograms() {
                           </div>
                           
                           <div style={songValueWrapper}>
-                            <div style={songValue}>{value}</div>
+                            <div 
+                              style={clickableSongValue}
+                              onClick={(e) => navigateToHymn(value, e)}
+                              title="Click to view lyrics in hymn book"
+                            >
+                              {value}
+                              <span style={viewIconStyle}>👁️</span>
+                            </div>
                             {viewMode === 'detailed' && f.description && (
                               <div style={songDescription}>{f.description}</div>
                             )}
@@ -1086,6 +1115,19 @@ export default function MassPrograms() {
                               title="Add note"
                             >
                               <FaRegKeyboard size={12} color={note ? "#8b5cf6" : "#6b7280"} />
+                            </motion.span>
+                            <motion.span
+                              whileHover={{ scale: 1.2 }}
+                              style={songActionIcon}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(value);
+                                highlightSong(p.id, f.key);
+                                showToast('📋 Copied: ' + value.substring(0, 30) + '...');
+                              }}
+                              title="Copy to clipboard"
+                            >
+                              <FiCopy size={12} color="#6b7280" />
                             </motion.span>
                           </div>
 
@@ -1161,7 +1203,7 @@ export default function MassPrograms() {
                           ...actionButton,
                           background: showDownloadMenu === p.id ? '#4f46e5' : '#f8fafc',
                           color: showDownloadMenu === p.id ? 'white' : '#475569',
-                          gridColumn: 'span 3',
+                          gridColumn: 'span 4',
                         }}
                       >
                         <FiDownload size={14} />
@@ -1621,7 +1663,6 @@ const songItem = {
   padding: "12px",
   borderRadius: "12px",
   border: "1px solid #e2e8f0",
-  cursor: "pointer",
   transition: "all 0.2s",
   position: "relative",
 };
@@ -1662,12 +1703,24 @@ const songValueWrapper = {
   marginBottom: "4px",
 };
 
-const songValue = {
+const clickableSongValue = {
   fontSize: "12px",
   fontWeight: "600",
-  color: "#0f172a",
+  color: "#4f46e5",
   wordBreak: "break-word",
   lineHeight: 1.4,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+  transition: "all 0.2s",
+};
+
+const viewIconStyle = {
+  fontSize: "10px",
+  opacity: 0.5,
+  transition: "opacity 0.2s",
 };
 
 const songDescription = {

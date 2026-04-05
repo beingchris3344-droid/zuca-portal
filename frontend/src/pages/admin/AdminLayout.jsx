@@ -107,6 +107,7 @@ useEffect(() => {
     { label: "YouTube Analytics", path: "analytics", icon: "▶️" },
     { label: "Songs Program", path: "songs", icon: "🎵" },
     { label: "Hymn Book", path: "hymns", icon: "📖" }, 
+    { label: "Pending Songs", path: "pending-songs", icon: "⏳" },
     { label: "Announcements", path: "announcements", icon: "📢" },
     { label: "Contributions", path: "contributions", icon: "💰" },
     { label: "Chat Monitor", path: "chat", icon: "💬" },
@@ -321,6 +322,7 @@ useEffect(() => {
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           position: relative;
+          
           overflow-x: hidden;
         }
 
@@ -375,10 +377,10 @@ useEffect(() => {
 
         /* Glass Effect Classes */
         .glass-effect {
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(44, 188, 68, 0.7);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 0px solid rgba(255, 255, 255, 0.1);
+          border: 0px solid rgba(255, 255, 255, 0.15);
         }
 
         .glass-card {
@@ -390,7 +392,7 @@ useEffect(() => {
         }
 
         .gradient-text {
-          background: linear-gradient(135deg, #fff, #a5b4fc);
+          background: linear-gradient(135deg, #ffffff, #a5b4fc);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -408,7 +410,7 @@ useEffect(() => {
           justify-content: space-between;
           padding: 0 24px;
           z-index: 100;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          border-bottom: 1px solid rgba(15, 121, 214, 0.92);
         }
 
         .top-bar-left {
@@ -421,7 +423,7 @@ useEffect(() => {
         .menu-btn {
           width: 44px;
           height: 44px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.93);
           border-radius: 12px;
           font-size: 22px;
           color: white;
@@ -430,7 +432,7 @@ useEffect(() => {
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(14, 14, 14, 0.84);
           backdrop-filter: blur(10px);
         }
 
@@ -467,7 +469,7 @@ useEffect(() => {
         .online-dot {
           width: 10px;
           height: 10px;
-          background: #10b981;
+          background: #ff0000;
           border-radius: 50%;
           animation: pulse 2s infinite;
           box-shadow: 0 0 12px #10b981;
@@ -543,7 +545,7 @@ useEffect(() => {
 
         .notification-header button {
           border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.95);
+          background: rgba(195, 21, 21, 0.15);
           backdrop-filter: blur(10px);
           color: rgba(255, 255, 255, 0.8);
           font-size: 13px;
@@ -579,7 +581,7 @@ useEffect(() => {
         }
 
         .notification-item:hover {
-          background: rgba(255, 255, 255, 0.94);
+          background: rgba(17, 16, 16, 0.75);
         }
 
         .notification-icon {
@@ -649,6 +651,7 @@ useEffect(() => {
           display: flex;
           flex-direction: column;
           z-index: 90;
+          margin-bottom: 14px;
           overflow-y: auto;
           border-right: 1px solid rgba(255, 255, 255, 0.14);
         }
@@ -659,6 +662,7 @@ useEffect(() => {
           left: 0;
           height: 100vh;
           z-index: 1000;
+          margin-bottom: 124px;
           box-shadow: 4px 0 30px rgba(0, 0, 0, 0.93);
         }
 
@@ -778,6 +782,7 @@ useEffect(() => {
           align-items: center;
           justify-content: center;
           gap: 8px;
+          margin-bottom: 104px;
           cursor: pointer;
           transition: all 0.2s;
           backdrop-filter: blur(10px);

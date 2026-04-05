@@ -1,7 +1,8 @@
 // frontend/src/pages/HymnBook.jsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { useSearchParams } from "react-router-dom";
 import { 
   FiSearch, 
   FiHeart, 
@@ -23,11 +24,12 @@ import { Link } from "react-router-dom";
 import BASE_URL from "../api";
 
 export default function HymnBook() {
+  const [searchParams] = useSearchParams();
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [activeSearch, setActiveSearch] = useState("");
   const [favorites, setFavorites] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [recentlyViewed, setRecentlyViewed] = useState([]);
@@ -37,6 +39,7 @@ export default function HymnBook() {
   const [totalSongs, setTotalSongs] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [shareModal, setShareModal] = useState(null);
+  const initialLoadDone = useRef(false);
 
   const token = localStorage.getItem("token");
 
@@ -63,17 +66,8 @@ export default function HymnBook() {
     localStorage.setItem("songFavorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Fetch songs with search
-  const fetchSongs = useCallback(async (pageNum = 1, search = '', reset = false) => {
+  // Fetch songs
+  const fetchSongs = useCallback(async (pageNum = 1, search = '', reset = false, isInitial = false) => {
     try {
       if (pageNum === 1) {
         setLoading(true);
@@ -83,7 +77,7 @@ export default function HymnBook() {
       
       const params = new URLSearchParams({
         page: pageNum,
-        limit: 5
+        limit: 20
       });
       
       if (search) {
@@ -94,8 +88,20 @@ export default function HymnBook() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       
-      // SAFETY: Ensure we have an array
-      const newSongs = res.data?.songs || [];
+      let newSongs = res.data?.songs || [];
+      
+      // Sort results: title matches first, then lyrics matches
+      if (search && newSongs.length > 0) {
+        const searchLower = search.toLowerCase();
+        newSongs.sort((a, b) => {
+          const aTitleMatch = a.title?.toLowerCase().includes(searchLower);
+          const bTitleMatch = b.title?.toLowerCase().includes(searchLower);
+          
+          if (aTitleMatch && !bTitleMatch) return -1;
+          if (!aTitleMatch && bTitleMatch) return 1;
+          return 0;
+        });
+      }
       
       if (reset || pageNum === 1) {
         setSongs(newSongs);
@@ -118,35 +124,62 @@ export default function HymnBook() {
     }
   }, [token]);
 
-  // Initial load
+  // ONE TIME initial load - handles both normal and search from programs
   useEffect(() => {
-    fetchSongs(1, '', true);
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    
+    const searchQuery = searchParams.get('search');
+    const savedSearch = sessionStorage.getItem('hymnSearch');
+    const initialSearch = searchQuery || savedSearch || '';
+    
+    if (initialSearch) {
+      setSearchInput(initialSearch);
+      setActiveSearch(initialSearch);
+      fetchSongs(1, initialSearch, true, true);
+      if (savedSearch) sessionStorage.removeItem('hymnSearch');
+    } else {
+      fetchSongs(1, '', true, true);
+    }
   }, []);
 
-  // When search changes, fetch new results
-  useEffect(() => {
+  // Handle search button click
+  const handleSearch = () => {
+    if (searchInput === activeSearch) return;
+    setActiveSearch(searchInput);
     setPage(1);
-    fetchSongs(1, debouncedSearch, true);
-  }, [debouncedSearch]);
+    fetchSongs(1, searchInput, true, false);
+  };
 
-  // SAFETY: Ensure songs is always an array
+  const clearSearch = () => {
+    setSearchInput("");
+    setActiveSearch("");
+    setShowFavoritesOnly(false);
+    setPage(1);
+    fetchSongs(1, "", true, false);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  // Load more results (next page)
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchSongs(nextPage, activeSearch, false, false);
+    }
+  };
+
   const safeSongs = songs || [];
   
-  // Filter favorites (client-side only)
   const displayedSongs = showFavoritesOnly
     ? safeSongs.filter(song => favorites.includes(song?.id))
     : safeSongs;
 
-  // Load more function
-  const loadMore = () => {
-    if (!loadingMore && hasMore && !showFavoritesOnly) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchSongs(nextPage, debouncedSearch);
-    }
-  };
-
-  // Track recently viewed
   const trackView = (song) => {
     if (!song) return;
     const updated = [song, ...(recentlyViewed || []).filter(s => s?.id !== song.id)].slice(0, 5);
@@ -154,7 +187,6 @@ export default function HymnBook() {
     localStorage.setItem("recentSongs", JSON.stringify(updated));
   };
 
-  // Toggle favorite
   const toggleFavorite = (id, e) => {
     e?.stopPropagation();
     const newFavorites = favorites.includes(id)
@@ -164,7 +196,6 @@ export default function HymnBook() {
     showToast(newFavorites.includes(id) ? "❤️ Added to favorites" : "❤️ Removed from favorites");
   };
 
-  // Copy to clipboard
   const copyToClipboard = (song) => {
     if (!song) return;
     const text = `${song.title || ''}\n${song.reference ? `(${song.reference})\n` : ''}\n${song.firstLine || ''}`;
@@ -172,7 +203,6 @@ export default function HymnBook() {
     showToast("📋 Song info copied!");
   };
 
-  // Share song
   const shareSong = (song, platform) => {
     if (!song) return;
     const text = `Check out this hymn: ${song.title || ''} ${song.reference ? `(${song.reference})` : ''}`;
@@ -196,8 +226,7 @@ export default function HymnBook() {
     setTimeout(() => toast.remove(), 3000);
   };
 
-  // Loading skeletons
-  if (loading && page === 1) {
+  if (loading && page === 1 && songs.length === 0) {
     return (
       <div style={container}>
         <div style={headerSection}>
@@ -224,7 +253,6 @@ export default function HymnBook() {
       animate={{ opacity: 1 }}
       style={container}
     >
-      {/* Header */}
       <div style={headerSection}>
         <div style={headerTop}>
           <div style={titleWrapper}>
@@ -236,15 +264,13 @@ export default function HymnBook() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div style={compactStats}>
           <motion.div 
             style={compactStat}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               setShowFavoritesOnly(false);
-              setSearchTerm("");
-              setDebouncedSearch("");
+              clearSearch();
             }}
           >
             <span style={compactStatValue}>{totalSongs || safeSongs.length || 0}</span>
@@ -279,34 +305,37 @@ export default function HymnBook() {
           </motion.div>
         </div>
 
-        {/* Search */}
+        {/* Search with button */}
         <div style={searchContainer}>
-          <FiSearch style={searchIcon} />
-          <input
-            type="text"
-            placeholder="Search hymns by title or lyrics..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setShowFavoritesOnly(false);
-            }}
-            style={searchInput}
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm("")} style={searchClear}>✕</button>
-          )}
+          <div style={searchWrapper}>
+            <FiSearch style={searchIcon} />
+            <input
+              type="text"
+              placeholder="Search by title or lyrics..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              style={searchInputStyle}
+            />
+            {searchInput && (
+              <button onClick={clearSearch} style={searchClearBtn}>
+                ✕
+              </button>
+            )}
+          </div>
+          <button onClick={handleSearch} style={searchButton}>
+            <FiSearch /> Search
+          </button>
         </div>
 
-        {/* Results Count - FIXED LINE 225 */}
         <div style={resultsCount}>
           <span style={resultsBold}>{displayedSongs?.length || 0}</span> hymns shown
-          {totalSongs > 0 && !searchTerm && ` of ${totalSongs} total`}
-          {searchTerm && ` for "${searchTerm}"`}
+          {totalSongs > 0 && !activeSearch && ` of ${totalSongs} total`}
+          {activeSearch && ` matching "${activeSearch}"`}
           {showFavoritesOnly && " • Favorites only"}
         </div>
 
-        {/* Recently Viewed - only show when not searching */}
-        {recentlyViewed?.length > 0 && !searchTerm && !showFavoritesOnly && (
+        {recentlyViewed?.length > 0 && !activeSearch && !showFavoritesOnly && (
           <div style={recentSection}>
             <div style={recentHeader}>
               <IoTimeOutline size={14} />
@@ -329,7 +358,6 @@ export default function HymnBook() {
         )}
       </div>
 
-      {/* Songs Grid */}
       <div style={viewMode === 'grid' ? songsGrid : songsList}>
         <AnimatePresence>
           {displayedSongs?.map((song) => song && (
@@ -372,7 +400,6 @@ export default function HymnBook() {
                 </div>
               </Link>
 
-              {/* Action Buttons */}
               <div style={songCardActions}>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
@@ -404,8 +431,8 @@ export default function HymnBook() {
         </AnimatePresence>
       </div>
 
-      {/* Load More Button - only show when not searching and not in favorites mode */}
-      {hasMore && !searchTerm && !showFavoritesOnly && (
+      {/* Load More Button - shows when there are more results */}
+      {hasMore && displayedSongs.length > 0 && (
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={loadMore}
@@ -415,31 +442,27 @@ export default function HymnBook() {
           {loadingMore ? (
             <>
               <span style={loadingSpinnerSmall} />
-              Loading...
+              Loading more...
             </>
           ) : (
-            "Load More Hymns"
+            `Load More (${totalSongs - displayedSongs.length} remaining)`
           )}
         </motion.button>
       )}
 
-      {/* Empty State */}
       {(!displayedSongs || displayedSongs.length === 0) && !loading && (
         <div style={emptyState}>
           <div style={emptyIcon}>🎵</div>
           <h3 style={emptyTitle}>No hymns found</h3>
           <p style={emptyText}>
-            {searchTerm 
-              ? `No hymns matching "${searchTerm}"` 
+            {activeSearch 
+              ? `No hymns matching "${activeSearch}" in title or lyrics` 
               : showFavoritesOnly 
                 ? "You haven't added any favorites yet"
-                : "Try adjusting your search"}
+                : "Try searching by title or lyrics"}
           </p>
           <button 
-            onClick={() => {
-              setSearchTerm("");
-              setShowFavoritesOnly(false);
-            }}
+            onClick={clearSearch}
             style={emptyButton}
           >
             Clear filters
@@ -447,7 +470,6 @@ export default function HymnBook() {
         </div>
       )}
 
-      {/* Share Modal */}
       <AnimatePresence>
         {shareModal && (
           <motion.div
@@ -491,8 +513,6 @@ export default function HymnBook() {
   );
 }
 
-// ... (keep all your styles the same)
-
 // ====== STYLES ======
 
 const container = {
@@ -500,11 +520,11 @@ const container = {
   maxWidth: "100%",
   fontFamily: "'Inter', -apple-system, sans-serif",
   background: "#f8fafc",
+  marginBottom: "60px",
   minHeight: "100vh",
   borderRadius: "25px",
 };
 
-// Skeleton Styles
 const skeletonCard = {
   background: "#ffffff",
   borderRadius: "16px",
@@ -555,7 +575,6 @@ const skeletonGrid = {
   padding: "12px",
 };
 
-// Header
 const headerSection = {
   marginBottom: "16px",
 };
@@ -595,7 +614,6 @@ const titleSub = {
   margin: 0,
 };
 
-// Compact Stats
 const compactStats = {
   display: "grid",
   gridTemplateColumns: "repeat(4, 1fr)",
@@ -627,10 +645,15 @@ const compactStatLabel = {
   textTransform: "uppercase",
 };
 
-// Search
 const searchContainer = {
+  marginBottom: "12px",
+  display: "flex",
+  gap: "8px",
+};
+
+const searchWrapper = {
   position: "relative",
-  marginBottom: "8px",
+  flex: 1,
 };
 
 const searchIcon = {
@@ -642,7 +665,7 @@ const searchIcon = {
   fontSize: "14px",
 };
 
-const searchInput = {
+const searchInputStyle = {
   width: "100%",
   padding: "12px 12px 12px 40px",
   borderRadius: "30px",
@@ -652,7 +675,7 @@ const searchInput = {
   outline: "none",
 };
 
-const searchClear = {
+const searchClearBtn = {
   position: "absolute",
   right: "12px",
   top: "50%",
@@ -663,9 +686,24 @@ const searchClear = {
   fontSize: "16px",
   cursor: "pointer",
   padding: "4px 8px",
+  borderRadius: "20px",
 };
 
-// Results Count
+const searchButton = {
+  padding: "0 20px",
+  background: "#4f46e5",
+  color: "white",
+  border: "none",
+  borderRadius: "30px",
+  fontSize: "14px",
+  fontWeight: "500",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  whiteSpace: "nowrap",
+};
+
 const resultsCount = {
   fontSize: "12px",
   color: "#64748b",
@@ -678,7 +716,6 @@ const resultsBold = {
   margin: "0 2px",
 };
 
-// Recently Viewed
 const recentSection = {
   marginBottom: "16px",
 };
@@ -721,7 +758,6 @@ const recentRef = {
   color: "#64748b",
 };
 
-// Songs Grid
 const songsGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(1, 1fr)",
@@ -734,7 +770,6 @@ const songsList = {
   gap: "8px",
 };
 
-// Song Card
 const songCard = {
   background: "#ffffff",
   borderRadius: "16px",
@@ -826,7 +861,6 @@ const actionIconButton = {
   color: "#475569",
 };
 
-// Load More Button
 const loadMoreButton = {
   width: "100%",
   padding: "14px",
@@ -854,7 +888,6 @@ const loadingSpinnerSmall = {
   display: "inline-block",
 };
 
-// Empty State
 const emptyState = {
   textAlign: "center",
   padding: "40px 20px",
@@ -890,7 +923,6 @@ const emptyButton = {
   cursor: "pointer",
 };
 
-// Modal Styles
 const modalOverlay = {
   position: "fixed",
   top: 0,
@@ -963,7 +995,6 @@ const modalClose = {
   cursor: "pointer",
 };
 
-// Toast Style
 const toastStyle = `
   position: fixed;
   bottom: 20px;
@@ -984,7 +1015,6 @@ const toastStyle = `
   text-overflow: ellipsis;
 `;
 
-// Add keyframes to document
 const style = document.createElement('style');
 style.innerHTML = `
   @keyframes pulse {

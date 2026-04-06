@@ -119,6 +119,25 @@ const io = new Server(server, {
   },
 });
 
+// ================== PUBLIC TEST ENDPOINT ==================
+app.get("/api/public/test-gemini", async (req, res) => {
+  if (!geminiModel) {
+    return res.json({ 
+      success: false, 
+      error: "Gemini not initialized",
+      availableModels: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-pro-latest"]
+    });
+  }
+  
+  try {
+    const result = await geminiModel.generateContent("Say 'Tumsifu Yesu Kristu! ZUCA AI is ready!'");
+    const response = await result.response.text();
+    res.json({ success: true, response, model: "gemini-2.0-flash" });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 // ================== UPLOAD DIRECTORIES ==================
  //Comment out for Vercel, uncomment for Render
  const uploadDir = path.join(__dirname, "uploads");
@@ -1633,6 +1652,30 @@ app.get("/api/public/files/:fileId", async (req, res) => {
   }
 });
 
+
+// ================== GEMINI AI SETUP ==================
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+let geminiModel = null;
+
+async function initGemini() {
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === "your_api_key_here") {
+    console.log("⚠️ No Gemini API key - AI will use fallback responses");
+    return;
+  }
+  
+  try {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    console.log("✅ Gemini AI initialized");
+  } catch (err) {
+    console.error("❌ Gemini init error:", err.message);
+  }
+}
+
+// Call this
+initGemini();
 // ================== AUTH MIDDLEWARE ==================
 function authenticate(req, res, next) {
   // ... your auth code here
@@ -8318,6 +8361,453 @@ io.on("connection", (socket) => {
   });
 });
 
+// ================== MAIN AI ENDPOINT - FALLBACK + GEMINI HYBRID ==================
+app.post("/api/ai/assistant", authenticate, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const userId = req.user.userId;
+    
+    console.log(`🤖 AI Request: "${message}"`);
+    
+    // Get user data
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { homeJumuia: true }
+    });
+    
+    const pledges = await prisma.pledge.findMany({
+      where: { userId },
+      include: { contributionType: true }
+    });
+    
+    const totalPaid = pledges.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+    const totalPending = pledges.reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
+    const unreadNotifications = await prisma.notification.count({
+      where: { userId, read: false }
+    });
+    
+    const lowerMsg = message.toLowerCase();
+    
+    // Helper function to clean text
+    const cleanText = (text) => {
+      return text.replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ').trim();
+    };
+    
+    // ============ STEP 1: GREETINGS & SIMPLE CHAT ============
+    
+    if (lowerMsg.match(/^(hi|hello|hey|howdy|good morning|good afternoon|good evening)$/)) {
+      return res.json({ 
+        success: true, 
+        response: `Tumsifu Yesu Kristu! 👋 Hello ${user.fullName.split(" ")[0]}! How can I help you today?` 
+      });
+    }
+    
+    if (lowerMsg.includes('how are you') || lowerMsg.includes('how are you doing')) {
+      return res.json({ 
+        success: true, 
+        response: `I'm doing great, thank you for asking! Tumsifu Yesu Kristu! 🙏 How can I assist you today?` 
+      });
+    }
+    
+    if (lowerMsg.includes('thank you') || lowerMsg.includes('thanks')) {
+      return res.json({ 
+        success: true, 
+        response: `You're very welcome! 🙏 Tumsifu Yesu Kristu! Is there anything else I can help you with?` 
+      });
+    }
+    
+    // "im good", "i'm good" etc.
+    if (lowerMsg.includes('im good') || lowerMsg.includes("i'm good") || lowerMsg.includes('i am good')) {
+      return res.json({ 
+        success: true, 
+        response: `Glad to hear that! 😊 Tumsifu Yesu Kristu! How can I help you today?` 
+      });
+    }
+    
+    // ============ STEP 2: NAME & PROFILE ============
+    
+    if (lowerMsg.includes('my name') || lowerMsg.includes('who am i') || lowerMsg.includes("what's my name") || lowerMsg.includes('what is my name')) {
+      return res.json({ 
+        success: true, 
+        response: `Your name is ${user.fullName}. You are a member of ZUCA with membership number ${user.membership_number || 'Not assigned'}. Tumsifu Yesu Kristu! 🙏` 
+      });
+    }
+    
+    if (lowerMsg.includes('profile') || lowerMsg.includes('my info') || lowerMsg.includes('show me')) {
+      return res.json({ 
+        success: true, 
+        response: `👤 Your Profile\n\nName: ${user.fullName}\nMembership: ${user.membership_number || 'Not assigned'}\nEmail: ${user.email}\nPhone: ${user.phone || 'Not set'}\nJumuia: ${user.homeJumuia?.name || 'Not assigned'}\n\nTumsifu Yesu Kristu! 🙏` 
+      });
+    }
+    
+    // ============ STEP 3: PLEDGES & CONTRIBUTIONS ============
+    
+    if (lowerMsg.includes('owe') || lowerMsg.includes('pledge') || lowerMsg.includes('contribution') || 
+        (lowerMsg.includes('how much') && lowerMsg.includes('paid'))) {
+      if (pledges.length === 0) {
+        return res.json({ 
+          success: true, 
+          response: "You don't have any active pledges right now. Would you like to make one? Just tell me how much you want to give! 💰" 
+        });
+      }
+      let result = `📊 Your Contribution Summary:\n\n`;
+      for (const p of pledges.slice(0, 5)) {
+        result += `• ${p.contributionType.title}: Paid KES ${(p.amountPaid || 0).toLocaleString()}`;
+        if (p.pendingAmount > 0) result += `, Remaining KES ${p.pendingAmount.toLocaleString()}`;
+        result += ` (${p.status === "COMPLETED" ? "✅ Completed" : "⏳ Pending"})\n`;
+      }
+      result += `\nTotal: Paid KES ${totalPaid.toLocaleString()} | Owing KES ${totalPending.toLocaleString()}`;
+      return res.json({ success: true, response: result });
+    }
+    
+    // Create Pledge
+    const pledgeMatch = message.match(/(?:give|pledge|donate|contribute)\s*(\d+)/i);
+    if (pledgeMatch || (lowerMsg.includes('give') && lowerMsg.includes('want'))) {
+      let amount = 5000;
+      if (pledgeMatch) {
+        amount = parseInt(pledgeMatch[1]);
+      } else {
+        const numberMatch = message.match(/\d+/);
+        if (numberMatch) amount = parseInt(numberMatch[0]);
+      }
+      
+      const campaigns = await prisma.contributionType.findMany({ where: { jumuiaId: null }, take: 1 });
+      if (campaigns.length > 0) {
+        const campaign = campaigns[0];
+        let pledge = await prisma.pledge.findFirst({
+          where: { userId, contributionTypeId: campaign.id }
+        });
+        if (pledge) {
+          await prisma.pledge.update({
+            where: { id: pledge.id },
+            data: { pendingAmount: (pledge.pendingAmount || 0) + amount }
+          });
+        } else {
+          await prisma.pledge.create({
+            data: { userId, contributionTypeId: campaign.id, amountPaid: 0, pendingAmount: amount, status: "PENDING" }
+          });
+        }
+        return res.json({ 
+          success: true, 
+          response: `✅ I've recorded your pledge of KES ${amount.toLocaleString()} for "${campaign.title}". Thank you for your generosity! Tumsifu Yesu Kristu! 🙏` 
+        });
+      }
+    }
+    
+    // ============ STEP 4: HYMN SEARCH (TITLE + LYRICS) ============
+    
+    if (lowerMsg.includes('find') || lowerMsg.includes('search')) {
+      let searchTerm = message.replace(/find|search|for|me|the/gi, '').trim();
+      searchTerm = cleanText(searchTerm);
+      
+      console.log(`🔍 Searching for: "${searchTerm}"`);
+      
+      if (searchTerm && searchTerm.length > 2) {
+        const hymns = await prisma.song.findMany({
+          where: {
+            OR: [
+              { title: { contains: searchTerm, mode: 'insensitive' } },
+              { lyrics: { contains: searchTerm, mode: 'insensitive' } }
+            ]
+          },
+          take: 10
+        });
+        
+        if (hymns.length > 0) {
+          let result = `🎵 Found ${hymns.length} hymn(s) matching "${searchTerm}":\n\n`;
+          for (const h of hymns) {
+            result += `• ${h.title}${h.reference ? ` (${h.reference})` : ''}\n`;
+            if (h.lyrics && h.lyrics.toLowerCase().includes(searchTerm.toLowerCase())) {
+              const lines = h.lyrics.split('\n');
+              const matchingLine = lines.find(line => line.toLowerCase().includes(searchTerm.toLowerCase()));
+              if (matchingLine) {
+                const preview = matchingLine.trim().substring(0, 100);
+                result += `  "${preview}${preview.length >= 100 ? '...' : ''}"\n`;
+              }
+            }
+          }
+          result += `\n💡 To see full lyrics, say "Show lyrics for ${hymns[0].title}"`;
+          return res.json({ success: true, response: result });
+        } else {
+          return res.json({ success: true, response: `No hymns found matching "${searchTerm}". Try different words from the song? 🎵` });
+        }
+      }
+    }
+    
+    // ============ STEP 5: SHOW FULL LYRICS (FIXED!) ============
+    
+    if (lowerMsg.includes('show lyrics') || lowerMsg.includes('lyrics for') || lowerMsg.includes('full lyrics')) {
+      // Clean the hymn title - remove ALL command words
+      let hymnTitle = message
+        .replace(/show lyrics for|lyrics for|full lyrics for|show me lyrics for|show|lyrics/gi, '')
+        .replace(/^\s+|\s+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      console.log(`📖 Getting lyrics for: "${hymnTitle}"`);
+      
+      if (hymnTitle && hymnTitle.length > 2) {
+        // Try exact match first
+        let hymn = await prisma.song.findFirst({
+          where: { title: { equals: hymnTitle, mode: 'insensitive' } }
+        });
+        
+        // If not found, try contains
+        if (!hymn) {
+          hymn = await prisma.song.findFirst({
+            where: { title: { contains: hymnTitle, mode: 'insensitive' } }
+          });
+        }
+        
+        // If still not found, try searching in lyrics
+        if (!hymn) {
+          const songsWithPhrase = await prisma.song.findMany({
+            where: { lyrics: { contains: hymnTitle, mode: 'insensitive' } },
+            take: 1
+          });
+          if (songsWithPhrase.length > 0) {
+            hymn = songsWithPhrase[0];
+          }
+        }
+        
+        if (hymn) {
+          if (!hymn.lyrics || hymn.lyrics === "[Pending - Add lyrics]") {
+            return res.json({ 
+              success: true, 
+              response: `📝 "${hymn.title}" is in our hymn book, but the lyrics haven't been added yet. Check back soon! Tumsifu Yesu Kristu!` 
+            });
+          }
+          
+          let cleanLyrics = hymn.lyrics.replace(/<[^>]*>/g, '');
+          if (cleanLyrics.length > 3000) {
+            cleanLyrics = cleanLyrics.substring(0, 3000) + "\n\n... (lyrics truncated)";
+          }
+          
+          return res.json({ 
+            success: true, 
+            response: `🎵 ${hymn.title}${hymn.reference ? ` (${hymn.reference})` : ''}\n\n${cleanLyrics}\n\n🙏 Tumsifu Yesu Kristu!` 
+          });
+        } else {
+          // Try to find similar hymns
+          const similarHymns = await prisma.song.findMany({
+            where: { 
+              OR: [
+                { title: { contains: hymnTitle.substring(0, 15), mode: 'insensitive' } },
+                { lyrics: { contains: hymnTitle.substring(0, 15), mode: 'insensitive' } }
+              ]
+            },
+            take: 3
+          });
+          
+          if (similarHymns.length > 0) {
+            let suggestion = `I couldn't find "${hymnTitle}". Did you mean one of these?\n\n`;
+            for (const h of similarHymns) {
+              suggestion += `• ${h.title}\n`;
+            }
+            suggestion += `\nTry "Show lyrics for ${similarHymns[0].title}"`;
+            return res.json({ success: true, response: suggestion });
+          }
+          
+          return res.json({ 
+            success: true, 
+            response: `I couldn't find lyrics for "${hymnTitle}". Try searching first with "Find ${hymnTitle}"` 
+          });
+        }
+      }
+    }
+    
+    // Also handle "show [song name]" without "lyrics"
+    if (lowerMsg.startsWith('show ') && lowerMsg.length > 5 && !lowerMsg.includes('lyrics')) {
+      let songName = message.replace(/^show\s+/i, '').trim();
+      songName = cleanText(songName);
+      
+      console.log(`📖 Getting lyrics for (show command): "${songName}"`);
+      
+      if (songName && songName.length > 2) {
+        let hymn = await prisma.song.findFirst({
+          where: { title: { contains: songName, mode: 'insensitive' } }
+        });
+        
+        if (!hymn) {
+          hymn = await prisma.song.findFirst({
+            where: { lyrics: { contains: songName, mode: 'insensitive' } }
+          });
+        }
+        
+        if (hymn && hymn.lyrics && hymn.lyrics !== "[Pending - Add lyrics]") {
+          let cleanLyrics = hymn.lyrics.replace(/<[^>]*>/g, '');
+          if (cleanLyrics.length > 3000) {
+            cleanLyrics = cleanLyrics.substring(0, 3000) + "\n\n... (lyrics truncated)";
+          }
+          return res.json({ 
+            success: true, 
+            response: `🎵 ${hymn.title}${hymn.reference ? ` (${hymn.reference})` : ''}\n\n${cleanLyrics}\n\n🙏 Tumsifu Yesu Kristu!` 
+          });
+        } else {
+          return res.json({ 
+            success: true, 
+            response: `I couldn't find lyrics for "${songName}". Try "Find ${songName}" first.` 
+          });
+        }
+      }
+    }
+    
+    // ============ STEP 6: NOTIFICATIONS ============
+    
+    if (lowerMsg.includes('notification')) {
+      if (lowerMsg.includes('clear') || lowerMsg.includes('delete')) {
+        await prisma.notification.deleteMany({ where: { userId } });
+        return res.json({ success: true, response: "✅ All notifications cleared! Your inbox is clean. Tumsifu Yesu Kristu! 🗑️" });
+      }
+      if (lowerMsg.includes('mark read') || lowerMsg.includes('read all')) {
+        await prisma.notification.updateMany({ where: { userId, read: false }, data: { read: true } });
+        return res.json({ success: true, response: "✅ All notifications marked as read! Tumsifu Yesu Kristu! 📖" });
+      }
+      if (unreadNotifications === 0) {
+        return res.json({ success: true, response: "🔔 You have no notifications. Your inbox is clean!" });
+      }
+      const recentNotifs = await prisma.notification.findMany({ where: { userId }, take: 5, orderBy: { createdAt: 'desc' } });
+      let result = `🔔 You have ${unreadNotifications} unread notification(s):\n\n`;
+      for (const n of recentNotifs) {
+        result += `• ${n.title}: ${n.message.substring(0, 80)}\n   📅 ${new Date(n.createdAt).toLocaleDateString()}\n\n`;
+      }
+      return res.json({ success: true, response: result });
+    }
+    
+    // ============ STEP 7: SEND CHAT MESSAGE ============
+    
+    if (lowerMsg.includes('tell everyone') || lowerMsg.includes('send to chat') || lowerMsg.includes('post to chat') || lowerMsg.includes('announce')) {
+      let chatMessage = message.replace(/tell everyone|send to chat|post to chat|announce to everyone/gi, '').trim();
+      if (chatMessage) {
+        const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
+        const newMessage = await prisma.message.create({ data: { content: chatMessage, userId, roomId: defaultRoom.id } });
+        if (global.io) {
+          global.io.emit("new_message", { ...newMessage, user: { fullName: user.fullName }, createdAt: newMessage.createdAt.toISOString() });
+        }
+        return res.json({ success: true, response: `✅ Your message has been sent to the community chat! Tumsifu Yesu Kristu! 💬` });
+      }
+    }
+    
+    // ============ STEP 8: CAMPAIGNS ============
+    
+    if (lowerMsg.includes('campaign') || (lowerMsg.includes('available') && lowerMsg.includes('give'))) {
+      const campaigns = await prisma.contributionType.findMany({ where: { jumuiaId: null } });
+      if (campaigns.length === 0) {
+        return res.json({ success: true, response: "No active campaigns right now." });
+      }
+      let result = "📋 Active Contribution Campaigns:\n\n";
+      for (const c of campaigns) {
+        result += `• ${c.title}: Target KES ${c.amountRequired.toLocaleString()}\n`;
+        if (c.description) result += `  ${c.description}\n`;
+      }
+      result += `\n💡 To pledge, say "I want to give [amount]"`;
+      return res.json({ success: true, response: result });
+    }
+    
+    // ============ STEP 9: JOKES & FUN ============
+    
+    if (lowerMsg.includes('joke') || lowerMsg.includes('funny') || lowerMsg.includes('make me laugh')) {
+      const jokes = [
+        "Why did the choir sing so loud? 🎵 Because they wanted to make a joyful NOISE! 😂",
+        "What did the priest say to the singing frog? 🐸 'You've got great hymn-phony!' 🎶",
+        "Why don't Catholics play poker? ♠️ Because they might get too many 'Our Fathers'! 🙏",
+        "What's a Catholic's favorite type of music? 📻 Mass-tro! 🎵😂"
+      ];
+      return res.json({ success: true, response: jokes[Math.floor(Math.random() * jokes.length)] + " Tumsifu Yesu Kristu! 😊" });
+    }
+    
+    // ============ STEP 10: EMOTIONAL SUPPORT ============
+    
+    if (lowerMsg.includes('sad') || lowerMsg.includes('feeling down') || lowerMsg.includes('depressed') || lowerMsg.includes('struggling')) {
+      return res.json({ 
+        success: true, 
+        response: `I'm sorry you're feeling this way. 🙏 Remember that God loves you and is always with you. "Come to me, all you who are weary and burdened, and I will give you rest." (Matthew 11:28) Would you like me to pray with you? Tumsifu Yesu Kristu! 💙` 
+      });
+    }
+    
+    // ============ STEP 11: BIBLE VERSE ============
+    
+    if (lowerMsg.includes('bible verse') || lowerMsg.includes('scripture') || lowerMsg.includes('verse of the day')) {
+      const verses = [
+        "John 3:16 - For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
+        "Philippians 4:13 - I can do all things through Christ who strengthens me.",
+        "Jeremiah 29:11 - For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.",
+        "Psalm 23:1 - The Lord is my shepherd; I shall not want."
+      ];
+      return res.json({ success: true, response: `📖 ${verses[Math.floor(Math.random() * verses.length)]} Tumsifu Yesu Kristu! 🙏` });
+    }
+    
+    // ============ STEP 12: ZUCA INFORMATION ============
+    
+    if (lowerMsg.includes('what is zuca') || lowerMsg.includes('tell me about zuca') || lowerMsg.includes('zuca history')) {
+      return res.json({ 
+        success: true, 
+        response: `ZUCA (Zetech University Catholic Action) is a vibrant Catholic community at Zetech University, Kenya. We have 6 Jumuia groups: St. Michael, St. Benedict, St. Peregrine, Christ the King, St. Gregory, and St. Pacificus. Sunday Mass is at 10:00 AM at the university chapel. Our patron saint is Blessed Carlo Acutis. Tumsifu Yesu Kristu! 🙏` 
+      });
+    }
+    
+    if (lowerMsg.includes('jumuia') && (lowerMsg.includes('list') || lowerMsg.includes('what are'))) {
+      return res.json({ 
+        success: true, 
+        response: `ZUCA has 6 Jumuia groups:\n\n1. St. Michael (Blue)\n2. St. Benedict (Green)\n3. St. Peregrine (Yellow)\n4. Christ the King (Purple)\n5. St. Gregory (Orange)\n6. St. Pacificus (White)\n\nTumsifu Yesu Kristu! Would you like to join one? 🙏` 
+      });
+    }
+    
+    // ============ STEP 13: NAVIGATION ============
+    
+    if (lowerMsg.includes('take me to') || lowerMsg.includes('go to') || lowerMsg.includes('open')) {
+      if (lowerMsg.includes('hymn') || lowerMsg.includes('song')) {
+        return res.json({ success: true, response: "I'll take you to the Hymn Book page! 🎵 Tumsifu Yesu Kristu!" });
+      }
+      if (lowerMsg.includes('contribution') || lowerMsg.includes('pledge')) {
+        return res.json({ success: true, response: "I'll take you to the Contributions page! 💰 Tumsifu Yesu Kristu!" });
+      }
+      if (lowerMsg.includes('chat')) {
+        return res.json({ success: true, response: "I'll take you to the Community Chat! 💬 Tumsifu Yesu Kristu!" });
+      }
+      if (lowerMsg.includes('announcement')) {
+        return res.json({ success: true, response: "I'll take you to the Announcements page! 📢 Tumsifu Yesu Kristu!" });
+      }
+      if (lowerMsg.includes('jumuia')) {
+        return res.json({ success: true, response: "I'll take you to the Jumuia Groups page! 👥 Tumsifu Yesu Kristu!" });
+      }
+      if (lowerMsg.includes('mass')) {
+        return res.json({ success: true, response: "I'll take you to the Mass Programs page! ⛪ Tumsifu Yesu Kristu!" });
+      }
+    }
+    
+    // ============ STEP 14: TRY GEMINI FOR COMPLEX QUERIES ============
+    
+    if (geminiModel) {
+      try {
+        const prompt = `You are ZUCA AI. User: ${user.fullName}. They said: "${message}"
+
+Respond briefly (2-3 sentences), warmly, include "Tumsifu Yesu Kristu!", use emojis.`;
+        
+        const result = await geminiModel.generateContent(prompt);
+        let response = await result.response.text();
+        response = response.replace(/\*\*/g, '');
+        return res.json({ success: true, response });
+      } catch (geminiError) {
+        console.log("Gemini error:", geminiError.message);
+      }
+    }
+    
+    // ============ STEP 15: FINAL FALLBACK ============
+    
+    return res.json({ 
+      success: true, 
+      response: `Tumsifu Yesu Kristu! 👋 Hello ${user.fullName.split(" ")[0]}! I can help you with:\n\n• "I want to give 5000" - Make a pledge\n• "What do I owe?" - Check your pledges\n• "Find Amazing Grace" - Search hymns\n• "Show lyrics for KAMA AYALA" - Get lyrics\n• "Tell everyone hello" - Send chat message\n• "Who am I?" - View profile\n• "Clear notifications" - Clear all\n\nWhat would you like to do?` 
+    });
+    
+  } catch (error) {
+    console.error("AI Error:", error);
+    res.json({ 
+      success: true, 
+      response: "Tumsifu Yesu Kristu! 🙏 I'm here to help. What would you like to do today?" 
+    });
+  }
+});
 
 // ================== START SERVER ==================
 const PORT = 5000;

@@ -35,7 +35,8 @@ import {
   FiCommand,
   FiCheckSquare,
   FiSquare,
-  FiGlobe
+  FiGlobe,
+  FiCamera
 } from "react-icons/fi";
 import { 
   GiPrayerBeads, 
@@ -49,6 +50,7 @@ import { MdFormatQuote, MdAutoAwesome, MdTextFields, MdOutlineFormatAlignLeft, M
 import { BiText, BiParagraph, BiFontSize } from "react-icons/bi";
 import { useNavigate } from "react-router-dom";
 import BASE_URL from "../../api";
+import OCRScanner from "./OCRScanner";
 
 export default function AdminHymns() {
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ export default function AdminHymns() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedHymn, setSelectedHymn] = useState(null);
+  const [showOCR, setShowOCR] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     reference: "",
@@ -475,6 +478,87 @@ This is the chorus`;
     setIsFullScreen(isMobile);
   };
 
+  const handleAdd = async () => {
+    if (!formData.title.trim()) {
+      showToast("❌ Title is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await axios.post(`${BASE_URL}/api/admin/songs`, {
+        title: formData.title,
+        reference: formData.reference || null,
+        lyrics: formData.lyrics || null
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setHymns(prev => [res.data, ...prev]);
+      setShowAddModal(false);
+      setFormData({ title: "", reference: "", lyrics: "" });
+      showToast("✅ Hymn added successfully!");
+      localStorage.removeItem('hymn_draft');
+    } catch (err) {
+      console.error("Add error:", err);
+      showToast("❌ Failed to add hymn");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!formData.title.trim() || !selectedHymn) return;
+
+    setSaving(true);
+    try {
+      const res = await axios.put(`${BASE_URL}/api/admin/songs/${selectedHymn.id}`, {
+        title: formData.title,
+        reference: formData.reference || null,
+        lyrics: formData.lyrics || null
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setHymns(prev => prev.map(h => h.id === selectedHymn.id ? res.data : h));
+      setShowEditModal(false);
+      setSelectedHymn(null);
+      setFormData({ title: "", reference: "", lyrics: "" });
+      showToast("✅ Hymn updated successfully!");
+    } catch (err) {
+      console.error("Edit error:", err);
+      showToast("❌ Failed to update hymn");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedHymn) return;
+
+    setSaving(true);
+    try {
+      await axios.delete(`${BASE_URL}/api/admin/songs/${selectedHymn.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setHymns(prev => prev.filter(h => h.id !== selectedHymn.id));
+      setShowDeleteModal(false);
+      setSelectedHymn(null);
+      showToast("✅ Hymn deleted successfully!");
+    } catch (err) {
+      console.error("Delete error:", err);
+      showToast("❌ Failed to delete hymn");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({ title: "", reference: "", lyrics: "" });
+    setSelectedHymn(null);
+  };
+
   const showToast = (message) => {
     const toast = document.createElement('div');
     toast.textContent = message;
@@ -531,7 +615,7 @@ This is the chorus`;
       {/* Progress Bar for Bulk Processing */}
       {processingAll && progress.total > 0 && (
         <div style={styles.progressBarContainer}>
-          <div style={styles.progressBarFill} style={{ width: `${(progress.current / progress.total) * 100}%` }} />
+          <div style={{ ...styles.progressBarFill, width: `${(progress.current / progress.total) * 100}%` }} />
           <span style={styles.progressText}>
             Processing: {progress.current} / {progress.total} hymns
           </span>
@@ -591,9 +675,15 @@ This is the chorus`;
               {selectedHymns.length === filteredHymns.length ? <FiCheckSquare size={18} /> : <FiSquare size={18} />}
               {selectedHymns.length === filteredHymns.length ? " Deselect" : " Select All"}
             </button>
+
+            {/* OCR Scanner Button */}
+           scan to add lylics
+<button onClick={() => navigate("/admin/ocr-scanner")} style={styles.ocrBtn}>
+  <FiCamera size={18} /> Scan Lyrics from Book
+</button>
             
             {bulkSelectMode && selectedHymns.length > 0 && (
-              <button onClick={handleBulkDelete} style={styles.bulkDeleteBtn}>
+              <button onClick={() => {}} style={styles.bulkDeleteBtn}>
                 <FiTrash2 size={18} /> Delete ({selectedHymns.length})
               </button>
             )}
@@ -768,7 +858,7 @@ This is the chorus`;
         </div>
       )}
 
-      {/* ADD/EDIT MODAL - keep same as before */}
+      {/* ADD/EDIT MODAL */}
       <AnimatePresence>
         {(showAddModal || showEditModal) && (
           <motion.div
@@ -1071,6 +1161,19 @@ This is the chorus`;
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* OCR SCANNER MODAL - PLACED OUTSIDE ALL OTHER MODALS */}
+      {showOCR && (
+        <OCRScanner 
+          onLyricsExtracted={(lyrics) => {
+            setFormData(prev => ({ ...prev, lyrics }));
+            setShowAddModal(true);
+            setShowOCR(false);
+          }}
+          onClose={() => setShowOCR(false)}
+        />
+      )}
+
     </motion.div>
   );
 }
@@ -1207,6 +1310,19 @@ const styles = {
     gap: "8px",
     padding: "12px 20px",
     background: "#f59e0b",
+    color: "white",
+    border: "none",
+    borderRadius: "40px",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+  ocrBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "12px 20px",
+    background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
     color: "white",
     border: "none",
     borderRadius: "40px",
@@ -1718,4 +1834,5 @@ styleElement.innerHTML = `
     to { transform: translateX(0); opacity: 1; }
   }
 `;
+
 document.head.appendChild(styleElement);

@@ -51,6 +51,7 @@ import JumuiaManagement from "./pages/admin/JumuiaManagement";
 import ChatMonitorPage from "./pages/admin/ChatMonitorPage";
 import SecurityPage from "./pages/admin/SecurityPage";
 import PendingSongs from "./pages/admin/PendingSongs";
+import OCRScannerPage from "./pages/admin/OCRScanner";
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -259,6 +260,7 @@ function App() {
             <Route path="security" element={<SecurityPage />} />
             <Route path="media" element={<AdminMediaPage />} />
             <Route path="/admin/pending-songs" element={<PendingSongs />} />
+            <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
           </Route>
 
           {/* ================= SECRETARY (Announcements only) ================= */}

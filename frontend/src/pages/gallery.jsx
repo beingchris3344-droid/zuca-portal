@@ -14,6 +14,46 @@ import {
 import { format, formatDistance } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
+// Lazy Image Component - Add this after imports
+const LazyImage = ({ src, alt, className }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px', threshold: 0.01 }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="lazy-image-container">
+      {!isLoaded && <div className="image-placeholder shimmer" />}
+      {isInView && (
+        <img
+          src={src}
+          alt={alt}
+          className={`${className} ${isLoaded ? 'loaded' : 'hidden'}`}
+          onLoad={() => setIsLoaded(true)}
+          loading="lazy"
+        />
+      )}
+    </div>
+  );
+};
+
 // Adaptive Media Player Component (Supports Video & Audio)
 const AdaptiveMediaPlayer = ({ src, thumbnailUrl, title, type = 'video', autoPlay = false }) => {
   const mediaRef = useRef(null);
@@ -661,6 +701,44 @@ export default function GalleryPage() {
         </div>
 
         <style jsx>{`
+
+        .lazy-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+.image-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+img.hidden {
+  opacity: 0;
+}
+img.loaded {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
           .premium-loading-screen {
             position: fixed;
             top: 0;
@@ -1112,19 +1190,19 @@ export default function GalleryPage() {
                   onClick={() => handleSelectMedia(item)}
                 >
                   <div className="trending-media">
-                    {item.type === 'image' ? (
-                      <img src={item.url} alt={item.title} />
-                    ) : item.type === 'video' && item.thumbnailUrl ? (
-                      <img src={item.thumbnailUrl} alt={item.title} />
-                    ) : (
-                      <div className="trending-placeholder">
-                        {getMediaIcon(item.type)}
-                      </div>
-                    )}
-                    <div className="trending-overlay">
-                      <Play size={24} />
-                    </div>
-                  </div>
+  {item.type === 'image' ? (
+    <LazyImage src={item.url} alt={item.title} />
+  ) : item.type === 'video' && item.thumbnailUrl ? (
+    <LazyImage src={item.thumbnailUrl} alt={item.title} />
+  ) : (
+    <div className="trending-placeholder">
+      {getMediaIcon(item.type)}
+    </div>
+  )}
+  <div className="trending-overlay">
+    <Play size={24} />
+  </div>
+</div>
                   <div className="trending-info">
                     <h4>{item.title}</h4>
                     <div className="trending-stats">
@@ -1193,8 +1271,8 @@ export default function GalleryPage() {
               >
                 <div className="card-media">
                   {item.type === 'image' ? (
-                    <img src={item.url} alt={item.title} className="card-image" loading="lazy" />
-                  ) : item.type === 'video' ? (
+  <LazyImage src={item.url} alt={item.title} className="card-image" />
+) : item.type === 'video' ? (
                     <div className="video-preview">
                       {item.thumbnailUrl ? (
                         <img src={item.thumbnailUrl} alt={item.title} className="card-image" />
@@ -1520,7 +1598,7 @@ export default function GalleryPage() {
         }
 
         .blob-1 { width: 500px; height: 500px; top: -100px; right: -100px; background: #3b82f6; }
-        .blob-2 { width: 400px; height: 400px; bottom: -100px; left: -100px; background: #8b5cf6; animation-delay: -5s; }
+        .blob-2 { width: 400px; height: 400px; bottom: -100px; left: -100px; background: #fbfbfd; animation-delay: -5s; }
         .blob-3 { width: 600px; height: 600px; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #6366f1; animation-delay: -10s; }
         .blob-4 { width: 300px; height: 300px; top: 20%; right: 20%; background: #06b6d4; animation-delay: -15s; }
 
@@ -1900,7 +1978,7 @@ export default function GalleryPage() {
         .card-media { 
           position: relative; 
           aspect-ratio: 1/1; 
-          background: linear-gradient(135deg, #1a1a2e, #1a50e2); 
+          background: linear-gradient(135deg, #1a1a2e, #ffffff); 
           overflow: hidden; 
           display: flex; 
           align-items: center; 

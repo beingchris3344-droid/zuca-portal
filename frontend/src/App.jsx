@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import BASE_URL from "./api";
 
@@ -7,6 +7,10 @@ import BASE_URL from "./api";
 import NotificationManager from "./components/NotificationManager";
 import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
+
+// Import AI Assistants
+import ZucaAIAssistant from "./components/ZucaAIAssistant";
+import AdminAIAssistant from "./components/AdminAIAssistant";
 
 import Layout from "./components/Layout";
 import 'react-image-crop/dist/ReactCrop.css';
@@ -65,7 +69,50 @@ const socket = io(BASE_URL, {
   reconnectionDelay: 1000,
 });
 
-function App() {
+// Create a wrapper component that has access to navigate
+function AppContent() {
+  const navigate = useNavigate();
+  const [showAI, setShowAI] = useState(false);
+  const [isAIFullPage, setIsAIFullPage] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Listen for User AI open events
+  useEffect(() => {
+    const handleOpenUserAI = (event) => {
+      console.log("👤 Opening User AI");
+      setShowAI(true);
+      setIsAIFullPage(event.detail?.fullPage || true);
+    };
+    window.addEventListener('openZUCAI', handleOpenUserAI);
+    
+    const user = JSON.parse(localStorage.getItem('user'));
+    setCurrentUser(user);
+    
+    return () => window.removeEventListener('openZUCAI', handleOpenUserAI);
+  }, []);
+
+  // Listen for Admin AI open events
+  useEffect(() => {
+    const handleOpenAdminAI = (event) => {
+      console.log("👑 Opening Admin AI");
+      setShowAI(true);
+      setIsAIFullPage(event.detail?.fullPage || true);
+    };
+    window.addEventListener('openAdminAI', handleOpenAdminAI);
+    
+    return () => window.removeEventListener('openAdminAI', handleOpenAdminAI);
+  }, []);
+
+  // Update user when storage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const user = JSON.parse(localStorage.getItem('user'));
+      setCurrentUser(user);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Socket.IO connection setup
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -74,7 +121,6 @@ function App() {
     if (token && user) {
       try {
         const userData = JSON.parse(user);
-        // Join the user's personal room for notifications
         socket.emit("join", userData.id);
         console.log("📡 Joined socket room for user:", userData.id);
       } catch (e) {
@@ -82,11 +128,9 @@ function App() {
       }
     }
     
-    // Listen for new notifications
     socket.on("new_notification", (notification) => {
       console.log("🔔 New notification received:", notification);
       
-      // Show in-app toast notification
       if (window.showInAppToast) {
         window.showInAppToast({
           title: notification.title || "New Notification",
@@ -100,10 +144,8 @@ function App() {
         });
       }
       
-      // Update badge count
       badgeManager.incrementBadge();
       
-      // Also show browser notification if permission granted
       if (Notification.permission === "granted") {
         new Notification(notification.title || "New Notification", {
           body: notification.message,
@@ -121,21 +163,18 @@ function App() {
       }
     });
     
-    // Listen for batch notifications
     socket.on("new_notification_batch", (notifications) => {
       console.log("📦 Batch notifications received:", notifications?.length);
-      // Refresh notifications or update badge
       badgeManager.loadCount();
     });
     
-    // Cleanup on unmount
     return () => {
       socket.off("new_notification");
       socket.off("new_notification_batch");
     };
   }, []);
   
-  // Initialize push notifications on app load
+  // Initialize push notifications
   useEffect(() => {
     const initPushNotifications = async () => {
       const token = localStorage.getItem("token");
@@ -148,18 +187,16 @@ function App() {
             await pushService.subscribe();
             console.log("✅ Push notifications enabled");
           }
-          // Load badge count
           badgeManager.loadCount();
         } catch (err) {
           console.error("Failed to initialize push notifications:", err);
         }
       }
     };
-    
     initPushNotifications();
   }, []);
   
-  // Optional: Listen for user login/logout events
+  // Listen for user login/logout events
   useEffect(() => {
     const handleStorageChange = () => {
       const token = localStorage.getItem("token");
@@ -169,15 +206,15 @@ function App() {
         try {
           const userData = JSON.parse(user);
           socket.emit("join", userData.id);
-          // Re-initialize push notifications on login
           pushService.subscribe();
           badgeManager.loadCount();
+          setCurrentUser(userData);
         } catch (e) {}
       } else {
         socket.emit("leave-all");
-        // Unsubscribe from push notifications on logout
         pushService.unsubscribe();
         badgeManager.updateBadgeCount(0);
+        setCurrentUser(null);
       }
     };
     
@@ -185,151 +222,191 @@ function App() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
+  // Check if user is admin
+  const isAdmin = currentUser?.role === "admin" || 
+                  currentUser?.specialRole === "secretary" || 
+                  currentUser?.specialRole === "treasurer";
+
+  return (
+    <>
+      <Routes>
+        {/* ================= LANDING PAGE ================= */}
+        <Route path="/" element={<Landing2 />} />
+        
+        {/* ================= PUBLIC ROUTES ================= */}
+        <Route path="/home" element={<Home />} />
+        <Route path="/readings/:date" element={<FullReadings />} />
+        <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/gallery" element={<GalleryPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/landing" element={<Landing />} />
+
+        {/* ================= MEMBER PORTAL ================= */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/mass-programs" element={<MassPrograms />} />
+          <Route path="/contributions" element={<Contributions />} />
+          <Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
+          <Route path="/join-jumuia" element={<JoinJumuia />} />
+          <Route path="/hymns" element={<HymnBook />} />
+          <Route path="/hymn/:id" element={<HymnLyrics />} />
+          <Route path="/chat" element={<Chat />} />
+        </Route>
+
+        {/* ================= JUMUIA DETAIL PAGE ================= */}
+        <Route
+          path="/jumuia/:jumuiaCode"
+          element={
+            <ProtectedRoute>
+              <JumuiaRoute>
+                <JumuiaDetailPage />
+              </JumuiaRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= ADMIN PORTAL ================= */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="activity" element={<ActivityPage />} />
+          <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
+          <Route path="songs" element={<SongsPage />} />
+          <Route path="/admin/hymns" element={<AdminHymns />} />
+          <Route path="roles" element={<RoleManagement />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="contributions" element={<ContributionsPage />} />
+          <Route path="jumuia-management" element={<JumuiaManagement />} />
+          <Route path="chat" element={<ChatMonitorPage />} />
+          <Route path="security" element={<SecurityPage />} />
+          <Route path="media" element={<AdminMediaPage />} />
+          <Route path="/admin/pending-songs" element={<PendingSongs />} />
+          <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
+        </Route>
+
+        {/* ================= SECRETARY ================= */}
+        <Route
+          path="/secretary"
+          element={
+            <RoleRoute allowedRoles={["secretary"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="announcements" replace />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+        </Route>
+
+        {/* ================= TREASURER ================= */}
+        <Route
+          path="/treasurer"
+          element={
+            <RoleRoute allowedRoles={["treasurer"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="contributions" replace />} />
+          <Route path="contributions" element={<ContributionsPage />} />
+        </Route>
+
+        {/* ================= CHOIR MODERATOR ================= */}
+        <Route
+          path="/choir"
+          element={
+            <RoleRoute allowedRoles={["choir_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="songs" replace />} />
+          <Route path="songs" element={<SongsPage />} />
+        </Route>
+
+        {/* ================= JUMUIA LEADER ================= */}
+        <Route
+          path="/leader"
+          element={
+            <RoleRoute allowedRoles={["jumuia_leader"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<JumuiaManagement />} />
+        </Route>
+
+        {/* ================= MEDIA MODERATOR ================= */}
+        <Route
+          path="/media-moderator"
+          element={
+            <RoleRoute allowedRoles={["media_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="media" replace />} />
+          <Route path="media" element={<AdminMediaPage />} />
+        </Route>
+
+        {/* ================= CATCH ALL ================= */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {/* ========== GLOBAL AI OVERLAY - CHOOSE BASED ON ROLE ========== */}
+      {showAI && currentUser && (
+        isAdmin ? (
+          <AdminAIAssistant 
+            user={currentUser}
+            onClose={() => { 
+              setShowAI(false); 
+              setIsAIFullPage(false); 
+            }}
+            isOpen={showAI}
+            isFullPage={isAIFullPage}
+            onBack={() => setIsAIFullPage(false)}
+            navigate={navigate}
+          />
+        ) : (
+          <ZucaAIAssistant 
+            user={currentUser}
+            onClose={() => { 
+              setShowAI(false); 
+              setIsAIFullPage(false); 
+            }}
+            isOpen={showAI}
+            isFullPage={isAIFullPage}
+            onBack={() => setIsAIFullPage(false)}
+            navigate={navigate}
+          />
+        )
+      )}
+    </>
+  );
+}
+
+// Main App component with Router wrapper
+function App() {
   return (
     <NotificationManager>
       <BrowserRouter>
-        <Routes>
-          {/* ================= LANDING PAGE ================= */}
-          <Route path="/" element={<Landing2 />} />
-          
-
-          {/* ================= PUBLIC ROUTES ================= */}
-          <Route path="/home" element={<Home />} />
-          <Route path="/readings/:date" element={<FullReadings />} />
-          <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/landing" element={<Landing />} />
-
-
-          {/* ================= MEMBER PORTAL ================= */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/announcements" element={<Announcements />} />
-            <Route path="/mass-programs" element={<MassPrograms />} />
-            <Route path="/contributions" element={<Contributions />} />
-            
-            <Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
-            <Route path="/join-jumuia" element={<JoinJumuia />} />
-            <Route path="/hymns" element={<HymnBook />} />
-            <Route path="/hymn/:id" element={<HymnLyrics />} />
-            <Route path="/chat" element={<Chat />} />
-          </Route>
-
-          {/* ================= JUMUIA DETAIL PAGE ================= */}
-          <Route
-            path="/jumuia/:jumuiaCode"
-            element={
-              <ProtectedRoute>
-                <JumuiaRoute>
-                  <JumuiaDetailPage />
-                </JumuiaRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ================= ADMIN PORTAL (Full Access) ================= */}
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminLayout />
-              </AdminRoute>
-            }
-          >
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="activity" element={<ActivityPage />} />
-            <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
-            <Route path="songs" element={<SongsPage />} />
-            <Route path="/admin/hymns" element={<AdminHymns />} />
-            <Route path="roles" element={<RoleManagement />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-            <Route path="contributions" element={<ContributionsPage />} />
-            <Route path="jumuia-management" element={<JumuiaManagement />} />
-            <Route path="chat" element={<ChatMonitorPage />} />
-            <Route path="security" element={<SecurityPage />} />
-            <Route path="media" element={<AdminMediaPage />} />
-            <Route path="/admin/pending-songs" element={<PendingSongs />} />
-            <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
-          </Route>
-
-          {/* ================= SECRETARY (Announcements only) ================= */}
-          <Route
-            path="/secretary"
-            element={
-              <RoleRoute allowedRoles={["secretary"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="announcements" replace />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-          </Route>
-
-          {/* ================= TREASURER (Contributions only) ================= */}
-          <Route
-            path="/treasurer"
-            element={
-              <RoleRoute allowedRoles={["treasurer"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="contributions" replace />} />
-            <Route path="contributions" element={<ContributionsPage />} />
-          </Route>
-
-          {/* ================= CHOIR MODERATOR (Songs only) ================= */}
-          <Route
-            path="/choir"
-            element={
-              <RoleRoute allowedRoles={["choir_moderator"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="songs" replace />} />
-            <Route path="songs" element={<SongsPage />} />
-          </Route>
-
-          {/* ================= JUMUIA LEADER (Single dashboard page) ================= */}
-          <Route
-            path="/leader"
-            element={
-              <RoleRoute allowedRoles={["jumuia_leader"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<JumuiaManagement />} />
-          </Route>
-
-          {/* ================= MEDIA MODERATOR (Media management only) ================= */}
-          <Route
-            path="/media-moderator"
-            element={
-              <RoleRoute allowedRoles={["media_moderator"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="media" replace />} />
-            <Route path="media" element={<AdminMediaPage />} />
-          </Route>
-
-          {/* ================= CATCH ALL ================= */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppContent />
       </BrowserRouter>
     </NotificationManager>
   );

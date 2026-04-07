@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
-import ZucaAIAssistant from "../components/ZucaAIAssistant";
+// REMOVE THIS LINE: import ZucaAIAssistant from "../components/ZucaAIAssistant";
 import { FiMessageSquare } from "react-icons/fi";
 
 function Dashboard() {
@@ -25,19 +25,19 @@ function Dashboard() {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [showCropper, setShowCropper] = useState(false);
   
-  // AI Assistant State
-  const [showAI, setShowAI] = useState(false);
-  const [isAIFullPage, setIsAIFullPage] = useState(false);
+  // REMOVE THESE LINES - AI state is now global
+  // const [showAI, setShowAI] = useState(false);
+  // const [isAIFullPage, setIsAIFullPage] = useState(false);
 
-  // Listen for full page event from AI component
-  useEffect(() => {
-    const handleOpenFullPage = () => {
-      setIsAIFullPage(true);
-      setShowAI(true);
-    };
-    window.addEventListener('openAIFullPage', handleOpenFullPage);
-    return () => window.removeEventListener('openAIFullPage', handleOpenFullPage);
-  }, []);
+  // REMOVE THIS useEffect - AI event is now global
+  // useEffect(() => {
+  //   const handleOpenFullPage = () => {
+  //     setIsAIFullPage(true);
+  //     setShowAI(true);
+  //   };
+  //   window.addEventListener('openAIFullPage', handleOpenFullPage);
+  //   return () => window.removeEventListener('openAIFullPage', handleOpenFullPage);
+  // }, []);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -45,7 +45,6 @@ function Dashboard() {
       setLoadingProgress(0);
       setLoadingStage(0);
       
-      // Simulate loading stages
       const stages = [
         { progress: 20, message: "Waking up your dashboard...", icon: "✨" },
         { progress: 40, message: "Gathering your profile...", icon: "👤" },
@@ -106,7 +105,6 @@ function Dashboard() {
         }
       }
       
-      // Complete loading
       setTimeout(() => {
         setLoadingProgress(100);
         setTimeout(() => {
@@ -774,733 +772,727 @@ function Dashboard() {
   ];
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="dashboard-container"
-      >
-        {/* Animated Background */}
-        <div className="animated-bg">
-          <div className="bg-orb orb-1"></div>
-          <div className="bg-orb orb-2"></div>
-          <div className="bg-orb orb-3"></div>
-          <div className="bg-orb orb-4"></div>
-        </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="dashboard-container"
+    >
+      {/* Animated Background */}
+      <div className="animated-bg">
+        <div className="bg-orb orb-1"></div>
+        <div className="bg-orb orb-2"></div>
+        <div className="bg-orb orb-3"></div>
+        <div className="bg-orb orb-4"></div>
+      </div>
 
-        <div className="dashboard-content">
-          {/* Header with Gradient */}
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="header-glass"
-          >
-            <div className="header-content">
-              <div className="header-left">
-                <h1 className="greeting-text">
-                  {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}</span>
-                  <span className="wave-emoji">👋</span>
-                </h1>
-                <p className="date-text">
-                  {formatDate(currentTime)}
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: "12px" }}>
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => { setShowAI(true); setIsAIFullPage(false); }}
-                  style={{
-                    background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
-                    border: "none",
-                    borderRadius: "40px",
-                    padding: "10px 20px",
-                    color: "white",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <FiMessageSquare size={18} /> ZUCA AI
-                </motion.button>
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleLogout} 
-                  className="logout-button"
-                >
-                  <span className="logout-icon">🚪</span> Sign out
-                </motion.button>
-              </div>
+      <div className="dashboard-content">
+        {/* Header with Gradient */}
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="header-glass"
+        >
+          <div className="header-content">
+            <div className="header-left">
+              <h1 className="greeting-text">
+                {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}</span>
+                <span className="wave-emoji">👋</span>
+              </h1>
+              <p className="date-text">
+                {formatDate(currentTime)}
+              </p>
             </div>
-          </motion.div>
-
-          {/* Profile Card - Enhanced Glassmorphism */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="profile-glass-card"
-          >
-            <div className="profile-content">
-              <div className="avatar-section">
-                <div className="avatar-wrapper">
-                  {profileImage ? (
-                    <motion.img 
-                      whileHover={{ scale: 1.05 }}
-                      src={profileImage} 
-                      alt={user.fullName} 
-                      className="avatar"
-                    />
-                  ) : (
-                    <div className="avatar-placeholder">
-                      {user.fullName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="avatar-status"></div>
-                </div>
-                <div className="avatar-actions">
-                  <label className="upload-button">
-                    <span>📸</span> Change
-                    <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
-                  </label>
-                  {profileImage && (
-                    <button onClick={handleRemovePhoto} className="remove-button">
-                      <span>🗑️</span> Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="info-section">
-                <div className="info-header">
-                  <h2 className="full-name">{user.fullName}</h2>
-                  <span className="member-badge">
-                    {user.membership_number || "ZUCA-001"}
-                  </span>
-                </div>
-                <p className="email">{user.email}</p>
-                <div className="badge-container">
-                  <span className="role-badge">
-                    {user.role?.toUpperCase() || "MEMBER"}
-                  </span>
-                  {user.homeJumuia && (
-                    <span className="jumuia-badge">
-                      👥 {user.homeJumuia.name}
-                    </span>
-                  )}
-                </div>
-              </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              {/* UPDATED AI BUTTON - Dispatches global event */}
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { 
+                  // Dispatch global event instead of local state
+                  window.dispatchEvent(new CustomEvent('openZUCAI', { detail: { fullPage: true } }));
+                }}
+                style={{
+                  background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
+                  border: "none",
+                  borderRadius: "40px",
+                  padding: "10px 20px",
+                  color: "white",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <FiMessageSquare size={18} /> ZUCA AI
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleLogout} 
+                className="logout-button"
+              >
+                <span className="logout-icon">🚪</span> Sign out
+              </motion.button>
             </div>
-          </motion.div>
-
-          {/* Quick Stats Row */}
-          <div className="stats-row">
-            {[
-              { icon: "📢", value: unreadAnnouncements, label: "Unread Announcements", delay: 0.25, path: "/announcements" },
-              { icon: "⛪", value: upcomingEvents, label: "Upcoming Events", delay: 0.3, path: "/mass-programs" },
-              { icon: "💬", value: unreadMessages, label: "Unread Messages", delay: 0.35, path: "/chat" }
-            ].map((stat, idx) => (
-              <motion.div 
-                key={idx}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: stat.delay }}
-                whileHover={{ y: -4, scale: 1.02 }}
-                className="stat-glass-card"
-                onClick={() => navigate(stat.path)}
-              >
-                <div className="stat-icon">{stat.icon}</div>
-                <div className="stat-info">
-                  <span className="stat-value">{stat.value}</span>
-                  <span className="stat-label">{stat.label}</span>
-                </div>
-              </motion.div>
-            ))}
           </div>
+        </motion.div>
 
-          {/* Quick Actions Grid */}
-          <div className="section-header">
-            <h2 className="section-title">Quick Actions</h2>
-            <p className="section-subtitle">Navigate to different sections of your dashboard</p>
-          </div>
-
-          <div className="actions-grid">
-            {quickActions.map((action, index) => (
-              <motion.div
-                key={action.title}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className="action-glass-card"
-                style={{ borderTopColor: action.color }}
-                onMouseEnter={() => setActiveCard(index)}
-                onMouseLeave={() => setActiveCard(null)}
-                onClick={() => navigate(action.path)}
-              >
-                <div className="action-card-header">
-                  <div className="action-icon" style={{ background: `${action.color}20`, color: action.color }}>
-                    {action.icon}
+        {/* Profile Card - Enhanced Glassmorphism */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="profile-glass-card"
+        >
+          <div className="profile-content">
+            <div className="avatar-section">
+              <div className="avatar-wrapper">
+                {profileImage ? (
+                  <motion.img 
+                    whileHover={{ scale: 1.05 }}
+                    src={profileImage} 
+                    alt={user.fullName} 
+                    className="avatar"
+                  />
+                ) : (
+                  <div className="avatar-placeholder">
+                    {user.fullName.charAt(0).toUpperCase()}
                   </div>
-                  {action.badge && (
-                    <span className="action-badge">{action.badge}</span>
-                  )}
-                </div>
-                <h3 className="action-title">{action.title}</h3>
-                <p className="action-description">{action.description}</p>
-                <div className="action-footer">
-                  <span className="action-link">Open →</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                )}
+                <div className="avatar-status"></div>
+              </div>
+              <div className="avatar-actions">
+                <label className="upload-button">
+                  <span>📸</span> Change
+                  <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
+                </label>
+                {profileImage && (
+                  <button onClick={handleRemovePhoto} className="remove-button">
+                    <span>🗑️</span> Remove
+                  </button>
+                )}
+              </div>
+            </div>
 
-          {/* Footer */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="footer"
-          >
-            <p className="footer-text">ZUCA Portal • Member Dashboard • v2.0</p>
-          </motion.div>
+            <div className="info-section">
+              <div className="info-header">
+                <h2 className="full-name">{user.fullName}</h2>
+                <span className="member-badge">
+                  {user.membership_number || "ZUCA-001"}
+                </span>
+              </div>
+              <p className="email">{user.email}</p>
+              <div className="badge-container">
+                <span className="role-badge">
+                  {user.role?.toUpperCase() || "MEMBER"}
+                </span>
+                {user.homeJumuia && (
+                  <span className="jumuia-badge">
+                    👥 {user.homeJumuia.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Quick Stats Row */}
+        <div className="stats-row">
+          {[
+            { icon: "📢", value: unreadAnnouncements, label: "Unread Announcements", delay: 0.25, path: "/announcements" },
+            { icon: "⛪", value: upcomingEvents, label: "Upcoming Events", delay: 0.3, path: "/mass-programs" },
+            { icon: "💬", value: unreadMessages, label: "Unread Messages", delay: 0.35, path: "/chat" }
+          ].map((stat, idx) => (
+            <motion.div 
+              key={idx}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: stat.delay }}
+              whileHover={{ y: -4, scale: 1.02 }}
+              className="stat-glass-card"
+              onClick={() => navigate(stat.path)}
+            >
+              <div className="stat-icon">{stat.icon}</div>
+              <div className="stat-info">
+                <span className="stat-value">{stat.value}</span>
+                <span className="stat-label">{stat.label}</span>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
-        {/* Image Cropper Modal */}
-        {showCropper && (
-          <ProfileImageCropper
-            imageFile={selectedImageFile}
-            onCropComplete={(croppedFile) => {
-              setShowCropper(false);
-              handleImageUpload(croppedFile);
-            }}
-            onClose={() => {
-              setShowCropper(false);
-              setSelectedImageFile(null);
-            }}
-          />
-        )}
-
-        <style jsx>{`
-          .dashboard-container {
-            min-height: 100vh;
-            background: linear-gradient(135deg, #faf5f59e, #0d115e13, #24243e);
-            position: relative;
-            border-radius: 30px;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow-x: hidden;
-          }
-
-          .animated-bg {
-            position: fixed;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: 0;
-          }
-
-          .bg-orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(100px);
-            opacity: 0.3;
-            animation: floatBg 20s ease-in-out infinite;
-          }
-
-          .orb-1 {
-            width: 500px;
-            height: 500px;
-            top: -200px;
-            right: -200px;
-            background: radial-gradient(circle, rgba(102,126,234,0.4), rgba(118,75,162,0.2));
-          }
-
-          .orb-2 {
-            width: 400px;
-            height: 400px;
-            bottom: -150px;
-            left: -150px;
-            background: radial-gradient(circle, rgba(118,75,162,0.4), rgba(102,126,234,0.2));
-            animation-delay: -5s;
-          }
-
-          .orb-3 {
-            width: 600px;
-            height: 600px;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: radial-gradient(circle, rgba(0,212,255,0.3), rgba(9,9,121,0.15));
-            animation-delay: -10s;
-          }
-
-          .orb-4 {
-            width: 350px;
-            height: 350px;
-            top: 20%;
-            right: 20%;
-            background: radial-gradient(circle, rgba(245,158,11,0.3), rgba(102,126,234,0.15));
-            animation-delay: -15s;
-          }
-
-          @keyframes floatBg {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(50px, -50px) scale(1.1); }
-            66% { transform: translate(-30px, 30px) scale(0.9); }
-          }
-
-          .dashboard-content {
-            position: relative;
-            z-index: 1;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 30px 24px;
-          }
-
-          .header-glass {
-            background: rgb(255, 255, 255);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 24px 32px;
-            margin-bottom: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-          }
-
-          .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-          }
-
-          .greeting-text {
-            font-size: 32px;
-            font-weight: 700;
-            color: black;
-            margin-bottom: 8px;
-          }
-
-          .user-name {
-            font-size: 22px !important;
-            background: linear-gradient(135deg, #000000, #000000);
-            -webkit-background-clip: text !important;
-            -webkit-text-fill-color: transparent !important;
-            background-clip: text !important;
-            font-weight: 800 !important;
-            display: inline-block !important;
-          }
-
-          .wave-emoji {
-            display: inline-block;
-            animation: wave 1s ease-in-out infinite;
-            margin-left: 8px;
-          }
-
-          @keyframes wave {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(20deg); }
-            75% { transform: rotate(-10deg); }
-          }
-
-          .date-text {
-            color: rgb(3, 3, 3);
-            font-size: 15px;
-          }
-
-          .logout-button {
-            background: rgb(240, 6, 29);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            padding: 10px 24px;
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s;
-          }
-
-          .logout-button:hover {
-            background: rgba(220, 53, 69, 1);
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3);
-          }
-
-          .profile-glass-card {
-            background: rgb(255, 255, 255);
-            backdrop-filter: blur(20px);
-            border-radius: 32px !important;
-            padding: 32px;
-            margin-bottom: 32px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-          }
-
-          .profile-content {
-            display: flex;
-            gap: 40px;
-            flex-wrap: wrap;
-            align-items: center;
-          }
-
-          .avatar-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-          }
-
-          .avatar-wrapper {
-            position: relative;
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 4px solid rgba(20, 240, 12, 0.97);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-          }
-
-          .avatar {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.3s;
-          }
-
-          .avatar-placeholder {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #4bef26da, #e6e2ea);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 56px;
-            font-weight: 700;
-            color: white;
-          }
-
-          .avatar-status {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            width: 16px;
-            height: 16px;
-            background: #10b981;
-            border-radius: 50%;
-            border: 2px solid white;
-          }
-
-          .avatar-actions {
-            display: flex;
-            gap: 10px;
-          }
-
-          .upload-button, .remove-button {
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-          }
-
-          .upload-button {
-            background: linear-gradient(135deg, #111619, #090909);
-            color: white;
-            border: none;
-          }
-
-          .remove-button {
-            background: rgba(241, 10, 33, 0.99);
-            color: black;
-            border: none;
-          }
-
-          .upload-button:hover, .remove-button:hover {
-            transform: translateY(-2px);
-          }
-
-          .info-section {
-            flex: 1;
-          }
-
-          .info-header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-          }
-
-          .full-name {
-            font-size: 32px;
-            font-weight: 700;
-            color: black;
-            margin: 0;
-          }
-
-          .member-badge {
-            background: linear-gradient(135deg, #111619, #090909);
-            border-radius: 30px;
-            padding: 6px 16px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-          }
-
-          .email {
-            color: rgba(10, 10, 10, 0.92);
-            font-size: 14px;
-            margin-bottom: 16px;
-          }
-
-          .badge-container {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-          }
-
-          .role-badge, .jumuia-badge {
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-          }
-
-          .role-badge {
-            background: rgba(102, 126, 234, 0.2);
-            color: #ea0606;
-            border: 1px solid rgba(102, 126, 234, 0.3);
-          }
-
-          .jumuia-badge {
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-          }
-
-          .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 48px;
-          }
-
-          .stat-glass-card {
-            background: rgba(255, 255, 255, 0.97);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 24px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s;
-            cursor: pointer;
-          }
-
-          .stat-glass-card:hover {
-            transform: translateY(-4px);
-            background: rgba(255, 251, 22, 0.72);
-            border-color: rgba(255, 255, 255, 0.84);
-          }
-
-          .stat-icon {
-            font-size: 40px;
-            width: 64px;
-            height: 64px;
-            background: rgba(224, 253, 36, 0.91);
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-
-          .stat-info {
-            display: flex;
-            flex-direction: column;
-          }
-
-          .stat-value {
-            font-size: 36px;
-            font-weight: 800;
-            color: black;
-            line-height: 1;
-          }
-
-          .stat-label {
-            font-size: 13px !important;
-            color: rgba(5, 5, 5, 0.7);
-            margin-top: 4px;
-          }
-
-          .section-header {
-            margin-bottom: 24px;
-          }
-
-          .section-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 8px;
-          }
-
-          .section-subtitle {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 14px;
-          }
-
-          .actions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-            margin-bottom: 48px;
-          }
-
-          .action-glass-card {
-            background: rgb(255, 255, 255);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 28px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-top-width: 4px;
-          }
-
-          .action-glass-card:hover {
-            transform: translateY(-8px);
-            background: rgba(224, 231, 34, 0.99);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-          }
-
-          .action-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-          }
-
-          .action-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            transition: all 0.3s;
-          }
-
-          .action-glass-card:hover .action-icon {
-            transform: scale(1.1);
-          }
-
-          .action-badge {
-            background: #ff4757;
-            border-radius: 20px;
-            padding: 4px 12px;
-            color: white;
-            font-size: 11px;
-            font-weight: 600;
-          }
-
-          .action-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: black;
-            margin-bottom: 8px;
-          }
-
-          .action-description {
-            color: rgba(0, 0, 0, 0.7);
-            font-size: 13px;
-            margin-bottom: 20px;
-            line-height: 1.5;
-          }
-
-          .action-footer {
-            display: flex;
-            justify-content: flex-end;
-          }
-
-          .action-link {
-            color: #667eea;
-            font-size: 14px;
-            font-weight: 600;
-            transition: transform 0.2s;
-          }
-
-          .action-glass-card:hover .action-link {
-            transform: translateX(4px);
-            display: inline-block;
-          }
-
-          .footer {
-            text-align: center;
-            padding: 24px;
-          }
-
-          .footer-text {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 13px;
-          }
-
-          @media (max-width: 768px) {
-            .dashboard-content {
-              padding: 20px 16px;
-            }
-            .greeting-text {
-              font-size: 24px;
-            }
-            .full-name {
-              font-size: 24px;
-            }
-            .profile-content {
-              flex-direction: column;
-              text-align: center;
-            }
-            .info-header {
-              justify-content: center;
-            }
-            .badge-container {
-              justify-content: center;
-            }
-            .actions-grid {
-              grid-template-columns: 1fr;
-            }
-            .stat-value {
-              font-size: 28px;
-            }
-          }
-        `}</style>
-      </motion.div>
-
-      {/* ZUCA AI Assistant */}
-      {showAI && (
-        <ZucaAIAssistant 
-          user={user}
-          onClose={() => { setShowAI(false); setIsAIFullPage(false); }}
-          isOpen={showAI}
-          isFullPage={isAIFullPage}
-          onBack={() => setIsAIFullPage(false)}
+        {/* Quick Actions Grid */}
+        <div className="section-header">
+          <h2 className="section-title">Quick Actions</h2>
+          <p className="section-subtitle">Navigate to different sections of your dashboard</p>
+        </div>
+
+        <div className="actions-grid">
+          {quickActions.map((action, index) => (
+            <motion.div
+              key={action.title}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 + index * 0.05 }}
+              whileHover={{ y: -8, scale: 1.02 }}
+              className="action-glass-card"
+              style={{ borderTopColor: action.color }}
+              onMouseEnter={() => setActiveCard(index)}
+              onMouseLeave={() => setActiveCard(null)}
+              onClick={() => navigate(action.path)}
+            >
+              <div className="action-card-header">
+                <div className="action-icon" style={{ background: `${action.color}20`, color: action.color }}>
+                  {action.icon}
+                </div>
+                {action.badge && (
+                  <span className="action-badge">{action.badge}</span>
+                )}
+              </div>
+              <h3 className="action-title">{action.title}</h3>
+              <p className="action-description">{action.description}</p>
+              <div className="action-footer">
+                <span className="action-link">Open →</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="footer"
+        >
+          <p className="footer-text">ZUCA Portal • Member Dashboard • v2.0</p>
+        </motion.div>
+      </div>
+
+      {/* Image Cropper Modal */}
+      {showCropper && (
+        <ProfileImageCropper
+          imageFile={selectedImageFile}
+          onCropComplete={(croppedFile) => {
+            setShowCropper(false);
+            handleImageUpload(croppedFile);
+          }}
+          onClose={() => {
+            setShowCropper(false);
+            setSelectedImageFile(null);
+          }}
         />
       )}
-    </>
+
+      {/* REMOVED: ZUCA AI Assistant - Now handled globally in App.jsx */}
+
+      <style jsx>{`
+        .dashboard-container {
+          min-height: 100vh;
+          background: linear-gradient(135deg, #faf5f59e, #0d115e13, #24243e);
+          position: relative;
+          border-radius: 30px;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          overflow-x: hidden;
+        }
+
+        .animated-bg {
+          position: fixed;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .bg-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(100px);
+          opacity: 0.3;
+          animation: floatBg 20s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        .orb-1 {
+          width: 500px;
+          height: 500px;
+          top: -200px;
+          right: -200px;
+          background: radial-gradient(circle, rgba(102,126,234,0.4), rgba(118,75,162,0.2));
+        }
+
+        .orb-2 {
+          width: 400px;
+          height: 400px;
+          bottom: -150px;
+          left: -150px;
+          background: radial-gradient(circle, rgba(118,75,162,0.4), rgba(102,126,234,0.2));
+          animation-delay: -5s;
+        }
+
+        .orb-3 {
+          width: 600px;
+          height: 600px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: radial-gradient(circle, rgba(0,212,255,0.3), rgba(9,9,121,0.15));
+          animation-delay: -10s;
+        }
+
+        .orb-4 {
+          width: 350px;
+          height: 350px;
+          top: 20%;
+          right: 20%;
+          background: radial-gradient(circle, rgba(245,158,11,0.3), rgba(102,126,234,0.15));
+          animation-delay: -15s;
+        }
+
+        @keyframes floatBg {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(50px, -50px) scale(1.1); }
+          66% { transform: translate(-30px, 30px) scale(0.9); }
+        }
+
+        .dashboard-content {
+          position: relative;
+          z-index: 1;
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 30px 24px;
+        }
+
+        .header-glass {
+          background: rgb(255, 255, 255);
+          backdrop-filter: blur(20px);
+          border-radius: 24px;
+          padding: 24px 32px;
+          margin-bottom: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 20px;
+        }
+
+        .greeting-text {
+          font-size: 32px;
+          font-weight: 700;
+          color: black;
+          margin-bottom: 8px;
+        }
+
+        .user-name {
+          font-size: 22px !important;
+          background: linear-gradient(135deg, #000000, #000000);
+          -webkit-background-clip: text !important;
+          -webkit-text-fill-color: transparent !important;
+          background-clip: text !important;
+          font-weight: 800 !important;
+          display: inline-block !important;
+        }
+
+        .wave-emoji {
+          display: inline-block;
+          animation: wave 1s ease-in-out infinite;
+          margin-left: 8px;
+        }
+
+        @keyframes wave {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(20deg); }
+          75% { transform: rotate(-10deg); }
+        }
+
+        .date-text {
+          color: rgb(3, 3, 3);
+          font-size: 15px;
+        }
+
+        .logout-button {
+          background: rgb(240, 6, 29);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 16px;
+          padding: 10px 24px;
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.3s;
+        }
+
+        .logout-button:hover {
+          background: rgba(220, 53, 69, 1);
+          transform: translateY(-2px);
+          box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3);
+        }
+
+        .profile-glass-card {
+          background: rgb(255, 255, 255);
+          backdrop-filter: blur(20px);
+          border-radius: 32px !important;
+          padding: 32px;
+          margin-bottom: 32px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .profile-content {
+          display: flex;
+          gap: 40px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .avatar-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .avatar-wrapper {
+          position: relative;
+          width: 140px;
+          height: 140px;
+          border-radius: 50%;
+          overflow: hidden;
+          border: 4px solid rgba(20, 240, 12, 0.97);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .avatar {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s;
+        }
+
+        .avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #4bef26da, #e6e2ea);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 56px;
+          font-weight: 700;
+          color: white;
+        }
+
+        .avatar-status {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          width: 16px;
+          height: 16px;
+          background: #10b981;
+          border-radius: 50%;
+          border: 2px solid white;
+        }
+
+        .avatar-actions {
+          display: flex;
+          gap: 10px;
+        }
+
+        .upload-button, .remove-button {
+          padding: 8px 16px;
+          border-radius: 30px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+
+        .upload-button {
+          background: linear-gradient(135deg, #111619, #090909);
+          color: white;
+          border: none;
+        }
+
+        .remove-button {
+          background: rgba(241, 10, 33, 0.99);
+          color: black;
+          border: none;
+        }
+
+        .upload-button:hover, .remove-button:hover {
+          transform: translateY(-2px);
+        }
+
+        .info-section {
+          flex: 1;
+        }
+
+        .info-header {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
+
+        .full-name {
+          font-size: 32px;
+          font-weight: 700;
+          color: black;
+          margin: 0;
+        }
+
+        .member-badge {
+          background: linear-gradient(135deg, #111619, #090909);
+          border-radius: 30px;
+          padding: 6px 16px;
+          color: white;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .email {
+          color: rgba(10, 10, 10, 0.92);
+          font-size: 14px;
+          margin-bottom: 16px;
+        }
+
+        .badge-container {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .role-badge, .jumuia-badge {
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .role-badge {
+          background: rgba(102, 126, 234, 0.2);
+          color: #ea0606;
+          border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .jumuia-badge {
+          background: rgba(16, 185, 129, 0.2);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .stats-row {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 20px;
+          margin-bottom: 48px;
+        }
+
+        .stat-glass-card {
+          background: rgba(255, 255, 255, 0.97);
+          backdrop-filter: blur(20px);
+          border-radius: 24px;
+          padding: 24px;
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          transition: all 0.3s;
+          cursor: pointer;
+        }
+
+        .stat-glass-card:hover {
+          transform: translateY(-4px);
+          background: rgba(255, 251, 22, 0.72);
+          border-color: rgba(255, 255, 255, 0.84);
+        }
+
+        .stat-icon {
+          font-size: 40px;
+          width: 64px;
+          height: 64px;
+          background: rgba(224, 253, 36, 0.91);
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .stat-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .stat-value {
+          font-size: 36px;
+          font-weight: 800;
+          color: black;
+          line-height: 1;
+        }
+
+        .stat-label {
+          font-size: 13px !important;
+          color: rgba(5, 5, 5, 0.7);
+          margin-top: 4px;
+        }
+
+        .section-header {
+          margin-bottom: 24px;
+        }
+
+        .section-title {
+          font-size: 28px;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 8px;
+        }
+
+        .section-subtitle {
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 14px;
+        }
+
+        .actions-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 24px;
+          margin-bottom: 48px;
+        }
+
+        .action-glass-card {
+          background: rgb(255, 255, 255);
+          backdrop-filter: blur(20px);
+          border-radius: 24px;
+          padding: 28px;
+          cursor: pointer;
+          transition: all 0.3s;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top-width: 4px;
+        }
+
+        .action-glass-card:hover {
+          transform: translateY(-8px);
+          background: rgba(224, 231, 34, 0.99);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 20px;
+        }
+
+        .action-icon {
+          width: 56px;
+          height: 56px;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          transition: all 0.3s;
+        }
+
+        .action-glass-card:hover .action-icon {
+          transform: scale(1.1);
+        }
+
+        .action-badge {
+          background: #ff4757;
+          border-radius: 20px;
+          padding: 4px 12px;
+          color: white;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .action-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: black;
+          margin-bottom: 8px;
+        }
+
+        .action-description {
+          color: rgba(0, 0, 0, 0.7);
+          font-size: 13px;
+          margin-bottom: 20px;
+          line-height: 1.5;
+        }
+
+        .action-footer {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .action-link {
+          color: #667eea;
+          font-size: 14px;
+          font-weight: 600;
+          transition: transform 0.2s;
+        }
+
+        .action-glass-card:hover .action-link {
+          transform: translateX(4px);
+          display: inline-block;
+        }
+
+        .footer {
+          text-align: center;
+          padding: 24px;
+        }
+
+        .footer-text {
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+          .dashboard-content {
+            padding: 20px 16px;
+          }
+          .greeting-text {
+            font-size: 24px;
+          }
+          .full-name {
+            font-size: 24px;
+          }
+          .profile-content {
+            flex-direction: column;
+            text-align: center;
+          }
+          .info-header {
+            justify-content: center;
+          }
+          .badge-container {
+            justify-content: center;
+          }
+          .actions-grid {
+            grid-template-columns: 1fr;
+          }
+          .stat-value {
+            font-size: 28px;
+          }
+        }
+      `}</style>
+    </motion.div>
   );
 }
 

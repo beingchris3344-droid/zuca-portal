@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import io from "socket.io-client";
+import { FiMessageSquare } from "react-icons/fi";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
 import RoleManagement from "./RoleManagement";
@@ -17,59 +18,45 @@ export default function AdminLayout() {
   const notificationRef = useRef(null);
 
   // Socket connection for real-time updates
-useEffect(() => {
-  const socket = io(BASE_URL);
-  
-  socket.on('connect', () => {
-    console.log('Admin connected');
-  });
-
-  // Listen for pledge-related notifications
-  socket.on('new_notification', (notification) => {
-    console.log('Admin notification received:', notification);
-    setNotifications(prev => [notification, ...prev].slice(0, 20));
+  useEffect(() => {
+    const socket = io(BASE_URL);
     
-    // Play sound for new notifications (optional)
-    // new Audio('/notification.mp3').play().catch(e => console.log('Audio play failed:', e));
-  });
+    socket.on('connect', () => {
+      console.log('Admin connected');
+    });
 
-  // Listen for pledge updates
-  socket.on('pledge_updated', (updatedPledge) => {
-    console.log('Pledge updated:', updatedPledge);
-    // You could add a notification here if needed
-  });
+    socket.on('new_notification', (notification) => {
+      console.log('Admin notification received:', notification);
+      setNotifications(prev => [notification, ...prev].slice(0, 20));
+    });
 
-  // Listen for new pledges
-  socket.on('pledge_created', (newPledge) => {
-    console.log('New pledge created:', newPledge);
-    // The notification will come through 'new_notification' channel
-  });
+    socket.on('pledge_updated', (updatedPledge) => {
+      console.log('Pledge updated:', updatedPledge);
+    });
 
-  // Listen for new messages
-  socket.on('new_message', (message) => {
-    console.log('New message:', message);
-    // Add a notification for new messages
-    setNotifications(prev => [{
-      id: Date.now(),
-      type: 'message',
-      title: '💬 New Message',
-      message: `New message about a pledge`,
-      icon: '💬',
-      read: false,
-      createdAt: new Date().toISOString()
-    }, ...prev].slice(0, 20));
-  });
+    socket.on('pledge_created', (newPledge) => {
+      console.log('New pledge created:', newPledge);
+    });
 
+    socket.on('new_message', (message) => {
+      console.log('New message:', message);
+      setNotifications(prev => [{
+        id: Date.now(),
+        type: 'message',
+        title: '💬 New Message',
+        message: `New message about a pledge`,
+        icon: '💬',
+        read: false,
+        createdAt: new Date().toISOString()
+      }, ...prev].slice(0, 20));
+    });
 
-  
+    socket.on('online_members', (data) => {
+      setOnlineMembers(data.count);
+    });
 
-  // Listen for online members count
-  socket.on('online_members', (data) => {
-    setOnlineMembers(data.count);
-  });
-
-  return () => socket.disconnect();
-}, []);
+    return () => socket.disconnect();
+  }, []);
 
   // Handle resize
   useEffect(() => {
@@ -98,6 +85,11 @@ useEffect(() => {
     navigate("/login");
   };
 
+  // Function to open AI Assistant
+  const openAI = () => {
+  window.dispatchEvent(new CustomEvent('openAdminAI', { detail: { fullPage: true } }));
+};
+
   const navItems = [
     { label: "ADMIN DASHBOARD", path: "", icon: "📊" },
     { label: "USER MANUAL", path: "security", icon: "🔒" },
@@ -112,7 +104,6 @@ useEffect(() => {
     { label: "GEN ANNOUNCEMENTS", path: "announcements", icon: "📢" },
     { label: "GEN CONTRIBUTIONS", path: "contributions", icon: "💰" },
     { label: "CHAT MONITOR", path: "chat", icon: "💬" },
-    
   ];
 
   return (
@@ -147,6 +138,18 @@ useEffect(() => {
         </div>
 
         <div className="top-bar-right">
+          {/* AI ASSISTANT BUTTON */}
+          <motion.button 
+            className="ai-assistant-btn glass-effect"
+            onClick={openAI}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title="Open ZUCA AI Assistant"
+          >
+            <FiMessageSquare size={20} />
+            <span className="ai-text"><strong>ZUCA ADMIN AI ASSISTANT</strong></span>
+          </motion.button>
+
           {/* Online Members Count - Always Visible */}
           <div className="online-indicator glass-effect">
             <span className="online-dot"></span>
@@ -188,32 +191,32 @@ useEffect(() => {
                     )}
                   </div>
                   <div className="notification-list">
-  {notifications.length === 0 ? (
-    <div className="notification-empty">No new notifications</div>
-  ) : (
-    notifications.map((notif, index) => (
-      <motion.div 
-        key={index} 
-        className={`notification-item glass-effect ${notif.type || ''}`}
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: index * 0.05 }}
-        whileHover={{ x: 5 }}
-      >
-        <div className="notification-icon">
-          {notif.icon || (notif.type === 'message' ? '💬' : '📌')}
-        </div>
-        <div className="notification-content">
-          <div className="notification-title">{notif.title}</div>
-          <div className="notification-message">{notif.message}</div>
-          <div className="notification-time">
-            {new Date(notif.createdAt).toLocaleTimeString()}
-          </div>
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
+                    {notifications.length === 0 ? (
+                      <div className="notification-empty">No new notifications</div>
+                    ) : (
+                      notifications.map((notif, index) => (
+                        <motion.div 
+                          key={index} 
+                          className={`notification-item glass-effect ${notif.type || ''}`}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          whileHover={{ x: 5 }}
+                        >
+                          <div className="notification-icon">
+                            {notif.icon || (notif.type === 'message' ? '💬' : '📌')}
+                          </div>
+                          <div className="notification-content">
+                            <div className="notification-title">{notif.title}</div>
+                            <div className="notification-message">{notif.message}</div>
+                            <div className="notification-time">
+                              {new Date(notif.createdAt).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -323,7 +326,6 @@ useEffect(() => {
           background: linear-gradient(135deg, #0a0a1e 0%, #1a0033 50%, #0a0a1e 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           position: relative;
-          
           overflow-x: hidden;
         }
 
@@ -378,7 +380,7 @@ useEffect(() => {
 
         /* Glass Effect Classes */
         .glass-effect {
-          background: rgba(44, 188, 68, 0.7);
+          background: rgba(21, 21, 21, 0.6);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           border: 0px solid rgba(255, 255, 255, 0.15);
@@ -456,6 +458,35 @@ useEffect(() => {
           gap: 16px;
           min-width: 200px;
           justify-content: flex-end;
+        }
+
+        /* AI Assistant Button */
+        .ai-assistant-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: linear-gradient(135deg, #5cf692, #0307e7);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 30px;
+          color: white;
+          font-weight: 900;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+
+        .ai-assistant-btn .ai-text {
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+          .ai-assistant-btn .ai-text {
+            display: none;
+          }
+          .ai-assistant-btn {
+            padding: 8px 12px;
+          }
         }
 
         /* Online Indicator */
@@ -726,7 +757,6 @@ useEffect(() => {
           gap: 12px;
           color: rgb(255, 255, 255);
           transition: all 0.2s;
-        
           cursor: pointer;
           position: relative;
           overflow: hidden;
@@ -816,21 +846,19 @@ useEffect(() => {
           z-index: 1;
         }
 
-        
-
-       .content-wrapper {
-  border-radius: 0px;           /* Remove border radius for edge-to-edge */
-  padding: 0px;                 /* Remove padding */
-  margin: 0;                    /* Remove all margins */
-  position: relative;
-  min-height: calc(100vh - 114px);
-  width: 100%;                  /* Force full width */
-  max-width: 100%;              /* Ensure it never constrains */
-  box-sizing: border-box;
-  border-radius: 40px;
-  left: 0;
-  right: 0;
-}
+        .content-wrapper {
+          border-radius: 0px;
+          padding: 0px;
+          margin: 0;
+          position: relative;
+          min-height: calc(100vh - 114px);
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          border-radius: 40px;
+          left: 0;
+          right: 0;
+        }
 
         /* Copyright Footer */
         .copyright-footer {

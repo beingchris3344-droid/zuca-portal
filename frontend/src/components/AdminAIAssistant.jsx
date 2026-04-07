@@ -1,4 +1,4 @@
-// frontend/src/components/ZucaAIAssistant.jsx
+// frontend/src/components/AdminAIAssistant.jsx
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -7,13 +7,13 @@ import logoImg from "../assets/zuca-logo.png";
 import { 
   FiSend, FiX, FiMinimize2, FiMaximize2, 
   FiTrash, FiMic, FiMicOff, FiCopy, FiCheck,
-  FiDownload, FiPaperclip
+  FiDownload, FiPaperclip, FiShield, FiUsers, 
+  FiDollarSign, FiBell, FiVideo, FiBarChart2
 } from "react-icons/fi";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onBack, navigate }) {
-  //const navigate = useNavigate();
+export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, onBack, navigate }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,9 +25,9 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
   const lastRequestTime = useRef(0);
   const fileInputRef = useRef(null);
 
-  // Load chat history
+  // Load chat history (separate for admin)
   useEffect(() => {
-    const savedHistory = localStorage.getItem('zuca_ai_history');
+    const savedHistory = localStorage.getItem('admin_ai_history');
     if (savedHistory && !isFullPage) {
       try {
         const history = JSON.parse(savedHistory);
@@ -45,17 +45,17 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         ...msg,
         timestamp: msg.timestamp.toISOString()
       }));
-      localStorage.setItem('zuca_ai_history', JSON.stringify(toSave));
+      localStorage.setItem('admin_ai_history', JSON.stringify(toSave));
     }
   }, [messages, isFullPage]);
 
-  // Welcome message
+  // Welcome message for Admin
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([{
         id: Date.now(),
         role: "assistant",
-        content: `Tumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "there"}**! I'm your **ZUCA AI Assistant**.\n\n### What I can do:\n\n| Command | What happens |\n|---------|--------------|\n| 📸 **Open Gallery** | Opens the media gallery |\n| 🎵 **Open Hymn Book** | Opens all hymns |\n| 📖 **Show lyrics for [song]** | Opens exact hymn page |\n| 💰 **What do I owe?** | Shows your pledges |\n| 💵 **I want to give 5000** | Creates a pledge |\n| 💬 **Tell everyone hello** | Sends to chat |\n| 🔔 **Read notifications** | Shows all unread |\n| ✅ **Mark all as read** | Clears notifications |\n| 👤 **Who am I?** | Your profile |\n| ⛪ **When is mass?** | Mass schedule |\n| 🏠 **What jumuia groups?** | List of groups |\n\n**Try saying "Open Gallery" or "Show lyrics for Amazing Grace"** 🙏`,
+        content: `👑 **ADMIN AI ASSISTANT**\n\nTumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "Admin"}**! I'm your **ZUCA Admin AI** with full management capabilities.\n\n### 🔧 ADMIN COMMANDS:\n\n| Category | Commands |\n|----------|----------|\n| 👥 **Users** | "List all users", "Find user [name]", "Delete user [email]", "Make [name] admin" |\n| 💰 **Campaigns** | "Create campaign 'Title' with target 50000", "List campaigns", "Delete campaign [title]" |\n| 📢 **Announcements** | "Create announcement: [message]", "List announcements", "Delete announcement [title]" |\n| 📸 **Gallery** | "List media", "Delete media [title]" |\n| 📺 **YouTube** | "YouTube stats", "Channel analytics" |\n| 📊 **System** | "System stats", "Jumuia stats", "Admin help" |\n\n**Try saying "List all users" or "Admin help"** 🙏`,
         timestamp: new Date()
       }]);
     }
@@ -116,93 +116,91 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
- const sendMessage = async () => {
-  if ((!input.trim() && attachments.length === 0)) return;
-  if (loading) return;
-  
-  const now = Date.now();
-  if (now - lastRequestTime.current < 2000) {
-    const waitTime = Math.ceil((2000 - (now - lastRequestTime.current)) / 1000);
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      role: "assistant",
-      content: `Please wait ${waitTime} second(s) before sending another message. 🙏`,
-      timestamp: new Date()
-    }]);
-    return;
-  }
-  
-  const userMessage = input.trim();
-  
-  setMessages(prev => [...prev, {
-    id: Date.now(),
-    role: "user",
-    content: userMessage,
-    timestamp: new Date()
-  }]);
-  setInput("");
-  setAttachments([]);
-  setLoading(true);
-  lastRequestTime.current = now;
-  
-  try {
-    const token = localStorage.getItem("token");
+  const sendMessage = async () => {
+    if ((!input.trim() && attachments.length === 0)) return;
+    if (loading) return;
     
-    const response = await axios.post(`${BASE_URL}/api/ai/assistant`, {
-      message: userMessage
-    }, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 30000
-    });
-    
-    const aiResponse = response.data.response;
-    
-    // Handle navigation actions - USE NAVIGATE
-    if (response.data.action === "navigate" && response.data.path) {
+    const now = Date.now();
+    if (now - lastRequestTime.current < 2000) {
+      const waitTime = Math.ceil((2000 - (now - lastRequestTime.current)) / 1000);
       setMessages(prev => [...prev, {
-        id: Date.now() + 1,
+        id: Date.now(),
         role: "assistant",
-        content: aiResponse,
+        content: `Please wait ${waitTime} second(s) before sending another message. 🙏`,
         timestamp: new Date()
       }]);
-      setTimeout(() => {
-        navigate(response.data.path);  // ← USE NAVIGATE
-        onClose(); // Optional: close AI after navigation
-      }, 500);
-    } else {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: "assistant",
-        content: aiResponse,
-        timestamp: new Date()
-      }]);
+      return;
     }
     
-  } catch (err) {
-    console.error("AI error:", err);
+    const userMessage = input.trim();
+    
     setMessages(prev => [...prev, {
       id: Date.now(),
-      role: "assistant",
-      content: "Tumsifu Yesu Kristu! 🙏 I'm having trouble connecting. Please try again.",
+      role: "user",
+      content: userMessage,
       timestamp: new Date()
     }]);
-  } finally {
-    setLoading(false);
-  }
-};
+    setInput("");
+    setAttachments([]);
+    setLoading(true);
+    lastRequestTime.current = now;
+    
+    try {
+      const token = localStorage.getItem("token");
+      
+const response = await axios.post(`${BASE_URL}/api/admin/ai/assistant`, {        message: userMessage
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000
+      });
+      
+      const aiResponse = response.data.response;
+      
+      if (response.data.action === "navigate" && response.data.path) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: aiResponse,
+          timestamp: new Date()
+        }]);
+        setTimeout(() => {
+          window.location.href = response.data.path;
+        }, 500);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: aiResponse,
+          timestamp: new Date()
+        }]);
+      }
+      
+    } catch (err) {
+      console.error("AI error:", err);
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        role: "assistant",
+        content: "Tumsifu Yesu Kristu! 🙏 I'm having trouble connecting. Please try again.",
+        timestamp: new Date()
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const clearChat = () => {
     setMessages([{
       id: Date.now(),
       role: "assistant",
-      content: `Chat cleared! 👋 Hello again! I'm still here for you. What would you like to do? Tumsifu Yesu Kristu! 🙏`,
+      content: `Chat cleared! 👑 Admin AI ready. What would you like to manage? Tumsifu Yesu Kristu! 🙏`,
       timestamp: new Date()
     }]);
-    localStorage.removeItem('zuca_ai_history');
+    localStorage.removeItem('admin_ai_history');
   };
 
   const exportChat = () => {
     const chatText = messages.map(msg => {
-      const role = msg.role === 'user' ? 'You' : 'ZUCA AI';
+      const role = msg.role === 'user' ? 'Admin' : 'Admin AI';
       const time = msg.timestamp.toLocaleString();
       return `[${time}] ${role}:\n${msg.content}\n`;
     }).join('\n---\n');
@@ -211,7 +209,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `zuca-chat-${new Date().toISOString().slice(0,19)}.txt`;
+    a.download = `admin-chat-${new Date().toISOString().slice(0,19)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -225,32 +223,30 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
 
   const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Message component with ZUCA logo as AI avatar
   const MessageBubble = ({ msg, isUser }) => (
     <div style={{ 
       display: "flex", gap: "12px", 
       flexDirection: isUser ? "row-reverse" : "row", 
       alignItems: "flex-start", marginBottom: "16px" 
     }}>
-      {/* Avatar - ZUCA logo for AI, user initial for user */}
       <div style={{ 
         width: isFullPage ? "40px" : "32px", 
         height: isFullPage ? "40px" : "32px", 
         borderRadius: "50%", 
         background: isUser 
-          ? "linear-gradient(135deg, #10b981, #059669)" 
-          : "transparent",
-        border: isUser ? "none" : "2px solid rgba(255,255,255,0.2)",
+          ? "linear-gradient(135deg, #ef4444, #dc2626)" 
+          : "linear-gradient(135deg, #ef4444, #dc2626)",
+        border: "2px solid rgba(255,255,255,0.2)",
         display: "flex", alignItems: "center", justifyContent: "center", 
         fontSize: isFullPage ? "18px" : "14px", flexShrink: 0,
         overflow: "hidden"
       }}>
         {isUser ? (
-          user?.fullName?.charAt(0).toUpperCase() || "👤"
+          "👤"
         ) : (
           <img 
             src={logoImg} 
-            alt="ZUCA" 
+            alt="ZUCA Admin" 
             style={{ 
               width: "100%", 
               height: "100%", 
@@ -263,12 +259,11 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         )}
       </div>
       
-      {/* Message bubble */}
       <div style={{ 
         maxWidth: isFullPage ? "70%" : "75%", 
         padding: isFullPage ? "12px 18px" : "10px 14px", 
         borderRadius: "20px", 
-        background: isUser ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.08)", 
+        background: isUser ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)", 
         color: "rgba(255,255,255,0.9)", 
         fontSize: isFullPage ? "15px" : "13px", 
         lineHeight: "1.5", 
@@ -278,7 +273,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
           <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
         ) : (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: "#8b5cf6" }} />,
+            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: "#ef4444" }} />,
             table: ({node, ...props}) => <table {...props} style={{ borderCollapse: "collapse", width: "100%", margin: "8px 0" }} />,
             th: ({node, ...props}) => <th {...props} style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px", textAlign: "left" }} />,
             td: ({node, ...props}) => <td {...props} style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px" }} />
@@ -307,10 +302,8 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     </div>
   );
 
-  // ChatGPT-style typing indicator
   const TypingIndicator = () => (
     <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "16px" }}>
-      {/* ZUCA Logo avatar */}
       <div style={{ 
         width: isFullPage ? "40px" : "32px", 
         height: isFullPage ? "40px" : "32px", 
@@ -321,7 +314,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
       }}>
         <img 
           src={logoImg} 
-          alt="ZUCA" 
+          alt="ZUCA Admin" 
           style={{ 
             width: "100%", 
             height: "100%", 
@@ -333,7 +326,6 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         />
       </div>
       
-      {/* Typing dots animation */}
       <div style={{ 
         padding: isFullPage ? "12px 18px" : "10px 14px", 
         borderRadius: "20px", 
@@ -346,7 +338,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         <div className="typing-dot" style={{ animationDelay: "0.2s" }}></div>
         <div className="typing-dot" style={{ animationDelay: "0.4s" }}></div>
         <span style={{ fontSize: isFullPage ? "13px" : "11px", color: "rgba(255,255,255,0.5)", marginLeft: "4px" }}>
-          ZUCA AI is thinking...
+          Admin AI is thinking...
         </span>
       </div>
       
@@ -354,7 +346,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         .typing-dot {
           width: ${isFullPage ? "10px" : "8px"};
           height: ${isFullPage ? "10px" : "8px"};
-          background: rgba(255,255,255,0.6);
+          background: rgba(239,68,68,0.6);
           border-radius: 50%;
           animation: typingWave 1.4s infinite ease-in-out;
         }
@@ -388,23 +380,25 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
   };
 
   const quickActions = [
-    { emoji: "📸", label: "Open Gallery", action: "Open Gallery" },
-    { emoji: "🎵", label: "Open Hymn Book", action: "Open Hymn Book" },
-    { emoji: "💰", label: "What do I owe?", action: "What do I owe?" },
-    { emoji: "💬", label: "Send to chat", action: "Tell everyone hello" },
-    { emoji: "🔔", label: "Read notifications", action: "Read notifications" },
-    { emoji: "👤", label: "Who am I?", action: "Who am I?" },
+    { emoji: "👥", label: "List Users", action: "List all users" },
+    { emoji: "💰", label: "Campaigns", action: "List campaigns" },
+    { emoji: "📢", label: "Announcements", action: "List announcements" },
+    { emoji: "📸", label: "Gallery", action: "List media" },
+    { emoji: "📺", label: "YouTube Stats", action: "YouTube stats" },
+    { emoji: "📊", label: "System Stats", action: "System stats" },
+    { emoji: "👑", label: "Admin Help", action: "Admin help" },
   ];
 
   // Full page mode
   if (isFullPage) {
     return (
       <div style={fullPageContainerStyle}>
-        <div style={fullPageHeaderStyle}>
+        <div style={{...fullPageHeaderStyle, background: "linear-gradient(135deg, #dc2626, #991b1b)"}}>
           <button onClick={onBack} style={backButtonStyle}>← Back to Dashboard</button>
           <div style={fullPageTitleStyle}>
-            <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
-            <h2 style={{ margin: 0, color: "white" }}>ZUCA AI Assistant</h2>
+            <img src={logoImg} alt="ZUCA Admin" style={fullPageLogoStyle} />
+            <h2 style={{ margin: 0, color: "white" }}>ZUCA Admin AI</h2>
+            <span style={{ background: "#ef4444", padding: "2px 8px", borderRadius: "20px", fontSize: "12px", marginLeft: "8px" }}>ADMIN</span>
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
             <button onClick={exportChat} style={closeButtonStyle} title="Export chat">📥</button>
@@ -438,7 +432,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
             value={input} 
             onChange={(e) => setInput(e.target.value)} 
             onKeyPress={handleKeyPress} 
-            placeholder="Ask me anything... Try 'Open Gallery' or 'Show lyrics for Amazing Grace'" 
+            placeholder="Admin commands: List all users, Create campaign, Delete user, etc." 
             style={fullPageTextareaStyle}
             rows={1}
           />
@@ -454,8 +448,8 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
         <div style={{ padding: "8px 24px 16px", display: "flex", gap: "8px", flexWrap: "wrap", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
           {quickActions.map((action, idx) => (
             <button key={idx} onClick={() => setInput(action.action)} style={{ 
-              padding: "6px 12px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", 
-              borderRadius: "20px", color: "rgba(255,255,255,0.8)", fontSize: "12px", cursor: "pointer",
+              padding: "6px 12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", 
+              borderRadius: "20px", color: "#fca5a5", fontSize: "12px", cursor: "pointer",
               display: "flex", alignItems: "center", gap: "6px"
             }}>
               {action.emoji} {action.label}
@@ -469,12 +463,12 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
   // Widget mode
   return (
     <div style={widgetContainerStyle}>
-      <div style={widgetHeaderStyle}>
+      <div style={{...widgetHeaderStyle, background: "linear-gradient(135deg, #dc2626, #991b1b)"}}>
         <div style={widgetHeaderLeftStyle}>
-          <img src={logoImg} alt="ZUCA" style={widgetLogoStyle} />
+          <img src={logoImg} alt="ZUCA Admin" style={widgetLogoStyle} />
           <div>
-            <h3 style={widgetTitleStyle}>ZUCA AI Assistant</h3>
-            <p style={widgetStatusStyle}>● Online</p>
+            <h3 style={widgetTitleStyle}>ZUCA Admin AI</h3>
+            <p style={widgetStatusStyle}><strong>● Admin Mode</strong></p>
           </div>
         </div>
         <div style={widgetHeaderActionsStyle}>
@@ -515,7 +509,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
           value={input} 
           onChange={(e) => setInput(e.target.value)} 
           onKeyPress={handleKeyPress} 
-          placeholder="Ask me anything... Try 'Open Gallery'" 
+          placeholder="Admin commands..." 
           style={widgetTextareaStyle}
           rows={1}
         />
@@ -562,12 +556,12 @@ const fullPageMessagesStyle = { flex: 1, overflowY: "auto", padding: "24px" };
 const fullPageInputStyle = { padding: "20px 24px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", gap: "12px", alignItems: "flex-end", flexShrink: 0 };
 const fullPageMicStyle = (isListening) => ({ width: "44px", height: "44px", borderRadius: "22px", background: isListening ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)", border: isListening ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.2)", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
 const fullPageTextareaStyle = { flex: 1, padding: "12px 16px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "24px", color: "white", fontSize: "14px", resize: "none", fontFamily: "inherit", minHeight: "48px", maxHeight: "120px" };
-const fullPageSendStyle = { width: "44px", height: "44px", borderRadius: "22px", background: "linear-gradient(135deg, #8b5cf6, #6366f1)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const fullPageSendStyle = { width: "44px", height: "44px", borderRadius: "22px", background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 
 const widgetContainerStyle = {
   position: "fixed", bottom: "20px", right: "20px", width: "380px", height: "550px",
   background: "linear-gradient(135deg, #1a1a2e, #16213e)", borderRadius: "20px",
-  boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", zIndex: 9999999999,
+  boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", zIndex: 10000,
   display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)"
 };
 
@@ -575,7 +569,7 @@ const widgetHeaderStyle = { padding: "14px 16px", background: "rgba(0,0,0,0.3)",
 const widgetHeaderLeftStyle = { display: "flex", alignItems: "center", gap: "10px" };
 const widgetLogoStyle = { width: "32px", height: "32px", borderRadius: "50%", background: "white", padding: "5px", objectFit: "contain" };
 const widgetTitleStyle = { margin: 0, color: "white", fontSize: "14px", fontWeight: "600" };
-const widgetStatusStyle = { margin: 0, color: "rgba(255,255,255,0.7)", fontSize: "10px" };
+const widgetStatusStyle = { margin: 0, color: "#ef4444", fontSize: "10px" };
 const widgetHeaderActionsStyle = { display: "flex", gap: "6px" };
 const iconButtonStyle = { width: "28px", height: "28px", borderRadius: "14px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 
@@ -583,10 +577,10 @@ const widgetMessagesStyle = { flex: 1, overflowY: "auto", padding: "16px" };
 const widgetInputStyle = { padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", gap: "8px", alignItems: "flex-end", flexShrink: 0 };
 const widgetMicStyle = (isListening) => ({ width: "32px", height: "32px", borderRadius: "16px", background: isListening ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)", border: isListening ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.2)", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
 const widgetTextareaStyle = { flex: 1, padding: "8px 12px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "20px", color: "white", fontSize: "12px", resize: "none", fontFamily: "inherit", minHeight: "34px", maxHeight: "80px" };
-const widgetSendStyle = { width: "32px", height: "32px", borderRadius: "16px", background: "linear-gradient(135deg, #8b5cf6, #6366f1)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const widgetSendStyle = { width: "32px", height: "32px", borderRadius: "16px", background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 
 const widgetSuggestionsStyle = { padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", flexWrap: "wrap", gap: "6px", flexShrink: 0 };
-const suggestionBtnStyle = { padding: "4px 10px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "rgba(255,255,255,0.7)", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
+const suggestionBtnStyle = { padding: "4px 10px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "16px", color: "#fca5a5", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
 
 // Add CSS animation
 const styleSheet = document.createElement("style");

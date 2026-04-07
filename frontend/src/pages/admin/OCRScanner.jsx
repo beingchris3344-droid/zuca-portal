@@ -357,50 +357,39 @@ I can help you with:
 
   // ==================== CAMERA FUNCTIONS (FIXED) ====================
   
-  const startCamera = async () => {
-    try {
-      // Stop any existing stream
-      stopCameraTracks();
-      
-      const constraints = {
-        video: {
-          facingMode: { exact: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
+ const startCamera = async () => {
+  try {
+    stopCameraTracks();
+    
+    console.log("Requesting camera...");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    });
+    
+    console.log("Camera stream obtained");
+    streamRef.current = stream;
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        console.log("Video dimensions:", videoRef.current.videoWidth, "x", videoRef.current.videoHeight);
+        videoRef.current.play();
       };
       
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        // Fallback without exact facing mode
-        console.log("Facing mode exact failed, trying without:", err);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-      }
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(e => console.log("Play error:", e));
-        };
-      }
-      
-      setCameraActive(true);
-      setStep("camera");
-      showNotification("Camera ready! Position lyrics and tap Capture.", "info");
-    } catch (err) {
-      console.error("Camera error:", err);
-      showNotification("Could not access camera. Please check permissions and ensure no other app is using the camera.", "error");
+      // Force visible
+      videoRef.current.style.display = "block";
+      videoRef.current.style.width = "100%";
+      videoRef.current.style.minHeight = "400px";
     }
-  };
+    
+    setCameraActive(true);
+    setStep("camera");
+    showNotification("Camera ready!", "info");
+  } catch (err) {
+    console.error("Camera error:", err);
+    showNotification(`Camera error: ${err.message}`, "error");
+  }
+};
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current && cameraActive) {

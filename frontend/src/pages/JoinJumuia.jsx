@@ -1,29 +1,23 @@
 // frontend/src/pages/JoinJumuia.jsx
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-
-// Icons as simple components
-const Icons = {
-  Search: () => <span style={iconStyle}>🔍</span>,
-  Clear: () => <span style={iconStyle}>✕</span>,
-  Group: () => <span style={iconStyle}>👥</span>,
-  Check: () => <span style={iconStyle}>✓</span>,
-  Loading: () => <span style={iconStyle}>⋯</span>,
-  Info: () => <span style={iconStyle}>ℹ️</span>,
-  Error: () => <span style={iconStyle}>⚠️</span>,
-  Empty: () => <span style={iconStyle}>📋</span>,
-  WhatsApp: () => <span style={iconStyle}>💬</span>,
-  Link: () => <span style={iconStyle}>🔗</span>,
-};
+import { 
+  Search, X, Users, Check, Loader, Info, AlertCircle, 
+  MessageCircle, Link as LinkIcon, ArrowLeft, Sparkles,
+  Crown, Shield, Heart, TrendingUp, Zap
+} from 'lucide-react';
 
 function JoinJumuia() {
+  const navigate = useNavigate();
   const [jumuiaList, setJumuiaList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [joinedJumuia, setJoinedJumuia] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [hoveredCard, setHoveredCard] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     available: 0
@@ -73,7 +67,6 @@ function JoinJumuia() {
     }
   };
 
-  // Handle WhatsApp link click - only works if user has joined this jumuia
   const handleWhatsAppClick = (jumuia, e) => {
     if (joinedJumuia !== jumuia.id) {
       e.preventDefault();
@@ -87,13 +80,13 @@ function JoinJumuia() {
     }
   };
 
-  // Filter based on search
+  const goBack = () => navigate('/dashboard');
+
   const filteredJumuia = jumuiaList.filter(j => 
     j.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (j.description && j.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -105,39 +98,42 @@ function JoinJumuia() {
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
+    hidden: { opacity: 0, y: 20 },
     visible: { 
       opacity: 1, 
       y: 0,
       transition: {
         type: "spring",
         damping: 20,
+        stiffness: 300,
       },
     },
   };
 
   if (loading) {
     return (
-      <div style={loadingContainer}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          style={loadingSpinner}
-        >
-          <Icons.Loading />
-        </motion.div>
-        <p style={loadingText}>Loading jumuia groups...</p>
+      <div style={styles.loadingContainer}>
+        <div style={styles.loadingContent}>
+          <div style={styles.loadingAnimation}>
+            <div style={styles.loadingRing}></div>
+            <div style={styles.loadingRingInner}></div>
+            <Users size={32} style={styles.loadingIcon} />
+          </div>
+          <h2 style={styles.loadingTitle}>Finding Your Spiritual Family</h2>
+          <p style={styles.loadingSubtitle}>Loading jumuia groups...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={errorContainer}>
-        <div style={errorCard}>
-          <Icons.Error />
-          <p style={errorText}>{error}</p>
-          <button onClick={() => window.location.reload()} style={errorButton}>
+      <div style={styles.errorContainer}>
+        <div style={styles.errorCard}>
+          <AlertCircle size={48} style={styles.errorIcon} />
+          <h3 style={styles.errorTitle}>Oops! Something went wrong</h3>
+          <p style={styles.errorText}>{error}</p>
+          <button onClick={() => window.location.reload()} style={styles.errorButton}>
             Try Again
           </button>
         </div>
@@ -150,77 +146,101 @@ function JoinJumuia() {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      style={container}
+      style={styles.container}
     >
-      {/* Header Section with Stats */}
-      <motion.div variants={itemVariants} style={headerSection}>
-        <div style={headerTop}>
-          <h1 style={title}>
-            Join a <span style={highlight}>Jumuia</span>
-          </h1>
-          <div style={statsBadge}>
-            <Icons.Group />
-            <span>{stats.total} Groups</span>
+      {/* Animated Background */}
+      <div style={styles.bgAnimation}>
+        <div style={styles.gradientOrb1}></div>
+        <div style={styles.gradientOrb2}></div>
+        <div style={styles.gradientOrb3}></div>
+      </div>
+
+      {/* Header Section */}
+      <motion.div variants={itemVariants} style={styles.header}>
+        <div style={styles.headerLeft}>
+          <motion.button 
+            whileHover={{ scale: 1.05, x: -2 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={goBack} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={20} />
+          </motion.button>
+          <div>
+            <div style={styles.titleBadge}>
+              <Sparkles size={16} />
+              <span>Find Your Community</span>
+            </div>
+            <h1 style={styles.title}>
+              Join a <span style={styles.highlight}>Jumuia</span>
+            </h1>
+            <p style={styles.subtitle}>
+              Discover your spiritual family and grow in faith together
+            </p>
           </div>
         </div>
-        <p style={subtitle}>
-          Find your spiritual family. You can only join one jumuia at a time.
-        </p>
+        <motion.div 
+          whileHover={{ scale: 1.05 }}
+          style={styles.statsBadge}
+        >
+          <Users size={16} />
+          <span>{stats.total} Active Groups</span>
+        </motion.div>
       </motion.div>
 
       {/* Search Bar */}
-      <motion.div variants={itemVariants} style={searchContainer}>
-        <div style={searchWrapper}>
-          <span style={searchIcon}>
-            <Icons.Search />
-          </span>
+      <motion.div variants={itemVariants} style={styles.searchContainer}>
+        <div style={styles.searchWrapper}>
+          <Search size={18} style={styles.searchIcon} />
           <input
             type="text"
             placeholder="Search by name or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={searchInput}
+            style={styles.searchInput}
           />
           {searchTerm && (
             <motion.button
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               onClick={() => setSearchTerm("")}
-              style={searchClear}
+              style={styles.searchClear}
             >
-              <Icons.Clear />
+              <X size={14} />
             </motion.button>
           )}
         </div>
         {searchTerm && (
-          <p style={searchResults}>
+          <motion.p 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={styles.searchResults}
+          >
             Found {filteredJumuia.length} {filteredJumuia.length === 1 ? 'group' : 'groups'}
-          </p>
+          </motion.p>
         )}
       </motion.div>
 
       {/* Jumuia Grid */}
       {filteredJumuia.length === 0 ? (
-        <motion.div variants={itemVariants} style={emptyState}>
-          <div style={emptyIcon}>
-            <Icons.Empty />
-          </div>
-          <h3 style={emptyTitle}>No groups found</h3>
-          <p style={emptyText}>
+        <motion.div variants={itemVariants} style={styles.emptyState}>
+          <div style={styles.emptyIcon}>🙏</div>
+          <h3 style={styles.emptyTitle}>No groups found</h3>
+          <p style={styles.emptyText}>
             {searchTerm 
               ? `No jumuia matching "${searchTerm}"`
-              : "No jumuia groups available"}
+              : "No jumuia groups available at the moment"}
           </p>
           {searchTerm && (
-            <button onClick={() => setSearchTerm("")} style={emptyButton}>
+            <button onClick={() => setSearchTerm("")} style={styles.emptyButton}>
               Clear Search
             </button>
           )}
         </motion.div>
       ) : (
-        <div style={grid}>
+        <div style={styles.grid}>
           <AnimatePresence mode="popLayout">
-            {filteredJumuia.map((j) => (
+            {filteredJumuia.map((j, index) => (
               <motion.div
                 key={j.id}
                 layout
@@ -228,38 +248,63 @@ function JoinJumuia() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ type: "spring", damping: 20 }}
+                transition={{ type: "spring", damping: 20, delay: index * 0.05 }}
+                onMouseEnter={() => setHoveredCard(j.id)}
+                onMouseLeave={() => setHoveredCard(null)}
                 style={{
-                  ...card,
-                  ...(joinedJumuia === j.id && cardJoined),
-                  opacity: joinedJumuia && joinedJumuia !== j.id ? 0.6 : 1,
+                  ...styles.card,
+                  ...(hoveredCard === j.id && styles.cardHover),
+                  ...(joinedJumuia === j.id && styles.cardJoined),
+                  opacity: joinedJumuia && joinedJumuia !== j.id ? 0.7 : 1,
                 }}
               >
-                {/* Card Header with Icon */}
-                <div style={cardHeader}>
-                  <div style={cardIcon}>
-                    <Icons.Group />
+                {/* Card Gradient Border */}
+                <div style={styles.cardGradientBorder}></div>
+                
+                <div style={styles.cardHeader}>
+                  <div style={styles.cardIcon}>
+                    {joinedJumuia === j.id ? (
+                      <Shield size={24} />
+                    ) : (
+                      <Users size={24} />
+                    )}
                   </div>
                   {joinedJumuia === j.id && (
-                    <div style={joinedIndicator}>
-                      <Icons.Check /> Active
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      style={styles.joinedIndicator}
+                    >
+                      <Check size={12} /> Active Member
+                    </motion.div>
+                  )}
+                  {j.isPopular && (
+                    <div style={styles.popularBadge}>
+                      <TrendingUp size={10} /> Popular
                     </div>
                   )}
                 </div>
 
-                {/* Card Content */}
-                <div style={cardContent}>
-                  <h3 style={cardTitle}>{j.name}</h3>
+                <div style={styles.cardContent}>
+                  <h3 style={styles.cardTitle}>{j.name}</h3>
                   {j.description && (
-                    <p style={cardDescription}>{j.description}</p>
+                    <p style={styles.cardDescription}>{j.description}</p>
                   )}
                   
-                  {/* WhatsApp Group Link Section */}
+                  {/* Member Stats Placeholder */}
+                  <div style={styles.cardStats}>
+                    <Heart size={12} />
+                    <span>Growing community</span>
+                  </div>
+                  
                   {j.whatsappLink && (
-                    <div style={whatsappSection}>
-                      <div style={whatsappHeader}>
-                        <Icons.WhatsApp />
-                        <span style={whatsappLabel}>WhatsApp Group</span>
+                    <motion.div 
+                      style={styles.whatsappSection}
+                      whileHover={{ scale: 1.02 }}
+                    >
+                      <div style={styles.whatsappHeader}>
+                        <MessageCircle size={14} />
+                        <span style={styles.whatsappLabel}>Community Chat</span>
                       </div>
                       <a
                         href={j.whatsappLink}
@@ -267,60 +312,57 @@ function JoinJumuia() {
                         rel="noopener noreferrer"
                         onClick={(e) => handleWhatsAppClick(j, e)}
                         style={{
-                          ...whatsappLink,
-                          ...(joinedJumuia !== j.id && whatsappLinkDisabled),
+                          ...styles.whatsappLink,
+                          ...(joinedJumuia !== j.id && styles.whatsappLinkDisabled),
                         }}
                       >
-                        <Icons.Link />
+                        <MessageCircle size={14} />
                         <span>
                           {joinedJumuia === j.id 
                             ? "Join WhatsApp Group →" 
-                            : "Join this jumuia first to access"}
+                            : "Join this jumuia first to connect"}
                         </span>
                       </a>
-                    </div>
+                    </motion.div>
                   )}
                 </div>
 
-                {/* Card Footer with Action */}
-                <div style={cardFooter}>
-                  <button
+                <div style={styles.cardFooter}>
+                  <motion.button
+                    whileHover={{ scale: joinedJumuia && joinedJumuia !== j.id ? 1 : 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     disabled={joinedJumuia && joinedJumuia !== j.id || joiningId === j.id}
                     onClick={() => handleJoin(j.id, j.name)}
                     style={{
-                      ...button,
-                      ...(joinedJumuia === j.id ? buttonJoined : {}),
-                      ...(joinedJumuia && joinedJumuia !== j.id ? buttonDisabled : {}),
+                      ...styles.button,
+                      ...(joinedJumuia === j.id ? styles.buttonJoined : {}),
+                      ...(joinedJumuia && joinedJumuia !== j.id ? styles.buttonDisabled : {}),
                     }}
                   >
                     {joiningId === j.id ? (
-                      <span style={buttonContent}>
-                        <motion.span
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          style={buttonIcon}
-                        >
-                          ⋯
-                        </motion.span>
+                      <span style={styles.buttonContent}>
+                        <span style={styles.buttonIcon}>
+                          <div style={styles.buttonSpinner}></div>
+                        </span>
                         Joining...
                       </span>
                     ) : joinedJumuia === j.id ? (
-                      <span style={buttonContent}>
-                        <span style={buttonIcon}><Icons.Check /></span>
-                        Joined
+                      <span style={styles.buttonContent}>
+                        <span style={styles.buttonIcon}><Check size={14} /></span>
+                        Already Joined
                       </span>
                     ) : joinedJumuia ? (
-                      <span style={buttonContent}>
-                        <span style={buttonIcon}>🔒</span>
-                        Unavailable
+                      <span style={styles.buttonContent}>
+                        <span style={styles.buttonIcon}>🔒</span>
+                        Join Another?
                       </span>
                     ) : (
-                      <span style={buttonContent}>
-                        Join Group
-                        <span style={buttonArrow}>→</span>
+                      <span style={styles.buttonContent}>
+                        Join This Jumuia
+                        <Zap size={14} style={styles.buttonZap} />
                       </span>
                     )}
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             ))}
@@ -330,433 +372,622 @@ function JoinJumuia() {
 
       {/* Info Note */}
       {!joinedJumuia && jumuiaList.length > 0 && (
-        <motion.div variants={itemVariants} style={infoNote}>
-          <span style={infoIcon}><Icons.Info /></span>
-          <span>Choose one jumuia to join. After joining, you'll be able to access their WhatsApp group link.</span>
+        <motion.div 
+          variants={itemVariants}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={styles.infoNote}
+        >
+          <div style={styles.infoIconWrapper}>
+            <Info size={16} />
+          </div>
+          <span>Choose one jumuia to join. After joining, you'll be able to access their WhatsApp group and connect with fellow members.</span>
         </motion.div>
       )}
-
-      <style>
-        {`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
     </motion.div>
   );
 }
 
-// ====== ADDITIONAL STYLES FOR WHATSAPP SECTION ======
+const styles = {
+  container: {
+    minHeight: "calc(100vh - 80px)",
+    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+    padding: "28px 32px",
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    position: "relative",
+    overflowX: "hidden",
+  },
 
-const whatsappSection = {
-  marginTop: "1rem",
-  paddingTop: "0.75rem",
-  borderTop: "1px solid #e5e7eb",
+  bgAnimation: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: "none",
+    overflow: "hidden",
+    zIndex: 0,
+  },
+
+  gradientOrb1: {
+    position: "absolute",
+    top: "-20%",
+    right: "-10%",
+    width: "500px",
+    height: "500px",
+    background: "radial-gradient(circle, rgba(59,130,246,0.08), transparent)",
+    borderRadius: "50%",
+    animation: "float 20s ease-in-out infinite",
+  },
+
+  gradientOrb2: {
+    position: "absolute",
+    bottom: "-20%",
+    left: "-10%",
+    width: "400px",
+    height: "400px",
+    background: "radial-gradient(circle, rgba(139,92,246,0.08), transparent)",
+    borderRadius: "50%",
+    animation: "float 15s ease-in-out infinite reverse",
+  },
+
+  gradientOrb3: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "600px",
+    height: "600px",
+    background: "radial-gradient(circle, rgba(6,182,212,0.05), transparent)",
+    borderRadius: "50%",
+    animation: "pulse 10s ease-in-out infinite",
+  },
+
+  loadingContainer: {
+    minHeight: "calc(100vh - 80px)",
+    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingContent: {
+    textAlign: "center",
+  },
+
+  loadingAnimation: {
+    position: "relative",
+    width: "80px",
+    height: "80px",
+    margin: "0 auto 24px",
+  },
+
+  loadingRing: {
+    position: "absolute",
+    inset: 0,
+    border: "3px solid #e2e8f0",
+    borderRadius: "50%",
+  },
+
+  loadingRingInner: {
+    position: "absolute",
+    inset: 0,
+    border: "3px solid transparent",
+    borderTopColor: "#3b82f6",
+    borderRightColor: "#8b5cf6",
+    borderBottomColor: "#06b6d4",
+    borderRadius: "50%",
+    animation: "spin 1.5s linear infinite",
+  },
+
+  loadingIcon: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    color: "#3b82f6",
+  },
+
+  loadingTitle: {
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: "8px",
+  },
+
+  loadingSubtitle: {
+    fontSize: "14px",
+    color: "#64748b",
+  },
+
+  errorContainer: {
+    minHeight: "calc(100vh - 80px)",
+    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  errorCard: {
+    background: "#ffffff",
+    padding: "40px",
+    borderRadius: "24px",
+    textAlign: "center",
+    maxWidth: "420px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.05)",
+  },
+
+  errorIcon: {
+    color: "#ef4444",
+    marginBottom: "20px",
+  },
+
+  errorTitle: {
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: "8px",
+  },
+
+  errorText: {
+    color: "#64748b",
+    fontSize: "14px",
+    marginBottom: "24px",
+  },
+
+  errorButton: {
+    padding: "10px 24px",
+    borderRadius: "12px",
+    border: "none",
+    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "32px",
+    flexWrap: "wrap",
+    gap: "20px",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "20px",
+  },
+
+  backButton: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "12px",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    color: "#64748b",
+  },
+
+  titleBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "4px 12px",
+    background: "linear-gradient(135deg, #3b82f610, #8b5cf610)",
+    borderRadius: "30px",
+    fontSize: "12px",
+    fontWeight: "500",
+    color: "#3b82f6",
+    marginBottom: "12px",
+  },
+
+  title: {
+    fontSize: "36px",
+    fontWeight: "800",
+    color: "#1e293b",
+    margin: 0,
+    marginBottom: "8px",
+    letterSpacing: "-0.02em",
+  },
+
+  highlight: {
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+  },
+
+  subtitle: {
+    fontSize: "15px",
+    color: "#64748b",
+    margin: 0,
+  },
+
+  statsBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 20px",
+    background: "#ffffff",
+    borderRadius: "40px",
+    fontSize: "14px",
+    color: "#1e293b",
+    border: "1px solid #e2e8f0",
+    fontWeight: "600",
+    cursor: "pointer",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+  },
+
+  searchContainer: {
+    marginBottom: "32px",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  searchWrapper: {
+    position: "relative",
+    maxWidth: "450px",
+  },
+
+  searchIcon: {
+    position: "absolute",
+    left: "16px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "#94a3b8",
+  },
+
+  searchInput: {
+    width: "100%",
+    padding: "14px 48px 14px 48px",
+    borderRadius: "14px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    color: "#1e293b",
+    fontSize: "14px",
+    outline: "none",
+    transition: "all 0.2s",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+  },
+
+  searchClear: {
+    position: "absolute",
+    right: "14px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "#f1f5f9",
+    border: "none",
+    borderRadius: "20px",
+    width: "26px",
+    height: "26px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#64748b",
+    cursor: "pointer",
+  },
+
+  searchResults: {
+    fontSize: "13px",
+    color: "#64748b",
+    marginTop: "10px",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+    gap: "24px",
+    marginBottom: "32px",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  card: {
+    background: "#ffffff",
+    borderRadius: "20px",
+    padding: "24px",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    flexDirection: "column",
+    gap: "18px",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    position: "relative",
+    overflow: "hidden",
+    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+  },
+
+  cardHover: {
+    transform: "translateY(-8px)",
+    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.02)",
+    borderColor: "#cbd5e1",
+  },
+
+  cardGradientBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "4px",
+    background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4)",
+  },
+
+  cardJoined: {
+    borderColor: "#10b981",
+    background: "linear-gradient(135deg, #ffffff, #f0fdf4)",
+  },
+
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+
+  cardIcon: {
+    width: "56px",
+    height: "56px",
+    borderRadius: "16px",
+    background: "linear-gradient(135deg, #3b82f610, #8b5cf610)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#3b82f6",
+    border: "1px solid #e2e8f0",
+  },
+
+  joinedIndicator: {
+    padding: "6px 12px",
+    background: "linear-gradient(135deg, #10b981, #059669)",
+    color: "#ffffff",
+    fontSize: "11px",
+    fontWeight: "600",
+    borderRadius: "30px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+
+  popularBadge: {
+    padding: "4px 10px",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    color: "#ffffff",
+    fontSize: "10px",
+    fontWeight: "600",
+    borderRadius: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+  },
+
+  cardContent: {
+    flex: 1,
+  },
+
+  cardTitle: {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: "8px",
+  },
+
+  cardDescription: {
+    fontSize: "14px",
+    color: "#64748b",
+    lineHeight: "1.5",
+    marginBottom: "12px",
+  },
+
+  cardStats: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "12px",
+    color: "#94a3b8",
+    marginBottom: "16px",
+  },
+
+  whatsappSection: {
+    marginTop: "12px",
+    paddingTop: "12px",
+    borderTop: "1px solid #e2e8f0",
+  },
+
+  whatsappHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    marginBottom: "10px",
+    fontSize: "11px",
+    color: "#64748b",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+
+  whatsappLabel: {
+    fontSize: "11px",
+  },
+
+  whatsappLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 16px",
+    backgroundColor: "#25D366",
+    color: "#ffffff",
+    textDecoration: "none",
+    borderRadius: "12px",
+    fontSize: "13px",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    width: "100%",
+    justifyContent: "center",
+  },
+
+  whatsappLinkDisabled: {
+    backgroundColor: "#e2e8f0",
+    color: "#94a3b8",
+    cursor: "not-allowed",
+  },
+
+  cardFooter: {
+    marginTop: "4px",
+  },
+
+  button: {
+    width: "100%",
+    padding: "12px",
+    borderRadius: "12px",
+    border: "none",
+    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    boxShadow: "0 2px 4px rgba(59,130,246,0.2)",
+  },
+
+  buttonJoined: {
+    background: "linear-gradient(135deg, #10b981, #059669)",
+    boxShadow: "0 2px 4px rgba(16,185,129,0.2)",
+  },
+
+  buttonDisabled: {
+    background: "#f1f5f9",
+    color: "#94a3b8",
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
+
+  buttonContent: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+
+  buttonIcon: {
+    display: "inline-flex",
+  },
+
+  buttonSpinner: {
+    width: "16px",
+    height: "16px",
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "#ffffff",
+    borderRadius: "50%",
+    animation: "spin 0.6s linear infinite",
+  },
+
+  buttonZap: {
+    marginLeft: "2px",
+  },
+
+  emptyState: {
+    textAlign: "center",
+    padding: "80px 20px",
+    background: "#ffffff",
+    borderRadius: "24px",
+    border: "1px solid #e2e8f0",
+    maxWidth: "520px",
+    margin: "60px auto",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  emptyIcon: {
+    fontSize: "64px",
+    marginBottom: "20px",
+  },
+
+  emptyTitle: {
+    fontSize: "22px",
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: "8px",
+  },
+
+  emptyText: {
+    color: "#64748b",
+    fontSize: "14px",
+    marginBottom: "24px",
+  },
+
+  emptyButton: {
+    padding: "10px 24px",
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    color: "#475569",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  infoNote: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "16px 20px",
+    background: "#ffffff",
+    borderRadius: "14px",
+    border: "1px solid #e2e8f0",
+    color: "#64748b",
+    fontSize: "13px",
+    marginTop: "24px",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  infoIconWrapper: {
+    width: "28px",
+    height: "28px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #3b82f610, #8b5cf610)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#3b82f6",
+  },
 };
 
-const whatsappHeader = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.5rem",
-  marginBottom: "0.5rem",
-  fontSize: "0.8rem",
-  color: "#6b7280",
-  fontWeight: "500",
-};
-
-const whatsappLabel = {
-  fontSize: "0.75rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const whatsappLink = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.5rem 0.75rem",
-  backgroundColor: "#25D366",
-  color: "#ffffff",
-  textDecoration: "none",
-  borderRadius: "8px",
-  fontSize: "0.85rem",
-  fontWeight: "500",
-  transition: "all 0.2s ease",
-  cursor: "pointer",
-  width: "100%",
-  justifyContent: "center",
-};
-
-const whatsappLinkDisabled = {
-  backgroundColor: "#d1d5db",
-  color: "#6b7280",
-  cursor: "not-allowed",
-  pointerEvents: "auto", // Still allows click to show alert
-};
-
-// ====== PROFESSIONAL STYLES ======
-
-const iconStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "1.1em",
-};
-
-const container = {
-  padding: "2rem",
-  maxWidth: "1200px",
-  margin: "0 auto",
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  minHeight: "80vh",
-};
-
-// Loading States
-const loadingContainer = {
-  minHeight: "400px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "1rem",
-};
-
-const loadingSpinner = {
-  width: "48px",
-  height: "48px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "1.5rem",
-  color: "#3b82f6",
-  animation: "spin 1s linear infinite",
-};
-
-const loadingText = {
-  color: "#6b7280",
-  fontSize: "0.95rem",
-};
-
-// Error States
-const errorContainer = {
-  minHeight: "400px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const errorCard = {
-  background: "#fef2f2",
-  padding: "2rem",
-  borderRadius: "12px",
-  textAlign: "center",
-  maxWidth: "400px",
-  border: "1px solid #fee2e2",
-};
-
-const errorText = {
-  color: "#b91c1c",
-  margin: "1rem 0",
-  fontSize: "0.95rem",
-};
-
-const errorButton = {
-  padding: "0.5rem 1.5rem",
-  borderRadius: "8px",
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  color: "#374151",
-  fontSize: "0.9rem",
-  cursor: "pointer",
-  transition: "all 0.2s",
-};
-
-// Header Section
-const headerSection = {
-  marginBottom: "2rem",
-};
-
-const headerTop = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexWrap: "wrap",
-  gap: "1rem",
-  marginBottom: "0.5rem",
-};
-
-const title = {
-  fontSize: "1.875rem",
-  fontWeight: "800",
-  color: "#ffffff",
-  margin: 0,
-};
-
-const highlight = {
-  color: "#1464e5",
-  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-};
-
-const statsBadge = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.5rem 1rem",
-  background: "#f3f4f6",
-  borderRadius: "40px",
-  fontSize: "0.9rem",
-  color: "#000000",
-  border: "1px solid #e5e7eb",
-  fontWeight: "700"
-};
-
-const subtitle = {
-  fontSize: "1rem",
-  color: "#e1e5ec",
-  margin: 0,
-  fontWeight: "700"
-};
-
-// Search Bar
-const searchContainer = {
-  marginBottom: "2rem",
-};
-
-const searchWrapper = {
-  position: "relative",
-  maxWidth: "500px",
-};
-
-const searchIcon = {
-  position: "absolute",
-  left: "1rem",
-  top: "50%",
-  transform: "translateY(-50%)",
-  color: "#9ca3af",
-  fontSize: "1.1rem",
-};
-
-const searchInput = {
-  width: "100%",
-  padding: "0.875rem 1rem 0.875rem 3rem",
-  borderRadius: "12px",
-  border: "1px solid #e5e7eb",
-  background: "#ffffff",
-  color: "#111827",
-  fontSize: "0.95rem",
-  outline: "none",
-  transition: "all 0.2s",
-  boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-};
-
-const searchClear = {
-  position: "absolute",
-  right: "1rem",
-  top: "50%",
-  transform: "translateY(-50%)",
-  background: "#f3f4f6",
-  border: "1px solid #e5e7eb",
-  borderRadius: "20px",
-  width: "24px",
-  height: "24px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "#6b7280",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  transition: "all 0.2s",
-};
-
-const searchResults = {
-  fontSize: "0.85rem",
-  color: "#6b7280",
-  marginTop: "0.5rem",
-};
-
-// Grid Layout
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-  gap: "1.5rem",
-  marginBottom: "2rem",
-};
-
-// Cards - Clean and Visible
-const card = {
-  background: "#ffffffbb",
-  borderRadius: "16px",
-  padding: "1.5rem",
-  border: "1px solid #e5e7eb",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "1rem",
-  transition: "all 0.2s ease",
-};
-
-const cardJoined = {
-  borderColor: "#22c55e",
-  background: "#f0fdf4",
-  boxShadow: "0 4px 6px -1px rgba(34,197,94,0.1)",
-};
-
-const cardHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-};
-
-const cardIcon = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "12px",
-  background: "#f3f4f6",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "1.25rem",
-  color: "#d4dce7",
-  border: "1px solid #e5e7eb",
-  fontWeight: "700"
-};
-
-const joinedIndicator = {
-  padding: "0.25rem 0.75rem",
-  background: "#22c55e",
-  color: "#ffffff",
-  fontSize: "0.75rem",
-  fontWeight: "900",
-  borderRadius: "40px",
-  display: "flex",
-  alignItems: "center",
-  gap: "0.25rem",
-};
-
-const cardContent = {
-  flex: 1,
-};
-
-const cardTitle = {
-  fontSize: "1.25rem",
-  fontWeight: "800",
-  color: "#111827",
-  marginBottom: "0.5rem",
-};
-
-const cardDescription = {
-  fontSize: "0.95rem",
-  color: "#6b7280",
-  lineHeight: "1.5",
-  margin: 0,
-};
-
-const cardFooter = {
-  marginTop: "0.5rem",
-};
-
-// Buttons
-const button = {
-  width: "100%",
-  padding: "0.75rem",
-  borderRadius: "10px",
-  border: "none",
-  background: "#3b82f6",
-  color: "#ffffff",
-  fontSize: "0.95rem",
-  fontWeight: "900",
-  cursor: "pointer",
-  transition: "all 0.2s ease",
-};
-
-const buttonJoined = {
-  background: "#22c55e",
-};
-
-const buttonDisabled = {
-  background: "#e5e7eb",
-  color: "#9ca3af",
-  cursor: "not-allowed",
-};
-
-const buttonContent = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "0.5rem",
-};
-
-const buttonIcon = {
-  fontSize: "1rem",
-  display: "inline-flex",
-};
-
-const buttonArrow = {
-  fontSize: "1.1rem",
-  marginLeft: "0.25rem",
-};
-
-// Empty State
-const emptyState = {
-  textAlign: "center",
-  padding: "4rem 2rem",
-  background: "#f9fafb",
-  borderRadius: "16px",
-  border: "1px solid #e5e7eb",
-  maxWidth: "500px",
-  margin: "2rem auto",
-};
-
-const emptyIcon = {
-  fontSize: "3rem",
-  color: "#9ca3af",
-  marginBottom: "1rem",
-};
-
-const emptyTitle = {
-  fontSize: "1.25rem",
-  fontWeight: "600",
-  color: "#111827",
-  marginBottom: "0.5rem",
-};
-
-const emptyText = {
-  color: "#6b7280",
-  fontSize: "0.95rem",
-  marginBottom: "1.5rem",
-};
-
-const emptyButton = {
-  padding: "0.5rem 1.5rem",
-  borderRadius: "8px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#374151",
-  fontSize: "0.9rem",
-  cursor: "pointer",
-};
-
-// Info Note
-const infoNote = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.75rem",
-  padding: "1rem",
-  background: "#f3f4f6",
-  borderRadius: "10px",
-  border: "1px solid #e5e7eb",
-  color: "#fdfefe",
-  fontSize: "0.9rem",
-  marginTop: "2rem",
-};
-
-const infoIcon = {
-  color: "#3b82f6",
-  fontSize: "1.1rem",
-};
+// Add global animation styles
+const styleElement = document.createElement('style');
+styleElement.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -30px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
+  }
+  
+  .back-btn:hover {
+    background: #f1f5f9;
+    transform: translateX(-3px);
+  }
+`;
+document.head.appendChild(styleElement);
 
 export default JoinJumuia;

@@ -223,29 +223,22 @@ function Landing2() {
       <section id="home" ref={heroRef} className="hero-section">
         <div className="hero-overlay"></div>
         <div className="hero-container">
-          {/* Floating Action Buttons */}
-          <div className="floating-actions">
-            <div className="floating-card">
-              <div className="floating-card-inner">
-                <img src={logo} alt="ZUCA Logo" className="floating-logo" />
-                <div className="floating-buttons">
-                  {showInstallButton && (
-                    <button onClick={handleInstallClick} className="btn-install">
-                      <FaDownload /> Install
-                    </button>
-                  )}
-                  <button onClick={() => navigate("/gallery")} className="btn-gallery">
-                    ˙✧°📷⋆°ZUCA GALLERY
-                  </button>
-                  <button onClick={() => navigate("/liturgical-calendar")} className="btn-calendar">
-                    📅 Liturgical Calendar
-                  </button>
-                  <button onClick={() => navigate("/register")} className="btn-register">
-                    Join Us
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* Action Buttons Row - Independently arranged */}
+          <div className="action-buttons-row">
+            {showInstallButton && (
+              <button onClick={handleInstallClick} className="action-btn action-btn-install">
+                <FaDownload /> Install App
+              </button>
+            )}
+            <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
+              📷 Gallery
+            </button>
+            <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
+              📅 Calendar
+            </button>
+            <button onClick={() => navigate("/register")} className="action-btn action-btn-register">
+              <FaUserPlus /> Join Us
+            </button>
           </div>
 
           {/* Welcome Card */}
@@ -372,25 +365,25 @@ function Landing2() {
         <div className="container">
           <div className="section-header">
             <img src={logo} alt="ZUCA Logo" className="about-logo" />
-            <h2 className="section-title-dark">Our  History</h2>
+            <h2 className="section-title-dark">Our History</h2>
           </div>
 
           <div className="about-content">
             <p className="about-text">
-   <strong>St.Kizito ZUCA</strong> was formed in <strong>October 2018</strong> by a group of Catholic students who met at school and decided to recite the Holy Rosary in the evenings. As Madam Veronica was passing by, she noticed them and helped formalize it as a group. They continued with this practice until July, when it was officially launched as a club at Zetech.
-</p>
+              <strong>St.Kizito ZUCA</strong> was formed in <strong>October 2018</strong> by a group of Catholic students who met at school and decided to recite the Holy Rosary in the evenings. As Madam Veronica was passing by, she noticed them and helped formalize it as a group. They continued with this practice until July, when it was officially launched as a club at Zetech.
+            </p>
 
-<p className="about-text">
-  Our matron was Madam Veronica  and our patron was Mr. Martin Butita. The chair was <strong>Magige Brian</strong>, the vice moderator was <strong>Shiru</strong>, <strong>Nick</strong> was the secretary, and <strong>Petronila</strong> was the organizing secretary. I cannot remember the specific roles of the others.
-</p>
+            <p className="about-text">
+              Our matron was Madam Veronica and our patron was Mr. Martin Butita. The chair was <strong>Magige Brian</strong>, the vice moderator was <strong>Shiru</strong>, <strong>Nick</strong> was the secretary, and <strong>Petronila</strong> was the organizing secretary. I cannot remember the specific roles of the others.
+            </p>
 
-<p className="about-text">
-  The second chair was <strong>Collins Nalwa</strong> and his vice was <strong>Daisy Chepngetich</strong>. I was the third chair and my vice was <strong>Josephine Owuor</strong>. Josephine later took over as chair for about two months, with <strong>Cheru</strong> as her vice. After further consultations and a challenging term of leadership, their roles were exchanged: <strong>Cheru</strong> became the chair and <strong>Josephine</strong> became the vice. Shortly after, <strong>Josephine</strong> stepped down as vice chair and <strong>Phelister</strong> took over the position.
-</p>
+            <p className="about-text">
+              The second chair was <strong>Collins Nalwa</strong> and his vice was <strong>Daisy Chepngetich</strong>. I was the third chair and my vice was <strong>Josephine Owuor</strong>. Josephine later took over as chair for about two months, with <strong>Cheru</strong> as her vice. After further consultations and a challenging term of leadership, their roles were exchanged: <strong>Cheru</strong> became the chair and <strong>Josephine</strong> became the vice. Shortly after, <strong>Josephine</strong> stepped down as vice chair and <strong>Phelister</strong> took over the position.
+            </p>
 
-<p className="about-text">
-  After their leadership, <strong>Raphael Kamura</strong> was made chair and his assistant was <strong>Brighet</strong>. Due to commitments, <strong>Raphael</strong> stepped down and <strong>Sylvester</ strong> was appointed chair while <strong>Brighet</ strong> remained the assistant chair. After that, <strong>Brighet</ strong> stepped down upon completing her studies and <strong>Cecilia</ strong> was appointed as the vice moderator. And now, <strong>Tonny</ strong> the current chairperson.
-</p>
+            <p className="about-text">
+              After their leadership, <strong>Raphael Kamura</strong> was made chair and his assistant was <strong>Brighet</strong>. Due to commitments, <strong>Raphael</strong> stepped down and <strong>Sylvester</strong> was appointed chair while <strong>Brighet</strong> remained the assistant chair. After that, <strong>Brighet</strong> stepped down upon completing her studies and <strong>Cecilia</strong> was appointed as the vice moderator. And now, <strong>Tonny</strong> the current chairperson.
+            </p>
 
             <div className="activities-grid">
               <div className="activity-item">
@@ -695,120 +688,60 @@ function Landing2() {
           text-align: center;
         }
 
-        /* Floating Actions Container */
-.floating-actions {
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: center;
-  padding: 0 15px;
-}
+        /* Action Buttons Row - Clean independent arrangement */
+        .action-buttons-row {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 30px;
+        }
 
-/* Outer Glass Card */
-.floating-card {
-  background: rgba(32, 32, 41, 0.78);
-  backdrop-filter: blur(10px);
-  border-radius: 60px;
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  max-width: 900px;
-  width: 100%;
-}
+        .action-btn {
+          padding: 12px 24px;
+          border-radius: 40px;
+          border: none;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(8px);
+          white-space: nowrap;
+        }
 
-/* Inner Layout */
-.floating-card-inner {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  background: rgba(2, 10, 31, 0.47);
-  border-radius: 60px;
-  padding: 10px 18px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
+        .action-btn:hover {
+          transform: translateY(-3px);
+          filter: brightness(1.05);
+        }
 
-/* Logo */
-.floating-logo {
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  border: 2px solid #00c6ff;
-}
+        .action-btn-install {
+          background: linear-gradient(135deg, #ffd700, #ffaa00);
+          color: #1a1a2e;
+          box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
 
-/* Buttons container */
-.floating-buttons {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
+        .action-btn-gallery {
+          background: linear-gradient(135deg, #0c992d, #0a7a24);
+          color: white;
+          box-shadow: 0 4px 15px rgba(12, 153, 45, 0.3);
+        }
 
-/* Base button style (shared) */
-.floating-buttons button {
-  padding: 10px 18px;
-  border-radius: 30px;
-  border: none;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: transform 0.2s;
-  white-space: nowrap;
-}
+        .action-btn-calendar {
+          background: linear-gradient(135deg, #1e3a8a, #0f172a);
+          color: white;
+          box-shadow: 0 4px 15px rgba(30, 58, 138, 0.3);
+        }
 
-/* Individual buttons */
-.btn-install {
-  background: linear-gradient(135deg, #ffd700, #ffaa00);
-  color: #000;
-}
+        .action-btn-register {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          color: white;
+          box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
+        }
 
-.btn-gallery {
-  background: linear-gradient(135deg, #0c992d, #0a7a24);
-  color: white;
-}
-
-.btn-calendar {
-  background: linear-gradient(135deg, #2896b5, #f6f8fb);
-  color: white;
-}
-
-
-
-/* Hover */
-.floating-buttons button:hover {
-  transform: translateY(-2px);
-}
-
-/* 📱 Phones */
-@media (max-width: 600px) {
-  .floating-card-inner {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .floating-logo {
-    width: 45px;
-    height: 45px;
-  }
-
-  .floating-buttons button {
-    font-size: 14px;
-    padding: 10px 16px;
-  }
-}
-
-/* 💻 Large screens */
-@media (min-width: 1200px) {
-  .floating-card {
-    max-width: 1100px;
-  }
-
-  .floating-buttons button {
-    font-size: 16px;
-    padding: 12px 22px;
-  }
-}
         /* Welcome Card */
         .welcome-card {
           background: rgba(31, 97, 196, 0.15);
@@ -1099,7 +1032,6 @@ function Landing2() {
         .social-icon-circle.facebook {
           background: #0214dc;
           color: #ffffff;
-        
         }
 
         .social-icon-circle.youtube {
@@ -1324,21 +1256,13 @@ function Landing2() {
             display: block;
           }
 
-          .floating-card-inner {
-            padding: 7px 15px;
+          .action-buttons-row {
+            gap: 12px;
           }
 
-          .floating-logo {
-            width: 45px;
-            height: 45px;
-          }
-
-          .btn-install,
-          .btn-gallery,
-          .btn-calendar,
-          .btn-register {
-            padding: 6px 14px;
-            font-size: 11px;
+          .action-btn {
+            padding: 8px 16px;
+            font-size: 12px;
           }
 
           .mass-cards {
@@ -1381,15 +1305,12 @@ function Landing2() {
             grid-template-columns: 1fr;
           }
 
-          .floating-buttons {
+          .action-buttons-row {
             flex-direction: column;
             width: 100%;
           }
 
-          .btn-install,
-          .btn-gallery,
-          .btn-calendar,
-          .btn-register {
+          .action-btn {
             width: 100%;
             justify-content: center;
           }

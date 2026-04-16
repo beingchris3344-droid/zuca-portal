@@ -3,7 +3,6 @@ import { Outlet, NavLink } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background1.webp";
 import Notifications from "./Notifications";
 import BASE_URL from "../api";
 
@@ -22,28 +21,23 @@ function Layout() {
     if (storedUser) setUser(storedUser);
   }, []);
 
-  // Handle resize to detect mobile/desktop
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      // Auto-close sidebar on mobile when resizing from desktop to mobile
       if (mobile) {
         setMenuOpen(false);
       } else {
-        // Auto-open on desktop
         setMenuOpen(true);
       }
     };
     
     window.addEventListener("resize", handleResize);
-    // Set initial state
     handleResize();
     
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Handle click outside to close sidebar on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isMobile && 
@@ -57,7 +51,6 @@ function Layout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobile]);
 
-  // Handle click outside user menu
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -68,7 +61,6 @@ function Layout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Add scroll shadow effect
   useEffect(() => {
     const handleScroll = () => {
       if (scrollContainerRef.current) {
@@ -98,11 +90,9 @@ function Layout() {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
-    { path: "/gallery", label: "gallery", icon: "💾"},
-  
+    { path: "/gallery", label: "Gallery", icon: "🖼️" },
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },
-  
     { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
     { path: "/contributions", label: "Contributions", icon: "💰" },
     { path: "/hymns", label: "Hymn Book", icon: "🎵" },
@@ -111,11 +101,7 @@ function Layout() {
   ];
 
   return (
-    <div style={containerStyle(bg)}>
-      {/* Gradient Overlay - Lower z-index */}
-      <div style={overlayStyle} />
-
-      {/* Backdrop for mobile only - Medium z-index */}
+    <div style={containerStyle}>
       <AnimatePresence>
         {isMobile && menuOpen && (
           <motion.div
@@ -129,7 +115,6 @@ function Layout() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar - Medium z-index */}
       <motion.aside
         ref={sidebarRef}
         className="sidebar"
@@ -140,22 +125,14 @@ function Layout() {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         style={sidebarStyle}
       >
-        {/* Logo Section */}
         <div style={logoSection}>
-          <motion.img 
-            src={logo} 
-            alt="ZUCA Logo" 
-            style={logoStyle}
-            whileHover={{ scale: 1.05 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          />
+          <img src={logo} alt="ZUCA Logo" style={logoStyle} />
           <div style={logoText}>
             <h3 style={logoTitle}>ZETECH UNIVERSITY</h3>
             <p style={logoSubtitle}>Catholic Action</p>
           </div>
         </div>
 
-        {/* User Info Badge */}
         <div style={userBadgeStyle}>
           {profileImageUrl ? (
             <img src={profileImageUrl} alt={user.fullName} style={userBadgeAvatar} />
@@ -170,7 +147,6 @@ function Layout() {
           </div>
         </div>
 
-        {/* Navigation Links */}
         <div
           ref={scrollContainerRef}
           style={navContainer(sidebarShadow)}
@@ -209,13 +185,12 @@ function Layout() {
           </nav>
         </div>
 
-        {/* Sidebar Footer */}
         <div style={sidebarFooterStyle}>
           <div style={sidebarFooterDivider} />
           <motion.button
             onClick={handleLogout}
             style={sidebarLogoutButton}
-            whileHover={{ backgroundColor: "rgba(239,68,68,0.2)" }}
+            whileHover={{ backgroundColor: "#dc2626", color: "#fff" }}
             whileTap={{ scale: 0.95 }}
           >
             <span style={logoutIconStyle}>🚪</span>
@@ -224,9 +199,7 @@ function Layout() {
         </div>
       </motion.aside>
 
-      {/* Main Content */}
       <main style={mainContentStyle(isMobile, menuOpen)}>
-        {/* Top Header */}
         <motion.header
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -234,7 +207,6 @@ function Layout() {
           style={headerStyle}
         >
           <div style={headerLeftStyle}>
-            {/* Hamburger Menu Button - visible on mobile only */}
             <motion.button
               onClick={() => setMenuOpen(!menuOpen)}
               style={hamburgerStyle}
@@ -244,23 +216,20 @@ function Layout() {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-
-            {/* Page Title - can be dynamic based on route */}
             <span style={pageTitleStyle}>Dashboard</span>
           </div>
 
           <div style={headerRightStyle}>
-            {/* Notifications - Highest z-index component */}
-            <div style={notificationWrapperStyle}>
+            {/* Enhanced Bell Background Wrapper */}
+            <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
             </div>
 
-            {/* User Menu */}
             <div ref={userMenuRef} style={userMenuContainerStyle}>
               <motion.div
                 style={userMenuTriggerStyle}
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                whileHover={{ backgroundColor: "#f1f5f9" }}
                 whileTap={{ scale: 0.95 }}
               >
                 {profileImageUrl ? (
@@ -291,7 +260,7 @@ function Layout() {
                     <motion.button
                       onClick={handleLogout}
                       style={userDropdownLogout}
-                      whileHover={{ backgroundColor: "#fee2e2", color: "#ef4444" }}
+                      whileHover={{ backgroundColor: "#fef2f2", color: "#dc2626" }}
                     >
                       <span style={dropdownLogoutIcon}>🚪</span>
                       Sign Out
@@ -303,7 +272,6 @@ function Layout() {
           </div>
         </motion.header>
 
-        {/* Page Content - This is where your pages render */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -315,16 +283,14 @@ function Layout() {
         </motion.div>
       </main>
 
-      {/* Global styles - FIXED FOR NO MARGINS AND OPTIMAL SPACE USAGE */}
       <style>
         {`
-          @keyframes gradientMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
           }
 
-          /* CRITICAL FIXES: Remove all margins and optimize space */
           html, body, #root {
             height: 100%;
             width: 100%;
@@ -334,96 +300,82 @@ function Layout() {
           }
 
           body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
           }
 
-          /* Remove default margins from all elements inside content */
-          .page-content * {
-            max-width: 100%;
-          }
-
-          /* FIX: Hide scrollbars but keep functionality */
           main {
-            scrollbar-width: thin; /* Firefox */
-            scrollbar-color: transparent transparent; /* Firefox */
-            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
           }
           
           main::-webkit-scrollbar {
-            width: 0px;  /* Remove scrollbar space */
-            height: 0px;
-            background: transparent;  /* Optional: just make scrollbar invisible */
+            width: 6px;
+            height: 6px;
           }
           
-          /* For the inner content container */
+          main::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+          }
+          
+          main::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+          }
+          
+          main::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+          }
+
           .page-content {
             scrollbar-width: thin;
-            scrollbar-color: rgba(255,255,255,0.2) transparent;
-            -ms-overflow-style: -ms-autohiding-scrollbar;
+            scrollbar-color: #cbd5e1 #f1f5f9;
           }
           
           .page-content::-webkit-scrollbar {
-            width: 4px;  /* Thin scrollbar */
-            height: 4px;
-          }
-          
-          .page-content::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 4px;
+            width: 6px;
+            height: 6px;
           }
           
           .page-content::-webkit-scrollbar-track {
-            background: transparent;
+            background: #f1f5f9;
+            border-radius: 10px;
+          }
+          
+          .page-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
           }
 
-          /* Mobile-specific fixes */
           @media (max-width: 900px) {
-            /* Show hamburger menu on mobile */
             .mobile-hamburger {
               display: flex !important;
             }
             
-            /* Remove all padding/margins on mobile */
-            main {
-              padding: 0 !important;
-              margin: 0 !important;
-            }
-            
             .page-content {
-              padding: 12px !important; /* Minimal padding for content, not margins */
+              padding: 16px !important;
             }
             
-            /* Make cards and tables use full width */
-            .page-content .card,
-            .page-content .table-container,
-            .page-content [class*="card"],
-            .page-content [class*="Card"],
-            .page-content [class*="table"],
-            .page-content [class*="Table"] {
-              margin-left: 0 !important;
-              margin-right: 0 !important;
-              width: 100% !important;
+            .page-content > * {
               max-width: 100% !important;
-              border-radius: 8px !important; /* Slightly smaller radius on mobile */
             }
             
-            /* Force tables to not overflow */
+            .page-content .card,
+            .page-content [class*="card"],
+            .page-content [class*="Card"] {
+              margin: 0 !important;
+              width: 100% !important;
+              border-radius: 12px !important;
+            }
+            
             .page-content table {
               display: block;
               width: 100%;
               overflow-x: auto;
-              -webkit-overflow-scrolling: touch;
               white-space: nowrap;
             }
             
-            /* Make table cells more compact on mobile if needed */
-            .page-content th,
-            .page-content td {
-              padding: 8px !important;
-              white-space: nowrap;
-            }
-            
-            /* Grid layouts should use full width */
             .page-content .grid,
             .page-content [class*="grid"] {
               margin: 0 !important;
@@ -431,20 +383,12 @@ function Layout() {
             }
           }
 
-          /* Desktop scrollbar styling - minimal but visible */
           @media (min-width: 901px) {
-            .page-content::-webkit-scrollbar {
-              width: 6px;
-              height: 6px;
+            .page-content {
+              padding: 20px !important;
             }
           }
 
-          /* Sidebar scrollbar - minimal */
-          .sidebar-scroll::-webkit-scrollbar {
-            width: 3px;
-          }
-
-          /* Z-index hierarchy */
           .sidebar {
             z-index: 50 !important;
           }
@@ -457,7 +401,6 @@ function Layout() {
             z-index: 30 !important;
           }
 
-          /* Notifications - highest */
           .notifications-dropdown,
           [class*="Notifications"] [style*="position: fixed"],
           [class*="Notifications"] [style*="position: absolute"] {
@@ -469,35 +412,21 @@ function Layout() {
   );
 }
 
-// ==================== Styles ====================
-
-const containerStyle = (bg) => ({
+const containerStyle = {
   height: "100vh",
   width: "100vw",
-  backgroundImage: `url(${bg})`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  backgroundAttachment: "fixed",
+  background: "#f8fafc",
   position: "relative",
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   overflow: "hidden",
   margin: 0,
   padding: 0,
-});
-
-const overlayStyle = {
-  position: "absolute",
-  inset: 0,
-  background: "linear-gradient(-45deg, rgba(49,15,221,0.7), rgba(0,0,0,0.8), rgba(49,15,221,0.7))",
-  backgroundSize: "400% 400%",
-  animation: "gradientMove 15s ease infinite",
-  zIndex: 0,
 };
 
 const backdropStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(13, 13, 13, 0.28)",
+  background: "rgba(0, 0, 0, 0.3)",
   backdropFilter: "blur(4px)",
   zIndex: 40,
 };
@@ -508,14 +437,12 @@ const sidebarStyle = {
   top: 0,
   height: "100vh",
   width: "280px",
-  background: "rgba(22, 82, 210, 0.43)",
-  backdropFilter: "blur(10px)",
-  borderRight: "1px solid rgba(255, 255, 255, 0.86)",
+  background: "#ffffff",
+  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.05)",
   padding: "24px 16px",
   display: "flex",
   flexDirection: "column",
   zIndex: 50,
-  boxShadow: "4px 0 20px rgba(0,0,0,0.2)",
   overflowY: "hidden",
 };
 
@@ -523,17 +450,15 @@ const logoSection = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
-  padding: "16px 12px",
-  marginBottom: "20px",
-  background: "rgba(255,255,255,0.05)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.1)",
+  padding: "12px",
+  marginBottom: "24px",
+  borderBottom: "1px solid #e2e8f0",
 };
 
 const logoStyle = {
-  width: "48px",
+  width: "44px",
   height: "auto",
-  borderRadius: "12px",
+  borderRadius: "10px",
 };
 
 const logoText = {
@@ -541,18 +466,19 @@ const logoText = {
 };
 
 const logoTitle = {
-  color: "#fff",
-  fontSize: "14px",
+  color: "#1e293b",
+  fontSize: "13px",
   fontWeight: "700",
   margin: 0,
-  lineHeight: "1.4",
+  lineHeight: "1.3",
+  letterSpacing: "0.5px",
 };
 
 const logoSubtitle = {
-  color: "rgba(255,255,255,0.6)",
-  fontSize: "15px",
+  color: "#64748b",
+  fontSize: "11px",
   margin: "4px 0 0",
-  fontWeight: "600"
+  fontWeight: "500",
 };
 
 const userBadgeStyle = {
@@ -560,25 +486,25 @@ const userBadgeStyle = {
   alignItems: "center",
   gap: "12px",
   padding: "12px",
-  background: "rgba(255,255,255,0.03)",
+  background: "#f8fafc",
   borderRadius: "12px",
   marginBottom: "24px",
-  border: "1px solid rgba(255,255,255,0.05)",
+  border: "1px solid #e2e8f0",
 };
 
 const userBadgeAvatar = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "40px",
+  width: "44px",
+  height: "44px",
+  borderRadius: "44px",
   objectFit: "cover",
-  border: "2px solid #00c6ff",
+  border: "2px solid #3b82f6",
 };
 
 const userBadgeFallback = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "40px",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
+  width: "44px",
+  height: "44px",
+  borderRadius: "44px",
+  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -593,16 +519,16 @@ const userBadgeInfo = {
 
 const userBadgeName = {
   display: "block",
-  color: "#fff",
-  fontSize: "18px",
-  fontWeight: "500",
+  color: "#1e293b",
+  fontSize: "15px",
+  fontWeight: "600",
   marginBottom: "2px",
 };
 
 const userBadgeRole = {
   display: "block",
-  color: "rgba(255,255,255,0.5)",
-  fontSize: "11px",
+  color: "#64748b",
+  fontSize: "10px",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -612,25 +538,25 @@ const navContainer = (shadow) => ({
   overflowY: "auto",
   paddingRight: "4px",
   transition: "box-shadow 0.3s",
-  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.3)" : "none",
+  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
 });
 
 const navStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "4px",
+  gap: "6px",
 };
 
 const navItemStyle = (isActive) => ({
-  padding: "11px 16px",
-  borderRadius: "12px",
+  padding: "10px 14px",
+  borderRadius: "10px",
   textDecoration: "none",
-  color: isActive ? "#fff" : "#fff",
-  fontWeight: "600",
-  fontSize: "16px",
-  fontFamily: "'Inter', 'Tahoma', Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
-  backgroundColor: isActive ? "rgba(0, 200, 255, 0.63)" : "transparent",
-  border: isActive ? "1px solid rgba(0,198,255,0.3)" : "1px solid transparent",
+  color: isActive ? "#3b82f6" : "#475569",
+  fontWeight: isActive ? "600" : "500",
+  fontSize: "14px",
+  fontFamily: "'Inter', sans-serif",
+  backgroundColor: isActive ? "#eff6ff" : "transparent",
+  border: isActive ? "1px solid #bfdbfe" : "1px solid transparent",
   display: "flex",
   alignItems: "center",
   gap: "12px",
@@ -651,7 +577,7 @@ const activeIndicatorStyle = {
   transform: "translateY(-50%)",
   width: "3px",
   height: "20px",
-  background: "linear-gradient(180deg, #00c6ff, #007bff)",
+  background: "#3b82f6",
   borderRadius: "0 3px 3px 0",
 };
 
@@ -660,20 +586,20 @@ const sidebarFooterStyle = {
 };
 
 const sidebarFooterDivider = {
-  height: "3px",
-  background: "rgba(255, 255, 255, 0.9)",
-  margin: "19px 0",
+  height: "1px",
+  background: "#e2e8f0",
+  margin: "16px 0",
 };
 
 const sidebarLogoutButton = {
-  width: "70%",
-  padding: "8px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgb(229, 26, 26)",
-  color: "rgba(255, 255, 255, 0.96)",
+  width: "100%",
+  padding: "10px",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  color: "#dc2626",
   fontSize: "14px",
-  fontWeight: "800",
+  fontWeight: "600",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -686,10 +612,9 @@ const logoutIconStyle = {
   fontSize: "16px",
 };
 
-// FIXED: Main content style - NO MARGINS ON MOBILE
 const mainContentStyle = (isMobile, menuOpen) => ({
   marginLeft: isMobile ? 0 : "280px",
-  padding: isMobile ? 0 : "24px", // No padding on mobile
+  padding: isMobile ? "0" : "20px",
   position: "relative",
   zIndex: 1,
   height: "100vh",
@@ -697,25 +622,22 @@ const mainContentStyle = (isMobile, menuOpen) => ({
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
   width: isMobile ? "100%" : `calc(100% - 280px)`,
+  background: "#f8fafc",
 });
 
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "rgba(69, 63, 63, 0.36)",
-  backdropFilter: "blur(10px)",
+  background: "#ffffff",
   borderRadius: "16px",
   padding: "12px 20px",
   marginBottom: "24px",
-  border: "1px solid rgba(27, 25, 25, 0.83)",
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
+  border: "1px solid #e2e8f0",
   position: "relative",
   zIndex: 30,
   flexShrink: 0,
-  // Mobile header fixes
-  marginLeft: 0,
-  marginRight: 0,
-  width: "auto",
 };
 
 const headerLeftStyle = {
@@ -724,30 +646,29 @@ const headerLeftStyle = {
   gap: "16px",
 };
 
-// FIXED: Hamburger style - now visible on mobile
 const hamburgerStyle = {
-  display: "none", // Hidden by default
-  background: "rgba(145, 137, 137, 0.35)",
-  border: "1px solid rgba(255,255,255,0.2)",
+  display: "none",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   borderRadius: "10px",
   width: "40px",
   height: "40px",
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
-  // This media query makes it visible on mobile
   "@media (max-width: 900px)": {
     display: "flex",
   },
 };
 
 const hamburgerIconStyle = {
-  color: "#ffffff",
-  fontSize: "30px",
+  color: "#475569",
+  fontSize: "20px",
+  fontWeight: "600",
 };
 
 const pageTitleStyle = {
-  color: "#ffffff",
+  color: "#1e293b",
   fontSize: "18px",
   fontWeight: "600",
   "@media (max-width: 900px)": {
@@ -762,15 +683,38 @@ const headerRightStyle = {
   position: "relative",
   zIndex: 31,
   "@media (max-width: 900px)": {
-    gap: "10px",
+    gap: "12px",
   },
 };
 
-const notificationWrapperStyle = {
+// ENHANCED: Official, professional background for the bell
+const enhancedNotificationWrapperStyle = {
   position: "relative",
   zIndex: 999999,
   isolation: "isolate",
+  background: "#f1f5f9", // Clean official light gray
+  borderRadius: "12px", // Slightly rounded square - modern enterprise style
+  padding: "0px",
+  border: "1px solid #e2e8f0",
+  transition: "all 0.2s ease",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
+// Add hover effect for the bell container
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  .enhanced-bell-wrapper:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(252, 0, 0, 0.81);
+  }
+  
+  .enhanced-bell-wrapper:active {
+    transform: scale(0.98);
+  }
+`;
+document.head.appendChild(styleSheet);
 
 const userMenuContainerStyle = {
   position: "relative",
@@ -783,14 +727,13 @@ const userMenuTriggerStyle = {
   gap: "10px",
   padding: "6px 12px",
   borderRadius: "40px",
-  background: "rgba(255, 255, 255, 0.22)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   cursor: "pointer",
   position: "relative",
   zIndex: 101,
   "@media (max-width: 900px)": {
     padding: "4px 8px",
-    gap: "4px",
   },
 };
 
@@ -799,7 +742,7 @@ const headerAvatarStyle = {
   height: "36px",
   borderRadius: "36px",
   objectFit: "cover",
-  border: "2px solid #00c6ff",
+  border: "2px solid #3b82f6",
   "@media (max-width: 900px)": {
     width: "32px",
     height: "32px",
@@ -810,7 +753,7 @@ const headerAvatarFallbackStyle = {
   width: "36px",
   height: "36px",
   borderRadius: "36px",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
+  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -825,19 +768,19 @@ const headerAvatarFallbackStyle = {
 };
 
 const userNameStyle = {
-  color: "#00b2f8",
+  color: "#1e293b",
   fontSize: "14px",
-  fontWeight: "800",
+  fontWeight: "600",
   "@media (max-width: 900px)": {
-    display: "none", // Hide username on mobile to save space
+    display: "none",
   },
 };
 
 const dropdownArrowStyle = {
-  color: "rgba(255, 255, 255, 0.16)",
+  color: "#94a3b8",
   fontSize: "10px",
   "@media (max-width: 900px)": {
-    display: "none", // Hide arrow on mobile
+    display: "none",
   },
 };
 
@@ -846,33 +789,32 @@ const userDropdownStyle = {
   top: "calc(100% + 8px)",
   right: 0,
   width: "240px",
-  background: "#1a658d",
+  background: "#ffffff",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.5)",
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
   zIndex: 102,
   overflow: "hidden",
   "@media (max-width: 900px)": {
     width: "200px",
-    right: "-10px",
   },
 };
 
 const userDropdownHeader = {
   padding: "12px 16px",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.72)",
+  borderBottom: "1px solid #e2e8f0",
 };
 
 const userDropdownEmail = {
   display: "block",
-  color: "rgba(255, 255, 255, 0.93)",
+  color: "#64748b",
   fontSize: "12px",
   marginTop: "4px",
 };
 
 const userDropdownDivider = {
   height: "1px",
-  background: "rgba(255,255,255,0.1)",
+  background: "#e2e8f0",
 };
 
 const userDropdownLogout = {
@@ -880,9 +822,9 @@ const userDropdownLogout = {
   padding: "12px 16px",
   background: "transparent",
   border: "none",
-  color: "#ed1717",
+  color: "#ef4444",
   fontSize: "14px",
-  fontWeight: "900",
+  fontWeight: "500",
   display: "flex",
   alignItems: "center",
   gap: "8px",
@@ -894,18 +836,14 @@ const dropdownLogoutIcon = {
   fontSize: "16px",
 };
 
-// FIXED: Content style - minimal padding, full width
 const contentStyle = {
-  height: "calc(100vh - 80px)", // Full height minus header
+  height: "calc(100vh - 85px)",
   overflowY: "auto",
   overflowX: "hidden",
   position: "relative",
   zIndex: 1,
-  padding: 0, // No padding by default
-  // Mobile specific overrides will be in the global styles
   "@media (max-width: 900px)": {
-    padding: "12px", // Minimal padding for content on mobile
-    height: "calc(100vh - 70px)", // Slightly adjust for mobile header
+    height: "calc(100vh - 70px)",
   },
 };
 

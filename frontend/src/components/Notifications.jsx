@@ -1,14 +1,15 @@
 // frontend/src/components/Notifications.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiBell, FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
+import { FaBell } from "react-icons/fa"; // CHANGED: from FiBell to FaBell (solid bell)
+import { FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
 import badgeManager from "../utils/badgeManager";
 import pushService from "../services/pushService";
-import soundManager from "../utils/soundManager"; // ADDED SOUND IMPORT
+import soundManager from "../utils/soundManager";
 
 export default function Notifications({ userId }) {
   const navigate = useNavigate();
@@ -21,14 +22,12 @@ export default function Notifications({ userId }) {
   const socketRef = useRef(null);
   const hasMarkedReadForCurrentPage = useRef(new Set());
   
-  // Store dismissed notifications in localStorage (persists across refreshes)
   const [dismissedIds, setDismissedIds] = useState(() => {
     if (!userId) return new Set();
     const saved = localStorage.getItem(`dismissed_notifications_${userId}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
-  // Save dismissed IDs to localStorage whenever they change
   useEffect(() => {
     if (!userId) return;
     localStorage.setItem(
@@ -37,7 +36,6 @@ export default function Notifications({ userId }) {
     );
   }, [dismissedIds, userId]);
 
-  // Fetch notifications - FILTER OUT DISMISSED ONES
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
     
@@ -48,7 +46,6 @@ export default function Notifications({ userId }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Filter out dismissed notifications
       const filtered = res.data.filter(n => !dismissedIds.has(n.id));
       setNotifications(filtered);
     } catch (err) {
@@ -58,7 +55,6 @@ export default function Notifications({ userId }) {
     }
   }, [userId, dismissedIds]);
 
-  // Connect to Socket.IO for real-time updates
   useEffect(() => {
     if (!userId) return;
 
@@ -76,74 +72,70 @@ export default function Notifications({ userId }) {
     });
 
     socketRef.current.on('new_notification', (notification) => {
-  try {
-    console.log('🔔 New notification received:', notification);
-    
-    if (dismissedIds.has(notification.id)) {
-      console.log('Notification was previously dismissed, ignoring');
-      return;
-    }
-    
-    // Sound - safe
-    try {
-      if (soundManager && soundManager.playNotificationSound) {
-        soundManager.playNotificationSound();
-      }
-    } catch(e) { console.log('Sound error:', e); }
-    
-    setNotifications(prev => {
-      const exists = prev.some(n => n.id === notification.id);
-      if (exists) return prev;
-      
-      // In-app toast - safe
       try {
-        if (window.showInAppToast) {
-          window.showInAppToast({
-            title: notification.title || "New Notification",
-            message: notification.message,
-            body: notification.message,
-            type: notification.type,
-            id: notification.id,
-            entityId: notification.entityId,
-            createdAt: notification.createdAt,
-            data: notification.data
-          });
+        console.log('🔔 New notification received:', notification);
+        
+        if (dismissedIds.has(notification.id)) {
+          console.log('Notification was previously dismissed, ignoring');
+          return;
         }
-      } catch(e) { console.log('Toast error:', e); }
-      
-      // Browser notification - ONLY when app is in background
-      try {
-        if (document.hidden && Notification.permission === "granted") {
-          new Notification(notification.title || "New Notification", {
-            body: notification.message,
-            icon: "/android-chrome-192x192.png",
-            badge: "/favicon.ico",
-            tag: notification.id,
-            vibrate: [200, 100, 200],
-            data: {
-              url: `/dashboard`,
-              id: notification.id,
-              type: notification.type,
-              entityId: notification.entityId
+        
+        try {
+          if (soundManager && soundManager.playNotificationSound) {
+            soundManager.playNotificationSound();
+          }
+        } catch(e) { console.log('Sound error:', e); }
+        
+        setNotifications(prev => {
+          const exists = prev.some(n => n.id === notification.id);
+          if (exists) return prev;
+          
+          try {
+            if (window.showInAppToast) {
+              window.showInAppToast({
+                title: notification.title || "New Notification",
+                message: notification.message,
+                body: notification.message,
+                type: notification.type,
+                id: notification.id,
+                entityId: notification.entityId,
+                createdAt: notification.createdAt,
+                data: notification.data
+              });
             }
-          });
-        }
-      } catch(e) { console.log('Browser notif error:', e); }
-      
-      // Badge - safe
-      try {
-        if (badgeManager && badgeManager.incrementBadge) {
-          badgeManager.incrementBadge();
-        }
-      } catch(e) { console.log('Badge error:', e); }
-      
-      return [notification, ...prev];
+          } catch(e) { console.log('Toast error:', e); }
+          
+          try {
+            if (document.hidden && Notification.permission === "granted") {
+              new Notification(notification.title || "New Notification", {
+                body: notification.message,
+                icon: "/android-chrome-192x192.png",
+                badge: "/favicon.ico",
+                tag: notification.id,
+                vibrate: [200, 100, 200],
+                data: {
+                  url: `/dashboard`,
+                  id: notification.id,
+                  type: notification.type,
+                  entityId: notification.entityId
+                }
+              });
+            }
+          } catch(e) { console.log('Browser notif error:', e); }
+          
+          try {
+            if (badgeManager && badgeManager.incrementBadge) {
+              badgeManager.incrementBadge();
+            }
+          } catch(e) { console.log('Badge error:', e); }
+          
+          return [notification, ...prev];
+        });
+        
+      } catch(err) {
+        console.error('Notification handler crashed:', err);
+      }
     });
-    
-  } catch(err) {
-    console.error('Notification handler crashed:', err);
-  }
-});
 
     socketRef.current.on('new_notification_batch', () => {
       fetchNotifications();
@@ -161,32 +153,26 @@ export default function Notifications({ userId }) {
     };
   }, [userId, dismissedIds, fetchNotifications]);
 
-  // Request notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Update unread count and badge
   useEffect(() => {
     const unread = notifications.filter(n => !n.read).length;
     setUnreadCount(unread);
-    // Update app badge (like WhatsApp)
     badgeManager.updateBadgeCount(unread);
   }, [notifications]);
 
-  // Load badge count on mount
   useEffect(() => {
     badgeManager.loadCount();
   }, []);
 
-  // Auto-mark notifications as read when viewing their pages
   useEffect(() => {
     if (!userId || !location.pathname) return;
 
@@ -253,7 +239,6 @@ export default function Notifications({ userId }) {
     return () => clearTimeout(timer);
   }, [location.pathname, userId, notifications]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -272,7 +257,6 @@ export default function Notifications({ userId }) {
         )
       );
 
-      // Decrement badge count
       badgeManager.decrementBadge();
 
       const token = localStorage.getItem("token");
@@ -292,7 +276,6 @@ export default function Notifications({ userId }) {
         prev.map(n => ({ ...n, read: true }))
       );
 
-      // Clear badge count
       badgeManager.updateBadgeCount(0);
 
       const token = localStorage.getItem("token");
@@ -306,7 +289,6 @@ export default function Notifications({ userId }) {
     }
   };
 
-  // Dismiss all notifications PERMANENTLY (stored in localStorage)
   const dismissAllFromDropdown = () => {
     const newDismissed = new Set(dismissedIds);
     notifications.forEach(n => newDismissed.add(n.id));
@@ -314,12 +296,10 @@ export default function Notifications({ userId }) {
     
     setNotifications([]);
     setShowDropdown(false);
-    // Clear badge
     badgeManager.updateBadgeCount(0);
     console.log("All notifications permanently dismissed");
   };
 
-  // Dismiss single notification PERMANENTLY
   const dismissNotification = (notificationId) => {
     const newDismissed = new Set(dismissedIds);
     newDismissed.add(notificationId);
@@ -327,7 +307,6 @@ export default function Notifications({ userId }) {
     
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     
-    // Update badge after dismissal
     const newUnreadCount = notifications.filter(n => n.id !== notificationId && !n.read).length;
     badgeManager.updateBadgeCount(newUnreadCount);
   };
@@ -411,12 +390,13 @@ export default function Notifications({ userId }) {
   return (
     <div style={styles.container} ref={dropdownRef}>
       <motion.button
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ scale: 1.05, rotate: 8 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setShowDropdown(!showDropdown)}
         style={styles.bellButton}
       >
-        <FiBell size={20} />
+        {/* CHANGED: Golden bell icon with FaBell */}
+        <FaBell size={20} color="#fbbf24" style={styles.goldenBell} />
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
@@ -462,7 +442,6 @@ export default function Notifications({ userId }) {
             </div>
 
             <div style={styles.notificationList}>
-              {/* Unread Section */}
               {unreadNotifications.length > 0 && (
                 <>
                   <div style={styles.sectionHeader}>
@@ -508,7 +487,6 @@ export default function Notifications({ userId }) {
                 </>
               )}
 
-              {/* Read Section */}
               {readNotifications.length > 0 && (
                 <>
                   <div style={styles.sectionHeader}>
@@ -560,7 +538,6 @@ export default function Notifications({ userId }) {
                 </>
               )}
 
-              {/* Empty State */}
               {notifications.length === 0 && (
                 <div style={styles.emptyState}>
                   <span style={styles.emptyIcon}>🔔</span>
@@ -596,7 +573,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "#fff",
     cursor: "pointer",
     position: "relative",
     transition: "all 0.2s",
@@ -604,6 +580,11 @@ const styles = {
     minHeight: "44px",
     outline: "none",
     WebkitTapHighlightColor: "transparent",
+  },
+  
+  // ADDED: Golden bell specific style
+  goldenBell: {
+    filter: "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))",
   },
   
   badge: {
@@ -925,7 +906,6 @@ const styles = {
   },
 };
 
-// Add global styles
 const style = document.createElement('style');
 style.textContent = `
   @keyframes pulse {

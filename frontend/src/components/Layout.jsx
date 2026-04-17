@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
 import Notifications from "./Notifications";
 import BASE_URL from "../api";
+import AnimatedBackground from "./AnimatedBackground";
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -102,18 +103,20 @@ function Layout() {
 
   return (
     <div style={containerStyle}>
-      <AnimatePresence>
-        {isMobile && menuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={backdropStyle}
-            onClick={() => setMenuOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      <AnimatedBackground />
+  
+  <AnimatePresence>
+    {isMobile && menuOpen && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        style={backdropStyle}
+        onClick={() => setMenuOpen(false)}
+      />
+    )}
+  </AnimatePresence>
 
       <motion.aside
         ref={sidebarRef}

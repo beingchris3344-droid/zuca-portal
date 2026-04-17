@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
+import io from "socket.io-client";
 import { FiArrowLeft, FiSend, FiPaperclip, FiSmile, FiSearch, FiMapPin, FiUsers, FiCheck } from "react-icons/fi";
 
 function Chat() {
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [user, setUser] = useState(null);
   const [onlineCount, setOnlineCount] = useState(0);
@@ -50,6 +51,93 @@ function Chat() {
   const headers = { Authorization: `Bearer ${token}` };
 
   const goBack = () => navigate('/dashboard');
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+ // Load cached messages instantly on mount
+useEffect(() => {
+  const cachedMessages = localStorage.getItem('chat_messages_cached');
+  if (cachedMessages) {
+    const parsed = JSON.parse(cachedMessages);
+    // Sort messages by date (oldest to newest for proper display)
+    const sortedMessages = parsed.sort((a, b) => 
+      new Date(a.createdAt) - new Date(b.createdAt)
+    );
+    setMessages(sortedMessages);
+    // Scroll to bottom after showing cached messages
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 100);
+  }
+}, []);
+
+// Save messages to cache whenever they change
+useEffect(() => {
+  if (messages.length > 0 && !loading) {
+    localStorage.setItem('chat_messages_cached', JSON.stringify(messages));
+  }
+}, [messages, loading]);
+
+  useEffect(() => {
+  const container = chatContainerRef.current;
+  if (!container) return;
+
+  const handleScroll = () => {
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    // Show button when NOT near bottom (anywhere above bottom)
+    setShowScrollButton(!isNearBottom);
+  };
+
+  container.addEventListener('scroll', handleScroll);
+  return () => container.removeEventListener('scroll', handleScroll);
+}, []);
+  // Socket connection for real-time messages
+useEffect(() => {
+  if (!user) return;
+
+  const socket = io(BASE_URL);
+  
+  socket.on('connect', () => {
+    console.log('Socket connected for chat');
+    // Join the general chat room
+    socket.emit('join-chat');
+  });
+
+ // Listen for new messages
+socket.on('new_message', (newMessage) => {
+  // Don't add duplicate if it's our own message (we already have temp)
+  if (newMessage.userId === user?.id) return;
+  
+  setMessages(prev => {
+    // Check if message already exists
+    if (prev.some(m => m.id === newMessage.id)) return prev;
+    
+    return [...prev, {
+      ...newMessage,
+      attachments: parseAttachments(newMessage.attachments),
+      files: newMessage.files || [],
+      isOwn: false
+    }];
+  });
+  
+  // REMOVE THIS ENTIRE SCROLL BLOCK - NO SCROLLING ON RECEIVED MESSAGES
+});
+  // Listen for message updates (edit, delete, reaction)
+  socket.on('message_updated', (updatedMessage) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
+    ));
+  });
+
+  socket.on('message_deleted', ({ messageId }) => {
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+  });
+
+  return () => {
+    socket.disconnect();
+  };
+}, [user]);
 
   useEffect(() => {
     if (!token) {
@@ -174,6 +262,15 @@ function Chat() {
     }
   };
 
+  const scrollToBottom = () => {
+  if (chatContainerRef.current) {
+    chatContainerRef.current.scrollTo({
+      top: chatContainerRef.current.scrollHeight,
+      behavior: 'smooth'
+    });
+  }
+};
+
   const handleEditMessage = async () => {
     if (!editMessage || !editMessage.content.trim()) return;
     try {
@@ -248,49 +345,75 @@ function Chat() {
     }
   };
 
-  const fetchMessages = async (isInitialLoad = false) => {
-    try {
-      const container = chatContainerRef.current;
-      if (container && !isInitialLoad) lastScrollPositionRef.current = container.scrollTop;
-      
-      const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
-      const parsedMessages = response.data.reverse().map(msg => ({
-        ...msg,
-        attachments: parseAttachments(msg.attachments),
-        files: msg.files || [],
-        isOwn: msg.userId === user?.id
-      }));
-      setMessages(parsedMessages);
-      
-      parsedMessages.forEach(msg => {
-        if (!msg.isOwn && !msg.readReceipts?.some(r => r.userId === user?.id)) markAsRead(msg.id);
+const fetchMessages = async (isInitialLoad = false) => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
+    const parsedMessages = response.data.reverse().map(msg => ({
+      ...msg,
+      attachments: parseAttachments(msg.attachments),
+      files: msg.files || [],
+      isOwn: msg.userId === user?.id
+    }));
+    
+    // Save scroll position BEFORE updating
+    const container = chatContainerRef.current;
+    const currentScrollTop = container?.scrollTop || 0;
+    const wasNearBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight < 100) : false;
+    
+    // MERGE instead of REPLACE - preserve existing messages
+    setMessages(prev => {
+      const messageMap = new Map();
+      // Add existing messages first
+      prev.forEach(msg => messageMap.set(msg.id, msg));
+      // Add or update with server messages
+      parsedMessages.forEach(newMsg => {
+        const existingMsg = messageMap.get(newMsg.id);
+        if (existingMsg && existingMsg.isTemp) {
+          // Replace temp message with real one
+          messageMap.set(newMsg.id, { ...newMsg, isTemp: false });
+        } else if (!existingMsg) {
+          // Add new message
+          messageMap.set(newMsg.id, newMsg);
+        }
       });
-      
-      setTimeout(() => {
-        if (container) {
-          if (isInitialLoad) {
+      // Convert back to array and sort by date
+      return Array.from(messageMap.values()).sort((a, b) => 
+        new Date(a.createdAt) - new Date(b.createdAt)
+      );
+    });
+    
+    // Mark messages as read
+    parsedMessages.forEach(msg => {
+      if (!msg.isOwn && !msg.readReceipts?.some(r => r.userId === user?.id)) {
+        markAsRead(msg.id);
+      }
+    });
+    
+    // SCROLL HANDLING
+    setTimeout(() => {
+      if (container) {
+        if (isInitialLoad) {
+          // On page refresh/load - scroll to bottom
+          container.scrollTop = container.scrollHeight;
+        } else {
+          // Background refresh - restore position or stay at bottom
+          if (wasNearBottom) {
             container.scrollTop = container.scrollHeight;
           } else {
-            if (isUserScrollingRef.current) {
-              container.scrollTop = lastScrollPositionRef.current;
-            } else {
-              const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-              if (wasNearBottom) container.scrollTop = container.scrollHeight;
-              else container.scrollTop = lastScrollPositionRef.current;
-            }
+            container.scrollTop = currentScrollTop;
           }
         }
-      }, 0);
-    } catch (err) {
-      console.error("Error fetching messages:", err);
-    } finally {
-      if (isInitialLoad) {
-        setLoading(false);
-        setHasInitialLoad(true);
       }
+    }, 50);
+  } catch (err) {
+    console.error("Error fetching messages:", err);
+  } finally {
+    if (isInitialLoad) {
+      setLoading(false);
+      setHasInitialLoad(true);
     }
-  };
-
+  }
+};
   useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) return;
@@ -321,12 +444,7 @@ function Chat() {
       fetchPinnedMessages();
       fetchBlockedUsers();
     }
-    refreshTimerRef.current = setInterval(() => {
-      if (user && hasInitialLoad) {
-        fetchMessages(false);
-        fetchOnlineCount();
-      }
-    }, 5000);
+    
     return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
   }, [user, hasInitialLoad]);
 
@@ -361,69 +479,95 @@ function Chat() {
     }
   };
 
-  // INSTANT MESSAGE SENDING - Optimistic update
-  const handleSendMessage = async () => {
-    if (selectedFiles.length === 0 && !newMessage.trim()) return;
-    if (sending) return;
+ // INSTANT MESSAGE SENDING - Optimistic update with proper replacement
+const handleSendMessage = async () => {
+  if (selectedFiles.length === 0 && !newMessage.trim()) return;
+  if (sending) return;
 
-    setSending(true);
-    const messageText = newMessage.trim();
-    const filesToSend = [...selectedFiles];
-    
-    setNewMessage("");
-    setSelectedFiles([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  setSending(true);
+  const messageText = newMessage.trim();
+  const filesToSend = [...selectedFiles];
+  const replyToMessage = replyTo;
+  
+  setNewMessage("");
+  setSelectedFiles([]);
+  setReplyTo(null);
+  if (fileInputRef.current) fileInputRef.current.value = "";
 
-    const tempId = `temp-${Date.now()}`;
-    const tempMessage = {
-      id: tempId,
+  const tempId = `temp-${Date.now()}`;
+  const tempMessage = {
+    id: tempId,
+    content: messageText,
+    createdAt: new Date().toISOString(),
+    userId: user?.id,
+    user: { fullName: "You", role: user?.role },
+    isOwn: true,
+    isTemp: true,
+    attachments: [],
+    files: [],
+    reactions: [],
+    replyTo: replyToMessage ? { id: replyToMessage.id, content: replyToMessage.content, user: replyToMessage.user } : null
+  };
+
+  // Add temp message instantly
+  setMessages(prev => [...prev, tempMessage]);
+  
+  // Scroll to bottom
+  setTimeout(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, 50);
+
+  try {
+    // Upload files if any
+    const attachments = [];
+    for (let i = 0; i < filesToSend.length; i++) {
+      const uploaded = await uploadFile(filesToSend[i]);
+      if (uploaded) attachments.push(uploaded);
+    }
+
+    const payload = {
       content: messageText,
-      createdAt: new Date().toISOString(),
-      userId: user?.id,
-      user: { fullName: "You", role: user?.role },
-      isOwn: true,
-      isTemp: true,
-      attachments: [],
-      files: [],
-      reactions: [],
-      replyTo: replyTo ? { id: replyTo.id, content: replyTo.content, user: replyTo.user } : null
+      replyToId: replyToMessage?.id,
+      attachments: attachments.length > 0 ? attachments : undefined
     };
 
-    setMessages(prev => [...prev, tempMessage]);
+    const response = await axios.post(`${BASE_URL}/api/chat/enhanced`, payload, { headers });
     
-    setTimeout(() => {
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    // CRITICAL FIX: Replace temp message with real message
+    setMessages(prev => {
+      // Find the index of the temp message
+      const tempIndex = prev.findIndex(msg => msg.id === tempId);
+      if (tempIndex !== -1) {
+        // Create new array with the temp message replaced
+        const newMessages = [...prev];
+        newMessages[tempIndex] = {
+          ...response.data,
+          attachments: parseAttachments(response.data.attachments),
+          files: response.data.files || [],
+          isOwn: true,
+          isTemp: false  // Make sure isTemp is false
+        };
+        return newMessages;
       }
-    }, 50);
-
-    try {
-      const attachments = [];
-      for (let i = 0; i < filesToSend.length; i++) {
-        const uploaded = await uploadFile(filesToSend[i]);
-        if (uploaded) attachments.push(uploaded);
-      }
-
-      const payload = {
-        content: messageText,
-        replyToId: replyTo?.id,
-        attachments: attachments.length > 0 ? attachments : undefined
-      };
-
-      const response = await axios.post(`${BASE_URL}/api/chat/enhanced`, payload, { headers });
-      
-      setMessages(prev => prev.map(msg => msg.id === tempId ? { ...response.data, attachments: parseAttachments(response.data.attachments), files: response.data.files || [], isOwn: true } : msg));
-      setReplyTo(null);
-      showNotification("Message sent", "success");
-    } catch (error) {
-      setMessages(prev => prev.filter(msg => msg.id !== tempId));
-      showNotification(error.response?.data?.error || "Failed to send message", "error");
-      setNewMessage(messageText);
-      setSelectedFiles(filesToSend);
-    } finally {
-      setSending(false);
-    }
-  };
+      // If temp not found, just add the new message
+      return [...prev, response.data];
+    });
+    
+    showNotification("Message sent", "success");
+  } catch (error) {
+    // Remove temp message on error
+    setMessages(prev => prev.filter(msg => msg.id !== tempId));
+    showNotification(error.response?.data?.error || "Failed to send message", "error");
+    // Restore input
+    setNewMessage(messageText);
+    setSelectedFiles(filesToSend);
+    setReplyTo(replyToMessage);
+  } finally {
+    setSending(false);
+  }
+};
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
@@ -476,14 +620,14 @@ function Chat() {
   const messageGroups = groupMessagesByDate();
   const commonReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
 
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loadingSpinner}></div>
-        <p style={styles.loadingText}>Loading chat...</p>
-      </div>
-    );
-  }
+  //if (loading) {
+   // return (
+     // <div style={styles.loadingContainer}>
+        //<div style={styles.loadingSpinner}></div>
+      //  <p style={styles.loadingText}>Loading chat...</p>
+    //  </div>
+  //  );
+//  }
 
   return (
     <div style={styles.container}>
@@ -559,6 +703,23 @@ function Chat() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Scroll to Bottom Button */}
+<AnimatePresence>
+  {showScrollButton && (
+    <motion.button
+      initial={{ opacity: 0, scale: 0 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0 }}
+      onClick={scrollToBottom}
+      style={styles.scrollButton}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+    >
+      <span style={styles.scrollButtonIcon}>↓</span>
+    </motion.button>
+  )}
+</AnimatePresence>
 
       {/* Search Panel */}
       <AnimatePresence>
@@ -769,24 +930,44 @@ function Chat() {
                         <div style={{ ...styles.messageBubble, ...(isOwn ? styles.messageBubbleOwn : {}) }}>
                           {msg.isEdited && <span style={styles.editedIndicator}>(edited) </span>}
                           {msg.content && <p style={styles.messageText}>{msg.content}</p>}
-                          {msg.files?.length > 0 && (
-                            <div style={styles.attachments}>
-                              {msg.files.map((file) => {
-                                const isImage = file.type?.startsWith('image/') || file.name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
-                                const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
-                                return isImage ? (
-                                  <div key={file.id} style={styles.imageWrapper} onClick={(e) => { e.stopPropagation(); setShowMediaPreview(fileUrl); }}>
-                                    <img src={fileUrl} alt={file.name} style={styles.attachmentImage} />
-                                  </div>
-                                ) : (
-                                  <a key={file.id} href={fileUrl} target="_blank" rel="noopener noreferrer" style={styles.fileAttachment} onClick={(e) => e.stopPropagation()}>
-                                    <span>📎</span>
-                                    <span>{file.name}</span>
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          )}
+ {msg.files?.length > 0 && (
+  <div style={styles.attachments}>
+    {msg.files.map((file) => {
+      const isImage = file.type?.startsWith('image/') || file.name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
+      const isVideo = file.type?.startsWith('video/') || file.name?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
+      const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
+      
+      if (isImage) {
+        return (
+          <div key={file.id} style={styles.imageWrapper} onClick={(e) => { e.stopPropagation(); setShowMediaPreview({ url: fileUrl, type: 'image' }); }}>
+            <img src={fileUrl} alt={file.name} style={styles.attachmentImage} />
+          </div>
+        );
+      } else if (isVideo) {
+        return (
+          <div key={file.id} style={styles.videoWrapper} onClick={(e) => { e.stopPropagation(); setShowMediaPreview({ url: fileUrl, type: 'video' }); }}>
+            <video 
+              src={fileUrl} 
+              preload="metadata"
+              style={styles.videoThumbnail}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div style={styles.videoPlayOverlay}>
+              <span style={styles.playIcon}>▶</span>
+            </div>
+          </div>
+        );
+      } else {
+        return (
+          <a key={file.id} href={fileUrl} target="_blank" rel="noopener noreferrer" style={styles.fileAttachment} onClick={(e) => e.stopPropagation()}>
+            <span>📎</span>
+            <span>{file.name}</span>
+          </a>
+        );
+      }
+    })}
+  </div>
+)}
                           {reactions.length > 0 && (
                             <div style={styles.reactions}>
                               {reactions.map((reaction, i) => <span key={i} style={styles.reaction}>{reaction.reaction}</span>)}
@@ -886,17 +1067,32 @@ function Chat() {
         </AnimatePresence>
       </div>
 
-      {/* Media Preview Modal */}
-      <AnimatePresence>
-        {showMediaPreview && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={styles.modalOverlay} onClick={() => setShowMediaPreview(null)}>
-            <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
-              <img src={showMediaPreview} alt="preview" style={styles.modalImage} />
-              <button style={styles.modalClose} onClick={() => setShowMediaPreview(null)}>×</button>
-            </div>
-          </motion.div>
+     {/* Media Preview Modal */}
+<AnimatePresence>
+  {showMediaPreview && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={styles.modalOverlay}
+      onClick={() => setShowMediaPreview(null)}
+    >
+      <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
+        {showMediaPreview.type === 'video' ? (
+          <video 
+            src={showMediaPreview.url} 
+            controls 
+            autoPlay
+            style={styles.modalVideo}
+          />
+        ) : (
+          <img src={showMediaPreview.url} alt="preview" style={styles.modalImage} />
         )}
-      </AnimatePresence>
+        <button style={styles.modalClose} onClick={() => setShowMediaPreview(null)}>×</button>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Upload Progress */}
       {Object.entries(uploadProgress).map(([id, progress]) => (
@@ -931,14 +1127,17 @@ function Chat() {
 
 const styles = {
   container: {
-    minHeight: "calc(100vh - 80px)",
-    background: "#f8fafc",
-    display: "flex",
-    flexDirection: "column",
-    fontFamily: "'Inter', -apple-system, sans-serif",
-    position: "relative",
-    paddingBottom: "env(safe-area-inset-bottom, 20px)",
-     marginTop: "-90px",
+  minHeight: "calc(100vh - 80px)",
+  background: "#a3b9cf",
+  display: "flex",
+  flexDirection: "column",
+  fontFamily: "'Inter', -apple-system, sans-serif",
+  position: "relative",
+  paddingBottom: "env(safe-area-inset-bottom, 20px)",
+  height: "calc(100vh - 80px)",  // Fixed height instead of minHeight
+  maxHeight: "calc(100vh - 80px)",  // Maximum height
+  overflow: "hidden",  // Prevents container from scrolling
+     marginTop: "-85px",
   },
   
   backButtonContainer: { padding: "16px 20px 0" },
@@ -986,7 +1185,7 @@ const styles = {
   pinnedPanel: { position: "absolute", top: "80px", right: "20px", width: "320px", height: "400px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" },
   pinnedHeader: { padding: "16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", "& h3": { fontSize: "16px", fontWeight: "600", color: "#1e293b", margin: 0 }, "& button": { background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#64748b" } },
   pinnedList: { flex: 1, overflowY: "auto", padding: "12px" },
-  noPinned: { textAlign: "center", color: "#64748b", padding: "20px" },
+  noPinned: { textAlign: "center", color: "#0368f5", padding: "20px" },
   pinnedItem: { background: "#f8fafc", borderRadius: "12px", padding: "12px", marginBottom: "8px" },
   pinnedItemHeader: { display: "flex", justifyContent: "space-between", marginBottom: "6px" },
   pinnedItemUser: { fontSize: "12px", fontWeight: "600", color: "#3b82f6" },
@@ -1027,26 +1226,105 @@ const styles = {
   messageRowOwn: { justifyContent: "flex-end" },
   messageAvatar: { width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "600", color: "white", flexShrink: 0, position: "relative" },
   adminCrown: { position: "absolute", top: "-4px", right: "-4px", fontSize: "10px" },
-  messageBubbleWrapper: { maxWidth: "70%", position: "relative" },
+  messageBubbleWrapper: { maxWidth: "100%", position: "relative" },
   messageBubbleWrapperOwn: { display: "flex", flexDirection: "column", alignItems: "flex-end" },
-  messageSenderName: { fontSize: "11px", fontWeight: "600", color: "#64748b", marginBottom: "2px", marginLeft: "4px" },
+  messageSenderName: { fontSize: "11px", fontWeight: "600", color: "#ffffff", marginBottom: "2px", marginLeft: "4px" },
   pinIndicator: { fontSize: "10px", color: "#f59e0b", marginBottom: "2px", marginLeft: "4px" },
   replyPreview: { display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", color: "#64748b", marginBottom: "4px", marginLeft: "4px", background: "#f8fafc", padding: "4px 8px", borderRadius: "8px" },
   replyIcon: { fontSize: "10px" },
   replyText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   messageBubble: { background: "#ffffff", borderRadius: "18px", padding: "10px 14px", border: "1px solid #e2e8f0", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" },
-  messageBubbleOwn: { background: "#3b82f6", borderColor: "#3b82f6" },
+  messageBubbleOwn: { background: "#ffffff", borderColor: "#3b82f6" },
   editedIndicator: { fontSize: "9px", color: "#94a3b8", fontStyle: "italic", marginRight: "4px" },
   messageText: { fontSize: "14px", lineHeight: "1.5", margin: "0 0 4px 0", color: "#1e293b", wordBreak: "break-word" },
   attachments: { display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" },
-  imageWrapper: { maxWidth: "150px", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#f1f5f9" },
-  attachmentImage: { width: "100%", height: "auto", maxHeight: "100px", objectFit: "cover" },
+imageWrapper: { 
+  maxWidth: "250px",  // Changed from 150px to 250px
+  minWidth: "150px",  // Added minimum width
+  borderRadius: "12px", 
+  overflow: "hidden", 
+  cursor: "pointer", 
+  background: "#f1f5f9",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",  // Added shadow for better visibility
+},  
+attachmentImage: { 
+  width: "100%", 
+  height: "auto", 
+  maxHeight: "400px",  // Changed from 150px to 300px
+  objectFit: "contain", 
+  display: "block", 
+  backgroundColor: "#f0f0f0" 
+},
+
+videoWrapper: {
+  maxWidth: "100%",
+  minWidth: "200px",
+  borderRadius: "12px",
+  overflow: "hidden",
+  background: "#000",
+  marginTop: "4px",
+},
+
+videoPlayer: {
+  width: "100%",
+  maxHeight: "300px",
+  borderRadius: "8px",
+  outline: "none",
+},
+
+videoWrapper: {
+  position: "relative",
+  maxWidth: "100%",
+  minWidth: "200px",
+  borderRadius: "12px",
+  overflow: "hidden",
+  background: "#000",
+  cursor: "pointer",
+},
+
+videoThumbnail: {
+  width: "100%",
+  maxHeight: "200px",
+  objectFit: "cover",
+  display: "block",
+},
+
+videoPlayOverlay: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: "rgba(0,0,0,0.4)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "background 0.2s",
+  "&:hover": {
+    background: "rgba(0,0,0,0.5)",
+  },
+},
+
+playIcon: {
+  fontSize: "48px",
+  color: "white",
+  textShadow: "0 2px 4px rgba(0,0,0,0.3)",
+},
+
+modalVideo: {
+  maxWidth: "95vw",
+  maxHeight: "95vh",
+  width: "auto",
+  height: "auto",
+  borderRadius: "12px",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+},
   fileAttachment: { display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "#f8fafc", borderRadius: "8px", textDecoration: "none", fontSize: "12px", color: "#475569" },
   reactions: { display: "flex", gap: "4px", marginTop: "6px", flexWrap: "wrap" },
   reaction: { fontSize: "12px", background: "#f8fafc", padding: "2px 6px", borderRadius: "12px" },
   messageFooter: { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "4px", marginTop: "4px" },
-  messageTime: { fontSize: "9px", color: "#94a3b8" },
-  messageStatus: { fontSize: "10px", color: "#94a3b8", display: "flex", alignItems: "center" },
+  messageTime: { fontSize: "9px", color: "#000000" },
+  messageStatus: { fontSize: "10px", color: "#ff0000", display: "flex", alignItems: "center" },
   
   previewContainer: { background: "#ffffff", borderTop: "1px solid #e2e8f0", padding: "12px", overflowX: "auto" },
   previewScroller: { display: "flex", gap: "12px" },
@@ -1071,7 +1349,7 @@ const styles = {
   sendButtonDisabled: { opacity: 0.5, cursor: "not-allowed" },
   sendSpinner: { width: "16px", height: "16px", border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.6s linear infinite" },
   
-  emojiPicker: { position: "absolute", bottom: "80px", left: "5%", transform: "translateX(-50%)", background: "#ffffff", borderRadius: "16px", padding: "9px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", zIndex: 100, width: "90%", maxWidth: "320px" },
+  emojiPicker: { position: "absolute", bottom: "80px", left: "5ytb%", transform: "translateX(-50%)", background: "#ffffff", borderRadius: "16px", padding: "9px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", zIndex: 100, width: "90%", maxWidth: "320px" },
   emoji: { padding: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "20px", cursor: "pointer", "&:hover": { background: "#f1f5f9" } },
   
   progressOverlay: { position: "fixed", bottom: "100px", left: "50%", transform: "translateX(-50%)", zIndex: 100 },
@@ -1079,10 +1357,107 @@ const styles = {
   progressFill: { position: "absolute", left: 0, top: 0, bottom: 0, background: "#3b82f6", transition: "width 0.3s ease" },
   progressText: { position: "relative", color: "#1e293b", fontSize: "12px", fontWeight: "600", zIndex: 1 },
   
-  modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: "20px" },
-  modalContent: { position: "relative", maxWidth: "95vw", maxHeight: "95vh" },
-  modalImage: { maxWidth: "100%", maxHeight: "95vh", objectFit: "contain", borderRadius: "12px" },
-  modalClose: { position: "absolute", top: "-40px", right: "0", width: "36px", height: "36px", borderRadius: "50%", background: "#ef4444", border: "none", color: "white", fontSize: "20px", cursor: "pointer" },
+modalOverlay: { 
+  position: "fixed", 
+  top: 80, 
+  left: 0, 
+  right: 0, 
+  bottom: 200, 
+  width: "100%",
+  height: "90%",
+background: "rgba(0, 0, 0, 0)",
+backdropFilter: "blur(1px)",
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  zIndex: 10000, 
+  padding: 0,
+  margin: 0,
+  marginBottom: "100px",
+  boxSizing: "border-box",
+  cursor: "pointer",  // Shows it's clickable to close
+},
+
+modalContent: { 
+  position: "relative", 
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "rgba(0,0,0,0.85)",
+  cursor: "pointer",  // Click to close
+},
+
+modalImage: { 
+  maxWidth: "100%", 
+  maxHeight: "100%", 
+  width: "auto",
+  height: "auto",
+  objectFit: "contain", 
+  display: "block",
+  cursor: "default",  // Don't close when clicking on image
+},
+
+modalVideo: {
+  maxWidth: "100%",
+  maxHeight: "100%",
+  width: "auto",
+  height: "auto",
+  objectFit: "contain",
+  cursor: "default",  // Don't close when clicking on video
+},
+
+modalClose: { 
+  position: "fixed", 
+  top: "20px", 
+  right: "20px", 
+  width: "44px", 
+  height: "44px", 
+  borderRadius: "50%", 
+  background: "rgba(0,0,0,0.85)", 
+  border: "1px solid rgba(255,255,255,0.2)", 
+  color: "white", 
+  fontSize: "24px", 
+  cursor: "pointer",
+  zIndex: 10001,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backdropFilter: "blur(8px)",
+  transition: "all 0.2s",
+  "&:hover": {
+    background: "rgba(255,255,255,0.2)",
+  },
+},
+
+scrollButton: {
+  position: "fixed",
+  bottom: "100px",
+  right: "20px",
+  width: "48px",
+  height: "48px",
+  borderRadius: "50%",
+  background: "#3b82f6",
+  color: "white",
+  border: "none",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 4px 12px rgba(59,130,246,0.4)",
+  zIndex: 100,
+  transition: "all 0.2s",
+  "&:hover": {
+    background: "#2563eb",
+    transform: "scale(1.05)",
+  },
+},
+
+scrollButtonIcon: {
+  fontSize: "24px",
+  fontWeight: "bold",
+},
 };
 
 export default Chat;

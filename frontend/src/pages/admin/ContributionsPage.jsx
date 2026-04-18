@@ -224,9 +224,8 @@ function ContributionsPage() {
     };
   }, [silentRefresh]);
 
-  // Initial fetch
+   // Initial fetch - no loading state, show empty content immediately
   const fetchAll = async () => {
-    setLoading(true);
     try {
       const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
       // Show ALL contributions for admin/treasurer
@@ -1045,18 +1044,8 @@ function ContributionsPage() {
     showNotification(`Export completed: ${data.length} records`, "success");
   };
 
-  if (loading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="loading-container"
-      >
-        <div className="spinner" />
-        <p className="loading-text">Loading contributions dashboard...</p>
-      </motion.div>
-    );
-  }
+  // No loading spinner - show content immediately
+  // Data loads in background
 
   return (
     <motion.div
@@ -1856,9 +1845,10 @@ function ContributionsPage() {
           min-height: 100vh;
           padding: 24px;
           position: relative;
+          margin-top: 50px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           overflow-y: auto;
-          background: #199dea75;
+          background: #f4f4f475;
           border-radius: 30px;
         }
 

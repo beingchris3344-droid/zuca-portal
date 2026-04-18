@@ -1,5 +1,5 @@
 // frontend/src/pages/Dashboard.jsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -20,19 +20,27 @@ function Dashboard() {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [showCropper, setShowCropper] = useState(false);
 
-  // Optimized: Single API call with parallel requests
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    
-    if (!token || !storedUser) {
-      setLoading(false);
-      return;
-    }
-
     const fetchData = async () => {
+      const token = localStorage.getItem("token");
+      const storedUser = JSON.parse(localStorage.getItem("user"));
+      
+      if (!token || !storedUser) {
+        setLoading(false);
+        return;
+      }
+
+      // Show cached user immediately
+      setUser(storedUser);
+      
+      // Set profile image from cached user
+      const cachedImageUrl = storedUser.profileImage?.startsWith("http")
+        ? storedUser.profileImage
+        : storedUser.profileImage ? `${BASE_URL}/${storedUser.profileImage}` : null;
+      setProfileImage(cachedImageUrl);
+
       try {
-        // Parallel API calls for maximum speed
+        // Fetch fresh data in background
         const [userRes, announcementsRes, messagesRes, eventsRes] = await Promise.all([
           axios.get(`${BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${BASE_URL}/api/announcements/unread`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { count: 0 } })),
@@ -55,7 +63,6 @@ function Dashboard() {
         setUpcomingEvents(eventsRes.data.count || 0);
       } catch (error) {
         console.error("Error fetching data:", error);
-        setUser(storedUser);
       } finally {
         setLoading(false);
       }
@@ -126,7 +133,7 @@ function Dashboard() {
     });
   };
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div style={loadingContainerStyle}>
         <div style={loadingCardStyle}>
@@ -164,7 +171,7 @@ function Dashboard() {
   return (
     <div style={dashboardContainerStyle}>
       <div style={dashboardContentStyle}>
-        {/* Header - Clean with visible action buttons */}
+        {/* Header */}
         <div style={headerStyle}>
           <div style={headerLeftStyle}>
             <h1 style={greetingStyle}>
@@ -174,7 +181,6 @@ function Dashboard() {
             <p style={dateStyle}>{formatDate(currentTime)}</p>
           </div>
           
-          {/* Action Buttons - Clearly visible, not hidden */}
           <div style={headerRightStyle}>
             <button onClick={() => { window.dispatchEvent(new CustomEvent('openZUCAI', { detail: { fullPage: true } })); }} style={aiButtonStyle}>
               <FiMessageSquare size={18} /> ZUCA {user.fullName?.split(" ")[0]} AI
@@ -185,7 +191,7 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Profile Card - Compact and clean */}
+        {/* Profile Card */}
         <div style={profileCardStyle}>
           <div style={profileContentStyle}>
             <div style={avatarSectionStyle}>
@@ -225,7 +231,7 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Stats Row - Full width utilization */}
+        {/* Stats Row */}
         <div style={statsRowStyle}>
           <div style={statCardStyle} onClick={() => navigate("/announcements")}>
             <div style={statIconStyle}>📢</div>
@@ -274,8 +280,8 @@ function Dashboard() {
 
         {/* Footer */}
         <div style={footerStyle}>
-          <p style={footerTextStyle}>ZUCA Portal • v2.0 DATE : {new Date().toLocaleDateString()}`</p>
-          <p style={footerTextStyle}>{`© ${new Date().getFullYear()} ZUCA Portal. All rights reserved.`}</p>
+          <p style={footerTextStyle}>© {new Date().getFullYear()} ZUCA Portal. All rights reserved.</p>
+          <p style={footerTextStyle}>ZUCA Portal • v2.0</p>
         </div>
       </div>
 
@@ -303,8 +309,7 @@ function Dashboard() {
   );
 }
 
-// ==================== Optimized Styles ====================
-
+// Styles (keep all your existing styles)
 const loadingContainerStyle = {
   minHeight: "100vh",
   display: "flex",
@@ -363,7 +368,9 @@ const errorButtonStyle = { background: "#3b82f6", color: "white", border: "none"
 
 const dashboardContainerStyle = {
   minHeight: "100vh",
-  background: "#f8fafc",
+  background: "#ffffff00",
+  
+  marginTop: "-20px",
   fontFamily: "'Inter', -apple-system, sans-serif",
 };
 
@@ -394,7 +401,6 @@ const dateStyle = { color: "#64748b", fontSize: "13px" };
 
 const headerRightStyle = { display: "flex", gap: "12px", alignItems: "center" };
 
-// Visible action buttons - clearly visible outside profile circle
 const aiButtonStyle = {
   background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
   border: "none",

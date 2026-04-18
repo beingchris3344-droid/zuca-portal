@@ -6,34 +6,32 @@ const AnimatedBackground = () => {
   const [stars, setStars] = useState([]);
 
   useEffect(() => {
-    // Generate random bubbles
-    const bubbleCount = 12;
+    // Generate random bubbles - VERY VISIBLE
+    const bubbleCount = 15;
     const newBubbles = [];
     for (let i = 0; i < bubbleCount; i++) {
       newBubbles.push({
         id: i,
-        size: Math.random() * 120 + 40,
+        size: Math.random() * 6 + 9,
         top: Math.random() * 100,
         left: Math.random() * 100,
         duration: Math.random() * 20 + 15,
         delay: Math.random() * 10,
-        opacity: Math.random() * 0.3 + 0.1,
       });
     }
     setBubbles(newBubbles);
 
-    // Generate random stars
-    const starCount = 30;
+    // Generate random stars - VERY VISIBLE
+    const starCount = 50;
     const newStars = [];
     for (let i = 0; i < starCount; i++) {
       newStars.push({
         id: i,
-        size: Math.random() * 4 + 1,
+        size: Math.random() * 1 + 2,
         top: Math.random() * 100,
         left: Math.random() * 100,
         duration: Math.random() * 3 + 2,
         delay: Math.random() * 5,
-        opacity: Math.random() * 0.6 + 0.2,
       });
     }
     setStars(newStars);
@@ -41,11 +39,11 @@ const AnimatedBackground = () => {
 
   return (
     <div className="animated-bg-container">
-      {/* Bubbles */}
+     
       {bubbles.map((bubble) => (
         <div
           key={`bubble-${bubble.id}`}
-          className="animated-bubble"
+          className="bubble"
           style={{
             width: `${bubble.size}px`,
             height: `${bubble.size}px`,
@@ -53,16 +51,14 @@ const AnimatedBackground = () => {
             left: `${bubble.left}%`,
             animationDuration: `${bubble.duration}s`,
             animationDelay: `${bubble.delay}s`,
-            opacity: bubble.opacity,
           }}
         />
       ))}
       
-      {/* Stars */}
       {stars.map((star) => (
         <div
           key={`star-${star.id}`}
-          className="animated-star"
+          className="star"
           style={{
             width: `${star.size}px`,
             height: `${star.size}px`,
@@ -70,7 +66,6 @@ const AnimatedBackground = () => {
             left: `${star.left}%`,
             animationDuration: `${star.duration}s`,
             animationDelay: `${star.delay}s`,
-            opacity: star.opacity,
           }}
         />
       ))}
@@ -83,48 +78,53 @@ const AnimatedBackground = () => {
           right: 0;
           bottom: 0;
           pointer-events: none;
-          z-index: 0;
+          z-index: 9;
           overflow: hidden;
         }
 
-        .animated-bubble {
+        .bubble {
           position: absolute;
-          background: radial-gradient(circle, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.05));
+          background: radial-gradient(circle, rgba(244, 244, 245, 0.8), rgba(255, 255, 255, 0.4));
           border-radius: 50%;
           animation: floatBubble infinite ease-in-out;
-          border: 1px solid rgba(59, 130, 246, 0.1);
+          border: 2px solid rgba(59, 68, 246, 0.5);
+          box-shadow: 0 0 10px rgba(59, 131, 246, 0);
         }
 
-        .animated-star {
+        .star {
           position: absolute;
-          background: #3b82f6;
+          background: #00ccff;
           border-radius: 50%;
           animation: twinkle infinite alternate;
-          box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+          box-shadow: 0 0 6px #ffd700;
         }
 
         @keyframes floatBubble {
           0%, 100% {
             transform: translate(0, 0) scale(1);
+            opacity: 0.8;
           }
           25% {
-            transform: translate(40px, -50px) scale(1.1);
+            transform: translate(30px, -40px) scale(1.05);
+            opacity: 1;
           }
           50% {
-            transform: translate(-30px, -80px) scale(0.9);
+            transform: translate(-20px, -60px) scale(0.95);
+            opacity: 0.9;
           }
           75% {
-            transform: translate(50px, -30px) scale(1.05);
+            transform: translate(40px, -20px) scale(1.02);
+            opacity: 0.95;
           }
         }
 
         @keyframes twinkle {
           0% {
-            opacity: 0.2;
+            opacity: 0.5;
             transform: scale(1);
           }
           100% {
-            opacity: 0.8;
+            opacity: 1;
             transform: scale(1.5);
           }
         }

@@ -1,3 +1,4 @@
+// frontend/src/components/RoleManagement.jsx
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import BASE_URL from "../../api";
@@ -10,7 +11,7 @@ export default function RoleManagement() {
   const [updating, setUpdating] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedSections, setExpandedSections] = useState({
-    special: false,
+    special: true, // Changed to true - special roles visible by default
     admin: false,
     regular: false
   });
@@ -59,7 +60,6 @@ export default function RoleManagement() {
     }));
   };
 
-  // Filter users based on search
   const filteredUsers = useMemo(() => {
     if (!searchTerm.trim()) return users;
     
@@ -71,7 +71,6 @@ export default function RoleManagement() {
     );
   }, [users, searchTerm]);
 
-  // Separate users into categories
   const usersWithSpecialRoles = filteredUsers.filter(user => user.specialRole);
   const admins = filteredUsers.filter(user => user.role === "admin" && !user.specialRole);
   const regularMembers = filteredUsers.filter(user => user.role === "member" && !user.specialRole);
@@ -85,45 +84,71 @@ export default function RoleManagement() {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className="role-management"
     >
-      <div className="header">
+      {/* Header Section - Official Style */}
+      <div className="header-section">
         <div>
-          <h1>Role Management</h1>
-          <p className="subtitle">Assign special roles to users (Jumuia Leaders, Treasurer, Secretary, Choir Moderator, Media Moderator)</p>
+          <h1 className="page-title">Role Management</h1>
+          <p className="page-description">
+            Manage user roles and assign special permissions (Jumuia Leaders, Treasurer, Secretary, Choir Moderator, Media Moderator)
+          </p>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="search-container">
-        <input
-          type="text"
-          placeholder="Search by name, email or membership number..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-        {searchTerm && (
-          <button className="clear-search" onClick={() => setSearchTerm("")}>
-            ×
-          </button>
-        )}
+      {/* Search Bar - Enhanced */}
+      <div className="search-wrapper">
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search by name, email or membership number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+          {searchTerm && (
+            <button className="clear-search-btn" onClick={() => setSearchTerm("")}>
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Users with Special Roles Section - Always open */}
+      {/* Users with Special Roles Section */}
       {usersWithSpecialRoles.length > 0 && (
-        <div className="section">
-          <div className="section-header" onClick={() => toggleSection('special')}>
-            <div className="section-title">
+        <div className="role-section">
+          <div 
+            className="section-header" 
+            onClick={() => toggleSection('special')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSection('special');
+              }
+            }}
+          >
+            <div className="section-title-wrapper">
               <span className="section-icon">👑</span>
-              <h2>Users with Special Roles</h2>
-              <span className="section-count">{usersWithSpecialRoles.length}</span>
+              <div>
+                <h2 className="section-title">Users with Special Roles</h2>
+                <span className="section-subtitle">Privileged access members</span>
+              </div>
             </div>
-            <button className="section-toggle">
-              {expandedSections.special ? '▼' : '▶'}
-            </button>
+            <div className="section-actions">
+              <span className="section-count">{usersWithSpecialRoles.length}</span>
+              <motion.button 
+                className="section-toggle"
+                animate={{ rotate: expandedSections.special ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                ▼
+              </motion.button>
+            </div>
           </div>
           
           <AnimatePresence>
@@ -132,6 +157,7 @@ export default function RoleManagement() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
                 className="section-content"
               >
                 <div className="users-grid">
@@ -151,18 +177,38 @@ export default function RoleManagement() {
         </div>
       )}
 
-      {/* Admins Section - Closed by default */}
+      {/* Admins Section */}
       {admins.length > 0 && (
-        <div className="section">
-          <div className="section-header" onClick={() => toggleSection('admin')}>
-            <div className="section-title">
+        <div className="role-section">
+          <div 
+            className="section-header" 
+            onClick={() => toggleSection('admin')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSection('admin');
+              }
+            }}
+          >
+            <div className="section-title-wrapper">
               <span className="section-icon">🛡️</span>
-              <h2>Administrators</h2>
-              <span className="section-count">{admins.length}</span>
+              <div>
+                <h2 className="section-title">Administrators</h2>
+                <span className="section-subtitle">System administrators</span>
+              </div>
             </div>
-            <button className="section-toggle">
-              {expandedSections.admin ? '▼' : '▶'}
-            </button>
+            <div className="section-actions">
+              <span className="section-count">{admins.length}</span>
+              <motion.button 
+                className="section-toggle"
+                animate={{ rotate: expandedSections.admin ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                ▼
+              </motion.button>
+            </div>
           </div>
           
           <AnimatePresence>
@@ -171,6 +217,7 @@ export default function RoleManagement() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
                 className="section-content"
               >
                 <div className="users-grid">
@@ -190,18 +237,38 @@ export default function RoleManagement() {
         </div>
       )}
 
-      {/* Regular Members Section - Closed by default */}
+      {/* Regular Members Section */}
       {regularMembers.length > 0 && (
-        <div className="section">
-          <div className="section-header" onClick={() => toggleSection('regular')}>
-            <div className="section-title">
+        <div className="role-section">
+          <div 
+            className="section-header" 
+            onClick={() => toggleSection('regular')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSection('regular');
+              }
+            }}
+          >
+            <div className="section-title-wrapper">
               <span className="section-icon">👤</span>
-              <h2>Regular Members</h2>
-              <span className="section-count">{regularMembers.length}</span>
+              <div>
+                <h2 className="section-title">Regular Members</h2>
+                <span className="section-subtitle">Standard members</span>
+              </div>
             </div>
-            <button className="section-toggle">
-              {expandedSections.regular ? '▼' : '▶'}
-            </button>
+            <div className="section-actions">
+              <span className="section-count">{regularMembers.length}</span>
+              <motion.button 
+                className="section-toggle"
+                animate={{ rotate: expandedSections.regular ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                ▼
+              </motion.button>
+            </div>
           </div>
           
           <AnimatePresence>
@@ -210,6 +277,7 @@ export default function RoleManagement() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
                 className="section-content"
               >
                 <div className="users-grid">
@@ -231,39 +299,45 @@ export default function RoleManagement() {
 
       {/* No Results */}
       {filteredUsers.length === 0 && (
-        <div className="no-results">
-          <p>No users found matching "{searchTerm}"</p>
-          <button className="clear-btn" onClick={() => setSearchTerm("")}>
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          <h3 className="empty-state-title">No users found</h3>
+          <p className="empty-state-description">
+            No users matching "{searchTerm}" were found
+          </p>
+          <button className="empty-state-button" onClick={() => setSearchTerm("")}>
             Clear Search
           </button>
         </div>
       )}
 
-      <style>{`
+      <style jsx>{`
         .role-management {
-          min-height: 100vh;
-          padding: 32px;
-          background: linear-gradient(135deg, #141724 0%, #525e81 100%);
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          min-height: 100%;
+          margin-top: 50px;
+          background: #f8fafc;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
+        /* Loading State */
         .loading-container {
-          min-height: 100vh;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #141519c7 0%, #764ba2 100%);
-          color: white;
+          min-height: 400px;
+          background: white;
+          border-radius: 16px;
+          padding: 48px;
         }
 
         .spinner {
           width: 40px;
           height: 40px;
-          border: 3px solid rgba(255,255,255,0.3);
-          border-top-color: white;
+          border: 3px solid #e2e8f0;
+          border-top-color: #3b82f6;
           border-radius: 50%;
-          animation: spin 1s linear infinite;
+          animation: spin 0.8s linear infinite;
           margin-bottom: 16px;
         }
 
@@ -271,79 +345,112 @@ export default function RoleManagement() {
           to { transform: rotate(360deg); }
         }
 
-        .header {
+        /* Header Section */
+        .header-section {
           background: white;
           border-radius: 16px;
-          padding: 24px;
+          padding: 28px 32px;
           margin-bottom: 24px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
-        h1 {
-          font-size: 28px;
+        .page-title {
+          font-size: 24px;
           font-weight: 700;
           color: #0f172a;
           margin: 0 0 8px 0;
+          letter-spacing: -0.01em;
         }
 
-        .subtitle {
+        .page-description {
           font-size: 14px;
           color: #64748b;
           margin: 0;
+          line-height: 1.5;
         }
 
-        /* Search Bar */
+        /* Search Wrapper */
+        .search-wrapper {
+          margin-bottom: 24px;
+        }
+
         .search-container {
           position: relative;
-          margin-bottom: 24px;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          transition: all 0.2s;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+        }
+
+        .search-container:focus-within {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-icon {
+          position: absolute;
+          left: 16px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 18px;
+          color: #94a3b8;
+          pointer-events: none;
         }
 
         .search-input {
           width: 100%;
-          padding: 16px 20px;
-          font-size: 16px;
+          padding: 14px 48px 14px 48px;
+          font-size: 14px;
           border: none;
           border-radius: 12px;
-          background: white;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          background: transparent;
           outline: none;
-          transition: all 0.2s;
+          color: #0f172a;
         }
 
-        .search-input:focus {
-          box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        .search-input::placeholder {
+          color: #94a3b8;
         }
 
-        .clear-search {
+        .clear-search-btn {
           position: absolute;
-          right: 16px;
+          right: 12px;
           top: 50%;
           transform: translateY(-50%);
-          background: none;
+          background: #f1f5f9;
           border: none;
-          font-size: 24px;
-          color: #94a3b8;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          font-size: 14px;
+          color: #64748b;
           cursor: pointer;
-          width: 32px;
-          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 50%;
+          transition: all 0.2s;
         }
 
-        .clear-search:hover {
-          background: #f1f5f9;
-          color: #64748b;
+        .clear-search-btn:hover {
+          background: #e2e8f0;
+          color: #0f172a;
         }
 
-        /* Sections */
-        .section {
+        /* Role Sections */
+        .role-section {
           background: white;
           border-radius: 16px;
           margin-bottom: 20px;
+          border: 1px solid #e2e8f0;
           overflow: hidden;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+          transition: box-shadow 0.2s;
+        }
+
+        .role-section:hover {
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         }
 
         .section-header {
@@ -357,10 +464,10 @@ export default function RoleManagement() {
         }
 
         .section-header:hover {
-          background: #f8fafc;
+          background: #fafbfc;
         }
 
-        .section-title {
+        .section-title-wrapper {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -370,15 +477,27 @@ export default function RoleManagement() {
           font-size: 24px;
         }
 
-        .section-title h2 {
-          font-size: 18px;
+        .section-title {
+          font-size: 16px;
           font-weight: 600;
           color: #0f172a;
-          margin: 0;
+          margin: 0 0 2px 0;
+        }
+
+        .section-subtitle {
+          font-size: 12px;
+          color: #64748b;
+          display: block;
+        }
+
+        .section-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
 
         .section-count {
-          background: #e2e8f0;
+          background: #f1f5f9;
           color: #475569;
           padding: 4px 10px;
           border-radius: 20px;
@@ -389,8 +508,8 @@ export default function RoleManagement() {
         .section-toggle {
           background: none;
           border: none;
-          font-size: 18px;
-          color: #64748b;
+          font-size: 16px;
+          color: #94a3b8;
           cursor: pointer;
           width: 32px;
           height: 32px;
@@ -398,54 +517,77 @@ export default function RoleManagement() {
           align-items: center;
           justify-content: center;
           border-radius: 8px;
+          transition: all 0.2s;
         }
 
         .section-toggle:hover {
           background: #f1f5f9;
+          color: #475569;
         }
 
         .section-content {
           padding: 24px;
         }
 
+        /* Users Grid */
         .users-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
           gap: 20px;
         }
 
-        /* No Results */
-        .no-results {
+        /* Empty State */
+        .empty-state {
           background: white;
           border-radius: 16px;
-          padding: 60px 24px;
+          padding: 64px 32px;
           text-align: center;
-          color: #64748b;
+          border: 1px solid #e2e8f0;
         }
 
-        .no-results p {
-          font-size: 16px;
+        .empty-state-icon {
+          font-size: 48px;
           margin-bottom: 16px;
         }
 
-        .clear-btn {
+        .empty-state-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #0f172a;
+          margin: 0 0 8px 0;
+        }
+
+        .empty-state-description {
+          font-size: 14px;
+          color: #64748b;
+          margin: 0 0 24px 0;
+        }
+
+        .empty-state-button {
           padding: 10px 20px;
-          background: #2563eb;
+          background: #3b82f6;
           color: white;
           border: none;
-          border-radius: 8px;
+          border-radius: 10px;
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
+          transition: all 0.2s;
         }
 
-        .clear-btn:hover {
-          background: #1d4ed8;
+        .empty-state-button:hover {
+          background: #2563eb;
+          transform: translateY(-1px);
         }
 
+        /* Responsive */
         @media (max-width: 768px) {
-          .role-management {
-            padding: 16px;
+          .header-section {
+            padding: 20px;
+          }
+
+          .page-title {
+            font-size: 20px;
           }
 
           .section-header {
@@ -458,6 +600,15 @@ export default function RoleManagement() {
 
           .users-grid {
             grid-template-columns: 1fr;
+            gap: 16px;
+          }
+
+          .section-title-wrapper {
+            flex: 1;
+          }
+
+          .section-subtitle {
+            display: none;
           }
         }
       `}</style>
@@ -465,6 +616,7 @@ export default function RoleManagement() {
   );
 }
 
+// UserRoleCard Component - Official Styling
 function UserRoleCard({ user, jumuias, onUpdate, updating }) {
   const [role, setRole] = useState(user.role || "member");
   const [specialRole, setSpecialRole] = useState(user.specialRole || "");
@@ -479,7 +631,6 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
     );
   };
 
-  // Get current special role display
   const getCurrentSpecialRole = () => {
     if (!user.specialRole) return null;
     const roles = {
@@ -492,37 +643,59 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
     return roles[user.specialRole];
   };
 
+  const getRoleStyle = (role) => {
+    const styles = {
+      'jumuia_leader': { background: '#f3e8ff', color: '#7c3aed', icon: '👥' },
+      'treasurer': { background: '#fef3c7', color: '#d97706', icon: '💰' },
+      'secretary': { background: '#d1fae5', color: '#059669', icon: '📝' },
+      'choir_moderator': { background: '#fce7f3', color: '#db2777', icon: '🎵' },
+      'media_moderator': { background: '#dbeafe', color: '#3b82f6', icon: '📺' }
+    };
+    return styles[role] || { background: '#f1f5f9', color: '#475569', icon: '⭐' };
+  };
+
   return (
     <motion.div 
       className="user-card"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
     >
-      <div className="user-header">
+      <div className="user-card-header">
         <div className="user-avatar">
           {user.fullName?.charAt(0).toUpperCase()}
         </div>
-        <div className="user-info">
-          <h3>{user.fullName}</h3>
+        <div className="user-details">
+          <h3 className="user-name">{user.fullName}</h3>
           <p className="user-email">{user.email}</p>
-          <p className="membership">📋 {user.membership_number}</p>
-          {user.specialRole && (
-            <p className="current-role">
-              <span className="role-badge" style={getSpecialRoleStyle(user.specialRole)}>
-                {getCurrentSpecialRole()}
+          <div className="user-meta">
+            <span className="membership-badge">
+              📋 {user.membership_number}
+            </span>
+            {user.specialRole && (
+              <span 
+                className="special-role-badge"
+                style={{
+                  background: getRoleStyle(user.specialRole).background,
+                  color: getRoleStyle(user.specialRole).color
+                }}
+              >
+                {getRoleStyle(user.specialRole).icon} {getCurrentSpecialRole()}
               </span>
-            </p>
-          )}
-          {user.role === "admin" && !user.specialRole && (
-            <p className="admin-badge">🛡️ Admin</p>
-          )}
+            )}
+            {user.role === "admin" && !user.specialRole && (
+              <span className="admin-badge">🛡️ Admin</span>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="role-fields">
-        <div className="field-group">
-          <label>Account Type</label>
+      <div className="user-card-body">
+        <div className="form-group">
+          <label className="form-label">Account Type</label>
           <select 
+            className="form-select"
             value={role} 
             onChange={(e) => setRole(e.target.value)}
             disabled={updating}
@@ -532,9 +705,10 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
           </select>
         </div>
 
-        <div className="field-group">
-          <label>Special Role</label>
+        <div className="form-group">
+          <label className="form-label">Special Role</label>
           <select 
+            className="form-select"
             value={specialRole} 
             onChange={(e) => setSpecialRole(e.target.value)}
             disabled={updating}
@@ -549,9 +723,15 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
         </div>
 
         {specialRole === "jumuia_leader" && (
-          <div className="field-group">
-            <label>Assign Jumuia</label>
+          <motion.div 
+            className="form-group"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <label className="form-label">Assign Jumuia</label>
             <select 
+              className="form-select"
               value={assignedJumuia} 
               onChange={(e) => setAssignedJumuia(e.target.value)}
               disabled={updating}
@@ -561,150 +741,211 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
                 <option key={j.id} value={j.id}>{j.name}</option>
               ))}
             </select>
-          </div>
+          </motion.div>
         )}
 
-        <button 
-          className="save-btn"
+        <motion.button 
+          className="save-button"
           onClick={handleSave}
           disabled={updating}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          {updating ? "Saving..." : "Save Changes"}
-        </button>
+          {updating ? (
+            <>
+              <span className="button-spinner"></span>
+              Saving...
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </motion.button>
       </div>
 
       <style jsx>{`
         .user-card {
           background: white;
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
           transition: all 0.2s;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
         }
-        .user-header {
+
+        .user-card:hover {
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          border-color: #cbd5e1;
+        }
+
+        .user-card-header {
+          padding: 20px;
           display: flex;
           gap: 16px;
-          margin-bottom: 20px;
-          padding-bottom: 16px;
           border-bottom: 1px solid #f1f5f9;
+          background: #fafbfc;
         }
+
         .user-avatar {
-          width: 60px;
-          height: 60px;
-          background: linear-gradient(135deg, #2563eb, #3b82f6);
+          width: 56px;
+          height: 56px;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
           color: white;
-          border-radius: 16px;
+          border-radius: 14px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 24px;
+          font-size: 22px;
           font-weight: 600;
           flex-shrink: 0;
+          box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
         }
-        .user-info {
+
+        .user-details {
           flex: 1;
           min-width: 0;
         }
-        .user-info h3 {
+
+        .user-name {
           font-size: 16px;
           font-weight: 600;
           color: #0f172a;
           margin: 0 0 4px 0;
         }
+
         .user-email {
           font-size: 13px;
           color: #64748b;
-          margin: 2px 0;
+          margin: 0 0 8px 0;
           word-break: break-word;
         }
-        .membership {
+
+        .user-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 4px;
+        }
+
+        .membership-badge {
+          font-size: 11px;
           font-family: monospace;
-          font-size: 12px;
           background: #f1f5f9;
+          color: #475569;
           padding: 4px 8px;
-          border-radius: 4px;
-          display: inline-block;
-          margin: 4px 0;
+          border-radius: 6px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
         }
-        .current-role {
-          margin: 8px 0 0 0;
-        }
-        .role-badge {
-          display: inline-block;
+
+        .special-role-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
           padding: 4px 8px;
-          border-radius: 4px;
+          border-radius: 6px;
           font-size: 11px;
           font-weight: 600;
-          text-transform: uppercase;
         }
+
         .admin-badge {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
           padding: 4px 8px;
-          border-radius: 4px;
+          border-radius: 6px;
           font-size: 11px;
           font-weight: 600;
-          background: rgba(239, 68, 68, 0.2);
-          color: #ef4444;
-          margin-top: 8px;
+          background: #fef2f2;
+          color: #dc2626;
         }
-        .role-fields {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
+
+        .user-card-body {
+          padding: 20px;
         }
-        .field-group {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
+
+        .form-group {
+          margin-bottom: 16px;
         }
-        .field-group label {
+
+        .form-label {
+          display: block;
           font-size: 12px;
           font-weight: 600;
           color: #475569;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
         }
-        .field-group select {
-          padding: 10px;
+
+        .form-select {
+          width: 100%;
+          padding: 10px 12px;
           border: 1px solid #e2e8f0;
           border-radius: 8px;
           font-size: 14px;
+          color: #0f172a;
           background: white;
+          cursor: pointer;
+          transition: all 0.2s;
         }
-        .field-group select:focus {
+
+        .form-select:hover:not(:disabled) {
+          border-color: #cbd5e1;
+        }
+
+        .form-select:focus {
           outline: none;
-          border-color: #2563eb;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
-        .save-btn {
-          margin-top: 8px;
-          padding: 12px;
-          background: #2563eb;
+
+        .form-select:disabled {
+          background: #f8fafc;
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .save-button {
+          width: 100%;
+          padding: 10px;
+          background: #3b82f6;
           color: white;
           border: none;
           border-radius: 8px;
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 8px;
         }
-        .save-btn:hover:not(:disabled) {
-          background: #1d4ed8;
+
+        .save-button:hover:not(:disabled) {
+          background: #2563eb;
         }
-        .save-btn:disabled {
-          opacity: 0.5;
+
+        .save-button:disabled {
+          opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        .button-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </motion.div>
   );
-}
-
-// Helper function for role badge colors
-function getSpecialRoleStyle(role) {
-  const styles = {
-    'jumuia_leader': { background: 'rgba(139, 92, 246, 0.2)', color: '#7c3aed' },
-    'treasurer': { background: 'rgba(245, 158, 11, 0.2)', color: '#d97706' },
-    'secretary': { background: 'rgba(16, 185, 129, 0.2)', color: '#059669' },
-    'choir_moderator': { background: 'rgba(236, 72, 153, 0.2)', color: '#db2777' },
-    'media_moderator': { background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }
-  };
-  return styles[role] || {};
 }

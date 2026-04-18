@@ -94,6 +94,7 @@ export default function PendingSongs() {
 const container = {
   padding: "24px",
   maxWidth: "800px",
+  marginTop: "50px",
   margin: "0 auto",
   fontFamily: "'Inter', sans-serif",
   minHeight: "100vh",

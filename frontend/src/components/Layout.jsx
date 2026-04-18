@@ -620,12 +620,12 @@ const mainContentStyle = (isMobile, menuOpen) => ({
   padding: isMobile ? "0" : "20px",
   position: "relative",
   zIndex: 1,
-  height: "100vh",
+  height: "auto",
   overflowY: "auto",
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
   width: isMobile ? "100%" : `calc(100% - 280px)`,
-  background: "#f8fafc",
+  background: "#f8fafc03",
 });
 
 const headerStyle = {

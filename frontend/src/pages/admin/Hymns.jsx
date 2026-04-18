@@ -1184,6 +1184,7 @@ const styles = {
     padding: "16px",
     maxWidth: "1400px",
     margin: "0 auto",
+    marginTop: "40px",
     fontFamily: "'Inter', -apple-system, sans-serif",
     background: "#f8fafc",
     minHeight: "100vh",

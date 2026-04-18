@@ -244,13 +244,8 @@ function Contributions() {
 
   if (!token) return null;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="contributions-page"
-    >
+ return (
+  <div className="contributions-page">
       {/* Notification */}
       <AnimatePresence>
         {notification.show && (
@@ -759,10 +754,9 @@ function Contributions() {
           }
         }
       `}</style>
-    </motion.div>
+       </div>
   );
 }
-
 // Contribution Card Component
 const ContributionCard = ({ 
   contribution, 

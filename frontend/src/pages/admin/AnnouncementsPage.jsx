@@ -10,7 +10,6 @@ import { MdOutlineAnnouncement } from "react-icons/md";
 import { BsMegaphone } from "react-icons/bs";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
-import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
 
 export default function AdminAnnouncements() {
@@ -30,7 +29,6 @@ export default function AdminAnnouncements() {
   const [refreshing, setRefreshing] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   
-  // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -39,7 +37,7 @@ export default function AdminAnnouncements() {
   const headers = { Authorization: `Bearer ${token}` };
   const socketRef = useRef(null);
 
-  // Socket connection for real-time updates
+  // Socket connection
   useEffect(() => {
     const initSocket = async () => {
       try {
@@ -71,17 +69,12 @@ export default function AdminAnnouncements() {
         socket.on('announcement_deleted', (id) => {
           setAnnouncements(prev => prev.filter(a => a.id !== id));
         });
-
-        socket.on('connect_error', (error) => {
-          console.log('Socket connection error:', error.message);
-        });
       } catch (err) {
-        console.log('Socket.IO not available, falling back to polling');
+        console.log('Socket.IO not available');
       }
     };
 
     initSocket();
-
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -89,7 +82,6 @@ export default function AdminAnnouncements() {
     };
   }, []);
 
-  // Fetch announcements
   const fetchAnnouncements = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -115,7 +107,6 @@ export default function AdminAnnouncements() {
   }, []);
 
   const handleAdd = async () => {
-    // Prevent double submission
     if (isSubmitting) return;
     
     if (!title.trim() || !content.trim()) {
@@ -134,7 +125,6 @@ export default function AdminAnnouncements() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Optimistic update
     setAnnouncements(prev => [newAnnouncement, ...prev]);
     setTitle("");
     setContent("");
@@ -154,7 +144,6 @@ export default function AdminAnnouncements() {
         { headers }
       );
       
-      // Replace optimistic with real data
       setAnnouncements(prev => 
         prev.map(a => a.id === newAnnouncement.id ? res.data : a)
       );
@@ -162,10 +151,8 @@ export default function AdminAnnouncements() {
       toast.success("Announcement published!", { id: loadingToast });
     } catch (err) {
       console.error("Add Announcement Error:", err);
-      // Remove optimistic on error
       setAnnouncements(prev => prev.filter(a => a.id !== newAnnouncement.id));
       toast.error("Failed to publish announcement", { id: loadingToast });
-      // Re-open form on error
       setShowForm(true);
     } finally {
       setIsSubmitting(false);
@@ -173,7 +160,6 @@ export default function AdminAnnouncements() {
   };
 
   const handleUpdate = async (id) => {
-    // Prevent double submission
     if (isUpdating) return;
     
     if (!editTitle.trim() || !editContent.trim()) {
@@ -185,7 +171,6 @@ export default function AdminAnnouncements() {
     
     const originalAnnouncement = announcements.find(a => a.id === id);
     
-    // Optimistic update
     setAnnouncements(prev => 
       prev.map(a => a.id === id ? {
         ...a,
@@ -217,7 +202,6 @@ export default function AdminAnnouncements() {
       toast.success("Announcement updated!", { id: loadingToast });
     } catch (err) {
       console.error("Update Announcement Error:", err);
-      // Revert optimistic update
       setAnnouncements(prev => 
         prev.map(a => a.id === id ? originalAnnouncement : a)
       );
@@ -234,8 +218,6 @@ export default function AdminAnnouncements() {
     setDeleteConfirmId(null);
     
     const originalAnnouncement = announcements.find(a => a.id === id);
-    
-    // Optimistic delete
     setAnnouncements(prev => prev.filter(a => a.id !== id));
     
     const loadingToast = toast.loading("Deleting announcement...");
@@ -245,7 +227,6 @@ export default function AdminAnnouncements() {
       toast.success("Announcement deleted", { id: loadingToast });
     } catch (err) {
       console.error("Delete Announcement Error:", err);
-      // Revert optimistic delete
       setAnnouncements(prev => [originalAnnouncement, ...prev]);
       toast.error("Failed to delete announcement", { id: loadingToast });
     } finally {
@@ -267,13 +248,11 @@ export default function AdminAnnouncements() {
     setEditCategory("");
   };
 
-  // Calculate stats
   const stats = {
     total: announcements.length,
     categories: new Set(announcements.map(a => a.category || 'General')).size
   };
 
-  // Filter announcements
   const filteredAnnouncements = announcements.filter(a => {
     const matchesSearch = a.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          a.content?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -281,7 +260,6 @@ export default function AdminAnnouncements() {
     return matchesSearch && matchesCategory;
   });
 
-  // Get unique categories
   const categories = ['all', ...new Set(announcements.map(a => a.category || 'General'))];
 
   const formatDate = (dateString) => {
@@ -311,15 +289,14 @@ export default function AdminAnnouncements() {
 
   const getCategoryColor = (category) => {
     switch(category) {
-      case 'Mass': return { bg: '#8b5cf6', light: '#ede9fe' };
+      case 'Mass': return { bg: '#8b5cf6', light: '#f3e8ff' };
       case 'Event': return { bg: '#10b981', light: '#d1fae5' };
       case 'Urgent': return { bg: '#ef4444', light: '#fee2e2' };
       case 'Reminder': return { bg: '#f59e0b', light: '#fef3c7' };
-      default: return { bg: '#3b82f6', light: '#dbeafe' };
+      default: return { bg: '#3b82f6', light: '#eff6ff' };
     }
   };
 
-  // Delete confirmation modal
   const DeleteConfirmModal = ({ id, onConfirm, onCancel }) => (
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
@@ -341,10 +318,7 @@ export default function AdminAnnouncements() {
   );
 
   return (
-    <div 
-      className="announcements-page"
-      style={{ backgroundImage: `url(${backgroundImg})` }}
-    >
+    <div className="announcements-page">
       <Toaster 
         position="top-right"
         toastOptions={{
@@ -356,17 +330,9 @@ export default function AdminAnnouncements() {
             padding: '12px 16px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           },
-          success: {
-            iconTheme: { primary: '#10b981', secondary: '#fff' },
-          },
-          error: {
-            iconTheme: { primary: '#ef4444', secondary: '#fff' },
-          },
         }}
       />
       
-      <div className="overlay"></div>
-
       <div className="content-wrapper">
         {/* Header */}
         <div className="header">
@@ -581,7 +547,6 @@ export default function AdminAnnouncements() {
                     transition={{ delay: index * 0.05 }}
                   >
                     {editingId === announcement.id ? (
-                      // Edit Mode
                       <div className="edit-mode">
                         <input
                           type="text"
@@ -636,7 +601,6 @@ export default function AdminAnnouncements() {
                         </div>
                       </div>
                     ) : (
-                      // View Mode
                       <>
                         <div className="card-header">
                           <div className="card-meta">
@@ -691,7 +655,6 @@ export default function AdminAnnouncements() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <DeleteConfirmModal 
           id={deleteConfirmId}
@@ -703,29 +666,15 @@ export default function AdminAnnouncements() {
       <style>{`
         .announcements-page {
           min-height: 100vh;
-          background-size: cover;
-          background-position: center;
-          background-attachment: fixed;
+          background: #f8fafc;
+          margin-top: 50px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          position: relative;
-          padding: 20px;
-        }
-
-        .overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
-          z-index: 0;
+          padding: 24px;
         }
 
         .content-wrapper {
           max-width: 1200px;
           margin: 0 auto;
-          position: relative;
-          z-index: 1;
         }
 
         /* Header */
@@ -736,6 +685,11 @@ export default function AdminAnnouncements() {
           margin-bottom: 24px;
           flex-wrap: wrap;
           gap: 16px;
+          background: white;
+          padding: 20px 24px;
+          border-radius: 20px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
 
         .header-left {
@@ -747,28 +701,25 @@ export default function AdminAnnouncements() {
         .title-icon {
           width: 48px;
           height: 48px;
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          border-radius: 16px;
+          background: #eff6ff;
+          border-radius: 14px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 24px;
-          color: white;
-          border: 1px solid rgba(255,255,255,0.2);
+          color: #3b82f6;
         }
 
         .page-title {
-          font-size: clamp(24px, 4vw, 32px);
+          font-size: 24px;
           font-weight: 700;
-          color: white;
+          color: #0f172a;
           margin: 0 0 4px 0;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .page-subtitle {
           font-size: 14px;
-          color: rgba(255,255,255,0.9);
+          color: #64748b;
           margin: 0;
         }
 
@@ -779,23 +730,22 @@ export default function AdminAnnouncements() {
         }
 
         .refresh-btn {
-          width: 44px;
-          height: 44px;
-          border: none;
+          width: 42px;
+          height: 42px;
+          background: white;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          color: white;
+          color: #64748b;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           transition: all 0.2s;
-          border: 1px solid rgba(255,255,255,0.2);
-          font-size: 20px;
         }
         .refresh-btn:hover:not(:disabled) {
-          background: rgba(255,255,255,0.25);
+          background: #f8fafc;
+          color: #0f172a;
+          border-color: #cbd5e1;
         }
         .refresh-btn:disabled {
           opacity: 0.5;
@@ -803,8 +753,8 @@ export default function AdminAnnouncements() {
         }
 
         .btn-primary {
-          background: white;
-          color: #1e293b;
+          background: #3b82f6;
+          color: white;
           border: none;
           padding: 10px 20px;
           border-radius: 12px;
@@ -815,24 +765,19 @@ export default function AdminAnnouncements() {
           display: flex;
           align-items: center;
           gap: 8px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         .btn-primary:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 10px -1px rgba(0,0,0,0.15);
+          background: #2563eb;
+          transform: translateY(-1px);
         }
         .btn-primary:disabled {
           opacity: 0.7;
           cursor: not-allowed;
-          transform: none;
-        }
-        .btn-primary.loading {
-          opacity: 0.8;
         }
 
         .btn-secondary {
-          background: #f1f5f9;
-          color: #1e293b;
+          background: white;
+          color: #475569;
           border: 1px solid #e2e8f0;
           padding: 10px 20px;
           border-radius: 12px;
@@ -845,11 +790,7 @@ export default function AdminAnnouncements() {
           gap: 8px;
         }
         .btn-secondary:hover:not(:disabled) {
-          background: #e2e8f0;
-        }
-        .btn-secondary:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
+          background: #f8fafc;
         }
 
         .btn-small {
@@ -861,19 +802,19 @@ export default function AdminAnnouncements() {
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
+          gap: 20px;
           margin-bottom: 24px;
         }
 
         .stat-card {
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
+          background: white;
+          border: 1px solid #e2e8f0;
           border-radius: 16px;
           padding: 20px;
           display: flex;
           align-items: center;
           gap: 16px;
-          border: 1px solid rgba(255,255,255,0.2);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
 
         .stat-icon {
@@ -886,23 +827,19 @@ export default function AdminAnnouncements() {
           font-size: 24px;
         }
         .stat-icon.total {
-          background: rgba(59, 130, 246, 0.3);
-          color: #93c5fd;
+          background: #eff6ff;
+          color: #3b82f6;
         }
         .stat-icon.categories {
-          background: rgba(245, 158, 11, 0.3);
-          color: #fcd34d;
-        }
-
-        .stat-content {
-          flex: 1;
+          background: #fef3c7;
+          color: #f59e0b;
         }
 
         .stat-value {
           display: block;
           font-size: 28px;
           font-weight: 700;
-          color: white;
+          color: #0f172a;
           line-height: 1.2;
           margin-bottom: 4px;
         }
@@ -910,7 +847,7 @@ export default function AdminAnnouncements() {
         .stat-label {
           display: block;
           font-size: 13px;
-          color: rgba(255,255,255,0.9);
+          color: #64748b;
         }
 
         /* Search and Filter */
@@ -929,48 +866,45 @@ export default function AdminAnnouncements() {
 
         .search-icon {
           position: absolute;
-          left: 12px;
+          left: 14px;
           top: 50%;
           transform: translateY(-50%);
-          color: rgba(255,255,255,0.7);
+          color: #94a3b8;
           font-size: 18px;
         }
 
         .search-input {
           width: 100%;
-          padding: 12px 12px 12px 42px;
-          border: 1px solid rgba(255,255,255,0.2);
+          padding: 12px 16px 12px 44px;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          color: white;
+          background: white;
+          color: #1e293b;
           font-size: 14px;
           outline: none;
           transition: all 0.2s;
         }
         .search-input:focus {
-          border-color: rgba(255,255,255,0.5);
-          background: rgba(255,255,255,0.2);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
         }
         .search-input::placeholder {
-          color: rgba(255,255,255,0.6);
+          color: #94a3b8;
         }
 
         .filter-select {
           padding: 12px 20px;
-          border: 1px solid rgba(255,255,255,0.2);
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          color: white;
+          background: white;
+          color: #1e293b;
           font-size: 14px;
           cursor: pointer;
           outline: none;
           min-width: 150px;
         }
-        .filter-select option {
-          background: #1e293b;
-          color: white;
+        .filter-select:focus {
+          border-color: #3b82f6;
         }
 
         /* Form Card */
@@ -979,14 +913,14 @@ export default function AdminAnnouncements() {
           border-radius: 20px;
           padding: 24px;
           margin-bottom: 24px;
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
           border: 1px solid #e2e8f0;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .form-title {
           font-size: 18px;
           font-weight: 600;
-          color: #1e293b;
+          color: #0f172a;
           margin: 0 0 20px;
         }
 
@@ -1050,18 +984,18 @@ export default function AdminAnnouncements() {
         .loading-state {
           text-align: center;
           padding: 60px 20px;
-          background: rgba(255,255,255,0.1);
-          backdrop-filter: blur(10px);
+          background: white;
           border-radius: 20px;
-          color: white;
+          color: #64748b;
+          border: 1px solid #e2e8f0;
         }
 
         .spinner {
           width: 48px;
           height: 48px;
           margin: 0 auto 16px;
-          border: 3px solid rgba(255,255,255,0.2);
-          border-top-color: white;
+          border: 3px solid #e2e8f0;
+          border-top-color: #3b82f6;
           border-radius: 50%;
           animation: spin 1s linear infinite;
         }
@@ -1081,7 +1015,7 @@ export default function AdminAnnouncements() {
           background: white;
           border-radius: 20px;
           color: #1e293b;
-          border: 1px solid #fee2e2;
+          border: 1px solid #fecaca;
         }
 
         .error-icon {
@@ -1113,10 +1047,10 @@ export default function AdminAnnouncements() {
         }
 
         .empty-state h3 {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 600;
           margin: 0 0 8px;
-          color: #1e293b;
+          color: #0f172a;
         }
 
         .empty-state p {
@@ -1137,14 +1071,13 @@ export default function AdminAnnouncements() {
           padding: 20px;
           border: 1px solid #e2e8f0;
           transition: all 0.3s;
-          position: relative;
           border-left-width: 4px;
           border-left-style: solid;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
         .announcement-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
         .card-header {
@@ -1204,11 +1137,11 @@ export default function AdminAnnouncements() {
           transition: all 0.2s;
         }
         .action-btn.edit:hover:not(:disabled) {
-          background: #dbeafe;
-          color: #2563eb;
+          background: #eff6ff;
+          color: #3b82f6;
         }
         .action-btn.delete:hover:not(:disabled) {
-          background: #fee2e2;
+          background: #fef2f2;
           color: #dc2626;
         }
         .action-btn:disabled {
@@ -1217,9 +1150,9 @@ export default function AdminAnnouncements() {
         }
 
         .card-title {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
-          color: #1e293b;
+          color: #0f172a;
           margin: 0 0 8px;
           line-height: 1.4;
         }
@@ -1266,12 +1199,6 @@ export default function AdminAnnouncements() {
           border-color: #3b82f6;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
-        .edit-input:disabled,
-        .edit-select:disabled,
-        .edit-textarea:disabled {
-          background: #f8fafc;
-          cursor: not-allowed;
-        }
 
         .edit-textarea {
           resize: vertical;
@@ -1285,29 +1212,30 @@ export default function AdminAnnouncements() {
         }
 
         /* Delete Confirmation Modal */
-        .confirm-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-        }
+       .confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;  /* CHANGE FROM 10000 TO 999999 */
+}
 
-        .confirm-modal {
-          background: white;
-          border-radius: 20px;
-          padding: 24px;
-          max-width: 400px;
-          width: 90%;
-          text-align: center;
-          animation: fadeInUp 0.2s ease;
-        }
+.confirm-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  animation: fadeInUp 0.2s ease;
+  z-index: 9990999  /* ADD THIS LINE */
+}
 
         @keyframes fadeInUp {
           from {
@@ -1323,7 +1251,7 @@ export default function AdminAnnouncements() {
         .confirm-icon {
           width: 56px;
           height: 56px;
-          background: #fee2e2;
+          background: #fef2f2;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -1334,9 +1262,9 @@ export default function AdminAnnouncements() {
         }
 
         .confirm-modal h3 {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 600;
-          color: #1e293b;
+          color: #0f172a;
           margin: 0 0 8px;
         }
 
@@ -1387,15 +1315,13 @@ export default function AdminAnnouncements() {
         .btn-confirm-delete:hover:not(:disabled) {
           background: #dc2626;
         }
-        .btn-confirm-delete:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
 
         /* Responsive */
         @media (max-width: 768px) {
+          .announcements-page { padding: 16px; }
+          
           .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
           }
 
           .search-filter-bar {
@@ -1417,12 +1343,6 @@ export default function AdminAnnouncements() {
           .form-actions button {
             width: 100%;
           }
-        }
-
-        @media (max-width: 480px) {
-          .stats-grid {
-            grid-template-columns: 1fr;
-          }
 
           .header {
             flex-direction: column;
@@ -1433,7 +1353,9 @@ export default function AdminAnnouncements() {
             width: 100%;
             justify-content: space-between;
           }
+        }
 
+        @media (max-width: 480px) {
           .card-header {
             flex-direction: column;
             gap: 8px;

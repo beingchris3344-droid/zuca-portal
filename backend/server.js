@@ -2941,9 +2941,7 @@ app.get("/api/chat/unread", authenticate, async (req, res) => {
       return res.json({ count: 0 });
     }
     
-    // Count messages that are:
-    // 1. Not deleted
-    // 2. NOT read by the current user (no read receipt)
+    // Count unread messages (no read receipt)
     const count = await prisma.message.count({
       where: { 
         roomId: defaultRoom.id,
@@ -2959,6 +2957,47 @@ app.get("/api/chat/unread", authenticate, async (req, res) => {
     res.json({ count });
   } catch (err) {
     console.error("Error counting unread messages:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark all messages in default chat as read for current user
+app.post("/api/chat/mark-all-read", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
+    
+    if (!defaultRoom) {
+      return res.json({ success: true, count: 0 });
+    }
+    
+    // Get all unread messages
+    const unreadMessages = await prisma.message.findMany({
+      where: {
+        roomId: defaultRoom.id,
+        isDeleted: false,
+        readReceipts: {
+          none: { userId: userId }
+        }
+      },
+      select: { id: true }
+    });
+    
+    // Create read receipts for each unread message
+    if (unreadMessages.length > 0) {
+      await prisma.readReceipt.createMany({
+        data: unreadMessages.map(msg => ({
+          messageId: msg.id,
+          userId: userId,
+          readAt: new Date()
+        })),
+        skipDuplicates: true
+      });
+    }
+    
+    res.json({ success: true, count: unreadMessages.length });
+  } catch (err) {
+    console.error("Error marking messages as read:", err);
     res.status(500).json({ error: err.message });
   }
 });

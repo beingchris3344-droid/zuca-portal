@@ -1,8 +1,8 @@
-// frontend/src/pages/MassPrograms.jsx
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import html2canvas from "html2canvas";
 import { 
   FiShare2, 
   FiCalendar, 
@@ -21,7 +21,8 @@ import {
   FiMessageSquare,
   FiVolume2,
   FiEye,
-  FiBookmark
+  FiBookmark,
+  FiImage
 } from "react-icons/fi";
 import { 
   BsMusicNoteBeamed, 
@@ -38,7 +39,8 @@ import {
   BsPlayCircle,
   BsPauseCircle,
   BsFileWord,
-  BsFilePdf
+  BsFilePdf,
+  BsFileImage
 } from "react-icons/bs";
 import { 
   GiPrayerBeads,
@@ -55,107 +57,112 @@ import { IoTimeOutline, IoDocumentTextOutline, IoMusicalNotesOutline } from "rea
 import { FaTelegramPlane, FaRegKeyboard, FaFileWord, FaFilePdf, FaFileAlt } from "react-icons/fa";
 import BASE_URL from "../api";
 
+// Helper function to parse semicolon-separated songs into array
+const parseSongs = (value) => {
+  if (!value) return [];
+  if (typeof value === 'string' && value.includes(';')) {
+    return value.split(';').map(s => s.trim()).filter(s => s);
+  }
+  if (typeof value === 'string' && value) {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return [];
+};
+
 // Enhanced song fields with more visibility options
 const songFields = [
   { 
     key: "entrance", 
     label: "Entrance", 
-    icon: <GiChurch />, 
+    icon: "🚪", 
     category: "opening", 
     color: "#4f46e5", 
     mobileOrder: 1,
-    description: "Opening procession hymn",
-    tips: "Gather the community in song"
+    description: "Opening procession hymn"
   },
   { 
     key: "mass", 
     label: "Mass", 
-    icon: <GiPrayerBeads />, 
+    icon: "⛪", 
     category: "liturgy", 
     color: "#7c3aed", 
     mobileOrder: 2,
-    description: "Ordinary of the Mass",
-    tips: "Kyrie, Gloria, Sanctus, Agnus Dei"
+    description: "Ordinary of the Mass"
   },
   { 
     key: "bible", 
     label: "Reading", 
-    icon: <BsBook />, 
+    icon: "📖", 
     category: "word", 
     color: "#059669", 
     mobileOrder: 3,
-    description: "Responsorial Psalm",
-    tips: "Between the readings"
+    description: "Responsorial Psalm"
   },
   { 
     key: "offertory", 
     label: "Offertory", 
-    icon: <GiGrain />, 
+    icon: "🙏", 
     category: "offering", 
     color: "#b45309", 
     mobileOrder: 4,
-    description: "Preparation of gifts",
-    tips: "During the offertory procession"
+    description: "Preparation of gifts"
   },
   { 
     key: "procession", 
     label: "Procession", 
-    icon: <GiAngelWings />, 
+    icon: "🚶", 
     category: "procession", 
     color: "#6b7280", 
     mobileOrder: 5,
-    description: "Gospel procession",
-    tips: "Before the Gospel reading"
+    description: "Gospel procession"
   },
   { 
     key: "mtakatifu", 
     label: "Mtakatifu", 
-    icon: <BsStars />, 
+    icon: "✨", 
     category: "special", 
     color: "#8b5cf6", 
     mobileOrder: 6,
-    description: "Saint's hymn",
-    tips: "Feast day or memorial"
+    description: "Saint's hymn"
   },
   { 
     key: "signOfPeace", 
     label: "Peace", 
-    icon: <BsPeace />, 
+    icon: "🕊️", 
     category: "peace", 
     color: "#10b981", 
     mobileOrder: 7,
-    description: "Sign of Peace",
-    tips: "Exchange of peace"
+    description: "Sign of Peace"
   },
   { 
     key: "communion", 
     label: "Communion", 
-    icon: <GiIncense />, 
+    icon: "🍞", 
     category: "communion", 
     color: "#991b1b", 
     mobileOrder: 8,
-    description: "Communion hymn",
-    tips: "During distribution of Communion"
+    description: "Communion hymn"
   },
   { 
     key: "thanksgiving", 
     label: "Thanksgiving", 
-    icon: <BsHeart />, 
+    icon: "🎉", 
     category: "thanksgiving", 
     color: "#ec4899", 
     mobileOrder: 9,
-    description: "Post-Communion",
-    tips: "After Communion meditation"
+    description: "Post-Communion"
   },
   { 
     key: "exit", 
     label: "Exit", 
-    icon: <BsMoonStars />, 
+    icon: "👋", 
     category: "closing", 
     color: "#4b5563", 
     mobileOrder: 10,
-    description: "Recessional hymn",
-    tips: "Closing procession"
+    description: "Recessional hymn"
   },
 ];
 
@@ -166,6 +173,7 @@ export default function MassPrograms() {
   const navigate = useNavigate();
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [openingSong, setOpeningSong] = useState(null); // Track which song is being opened
   const [expandedIds, setExpandedIds] = useState([]);
   const [collapsedIds, setCollapsedIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -175,10 +183,10 @@ export default function MassPrograms() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [highlightedSong, setHighlightedSong] = useState(null);
   const [songNotes, setSongNotes] = useState({});
-  const [viewMode, setViewMode] = useState('compact'); // compact or detailed
-  const [selectedSong, setSelectedSong] = useState(null);
+  const [viewMode, setViewMode] = useState('compact');
   const [songPreview, setSongPreview] = useState(null);
   const [downloadStatus, setDownloadStatus] = useState(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     venues: 0,
@@ -212,69 +220,75 @@ export default function MassPrograms() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /// Function to navigate to hymn in hymn book
-const navigateToHymn = async (hymnTitle, e) => {
-  e.stopPropagation();
-  
-  if (!hymnTitle || hymnTitle === '—' || hymnTitle.trim() === '') return;
-  
-  try {
-    // Search for the hymn
-    const response = await axios.get(
-      `${BASE_URL}/api/songs?search=${encodeURIComponent(hymnTitle)}&limit=5`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-    );
+  // Function to navigate to hymn in hymn book with loading state
+  const navigateToHymn = async (hymnTitle, e) => {
+    e.stopPropagation();
     
-    const songs = response.data.songs || [];
+    if (!hymnTitle || hymnTitle === '—' || hymnTitle.trim() === '') return;
     
-    if (songs && songs.length > 0) {
-      // Navigate directly to the song by ID
-      navigate(`/hymn/${songs[0].id}`);
-    } else {
-      showToast(`"${hymnTitle}" not found in hymn book`);
+    // Set loading state for this specific song
+    setOpeningSong(hymnTitle);
+    
+    try {
+      // Search for the hymn
+      const response = await axios.get(
+        `${BASE_URL}/api/songs?search=${encodeURIComponent(hymnTitle)}&limit=5`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      
+      const songs = response.data.songs || [];
+      
+      if (songs && songs.length > 0) {
+        // Navigate directly to the song by ID
+        navigate(`/hymn/${songs[0].id}`);
+      } else {
+        showToast(`"${hymnTitle}" not found in hymn book`);
+        setOpeningSong(null);
+      }
+    } catch (err) {
+      console.error("Error finding hymn:", err);
+      showToast(`Could not find "${hymnTitle}"`);
+      setOpeningSong(null);
     }
-  } catch (err) {
-    console.error("Error finding hymn:", err);
-    showToast(`Could not find "${hymnTitle}"`);
-  }
-};
+  };
+
   // Fetch programs
   const fetchPrograms = useCallback(async () => {
-  try {
-    setLoading(true);
-    const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    
-    // ✅ FIX: Ensure we always have an array
-    const programsData = Array.isArray(res.data) ? res.data : [];
-    setPrograms(programsData);
-    
-    const now = new Date();
-    const upcoming = programsData.filter(p => new Date(p.date) >= now).length;
-    const venues = [...new Set(programsData.map(p => p.venue).filter(Boolean))].length;
-    
-    // Calculate total hymns
-    let hymnCount = 0;
-    programsData.forEach(p => {
-      songFields.forEach(f => {
-        if (p[f.key]) hymnCount++;
+    try {
+      setLoading(true);
+      const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-    });
-    
-    setStats({
-      total: programsData.length,
-      venues,
-      upcoming,
-      totalHymns: hymnCount,
-    });
-  } catch (err) {
-    console.error(err);
-    setPrograms([]); // Set empty array on error
-  } finally {
-    setLoading(false);
-  }
-}, [token]);
+      
+      const programsData = Array.isArray(res.data) ? res.data : [];
+      setPrograms(programsData);
+      
+      const now = new Date();
+      const upcoming = programsData.filter(p => new Date(p.date) >= now).length;
+      const venues = [...new Set(programsData.map(p => p.venue).filter(Boolean))].length;
+      
+      // Calculate total hymns (counting multiple songs per field)
+      let hymnCount = 0;
+      programsData.forEach(p => {
+        songFields.forEach(f => {
+          const songs = parseSongs(p[f.key]);
+          hymnCount += songs.length;
+        });
+      });
+      
+      setStats({
+        total: programsData.length,
+        venues,
+        upcoming,
+        totalHymns: hymnCount,
+      });
+    } catch (err) {
+      console.error(err);
+      setPrograms([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
     fetchPrograms();
@@ -293,11 +307,12 @@ const navigateToHymn = async (hymnTitle, e) => {
     localStorage.setItem("songNotes", JSON.stringify(songNotes));
   }, [songNotes]);
 
-  // ========== ENHANCED SONG INTERACTIVITY ==========
+  // ========== HELPER FUNCTIONS ==========
   const getSongFrequency = (key) => {
     let count = 0;
     programs.forEach(p => {
-      if (p[key]) count++;
+      const songs = parseSongs(p[key]);
+      count += songs.length;
     });
     return count;
   };
@@ -305,24 +320,28 @@ const navigateToHymn = async (hymnTitle, e) => {
   const getUniqueSongs = (key) => {
     const songs = new Set();
     programs.forEach(p => {
-      if (p[key]) songs.add(p[key]);
+      const songsArray = parseSongs(p[key]);
+      songsArray.forEach(s => songs.add(s));
     });
     return Array.from(songs);
   };
 
-  const addSongNote = (programId, songKey, note) => {
-    if (note && note.trim() !== '') {
-      setSongNotes(prev => ({
-        ...prev,
-        [`${programId}-${songKey}`]: note
-      }));
-      showToast('📝 Note added');
-    } else {
-      // Remove note if empty
-      const newNotes = { ...songNotes };
-      delete newNotes[`${programId}-${songKey}`];
-      setSongNotes(newNotes);
-      showToast('📝 Note removed');
+  const addSongNote = (programId, songKey, songIndex, currentNote) => {
+    const noteKey = songIndex !== undefined ? `${programId}-${songKey}-${songIndex}` : `${programId}-${songKey}`;
+    const note = prompt('Add a note for this hymn:', currentNote || '');
+    if (note !== null) {
+      if (note.trim() !== '') {
+        setSongNotes(prev => ({
+          ...prev,
+          [noteKey]: note
+        }));
+        showToast('📝 Note added');
+      } else {
+        const newNotes = { ...songNotes };
+        delete newNotes[noteKey];
+        setSongNotes(newNotes);
+        showToast('📝 Note removed');
+      }
     }
   };
 
@@ -336,413 +355,358 @@ const navigateToHymn = async (hymnTitle, e) => {
     setTimeout(() => setSongPreview(null), 3000);
   };
 
-  // ========== PROFESSIONAL DOCUMENT GENERATION WITH PROPER FORMATTING ==========
-  const generateProfessionalDocument = (program, format) => {
-    // Guard clause - if program is invalid
-    if (!program || !program.date) {
-      return format === 'html' 
-        ? '<html><body><h1>Error: Invalid program data</h1></body></html>'
-        : 'Error: Invalid program data';
-    }
-    
+  // ========== GET SONGS ARRAY FROM PROGRAM ==========
+  const getSongsArray = (program, fieldKey) => {
+    const value = program[fieldKey];
+    return parseSongs(value);
+  };
+
+  // ========== IMAGE DOWNLOAD ==========
+  const downloadAsImage = async (program) => {
+    setGeneratingImage(true);
+    showToast("Generating image...");
+
     try {
-      const date = new Date(program.date);
-      const formattedDate = date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
+      const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+        weekday: 'long',
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
       });
-      
-      // Format time if available - remove "To be announced"
-      const timeStr = program.time && program.time !== 'To be announced' ? program.time : '';
-      
-      // Get all hymns that exist for this program
-      const hymns = songFields
-        .filter(f => program[f.key] && program[f.key].trim() !== '')
-        .map(f => {
-          const note = songNotes[`${program.id}-${f.key}`];
-          return {
-            label: f.label,
-            value: program[f.key],
-            note: note || null,
-            color: f.color
-          };
-        });
-      
-      if (format === 'text') {
-        let content = '';
-        content += '='.repeat(50) + '\n';
-        content += '                    MASS PROGRAM\n';
-        content += '='.repeat(50) + '\n\n';
-        content += '📅 DATE: ' + formattedDate + '\n';
-        if (timeStr) content += '⏰ TIME: ' + timeStr + '\n';
-        content += '📍 VENUE: ' + (program.venue || 'Not specified') + '\n';
-        content += '📊 TOTAL HYMNS: ' + hymns.length + '\n\n';
-        content += '='.repeat(50) + '\n';
-        content += '                    LITURGY ORDER\n';
-        content += '='.repeat(50) + '\n\n';
+
+      const songsHtml = songFields.map(field => {
+        const songsArray = getSongsArray(program, field.key);
+        if (songsArray.length === 0) return '';
         
-        hymns.forEach((h, index) => {
-          content += (index + 1).toString().padEnd(3) + h.label.padEnd(20) + ': ' + h.value + '\n';
-          if (h.note) {
-            content += '     📝 Note: ' + h.note + '\n';
-          }
-          content += '\n';
-        });
+        let songsDisplay = '';
+        if (songsArray.length === 1) {
+          songsDisplay = `<div style="font-size: 13px; line-height: 1.4;">${songsArray[0]}</div>`;
+        } else {
+          songsDisplay = songsArray.map((song, idx) => 
+            `<div style="font-size: 13px; line-height: 1.4; margin-top: ${idx === 0 ? '0' : '6px'};">${idx + 1}. ${song}</div>`
+          ).join('');
+        }
         
-        content += '\n' + '='.repeat(50) + '\n';
-        content += '              ZETECH CATHOLIC ACTION\n';
-        content += '='.repeat(50) + '\n';
-        content += 'Generated on: ' + new Date().toLocaleString() + '\n';
-        
-        return content;
-      }
-      
-      if (format === 'html') {
-        let hymnsHtml = '';
-        hymns.forEach((h, index) => {
-          hymnsHtml += `
-            <div class="hymn-item">
-              <div class="hymn-number">${index + 1}</div>
-              <div class="hymn-content">
-                <div class="hymn-label" style="color: ${h.color}">${h.label}</div>
-                <div class="hymn-value">${h.value}</div>
-                ${h.note ? `<div class="hymn-note">📝 ${h.note}</div>` : ''}
-              </div>
+        return `
+          <div style="padding: 10px; background: #f8fafc; border-radius: 8px; border-left: 3px solid ${field.color}; margin-bottom: 8px; break-inside: avoid;">
+            <div style="font-weight: bold; color: ${field.color}; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px;">
+              <span>${field.icon}</span>
+              <span>${field.label}</span>
             </div>
-          `;
-        });
+            ${songsDisplay}
+          </div>
+        `;
+      }).filter(html => html).join('');
 
-        return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mass Program - ${formattedDate}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: 'Times New Roman', Times, serif; 
-      background: #ffffff; 
-      padding: 0;
-      margin: 0;
-      line-height: 1.5;
-    }
-    .page {
-      width: 100%;
-      max-width: 800px;
-      margin: 0 auto;
-      background: white;
-      padding: 40px 30px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.1);
-      min-height: 100vh;
-    }
-    h1 { 
-      font-size: 32px; 
-      text-align: center; 
-      color: #4f46e5; 
-      margin: 20px 0 10px;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-    .subtitle {
-      text-align: center;
-      color: #6b7280;
-      margin-bottom: 30px;
-      font-size: 16px;
-    }
-    .info-grid { 
-      display: grid; 
-      grid-template-columns: repeat(3, 1fr); 
-      gap: 20px; 
-      margin: 30px 0; 
-      background: #f8fafc; 
-      padding: 20px; 
-      border-radius: 12px; 
-      border: 1px solid #e2e8f0;
-    }
-    .info-item { text-align: center; }
-    .info-label { 
-      font-size: 12px; 
-      color: #6b7280; 
-      text-transform: uppercase; 
-      letter-spacing: 0.5px; 
-      margin-bottom: 5px;
-    }
-    .info-value { 
-      font-size: 18px; 
-      font-weight: 700; 
-      color: #1f2937; 
-    }
-    .section-title { 
-      font-size: 24px; 
-      color: #4f46e5; 
-      margin: 30px 0 20px; 
-      padding-bottom: 10px; 
-      border-bottom: 2px solid #e5e7eb; 
-    }
-    .hymn-list { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 15px; 
-      margin: 20px 0;
-    }
-    .hymn-item { 
-      display: flex; 
-      gap: 15px;
-      padding: 15px;
-      background: #f8fafc; 
-      border-radius: 8px; 
-      border-left: 4px solid #4f46e5;
-      page-break-inside: avoid;
-    }
-    .hymn-number {
-      font-size: 18px;
-      font-weight: 700;
-      color: #4f46e5;
-      min-width: 30px;
-      text-align: center;
-    }
-    .hymn-content {
-      flex: 1;
-    }
-    .hymn-label { 
-      font-size: 16px; 
-      font-weight: 700; 
-      margin-bottom: 5px; 
-    }
-    .hymn-value { 
-      font-size: 15px; 
-      color: #1f2937; 
-      line-height: 1.5;
-    }
-    .hymn-note { 
-      font-size: 13px; 
-      color: #8b5cf6; 
-      margin-top: 5px; 
-      font-style: italic; 
-      padding: 5px 10px;
-      background: #ede9fe;
-      border-radius: 4px;
-    }
-    .footer { 
-      text-align: center; 
-      margin-top: 40px; 
-      padding-top: 20px;
-      border-top: 2px solid #e5e7eb;
-      color: #6b7280; 
-      font-size: 12px; 
-    }
-    @media print {
-      body { background: white; }
-      .page { box-shadow: none; padding: 0.5in; }
-      .hymn-item { break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <h1>MASS PROGRAM</h1>
-    <div class="subtitle">Zetech Catholic Action</div>
-    
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="info-label">Date</div>
-        <div class="info-value">${formattedDate}</div>
-      </div>
-      ${timeStr ? `
-      <div class="info-item">
-        <div class="info-label">Time</div>
-        <div class="info-value">${timeStr}</div>
-      </div>
-      ` : ''}
-      <div class="info-item">
-        <div class="info-label">Venue</div>
-        <div class="info-value">${program.venue || 'Not specified'}</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">Hymns</div>
-        <div class="info-value">${hymns.length}</div>
-      </div>
-    </div>
-
-    <h2 class="section-title">Liturgy Order</h2>
-    
-    <div class="hymn-list">
-      ${hymnsHtml}
-    </div>
-    
-    <div class="footer">
-      <p>ZETECH CATHOLIC ACTION • Generated on ${new Date().toLocaleString()}</p>
-      <p>ZUCA PORTAL SYSTEM GENERATED PROGRAM</p>
-    </div>
-  </div>
-</body>
-</html>`;
-      }
+      const container = document.createElement('div');
+      container.style.padding = '20px';
+      container.style.background = 'white';
+      container.style.borderRadius = '12px';
+      container.style.maxWidth = '800px';
+      container.style.margin = '0 auto';
+      container.style.fontFamily = 'Arial, sans-serif';
       
-      return '';
+      container.innerHTML = `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h1 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; font-size: 24px; margin: 0;">MASS PROGRAM</h1>
+          <div style="color: #64748b; margin-top: 12px; font-size: 14px;">${formattedDate}</div>
+          <div style="font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 5px;">${program.venue}</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+          ${songsHtml}
+        </div>
+        <div style="margin-top: 25px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px;">
+          Zetech University Catholic Action | ZUCA Portal
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      document.body.removeChild(container);
+
+      const link = document.createElement('a');
+      link.download = `Mass_Program_${program.date}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast("Image downloaded successfully");
     } catch (error) {
-      console.error('Error generating document:', error);
-      return format === 'html' 
-        ? '<html><body><h1>Error generating document</h1></body></html>'
-        : 'Error generating document';
+      console.error(error);
+      showToast("Failed to generate image");
+    } finally {
+      setGeneratingImage(false);
     }
   };
 
-  // ========== RTF GENERATION FOR WORD (PROPERLY FORMATTED) ==========
-  const generateRTFDocument = (program) => {
-    const date = new Date(program.date);
-    const formattedDate = date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
+  // ========== WORD DOCUMENT DOWNLOAD ==========
+  const downloadAsWord = (program) => {
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const songsRows = songFields.map(field => {
+      const songsArray = getSongsArray(program, field.key);
+      if (songsArray.length === 0) return '';
+      
+      let songsDisplay = '';
+      if (songsArray.length === 1) {
+        songsDisplay = songsArray[0];
+      } else {
+        songsDisplay = songsArray.map((song, idx) => `${idx + 1}. ${song}`).join('<br>');
+      }
+      
+      return `
+        <tr>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-weight: 600; color: #2c3e50; width: 30%; background: #f8fafc;">${field.icon} ${field.label}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; line-height: 1.4;">${songsDisplay}</td>
+        </tr>
+      `;
+    }).filter(html => html).join('');
+
+    const content = `<!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Mass Program - ${program.date}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Calibri', 'Arial', sans-serif; max-width: 1000px; margin: 0 auto; padding: 40px 20px; background: white; }
+        @media print { body { padding: 0; margin: 0; } }
+        h1 { color: #2c3e50; text-align: center; border-bottom: 3px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; font-size: 28px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .date { color: #7f8c8d; font-size: 16px; margin: 10px 0; }
+        .venue { font-size: 20px; font-weight: bold; color: #2c3e50; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        .footer { margin-top: 40px; text-align: center; color: #64748b; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+      </style>
+    </head>
+    <body>
+      <div>
+        <div class="header">
+          <h1>⛪ MASS PROGRAM</h1>
+          <div class="date">📅 ${formattedDate}</div>
+          <div class="venue">📍 ${program.venue}</div>
+        </div>
+        <table>
+          <tbody>${songsRows}</tbody>
+        </table>
+        <div class="footer">
+          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu! 🙏
+        </div>
+      </div>
+    </body>
+    </html>`;
+
+    const blob = new Blob([content], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Mass_Program_${program.date}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Word document downloaded");
+  };
+
+  // ========== PDF DOWNLOAD ==========
+  const downloadAsPDF = (program) => {
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const songsRows = songFields.map(field => {
+      const songsArray = getSongsArray(program, field.key);
+      if (songsArray.length === 0) return '';
+      
+      let songsDisplay = '';
+      if (songsArray.length === 1) {
+        songsDisplay = songsArray[0];
+      } else {
+        songsDisplay = songsArray.map((song, idx) => `${idx + 1}. ${song}`).join('<br>');
+      }
+      
+      return `
+        <div class="song-row">
+          <div class="song-label">${field.icon} ${field.label}</div>
+          <div class="song-value">${songsDisplay}</div>
+        </div>
+      `;
+    }).filter(html => html).join('');
+
+    const content = `<!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Mass Program - ${program.date}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Times New Roman', serif; max-width: 900px; margin: 0 auto; padding: 40px 20px; background: white; }
+        @media print { body { padding: 0; margin: 0; } }
+        h1 { color: #1a1a2e; text-align: center; border-bottom: 2px solid #1a1a2e; padding-bottom: 12px; margin-bottom: 20px; font-size: 26px; }
+        .header { text-align: center; margin-bottom: 35px; }
+        .date { color: #333; font-size: 14px; margin: 8px 0; }
+        .venue { font-size: 18px; font-weight: bold; margin-top: 5px; }
+        .song-row { display: flex; margin: 10px 0; padding: 8px; border-bottom: 1px solid #ddd; break-inside: avoid; }
+        .song-label { font-weight: bold; width: 200px; flex-shrink: 0; }
+        .song-value { flex: 1; line-height: 1.4; }
+        .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #666; border-top: 1px solid #ddd; padding-top: 15px; }
+      </style>
+    </head>
+    <body>
+      <div>
+        <div class="header">
+          <h1>MASS PROGRAM</h1>
+          <div class="date">${formattedDate}</div>
+          <div class="venue">${program.venue}</div>
+        </div>
+        ${songsRows}
+        <div class="footer">
+          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu!
+        </div>
+      </div>
+    </body>
+    </html>`;
+
+    const blob = new Blob([content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Mass_Program_${program.date}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("HTML saved - use Ctrl+P to save as PDF");
+  };
+
+  // ========== SHARE FUNCTIONALITY ==========
+  const shareProgram = (program, platform) => {
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
     });
     
-    const timeStr = program.time && program.time !== 'To be announced' ? program.time : '';
+    let shareText = `MASS PROGRAM\n📅 ${formattedDate}\n📍 ${program.venue}\n\n`;
     
-    const hymns = songFields
-      .filter(f => program[f.key] && program[f.key].trim() !== '')
-      .map(f => {
-        const note = songNotes[`${program.id}-${f.key}`];
-        return { label: f.label, value: program[f.key], note };
-      });
-
-    let rtf = '{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times New Roman;}} \\f0\\fs32\\pard\\qc\\b MASS PROGRAM\\b0\\par\\fs20\\par ';
-    rtf += '{\\fs28\\b Date: \\b0 ' + formattedDate + '\\par ';
-    if (timeStr) rtf += 'Time: ' + timeStr + '\\par ';
-    rtf += 'Venue: ' + (program.venue || 'Not specified') + '\\par ';
-    rtf += 'Total Hymns: ' + hymns.length + '\\par}\\par\\par ';
-    rtf += '{\\fs28\\b LITURGY ORDER\\b0\\par}\\par ';
-    
-    hymns.forEach((h, index) => {
-      rtf += '{\\fs24\\b ' + (index + 1) + '. ' + h.label + ':\\b0 ' + h.value + '\\par ';
-      if (h.note) rtf += '{\\fs20\\i Note: ' + h.note + '\\i0\\par}';
-      rtf += '\\par ';
+    songFields.forEach(field => {
+      const songsArray = getSongsArray(program, field.key);
+      if (songsArray.length > 0) {
+        shareText += `${field.icon} ${field.label}: `;
+        if (songsArray.length === 1) {
+          shareText += `${songsArray[0]}\n`;
+        } else {
+          shareText += songsArray.map((s, i) => `\n  ${i+1}. ${s}`).join('') + '\n';
+        }
+      }
     });
     
-    rtf += '\\par{\\fs20\\qc ZETECH CATHOLIC ACTION\\par Generated on ' + new Date().toLocaleString() + '\\par}';
-    rtf += '}';
-    
-    return rtf;
-  };
-
-  // ========== PDF DOWNLOAD (WORKS PROPERLY) ==========
-  const downloadAsPDF = (program) => {
-    const html = generateProfessionalDocument(program, 'html');
-    
-    // Create a blob with the HTML content
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    
-    // Create a link to download as .pdf (the browser will handle it)
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'mass-program-' + new Date(program.date).toISOString().split('T')[0] + '.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    
-    showToast('✅ PDF download started');
-  };
-
-  // ========== FIXED DOWNLOAD FUNCTION WITH MULTIPLE FORMATS ==========
-  const downloadProgram = (program, format) => {
-    try {
-      setDownloadStatus('preparing-' + format);
-      
-      let content = '';
-      let mimeType = '';
-      let extension = '';
-      let filename = 'mass-program-' + new Date(program.date).toISOString().split('T')[0];
-      
-      switch(format) {
-        case 'txt':
-          content = generateProfessionalDocument(program, 'text');
-          mimeType = 'text/plain';
-          extension = '.txt';
-          break;
-        case 'html':
-          content = generateProfessionalDocument(program, 'html');
-          mimeType = 'text/html';
-          extension = '.html';
-          break;
-        case 'rtf':
-          content = generateRTFDocument(program);
-          mimeType = 'application/rtf';
-          extension = '.rtf';
-          break;
-        case 'doc':
-          // For Word, use HTML with .doc extension
-          content = generateProfessionalDocument(program, 'html');
-          mimeType = 'application/msword';
-          extension = '.doc';
-          break;
-        default:
-          content = generateProfessionalDocument(program, 'text');
-          mimeType = 'text/plain';
-          extension = '.txt';
-      }
-      
-      // Create blob and download
-      const blob = new Blob([content], { type: mimeType });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      
-      link.href = url;
-      link.download = filename + extension;
-      link.style.display = 'none';
-      
-      document.body.appendChild(link);
-      link.click();
-      
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
-      setDownloadStatus('success');
-      showToast('✅ Program downloaded as ' + format.toUpperCase());
-      setTimeout(() => setDownloadStatus(null), 2000);
-      
-    } catch (error) {
-      console.error('Download failed:', error);
-      setDownloadStatus('error');
-      showToast('❌ Download failed. Please try again.');
-      setTimeout(() => setDownloadStatus(null), 3000);
-    }
-  };
-
-  // ========== SHARE FUNCTIONALITY ==========
-  const shareProgram = (program, platform) => {
-    const document = generateProfessionalDocument(program, 'text');
+    shareText += `\nZetech Catholic Action | ZUCA Portal`;
     
     if (platform === 'whatsapp') {
-      window.open('https://wa.me/?text=' + encodeURIComponent(document), '_blank');
+      window.open('https://wa.me/?text=' + encodeURIComponent(shareText), '_blank');
     } else if (platform === 'telegram') {
-      window.open('https://t.me/share/url?url=&text=' + encodeURIComponent(document), '_blank');
+      window.open('https://t.me/share/url?url=&text=' + encodeURIComponent(shareText), '_blank');
     } else if (platform === 'twitter') {
-      window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(document.substring(0, 280)), '_blank');
+      window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText.substring(0, 280)), '_blank');
     } else if (platform === 'email') {
-      window.open('mailto:?subject=Mass Program - ' + formatDate(program.date) + '&body=' + encodeURIComponent(document));
+      window.open('mailto:?subject=Mass Program - ' + formattedDate + '&body=' + encodeURIComponent(shareText));
     } else {
       setShareModal(program);
     }
   };
 
   const copyToClipboard = (program) => {
-    const document = generateProfessionalDocument(program, 'text');
-    navigator.clipboard.writeText(document);
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    let shareText = `MASS PROGRAM\n📅 ${formattedDate}\n📍 ${program.venue}\n\n`;
+    
+    songFields.forEach(field => {
+      const songsArray = getSongsArray(program, field.key);
+      if (songsArray.length > 0) {
+        shareText += `${field.icon} ${field.label}: `;
+        if (songsArray.length === 1) {
+          shareText += `${songsArray[0]}\n`;
+        } else {
+          shareText += songsArray.map((s, i) => `\n  ${i+1}. ${s}`).join('') + '\n';
+        }
+      }
+    });
+    
+    shareText += `\nZetech Catholic Action | ZUCA Portal`;
+    
+    navigator.clipboard.writeText(shareText);
     showToast("📋 Mass program copied to clipboard!");
   };
 
   const printProgram = (program) => {
-    const html = generateProfessionalDocument(program, 'html');
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const songsRows = songFields.map(field => {
+      const songsArray = getSongsArray(program, field.key);
+      if (songsArray.length === 0) return '';
+      
+      let songsDisplay = '';
+      if (songsArray.length === 1) {
+        songsDisplay = songsArray[0];
+      } else {
+        songsDisplay = songsArray.map((song, idx) => `${idx + 1}. ${song}`).join('<br>');
+      }
+      
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; font-weight: bold; width: 200px;">${field.icon} ${field.label}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top;">${songsDisplay}</td>
+        </tr>
+      `;
+    }).filter(html => html).join('');
+
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(html);
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Mass Program - ${program.date}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Times New Roman', serif; padding: 40px 20px; max-width: 900px; margin: 0 auto; }
+          h1 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .date { color: #333; margin: 8px 0; }
+          .venue { font-size: 18px; font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          .footer { margin-top: 40px; text-align: center; border-top: 1px solid #ddd; padding-top: 15px; font-size: 11px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>MASS PROGRAM</h1>
+          <div class="date">${formattedDate}</div>
+          <div class="venue">${program.venue}</div>
+        </div>
+        <table>
+          ${songsRows}
+        </table>
+        <div class="footer">
+          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu!
+        </div>
+      </body>
+      </html>
+    `);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -767,15 +731,6 @@ const navigateToHymn = async (hymnTitle, e) => {
     if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
     
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const getFullDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
   };
 
   const toggleExpand = (id) => {
@@ -804,7 +759,10 @@ const navigateToHymn = async (hymnTitle, e) => {
 
     if (searchTerm) {
       filtered = filtered.filter(p => 
-        songFields.some(f => p[f.key]?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        songFields.some(f => {
+          const songs = parseSongs(p[f.key]);
+          return songs.some(song => song?.toLowerCase().includes(searchTerm.toLowerCase()));
+        }) ||
         p.venue.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -830,17 +788,11 @@ const navigateToHymn = async (hymnTitle, e) => {
     return ["all", ...new Set(programs.map(p => p.venue))];
   }, [programs]);
 
-  const handleDownloadClick = (p, format) => {
-    if (downloadStatus) return;
-    downloadProgram(p, format);
+  const handleDownloadClick = (p, type) => {
+    if (type === 'word') downloadAsWord(p);
+    else if (type === 'pdf') downloadAsPDF(p);
+    else if (type === 'image') downloadAsImage(p);
     setShowDownloadMenu(null);
-  };
-
-  const handleAddNote = (p, f, currentNote) => {
-    const note = prompt('Add a note for this hymn:', currentNote || '');
-    if (note !== null) {
-      addSongNote(p.id, f.key, note);
-    }
   };
 
   if (loading) {
@@ -877,7 +829,7 @@ const navigateToHymn = async (hymnTitle, e) => {
           </div>
         </div>
 
-        {/* Enhanced Stats for Mobile */}
+        {/* Compact Stats */}
         <div style={compactStats}>
           <motion.div 
             style={compactStat}
@@ -964,7 +916,7 @@ const navigateToHymn = async (hymnTitle, e) => {
           <span style={resultsBold}>{filteredPrograms.length}</span> programs • 
           <span style={resultsBold}> {
             filteredPrograms.reduce((acc, p) => {
-              return acc + songFields.filter(f => p[f.key]).length;
+              return acc + songFields.reduce((sum, f) => sum + parseSongs(p[f.key]).length, 0);
             }, 0)
           }</span> hymns
         </div>
@@ -978,7 +930,6 @@ const navigateToHymn = async (hymnTitle, e) => {
             const isCollapsed = collapsedIds.includes(p.id);
             const isFavorite = favorites.includes(p.id);
             const displayFields = isMobile && !isExpanded ? mobileCompactFields : songFields;
-            const hymnCount = songFields.filter(f => p[f.key]).length;
             const hasTime = p.time && p.time !== 'To be announced';
 
             return (
@@ -1008,13 +959,11 @@ const navigateToHymn = async (hymnTitle, e) => {
                         {new Date(p.date).toDateString() === new Date().toDateString() && (
                           <span style={todayChip}>Today</span>
                         )}
-                        <span style={hymnCountChip}>{hymnCount} hymns</span>
                       </div>
                       <div style={cardVenue}>
                         <FiMapPin size={12} />
                         <span>{p.venue.length > 25 ? p.venue.substring(0, 25) + '...' : p.venue}</span>
                       </div>
-                      {/* Display time only if available */}
                       {hasTime && (
                         <div style={{ ...cardVenue, marginTop: '2px' }}>
                           <FiClock size={12} />
@@ -1037,7 +986,7 @@ const navigateToHymn = async (hymnTitle, e) => {
                   </div>
                 </div>
 
-                {/* Songs Grid */}
+                {/* Songs Grid - WITH MULTIPLE SONG SUPPORT */}
                 {!isCollapsed && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -1045,100 +994,119 @@ const navigateToHymn = async (hymnTitle, e) => {
                     style={songsGrid}
                   >
                     {displayFields.map((f) => {
-                      const value = p[f.key];
-                      if (!value) return null;
-                      const isHighlighted = highlightedSong === `${p.id}-${f.key}`;
-                      const note = songNotes[`${p.id}-${f.key}`];
+                      const songsArray = parseSongs(p[f.key]);
+                      if (songsArray.length === 0) return null;
+                      
                       const frequency = getSongFrequency(f.key);
                       const uniqueSongs = getUniqueSongs(f.key).length;
 
-                      return (
-                        <motion.div
-                          key={f.key}
-                          style={{
-                            ...songItem,
-                            borderLeft: `4px solid ${f.color}`,
-                            backgroundColor: isHighlighted ? f.color + '15' : '#f8fafc',
-                            transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
-                          }}
-                          whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                        >
-                          <div style={songHeader}>
-                            <div style={{ ...songIcon, color: f.color }}>{f.icon}</div>
-                            <div style={songLabel}>{f.label}</div>
-                            {viewMode === 'detailed' && (
-                              <div style={songMeta}>
-                                <span style={songMetaItem} title={'Used in ' + frequency + ' programs'}>
-                                  <FiEye size={10} /> {frequency}
-                                </span>
-                                <span style={songMetaItem} title={uniqueSongs + ' unique songs'}>
-                                  <BsMusicNoteList size={10} /> {uniqueSongs}
-                                </span>
+                      return songsArray.map((song, idx) => {
+                        const songKey = `${p.id}-${f.key}-${idx}`;
+                        const isHighlighted = highlightedSong === songKey;
+                        const note = songNotes[songKey] || songNotes[`${p.id}-${f.key}`];
+                        const displayLabel = idx === 0 ? f.label : `${f.label} ${idx + 1}`;
+                        const isOpening = openingSong === song;
+                        
+                        return (
+                          <motion.div
+                            key={`${f.key}-${idx}`}
+                            style={{
+                              ...songItem,
+                              borderLeft: `4px solid ${f.color}`,
+                              backgroundColor: isHighlighted ? f.color + '15' : '#f8fafc',
+                              transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
+                              position: 'relative',
+                            }}
+                            whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          >
+                            {/* Loading Overlay */}
+                            {isOpening && (
+                              <div style={songLoadingOverlay}>
+                                <div style={songLoadingSpinner}></div>
+                                <span style={songLoadingText}>Opening lyrics...</span>
                               </div>
                             )}
-                          </div>
-                          
-                          <div style={songValueWrapper}>
-                            <div 
-                              style={clickableSongValue}
-                              onClick={(e) => navigateToHymn(value, e)}
-                              title="Click to view lyrics in hymn book"
-                            >
-                              {value}
-                              <span style={viewIconStyle}>👁️</span>
+                            
+                            <div style={songHeader}>
+                              <div style={{ ...songIcon, color: f.color }}>{f.icon}</div>
+                              <div style={songLabel}>{displayLabel}</div>
+                              {viewMode === 'detailed' && idx === 0 && (
+                                <div style={songMeta}>
+                                  <span style={songMetaItem} title={'Used in ' + frequency + ' programs'}>
+                                    <FiEye size={10} /> {frequency}
+                                  </span>
+                                  <span style={songMetaItem} title={uniqueSongs + ' unique songs'}>
+                                    <BsMusicNoteList size={10} /> {uniqueSongs}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                            {viewMode === 'detailed' && f.description && (
-                              <div style={songDescription}>{f.description}</div>
+                            
+                            <div style={songValueWrapper}>
+                              <div 
+                                style={{
+                                  ...clickableSongValue,
+                                  cursor: isOpening ? 'wait' : 'pointer',
+                                  opacity: isOpening ? 0.7 : 1,
+                                }}
+                                onClick={(e) => !isOpening && navigateToHymn(song, e)}
+                                title="Click to view lyrics in hymn book"
+                              >
+                                {song}
+                                <span style={viewIconStyle}>👁️</span>
+                              </div>
+                              {viewMode === 'detailed' && idx === 0 && f.description && (
+                                <div style={songDescription}>{f.description}</div>
+                              )}
+                            </div>
+
+                            <div style={songActions}>
+                              <motion.span
+                                whileHover={{ scale: 1.2 }}
+                                style={songActionIcon}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  previewSong(song);
+                                }}
+                                title="Preview song"
+                              >
+                                <BsPlayCircle size={14} color={f.color} />
+                              </motion.span>
+                              <motion.span
+                                whileHover={{ scale: 1.2 }}
+                                style={songActionIcon}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addSongNote(p.id, f.key, idx, note);
+                                }}
+                                title="Add note"
+                              >
+                                <FaRegKeyboard size={12} color={note ? "#8b5cf6" : "#6b7280"} />
+                              </motion.span>
+                              <motion.span
+                                whileHover={{ scale: 1.2 }}
+                                style={songActionIcon}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(song);
+                                  highlightSong(p.id, `${f.key}-${idx}`);
+                                  showToast('📋 Copied: ' + song.substring(0, 30) + '...');
+                                }}
+                                title="Copy to clipboard"
+                              >
+                                <FiCopy size={12} color="#6b7280" />
+                              </motion.span>
+                            </div>
+
+                            {note && (
+                              <div style={songNote}>
+                                <MdOutlineFormatQuote size={10} />
+                                {note}
+                              </div>
                             )}
-                          </div>
-
-                          {/* Quick Action Icons */}
-                          <div style={songActions}>
-                            <motion.span
-                              whileHover={{ scale: 1.2 }}
-                              style={songActionIcon}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                previewSong(value);
-                              }}
-                              title="Preview song"
-                            >
-                              <BsPlayCircle size={14} color={f.color} />
-                            </motion.span>
-                            <motion.span
-                              whileHover={{ scale: 1.2 }}
-                              style={songActionIcon}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddNote(p, f, note);
-                              }}
-                              title="Add note"
-                            >
-                              <FaRegKeyboard size={12} color={note ? "#8b5cf6" : "#6b7280"} />
-                            </motion.span>
-                            <motion.span
-                              whileHover={{ scale: 1.2 }}
-                              style={songActionIcon}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(value);
-                                highlightSong(p.id, f.key);
-                                showToast('📋 Copied: ' + value.substring(0, 30) + '...');
-                              }}
-                              title="Copy to clipboard"
-                            >
-                              <FiCopy size={12} color="#6b7280" />
-                            </motion.span>
-                          </div>
-
-                          {note && (
-                            <div style={songNote}>
-                              <MdOutlineFormatQuote size={10} />
-                              {note}
-                            </div>
-                          )}
-                        </motion.div>
-                      );
+                          </motion.div>
+                        );
+                      });
                     })}
 
                     {/* Mobile Expand Button */}
@@ -1148,13 +1116,13 @@ const navigateToHymn = async (hymnTitle, e) => {
                         onClick={() => toggleExpand(p.id)}
                         style={expandMoreButton}
                       >
-                        + {songFields.length - mobileCompactFields.length} more hymns
+                        + {songFields.length - mobileCompactFields.length} more sections
                       </motion.button>
                     )}
                   </motion.div>
                 )}
 
-                {/* Action Buttons - With Improved Dropdown */}
+                {/* Action Buttons */}
                 {!isCollapsed && (
                   <div style={actionButtons}>
                     <motion.button
@@ -1184,7 +1152,6 @@ const navigateToHymn = async (hymnTitle, e) => {
                       <span>Share</span>
                     </motion.button>
 
-                    {/* Print Button - Separate */}
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => printProgram(p)}
@@ -1194,7 +1161,7 @@ const navigateToHymn = async (hymnTitle, e) => {
                       <span>Print</span>
                     </motion.button>
 
-                    {/* Download Dropdown - Improved */}
+                    {/* Download Dropdown */}
                     <div style={downloadDropdownContainer} ref={downloadMenuRef}>
                       <motion.button
                         whileTap={{ scale: 0.95 }}
@@ -1220,20 +1187,14 @@ const navigateToHymn = async (hymnTitle, e) => {
                             transition={{ duration: 0.15 }}
                             style={downloadMenu}
                           >
-                            <button onClick={() => handleDownloadClick(p, 'txt')}>
-                              <FaFileAlt /> Plain Text (.txt)
-                            </button>
-                            <button onClick={() => handleDownloadClick(p, 'html')}>
-                              <IoDocumentTextOutline /> HTML Document (.html)
-                            </button>
-                            <button onClick={() => handleDownloadClick(p, 'rtf')}>
-                              <BsFileWord /> Rich Text (.rtf)
-                            </button>
-                            <button onClick={() => handleDownloadClick(p, 'doc')}>
+                            <button onClick={() => handleDownloadClick(p, 'word')}>
                               <FaFileWord /> Word Document (.doc)
                             </button>
-                            <button onClick={() => downloadAsPDF(p)}>
+                            <button onClick={() => handleDownloadClick(p, 'pdf')}>
                               <FaFilePdf /> PDF Document
+                            </button>
+                            <button onClick={() => handleDownloadClick(p, 'image')} disabled={generatingImage}>
+                              <BsFileImage /> Image (.png)
                             </button>
                           </motion.div>
                         )}
@@ -1315,11 +1276,13 @@ const navigateToHymn = async (hymnTitle, e) => {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
           }
-          
           @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.7; }
             100% { opacity: 1; }
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
           }
         `}
       </style>
@@ -1328,7 +1291,6 @@ const navigateToHymn = async (hymnTitle, e) => {
 }
 
 // ====== STYLES ======
-
 const container = {
   padding: "12px",
   maxWidth: "100%",
@@ -1338,7 +1300,6 @@ const container = {
   borderRadius: "25px",
 };
 
-// Loading
 const loadingContainer = {
   minHeight: "100vh",
   display: "flex",
@@ -1374,559 +1335,97 @@ const loadingSubtext = {
   fontSize: "12px",
 };
 
-// Header
-const headerSection = {
-  marginBottom: "16px",
-};
-
-const headerTop = {
-  marginBottom: "12px",
-};
-
-const titleWrapper = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-};
-
-const titleIcon = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "22px",
-  color: "#ffffff",
-};
-
-const title = {
-  fontSize: "22px",
-  fontWeight: "700",
-  color: "#0f172a",
-  margin: 0,
-};
-
-const titleSub = {
-  fontSize: "12px",
-  color: "#64748b",
-  margin: 0,
-};
-
-// Compact Stats
-const compactStats = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)",
-  gap: "6px",
-  marginBottom: "12px",
-};
-
-const compactStat = {
-  background: "#ffffff",
-  padding: "10px 4px",
-  borderRadius: "12px",
-  border: "1px solid #e2e8f0",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "2px",
-  cursor: "pointer",
-};
-
-const compactStatValue = {
-  fontSize: "18px",
-  fontWeight: "700",
-  color: "#0f172a",
-};
-
-const compactStatLabel = {
-  fontSize: "10px",
-  color: "#64748b",
-  textTransform: "uppercase",
-};
-
-// Search
-const searchContainer = {
-  position: "relative",
-  marginBottom: "12px",
-};
-
-const searchIcon = {
+// Song loading overlay
+const songLoadingOverlay = {
   position: "absolute",
-  left: "12px",
-  top: "50%",
-  transform: "translateY(-50%)",
-  color: "#94a3b8",
-  fontSize: "14px",
-};
-
-const searchInput = {
-  width: "100%",
-  padding: "12px 12px 12px 40px",
-  borderRadius: "30px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  fontSize: "14px",
-  outline: "none",
-};
-
-const searchClear = {
-  position: "absolute",
-  right: "12px",
-  top: "50%",
-  transform: "translateY(-50%)",
-  background: "none",
-  border: "none",
-  color: "#94a3b8",
-  fontSize: "16px",
-  cursor: "pointer",
-  padding: "4px 8px",
-};
-
-// Filters Row
-const filtersRow = {
-  display: "grid",
-  gridTemplateColumns: "1fr auto auto",
-  gap: "6px",
-  marginBottom: "8px",
-};
-
-const filterSelect = {
-  padding: "8px 10px",
-  borderRadius: "20px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  fontSize: "12px",
-  color: "#0f172a",
-  outline: "none",
-};
-
-const sortButton = {
-  display: "flex",
-  alignItems: "center",
-  gap: "4px",
-  padding: "8px 12px",
-  borderRadius: "20px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  fontSize: "12px",
-  color: "#0f172a",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-// Results Count
-const resultsCount = {
-  fontSize: "12px",
-  color: "#64748b",
-  marginBottom: "12px",
-};
-
-const resultsBold = {
-  fontWeight: "700",
-  color: "#0f172a",
-  margin: "0 2px",
-};
-
-// Programs List
-const programsList = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-};
-
-// Program Card
-const programCard = {
-  background: "#ffffff",
-  borderRadius: "16px",
-  padding: "14px",
-  border: "1px solid #e2e8f0",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-  position: "relative",
-};
-
-const cardHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "10px",
-  cursor: "pointer",
-};
-
-const cardHeaderLeft = {
-  display: "flex",
-  gap: "10px",
-  flex: 1,
-};
-
-const dateBadge = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "44px",
-  height: "44px",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-  borderRadius: "12px",
-  color: "#ffffff",
-};
-
-const dateDay = {
-  fontSize: "18px",
-  fontWeight: "700",
-  lineHeight: 1,
-};
-
-const dateMonth = {
-  fontSize: "10px",
-  textTransform: "uppercase",
-};
-
-const cardInfo = {
-  flex: 1,
-};
-
-const cardTitleRow = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  flexWrap: "wrap",
-  marginBottom: "4px",
-};
-
-const cardDate = {
-  fontSize: "15px",
-  fontWeight: "600",
-  color: "#0f172a",
-};
-
-const todayChip = {
-  fontSize: "9px",
-  padding: "2px 6px",
-  background: "#10b981",
-  borderRadius: "12px",
-  color: "#ffffff",
-  fontWeight: "600",
-};
-
-const hymnCountChip = {
-  fontSize: "9px",
-  padding: "2px 6px",
-  background: "#f1f5f9",
-  borderRadius: "12px",
-  color: "#475569",
-  fontWeight: "500",
-};
-
-const cardVenue = {
-  display: "flex",
-  alignItems: "center",
-  gap: "4px",
-  color: "#64748b",
-  fontSize: "11px",
-  marginTop: "2px",
-};
-
-const cardHeaderRight = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-};
-
-const iconButton = {
-  background: "none",
-  border: "none",
-  padding: "6px",
-  cursor: "pointer",
-  fontSize: "16px",
-  display: "flex",
-};
-
-const chevronIcon = {
-  color: "#94a3b8",
-  fontSize: "16px",
-  padding: "6px",
-};
-
-// Songs Grid
-const songsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "8px",
-  marginTop: "10px",
-  marginBottom: "10px",
-};
-
-const songItem = {
-  background: "#f8fafc",
-  padding: "12px",
-  borderRadius: "12px",
-  border: "1px solid #e2e8f0",
-  transition: "all 0.2s",
-  position: "relative",
-};
-
-const songHeader = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  marginBottom: "6px",
-  flexWrap: "wrap",
-};
-
-const songIcon = {
-  fontSize: "16px",
-};
-
-const songLabel = {
-  fontSize: "11px",
-  fontWeight: "600",
-  color: "#475569",
-};
-
-const songMeta = {
-  display: "flex",
-  gap: "4px",
-  marginLeft: "auto",
-};
-
-const songMetaItem = {
-  fontSize: "8px",
-  color: "#94a3b8",
-  display: "flex",
-  alignItems: "center",
-  gap: "2px",
-};
-
-const songValueWrapper = {
-  marginBottom: "4px",
-};
-
-const clickableSongValue = {
-  fontSize: "12px",
-  fontWeight: "600",
-  color: "#4f46e5",
-  wordBreak: "break-word",
-  lineHeight: 1.4,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "8px",
-  transition: "all 0.2s",
-};
-
-const viewIconStyle = {
-  fontSize: "10px",
-  opacity: 0.5,
-  transition: "opacity 0.2s",
-};
-
-const songDescription = {
-  fontSize: "9px",
-  color: "#64748b",
-  marginTop: "2px",
-  fontStyle: "italic",
-};
-
-const songActions = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: "6px",
-  marginTop: "4px",
-};
-
-const songActionIcon = {
-  cursor: "pointer",
-  padding: "2px",
-};
-
-const songNote = {
-  fontSize: "9px",
-  color: "#8b5cf6",
-  marginTop: "4px",
-  padding: "2px 4px",
-  background: "#ede9fe",
-  borderRadius: "4px",
-  display: "flex",
-  alignItems: "center",
-  gap: "2px",
-};
-
-const expandMoreButton = {
-  gridColumn: "span 2",
-  padding: "10px",
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  fontSize: "11px",
-  fontWeight: "500",
-  color: "#4f46e5",
-  cursor: "pointer",
-  marginTop: "4px",
-};
-
-// Action Buttons - 4 columns layout
-const actionButtons = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)",
-  gap: "4px",
-  marginTop: "10px",
-  position: "relative",
-};
-
-const actionButton = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "2px",
-  padding: "8px 2px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  fontSize: "9px",
-  fontWeight: "500",
-  color: "#475569",
-  cursor: "pointer",
-  width: "100%",
-  transition: "all 0.2s",
-};
-
-// Download Dropdown - Improved
-const downloadDropdownContainer = {
-  position: "relative",
-  gridColumn: "span 4",
-  marginTop: "7px",
-};
-
-const downloadMenu = {
-  position: "absolute",
-  bottom: "100%",
-  left: 0,
-  right: 0,
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  padding: "8px",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)",
-  zIndex: 20,
-  marginBottom: "8px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "20px",
-};
-
-// Preview Toast
-const previewToast = {
-  position: "fixed",
-  bottom: "80px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  background: "#ffffff",
-  color: "#0f172a",
-  padding: "10px 20px",
-  borderRadius: "30px",
-  fontSize: "13px",
-  fontWeight: "500",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
-  zIndex: 9998,
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  border: "1px solid #e2e8f0",
-};
-
-const previewText = {
-  maxWidth: "200px",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-
-// Modal Styles
-const modalOverlay = {
-  position: "fixed",
   top: 0,
   left: 0,
   right: 0,
   bottom: 0,
-  background: "rgba(0,0,0,0.5)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "16px",
-  zIndex: 1000,
-};
-
-const modalContent = {
-  background: "#ffffff",
-  borderRadius: "24px",
-  padding: "24px",
-  maxWidth: "400px",
-  width: "100%",
-  maxHeight: "80vh",
-  overflowY: "auto",
-};
-
-const modalTitle = {
-  fontSize: "18px",
-  fontWeight: "700",
-  color: "#0f172a",
-  marginBottom: "20px",
-  textAlign: "center",
-};
-
-const modalOptions = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "12px",
-  marginBottom: "20px",
-};
-
-const modalOption = {
+  background: "rgba(255,255,255,0.9)",
+  borderRadius: "12px",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  gap: "6px",
-  padding: "16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  cursor: "pointer",
-  fontSize: "12px",
-  color: "#0f172a",
+  justifyContent: "center",
+  zIndex: 10,
+  gap: "8px",
 };
 
-const modalClose = {
-  width: "100%",
-  padding: "14px",
-  background: "#4f46e5",
-  border: "none",
-  borderRadius: "14px",
-  color: "#ffffff",
-  fontSize: "14px",
-  fontWeight: "600",
-  cursor: "pointer",
+const songLoadingSpinner = {
+  width: "24px",
+  height: "24px",
+  border: "2px solid #e2e8f0",
+  borderTopColor: "#4f46e5",
+  borderRadius: "50%",
+  animation: "spin 0.8s linear infinite",
 };
 
-// Toast Style
-const toastStyle = `
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #0f172a;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
-  z-index: 9999;
-  animation: slideIn 0.3s ease;
-  white-space: nowrap;
-  max-width: 90%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
+const songLoadingText = {
+  fontSize: "11px",
+  color: "#4f46e5",
+  fontWeight: "500",
+};
+
+const headerSection = { marginBottom: "16px" };
+const headerTop = { marginBottom: "12px" };
+const titleWrapper = { display: "flex", alignItems: "center", gap: "8px" };
+const titleIcon = { width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", color: "#ffffff" };
+const title = { fontSize: "22px", fontWeight: "700", color: "#0f172a", margin: 0 };
+const titleSub = { fontSize: "12px", color: "#64748b", margin: 0 };
+const compactStats = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginBottom: "12px" };
+const compactStat = { background: "#ffffff", padding: "10px 4px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", cursor: "pointer" };
+const compactStatValue = { fontSize: "18px", fontWeight: "700", color: "#0f172a" };
+const compactStatLabel = { fontSize: "10px", color: "#64748b", textTransform: "uppercase" };
+const searchContainer = { position: "relative", marginBottom: "12px" };
+const searchIcon = { position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "14px" };
+const searchInput = { width: "100%", padding: "12px 12px 12px 40px", borderRadius: "30px", border: "1px solid #e2e8f0", background: "#ffffff", fontSize: "14px", outline: "none" };
+const searchClear = { position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer", padding: "4px 8px" };
+const filtersRow = { display: "grid", gridTemplateColumns: "1fr auto auto", gap: "6px", marginBottom: "8px" };
+const filterSelect = { padding: "8px 10px", borderRadius: "20px", border: "1px solid #e2e8f0", background: "#ffffff", fontSize: "12px", color: "#0f172a", outline: "none" };
+const sortButton = { display: "flex", alignItems: "center", gap: "4px", padding: "8px 12px", borderRadius: "20px", border: "1px solid #e2e8f0", background: "#ffffff", fontSize: "12px", color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap" };
+const resultsCount = { fontSize: "12px", color: "#64748b", marginBottom: "12px" };
+const resultsBold = { fontWeight: "700", color: "#0f172a", margin: "0 2px" };
+const programsList = { display: "flex", flexDirection: "column", gap: "12px" };
+const programCard = { background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", position: "relative" };
+const cardHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", cursor: "pointer" };
+const cardHeaderLeft = { display: "flex", gap: "10px", flex: 1 };
+const dateBadge = { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", borderRadius: "12px", color: "#ffffff" };
+const dateDay = { fontSize: "18px", fontWeight: "700", lineHeight: 1 };
+const dateMonth = { fontSize: "10px", textTransform: "uppercase" };
+const cardInfo = { flex: 1 };
+const cardTitleRow = { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "4px" };
+const cardDate = { fontSize: "15px", fontWeight: "600", color: "#0f172a" };
+const todayChip = { fontSize: "9px", padding: "2px 6px", background: "#10b981", borderRadius: "12px", color: "#ffffff", fontWeight: "600" };
+const cardVenue = { display: "flex", alignItems: "center", gap: "4px", color: "#64748b", fontSize: "11px", marginTop: "2px" };
+const cardHeaderRight = { display: "flex", alignItems: "center", gap: "6px" };
+const iconButton = { background: "none", border: "none", padding: "6px", cursor: "pointer", fontSize: "16px", display: "flex" };
+const chevronIcon = { color: "#94a3b8", fontSize: "16px", padding: "6px" };
+const songsGrid = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginTop: "10px", marginBottom: "10px" };
+const songItem = { background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", transition: "all 0.2s", position: "relative" };
+const songHeader = { display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", flexWrap: "wrap" };
+const songIcon = { fontSize: "16px" };
+const songLabel = { fontSize: "11px", fontWeight: "600", color: "#475569" };
+const songMeta = { display: "flex", gap: "4px", marginLeft: "auto" };
+const songMetaItem = { fontSize: "8px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "2px" };
+const songValueWrapper = { marginBottom: "4px" };
+const clickableSongValue = { fontSize: "12px", fontWeight: "600", color: "#4f46e5", wordBreak: "break-word", lineHeight: 1.4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", transition: "all 0.2s" };
+const viewIconStyle = { fontSize: "10px", opacity: 0.5, transition: "opacity 0.2s" };
+const songDescription = { fontSize: "9px", color: "#64748b", marginTop: "2px", fontStyle: "italic" };
+const songActions = { display: "flex", justifyContent: "flex-end", gap: "6px", marginTop: "4px" };
+const songActionIcon = { cursor: "pointer", padding: "2px" };
+const songNote = { fontSize: "9px", color: "#8b5cf6", marginTop: "4px", padding: "2px 4px", background: "#ede9fe", borderRadius: "4px", display: "flex", alignItems: "center", gap: "2px" };
+const expandMoreButton = { gridColumn: "span 2", padding: "10px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", fontSize: "11px", fontWeight: "500", color: "#4f46e5", cursor: "pointer", marginTop: "4px" };
+const actionButtons = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", marginTop: "10px", position: "relative" };
+const actionButton = { display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "8px 2px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: "9px", fontWeight: "500", color: "#475569", cursor: "pointer", width: "100%", transition: "all 0.2s" };
+const downloadDropdownContainer = { position: "relative", gridColumn: "span 4", marginTop: "7px" };
+const downloadMenu = { position: "absolute", bottom: "100%", left: 0, right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, marginBottom: "8px", display: "flex", flexDirection: "column", gap: "8px" };
+const previewToast = { position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", background: "#ffffff", color: "#0f172a", padding: "10px 20px", borderRadius: "30px", fontSize: "13px", fontWeight: "500", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)", zIndex: 9998, display: "flex", alignItems: "center", gap: "8px", border: "1px solid #e2e8f0" };
+const previewText = { maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const modalOverlay = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 1000 };
+const modalContent = { background: "#ffffff", borderRadius: "24px", padding: "24px", maxWidth: "400px", width: "100%", maxHeight: "80vh", overflowY: "auto" };
+const modalTitle = { fontSize: "18px", fontWeight: "700", color: "#0f172a", marginBottom: "20px", textAlign: "center" };
+const modalOptions = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "20px" };
+const modalOption = { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", cursor: "pointer", fontSize: "12px", color: "#0f172a" };
+const modalClose = { width: "100%", padding: "14px", background: "#4f46e5", border: "none", borderRadius: "14px", color: "#ffffff", fontSize: "14px", fontWeight: "600", cursor: "pointer" };
+const toastStyle = `position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f172a; color: white; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: 500; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); z-index: 9999; animation: slideIn 0.3s ease; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis;`;

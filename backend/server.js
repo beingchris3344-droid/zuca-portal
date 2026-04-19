@@ -2934,14 +2934,31 @@ app.get("/api/announcements/unread", authenticate, async (req, res) => {
 
 app.get("/api/chat/unread", authenticate, async (req, res) => {
   try {
+    const userId = req.user.userId;
     const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
+    
+    if (!defaultRoom) {
+      return res.json({ count: 0 });
+    }
+    
+    // Count messages that are:
+    // 1. Not deleted
+    // 2. NOT read by the current user (no read receipt)
     const count = await prisma.message.count({
       where: { 
-        roomId: defaultRoom?.id,
+        roomId: defaultRoom.id,
+        isDeleted: false,
+        readReceipts: {
+          none: {
+            userId: userId
+          }
+        }
       }
     });
+    
     res.json({ count });
   } catch (err) {
+    console.error("Error counting unread messages:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3105,37 +3122,45 @@ app.delete("/api/announcements/:id", authenticate, async (req, res) => {
 // ================== MASS PROGRAM ROUTES ==================
 
 // PUBLIC ROUTE - for users to view programs (no auth needed)
+// PUBLIC ROUTE - for users to view programs (no auth needed)
 app.get("/api/mass-programs", async (req, res) => {
   try {
     const programs = await prisma.massProgram.findMany({
-    
       orderBy: { date: "asc" },
       include: { 
         songs: { 
-          include: { song: true } 
+          include: { song: true }
+          // REMOVED orderBy - createdAt doesn't exist in this table
         } 
       },
     });
 
     const formatted = programs.map((p) => {
+      // Use arrays to store multiple songs per type
       const songMap = {};
+      
       p.songs.forEach((s) => {
-        songMap[s.type] = s.song.title;
+        if (!songMap[s.type]) {
+          songMap[s.type] = [];
+        }
+        songMap[s.type].push(s.song.title);
       });
+      
+      // Convert arrays to semicolon-separated strings for frontend
       return {
         id: p.id,
         date: p.date.toISOString().split("T")[0],
         venue: p.venue,
-        entrance: songMap.entrance || "",
-        mass: songMap.mass || "",
-        bible: songMap.bible || "",
-        offertory: songMap.offertory || "",
-        procession: songMap.procession || "",
-        mtakatifu: songMap.mtakatifu || "",
-        signOfPeace: songMap.signOfPeace || "",
-        communion: songMap.communion || "",
-        thanksgiving: songMap.thanksgiving || "",
-        exit: songMap.exit || "",
+        entrance: (songMap.entrance || []).join('; '),
+        mass: (songMap.mass || []).join('; '),
+        bible: (songMap.bible || []).join('; '),
+        offertory: (songMap.offertory || []).join('; '),
+        procession: (songMap.procession || []).join('; '),
+        mtakatifu: (songMap.mtakatifu || []).join('; '),
+        signOfPeace: (songMap.signOfPeace || []).join('; '),
+        communion: (songMap.communion || []).join('; '),
+        thanksgiving: (songMap.thanksgiving || []).join('; '),
+        exit: (songMap.exit || []).join('; '),
         createdAt: p.createdAt.toISOString()
       };
     });
@@ -3168,36 +3193,44 @@ app.get("/api/admin/mass-programs", authenticate, async (req, res) => {
       orderBy: { date: "desc" },
       include: { 
         songs: { 
-          include: { song: true } 
+          include: { song: true }
+          // Remove orderBy if createdAt doesn't exist
         } 
       },
     });
 
     const formatted = programs.map((p) => {
+      // Use arrays to store multiple songs per type
       const songMap = {};
+      
       p.songs.forEach((s) => {
-        songMap[s.type] = s.song.title;
+        if (!songMap[s.type]) {
+          songMap[s.type] = [];
+        }
+        songMap[s.type].push(s.song.title);
       });
+      
+      // Convert arrays to semicolon-separated strings for frontend
       return {
         id: p.id,
         date: p.date.toISOString().split("T")[0],
         venue: p.venue,
-        entrance: songMap.entrance || "",
-        mass: songMap.mass || "",
-        bible: songMap.bible || "",
-        offertory: songMap.offertory || "",
-        procession: songMap.procession || "",
-        mtakatifu: songMap.mtakatifu || "",
-        signOfPeace: songMap.signOfPeace || "",
-        communion: songMap.communion || "",
-        thanksgiving: songMap.thanksgiving || "",
-        exit: songMap.exit || "",
+        entrance: (songMap.entrance || []).join('; '),
+        mass: (songMap.mass || []).join('; '),
+        bible: (songMap.bible || []).join('; '),
+        offertory: (songMap.offertory || []).join('; '),
+        procession: (songMap.procession || []).join('; '),
+        mtakatifu: (songMap.mtakatifu || []).join('; '),
+        signOfPeace: (songMap.signOfPeace || []).join('; '),
+        communion: (songMap.communion || []).join('; '),
+        thanksgiving: (songMap.thanksgiving || []).join('; '),
+        exit: (songMap.exit || []).join('; '),
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt?.toISOString()
       };
     });
 
-    res.json(formatted); // Return array directly for your SongsPage
+    res.json(formatted);
   } catch (err) {
     console.error("Error fetching admin mass programs:", err);
     res.status(500).json({ error: err.message });
@@ -3234,108 +3267,173 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       }
     });
 
-  // Add songs
-for (const [type, title] of Object.entries(songsData)) {
-  if (!title || title.trim() === "") continue;
-  
-  // Try exact match first
-  let song = await prisma.song.findFirst({ 
-    where: { 
-      title: {
-        equals: title.trim(),
-        mode: 'insensitive'
-      }
-    } 
-  });
+    // ========== FIXED: Handle multiple songs (semicolon separated) ==========
+    for (const [type, value] of Object.entries(songsData)) {
+      if (!value || value.trim() === "") continue;
+      
+      // Check if this field contains multiple songs (semicolon separated)
+      if (value.includes(';')) {
+        // Split into multiple song titles
+        const songTitles = value.split(';').map(s => s.trim()).filter(s => s);
+        
+        console.log(`📝 Adding ${songTitles.length} songs for ${type}:`, songTitles);
+        
+        // Process each song individually
+        for (const songTitle of songTitles) {
+          // Find existing song
+          let song = await prisma.song.findFirst({ 
+            where: { 
+              title: {
+                equals: songTitle,
+                mode: 'insensitive'
+              }
+            } 
+          });
 
-  // If not found, try partial match (contains)
-  if (!song) {
-    song = await prisma.song.findFirst({ 
-      where: { 
-        title: {
-          contains: title.trim(),
-          mode: 'insensitive'
-        }
-      } 
-    });
-  }
-
-  // If still not found, try word-by-word matching
-  if (!song) {
-    const words = title.trim().split(/\s+/).filter(w => w.length > 2);
-    for (const word of words) {
-      song = await prisma.song.findFirst({ 
-        where: { 
-          title: {
-            contains: word,
-            mode: 'insensitive'
+          // If not found, try partial match
+          if (!song) {
+            song = await prisma.song.findFirst({ 
+              where: { 
+                title: {
+                  contains: songTitle,
+                  mode: 'insensitive'
+                }
+              } 
+            });
           }
-        } 
-      });
-      if (song) break;
-    }
-  }
-  
-  // If song doesn't exist, create placeholder and pending record
-  if (!song) {
-    // Create placeholder song
-    song = await prisma.song.create({ 
-      data: { 
-        title: title.trim(),
-        composer: "",
-        lyrics: "[Pending - Add lyrics]",
-        reference: ""
-      } 
-    });
-    
-    // Create pending record (ONLY when song was missing)
-    await prisma.pendingSong.create({
-      data: {
-        title: title.trim(),
-        type: type,
-        programId: newProgram.id,
-        status: "pending"
+
+          // If still not found, create placeholder
+          if (!song) {
+            song = await prisma.song.create({ 
+              data: { 
+                title: songTitle,
+                composer: "",
+                lyrics: "[Pending - Add lyrics]",
+                reference: ""
+              } 
+            });
+            
+            // Create pending record
+            await prisma.pendingSong.create({
+              data: {
+                title: songTitle,
+                type: type,
+                programId: newProgram.id,
+                status: "pending"
+              }
+            });
+          }
+          
+          // Create the relationship for THIS song
+          await prisma.massProgramSong.create({
+            data: {
+              type,
+              massProgramId: newProgram.id,
+              songId: song.id
+            }
+          });
+        }
+      } else {
+        // Single song - original logic
+        let song = await prisma.song.findFirst({ 
+          where: { 
+            title: {
+              equals: value.trim(),
+              mode: 'insensitive'
+            }
+          } 
+        });
+
+        if (!song) {
+          song = await prisma.song.findFirst({ 
+            where: { 
+              title: {
+                contains: value.trim(),
+                mode: 'insensitive'
+              }
+            } 
+          });
+        }
+
+        if (!song) {
+          const words = value.trim().split(/\s+/).filter(w => w.length > 2);
+          for (const word of words) {
+            song = await prisma.song.findFirst({ 
+              where: { 
+                title: {
+                  contains: word,
+                  mode: 'insensitive'
+                }
+              } 
+            });
+            if (song) break;
+          }
+        }
+        
+        if (!song) {
+          song = await prisma.song.create({ 
+            data: { 
+              title: value.trim(),
+              composer: "",
+              lyrics: "[Pending - Add lyrics]",
+              reference: ""
+            } 
+          });
+          
+          await prisma.pendingSong.create({
+            data: {
+              title: value.trim(),
+              type: type,
+              programId: newProgram.id,
+              status: "pending"
+            }
+          });
+        }
+        
+        await prisma.massProgramSong.create({
+          data: {
+            type,
+            massProgramId: newProgram.id,
+            songId: song.id
+          }
+        });
       }
-    });
-  }
-  
-  await prisma.massProgramSong.create({
-    data: {
-      type,
-      massProgramId: newProgram.id,
-      songId: song.id
     }
-  });
-}
 
     // Fetch complete program with songs
     const completeProgram = await prisma.massProgram.findUnique({
       where: { id: newProgram.id },
-      include: { songs: { include: { song: true } } }
+      include: { songs: { include: { song: true }, orderBy: { createdAt: 'asc' } } }
     });
 
-    // Format response
+    // Format response - GROUP multiple songs by type
     const songMap = {};
     completeProgram.songs.forEach((s) => {
-      songMap[s.type] = s.song.title;
+      if (!songMap[s.type]) {
+        songMap[s.type] = [];
+      }
+      songMap[s.type].push(s.song.title);
     });
 
+    // Convert arrays back to semicolon strings for response
     const response = {
       id: completeProgram.id,
       date: completeProgram.date.toISOString().split("T")[0],
       venue: completeProgram.venue,
-      entrance: songMap.entrance || "",
-      mass: songMap.mass || "",
-      bible: songMap.bible || "",
-      offertory: songMap.offertory || "",
-      procession: songMap.procession || "",
-      mtakatifu: songMap.mtakatifu || "",
-      signOfPeace: songMap.signOfPeace || "",
-      communion: songMap.communion || "",
-      thanksgiving: songMap.thanksgiving || "",
-      exit: songMap.exit || "",
+      entrance: (songMap.entrance || []).join('; '),
+      mass: (songMap.mass || []).join('; '),
+      bible: (songMap.bible || []).join('; '),
+      offertory: (songMap.offertory || []).join('; '),
+      procession: (songMap.procession || []).join('; '),
+      mtakatifu: (songMap.mtakatifu || []).join('; '),
+      signOfPeace: (songMap.signOfPeace || []).join('; '),
+      communion: (songMap.communion || []).join('; '),
+      thanksgiving: (songMap.thanksgiving || []).join('; '),
+      exit: (songMap.exit || []).join('; '),
       createdAt: completeProgram.createdAt.toISOString()
     };
+
+    console.log("📤 Response being sent:", response);
 
     // Emit socket event
     if (io) {
@@ -3368,6 +3466,8 @@ for (const [type, title] of Object.entries(songsData)) {
 
 // UPDATE mass program (admin/choir moderator only)
 app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
+  
+  
   try {
     const { id } = req.params;
     const { date, venue, ...songsData } = req.body;
@@ -3399,108 +3499,194 @@ app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
       where: { massProgramId: id } 
     });
 
-   // Add updated songs
-for (const [type, title] of Object.entries(songsData)) {
-  if (!title || title.trim() === "") continue;
-  
-  // Try exact match first
-  let song = await prisma.song.findFirst({ 
-    where: { 
-      title: {
-        equals: title.trim(),
-        mode: 'insensitive'
-      }
-    } 
-  });
+    // Handle multiple songs (semicolon separated)
+    for (const [type, value] of Object.entries(songsData)) {
+      if (!value || value.trim() === "") continue;
+      
+      // Check if this field contains multiple songs (semicolon separated)
+      if (value.includes(';')) {
+        // Split into multiple song titles
+        const songTitles = value.split(';').map(s => s.trim()).filter(s => s);
+        
+        console.log(`📝 Updating ${songTitles.length} songs for ${type}:`, songTitles);
+        
+        // Process each song individually
+        for (const songTitle of songTitles) {
+          // Find existing song
+          let song = await prisma.song.findFirst({ 
+            where: { 
+              title: {
+                equals: songTitle,
+                mode: 'insensitive'
+              }
+            } 
+          });
 
-  // If not found, try partial match (contains)
-  if (!song) {
-    song = await prisma.song.findFirst({ 
-      where: { 
-        title: {
-          contains: title.trim(),
-          mode: 'insensitive'
-        }
-      } 
-    });
-  }
-
-  // If still not found, try word-by-word matching
-  if (!song) {
-    const words = title.trim().split(/\s+/).filter(w => w.length > 2);
-    for (const word of words) {
-      song = await prisma.song.findFirst({ 
-        where: { 
-          title: {
-            contains: word,
-            mode: 'insensitive'
+          // If not found, try partial match
+          if (!song) {
+            song = await prisma.song.findFirst({ 
+              where: { 
+                title: {
+                  contains: songTitle,
+                  mode: 'insensitive'
+                }
+              } 
+            });
           }
-        } 
-      });
-      if (song) break;
-    }
-  }
-  
-  // If song doesn't exist, create placeholder and pending record
-  if (!song) {
-    // Create placeholder song
-    song = await prisma.song.create({ 
-      data: { 
-        title: title.trim(),
-        composer: "",
-        lyrics: "[Pending - Add lyrics]",
-        reference: ""
-      } 
-    });
-    
-    // Create pending record
-    await prisma.pendingSong.create({
-      data: {
-        title: title.trim(),
-        type: type,
-        programId: id,
-        status: "pending"
+
+          // If still not found, try word-by-word matching
+          if (!song) {
+            const words = songTitle.split(/\s+/).filter(w => w.length > 2);
+            for (const word of words) {
+              song = await prisma.song.findFirst({ 
+                where: { 
+                  title: {
+                    contains: word,
+                    mode: 'insensitive'
+                  }
+                } 
+              });
+              if (song) break;
+            }
+          }
+          
+          // If song doesn't exist, create placeholder and pending record
+          if (!song) {
+            song = await prisma.song.create({ 
+              data: { 
+                title: songTitle,
+                composer: "",
+                lyrics: "[Pending - Add lyrics]",
+                reference: ""
+              } 
+            });
+            
+            await prisma.pendingSong.create({
+              data: {
+                title: songTitle,
+                type: type,
+                programId: id,
+                status: "pending"
+              }
+            });
+          }
+          
+          // Create the relationship for THIS song
+          await prisma.massProgramSong.create({
+            data: {
+              type,
+              massProgramId: id,
+              songId: song.id
+            }
+          });
+        }
+      } else {
+        // Single song - original logic
+        let song = await prisma.song.findFirst({ 
+          where: { 
+            title: {
+              equals: value.trim(),
+              mode: 'insensitive'
+            }
+          } 
+        });
+
+        if (!song) {
+          song = await prisma.song.findFirst({ 
+            where: { 
+              title: {
+                contains: value.trim(),
+                mode: 'insensitive'
+              }
+            } 
+          });
+        }
+
+        if (!song) {
+          const words = value.trim().split(/\s+/).filter(w => w.length > 2);
+          for (const word of words) {
+            song = await prisma.song.findFirst({ 
+              where: { 
+                title: {
+                  contains: word,
+                  mode: 'insensitive'
+                }
+              } 
+            });
+            if (song) break;
+          }
+        }
+        
+        if (!song) {
+          song = await prisma.song.create({ 
+            data: { 
+              title: value.trim(),
+              composer: "",
+              lyrics: "[Pending - Add lyrics]",
+              reference: ""
+            } 
+          });
+          
+          await prisma.pendingSong.create({
+            data: {
+              title: value.trim(),
+              type: type,
+              programId: id,
+              status: "pending"
+            }
+          });
+        }
+        
+        await prisma.massProgramSong.create({
+          data: {
+            type,
+            massProgramId: id,
+            songId: song.id
+          }
+        });
       }
-    });
-  }
-  
-  await prisma.massProgramSong.create({
-    data: {
-      type,
-      massProgramId: id,
-      songId: song.id
     }
-  });
-}
-    // Fetch updated program
+
+    // Fetch updated program with songs - REMOVE orderBy since createdAt doesn't exist
     const updatedProgram = await prisma.massProgram.findUnique({
       where: { id },
-      include: { songs: { include: { song: true } } }
+      include: { 
+        songs: { 
+          include: { song: true }
+          // REMOVED orderBy - use default order or add if you have a field
+        } 
+      }
     });
 
-    // Format response
+    // Format response - GROUP multiple songs by type
     const songMap = {};
     updatedProgram.songs.forEach((s) => {
-      songMap[s.type] = s.song.title;
+      if (!songMap[s.type]) {
+        songMap[s.type] = [];
+      }
+      songMap[s.type].push(s.song.title);
     });
 
+    // Convert arrays to semicolon-separated strings for frontend
     const response = {
       id: updatedProgram.id,
       date: updatedProgram.date.toISOString().split("T")[0],
       venue: updatedProgram.venue,
-      entrance: songMap.entrance || "",
-      mass: songMap.mass || "",
-      bible: songMap.bible || "",
-      offertory: songMap.offertory || "",
-      procession: songMap.procession || "",
-      mtakatifu: songMap.mtakatifu || "",
-      signOfPeace: songMap.signOfPeace || "",
-      communion: songMap.communion || "",
-      thanksgiving: songMap.thanksgiving || "",
-      exit: songMap.exit || "",
+      entrance: (songMap.entrance || []).join('; '),
+      mass: (songMap.mass || []).join('; '),
+      bible: (songMap.bible || []).join('; '),
+      offertory: (songMap.offertory || []).join('; '),
+      procession: (songMap.procession || []).join('; '),
+      mtakatifu: (songMap.mtakatifu || []).join('; '),
+      signOfPeace: (songMap.signOfPeace || []).join('; '),
+      communion: (songMap.communion || []).join('; '),
+      thanksgiving: (songMap.thanksgiving || []).join('; '),
+      exit: (songMap.exit || []).join('; '),
       createdAt: updatedProgram.createdAt.toISOString(),
       updatedAt: updatedProgram.updatedAt?.toISOString()
     };
+
+    console.log("📤 Update response:", response);
 
     // Emit socket event
     if (io) {
@@ -3513,7 +3699,6 @@ for (const [type, title] of Object.entries(songsData)) {
     res.status(500).json({ error: err.message });
   }
 });
-
 // DELETE mass program (admin/choir moderator only)
 app.delete("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   try {
@@ -3568,6 +3753,88 @@ app.get("/api/mass-programs/upcoming/count", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// DELETE all songs for a program (for update)
+app.delete("/api/admin/mass-programs/:id/songs", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    await prisma.massProgramSong.deleteMany({
+      where: { massProgramId: id }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting program songs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a single song to a program
+app.post("/api/admin/mass-programs/:id/songs", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, title } = req.body;
+    
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // Check if program exists
+    const program = await prisma.massProgram.findUnique({
+      where: { id }
+    });
+    
+    if (!program) {
+      return res.status(404).json({ error: "Program not found" });
+    }
+    
+    // Find or create song
+    let song = await prisma.song.findFirst({
+      where: { title: { equals: title, mode: 'insensitive' } }
+    });
+    
+    if (!song) {
+      song = await prisma.song.create({
+        data: {
+          title: title,
+          lyrics: "[Pending - Add lyrics]",
+          reference: "",
+          composer: ""
+        }
+      });
+    }
+    
+    // Create the relationship
+    const programSong = await prisma.massProgramSong.create({
+      data: {
+        type,
+        massProgramId: id,
+        songId: song.id
+      },
+      include: { song: true }
+    });
+    
+    res.status(201).json(programSong);
+  } catch (err) {
+    console.error("Error adding song to program:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // ================== JUMUIA ROUTES ==================
 app.get("/api/jumuia", async (req, res) => {

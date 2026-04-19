@@ -53,6 +53,20 @@ function Chat() {
   const goBack = () => navigate('/dashboard');
   const [showScrollButton, setShowScrollButton] = useState(false);
 
+
+
+  // Mark all messages as read function
+const markAllMessagesAsRead = async () => {
+  try {
+    await axios.post(`${BASE_URL}/api/chat/mark-all-read`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Messages marked as read");
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+  }
+};
+
  // Load cached messages instantly on mount
 useEffect(() => {
   const cachedMessages = localStorage.getItem('chat_messages_cached');
@@ -78,6 +92,20 @@ useEffect(() => {
     localStorage.setItem('chat_messages_cached', JSON.stringify(messages));
   }
 }, [messages, loading]);
+
+// Mark messages as read when chat loads
+useEffect(() => {
+  if (hasInitialLoad && messages.length > 0) {
+    markAllMessagesAsRead();
+  }
+}, [hasInitialLoad, messages]);
+
+// Mark as read when user leaves the chat
+useEffect(() => {
+  return () => {
+    markAllMessagesAsRead();
+  };
+}, []);
 
   useEffect(() => {
   const container = chatContainerRef.current;
@@ -121,8 +149,11 @@ socket.on('new_message', (newMessage) => {
     }];
   });
   
-  // REMOVE THIS ENTIRE SCROLL BLOCK - NO SCROLLING ON RECEIVED MESSAGES
-});
+  // Mark as read when receiving new message while in chat
+  if (document.hasFocus()) {
+    markAllMessagesAsRead();
+  }
+});  // <-- THIS CLOSING BRACKET WAS IN THE WRONG PLACE
   // Listen for message updates (edit, delete, reaction)
   socket.on('message_updated', (updatedMessage) => {
     setMessages(prev => prev.map(msg => 
@@ -382,12 +413,10 @@ const fetchMessages = async (isInitialLoad = false) => {
       );
     });
     
-    // Mark messages as read
-    parsedMessages.forEach(msg => {
-      if (!msg.isOwn && !msg.readReceipts?.some(r => r.userId === user?.id)) {
-        markAsRead(msg.id);
-      }
-    });
+   // Mark all messages as read at once (more efficient)
+if (parsedMessages.some(msg => !msg.isOwn)) {
+  markAllMessagesAsRead();
+}
     
     // SCROLL HANDLING
     setTimeout(() => {

@@ -236,8 +236,8 @@ function Landing2() {
             <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
               📅 Calendar
             </button>
-            <button onClick={() => navigate("/register")} className="action-btn action-btn-register">
-              <FaUserPlus /> Join Us
+            <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
+              <FaUserPlus />📚 User Manual
             </button>
           </div>
 

@@ -38,7 +38,7 @@ import JumuiaDetailPage from "./pages/jumuia/JumuiaDetailPage";
 import FullReadings from './pages/FullReadings';
 import GalleryPage from "./pages/gallery";
 import Landing from "./pages/Landing";
-
+import UserManual from './pages/UserManual';
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -244,6 +244,7 @@ function AppContent() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />
+        <Route path="/user-manual" element={<UserManual />} />
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route
@@ -257,7 +258,8 @@ function AppContent() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
-          <Route path="/jumuia-contributions" element={<JumuiaDashboard />} />          
+          <Route path="/jumuia-contributions" element={<JumuiaDashboard />} /> 
+                
           <Route path="/join-jumuia" element={<JoinJumuia />} />
           <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />

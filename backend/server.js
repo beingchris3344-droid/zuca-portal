@@ -9605,6 +9605,199 @@ app.post("/api/ai/assistant", authenticate, async (req, res) => {
   }
 });
 
+// ================== PROFILE SETTINGS ENDPOINTS ==================
+
+// Update user profile (full name, email, phone, password)
+app.put("/api/users/profile", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { 
+      fullName, 
+      email, 
+      phone, 
+      currentPassword,
+      newPassword 
+    } = req.body;
+
+    // Get current user
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      include: { homeJumuia: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check if email is already taken by another user
+    if (email && email !== user.email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() }
+      });
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ error: "Email already in use" });
+      }
+    }
+
+    // Check if phone is already taken by another user
+    if (phone && phone !== user.phone) {
+      const existingUser = await prisma.user.findFirst({
+        where: { phone: phone }
+      });
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ error: "Phone number already in use" });
+      }
+    }
+
+    // Prepare update data
+    const updateData = {
+      fullName: fullName || user.fullName,
+      email: email ? email.toLowerCase() : user.email,
+      phone: phone || user.phone,
+      updatedAt: new Date()
+    };
+
+    // Handle password change if requested
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: "Current password is required to change password" });
+      }
+      
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!isValidPassword) {
+        return res.status(400).json({ error: "Current password is incorrect" });
+      }
+      
+      // Hash new password
+      updateData.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        role: true,
+        membership_number: true,
+        profileImage: true,
+        homeJumuia: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Profile updated successfully",
+      user: updatedUser 
+    });
+    
+  } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user profile (already exists, but keep it)
+app.get("/api/me", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { homeJumuia: true },
+    });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json(user);
+  } catch (err) {
+    console.error("ME ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+// ================== OCR.SPACE ENDPOINT ==================
+const multerMemory = multer({ storage: multer.memoryStorage() });
+
+app.post("/api/ocr/ocr-space", authenticate, multerMemory.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
+
+    // USE ENVIRONMENT VARIABLE - NOT HARDCODED!
+    const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY || "K84282463988957";
+    
+    // Prepare form data for OCR.space
+    const FormData = require('form-data');
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: 'image.jpg',
+      contentType: req.file.mimetype
+    });
+    formData.append('language', 'eng');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('detectOrientation', 'true');
+    formData.append('scale', 'true');
+    formData.append('OCREngine', '2');
+
+    console.log("📤 Sending to OCR.space...");
+
+    const response = await axios.post('https://api.ocr.space/parse/image', formData, {
+      headers: {
+        ...formData.getHeaders(),
+        'apikey': OCR_SPACE_API_KEY
+      },
+      timeout: 60000
+    });
+
+    if (response.data.IsErroredOnProcessing) {
+      const errorMsg = response.data.ErrorMessage?.[0] || "OCR failed";
+      console.error("OCR.space error:", errorMsg);
+      return res.status(400).json({ error: errorMsg });
+    }
+
+    let extractedText = response.data.ParsedResults?.[0]?.ParsedText || "";
+    const exitCode = response.data.ParsedResults?.[0]?.FileParseExitCode;
+    const confidence = exitCode === 1 ? 95 : 75;
+
+    extractedText = extractedText
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    if (!extractedText || extractedText.length < 10) {
+      return res.json({
+        success: true,
+        text: "",
+        confidence: 0,
+        wordCount: 0,
+        message: "No text detected. Try a clearer image with better lighting."
+      });
+    }
+
+    res.json({
+      success: true,
+      text: extractedText,
+      confidence: confidence,
+      wordCount: extractedText.split(/\s+/).length
+    });
+
+  } catch (error) {
+    console.error("OCR.space error:", error.message);
+    res.status(500).json({ 
+      error: "OCR processing failed: " + error.message
+    });
+  }
+});
+
 
 // ================== START SERVER ==================
 const PORT = 5000;

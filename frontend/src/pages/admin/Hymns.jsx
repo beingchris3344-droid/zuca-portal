@@ -95,6 +95,7 @@ export default function AdminHymns() {
   const [processingAll, setProcessingAll] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const searchInputRef = useRef(null);
+  
 
   // Handle resize
   useEffect(() => {
@@ -696,9 +697,9 @@ This is the chorus`;
             <button onClick={() => setShowStats(!showStats)} style={styles.iconButton}>
               <FiInfo size={18} />
             </button>
-            <button onClick={() => setShowAddModal(true)} style={styles.addButton}>
-              <FiPlus size={20} /> Add Hymn
-            </button>
+            <button onClick={() => navigate("/admin/hymns/add")} style={styles.addButton}>
+  <FiPlus size={20} /> Add Hymn
+</button>
           </div>
         </div>
 
@@ -852,9 +853,9 @@ This is the chorus`;
           <p style={styles.emptyText}>
             {activeSearch ? `No results for "${activeSearch}"` : "Add your first hymn to get started"}
           </p>
-          <button onClick={() => setShowAddModal(true)} style={styles.emptyBtn}>
-            <FiPlus /> Add Hymn
-          </button>
+          <button onClick={() => navigate("/admin/hymns/add")} style={styles.addButton}>
+  <FiPlus size={20} /> Add Hymn
+</button>
         </div>
       )}
 

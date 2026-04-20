@@ -1176,7 +1176,7 @@ const styles = {
   loadingSpinner: { width: "48px", height: "48px", border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 1s linear infinite", marginBottom: "16px" },
   loadingText: { color: "#64748b", fontSize: "14px" },
   
-  notification: { position: "fixed", top: "80px", left: "50%", transform: "translateX(-50%)", padding: "10px 20px", borderRadius: "30px", zIndex: 9999, fontSize: "13px", fontWeight: "500", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
+  notification: { position: "fixed", top: "100px", left: "50%", transform: "translateX(-50%)", padding: "10px 20px", borderRadius: "30px", zIndex: 9999, fontSize: "13px", fontWeight: "500", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
   success: { background: "#10b981", color: "white" },
   error: { background: "#ef4444", color: "white" },
   info: { background: "#3b82f6", color: "white" },

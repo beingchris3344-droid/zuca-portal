@@ -308,6 +308,160 @@ export default function MassPrograms() {
   }, [songNotes]);
 
   // ========== HELPER FUNCTIONS ==========
+const generateShareImage = async (program) => {
+  const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+    weekday: 'long',
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
+  // Create container for the image
+  const container = document.createElement('div');
+  container.style.cssText = `
+    padding: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    max-width: 600px;
+    font-family: 'Arial', sans-serif;
+    color: white;
+  `;
+  
+  const songsHtml = songFields.map(field => {
+    const songsArray = parseSongs(program[field.key]);
+    if (songsArray.length === 0) return '';
+    
+    return `
+      <div style="margin-bottom: 12px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 12px;">
+        <div style="font-weight: bold; margin-bottom: 6px; font-size: 14px;">
+          ${field.icon} ${field.label}
+        </div>
+        <div style="font-size: 12px;">
+          ${songsArray.map((song, idx) => 
+            idx === 0 ? song : `<div style="margin-top: 4px;">${idx + 1}. ${song}</div>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 28px;">⛪</div>
+      <h1 style="font-size: 24px; margin: 8px 0;">MASS PROGRAM</h1>
+      <div style="font-size: 14px;">${formattedDate}</div>
+      <div style="font-size: 16px; font-weight: bold; margin-top: 8px;">${program.venue}</div>
+    </div>
+    ${songsHtml}
+    <div style="text-align: center; margin-top: 20px; font-size: 10px; opacity: 0.7;">
+      Zetech University Catholic Action | ZUCA Portal
+    </div>
+  `;
+
+  document.body.appendChild(container);
+  const canvas = await html2canvas(container, { scale: 2, backgroundColor: null });
+  document.body.removeChild(container);
+  
+  return canvas.toDataURL('image/png');
+};
+
+
+const shareImageToWhatsApp = async (program) => {
+  setGeneratingImage(true);
+  showToast("Preparing image...");
+  
+  try {
+    // Create the SAME image as your download button
+    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const container = document.createElement('div');
+    container.style.padding = '20px';
+    container.style.background = 'white';
+    container.style.borderRadius = '12px';
+    container.style.maxWidth = '800px';
+    container.style.margin = '0 auto';
+    container.style.fontFamily = 'Arial, sans-serif';
+    
+    const songsHtml = songFields.map(field => {
+      const songsArray = parseSongs(program[field.key]);
+      if (songsArray.length === 0) return '';
+      
+      let songsDisplay = '';
+      if (songsArray.length === 1) {
+        songsDisplay = `<div style="font-size: 13px; line-height: 1.4;">${songsArray[0]}</div>`;
+      } else {
+        songsDisplay = songsArray.map((song, idx) => 
+          `<div style="font-size: 13px; line-height: 1.4; margin-top: ${idx === 0 ? '0' : '6px'};">${idx + 1}. ${song}</div>`
+        ).join('');
+      }
+      
+      return `
+        <div style="padding: 10px; background: #f8fafc; border-radius: 8px; border-left: 3px solid ${field.color}; margin-bottom: 8px;">
+          <div style="font-weight: bold; color: ${field.color}; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px;">
+            <span>${field.icon}</span>
+            <span>${field.label}</span>
+          </div>
+          ${songsDisplay}
+        </div>
+      `;
+    }).filter(html => html).join('');
+
+    container.innerHTML = `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; font-size: 24px; margin: 0;">MASS PROGRAM</h1>
+        <div style="color: #64748b; margin-top: 12px; font-size: 14px;">${formattedDate}</div>
+        <div style="font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 5px;">${program.venue}</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        ${songsHtml}
+      </div>
+      <div style="margin-top: 25px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px;">
+        Zetech University Catholic Action | ZUCA Portal
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff', logging: false });
+    document.body.removeChild(container);
+
+    // Convert canvas to blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    
+    // Create a temporary URL for the image
+    const imageUrl = URL.createObjectURL(blob);
+    
+    // Download the image first (saves to phone gallery)
+    const link = document.createElement('a');
+    link.download = `Mass_Program_${program.date}.png`;
+    link.href = imageUrl;
+    link.click();
+    
+    showToast("✅ Image saved! Opening WhatsApp...");
+    
+    // Open WhatsApp to a specific number (blank opens contact list)
+    setTimeout(() => {
+      window.location.href = "https://wa.me/";
+    }, 1000);
+    
+    setTimeout(() => {
+      showToast("Tap + → Gallery → Select Mass Program image");
+    }, 3000);
+    
+    URL.revokeObjectURL(imageUrl);
+    
+  } catch (error) {
+    console.error(error);
+    showToast("Failed to create image");
+  } finally {
+    setGeneratingImage(false);
+  }
+};
+
   const getSongFrequency = (key) => {
     let count = 0;
     programs.forEach(p => {
@@ -1134,14 +1288,15 @@ export default function MassPrograms() {
                       <span>Copy</span>
                     </motion.button>
                     
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => shareProgram(p, 'whatsapp')}
-                      style={{ ...actionButton, background: "#25D366", color: "white" }}
-                    >
-                      <BsWhatsapp size={14} />
-                      <span>WhatsApp</span>
-                    </motion.button>
+                   <motion.button
+  whileTap={{ scale: 0.95 }}
+  onClick={() => shareImageToWhatsApp(p)}  // ← NEW
+  style={{ ...actionButton, background: "#25D366", color: "white" }}
+  disabled={generatingImage}
+>
+  <BsWhatsapp size={14} />
+  <span>{generatingImage ? "Preparing..." : "WhatsApp"}</span>
+</motion.button>
 
                     <motion.button
                       whileTap={{ scale: 0.95 }}

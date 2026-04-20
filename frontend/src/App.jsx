@@ -56,6 +56,7 @@ import ChatMonitorPage from "./pages/admin/ChatMonitorPage";
 import SecurityPage from "./pages/admin/SecurityPage";
 import PendingSongs from "./pages/admin/PendingSongs";
 import OCRScannerPage from "./pages/admin/OCRScanner";
+import AddHymn from './pages/admin/AddHymn';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -297,6 +298,7 @@ function AppContent() {
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
           <Route path="media" element={<AdminMediaPage />} />
+           <Route path="/admin/hymns/add" element={<AddHymn />} /> 
           <Route path="/admin/pending-songs" element={<PendingSongs />} />
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
         </Route>

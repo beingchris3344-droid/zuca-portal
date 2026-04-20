@@ -1007,7 +1007,7 @@ const styles = {
   
   notification: {
     position: "fixed",
-    top: "80px",
+    top: "100px",
     right: "20px",
     padding: "12px 20px",
     borderRadius: "10px",

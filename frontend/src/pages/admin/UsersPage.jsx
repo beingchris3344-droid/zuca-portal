@@ -424,7 +424,7 @@ const styles = {
   container: { minHeight: "100vh", 
     marginTop: "50px",
     background: "#f8fafc", padding: "24px", fontFamily: "'Inter', -apple-system, sans-serif" },
-  notification: { position: "fixed", top: "20px", right: "20px", padding: "12px 20px", borderRadius: "10px", color: "white", fontSize: "13px", zIndex: 9999, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
+  notification: { position: "fixed", top: "80px", right: "20px", padding: "12px 20px", borderRadius: "10px", color: "white", fontSize: "13px", zIndex: 9999, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
   loadingContainer: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fafc" },
   spinner: { width: "40px", height: "40px", border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 1s linear infinite", marginBottom: "16px" },
   loadingText: { color: "#64748b", fontSize: "14px" },

@@ -436,7 +436,7 @@ function Contributions() {
         /* Notification */
         .notification {
           position: fixed;
-          top: 20px;
+          top: 70px;
           right: 20px;
           padding: 12px 20px;
           border-radius: 10px;

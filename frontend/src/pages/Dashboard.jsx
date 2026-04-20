@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
-import { FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, FiGrid } from "react-icons/fi";
+import ProfileSettings from '../components/ProfileSettings';
+import { FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, FiGrid, FiSettings } from "react-icons/fi";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ function Dashboard() {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [showCropper, setShowCropper] = useState(false);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Mark messages as read function
   const markMessagesAsRead = async () => {
@@ -44,7 +46,6 @@ function Dashboard() {
       
       const activities = [];
       
-      // Add recent announcements
       const recentAnnouncements = (announcementsRes.data || []).slice(0, 3);
       recentAnnouncements.forEach(ann => {
         activities.push({
@@ -59,7 +60,6 @@ function Dashboard() {
         });
       });
       
-      // Add recent programs
       const recentPrograms = (programsRes.data || []).slice(0, 3);
       recentPrograms.forEach(prog => {
         activities.push({
@@ -74,7 +74,6 @@ function Dashboard() {
         });
       });
       
-      // Sort by time (most recent first)
       activities.sort((a, b) => b.time - a.time);
       setRecentActivities(activities.slice(0, 5));
     } catch (error) {
@@ -242,13 +241,16 @@ function Dashboard() {
     { title: "Gallery", description: "View memories", path: "/gallery", icon: "🖼️", badge: null, color: "#ec4899" },
     { title: "Hymn Book", description: "Browse songs & lyrics", path: "/hymns", icon: "🎵", badge: null, color: "#14b8a6" },
     { title: "Liturgical Calendar", description: "Daily readings", path: "/liturgical-calendar", icon: "📅", badge: null, color: "#ef4444" },
+    { title: "Profile Settings", description: "Manage your account", path: "#", icon: "⚙️", badge: null, color: "#6366f1", onClick: () => setShowProfileSettings(true) },
   ];
 
   const handleQuickAction = (action) => {
     if (action.onClick) {
       action.onClick();
     }
-    navigate(action.path);
+    if (action.path !== "#") {
+      navigate(action.path);
+    }
   };
 
   return (
@@ -274,11 +276,15 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Profile Card - Enhanced */}
+        {/* Profile Card - ENLARGED & CLICKABLE */}
         <div style={profileCardStyle}>
           <div style={profileContentStyle}>
             <div style={avatarSectionStyle}>
-              <div style={avatarWrapperStyle}>
+              <div 
+                style={avatarWrapperStyle} 
+                onClick={() => setShowProfileSettings(true)}
+                title="Click to edit profile"
+              >
                 {profileImage ? (
                   <img src={profileImage} alt={user.fullName} style={avatarStyle} />
                 ) : (
@@ -286,6 +292,9 @@ function Dashboard() {
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
+                <div style={avatarEditOverlay}>
+                  <FiCamera size={20} />
+                </div>
               </div>
               <div style={avatarActionsStyle}>
                 <label style={uploadButtonStyle}>
@@ -297,6 +306,9 @@ function Dashboard() {
                     <FiTrash2 size={14} /> Remove
                   </button>
                 )}
+                <button onClick={() => setShowProfileSettings(true)} style={settingsButtonStyle}>
+                  <FiSettings size={14} /> All Settings
+                </button>
               </div>
             </div>
 
@@ -447,6 +459,20 @@ function Dashboard() {
         />
       )}
 
+      {/* Profile Settings Modal */}
+      <ProfileSettings
+        isOpen={showProfileSettings}
+        onClose={() => setShowProfileSettings(false)}
+        user={user}
+        onUserUpdate={(updatedUser) => {
+          setUser(updatedUser);
+          const imageUrl = updatedUser.profileImage?.startsWith("http")
+            ? updatedUser.profileImage
+            : updatedUser.profileImage ? `${BASE_URL}/${updatedUser.profileImage}` : null;
+          setProfileImage(imageUrl);
+        }}
+      />
+
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -583,28 +609,61 @@ const logoutButtonStyle = {
 
 const profileCardStyle = {
   background: "#ffffff",
-  borderRadius: "20px",
-  padding: "24px",
+  borderRadius: "24px",
+  padding: "28px",
   marginBottom: "28px",
   border: "1px solid #e2e8f0",
 };
 
-const profileContentStyle = { display: "flex", gap: "28px", flexWrap: "wrap", alignItems: "center" };
-const avatarSectionStyle = { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" };
-const avatarWrapperStyle = { position: "relative", width: "88px", height: "88px", borderRadius: "50%", overflow: "hidden", border: "3px solid #3b82f6" };
+const profileContentStyle = { display: "flex", gap: "32px", flexWrap: "wrap", alignItems: "center" };
+const avatarSectionStyle = { display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" };
+const avatarWrapperStyle = { 
+  position: "relative", 
+  width: "120px", 
+  height: "120px", 
+  borderRadius: "50%", 
+  overflow: "hidden", 
+  border: "3px solid #3b82f6",
+  cursor: "pointer",
+  transition: "all 0.2s",
+};
 const avatarStyle = { width: "100%", height: "100%", objectFit: "cover" };
-const avatarPlaceholderStyle = { width: "100%", height: "100%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "36px", fontWeight: "700", color: "white" };
-const avatarActionsStyle = { display: "flex", gap: "8px" };
-const uploadButtonStyle = { padding: "5px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#1e293b", border: "1px solid #e2e8f0" };
-const removeButtonStyle = { padding: "5px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fee2e2" };
+const avatarPlaceholderStyle = { 
+  width: "100%", 
+  height: "100%", 
+  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  fontSize: "48px", 
+  fontWeight: "700", 
+  color: "white" 
+};
+const avatarEditOverlay = {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  background: "rgba(0,0,0,0.6)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "8px",
+  opacity: 0,
+  transition: "opacity 0.2s",
+};
+const avatarActionsStyle = { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" };
+const uploadButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#1e293b", border: "1px solid #e2e8f0" };
+const removeButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fee2e2" };
+const settingsButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "#eff6ff", color: "#3b82f6", border: "1px solid #bfdbfe" };
 const infoSectionStyle = { flex: 1 };
 const infoHeaderStyle = { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "6px" };
-const fullNameStyle = { fontSize: "22px", fontWeight: "700", color: "#1e293b", margin: 0 };
-const memberBadgeStyle = { background: "#f1f5f9", borderRadius: "20px", padding: "3px 10px", color: "#64748b", fontSize: "11px", fontWeight: "500" };
+const fullNameStyle = { fontSize: "24px", fontWeight: "700", color: "#1e293b", margin: 0 };
+const memberBadgeStyle = { background: "#f1f5f9", borderRadius: "20px", padding: "4px 12px", color: "#64748b", fontSize: "11px", fontWeight: "500" };
 const emailStyle = { color: "#64748b", fontSize: "13px", marginBottom: "10px" };
 const badgeContainerStyle = { display: "flex", gap: "8px", flexWrap: "wrap" };
-const roleBadgeStyle = { padding: "3px 10px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#eff6ff", color: "#3b82f6" };
-const jumuiaBadgeStyle = { padding: "3px 10px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#ecfdf5", color: "#10b981" };
+const roleBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#eff6ff", color: "#3b82f6" };
+const jumuiaBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#ecfdf5", color: "#10b981" };
 
 const quickStatsStyle = {
   display: "flex",
@@ -641,7 +700,7 @@ const quickStatDividerStyle = {
   background: "#e2e8f0",
 };
 
-const statsRowStyle = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px", marginBottom: "32px" };
+const statsRowStyle = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "32px" };
 const statCardStyle = { background: "#ffffff", borderRadius: "16px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px", border: "1px solid #e2e8f0", cursor: "pointer", position: "relative" };
 const statIconStyle = { fontSize: "28px", width: "48px", height: "48px", borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "center" };
 const statInfoStyle = { display: "flex", flexDirection: "column", flex: 1 };

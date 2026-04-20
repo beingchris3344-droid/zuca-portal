@@ -2182,7 +2182,7 @@ const styles = {
   },
   notification: {
     position: 'fixed',
-    top: '24px',
+    top: '84px',
     right: '24px',
     padding: '12px 24px',
     borderRadius: '8px',

@@ -116,7 +116,7 @@ export default function AdminLayout() {
         <div className="top-bar-right">
           <button className="ai-assistant-btn" onClick={openAI}>
             <FiMessageSquare size={20} />
-            <span className="ai-text"><strong>ZUCA ADMIN AI</strong></span>
+            <span className="ai-text"><strong> AI</strong></span>
           </button>
 
           <div className="online-indicator">
@@ -240,258 +240,150 @@ export default function AdminLayout() {
           overflow-x: hidden;
         }
 
-        /* Top Bar - Official White */
-        .top-bar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 64px;
-          background: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 24px;
-          z-index: 100;
-          border-bottom: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
+       /* Top Bar - More Compact */
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px; /* Reduced from 64px to 48px */
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px; /* Reduced horizontal padding */
+  z-index: 1;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
 
-        .top-bar-left {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          min-width: 200px;
-        }
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Reduced from 16px */
+  min-width: auto; /* Changed from 200px */
+}
 
-        .menu-btn {
-          width: 40px;
-          height: 40px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 20px;
-          color: #475569;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+.menu-btn {
+  width: 32px; /* Reduced from 40px */
+  height: 32px; /* Reduced from 40px */
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px; /* Reduced from 10px */
+  font-size: 18px; /* Reduced from 20px */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-        .logo-small {
-          height: 36px;
-          width: auto;
-        }
+.logo-small {
+  height: 28px; /* Reduced from 36px */
+  width: auto;
+}
 
-        .university-name {
-          font-size: 16px;
-          font-weight: 700;
-          color: #1e293b;
-        }
+.university-name {
+  font-size: 14px; /* Reduced from 16px */
+  font-weight: 600; /* Changed from 700 */
+  color: #1e293b;
+}
 
-        .top-bar-right {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          min-width: 200px;
-          justify-content: flex-end;
-        }
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Reduced from 16px */
+  min-width: auto; /* Changed from 200px */
+  justify-content: flex-end;
+}
 
-        /* AI Assistant Button */
-        .ai-assistant-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          border: none;
-          border-radius: 30px;
-          color: white;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
+/* AI Assistant Button - More Compact */
+.ai-assistant-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Reduced from 8px */
+  padding: 5px 12px; /* Reduced from 8px 16px */
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border: none;
+  border-radius: 24px; /* Slightly reduced */
+  color: white;
+  font-weight: 500; /* Changed from 600 */
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px; /* Added smaller font */
+}
 
-        .ai-assistant-btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
+.ai-assistant-btn svg {
+  width: 16px; /* Make icon smaller */
+  height: 16px;
+}
 
-        .ai-assistant-btn .ai-text {
-          font-size: 13px;
-        }
+/* Online Indicator - More Compact */
+.online-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Reduced from 8px */
+  padding: 4px 10px; /* Reduced from 6px 12px */
+  background: #f8fafc;
+  border-radius: 24px; /* Reduced from 30px */
+  border: 1px solid #e2e8f0;
+}
 
-        @media (max-width: 768px) {
-          .ai-assistant-btn .ai-text {
-            display: none;
-          }
-          .ai-assistant-btn {
-            padding: 8px 12px;
-          }
-        }
+.online-dot {
+  width: 6px; /* Reduced from 8px */
+  height: 6px; /* Reduced from 8px */
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
 
-        /* Online Indicator */
-        .online-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          background: #f8fafc;
-          border-radius: 30px;
-          border: 1px solid #e2e8f0;
-        }
+.online-count {
+  font-size: 12px; /* Reduced from 13px */
+  font-weight: 500;
+  color: #1e293b;
+}
 
-        .online-dot {
-          width: 8px;
-          height: 8px;
-          background: #10b981;
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-        }
+/* Notification Button - More Compact */
+.notification-btn {
+  width: 32px; /* Reduced from 40px */
+  height: 32px; /* Reduced from 40px */
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px; /* Reduced from 10px */
+  font-size: 16px; /* Reduced from 18px */
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+}
 
-        .online-count {
-          font-size: 13px;
-          font-weight: 500;
-          color: #1e293b;
-        }
+.notification-badge {
+  position: absolute;
+  top: -2px; /* Adjusted from -4px */
+  right: -2px; /* Adjusted from -4px */
+  background: #ef4444;
+  color: white;
+  font-size: 9px; /* Reduced from 10px */
+  font-weight: 600;
+  min-width: 16px; /* Reduced from 18px */
+  height: 16px; /* Reduced from 18px */
+  border-radius: 8px; /* Reduced from 9px */
+}
 
-        /* Notifications */
-        .notification-container {
-          position: relative;
-        }
-
-        .notification-btn {
-          width: 40px;
-          height: 40px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 18px;
-          cursor: pointer;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #475569;
-        }
-
-        .notification-badge {
-          position: absolute;
-          top: -4px;
-          right: -4px;
-          background: #ef4444;
-          color: white;
-          font-size: 10px;
-          font-weight: 600;
-          min-width: 18px;
-          height: 18px;
-          border-radius: 9px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .notification-dropdown {
-          position: absolute;
-          top: 50px;
-          right: 0;
-          width: 340px;
-          background: #ffffff;
-          border-radius: 16px;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-          border: 1px solid #e2e8f0;
-          z-index: 1000;
-          overflow: hidden;
-        }
-
-        .notification-header {
-          padding: 16px;
-          border-bottom: 1px solid #e2e8f0;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .notification-header h3 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-        }
-
-        .notification-header button {
-          background: #f1f5f9;
-          border: none;
-          color: #64748b;
-          font-size: 12px;
-          cursor: pointer;
-          padding: 4px 12px;
-          border-radius: 20px;
-        }
-
-        .notification-list {
-          max-height: 400px;
-          overflow-y: auto;
-        }
-
-        .notification-empty {
-          padding: 40px 20px;
-          text-align: center;
-          color: #64748b;
-          font-size: 13px;
-        }
-
-        .notification-item {
-          display: flex;
-          gap: 12px;
-          padding: 12px 16px;
-          border-bottom: 1px solid #f1f5f9;
-          cursor: pointer;
-        }
-
-        .notification-item:hover {
-          background: #f8fafc;
-        }
-
-        .notification-icon {
-          width: 36px;
-          height: 36px;
-          background: #f1f5f9;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-        }
-
-        .notification-content {
-          flex: 1;
-        }
-
-        .notification-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 4px;
-        }
-
-        .notification-message {
-          font-size: 12px;
-          color: #64748b;
-          line-height: 1.4;
-        }
-
-        .notification-time {
-          font-size: 10px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-
-        /* Admin Profile */
-        .admin-profile {
-          cursor: pointer;
-        }
-
+/* Admin Profile - More Compact */
+.admin-avatar {
+  width: 32px; /* Reduced from 40px */
+  height: 32px; /* Reduced from 40px */
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  border-radius: 8px; /* Reduced from 10px */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px; /* Reduced from 14px */
+}
         .admin-avatar {
           width: 40px;
           height: 40px;
@@ -516,7 +408,7 @@ export default function AdminLayout() {
           padding: 20px;
           display: flex;
           flex-direction: column;
-          z-index: 90;
+          z-index: 0;
           overflow-y: auto;
           border-right: 1px solid #e2e8f0;
           transition: transform 0s;
@@ -626,7 +518,7 @@ export default function AdminLayout() {
 
         /* Logout Button */
         .logout-btn {
-          margin-top: 20px;
+          margin-bottom: 50px;
           padding: 12px;
           border: 1px solid #fee2e2;
           border-radius: 10px;
@@ -663,7 +555,7 @@ export default function AdminLayout() {
           min-height: 100vh;
           transition: margin-left 0.3s;
           position: relative;
-          z-index: 1;
+          z-index: 0;
           width: calc(100% - 280px);
         }
 

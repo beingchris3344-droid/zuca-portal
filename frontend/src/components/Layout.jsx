@@ -401,7 +401,7 @@ function Layout() {
           }
 
           header {
-            z-index: 30 !important;
+            z-index: 10 !important;
           }
 
           .notifications-dropdown,
@@ -633,9 +633,9 @@ const headerStyle = {
   justifyContent: "space-between",
   alignItems: "center",
   background: "#ffffff",
-  borderRadius: "16px",
-  padding: "12px 20px",
-  marginBottom: "24px",
+  borderRadius: "5px",
+  padding: "0px 20px",
+  marginBottom: "0px",
   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
   border: "1px solid #e2e8f0",
   position: "relative",
@@ -705,19 +705,7 @@ const enhancedNotificationWrapperStyle = {
   alignItems: "center",
   justifyContent: "center",
 };
-// Add hover effect for the bell container
-const styleSheet = document.createElement("style");
-styleSheet.textContent = `
-  .enhanced-bell-wrapper:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(252, 0, 0, 0.81);
-  }
-  
-  .enhanced-bell-wrapper:active {
-    transform: scale(0.98);
-  }
-`;
-document.head.appendChild(styleSheet);
+
 
 const userMenuContainerStyle = {
   position: "relative",

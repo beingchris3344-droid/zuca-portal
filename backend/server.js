@@ -101,8 +101,8 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '2gb' }));
+app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
 // ================== MIDDLEWARE ==================
 app.use((req, res, next) => {
@@ -973,7 +973,7 @@ const mediaStorage = multer.diskStorage({
 
 const mediaUpload = multer({
   storage: mediaStorage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB limit
 });
 
 // Helper: Get media type

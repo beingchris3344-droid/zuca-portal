@@ -973,8 +973,11 @@ const mediaStorage = multer.diskStorage({
 
 const mediaUpload = multer({
   storage: mediaStorage,
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB limit
-});
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 },
+}).fields([
+  { name: 'files', maxCount: 10 },
+  { name: 'thumbnails', maxCount: 10 }  // Add this line
+]);
 
 // Helper: Get media type
 function getMediaType(mimetype) {
@@ -1019,23 +1022,26 @@ async function generateVideoThumbnail(videoPath, outputDir, outputName) {
 
 // ==================== ADMIN MEDIA MANAGEMENT ====================
 
-// 1. Upload media (Admin, Secretary & Media Moderator)
-app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10), async (req, res) => {
+app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    // Allow admin, secretary, OR media_moderator
     if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
       return res.status(403).json({ error: "Only admins, secretaries, and media moderators can upload media" });
     }
 
-    if (!req.files || req.files.length === 0) {
+    // IMPORTANT: Access files from req.files object
+    const files = req.files['files']; // This gets the files array
+    const thumbnails = req.files['thumbnails']; // This gets thumbnails array (if any)
+    
+    if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
     const { category, tags, isPublic, isFeatured, description } = req.body;
     const uploadedMedia = [];
 
-    for (const file of req.files) {
+    // Process files (ignore thumbnails for now since backend generates them)
+    for (const file of files) {
       const mediaType = getMediaType(file.mimetype);
       const fileName = `media_${Date.now()}_${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
       const filePath = `media/${fileName}`;
@@ -1057,15 +1063,13 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10)
 
       const publicURL = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${filePath}`;
       
-      // ========== GENERATE THUMBNAIL FOR VIDEOS ==========
+      // Generate thumbnail for videos (your existing code)
       if (mediaType === 'video') {
         try {
           const thumbFileName = `thumb_${fileName.replace(path.extname(fileName), '.jpg')}`;
           
-          // Generate thumbnail using FFmpeg
           await generateVideoThumbnail(file.path, thumbnailsDir, thumbFileName);
           
-          // Upload thumbnail to Supabase
           const thumbFilePath = `media/thumbnails/${thumbFileName}`;
           const { error: thumbError } = await supabase.storage
             .from("media")
@@ -1077,29 +1081,23 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10)
           if (!thumbError) {
             thumbnailUrl = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${thumbFilePath}`;
             console.log('✅ Thumbnail uploaded for:', file.originalname);
-          } else {
-            console.error('Thumbnail upload error:', thumbError);
           }
           
-          // Clean up temp thumbnail file
           try {
             if (fs.existsSync(path.join(thumbnailsDir, thumbFileName))) {
               fs.unlinkSync(path.join(thumbnailsDir, thumbFileName));
             }
-          } catch(e) {
-            console.error('Error cleaning up thumbnail:', e);
-          }
+          } catch(e) {}
           
         } catch (thumbErr) {
-          console.error('❌ Thumbnail generation failed for:', file.originalname, thumbErr.message);
-          // Continue without thumbnail - video will show placeholder
+          console.error('❌ Thumbnail generation failed:', thumbErr.message);
         }
       }
       
       // Clean up temp file
       fs.unlinkSync(file.path);
       
-      // Save to database with thumbnail URL
+      // Save to database
       const media = await prisma.media.create({
         data: {
           title: file.originalname.replace(/\.[^/.]+$/, ""),
@@ -1123,41 +1121,47 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload.array("files", 10)
       uploadedMedia.push(media);
     }
 
-  
-    // Add this after your for loop and before res.status(201).json
-// Create notifications for all users if media is public
-if (uploadedMedia.length > 0 && isPublic === 'true') {
-  const users = await prisma.user.findMany({ select: { id: true, fullName: true } });
-  const now = new Date();
-  
-  const notifications = users.map(user => ({
-    id: `media-${uploadedMedia[0].id}-${user.id}-${Date.now()}`,
-    userId: user.id,
-    type: "new_media",
-    title: "📸 New Gallery Update",
-    message: `ZUCA added new ${uploadedMedia.length} item(s) to the gallery`,
-    read: false,
-    createdAt: now,
-  }));
+    // Clean up any uploaded thumbnails (if they exist)
+    if (thumbnails && thumbnails.length > 0) {
+      for (const thumb of thumbnails) {
+        try {
+          if (fs.existsSync(thumb.path)) fs.unlinkSync(thumb.path);
+        } catch(e) {}
+      }
+    }
 
-  await prisma.notification.createMany({ data: notifications });
-  
-  notifications.forEach(notif => {
-    io.to(notif.userId).emit("new_notification", {
-      ...notif,
-      createdAt: now.toISOString()
-    });
-  });
-  
-  console.log(`✅ Created ${notifications.length} media notifications`);
-}
+    // Create notifications (your existing code)
+    if (uploadedMedia.length > 0 && isPublic === 'true') {
+      const users = await prisma.user.findMany({ select: { id: true, fullName: true } });
+      const now = new Date();
+      
+      const notifications = users.map(user => ({
+        id: `media-${uploadedMedia[0].id}-${user.id}-${Date.now()}`,
+        userId: user.id,
+        type: "new_media",
+        title: "📸 New Gallery Update",
+        message: `ZUCA added new ${uploadedMedia.length} item(s) to the gallery`,
+        read: false,
+        createdAt: now,
+      }));
+
+      await prisma.notification.createMany({ data: notifications });
+      
+      notifications.forEach(notif => {
+        io.to(notif.userId).emit("new_notification", {
+          ...notif,
+          createdAt: now.toISOString()
+        });
+      });
+    }
 
     res.status(201).json({ success: true, media: uploadedMedia });
   } catch (err) {
     console.error("Media upload error:", err);
-    // Clean up any remaining temp files
+    // Clean up all temp files
     if (req.files) {
-      req.files.forEach(file => {
+      const allFiles = [...(req.files['files'] || []), ...(req.files['thumbnails'] || [])];
+      allFiles.forEach(file => {
         try {
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
         } catch(e) {}
@@ -1166,6 +1170,7 @@ if (uploadedMedia.length > 0 && isPublic === 'true') {
     res.status(500).json({ error: err.message });
   }
 });
+  
 
 // 2. Get all media (Admin panel)
 app.get("/api/admin/media", authenticate, async (req, res) => {

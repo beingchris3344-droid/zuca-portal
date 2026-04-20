@@ -59,7 +59,7 @@ const LazyImage = ({ src, alt, className }) => {
 // Adaptive Media Player Component - Smooth playback, no buffering
 const AdaptiveMediaPlayer = ({ src, thumbnailUrl, title, type = 'video', autoPlay = false }) => {
   const mediaRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -139,6 +139,7 @@ const AdaptiveMediaPlayer = ({ src, thumbnailUrl, title, type = 'video', autoPla
           ref={mediaRef}
           src={src}
           preload="auto"
+          autoPlay={autoPlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleTimeUpdate}
           onCanPlayThrough={handleCanPlayThrough}

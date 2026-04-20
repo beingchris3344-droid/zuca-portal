@@ -709,7 +709,7 @@ export default function AdminMediaPage() {
             <label htmlFor="file-input" className="upload-label">
               <Plus size={32} />
               <span>Click to select files</span>
-              <small>Images, videos, audio (max 50MB)</small>
+              <small>Images, videos, audio (max 2GB)</small>
             </label>
             
             {filePreviews.length > 0 && (

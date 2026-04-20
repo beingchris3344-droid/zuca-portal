@@ -700,8 +700,8 @@ const quickStatDividerStyle = {
   background: "#e2e8f0",
 };
 
-const statsRowStyle = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "32px" };
-const statCardStyle = { background: "#ffffff", borderRadius: "16px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px", border: "1px solid #e2e8f0", cursor: "pointer", position: "relative" };
+const statsRowStyle = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px", marginBottom: "32px" };
+const statCardStyle = { background: "#ffffff", borderRadius: "16px", padding: "18px 10px", display: "flex", alignItems: "center", gap: "14px", border: "1px solid #e2e8f0", cursor: "pointer", position: "relative" };
 const statIconStyle = { fontSize: "28px", width: "48px", height: "48px", borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "center" };
 const statInfoStyle = { display: "flex", flexDirection: "column", flex: 1 };
 const statValueStyle = { fontSize: "28px", fontWeight: "800", color: "#1e293b", lineHeight: 1.2 };

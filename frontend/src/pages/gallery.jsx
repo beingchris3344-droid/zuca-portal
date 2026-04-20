@@ -1817,7 +1817,7 @@ export default function GalleryPage() {
           background: rgba(0, 0, 0, 0.85);
           z-index: 1000;
           display: flex;
-          margin-top: -80px;
+          margin-top: -0px;
           align-items: center;
           justify-content: center;
           padding: 20px;

@@ -6,6 +6,7 @@ import logo from "../assets/zuca-logo.png";
 import Notifications from "./Notifications";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
+import FloatingInstallButton from "./FloatingInstallButton";
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -286,6 +287,8 @@ function Layout() {
           <Outlet />
         </motion.div>
       </main>
+
+      <FloatingInstallButton />
 
       <style>
         {`

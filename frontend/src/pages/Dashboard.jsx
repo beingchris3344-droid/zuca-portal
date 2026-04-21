@@ -257,7 +257,7 @@ function Dashboard() {
     <div style={dashboardContainerStyle}>
       <div style={dashboardContentStyle}>
         {/* Header */}
-        <div style={headerStyle}>
+        <div className="gradient-header">
           <div style={headerLeftStyle}>
             <h1 style={greetingStyle}>
               {greeting}, <span style={userNameStyle}>{user.fullName?.split(" ")[0]}</span>
@@ -450,6 +450,38 @@ function Dashboard() {
           <p style={footerTextStyle}>ZUCA Portal • v3.0</p>
         </div>
       </div>
+
+       <style>{`
+      .gradient-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        border-radius: 20px;
+        padding: 20px 28px;
+        margin-bottom: 24px;
+        border: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      
+      .gradient-header h1,
+      .gradient-header p {
+        color: white !important;
+      }
+      
+      .gradient-header button {
+        background: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: white !important;
+      }
+      
+      .gradient-header button:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+      }
+    `}</style>
 
       {showCropper && (
         <ProfileImageCropper

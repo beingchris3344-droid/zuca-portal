@@ -34,7 +34,7 @@ const FloatingInstallButton = () => {
     if (autoCloseTimer) clearTimeout(autoCloseTimer);
     const timer = setTimeout(() => {
       setShowPopup(false);
-    }, 5000); // 15 seconds
+    }, 15000); // 15 seconds
     setAutoCloseTimer(timer);
   };
 
@@ -128,7 +128,7 @@ const FloatingInstallButton = () => {
   const userName = user?.fullName?.split(" ")[0];
   const greeting = userName ? `Hey ${userName}!` : "Hey there!";
   const personalMessage = userName 
-    ? `Welcome back ${userName}! kindly Install our app for a better experience fast log in and better acess and performance -REGARDS: ZUCA APP-.`
+    ? `Welcome back ${userName}! kindly Install our app for a better experience fast log in and better acess and performance -REGARDS: -ZUCA-APP-.`
     : "Welcome to ZUCA! Install our app for faster access and push notifications.";
 
   return (

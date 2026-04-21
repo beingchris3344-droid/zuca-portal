@@ -70,7 +70,7 @@ const FloatingInstallButton = () => {
     const timer = setInterval(() => {
       console.log("Showing recurring popup (1 minute later)");
       showWithAutoClose();
-    }, 65000); // 1 minute
+    }, 180000); // 1 minute
 
     setRecurringTimer(timer);
 

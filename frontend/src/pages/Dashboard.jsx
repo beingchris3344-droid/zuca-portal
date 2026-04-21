@@ -323,6 +323,9 @@ function Dashboard() {
                 {user.homeJumuia && <span style={jumuiaBadgeStyle}>👥 {user.homeJumuia.name}</span>}
               </div>
             </div>
+
+
+            
             
             {/* Quick Stats Badges */}
             <div style={quickStatsStyle}>
@@ -341,6 +344,41 @@ function Dashboard() {
                 <span style={quickStatLabelStyle}>Months</span>
               </div>
             </div>
+          </div>
+        </div>
+
+
+         {/* Recent Activity Section */}
+        <div style={activitySectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <h2 style={sectionTitleStyle}>Recent Activity</h2>
+            <p style={sectionSubtitleStyle}>Latest updates from your community</p>
+          </div>
+          
+          <div style={activityListStyle}>
+            {recentActivities.length === 0 ? (
+              <div style={emptyActivityStyle}>
+                <span style={emptyActivityIconStyle}>📭</span>
+                <p>No recent activity</p>
+              </div>
+            ) : (
+              recentActivities.map((activity) => (
+                <motion.div 
+                  key={activity.id} 
+                  style={activityItemStyle}
+                  whileHover={{ x: 4 }}
+                  onClick={() => navigate(activity.link)}
+                >
+                  <div style={{ ...activityIconStyle, background: `${activity.color}10`, color: activity.color }}>{activity.icon}</div>
+                  <div style={activityContentStyle}>
+                    <div style={activityTitleStyle}>{activity.title}</div>
+                    <div style={activityMessageStyle}>{activity.message}</div>
+                    <div style={activityTimeStyle}>{formatRelativeTime(activity.time)}</div>
+                  </div>
+                  <FiArrowRight style={activityArrowStyle} />
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
 
@@ -404,39 +442,7 @@ function Dashboard() {
           ))}
         </div>
 
-        {/* Recent Activity Section */}
-        <div style={activitySectionStyle}>
-          <div style={sectionHeaderStyle}>
-            <h2 style={sectionTitleStyle}>Recent Activity</h2>
-            <p style={sectionSubtitleStyle}>Latest updates from your community</p>
-          </div>
-          
-          <div style={activityListStyle}>
-            {recentActivities.length === 0 ? (
-              <div style={emptyActivityStyle}>
-                <span style={emptyActivityIconStyle}>📭</span>
-                <p>No recent activity</p>
-              </div>
-            ) : (
-              recentActivities.map((activity) => (
-                <motion.div 
-                  key={activity.id} 
-                  style={activityItemStyle}
-                  whileHover={{ x: 4 }}
-                  onClick={() => navigate(activity.link)}
-                >
-                  <div style={{ ...activityIconStyle, background: `${activity.color}10`, color: activity.color }}>{activity.icon}</div>
-                  <div style={activityContentStyle}>
-                    <div style={activityTitleStyle}>{activity.title}</div>
-                    <div style={activityMessageStyle}>{activity.message}</div>
-                    <div style={activityTimeStyle}>{formatRelativeTime(activity.time)}</div>
-                  </div>
-                  <FiArrowRight style={activityArrowStyle} />
-                </motion.div>
-              ))
-            )}
-          </div>
-        </div>
+       
 
         {/* Footer */}
         <div style={footerStyle}>
@@ -545,19 +551,19 @@ const errorTextStyle = { color: "#64748b", fontSize: "13px", marginBottom: "28px
 const errorButtonStyle = { background: "#3b82f6", color: "white", border: "none", borderRadius: "10px", padding: "10px 20px", fontSize: "13px", fontWeight: "600", cursor: "pointer", width: "100%" };
 
 const dashboardContainerStyle = {
-  minHeight: "100vh",
-  background: "#f8fafc",
+  minHeight: "auto",
+  background: "#ffffff27",
   fontFamily: "'Inter', -apple-system, sans-serif",
 };
 
 const dashboardContentStyle = {
   maxWidth: "1400px",
   margin: "0 auto",
-  padding: "24px",
+  padding: "0px",
 };
 
 const headerStyle = {
-  background: "#ffffff",
+  background: "#fffb00cc",
   borderRadius: "20px",
   padding: "20px 28px",
   marginBottom: "24px",
@@ -573,12 +579,12 @@ const headerLeftStyle = { flex: 1 };
 const greetingStyle = { fontSize: "24px", fontWeight: "700", color: "#1e293b", marginBottom: "6px" };
 const userNameStyle = { background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" };
 const waveStyle = { display: "inline-block", marginLeft: "6px" };
-const dateStyle = { color: "#64748b", fontSize: "13px" };
+const dateStyle = { color: "#006aff", fontSize: "13px" };
 
 const headerRightStyle = { display: "flex", gap: "12px", alignItems: "center" };
 
 const aiButtonStyle = {
-  background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
+  background: "linear-gradient(135deg, #ff0000, #d61111)",
   border: "none",
   borderRadius: "12px",
   padding: "10px 20px",
@@ -610,7 +616,7 @@ const logoutButtonStyle = {
 const profileCardStyle = {
   background: "#ffffff",
   borderRadius: "24px",
-  padding: "28px",
+  padding: "58px",
   marginBottom: "28px",
   border: "1px solid #e2e8f0",
 };
@@ -619,11 +625,11 @@ const profileContentStyle = { display: "flex", gap: "32px", flexWrap: "wrap", al
 const avatarSectionStyle = { display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" };
 const avatarWrapperStyle = { 
   position: "relative", 
-  width: "120px", 
-  height: "120px", 
+  width: "220px", 
+  height: "220px", 
   borderRadius: "50%", 
   overflow: "hidden", 
-  border: "3px solid #3b82f6",
+  border: "3px solid #15ff00",
   cursor: "pointer",
   transition: "all 0.2s",
 };
@@ -659,8 +665,8 @@ const settingsButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSiz
 const infoSectionStyle = { flex: 1 };
 const infoHeaderStyle = { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "6px" };
 const fullNameStyle = { fontSize: "24px", fontWeight: "700", color: "#1e293b", margin: 0 };
-const memberBadgeStyle = { background: "#f1f5f9", borderRadius: "20px", padding: "4px 12px", color: "#64748b", fontSize: "11px", fontWeight: "500" };
-const emailStyle = { color: "#64748b", fontSize: "13px", marginBottom: "10px" };
+const memberBadgeStyle = { background: "#f1f5f9", borderRadius: "20px", padding: "4px 12px", color: "#000000", fontSize: "15px", fontWeight: "700" };
+const emailStyle = { color: "#64748b", fontSize: "18px", marginBottom: "10px" };
 const badgeContainerStyle = { display: "flex", gap: "8px", flexWrap: "wrap" };
 const roleBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#eff6ff", color: "#3b82f6" };
 const jumuiaBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "#ecfdf5", color: "#10b981" };
@@ -670,7 +676,7 @@ const quickStatsStyle = {
   alignItems: "center",
   gap: "16px",
   padding: "12px 20px",
-  background: "#f8fafc",
+  background: "#ffffff",
   borderRadius: "16px",
   border: "1px solid #e2e8f0",
 };
@@ -701,7 +707,7 @@ const quickStatDividerStyle = {
 };
 
 const statsRowStyle = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px", marginBottom: "32px" };
-const statCardStyle = { background: "#ffffff", borderRadius: "16px", padding: "18px 10px", display: "flex", alignItems: "center", gap: "14px", border: "1px solid #e2e8f0", cursor: "pointer", position: "relative" };
+const statCardStyle = { background: "#ffd9008e", borderRadius: "16px", padding: "18px 10px", display: "flex", alignItems: "center", gap: "14px", border: "1px solid #e2e8f0", cursor: "pointer", position: "relative" };
 const statIconStyle = { fontSize: "28px", width: "48px", height: "48px", borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "center" };
 const statInfoStyle = { display: "flex", flexDirection: "column", flex: 1 };
 const statValueStyle = { fontSize: "28px", fontWeight: "800", color: "#1e293b", lineHeight: 1.2 };
@@ -713,7 +719,7 @@ const sectionTitleStyle = { fontSize: "20px", fontWeight: "700", color: "#1e293b
 const sectionSubtitleStyle = { color: "#64748b", fontSize: "13px" };
 
 const actionsGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginBottom: "40px" };
-const actionCardStyle = { background: "#ffffff", borderRadius: "16px", padding: "20px", cursor: "pointer", border: "1px solid #e2e8f0", borderTopWidth: "3px", transition: "all 0.2s" };
+const actionCardStyle = { background: "#dadada", borderRadius: "16px", padding: "20px", cursor: "pointer", border: "1px solid #e2e8f0", borderTopWidth: "3px", transition: "all 0.2s" };
 const actionCardHeaderStyle = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" };
 const actionIconStyle = { width: "44px", height: "44px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" };
 const actionBadgeStyle = { background: "#fef2f2", borderRadius: "20px", padding: "3px 10px", color: "#dc2626", fontSize: "10px", fontWeight: "600" };

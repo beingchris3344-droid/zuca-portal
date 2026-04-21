@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { 
   Crown, Users, Mic, Church, Camera, Music, 
@@ -7,24 +8,13 @@ import {
   Phone, Mail, Calendar, Clock,
   TrendingUp, Award, Star, AlertCircle,
   Download, RefreshCw, Eye, UserCheck,
-  Briefcase, Shield, Sparkles
+  Briefcase, Shield, Sparkles, ArrowLeft, Home,
+  CheckSquare, Square, Trash, Save, Layers
 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 
-// Custom WhatsApp icon (lucide-react doesn't have it)
-const WhatsAppIcon = ({ size = 20, ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
+const WhatsAppIcon = ({ size = 20 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9l-5.05 1.9z" />
     <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
     <path d="M14 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
@@ -33,1770 +23,895 @@ const WhatsAppIcon = ({ size = 20, ...props }) => (
 );
 
 export default function AdminExecutivePage() {
-  const [activeTab, setActiveTab] = useState('positions'); // positions, team, stats
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('positions');
   const [expandedCategories, setExpandedCategories] = useState({
-    leadership: true,
-    choir: true,
-    jumuia: true,
-    media: true,
-    voice: true
+    leadership: true, choir: true, jumuia: true, media: true, voice: true
   });
   
   const [positions, setPositions] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [users, setUsers] = useState([]);
-  const [availablePositions, setAvailablePositions] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  // Modal states
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [selectedPosition, setSelectedPosition] = useState(null);
-  const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [customPhone, setCustomPhone] = useState('');
-  const [customEmail, setCustomEmail] = useState('');
+  // Bulk selection
+  const [selectedPositions, setSelectedPositions] = useState([]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [bulkSelectedUser, setBulkSelectedUser] = useState('');
+  const [bulkSearchUser, setBulkSearchUser] = useState('');
+  
+  // Toast notification
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  
+  // Inline assignment states
+  const [assigningPosition, setAssigningPosition] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [searchUserTerm, setSearchUserTerm] = useState('');
   const [saving, setSaving] = useState(false);
-  const [searchUsers, setSearchUsers] = useState('');
+  
+  // Edit states
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  
+  // Remove confirm
+  const [removingAssignment, setRemovingAssignment] = useState(null);
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  // Silent fetch - updates state without showing loading spinner
+  const fetchAllDataSilent = async () => {
     try {
-      const [positionsRes, assignmentsRes, usersRes, availableRes, statsRes] = await Promise.all([
+      const [positionsRes, assignmentsRes, usersRes, statsRes] = await Promise.all([
         api.get('/api/executive/positions'),
         api.get('/api/admin/executive/assignments'),
         api.get('/api/admin/executive/users'),
-        api.get('/api/admin/executive/available-positions'),
         api.get('/api/admin/executive/stats')
       ]);
       setPositions(positionsRes.data.positions);
       setAssignments(assignmentsRes.data.assignments);
       setUsers(usersRes.data.users);
-      setAvailablePositions(availableRes.data.positions);
       setStats(statsRes.data.stats);
     } catch (error) {
       console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const toggleCategory = (category) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
+  // Initial load with loading spinner
+  const fetchAllData = async () => {
+    setLoading(true);
+    await fetchAllDataSilent();
+    setLoading(false);
   };
 
-  const getCategoryIcon = (category) => {
-    switch(category) {
-      case 'leadership': return <Crown size={18} />;
-      case 'choir': return <Mic size={18} />;
-      case 'jumuia': return <Church size={18} />;
-      case 'media': return <Camera size={18} />;
-      case 'voice': return <Music size={18} />;
-      default: return <Briefcase size={18} />;
-    }
-  };
-
-  const getCategoryTitle = (category) => {
-    switch(category) {
-      case 'leadership': return 'Leadership Team';
-      case 'choir': return 'Choir Department';
-      case 'jumuia': return 'Jumuia Moderators';
-      case 'media': return 'Media Department';
-      case 'voice': return 'Voice Representatives';
-      default: return category;
-    }
-  };
-
-  const getCategoryColor = (category) => {
-    switch(category) {
-      case 'leadership': return '#3b82f6';
-      case 'choir': return '#8b5cf6';
-      case 'jumuia': return '#10b981';
-      case 'media': return '#f59e0b';
-      case 'voice': return '#ef4444';
-      default: return '#64748b';
-    }
-  };
-
-  const getCategoryBg = (category) => {
-    switch(category) {
-      case 'leadership': return '#eff6ff';
-      case 'choir': return '#f5f3ff';
-      case 'jumuia': return '#ecfdf5';
-      case 'media': return '#fffbeb';
-      case 'voice': return '#fef2f2';
-      default: return '#f8fafc';
-    }
-  };
+  useEffect(() => {
+    fetchAllData();
+  }, []);
 
   const getAssignmentForPosition = (positionId) => {
     return assignments.find(a => a.positionId === positionId);
   };
 
+  const getCategoryIcon = (category) => {
+    const icons = {
+      leadership: <Crown size={18} />,
+      choir: <Mic size={18} />,
+      jumuia: <Church size={18} />,
+      media: <Camera size={18} />,
+      voice: <Music size={18} />
+    };
+    return icons[category] || <Briefcase size={18} />;
+  };
+
+  const getCategoryTitle = (category) => {
+    const titles = {
+      leadership: 'Leadership Team',
+      choir: 'Choir Department',
+      jumuia: 'Jumuia Moderators',
+      media: 'Media Department',
+      voice: 'Voice Representatives'
+    };
+    return titles[category] || category;
+  };
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      leadership: '#3b82f6',
+      choir: '#8b5cf6',
+      jumuia: '#10b981',
+      media: '#f59e0b',
+      voice: '#ef4444'
+    };
+    return colors[category] || '#64748b';
+  };
+
+  const getCategoryBg = (category) => {
+    const bg = {
+      leadership: '#eff6ff',
+      choir: '#f5f3ff',
+      jumuia: '#ecfdf5',
+      media: '#fffbeb',
+      voice: '#fef2f2'
+    };
+    return bg[category] || '#f8fafc';
+  };
+
   const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchUsers.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchUsers.toLowerCase()) ||
-    (user.phone && user.phone.includes(searchUsers))
+    user.fullName.toLowerCase().includes(bulkSearchUser.toLowerCase()) ||
+    user.email.toLowerCase().includes(bulkSearchUser.toLowerCase())
   );
 
-  const handleAssign = async () => {
-    if (!selectedUser || !selectedPosition) {
-      alert('Please select a user and position');
+  const inlineFilteredUsers = users.filter(user =>
+    user.fullName.toLowerCase().includes(searchUserTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchUserTerm.toLowerCase())
+  );
+
+  // Single Assign - SILENT
+  const handleAssign = async (positionId) => {
+    if (!selectedUserId) {
+      showToast('Please select a user', 'error');
       return;
     }
 
     setSaving(true);
     try {
       await api.post('/api/admin/executive/assign', {
-        userId: selectedUser,
-        positionId: selectedPosition.id,
-        customPhone: customPhone || null,
-        customEmail: customEmail || null
+        userId: selectedUserId,
+        positionId: positionId,
+        customPhone: null,
+        customEmail: null
       });
-      await fetchAllData();
-      setShowAssignModal(false);
-      setSelectedPosition(null);
-      setSelectedUser(null);
-      setCustomPhone('');
-      setCustomEmail('');
+      // Silent update - no page reload
+      await fetchAllDataSilent();
+      setAssigningPosition(null);
+      setSelectedUserId('');
+      setSearchUserTerm('');
+      showToast('Position assigned successfully!', 'success');
     } catch (error) {
-      alert(error.response?.data?.error || 'Assignment failed');
+      showToast(error.response?.data?.error || 'Assignment failed', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleUpdate = async () => {
-    if (!selectedAssignment) return;
+  // Bulk Assign - SILENT
+  const handleBulkAssign = async () => {
+    if (!bulkSelectedUser || selectedPositions.length === 0) {
+      showToast('Select positions and a user first', 'error');
+      return;
+    }
 
     setSaving(true);
-    try {
-      await api.put(`/api/admin/executive/update/${selectedAssignment.id}`, {
-        customPhone: customPhone || null,
-        customEmail: customEmail || null
-      });
-      await fetchAllData();
-      setShowEditModal(false);
-      setSelectedAssignment(null);
-      setCustomPhone('');
-      setCustomEmail('');
-    } catch (error) {
-      alert(error.response?.data?.error || 'Update failed');
-    } finally {
-      setSaving(false);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const positionId of selectedPositions) {
+      try {
+        await api.post('/api/admin/executive/assign', {
+          userId: bulkSelectedUser,
+          positionId: positionId,
+          customPhone: null,
+          customEmail: null
+        });
+        successCount++;
+      } catch (error) {
+        failCount++;
+      }
     }
+
+    // Silent update
+    await fetchAllDataSilent();
+    setSelectedPositions([]);
+    setBulkMode(false);
+    setShowBulkAssign(false);
+    setBulkSelectedUser('');
+    showToast(`Assigned ${successCount} positions${failCount > 0 ? `, ${failCount} failed` : ''}`, successCount > 0 ? 'success' : 'error');
+    setSaving(false);
   };
 
-  const handleRemove = async () => {
-    if (!selectedAssignment) return;
+  // Bulk Remove - SILENT
+  const handleBulkRemove = async () => {
+    if (selectedPositions.length === 0) return;
 
     setSaving(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const positionId of selectedPositions) {
+      const assignment = getAssignmentForPosition(positionId);
+      if (assignment) {
+        try {
+          await api.delete(`/api/admin/executive/remove/${assignment.id}`);
+          successCount++;
+        } catch (error) {
+          failCount++;
+        }
+      }
+    }
+
+    // Silent update
+    await fetchAllDataSilent();
+    setSelectedPositions([]);
+    setBulkMode(false);
+    showToast(`Removed ${successCount} executives${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
+    setSaving(false);
+  };
+
+  // Update Contact - SILENT
+  const handleUpdateContact = async (assignmentId) => {
+    setSaving(true);
     try {
-      await api.delete(`/api/admin/executive/remove/${selectedAssignment.id}`);
-      await fetchAllData();
-      setShowRemoveModal(false);
-      setSelectedAssignment(null);
+      await api.put(`/api/admin/executive/update/${assignmentId}`, {
+        customPhone: editPhone || null,
+        customEmail: editEmail || null
+      });
+      // Silent update
+      await fetchAllDataSilent();
+      setEditingAssignment(null);
+      setEditPhone('');
+      setEditEmail('');
+      showToast('Contact updated successfully!', 'success');
     } catch (error) {
-      alert(error.response?.data?.error || 'Removal failed');
+      showToast(error.response?.data?.error || 'Update failed', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const openAssignModal = (position) => {
-    setSelectedPosition(position);
-    setSelectedUser(null);
-    setCustomPhone('');
-    setCustomEmail('');
-    setShowAssignModal(true);
+  // Remove - SILENT
+  const handleRemove = async (assignmentId) => {
+    setSaving(true);
+    try {
+      await api.delete(`/api/admin/executive/remove/${assignmentId}`);
+      // Silent update
+      await fetchAllDataSilent();
+      setRemovingAssignment(null);
+      showToast('Executive removed successfully!', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Removal failed', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const openEditModal = (assignment) => {
-    setSelectedAssignment(assignment);
-    setCustomPhone(assignment.customPhone || assignment.user.phone || '');
-    setCustomEmail(assignment.customEmail || assignment.user.email || '');
-    setShowEditModal(true);
+  const toggleSelectPosition = (positionId) => {
+    if (selectedPositions.includes(positionId)) {
+      setSelectedPositions(selectedPositions.filter(id => id !== positionId));
+    } else {
+      setSelectedPositions([...selectedPositions, positionId]);
+    }
   };
 
-  const openRemoveModal = (assignment) => {
-    setSelectedAssignment(assignment);
-    setShowRemoveModal(true);
+  const toggleSelectAll = () => {
+    const allPositionIds = positions.map(p => p.id);
+    if (selectedPositions.length === allPositionIds.length) {
+      setSelectedPositions([]);
+    } else {
+      setSelectedPositions(allPositionIds);
+    }
   };
 
-  const getCategoryPositions = (category) => {
-    let categoryPositions = positions.filter(p => p.category === category);
-    
+  const getFilteredPositions = () => {
+    let filtered = positions;
     if (searchTerm) {
-      categoryPositions = categoryPositions.filter(p =>
-        p.title.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
     }
-    
     if (statusFilter !== 'all') {
-      categoryPositions = categoryPositions.filter(p => {
+      filtered = filtered.filter(p => {
         const assigned = getAssignmentForPosition(p.id);
         return statusFilter === 'filled' ? assigned : !assigned;
       });
     }
-    
-    return categoryPositions;
+    return filtered;
   };
+
+  const groupedPositions = () => {
+    const filtered = getFilteredPositions();
+    const grouped = { leadership: [], choir: [], jumuia: [], media: [], voice: [] };
+    filtered.forEach(pos => {
+      if (grouped[pos.category]) grouped[pos.category].push(pos);
+    });
+    return grouped;
+  };
+
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
+  };
+
+  const goBack = () => navigate(-1);
+  const goHome = () => navigate('/admin');
 
   if (loading) {
     return (
-      <div className="executive-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading executive management...</p>
+      <div className="admin-executive-loader">
+        <div className="loader-spinner">
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <Shield size={40} className="loader-icon" />
+        </div>
+        <h3>Executive Management</h3>
+        <p>Loading leadership structure...</p>
       </div>
     );
   }
 
-  return (
-    <div className="admin-executive-container">
-      {/* Header */}
-      <div className="executive-header">
-        <div className="header-content">
-          <div className="header-icon">
-            <Shield size={32} />
-          </div>
-          <div className="header-text">
-            <h1>Executive Management</h1>
-            <p>Manage ZUCA leadership structure and executive positions</p>
-          </div>
-        </div>
-        <button className="refresh-btn" onClick={fetchAllData}>
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-      </div>
+  const grouped = groupedPositions();
 
-      {/* Stats Cards */}
-      {stats && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon blue"><Briefcase size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-value">{stats.totalPositions}</span>
-              <span className="stat-label">Total Positions</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon green"><UserCheck size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-value">{stats.filledPositions}</span>
-              <span className="stat-label">Filled</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon orange"><UserPlus size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-value">{stats.vacantPositions}</span>
-              <span className="stat-label">Vacant</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon purple"><TrendingUp size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-value">{stats.completionRate}%</span>
-              <span className="stat-label">Completion</span>
-            </div>
-          </div>
+  return (
+    <div className="admin-executive-page">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`toast-notification ${toast.type}`}>
+          <span>{toast.message}</span>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="executive-tabs">
-        <button 
-          className={`tab-btn ${activeTab === 'positions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('positions')}
-        >
-          <Briefcase size={16} />
-          Position Management
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'team' ? 'active' : ''}`}
-          onClick={() => setActiveTab('team')}
-        >
-          <Users size={16} />
-          Current Team
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
-          onClick={() => setActiveTab('stats')}
-        >
-          <TrendingUp size={16} />
-          Analytics & History
-        </button>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="filters-bar">
-        <div className="search-box">
-          <Search size={16} />
-          <input
-            type="text"
-            placeholder="Search positions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Premium Hero Section */}
+      <div className="premium-hero">
+        <div className="hero-particles">
+          {[...Array(15)].map((_, i) => <div key={i} className="particle"></div>)}
         </div>
-        <div className="filter-group">
-          <Filter size={14} />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All Status</option>
-            <option value="filled">Filled Only</option>
-            <option value="vacant">Vacant Only</option>
-          </select>
+        <div className="hero-glow"></div>
+        
+        <div className="hero-nav">
+          <button className="hero-nav-btn back" onClick={goBack}>
+            <ArrowLeft size={18} />
+            <span>Back</span>
+          </button>
+          <button className="hero-nav-btn home" onClick={goHome}>
+            <Home size={18} />
+            <span>Dashboard</span>
+          </button>
+        </div>
+
+        <div className="hero-content">
+          <div className="hero-badge">
+            <Shield size={20} />
+            <span>ADMIN PANEL</span>
+          </div>
+          <h1>Executive Management</h1>
+          <p>Manage ZUCA leadership structure and executive positions</p>
+          <div className="hero-stats">
+            <div className="stat"><Briefcase size={16} /><span>{stats?.totalPositions || 0} Total</span></div>
+            <div className="stat"><UserCheck size={16} /><span>{stats?.filledPositions || 0} Filled</span></div>
+            <div className="stat"><UserPlus size={16} /><span>{stats?.vacantPositions || 0} Vacant</span></div>
+            <div className="stat"><TrendingUp size={16} /><span>{stats?.completionRate || 0}% Complete</span></div>
+          </div>
+        </div>
+        <div className="hero-wave">
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+            <path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" opacity=".25" fill="white"></path>
+            <path d="M0,0V15.81C13,21.25,27.93,25.67,44.24,28.45c69.76,11.6,136.47,7.22,206.42-5.49C369.5,5.71,470.33,39.18,569,66.43c96.58,26.92,193.44,35.91,289.91,25.58C948.56,80.58,1046.7,45.79,1143,57.21c51.76,5.86,101.78,21.14,148,42.25V0Z" fill="white"></path>
+          </svg>
         </div>
       </div>
 
-      {/* Tab Content: Position Management */}
-      {activeTab === 'positions' && (
-        <div className="positions-container">
-          {['leadership', 'choir', 'jumuia', 'media', 'voice'].map(category => {
-            const categoryPositions = getCategoryPositions(category);
-            if (categoryPositions.length === 0) return null;
+      {/* Main Content */}
+      <div className="main-content">
+        {/* Tabs */}
+        <div className="tabs-container">
+          <button className={`tab-btn ${activeTab === 'positions' ? 'active' : ''}`} onClick={() => setActiveTab('positions')}>
+            <Briefcase size={16} /> Position Management
+          </button>
+          <button className={`tab-btn ${activeTab === 'team' ? 'active' : ''}`} onClick={() => setActiveTab('team')}>
+            <Users size={16} /> Current Team
+          </button>
+          <button className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>
+            <TrendingUp size={16} /> Analytics
+          </button>
+        </div>
 
-            return (
-              <div key={category} className="category-section">
-                <div 
-                  className="category-header"
-                  style={{ backgroundColor: getCategoryBg(category) }}
-                  onClick={() => toggleCategory(category)}
-                >
-                  <div className="category-title">
-                    {getCategoryIcon(category)}
-                    <h3>{getCategoryTitle(category)}</h3>
-                    <span className="category-count">{categoryPositions.length} positions</span>
-                  </div>
-                  {expandedCategories[category] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </div>
+        {/* Bulk Actions Bar */}
+        {activeTab === 'positions' && (
+          <div className="bulk-actions-bar">
+            <div className="bulk-left">
+              <button className="bulk-select-btn" onClick={() => setBulkMode(!bulkMode)}>
+                {bulkMode ? <X size={16} /> : <Layers size={16} />}
+                {bulkMode ? 'Exit Bulk Mode' : 'Bulk Actions'}
+              </button>
+              {bulkMode && (
+                <>
+                  <button className="bulk-select-all" onClick={toggleSelectAll}>
+                    {selectedPositions.length === positions.length ? <CheckSquare size={14} /> : <Square size={14} />}
+                    Select All
+                  </button>
+                  <span className="bulk-count">{selectedPositions.length} selected</span>
+                </>
+              )}
+            </div>
+            {bulkMode && selectedPositions.length > 0 && (
+              <div className="bulk-right">
+                <button className="bulk-assign" onClick={() => setShowBulkAssign(true)}>
+                  <UserPlus size={14} /> Assign Selected
+                </button>
+                <button className="bulk-remove" onClick={handleBulkRemove} disabled={saving}>
+                  <Trash size={14} /> Remove Selected
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-                {expandedCategories[category] && (
-                  <div className="positions-table">
-                    <div className="table-header">
-                      <div className="col-position">Position</div>
-                      <div className="col-occupant">Current Occupant</div>
-                      <div className="col-contact">Contact</div>
-                      <div className="col-actions">Actions</div>
+        {/* Filters */}
+        <div className="filters-bar">
+          <div className="search-box">
+            <Search size={16} />
+            <input type="text" placeholder="Search positions..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+          <div className="filter-group">
+            <Filter size={14} />
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="all">All Positions</option>
+              <option value="filled">Filled Only</option>
+              <option value="vacant">Vacant Only</option>
+            </select>
+          </div>
+          <button className="refresh-btn" onClick={fetchAllData}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+
+        {/* Positions Table - Silent Updates */}
+        {activeTab === 'positions' && (
+          <div className="positions-container">
+            {Object.entries(grouped).map(([category, categoryPositions]) => {
+              if (categoryPositions.length === 0) return null;
+              return (
+                <div key={category} className="category-card">
+                  <div className="category-header" style={{ backgroundColor: getCategoryBg(category) }} onClick={() => toggleCategory(category)}>
+                    <div className="category-title">
+                      {getCategoryIcon(category)}
+                      <h3>{getCategoryTitle(category)}</h3>
+                      <span className="category-count">{categoryPositions.length}</span>
                     </div>
-                    {categoryPositions.map(position => {
-                      const assignment = getAssignmentForPosition(position.id);
-                      const isFilled = !!assignment;
+                    {expandedCategories[category] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
 
-                      return (
-                        <div key={position.id} className={`table-row ${!isFilled ? 'vacant' : ''}`}>
-                          <div className="col-position">
-                            <div className="position-info">
-                              <span className="position-title">{position.title}</span>
-                              <span className="position-level">Level {position.level}</span>
+                  {expandedCategories[category] && (
+                    <div className="positions-list">
+                      {categoryPositions.map(position => {
+                        const assignment = getAssignmentForPosition(position.id);
+                        const isFilled = !!assignment;
+                        
+                        return (
+                          <div key={position.id} className={`position-item ${!isFilled ? 'vacant' : ''}`}>
+                            <div className="position-main">
+                              {bulkMode && (
+                                <div className="position-checkbox">
+                                  <input type="checkbox" checked={selectedPositions.includes(position.id)} onChange={() => toggleSelectPosition(position.id)} />
+                                </div>
+                              )}
+                              <div className="position-info">
+                                <div className="position-title">{position.title}</div>
+                                <div className="position-level">Level {position.level}</div>
+                              </div>
+                              <div className="position-status">
+                                {isFilled ? <span className="status-filled">● Filled</span> : <span className="status-vacant">○ Vacant</span>}
+                              </div>
                             </div>
-                          </div>
-                          <div className="col-occupant">
-                            {isFilled ? (
-                              <div className="occupant-info">
-                                {assignment.user.profileImage ? (
-                                  <img src={assignment.user.profileImage} alt="" className="occupant-avatar" />
-                                ) : (
-                                  <div className="occupant-avatar-placeholder">
-                                    {assignment.user.fullName.charAt(0)}
-                                  </div>
-                                )}
-                                <div>
+
+                            {isFilled && (
+                              <div className="position-occupant">
+                                <div className="occupant-avatar">
+                                  {assignment.user.profileImage ? (
+                                    <img src={assignment.user.profileImage} alt="" />
+                                  ) : (
+                                    <div className="avatar-initial">{assignment.user.fullName.charAt(0)}</div>
+                                  )}
+                                </div>
+                                <div className="occupant-details">
                                   <div className="occupant-name">{assignment.user.fullName}</div>
                                   <div className="occupant-email">{assignment.user.email}</div>
+                                  {assignment.user.phone && <div className="occupant-phone">{assignment.user.phone}</div>}
+                                </div>
+                                <div className="occupant-contact">
+                                  {assignment.user.phone && (
+                                    <>
+                                      <a href={`tel:${assignment.user.phone}`} className="contact-icon call" title="Call">📞</a>
+                                      <a href={`https://wa.me/${assignment.user.phone.replace(/[^0-9]/g, '')}`} className="contact-icon wa" title="WhatsApp">💬</a>
+                                    </>
+                                  )}
+                                  {assignment.user.email && <a href={`mailto:${assignment.user.email}`} className="contact-icon mail" title="Email">✉️</a>}
                                 </div>
                               </div>
-                            ) : (
-                              <div className="vacant-badge">
-                                <AlertCircle size={14} />
-                                Vacant Position
-                              </div>
                             )}
-                          </div>
-                          <div className="col-contact">
-                            {isFilled && (
-                              <div className="contact-buttons">
-                                {(assignment.customPhone || assignment.user.phone) && (
-                                  <>
-                                    <a href={`tel:${assignment.customPhone || assignment.user.phone}`} className="contact-link">
-                                      <Phone size={14} />
-                                    </a>
-                                    <a href={`https://wa.me/${(assignment.customPhone || assignment.user.phone).replace(/[^0-9]/g, '')}`} className="contact-link whatsapp">
-                                      <WhatsAppIcon size={14} />
-                                    </a>
-                                  </>
-                                )}
-                                {(assignment.customEmail || assignment.user.email) && (
-                                  <a href={`mailto:${assignment.customEmail || assignment.user.email}`} className="contact-link">
-                                    <Mail size={14} />
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="col-actions">
-                            {isFilled ? (
-                              <>
-                                <button className="action-btn edit" onClick={() => openEditModal(assignment)}>
-                                  <Edit2 size={14} />
-                                </button>
-                                <button className="action-btn remove" onClick={() => openRemoveModal(assignment)}>
-                                  <Trash2 size={14} />
-                                </button>
-                              </>
-                            ) : (
-                              <button className="action-btn assign" onClick={() => openAssignModal(position)}>
-                                <UserPlus size={14} />
-                                Assign
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Tab Content: Current Team */}
-      {activeTab === 'team' && (
-        <div className="team-container">
+                            <div className="position-actions">
+                              {isFilled ? (
+                                <>
+                                  {editingAssignment === assignment.id ? (
+                                    <div className="inline-edit">
+                                      <input type="text" placeholder="Custom phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                                      <input type="email" placeholder="Custom email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                                      <div className="edit-buttons">
+                                        <button className="save-btn" onClick={() => handleUpdateContact(assignment.id)} disabled={saving}>Save</button>
+                                        <button className="cancel-btn" onClick={() => { setEditingAssignment(null); setEditPhone(''); setEditEmail(''); }}>Cancel</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <button className="action-edit" onClick={() => { setEditingAssignment(assignment.id); setEditPhone(assignment.customPhone || ''); setEditEmail(assignment.customEmail || ''); }} title="Edit Contact">
+                                        <Edit2 size={14} />
+                                      </button>
+                                      <button className="action-remove" onClick={() => setRemovingAssignment(assignment)} title="Remove">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="assign-section">
+                                  {assigningPosition === position.id ? (
+                                    <div className="inline-assign">
+                                      <div className="assign-search">
+                                        <Search size={12} />
+                                        <input type="text" placeholder="Search user..." value={searchUserTerm} onChange={(e) => setSearchUserTerm(e.target.value)} autoFocus />
+                                      </div>
+                                      <div className="assign-users">
+                                        {inlineFilteredUsers.slice(0, 5).map(user => (
+                                          <div key={user.id} className={`assign-user ${selectedUserId === user.id ? 'selected' : ''}`} onClick={() => setSelectedUserId(user.id)}>
+                                            <div className="assign-user-avatar">{user.fullName.charAt(0)}</div>
+                                            <div className="assign-user-name">{user.fullName.split(' ')[0]}</div>
+                                          </div>
+                                        ))}
+                                        {inlineFilteredUsers.length === 0 && <div className="no-users-match">No users found</div>}
+                                      </div>
+                                      <div className="assign-buttons">
+                                        <button className="assign-cancel" onClick={() => { setAssigningPosition(null); setSelectedUserId(''); setSearchUserTerm(''); }}>Cancel</button>
+                                        <button className="assign-confirm" onClick={() => handleAssign(position.id)} disabled={!selectedUserId || saving}>
+                                          {saving ? 'Assigning...' : 'Assign'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button className="action-assign" onClick={() => setAssigningPosition(position.id)}>
+                                      <UserPlus size={14} /> Assign
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Current Team Tab */}
+        {activeTab === 'team' && (
           <div className="team-grid">
             {assignments.map(assignment => (
-              <div key={assignment.id} className="team-card">
-                <div className="card-header" style={{ borderTopColor: getCategoryColor(assignment.position.category) }}>
-                  <div className="position-badge" style={{ backgroundColor: getCategoryColor(assignment.position.category) }}>
-                    {assignment.position.title}
-                  </div>
-                  <div className="card-actions">
-                    <button className="icon-btn" onClick={() => openEditModal(assignment)}>
-                      <Edit2 size={14} />
-                    </button>
-                    <button className="icon-btn remove" onClick={() => openRemoveModal(assignment)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+              <div key={assignment.id} className="team-member-card">
+                <div className="member-badge" style={{ backgroundColor: getCategoryColor(assignment.position.category) }}>
+                  {assignment.position.title}
                 </div>
-                <div className="card-body">
+                <div className="member-avatar">
                   {assignment.user.profileImage ? (
-                    <img src={assignment.user.profileImage} alt="" className="member-avatar" />
+                    <img src={assignment.user.profileImage} alt="" />
                   ) : (
-                    <div className="member-avatar-placeholder">
-                      {assignment.user.fullName.charAt(0)}
-                    </div>
+                    <div className="avatar-large">{assignment.user.fullName.charAt(0)}</div>
                   )}
-                  <h4 className="member-name">{assignment.user.fullName}</h4>
-                  <p className="member-email">{assignment.user.email}</p>
-                  {(assignment.customPhone || assignment.user.phone) && (
-                    <div className="member-contact">
-                      <Phone size={12} />
-                      <span>{assignment.customPhone || assignment.user.phone}</span>
-                    </div>
+                </div>
+                <h4>{assignment.user.fullName}</h4>
+                <p>{assignment.user.email}</p>
+                <div className="member-contact-links">
+                  {assignment.user.phone && (
+                    <>
+                      <a href={`tel:${assignment.user.phone}`} className="contact-link call">📞 Call</a>
+                      <a href={`https://wa.me/${assignment.user.phone.replace(/[^0-9]/g, '')}`} className="contact-link wa">💬 WhatsApp</a>
+                    </>
                   )}
-                  <div className="member-contact-buttons">
-                    {(assignment.customPhone || assignment.user.phone) && (
-                      <>
-                        <a href={`tel:${assignment.customPhone || assignment.user.phone}`} className="contact-chip">
-                          <Phone size={12} /> Call
-                        </a>
-                        <a href={`https://wa.me/${(assignment.customPhone || assignment.user.phone).replace(/[^0-9]/g, '')}`} className="contact-chip whatsapp">
-                          <WhatsAppIcon size={12} /> WhatsApp
-                        </a>
-                      </>
-                    )}
-                    {(assignment.customEmail || assignment.user.email) && (
-                      <a href={`mailto:${assignment.customEmail || assignment.user.email}`} className="contact-chip">
-                        <Mail size={12} /> Email
-                      </a>
-                    )}
-                  </div>
-                  <div className="assigned-date">
-                    <Calendar size={10} />
-                    Assigned {formatDistance(new Date(assignment.assignedAt), new Date(), { addSuffix: true })}
-                  </div>
+                  {assignment.user.email && <a href={`mailto:${assignment.user.email}`} className="contact-link mail">✉️ Email</a>}
+                </div>
+                <div className="member-footer">
+                  <button className="edit-btn" onClick={() => { setEditingAssignment(assignment.id); setEditPhone(assignment.customPhone || ''); setEditEmail(assignment.customEmail || ''); }}>
+                    <Edit2 size={12} /> Edit
+                  </button>
+                  <button className="remove-btn" onClick={() => setRemovingAssignment(assignment)}>
+                    <Trash2 size={12} /> Remove
+                  </button>
                 </div>
               </div>
             ))}
+            {assignments.length === 0 && <div className="empty-state"><Users size={48} /><h3>No executives assigned</h3><p>Start by assigning positions</p></div>}
           </div>
-          {assignments.length === 0 && (
-            <div className="empty-state">
-              <Users size={48} />
-              <h3>No executives assigned</h3>
-              <p>Start by assigning positions to users</p>
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* Tab Content: Analytics & History */}
-      {activeTab === 'stats' && stats && (
-        <div className="stats-container">
-          <div className="stats-row">
-            <div className="stats-panel">
-              <h3><Clock size={16} /> Recent Assignments</h3>
-              <div className="history-list">
-                {stats.recentAssignments?.map(assignment => (
-                  <div key={assignment.id} className="history-item">
-                    <div className="history-icon assign">+</div>
-                    <div className="history-details">
-                      <span className="history-title">{assignment.user.fullName}</span>
-                      <span className="history-subtitle">assigned as {assignment.position.title}</span>
-                      <span className="history-time">{formatDistance(new Date(assignment.assignedAt), new Date(), { addSuffix: true })}</span>
-                    </div>
-                  </div>
+        {/* Stats Tab */}
+        {activeTab === 'stats' && stats && (
+          <div className="stats-container">
+            <div className="stats-grid-custom">
+              <div className="stat-panel">
+                <h3><Clock size={16} /> Recent Assignments</h3>
+                {stats.recentAssignments?.map(a => (
+                  <div key={a.id} className="history-item"><div className="history-icon assign">+</div><div><div className="history-title">{a.user.fullName}</div><div className="history-subtitle">assigned as {a.position.title}</div></div></div>
                 ))}
-                {(!stats.recentAssignments || stats.recentAssignments.length === 0) && (
-                  <p className="no-history">No recent assignments</p>
-                )}
+              </div>
+              <div className="stat-panel">
+                <h3><Clock size={16} /> Recent Removals</h3>
+                {stats.recentHistory?.map(h => (
+                  <div key={h.id} className="history-item"><div className="history-icon remove">−</div><div><div className="history-title">{h.user?.fullName}</div><div className="history-subtitle">removed from {h.position?.title}</div></div></div>
+                ))}
               </div>
             </div>
-
-            <div className="stats-panel">
-              <h3><Clock size={16} /> Recent Removals</h3>
-              <div className="history-list">
-                {stats.recentHistory?.map(history => (
-                  <div key={history.id} className="history-item">
-                    <div className="history-icon remove">−</div>
-                    <div className="history-details">
-                      <span className="history-title">{history.user?.fullName}</span>
-                      <span className="history-subtitle">removed from {history.position?.title}</span>
-                      <span className="history-time">{formatDistance(new Date(history.removedAt), new Date(), { addSuffix: true })}</span>
-                    </div>
-                  </div>
-                ))}
-                {(!stats.recentHistory || stats.recentHistory.length === 0) && (
-                  <p className="no-history">No recent removals</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="stats-panel full-width">
-            <h3><Award size={16} /> Category Breakdown</h3>
-            <div className="category-stats">
+            <div className="stat-panel full">
+              <h3><Award size={16} /> Department Breakdown</h3>
               {stats.byCategory?.map(cat => (
-                <div key={cat.category} className="category-stat-item">
-                  <div className="category-stat-header">
-                    {getCategoryIcon(cat.category)}
-                    <span>{getCategoryTitle(cat.category)}</span>
-                    <span className="category-stat-count">{cat.filled}/{cat.total}</span>
-                  </div>
-                  <div className="category-progress-bar">
-                    <div 
-                      className="category-progress-fill"
-                      style={{ 
-                        width: `${(cat.filled / cat.total) * 100}%`,
-                        backgroundColor: getCategoryColor(cat.category)
-                      }}
-                    />
-                  </div>
+                <div key={cat.category} className="category-progress">
+                  <div className="progress-label"><span>{getCategoryTitle(cat.category)}</span><span>{cat.filled}/{cat.total}</span></div>
+                  <div className="progress-bar"><div className="progress-fill" style={{ width: `${(cat.filled / cat.total) * 100}%`, backgroundColor: getCategoryColor(cat.category) }}></div></div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Assign Modal */}
-      {showAssignModal && selectedPosition && (
-        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Assign Position</h3>
-              <button className="modal-close" onClick={() => setShowAssignModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
+      {/* Bulk Assign Modal */}
+      {showBulkAssign && (
+        <div className="modal-overlay" onClick={() => setShowBulkAssign(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3>Bulk Assign</h3><button onClick={() => setShowBulkAssign(false)}><X size={20} /></button></div>
             <div className="modal-body">
-              <div className="modal-position-info">
-                <div className="position-badge-large" style={{ backgroundColor: getCategoryColor(selectedPosition.category) }}>
-                  {getCategoryIcon(selectedPosition.category)}
-                  {selectedPosition.title}
-                </div>
-                <p className="position-level">Level {selectedPosition.level}</p>
+              <p>Assign {selectedPositions.length} positions to:</p>
+              <div className="bulk-user-search">
+                <Search size={14} />
+                <input type="text" placeholder="Search user..." value={bulkSearchUser} onChange={(e) => setBulkSearchUser(e.target.value)} />
               </div>
-
-              <div className="form-group">
-                <label>Select User</label>
-                <div className="user-search">
-                  <Search size={14} />
-                  <input
-                    type="text"
-                    placeholder="Search by name, email or phone..."
-                    value={searchUsers}
-                    onChange={(e) => setSearchUsers(e.target.value)}
-                  />
-                </div>
-                <div className="users-list">
-                  {filteredUsers.map(user => (
-                    <div
-                      key={user.id}
-                      className={`user-select-item ${selectedUser === user.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedUser(user.id)}
-                    >
-                      {user.profileImage ? (
-                        <img src={user.profileImage} alt="" className="user-avatar" />
-                      ) : (
-                        <div className="user-avatar-placeholder">{user.fullName.charAt(0)}</div>
-                      )}
-                      <div className="user-info">
-                        <div className="user-name">{user.fullName}</div>
-                        <div className="user-details">{user.email} • {user.phone || 'No phone'}</div>
-                      </div>
-                      {selectedUser === user.id && <Check size={16} className="check-icon" />}
-                    </div>
-                  ))}
-                  {filteredUsers.length === 0 && (
-                    <div className="no-users">No users available</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Custom Contact (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="Custom phone number"
-                  value={customPhone}
-                  onChange={(e) => setCustomPhone(e.target.value)}
-                />
-                <input
-                  type="email"
-                  placeholder="Custom email"
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  style={{ marginTop: '8px' }}
-                />
-                <small>Leave blank to use user's default contact</small>
+              <div className="bulk-users-list">
+                {filteredUsers.slice(0, 10).map(user => (
+                  <div key={user.id} className={`bulk-user ${bulkSelectedUser === user.id ? 'selected' : ''}`} onClick={() => setBulkSelectedUser(user.id)}>
+                    <div className="bulk-user-avatar">{user.fullName.charAt(0)}</div>
+                    <div><div className="bulk-user-name">{user.fullName}</div><div className="bulk-user-email">{user.email}</div></div>
+                    {bulkSelectedUser === user.id && <Check size={16} className="check-icon" />}
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowAssignModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleAssign} disabled={saving || !selectedUser}>
-                {saving ? 'Assigning...' : 'Assign Position'}
-              </button>
-            </div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowBulkAssign(false)}>Cancel</button><button className="btn-primary" onClick={handleBulkAssign} disabled={!bulkSelectedUser || saving}>{saving ? 'Assigning...' : 'Assign All'}</button></div>
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
-      {showEditModal && selectedAssignment && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Edit Executive</h3>
-              <button className="modal-close" onClick={() => setShowEditModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="current-executive">
-                <div className="executive-avatar">
-                  {selectedAssignment.user.profileImage ? (
-                    <img src={selectedAssignment.user.profileImage} alt="" />
-                  ) : (
-                    <div>{selectedAssignment.user.fullName.charAt(0)}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="executive-name">{selectedAssignment.user.fullName}</div>
-                  <div className="executive-role">{selectedAssignment.position.title}</div>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Custom Contact Info</label>
-                <input
-                  type="text"
-                  placeholder="Custom phone number"
-                  value={customPhone}
-                  onChange={(e) => setCustomPhone(e.target.value)}
-                />
-                <input
-                  type="email"
-                  placeholder="Custom email"
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  style={{ marginTop: '8px' }}
-                />
-                <small>These will override the user's default contact info</small>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleUpdate} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
+      {/* Remove Confirmation Modal */}
+      {removingAssignment && (
+        <div className="modal-overlay" onClick={() => setRemovingAssignment(null)}>
+          <div className="modal-container warning" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><AlertCircle size={24} className="warning-icon" /><h3>Confirm Removal</h3><button onClick={() => setRemovingAssignment(null)}><X size={20} /></button></div>
+            <div className="modal-body"><p>Remove <strong>{removingAssignment.user.fullName}</strong> from <strong>{removingAssignment.position.title}</strong>?</p></div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setRemovingAssignment(null)}>Cancel</button><button className="btn-danger" onClick={() => handleRemove(removingAssignment.id)} disabled={saving}>{saving ? 'Removing...' : 'Yes, Remove'}</button></div>
           </div>
         </div>
       )}
 
-      {/* Remove Modal */}
-      {showRemoveModal && selectedAssignment && (
-        <div className="modal-overlay" onClick={() => setShowRemoveModal(false)}>
-          <div className="modal-content warning" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <AlertCircle size={24} className="warning-icon" />
-              <h3>Confirm Removal</h3>
-              <button className="modal-close" onClick={() => setShowRemoveModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>Remove <strong>{selectedAssignment.user.fullName}</strong> from <strong>{selectedAssignment.position.title}</strong>?</p>
-              <div className="warning-box">
-                <AlertCircle size={14} />
-                <small>This action will move this assignment to history and notify the user.</small>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowRemoveModal(false)}>Cancel</button>
-              <button className="btn-danger" onClick={handleRemove} disabled={saving}>
-                {saving ? 'Removing...' : 'Yes, Remove'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-      <style jsx="true">{`
-        .admin-executive-container {
+        .admin-executive-page {
           min-height: 100vh;
-          background: #ffffff;
-          padding: 24px;
-          margin-top: 30px;
+          background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        .executive-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 28px;
-          padding-bottom: 20px;
-          border-bottom: 1px solid #e8ecf0;
-        }
-
-        .header-content {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .header-icon {
-          width: 56px;
-          height: 56px;
-          background: linear-gradient(135deg, #1e293b, #0f172a);
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .header-text h1 {
-          font-size: 24px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 4px 0;
-        }
-
-        .header-text p {
-          font-size: 14px;
-          color: #64748b;
-          margin: 0;
-        }
-
-        .refresh-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          color: #475569;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .refresh-btn:hover {
-          background: #f1f5f9;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          margin-bottom: 28px;
-        }
-
-        .stat-card {
-          background: #ffffff;
-          border: 1px solid #e8ecf0;
-          border-radius: 16px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          transition: all 0.2s;
-        }
-
-        .stat-card:hover {
-          border-color: #cbd5e1;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        .stat-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .stat-icon.blue { background: #eff6ff; color: #3b82f6; }
-        .stat-icon.green { background: #ecfdf5; color: #10b981; }
-        .stat-icon.orange { background: #fffbeb; color: #f59e0b; }
-        .stat-icon.purple { background: #f5f3ff; color: #8b5cf6; }
-
-        .stat-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .stat-value {
-          font-size: 28px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .stat-label {
-          font-size: 13px;
-          color: #64748b;
-        }
-
-        .executive-tabs {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 24px;
-          border-bottom: 1px solid #e8ecf0;
-          padding-bottom: 12px;
-        }
-
-        .tab-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 20px;
-          background: transparent;
-          border: none;
-          border-radius: 10px;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .tab-btn:hover {
-          background: #f8fafc;
-          color: #1e293b;
-        }
-
-        .tab-btn.active {
-          background: #f1f5f9;
-          color: #3b82f6;
-        }
-
-        .filters-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-
-        .search-box {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 16px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          min-width: 260px;
-        }
-
-        .search-box input {
-          flex: 1;
-          border: none;
-          background: transparent;
-          outline: none;
-          font-size: 14px;
-        }
-
-        .filter-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-        }
-
-        .filter-group select {
-          border: none;
-          background: transparent;
-          outline: none;
-          font-size: 13px;
-          color: #475569;
-        }
-
-        .category-section {
-          margin-bottom: 24px;
-          border: 1px solid #e8ecf0;
-          border-radius: 16px;
+        /* Premium Hero */
+        .premium-hero {
+          position: relative;
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+          padding: 20px 32px 80px;
           overflow: hidden;
         }
 
-        .category-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 20px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .category-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .category-title h3 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-        }
-
-        .category-count {
-          font-size: 12px;
-          color: #64748b;
-          background: rgba(0,0,0,0.04);
-          padding: 2px 8px;
-          border-radius: 20px;
-        }
-
-        .positions-table {
-          border-top: 1px solid #e8ecf0;
-        }
-
-        .table-header {
-          display: grid;
-          grid-template-columns: 200px 1fr 120px 100px;
-          background: #f8fafc;
-          padding: 12px 20px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #64748b;
-          border-bottom: 1px solid #e8ecf0;
-        }
-
-        .table-row {
-          display: grid;
-          grid-template-columns: 200px 1fr 120px 100px;
-          padding: 14px 20px;
-          border-bottom: 1px solid #f0f2f5;
-          transition: background 0.2s;
-        }
-
-        .table-row:hover {
-          background: #fafbfc;
-        }
-
-        .table-row.vacant {
-          background: #fefce8;
-        }
-
-        .position-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .position-title {
-          font-size: 14px;
-          font-weight: 500;
-          color: #1e293b;
-        }
-
-        .position-level {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        .occupant-info {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .occupant-avatar, .occupant-avatar-placeholder {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          object-fit: cover;
-        }
-
-        .occupant-avatar-placeholder {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 600;
-          font-size: 14px;
-        }
-
-        .occupant-name {
-          font-size: 14px;
-          font-weight: 500;
-          color: #1e293b;
-        }
-
-        .occupant-email {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .vacant-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 10px;
-          background: #fef3c7;
-          color: #d97706;
-          border-radius: 20px;
-          font-size: 12px;
-        }
-
-        .contact-buttons {
-          display: flex;
-          gap: 6px;
-        }
-
-        .contact-link {
-          width: 28px;
-          height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f1f5f9;
-          border-radius: 8px;
-          color: #475569;
-          transition: all 0.2s;
-          text-decoration: none;
-        }
-
-        .contact-link:hover {
-          background: #e2e8f0;
-          color: #3b82f6;
-        }
-
-        .contact-link.whatsapp:hover {
-          background: #dcfce7;
-          color: #22c55e;
-        }
-
-        .action-btn {
-          padding: 6px 12px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: none;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .action-btn.assign {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .action-btn.assign:hover {
-          background: #2563eb;
-        }
-
-        .action-btn.edit {
-          background: #f1f5f9;
-          color: #475569;
-        }
-
-        .action-btn.edit:hover {
-          background: #e2e8f0;
-        }
-
-        .action-btn.remove {
-          background: #fef2f2;
-          color: #ef4444;
-        }
-
-        .action-btn.remove:hover {
-          background: #fee2e2;
-        }
-
-        .team-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 20px;
-        }
-
-        .team-card {
-          background: #ffffff;
-          border: 1px solid #e8ecf0;
-          border-radius: 16px;
-          overflow: hidden;
-          transition: all 0.2s;
-        }
-
-        .team-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-          border-color: #cbd5e1;
-        }
-
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 14px 16px;
-          border-top: 3px solid;
-          background: #fafbfc;
-        }
-
-        .position-badge {
-          padding: 4px 10px;
-          border-radius: 20px;
-          color: white;
-          font-size: 11px;
-          font-weight: 500;
-        }
-
-        .card-actions {
-          display: flex;
-          gap: 6px;
-        }
-
-        .icon-btn {
-          width: 28px;
-          height: 28px;
-          border-radius: 8px;
-          border: none;
-          background: #f1f5f9;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #64748b;
-          transition: all 0.2s;
-        }
-
-        .icon-btn:hover {
-          background: #e2e8f0;
-        }
-
-        .icon-btn.remove:hover {
-          background: #fee2e2;
-          color: #ef4444;
-        }
-
-        .card-body {
-          padding: 20px;
-          text-align: center;
-        }
-
-        .member-avatar, .member-avatar-placeholder {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          object-fit: cover;
-          margin: 0 auto 12px;
-        }
-
-        .member-avatar-placeholder {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 32px;
-          font-weight: 600;
-          margin: 0 auto 12px;
-        }
-
-        .member-name {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 4px 0;
-        }
-
-        .member-email {
-          font-size: 12px;
-          color: #64748b;
-          margin: 0 0 8px 0;
-        }
-
-        .member-contact {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          font-size: 12px;
-          color: #475569;
-          margin-bottom: 12px;
-        }
-
-        .member-contact-buttons {
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-          flex-wrap: wrap;
-          margin-bottom: 12px;
-        }
-
-        .contact-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 10px;
-          background: #f1f5f9;
-          border-radius: 20px;
-          font-size: 11px;
-          color: #475569;
-          text-decoration: none;
-          transition: all 0.2s;
-        }
-
-        .contact-chip:hover {
-          background: #e2e8f0;
-        }
-
-        .contact-chip.whatsapp:hover {
-          background: #dcfce7;
-          color: #22c55e;
-        }
-
-        .assigned-date {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          font-size: 10px;
-          color: #94a3b8;
-        }
-
-        .stats-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-          margin-bottom: 24px;
-        }
-
-        .stats-panel {
-          background: #ffffff;
-          border: 1px solid #e8ecf0;
-          border-radius: 16px;
-          padding: 20px;
-        }
-
-        .stats-panel.full-width {
-          grid-column: span 2;
-        }
-
-        .stats-panel h3 {
-          font-size: 15px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 16px 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .history-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .history-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px;
-          background: #f8fafc;
-          border-radius: 12px;
-        }
-
-        .history-icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 18px;
-        }
-
-        .history-icon.assign {
-          background: #ecfdf5;
-          color: #10b981;
-        }
-
-        .history-icon.remove {
-          background: #fef2f2;
-          color: #ef4444;
-        }
-
-        .history-details {
-          flex: 1;
-        }
-
-        .history-title {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          color: #1e293b;
-        }
-
-        .history-subtitle {
-          display: block;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .history-time {
-          font-size: 10px;
-          color: #94a3b8;
-        }
-
-        .category-stats {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .category-stat-item {
-          width: 100%;
-        }
-
-        .category-stat-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          color: #475569;
-          margin-bottom: 6px;
-        }
-
-        .category-stat-count {
-          margin-left: auto;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .category-progress-bar {
-          height: 6px;
-          background: #e2e8f0;
-          border-radius: 3px;
-          overflow: hidden;
-        }
-
-        .category-progress-fill {
-          height: 100%;
-          border-radius: 3px;
-          transition: width 0.3s;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
-          backdrop-filter: blur(4px);
-          z-index: 1000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .modal-content {
-          background: white;
-          border-radius: 24px;
-          width: 90%;
-          max-width: 500px;
-          max-height: 85vh;
-          overflow-y: auto;
-        }
-
-        .modal-content.warning {
-          max-width: 400px;
-        }
-
-        .modal-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 20px 24px;
-          border-bottom: 1px solid #e8ecf0;
-        }
-
-        .modal-header h3 {
-          font-size: 18px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-        }
-
-        .modal-close {
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
-          background: #f1f5f9;
-          border: none;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .modal-body {
-          padding: 20px 24px;
-        }
-
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          padding: 16px 24px;
-          border-top: 1px solid #e8ecf0;
-        }
-
-        .modal-position-info {
-          text-align: center;
-          margin-bottom: 24px;
-        }
-
-        .position-badge-large {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          border-radius: 30px;
-          color: white;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        .form-group {
-          margin-bottom: 20px;
-        }
-
-        .form-group label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          color: #1e293b;
-          margin-bottom: 8px;
-        }
-
-        .user-search {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 14px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          margin-bottom: 12px;
-        }
-
-        .user-search input {
-          flex: 1;
-          border: none;
-          background: transparent;
-          outline: none;
-        }
-
-        .users-list {
-          max-height: 300px;
-          overflow-y: auto;
-          border: 1px solid #e8ecf0;
-          border-radius: 12px;
-        }
-
-        .user-select-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          cursor: pointer;
-          border-bottom: 1px solid #f0f2f5;
-          transition: background 0.2s;
-        }
-
-        .user-select-item:hover {
-          background: #f8fafc;
-        }
-
-        .user-select-item.selected {
-          background: #eff6ff;
-        }
-
-        .user-avatar, .user-avatar-placeholder {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          object-fit: cover;
-        }
-
-        .user-avatar-placeholder {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 600;
-        }
-
-        .user-info {
-          flex: 1;
-        }
-
-        .user-name {
-          font-size: 14px;
-          font-weight: 500;
-          color: #1e293b;
-        }
-
-        .user-details {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .check-icon {
-          color: #10b981;
-        }
-
-        .form-group input {
-          width: 100%;
-          padding: 10px 14px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 14px;
-        }
-
-        .form-group small {
-          display: block;
-          margin-top: 6px;
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        .current-executive {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          background: #f8fafc;
-          border-radius: 16px;
-          margin-bottom: 20px;
-        }
-
-        .executive-avatar {
-          width: 56px;
-          height: 56px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 24px;
-          font-weight: 600;
-          overflow: hidden;
-        }
-
-        .executive-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .executive-name {
-          font-size: 15px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .executive-role {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        .warning-icon {
-          color: #f59e0b;
-        }
-
-        .warning-box {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px;
-          background: #fef3c7;
-          border-radius: 12px;
-          margin-top: 16px;
-          color: #d97706;
-        }
-
-        .btn-primary, .btn-secondary, .btn-danger {
-          padding: 10px 20px;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: none;
-        }
-
-        .btn-primary {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-          background: #2563eb;
-        }
-
-        .btn-secondary {
-          background: #f1f5f9;
-          color: #475569;
-        }
-
-        .btn-secondary:hover {
-          background: #e2e8f0;
-        }
-
-        .btn-danger {
-          background: #ef4444;
-          color: white;
-        }
-
-        .btn-danger:hover:not(:disabled) {
-          background: #dc2626;
-        }
-
-        button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .no-users, .no-history {
-          text-align: center;
-          padding: 30px;
-          color: #94a3b8;
-          font-size: 13px;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          color: #94a3b8;
-        }
-
-        .empty-state h3 {
-          font-size: 16px;
-          color: #64748b;
-          margin: 12px 0 4px;
-        }
-
-        .executive-loading {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 400px;
-        }
-
-        .loading-spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid #e2e8f0;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 1024px) {
-          .table-header, .table-row {
-            grid-template-columns: 180px 1fr 100px 80px;
-          }
+        .hero-particles { position: absolute; inset: 0; overflow: hidden; }
+        .particle { position: absolute; background: rgba(255,255,255,0.08); border-radius: 50%; animation: float 15s infinite ease-in-out; }
+        .particle:nth-child(1) { width: 80px; height: 80px; top: 10%; left: 5%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 120px; height: 120px; top: 60%; right: 8%; animation-delay: 2s; }
+        .particle:nth-child(3) { width: 60px; height: 60px; top: 30%; left: 20%; animation-delay: 4s; }
+        .particle:nth-child(4) { width: 100px; height: 100px; bottom: 20%; left: 15%; animation-delay: 1s; }
+        .particle:nth-child(5) { width: 90px; height: 90px; top: 70%; right: 25%; animation-delay: 3s; }
+        @keyframes float { 0%,100% { transform: translateY(0) rotate(0deg); opacity: 0.3; } 50% { transform: translateY(-40px) rotate(180deg); opacity: 0.6; } }
+
+        .hero-glow { position: absolute; top: 50%; left: 50%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.3), transparent); transform: translate(-50%, -50%); filter: blur(60px); animation: pulse 4s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } }
+
+        .hero-nav { display: flex; gap: 12px; margin-bottom: 30px; position: relative; z-index: 10; }
+        .hero-nav-btn { display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); border-radius: 40px; color: white; cursor: pointer; transition: all 0.2s; }
+        .hero-nav-btn:hover { background: rgba(255,255,255,0.2); transform: translateX(-2px); }
+        .hero-nav-btn.home:hover { background: #3b82f6; transform: translateX(0); }
+
+        .hero-content { position: relative; z-index: 10; text-align: center; max-width: 800px; margin: 0 auto; }
+        .hero-badge { display: inline-flex; align-items: center; gap: 10px; padding: 6px 20px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 40px; color: white; font-size: 12px; margin-bottom: 20px; }
+        .hero-content h1 { font-size: 42px; font-weight: 700; color: white; margin-bottom: 12px; }
+        .hero-content p { font-size: 16px; color: #94a3b8; margin-bottom: 28px; }
+        .hero-stats { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; }
+        .hero-stats .stat { display: flex; align-items: center; gap: 8px; color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 40px; }
+
+        .hero-wave { position: absolute; bottom: 0; left: 0; right: 0; height: 50px; }
+        .hero-wave svg { width: 100%; height: 100%; fill: #f0f4f8; }
+
+        /* Main Content */
+        .main-content { max-width: 1400px; margin: -30px auto 0; padding: 0 24px 40px; position: relative; z-index: 3; }
+
+        /* Tabs */
+        .tabs-container { display: flex; gap: 8px; margin-bottom: 24px; background: white; padding: 6px; border-radius: 60px; width: fit-content; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .tab-btn { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: transparent; border: none; border-radius: 40px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; color: #64748b; }
+        .tab-btn:hover { background: #f1f5f9; }
+        .tab-btn.active { background: #3b82f6; color: white; }
+
+        /* Bulk Actions */
+        .bulk-actions-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-wrap: wrap; gap: 12px; }
+        .bulk-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .bulk-select-btn, .bulk-select-all { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f1f5f9; border: none; border-radius: 30px; font-size: 12px; cursor: pointer; }
+        .bulk-count { font-size: 12px; color: #64748b; }
+        .bulk-right { display: flex; gap: 12px; }
+        .bulk-assign { display: flex; align-items: center; gap: 6px; padding: 6px 16px; background: #3b82f6; color: white; border: none; border-radius: 30px; font-size: 12px; cursor: pointer; }
+        .bulk-remove { display: flex; align-items: center; gap: 6px; padding: 6px 16px; background: #ef4444; color: white; border: none; border-radius: 30px; font-size: 12px; cursor: pointer; }
+        .bulk-remove:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Filters */
+        .filters-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        .search-box { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 40px; min-width: 260px; }
+        .search-box input { flex: 1; border: none; background: transparent; outline: none; }
+        .filter-group { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 40px; }
+        .filter-group select { border: none; background: transparent; outline: none; }
+        .refresh-btn { display: flex; align-items: center; gap: 6px; padding: 8px 20px; background: white; border: 1px solid #e2e8f0; border-radius: 40px; cursor: pointer; }
+
+        /* Position Cards */
+        .category-card { background: white; border-radius: 20px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .category-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; }
+        .category-title { display: flex; align-items: center; gap: 10px; }
+        .category-title h3 { font-size: 16px; font-weight: 600; margin: 0; }
+        .category-count { font-size: 11px; color: #64748b; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 20px; }
+
+        .position-item { border-top: 1px solid #eef2f6; padding: 16px 20px; transition: background 0.2s; }
+        .position-item.vacant { background: #fefce8; }
+        .position-main { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+        .position-checkbox input { width: 18px; height: 18px; cursor: pointer; }
+        .position-info { flex: 1; }
+        .position-title { font-size: 15px; font-weight: 600; color: #1e293b; }
+        .position-level { font-size: 11px; color: #94a3b8; }
+        .position-status .status-filled { color: #10b981; font-size: 11px; }
+        .position-status .status-vacant { color: #f59e0b; font-size: 11px; }
+
+        .position-occupant { display: flex; align-items: center; gap: 14px; padding: 12px; background: #f8fafc; border-radius: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+        .occupant-avatar img, .avatar-initial { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+        .avatar-initial { background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; }
+        .occupant-details { flex: 1; }
+        .occupant-name { font-size: 14px; font-weight: 600; }
+        .occupant-email, .occupant-phone { font-size: 11px; color: #64748b; }
+        .occupant-contact { display: flex; gap: 8px; }
+        .contact-icon { text-decoration: none; font-size: 16px; }
+
+        .position-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .action-assign, .action-edit, .action-remove { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 30px; font-size: 12px; cursor: pointer; border: none; }
+        .action-assign { background: #3b82f6; color: white; }
+        .action-edit { background: #f1f5f9; color: #475569; }
+        .action-remove { background: #fef2f2; color: #ef4444; }
+
+        .inline-assign { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px; min-width: 260px; }
+        .assign-search { display: flex; align-items: center; gap: 6px; padding: 8px; background: #f8fafc; border-radius: 12px; margin-bottom: 10px; }
+        .assign-search input { flex: 1; border: none; background: transparent; outline: none; font-size: 12px; }
+        .assign-users { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; max-height: 120px; overflow-y: auto; }
+        .assign-user { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 12px; cursor: pointer; min-width: 60px; }
+        .assign-user.selected { background: #eff6ff; }
+        .assign-user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+        .assign-user-name { font-size: 10px; text-align: center; }
+        .no-users-match { padding: 12px; text-align: center; font-size: 11px; color: #94a3b8; }
+        .assign-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .assign-cancel, .assign-confirm { padding: 5px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: none; }
+        .assign-cancel { background: #f1f5f9; color: #64748b; }
+        .assign-confirm { background: #3b82f6; color: white; }
+        .assign-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .inline-edit { display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
+        .inline-edit input { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 12px; }
+        .edit-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .save-btn, .cancel-btn { padding: 4px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: none; }
+        .save-btn { background: #10b981; color: white; }
+        .cancel-btn { background: #f1f5f9; color: #64748b; }
+
+        /* Team Grid */
+        .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .team-member-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; padding: 20px; }
+        .member-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; color: white; font-size: 10px; margin-bottom: 16px; }
+        .member-avatar { width: 80px; height: 80px; margin: 0 auto 12px; }
+        .member-avatar img, .avatar-large { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .avatar-large { background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; font-weight: 600; }
+        .team-member-card h4 { font-size: 16px; margin-bottom: 4px; }
+        .team-member-card p { font-size: 11px; color: #64748b; margin-bottom: 12px; word-break: break-all; }
+        .member-contact-links { display: flex; justify-content: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .contact-link { text-decoration: none; font-size: 12px; padding: 4px 10px; border-radius: 20px; }
+        .contact-link.call { background: #eff6ff; color: #3b82f6; }
+        .contact-link.wa { background: #dcfce7; color: #22c55e; }
+        .contact-link.mail { background: #fef3c7; color: #f59e0b; }
+        .member-footer { display: flex; justify-content: center; gap: 12px; border-top: 1px solid #eef2f6; padding-top: 12px; }
+        .edit-btn, .remove-btn { display: flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: none; }
+        .edit-btn { background: #f1f5f9; color: #475569; }
+        .remove-btn { background: #fef2f2; color: #ef4444; }
+
+        /* Stats */
+        .stats-container { display: flex; flex-direction: column; gap: 20px; }
+        .stats-grid-custom { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .stat-panel { background: white; border-radius: 20px; padding: 20px; }
+        .stat-panel.full { grid-column: span 2; }
+        .stat-panel h3 { font-size: 15px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .history-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: #f8fafc; border-radius: 12px; margin-bottom: 8px; }
+        .history-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .history-icon.assign { background: #ecfdf5; color: #10b981; }
+        .history-icon.remove { background: #fef2f2; color: #ef4444; }
+        .category-progress { margin-bottom: 16px; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+        .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .modal-container { background: white; border-radius: 28px; max-width: 500px; width: 90%; max-height: 85vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #eef2f6; }
+        .modal-body { padding: 20px 24px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #eef2f6; }
+        .bulk-user-search { display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 12px; margin-bottom: 16px; }
+        .bulk-user-search input { flex: 1; border: none; background: transparent; outline: none; }
+        .bulk-users-list { max-height: 300px; overflow-y: auto; }
+        .bulk-user { display: flex; align-items: center; gap: 12px; padding: 12px; cursor: pointer; border-radius: 12px; }
+        .bulk-user:hover, .bulk-user.selected { background: #eff6ff; }
+        .bulk-user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+        .check-icon { color: #10b981; margin-left: auto; }
+        .btn-primary, .btn-secondary, .btn-danger { padding: 8px 20px; border-radius: 30px; font-size: 13px; cursor: pointer; border: none; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary { background: #f1f5f9; color: #475569; }
+        .btn-danger { background: #ef4444; color: white; }
+        .warning-icon { color: #f59e0b; }
+
+        /* Toast */
+        .toast-notification { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; color: white; z-index: 1100; animation: slideUp 0.3s ease; }
+        .toast-notification.success { background: #10b981; }
+        .toast-notification.error { background: #ef4444; }
+        @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+        /* Loader */
+        .admin-executive-loader { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f172a, #1e293b); color: white; }
+        .loader-spinner { position: relative; width: 80px; height: 80px; margin-bottom: 24px; }
+        .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent; animation: spin 1.5s infinite; }
+        .ring:nth-child(1) { border-top-color: #3b82f6; border-right-color: #3b82f6; }
+        .ring:nth-child(2) { border-bottom-color: #8b5cf6; border-left-color: #8b5cf6; animation-delay: 0.3s; width: 70%; height: 70%; top: 15%; left: 15%; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+
+        /* Responsive Desktop */
+        @media (min-width: 1024px) {
+          .position-item { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+          .position-main { margin-bottom: 0; width: 25%; }
+          .position-occupant { width: 45%; margin-bottom: 0; }
+          .position-actions { width: 25%; justify-content: flex-end; }
         }
 
         @media (max-width: 768px) {
-          .admin-executive-container {
-            padding: 16px;
-          }
-          
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          
-          .table-header, .table-row {
-            font-size: 12px;
-            gap: 8px;
-          }
-          
-          .stats-row {
-            grid-template-columns: 1fr;
-          }
-          
-          .stats-panel.full-width {
-            grid-column: span 1;
-          }
+          .premium-hero { padding: 16px 20px 60px; }
+          .hero-content h1 { font-size: 28px; }
+          .hero-stats { gap: 12px; }
+          .hero-stats .stat { font-size: 11px; padding: 4px 12px; }
+          .main-content { padding: 0 16px 30px; }
+          .tabs-container { width: 100%; justify-content: center; flex-wrap: wrap; }
+          .tab-btn { padding: 8px 16px; font-size: 12px; }
+          .bulk-actions-bar { flex-direction: column; align-items: stretch; }
+          .bulk-left, .bulk-right { justify-content: center; }
+          .filters-bar { flex-direction: column; }
+          .search-box { width: 100%; }
         }
       `}</style>
     </div>

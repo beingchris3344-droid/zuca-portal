@@ -9659,7 +9659,7 @@ app.put("/api/users/profile", authenticate, async (req, res) => {
       fullName: fullName || user.fullName,
       email: email ? email.toLowerCase() : user.email,
       phone: phone || user.phone,
-      updatedAt: new Date()
+      
     };
 
     // Handle password change if requested
@@ -9692,7 +9692,7 @@ app.put("/api/users/profile", authenticate, async (req, res) => {
         profileImage: true,
         homeJumuia: true,
         createdAt: true,
-        updatedAt: true
+        
       }
     });
 

@@ -39,6 +39,11 @@ import FullReadings from './pages/FullReadings';
 import GalleryPage from "./pages/gallery";
 import Landing from "./pages/Landing";
 import UserManual from './pages/UserManual';
+
+// ===== EXECUTIVE SYSTEM IMPORTS =====
+import ExecutivePage from "./pages/ExecutivePage";
+import AdminExecutivePage from "./pages/admin/AdminExecutivePage";
+
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -245,6 +250,9 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/user-manual" element={<UserManual />} />
+        
+        {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
+        <Route path="/executive" element={<ExecutivePage />} />
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route
@@ -300,9 +308,12 @@ function AppContent() {
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
           <Route path="media" element={<AdminMediaPage />} />
-           <Route path="/admin/hymns/add" element={<AddHymn />} /> 
+          <Route path="/admin/hymns/add" element={<AddHymn />} /> 
           <Route path="/admin/pending-songs" element={<PendingSongs />} />
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
+          
+          {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
+          <Route path="executive" element={<AdminExecutivePage />} />
         </Route>
 
         {/* ================= SECRETARY ================= */}

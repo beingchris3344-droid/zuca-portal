@@ -88,6 +88,7 @@ export default function AdminLayout() {
     { label: "USER MANUAL", path: "security", icon: "🔒" },
     { label: "ALL USERS", path: "users", icon: "👥" },
     { label: "ROLE MANAGEMENT", path: "roles", icon: "👑" },
+    { label: "EXECUTIVE MANAGEMENT", path: "executive", icon: "👔" },
     { label: "JUMUIA MANAGEMENT", path: "jumuia-management", icon: "⛪" },
     { label: "ZUCA GALLERY", path: "media", icon: "🎥" },
     { label: "ZUCA YOUTUBE ANALYTICS", path: "analytics", icon: "▶️" },

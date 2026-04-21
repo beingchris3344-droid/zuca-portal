@@ -101,6 +101,7 @@ function Layout() {
     { path: "/hymns", label: "Hymn Book", icon: "🎵" },
     { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
     { path: "/chat", label: "Chat", icon: "💬" },
+    { path: "/executive", label: "Executive Team", icon: "👔" },
   ];
 
   return (

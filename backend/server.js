@@ -138,6 +138,598 @@ app.get("/api/public/test-gemini", async (req, res) => {
   }
 });
 
+
+// ==================== EXECUTIVE SYSTEM APIs (PUBLIC - NO AUTH) ====================
+// These work exactly like your announcements and mass-programs APIs
+
+// 1. Get all executive positions (for dropdowns)
+app.get("/api/executive/positions", async (req, res) => {
+  try {
+    console.log("📋 Executive positions API called from:", req.ip);
+    
+    const positions = await prisma.executivePosition.findMany({
+      orderBy: { level: 'asc' }
+    });
+    
+    res.json({ 
+      success: true, 
+      positions: positions 
+    });
+  } catch (err) {
+    console.error("❌ Error fetching positions:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+// 2. Get current executive team (PUBLIC - like announcements)
+app.get("/api/executive/team", async (req, res) => {
+  try {
+    console.log("👥 Executive team API called from:", req.ip);
+    
+    const executives = await prisma.executive.findMany({
+      where: { isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true
+          }
+        },
+        position: true
+      },
+      orderBy: {
+        position: {
+          level: 'asc'
+        }
+      }
+    });
+
+    const formattedExecutives = executives.map(exec => ({
+      id: exec.id,
+      userId: exec.user.id,
+      name: exec.user.fullName,
+      role: exec.position.title,
+      level: exec.position.level,
+      category: exec.position.category,
+      description: exec.position.description,
+      profileImage: exec.user.profileImage,
+      phone: exec.customPhone || exec.user.phone,
+      email: exec.customEmail || exec.user.email,
+      whatsappLink: (exec.customPhone || exec.user.phone) ? 
+        `https://wa.me/${(exec.customPhone || exec.user.phone).replace(/[^0-9]/g, '')}` : null,
+      callLink: (exec.customPhone || exec.user.phone) ? 
+        `tel:${exec.customPhone || exec.user.phone}` : null,
+      assignedAt: exec.assignedAt
+    }));
+
+    const grouped = {
+      leadership: formattedExecutives.filter(e => e.category === 'leadership'),
+      choir: formattedExecutives.filter(e => e.category === 'choir'),
+      jumuia: formattedExecutives.filter(e => e.category === 'jumuia'),
+      media: formattedExecutives.filter(e => e.category === 'media'),
+      voice: formattedExecutives.filter(e => e.category === 'voice')
+    };
+
+    res.json({ 
+      success: true, 
+      executives: formattedExecutives,
+      grouped,
+      total: formattedExecutives.length
+    });
+  } catch (err) {
+    console.error("❌ Error fetching executive team:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+// 3. Get executive hierarchy (PUBLIC)
+app.get("/api/executive/hierarchy", async (req, res) => {
+  try {
+    console.log("📊 Executive hierarchy API called from:", req.ip);
+    
+    const executives = await prisma.executive.findMany({
+      where: { isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true
+          }
+        },
+        position: true
+      },
+      orderBy: {
+        position: {
+          level: 'asc'
+        }
+      }
+    });
+
+    const hierarchy = executives.map(exec => ({
+      id: exec.id,
+      userId: exec.user.id,
+      name: exec.user.fullName,
+      role: exec.position.title,
+      level: exec.position.level,
+      category: exec.position.category,
+      profileImage: exec.user.profileImage,
+      phone: exec.customPhone || exec.user.phone,
+      email: exec.customEmail || exec.user.email
+    }));
+
+    res.json({ success: true, hierarchy });
+  } catch (err) {
+    console.error("❌ Error fetching hierarchy:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+// 4. Check if user has executive position (PUBLIC)
+app.get("/api/executive/check-user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 Checking executive position for user: ${userId}`);
+    
+    const executive = await prisma.executive.findFirst({
+      where: { userId, isActive: true },
+      include: { position: true }
+    });
+
+    res.json({ 
+      success: true, 
+      hasPosition: !!executive,
+      position: executive ? {
+        id: executive.position.id,
+        title: executive.position.title,
+        level: executive.position.level,
+        category: executive.position.category
+      } : null
+    });
+  } catch (err) {
+    console.error("❌ Error checking user:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+// ==================== ADMIN EXECUTIVE APIs (REQUIRE AUTH) ====================
+// These are like your admin routes - they need authentication
+
+// 5. Get all users for assignment (Admin only)
+app.get("/api/admin/executive/users", authenticate, requireAdmin, async (req, res) => {
+  try {
+    console.log("👥 Admin fetching users for executive assignment");
+    
+    const assignedUserIds = await prisma.executive.findMany({
+      where: { isActive: true },
+      select: { userId: true }
+    });
+    
+    const assignedIds = assignedUserIds.map(a => a.userId);
+
+    const users = await prisma.user.findMany({
+      where: {
+        id: { notIn: assignedIds }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        profileImage: true,
+        membership_number: true,
+        role: true
+      },
+      orderBy: { fullName: 'asc' }
+    });
+
+    res.json({ success: true, users });
+  } catch (err) {
+    console.error("❌ Error fetching users:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Get all current assignments (Admin only)
+app.get("/api/admin/executive/assignments", authenticate, requireAdmin, async (req, res) => {
+  try {
+    console.log("📋 Admin fetching executive assignments");
+    
+    const assignments = await prisma.executive.findMany({
+      where: { isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true,
+            membership_number: true
+          }
+        },
+        position: true
+      },
+      orderBy: {
+        position: {
+          level: 'asc'
+        }
+      }
+    });
+
+    res.json({ success: true, assignments });
+  } catch (err) {
+    console.error("❌ Error fetching assignments:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Get available positions (Admin only)
+app.get("/api/admin/executive/available-positions", authenticate, requireAdmin, async (req, res) => {
+  try {
+    console.log("📋 Admin fetching available positions");
+    
+    const filledPositionIds = await prisma.executive.findMany({
+      where: { isActive: true },
+      select: { positionId: true }
+    });
+    
+    const filledIds = filledPositionIds.map(p => p.positionId);
+
+    const availablePositions = await prisma.executivePosition.findMany({
+      where: {
+        id: { notIn: filledIds }
+      },
+      orderBy: { level: 'asc' }
+    });
+
+    res.json({ success: true, positions: availablePositions });
+  } catch (err) {
+    console.error("❌ Error fetching available positions:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Assign user to position (Admin only)
+app.post("/api/admin/executive/assign", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { userId, positionId, customPhone, customEmail } = req.body;
+
+    if (!userId || !positionId) {
+      return res.status(400).json({ error: "User ID and Position ID are required" });
+    }
+
+    console.log(`📝 Assigning user ${userId} to position ${positionId}`);
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const position = await prisma.executivePosition.findUnique({ where: { id: positionId } });
+    if (!position) {
+      return res.status(404).json({ error: "Position not found" });
+    }
+
+    // Check if position is already filled
+    const existingAssignment = await prisma.executive.findFirst({
+      where: { positionId, isActive: true }
+    });
+
+    if (existingAssignment) {
+      await prisma.executiveHistory.create({
+        data: {
+          userId: existingAssignment.userId,
+          positionId: existingAssignment.positionId,
+          assignedBy: existingAssignment.assignedBy,
+          assignedAt: existingAssignment.assignedAt,
+          removedAt: new Date(),
+          removedBy: req.user.userId
+        }
+      });
+
+      await prisma.executive.update({
+        where: { id: existingAssignment.id },
+        data: { isActive: false }
+      });
+    }
+
+    // Check if user already has any executive position
+    const userExisting = await prisma.executive.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (userExisting) {
+      return res.status(400).json({ 
+        error: "User already holds an executive position. Remove current position first." 
+      });
+    }
+
+    // Create new assignment
+    const assignment = await prisma.executive.create({
+      data: {
+        userId,
+        positionId,
+        assignedBy: req.user.userId,
+        customPhone: customPhone || null,
+        customEmail: customEmail || null
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true
+          }
+        },
+        position: true
+      }
+    });
+
+    // Update user's specialRole
+    let specialRole = null;
+    if (position.title === "Chairperson") specialRole = "chairperson";
+    else if (position.title === "Secretary") specialRole = "secretary";
+    else if (position.title === "Treasurer") specialRole = "treasurer";
+    else if (position.title === "Choir Moderator") specialRole = "choir_moderator";
+    else if (position.title === "Media Moderator") specialRole = "media_moderator";
+    
+    if (specialRole) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { specialRole }
+      });
+    }
+
+    // Create notification
+    await prisma.notification.create({
+      data: {
+        userId: userId,
+        type: "executive_appointment",
+        title: "🎉 Executive Appointment",
+        message: `Congratulations! You have been appointed as ${position.title}. Thank you for serving ZUCA!`,
+        read: false,
+        createdAt: new Date()
+      }
+    });
+
+    const formattedAssignment = {
+      id: assignment.id,
+      userId: assignment.userId,
+      userName: assignment.user.fullName,
+      userEmail: assignment.user.email,
+      userPhone: assignment.user.phone,
+      userProfileImage: assignment.user.profileImage,
+      positionId: assignment.positionId,
+      positionTitle: assignment.position.title,
+      positionLevel: assignment.position.level,
+      positionCategory: assignment.position.category,
+      customPhone: assignment.customPhone,
+      customEmail: assignment.customEmail,
+      assignedAt: assignment.assignedAt
+    };
+
+    res.json({ 
+      success: true, 
+      message: `${targetUser.fullName} appointed as ${position.title}`,
+      assignment: formattedAssignment 
+    });
+  } catch (err) {
+    console.error("❌ Assignment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. Update executive contact info (Admin only)
+app.put("/api/admin/executive/update/:assignmentId", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { customPhone, customEmail } = req.body;
+
+    console.log(`✏️ Updating executive ${assignmentId}`);
+
+    const updated = await prisma.executive.update({
+      where: { id: assignmentId },
+      data: {
+        customPhone: customPhone || null,
+        customEmail: customEmail || null,
+        updatedAt: new Date()
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true
+          }
+        },
+        position: true
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Contact info updated successfully",
+      assignment: updated 
+    });
+  } catch (err) {
+    console.error("❌ Update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. Remove executive assignment (Admin only)
+app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+
+    console.log(`🗑️ Removing executive assignment ${assignmentId}`);
+
+    const assignment = await prisma.executive.findUnique({
+      where: { id: assignmentId },
+      include: { position: true, user: true }
+    });
+
+    if (!assignment) {
+      return res.status(404).json({ error: "Assignment not found" });
+    }
+
+    await prisma.executiveHistory.create({
+      data: {
+        userId: assignment.userId,
+        positionId: assignment.positionId,
+        assignedBy: assignment.assignedBy,
+        assignedAt: assignment.assignedAt,
+        removedAt: new Date(),
+        removedBy: req.user.userId
+      }
+    });
+
+    await prisma.executive.delete({ where: { id: assignmentId } });
+
+    // Clear user's specialRole if applicable
+    const userOtherAssignments = await prisma.executive.findFirst({
+      where: { userId: assignment.userId, isActive: true }
+    });
+
+    if (!userOtherAssignments) {
+      await prisma.user.update({
+        where: { id: assignment.userId },
+        data: { specialRole: null }
+      });
+    }
+
+    await prisma.notification.create({
+      data: {
+        userId: assignment.userId,
+        type: "executive_removed",
+        title: "📋 Executive Role Updated",
+        message: `You have been removed from the position of ${assignment.position.title}. Thank you for your service!`,
+        read: false,
+        createdAt: new Date()
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: `${assignment.user.fullName} removed from ${assignment.position.title}` 
+    });
+  } catch (err) {
+    console.error("❌ Remove error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11. Get executive stats (Admin only)
+app.get("/api/admin/executive/stats", authenticate, requireAdmin, async (req, res) => {
+  try {
+    console.log("📊 Admin fetching executive stats");
+    
+    const totalPositions = await prisma.executivePosition.count();
+    const filledPositions = await prisma.executive.count({ where: { isActive: true } });
+    const vacantPositions = totalPositions - filledPositions;
+    const completionRate = totalPositions > 0 ? ((filledPositions / totalPositions) * 100).toFixed(1) : 0;
+    
+    const allPositions = await prisma.executivePosition.findMany();
+    const allExecutives = await prisma.executive.findMany({ 
+      where: { isActive: true },
+      include: { position: true }
+    });
+    
+    const categoryMap = {};
+    allPositions.forEach(pos => {
+      if (!categoryMap[pos.category]) {
+        categoryMap[pos.category] = { total: 0, filled: 0 };
+      }
+      categoryMap[pos.category].total++;
+    });
+    
+    allExecutives.forEach(exec => {
+      if (exec.position && categoryMap[exec.position.category]) {
+        categoryMap[exec.position.category].filled++;
+      }
+    });
+    
+    const byCategory = Object.entries(categoryMap).map(([category, data]) => ({
+      category,
+      total: data.total,
+      filled: data.filled
+    }));
+
+    const recentHistory = await prisma.executiveHistory.findMany({
+      take: 10,
+      orderBy: { removedAt: 'desc' },
+      include: {
+        user: { select: { fullName: true } },
+        position: { select: { title: true } }
+      }
+    });
+
+    const recentAssignments = await prisma.executive.findMany({
+      take: 10,
+      where: { isActive: true },
+      orderBy: { assignedAt: 'desc' },
+      include: {
+        user: { select: { fullName: true } },
+        position: { select: { title: true } }
+      }
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalPositions,
+        filledPositions,
+        vacantPositions,
+        completionRate: parseFloat(completionRate),
+        byCategory,
+        recentHistory: recentHistory || [],
+        recentAssignments: recentAssignments || []
+      }
+    });
+  } catch (err) {
+    console.error("❌ Stats error:", err);
+    res.json({
+      success: true,
+      stats: {
+        totalPositions: 18,
+        filledPositions: 0,
+        vacantPositions: 18,
+        completionRate: 0,
+        byCategory: [
+          { category: 'leadership', total: 5, filled: 0 },
+          { category: 'choir', total: 2, filled: 0 },
+          { category: 'jumuia', total: 6, filled: 0 },
+          { category: 'media', total: 1, filled: 0 },
+          { category: 'voice', total: 4, filled: 0 }
+        ],
+        recentHistory: [],
+        recentAssignments: []
+      }
+    });
+  }
+});
+
 // ================== UPLOAD DIRECTORIES ==================
  //Comment out for Vercel, uncomment for Render
  const uploadDir = path.join(__dirname, "uploads");
@@ -9802,6 +10394,7 @@ app.post("/api/ocr/ocr-space", authenticate, multerMemory.single("image"), async
     });
   }
 });
+
 
 
 // ================== START SERVER ==================

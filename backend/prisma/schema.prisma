@@ -68,6 +68,10 @@ model User {
   jumuiaReadReceipts  JumuiaReadReceipt[]
 
 
+   executiveAssignments Executive[]      // Positions this user holds
+  executiveHistory     ExecutiveHistory[] // Historical positions this user held
+
+
   files            File[] // Files uploaded by this user
 }
 
@@ -591,4 +595,58 @@ model LiturgicalDay {
   
   @@unique([date], name: "liturgical_day_date_unique") // Added name parameter
   @@map("liturgical_days")
+}
+
+// ==================== EXECUTIVE MANAGEMENT SYSTEM ====================
+
+model ExecutivePosition {
+  id          String   @id @default(uuid())
+  title       String   @unique
+  level       Int      // 1=Highest (Chairperson), 10=Lowest
+  category    String   // leadership, choir, jumuia, media, voice
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executives  Executive[]        // Current executives in this position
+  history     ExecutiveHistory[] // Historical assignments for this position
+}
+
+model Executive {
+  id          String   @id @default(uuid())
+  userId      String
+  positionId  String
+  assignedBy  String   // Admin ID who assigned
+  assignedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isActive    Boolean  @default(true)
+
+  // Custom contact info (if different from user's default)
+  customPhone String?
+  customEmail String?
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position    ExecutivePosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, positionId])
+  @@index([userId])
+  @@index([positionId])
+  @@index([isActive])
+}
+
+model ExecutiveHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  positionId  String
+  assignedBy  String
+  assignedAt  DateTime
+  removedAt   DateTime?
+  removedBy   String?
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position    ExecutivePosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([positionId])
+  @@index([removedAt])
 }

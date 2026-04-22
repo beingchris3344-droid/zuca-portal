@@ -9197,6 +9197,14 @@ async function sendPushNotification(userId, title, body, data = {}) {
 
     if (!subscription) return;
 
+    // ✅ Get current unread count for this user
+    const unreadCount = await prisma.notification.count({
+      where: { 
+        userId: userId, 
+        read: false 
+      }
+    });
+
     const pushSubscription = JSON.parse(subscription.subscription);
     
     await webpush.sendNotification(pushSubscription, JSON.stringify({
@@ -9204,9 +9212,12 @@ async function sendPushNotification(userId, title, body, data = {}) {
       body,
       icon: '/android-chrome-192x192.png',
       badge: '/favicon.ico',
+      badgeCount: unreadCount + 1,  // ✅ This sets the app icon badge!
       data,
       timestamp: Date.now()
     }));
+    
+    console.log(`📱 Push sent to ${userId} (badge: ${unreadCount + 1})`);
   } catch (err) {
     console.error('Error sending push notification:', err);
     if (err.statusCode === 410) {

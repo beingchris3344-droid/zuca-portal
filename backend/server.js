@@ -3029,6 +3029,46 @@ app.put("/api/admin/pending-songs/:id/complete", authenticate, async (req, res) 
   }
 });
 
+// DELETE pending song (admin/choir moderator only)
+app.delete("/api/admin/pending-songs/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check authorization
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isChoirModerator = user.specialRole === "choir_moderator";
+    
+    if (!isAdmin && !isChoirModerator) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Check if pending song exists
+    const pendingSong = await prisma.pendingSong.findUnique({
+      where: { id }
+    });
+
+    if (!pendingSong) {
+      return res.status(404).json({ error: "Pending song not found" });
+    }
+
+    // Delete the pending song
+    await prisma.pendingSong.delete({
+      where: { id }
+    });
+
+    res.json({ success: true, message: "Pending song deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting pending song:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ================== UPDATE LAST ACTIVE ==================
 async function updateLastActive(req, res, next) {
   if (req.user?.userId) {

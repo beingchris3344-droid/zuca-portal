@@ -921,10 +921,19 @@ const logoutButtonStyle = {
   transition: "all 0.3s ease",
 };
 
-const profileContentStyle = 
-{ display: "flex", gap: "42px",   border: "2px solid #043474cc", borderRadius: "12px",boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.93)", flexWrap: "wrap", alignItems: "center" };
-const avatarSectionStyle = { display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" };
-const avatarWrapperStyle = { 
+const profileContentStyle = {
+  display: "flex",
+  gap: "32px",
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+const avatarSectionStyle = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "12px",
+};const avatarWrapperStyle = { 
   position: "relative", 
   width: "220px", 
   height: "220px", 

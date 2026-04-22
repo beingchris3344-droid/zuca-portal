@@ -4206,37 +4206,38 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
     }
 
     // Fetch complete program with songs
-    const completeProgram = await prisma.massProgram.findUnique({
-      where: { id: newProgram.id },
-      include: { songs: { include: { song: true }, orderBy: { createdAt: 'asc' } } }
-    });
+ // Fetch complete program with songs
+const completeProgram = await prisma.massProgram.findUnique({
+  where: { id: newProgram.id },
+  include: { songs: { include: { song: true } } }  // ← REMOVED orderBy
+});
 
-    // Format response - GROUP multiple songs by type
-    const songMap = {};
-    completeProgram.songs.forEach((s) => {
-      if (!songMap[s.type]) {
-        songMap[s.type] = [];
-      }
-      songMap[s.type].push(s.song.title);
-    });
+// Format response - GROUP multiple songs by type
+const songMap = {};
+completeProgram.songs.forEach((s) => {
+  if (!songMap[s.type]) {
+    songMap[s.type] = [];
+  }
+  songMap[s.type].push(s.song.title);
+});
 
-    // Convert arrays back to semicolon strings for response
-    const response = {
-      id: completeProgram.id,
-      date: completeProgram.date.toISOString().split("T")[0],
-      venue: completeProgram.venue,
-      entrance: (songMap.entrance || []).join('; '),
-      mass: (songMap.mass || []).join('; '),
-      bible: (songMap.bible || []).join('; '),
-      offertory: (songMap.offertory || []).join('; '),
-      procession: (songMap.procession || []).join('; '),
-      mtakatifu: (songMap.mtakatifu || []).join('; '),
-      signOfPeace: (songMap.signOfPeace || []).join('; '),
-      communion: (songMap.communion || []).join('; '),
-      thanksgiving: (songMap.thanksgiving || []).join('; '),
-      exit: (songMap.exit || []).join('; '),
-      createdAt: completeProgram.createdAt.toISOString()
-    };
+// Convert arrays back to semicolon strings for response
+const response = {
+  id: completeProgram.id,
+  date: completeProgram.date.toISOString().split("T")[0],
+  venue: completeProgram.venue,
+  entrance: (songMap.entrance || []).join('; '),
+  mass: (songMap.mass || []).join('; '),
+  bible: (songMap.bible || []).join('; '),
+  offertory: (songMap.offertory || []).join('; '),
+  procession: (songMap.procession || []).join('; '),
+  mtakatifu: (songMap.mtakatifu || []).join('; '),
+  signOfPeace: (songMap.signOfPeace || []).join('; '),
+  communion: (songMap.communion || []).join('; '),
+  thanksgiving: (songMap.thanksgiving || []).join('; '),
+  exit: (songMap.exit || []).join('; '),
+  createdAt: completeProgram.createdAt.toISOString()
+};
 
     console.log("📤 Response being sent:", response);
 

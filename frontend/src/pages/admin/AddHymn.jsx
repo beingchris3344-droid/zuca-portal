@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { 
   FiSave, 
   FiEye, 
@@ -23,6 +23,10 @@ import { MdAutoFixHigh, MdTextFields, MdOutlineFormatAlignLeft } from "react-ico
 import BASE_URL from "../../api";
 
 export default function AddHymn({ onClose, onSuccess }) {
+  const { id } = useParams(); // Get song ID from URL for editing
+  const [searchParams] = useSearchParams();
+  const pendingId = searchParams.get('pendingId'); // Get pending ID if coming from pending songs
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [showStats, setShowStats] = useState(true);
@@ -39,6 +43,38 @@ export default function AddHymn({ onClose, onSuccess }) {
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
+  // Fetch song data if editing (when ID is present in URL)
+  useEffect(() => {
+    if (id) {
+      fetchSongData();
+    }
+  }, [id]);
+
+  const fetchSongData = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${BASE_URL}/api/admin/songs/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const song = response.data;
+      setFormData({
+        title: song.title || "",
+        reference: song.reference || "",
+        lyrics: song.lyrics || ""
+      });
+      console.log("📝 Loaded song for editing:", song.title);
+      if (pendingId) {
+        console.log("📌 Coming from pending song ID:", pendingId);
+      }
+    } catch (error) {
+      console.error("Failed to fetch song:", error);
+      setError("Failed to load song data");
+      showToast("❌ Failed to load song data", true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Check if form has meaningful content (not just empty/spaces)
   const hasMeaningfulContent = () => {
     const hasTitle = formData.title && formData.title.trim().length > 0;
@@ -46,8 +82,10 @@ export default function AddHymn({ onClose, onSuccess }) {
     return hasTitle || hasLyrics;
   };
 
-  // Auto-save draft - ONLY save if there's meaningful content
+  // Auto-save draft - ONLY for new hymns, not when editing existing ones
   useEffect(() => {
+    if (id) return; // Don't auto-save when editing existing hymn
+    
     const timer = setTimeout(() => {
       if (hasMeaningfulContent()) {
         const draftToSave = {
@@ -59,20 +97,20 @@ export default function AddHymn({ onClose, onSuccess }) {
         localStorage.setItem('hymn_draft', JSON.stringify(draftToSave));
         console.log("💾 Draft saved");
       } else {
-        // If no meaningful content, clear the draft
         localStorage.removeItem('hymn_draft');
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [formData]);
+  }, [formData, id]);
 
-  // Load draft on mount - ONLY if it's valid and not too old
+  // Load draft on mount - ONLY for new hymns
   useEffect(() => {
+    if (id) return; // Don't load draft when editing existing hymn
+    
     const draft = localStorage.getItem('hymn_draft');
     if (draft) {
       try {
         const parsed = JSON.parse(draft);
-        // Check if draft has meaningful content AND is less than 24 hours old
         const hasContent = (parsed.title && parsed.title.length > 0) || (parsed.lyrics && parsed.lyrics.length > 10);
         const isRecent = parsed.savedAt && (new Date() - new Date(parsed.savedAt)) < 24 * 60 * 60 * 1000;
         
@@ -86,14 +124,11 @@ export default function AddHymn({ onClose, onSuccess }) {
             });
             showToast("📝 Draft loaded");
           } else {
-            // User chose not to load, clear the draft
             localStorage.removeItem('hymn_draft');
           }
         } else if (!hasContent) {
-          // Draft is empty, remove it
           localStorage.removeItem('hymn_draft');
         } else if (!isRecent) {
-          // Draft is too old, ask to clear
           localStorage.removeItem('hymn_draft');
           console.log("🗑️ Old draft cleared");
         }
@@ -102,7 +137,7 @@ export default function AddHymn({ onClose, onSuccess }) {
         localStorage.removeItem('hymn_draft');
       }
     }
-  }, []);
+  }, [id, formData.title]);
 
   const showToast = (message, isError = false) => {
     const toast = document.createElement('div');
@@ -127,8 +162,10 @@ export default function AddHymn({ onClose, onSuccess }) {
   };
 
   const clearDraft = () => {
-    localStorage.removeItem('hymn_draft');
-    console.log("🗑️ Draft cleared");
+    if (!id) {
+      localStorage.removeItem('hymn_draft');
+      console.log("🗑️ Draft cleared");
+    }
   };
 
   const handleSubmit = async () => {
@@ -147,28 +184,52 @@ export default function AddHymn({ onClose, onSuccess }) {
         lyrics: formData.lyrics?.trim() || ""
       };
       
-      const response = await axios.post(`${BASE_URL}/api/admin/songs`, songData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      let response;
       
-      showToast("✅ Hymn added successfully!");
+      if (id) {
+        // Update existing song
+        response = await axios.put(`${BASE_URL}/api/admin/songs/${id}`, songData, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // If this came from a pending song, delete the pending record
+        if (pendingId) {
+          await axios.delete(`${BASE_URL}/api/admin/pending-songs/${pendingId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          showToast("✅ Lyrics added and removed from pending songs!");
+        } else {
+          showToast("✅ Hymn updated successfully!");
+        }
+      } else {
+        // Create new song
+        response = await axios.post(`${BASE_URL}/api/admin/songs`, songData, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        showToast("✅ Hymn added successfully!");
+      }
+      
       clearDraft(); // Clear draft on successful save
       
       if (onSuccess) {
         onSuccess(response.data);
       }
       
-      if (window.confirm("Hymn added successfully! Add another hymn?")) {
+      // Ask if user wants to add another (only for new hymns, not edits)
+      if (!id && window.confirm("Hymn added successfully! Add another hymn?")) {
         setFormData({ title: "", reference: "", lyrics: "" });
         setError("");
       } else {
         handleClose();
       }
     } catch (err) {
-      console.error("Add error:", err);
+      console.error("Save error:", err);
       
       if (err.response?.data?.message) {
         setError(err.response.data.message);
@@ -180,8 +241,8 @@ export default function AddHymn({ onClose, onSuccess }) {
         localStorage.removeItem('user');
         setTimeout(() => navigate("/login"), 1500);
       } else {
-        setError("Failed to add hymn. Please try again.");
-        showToast("❌ Failed to add hymn. Please try again.", true);
+        setError("Failed to save hymn. Please try again.");
+        showToast("❌ Failed to save hymn. Please try again.", true);
       }
     } finally {
       setSaving(false);
@@ -279,7 +340,7 @@ And grace will lead me home.`;
   };
 
   const handleClose = () => {
-    if (hasMeaningfulContent()) {
+    if (!id && hasMeaningfulContent()) {
       if (window.confirm("You have unsaved changes. Save draft before leaving?")) {
         // Draft already auto-saved, just close
         handleCloseWithoutWarning();
@@ -312,6 +373,21 @@ And grace will lead me home.`;
 
   const stats = getStats();
 
+  if (loading) {
+    return (
+      <div style={styles.fullScreenOverlay}>
+        <div style={styles.fullScreenContainer}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+            <div style={{ textAlign: 'center' }}>
+              <FiLoader size={48} style={styles.spinning} />
+              <p style={{ marginTop: '16px', color: '#6b7280' }}>Loading hymn data...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.fullScreenOverlay}>
       <div style={styles.fullScreenContainer}>
@@ -319,7 +395,10 @@ And grace will lead me home.`;
         <div style={styles.header}>
           <div style={styles.headerLeft}>
             <FiMusic size={24} color="#4f46e5" />
-            <h1 style={styles.title}>Add New Hymn</h1>
+            <h1 style={styles.title}>{id ? "Edit Hymn" : "Add New Hymn"}</h1>
+            {pendingId && (
+              <span style={styles.pendingBadge}>From Pending Songs</span>
+            )}
           </div>
           <div style={styles.headerRight}>
             <button onClick={() => setIsFullScreen(!isFullScreen)} style={styles.iconButton} title="Full Screen">
@@ -355,7 +434,7 @@ And grace will lead me home.`;
                 <li>✨ <strong>Auto Format</strong> - Detects repeated lines and bolds them (great for chorus)</li>
                 <li>🧹 <strong>Clean Format</strong> - Fixes spacing and formatting issues</li>
                 <li>📸 <strong>Scan Lyrics</strong> - Use camera to scan lyrics from hymn book</li>
-                <li>💾 <strong>Auto-save</strong> - Drafts are saved automatically every 2 seconds</li>
+                <li>💾 <strong>Auto-save</strong> - Drafts are saved automatically every 2 seconds (new hymns only)</li>
               </ul>
             </div>
           )}
@@ -516,7 +595,7 @@ Use **bold** for chorus lines (or click Auto Format to detect repeats)"
             {saving ? (
               <><FiLoader style={styles.spinning} size={20} /> Saving...</>
             ) : (
-              <><FiSave size={20} /> Save Hymn</>
+              <><FiSave size={20} /> {id ? "Update Hymn" : "Save Hymn"}</>
             )}
           </button>
         </div>
@@ -570,6 +649,14 @@ const styles = {
     fontWeight: 'bold',
     color: '#1f2937',
     margin: 0
+  },
+  pendingBadge: {
+    padding: '4px 12px',
+    backgroundColor: '#fef3c7',
+    color: '#d97706',
+    borderRadius: '20px',
+    fontSize: '12px',
+    fontWeight: '500'
   },
   iconButton: {
     background: '#f3f4f6',

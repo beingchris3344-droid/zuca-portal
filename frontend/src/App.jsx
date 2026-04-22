@@ -360,6 +360,7 @@ function AppContent() {
           <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
           <Route path="/admin/hymns" element={<AdminHymns />} />
+          <Route path="/admin/hymns/edit/:id" element={<AddHymn />} />
           <Route path="roles" element={<RoleManagement />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />

@@ -976,7 +976,7 @@ return false;
         .background-image, .background-overlay { display: none; }
         .content-wrapper { max-width: 1400px; margin: 0 auto; position: relative; z-index: 1; }
         
-        .notification { position: fixed; top: 24px; right: 24px; padding: 12px 20px; border-radius: 12px; color: white; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .notification { position: fixed; top: 84px; right: 24px; padding: 12px 20px; border-radius: 12px; color: white; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .notification.success { background: #10b981; }
         .notification.error { background: #ef4444; }
         .notification.info { background: #3b82f6; }

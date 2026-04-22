@@ -1,5 +1,5 @@
-// public/sw.js - Enhanced for WhatsApp-like notifications
-const CACHE_NAME = 'zuca-portal-v2';
+// public/sw.js - Enhanced with Badge Support
+const CACHE_NAME = 'zuca-portal-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -67,7 +67,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ========== PUSH NOTIFICATIONS ==========
+// ========== PUSH NOTIFICATIONS WITH BADGE SUPPORT ==========
 self.addEventListener('push', (event) => {
   console.log('[SW] 📱 Push received:', event);
   
@@ -134,6 +134,15 @@ self.addEventListener('push', (event) => {
           }
         ]
       };
+      
+      // ✅ SET APP BADGE WHEN PUSH ARRIVES
+      const badgeCount = data.badgeCount || 1;
+      if (self.navigator && self.navigator.setAppBadge) {
+        self.navigator.setAppBadge(badgeCount);
+        console.log(`[SW] 📱 App badge set to ${badgeCount}`);
+      } else {
+        console.log('[SW] ⚠️ Badge API not supported in this browser');
+      }
     }
   } catch (err) {
     console.error('[SW] Error parsing push data:', err);
@@ -156,6 +165,12 @@ self.addEventListener('notificationclick', (event) => {
   const data = notification.data || {};
   
   notification.close();
+  
+  // ✅ CLEAR APP BADGE WHEN NOTIFICATION IS CLICKED
+  if (self.navigator && self.navigator.clearAppBadge) {
+    self.navigator.clearAppBadge();
+    console.log('[SW] 📱 App badge cleared');
+  }
   
   if (action === 'dismiss') {
     console.log('[SW] Notification dismissed');
@@ -196,21 +211,21 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('message', (event) => {
   console.log('[SW] Message from app:', event.data);
   
-  // Handle badge updates
+  // Handle badge updates from app
   if (event.data.type === 'UPDATE_BADGE') {
     const count = event.data.count || 0;
     if (self.navigator && self.navigator.setAppBadge) {
       if (count > 0) {
         self.navigator.setAppBadge(count);
-        console.log(`[SW] Badge updated to ${count}`);
+        console.log(`[SW] 📱 Badge updated to ${count}`);
       } else {
         self.navigator.clearAppBadge();
-        console.log('[SW] Badge cleared');
+        console.log('[SW] 📱 Badge cleared');
       }
     }
   }
   
-  // ✅ Handle skip waiting for auto-updates
+  // Handle skip waiting for auto-updates
   if (event.data && event.data.type === 'SKIP_WAITING') {
     console.log('[SW] Skipping waiting, activating new version...');
     self.skipWaiting();

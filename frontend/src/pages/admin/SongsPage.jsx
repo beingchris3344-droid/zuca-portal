@@ -382,9 +382,8 @@ export default function SongsPage() {
         const year = date.getFullYear();
         return `${dayName} ${dayNumber} ${monthName} ${year}`;
       };
-
-      setFormError(`⚠️ Duplicate songs detected: ${duplicateSongs.slice(0, 3).join(", ")}. Already sung on ${formatDate(lastProgram.date)}!`);
-      return false;
+setFormError(`⚠️ I'm sorry 😔 i can't add: ${duplicateSongs.slice(0, 3).join(", ")}. Already sung on ${formatDate(lastProgram.date)}! 😂😂 There are many other songs you can sing, repeating is not an option 🫵🥹`);
+return false;
     }
     return true;
   };

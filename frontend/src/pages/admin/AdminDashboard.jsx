@@ -108,16 +108,24 @@ function AdminDashboard() {
     }
   }, [recentActivities]);
 
-  useEffect(() => {
-    const socket = io(BASE_URL);
+ useEffect(() => {
+  const socket = io(BASE_URL);
+  
+  socket.on('connect', () => {
+    console.log('Dashboard connected');
     
-    socket.on('connect', () => {
-      console.log('Dashboard connected');
-    });
+    // ✅ ADD THIS - Join user's room
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.id) {
+      socket.emit('join', user.id);
+      console.log('Joined room for user:', user.id);
+    }
+  });
 
-    socket.on('user_online', (data) => {
-      setStats(prev => ({ ...prev, onlineUsers: data.count }));
-    });
+  socket.on('online_members', (data) => {
+    console.log('📊 Online count received:', data.count);
+    setStats(prev => ({ ...prev, onlineUsers: data.count }));
+  });
 
     socket.on('stats_updated', (newStats) => {
       setStats(prev => ({ ...prev, ...newStats }));
@@ -180,14 +188,14 @@ function AdminDashboard() {
         songsRes
       ] = await Promise.allSettled([
         axios.get(`${BASE_URL}/api/admin/stats`, { headers }),
-        axios.get(`${BASE_URL}/api/users`, { headers }),
-        axios.get(`${BASE_URL}/api/contribution-types`, { headers }),
-        axios.get(`${BASE_URL}/api/announcements`, { headers }),
-        axios.get(`${BASE_URL}/api/songs`, { headers }),
-        axios.get(`${BASE_URL}/api/chat/unread`, { headers }),
-        axios.get(`${BASE_URL}/api/events/upcoming`, { headers }),
-        axios.get(`${BASE_URL}/api/songs`, { headers })
-      ]);
+  axios.get(`${BASE_URL}/api/users`, { headers }),
+  axios.get(`${BASE_URL}/api/contribution-types`, { headers }),
+axios.get(`${BASE_URL}/api/announcements`, { headers }), // Public - no headers
+  axios.get(`${BASE_URL}/api/mass-programs`, { headers }),  // ✅ FIXED
+  axios.get(`${BASE_URL}/api/chat/unread`, { headers }),
+  axios.get(`${BASE_URL}/api/events/upcoming`, { headers }),
+  axios.get(`${BASE_URL}/api/songs`, { headers })
+]);
 
       if (statsRes.status === 'fulfilled') {
         setStats(prev => ({ ...prev, ...statsRes.value.data }));

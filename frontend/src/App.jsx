@@ -137,6 +137,10 @@ function AppContent() {
     socket.on("new_notification", (notification) => {
       console.log("🔔 New notification received:", notification);
       
+      // ✅ Increment badge count
+      badgeManager.increment();
+      
+      // Show in-app toast if available
       if (window.showInAppToast) {
         window.showInAppToast({
           title: notification.title || "New Notification",
@@ -150,9 +154,9 @@ function AppContent() {
         });
       }
       
-      badgeManager.incrementBadge();
-      
-      if (Notification.permission === "granted") {
+      // Show browser notification if permitted
+      if (Notification.permission === "granted" && document.hidden) {
+        // Only show browser notification if tab is hidden
         new Notification(notification.title || "New Notification", {
           body: notification.message,
           icon: "/android-chrome-192x192.png",
@@ -193,7 +197,7 @@ function AppContent() {
             await pushService.subscribe();
             console.log("✅ Push notifications enabled");
           }
-          badgeManager.loadCount();
+          await badgeManager.loadCount();
         } catch (err) {
           console.error("Failed to initialize push notifications:", err);
         }
@@ -419,11 +423,9 @@ function AppContent() {
 // Main App component with Router wrapper
 function App() {
   return (
-    <NotificationManager>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </NotificationManager>
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

@@ -10,7 +10,6 @@ export default defineConfig({
     viteCompression(),
     VitePWA({
       registerType: 'autoUpdate', // auto-updates the service worker
-      // 👇 ADD THIS WORKBOX CONFIGURATION
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Increase to 5MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
@@ -38,7 +37,19 @@ export default defineConfig({
       }
     })
   ],
-  // 👇 OPTIONAL: Add build configuration for code splitting
+  
+  // ✅ ADD THIS SERVER CONFIGURATION
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',  // Your backend server
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
+  
   build: {
     rollupOptions: {
       output: {

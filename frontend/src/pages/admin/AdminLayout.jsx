@@ -19,9 +19,14 @@ export default function AdminLayout() {
   useEffect(() => {
     const socket = io(BASE_URL);
     
-    socket.on('connect', () => {
-      console.log('Admin connected');
-    });
+ socket.on('connect', () => {
+  console.log('Admin connected');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.id) {
+    socket.emit('join', user.id);
+    console.log('Joined notification room for user:', user.id);
+  }
+});
 
     socket.on('new_notification', (notification) => {
       setNotifications(prev => [notification, ...prev].slice(0, 20));
@@ -53,6 +58,71 @@ export default function AdminLayout() {
 
     return () => socket.disconnect();
   }, []);
+
+
+  // ✅ ADD THIS - Fetch existing notifications on load
+useEffect(() => {
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      if (!user.id) {
+        console.log('No user ID found, skipping notification fetch');
+        return;
+      }
+      
+      // IMPORTANT: Add the userId to the URL
+      const response = await fetch(`${BASE_URL}/api/notifications/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch');
+      
+      const data = await response.json();
+      
+      // Handle the response format - your API returns array directly
+      let notificationsList = Array.isArray(data) ? data : [];
+      
+      // Format notifications for display
+      const formattedNotifs = notificationsList.slice(0, 20).map(notif => ({
+        id: notif.id,
+        type: notif.type,
+        title: notif.title,
+        message: notif.message,
+        icon: getIconForType(notif.type),
+        read: notif.read || false,
+        createdAt: notif.createdAt
+      }));
+      
+      setNotifications(formattedNotifs);
+      console.log('✅ Loaded existing notifications:', formattedNotifs.length);
+      
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  };
+  
+  fetchNotifications();
+}, []);
+
+// Helper function for icons
+const getIconForType = (type) => {
+  const icons = {
+    'announcement': '📢',
+    'pledge_approved': '✅',
+    'payment_added': '💰',
+    'new_pledge': '💳',
+    'program': '⛪',
+    'message': '💬',
+    'media_comment': '💬',
+    'contribution': '💰',
+    'pledge_message': '💬',
+    'executive_appointment': '👔',
+    'executive_removed': '📋'
+  };
+  return icons[type] || '🔔';
+};
 
   useEffect(() => {
     const handleResize = () => {
@@ -657,6 +727,131 @@ export default function AdminLayout() {
           .online-count {
             font-size: 12px;
           }
+
+          /* Fix Notification Dropdown Styles - Add/Update these */
+
+.notification-dropdown {
+  position: absolute;
+  top: 45px;
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 20px);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+  border: 1px solid #e2e8f0;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.notification-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.notification-header button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.notification-header button:hover {
+  background: #e2e8f0;
+}
+
+.notification-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.notification-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.notification-item:hover {
+  background: #f8fafc;
+}
+
+.notification-icon {
+  width: 32px;
+  height: 32px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  display: flex;
+align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
+  word-wrap: break-word;
+}
+
+.notification-time {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* Different colors for different notification types */
+.notification-item.announcement .notification-icon {
+  background: #fef3c7;
+}
+
+.notification-item.pledge_approved .notification-icon,
+.notification-item.payment_added .notification-icon {
+  background: #d1fae5;
+}
+
+.notification-item.program .notification-icon {
+  background: #ede9fe;
+}
+
+.notification-item.message .notification-icon {
+  background: #dbeafe;
+}
 
           .notification-dropdown {
             width: 320px;

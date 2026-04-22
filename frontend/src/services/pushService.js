@@ -1,12 +1,13 @@
 // frontend/src/services/pushService.js
 import badgeManager from '../utils/badgeManager';
+import BASE_URL from '../api';
 
 class PushNotificationService {
   constructor() {
     this.swRegistration = null;
     this.vapidPublicKey = null;
     this.permission = 'default';
-    this.notificationCallbacks = []; // For in-app notifications
+    this.notificationCallbacks = [];
   }
 
   // Register a callback for incoming notifications
@@ -20,6 +21,11 @@ class PushNotificationService {
   // Handle in-app notification
   handleInAppNotification(notification) {
     console.log('📱 In-app notification received:', notification);
+    
+    // ✅ Increment badge count when notification arrives
+    badgeManager.increment();
+    
+    // Call all registered callbacks
     this.notificationCallbacks.forEach(callback => {
       try {
         callback(notification);
@@ -57,20 +63,21 @@ class PushNotificationService {
     return badgeManager.updateBadgeCount(count);
   }
 
+  // Initialize - fetch VAPID key
   async init() {
     try {
-      const res = await fetch('/api/notifications/vapid-public-key');
+      const res = await fetch(`${BASE_URL}/api/notifications/vapid-public-key`);
       const data = await res.json();
       this.vapidPublicKey = data.publicKey;
-      console.log('VAPID key loaded');
+      console.log('✅ VAPID key loaded');
       
-      // Setup in-app notifications after initialization
       this.setupInAppNotifications();
     } catch (err) {
       console.error('Failed to get VAPID key:', err);
     }
   }
 
+  // Request permission from user
   async requestPermission() {
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
@@ -97,6 +104,7 @@ class PushNotificationService {
     }
   }
 
+  // Register service worker
   async registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
       console.log('Service workers not supported');
@@ -105,11 +113,10 @@ class PushNotificationService {
 
     try {
       this.swRegistration = await navigator.serviceWorker.register('/sw.js');
-      console.log('Service Worker registered:', this.swRegistration);
+      console.log('✅ Service Worker registered:', this.swRegistration);
       
-      // Wait for the service worker to be ready
       await navigator.serviceWorker.ready;
-      console.log('Service Worker ready');
+      console.log('✅ Service Worker ready');
       
       return true;
     } catch (err) {
@@ -118,6 +125,7 @@ class PushNotificationService {
     }
   }
 
+  // Subscribe to push notifications
   async subscribe() {
     if (!this.swRegistration) {
       await this.registerServiceWorker();
@@ -127,12 +135,16 @@ class PushNotificationService {
       await this.init();
     }
 
+    // Safety check
+    if (!this.vapidPublicKey) {
+      console.error('No VAPID public key available');
+      return false;
+    }
+
     try {
-      // Check for existing subscription
       let subscription = await this.swRegistration.pushManager.getSubscription();
       
       if (!subscription) {
-        // Convert VAPID key to Uint8Array
         const applicationServerKey = this.urlBase64ToUint8Array(this.vapidPublicKey);
         
         subscription = await this.swRegistration.pushManager.subscribe({
@@ -140,19 +152,19 @@ class PushNotificationService {
           applicationServerKey: applicationServerKey
         });
         
-        console.log('New push subscription created');
+        console.log('✅ New push subscription created');
       } else {
-        console.log('Using existing push subscription');
+        console.log('✅ Using existing push subscription');
       }
 
-      // Send subscription to server
       const token = localStorage.getItem('token');
       if (!token) {
         console.log('User not logged in, skipping server subscription');
         return false;
       }
 
-      const response = await fetch('/api/notifications/subscribe', {
+      // Save subscription to server
+      const response = await fetch(`${BASE_URL}/api/notifications/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -165,10 +177,10 @@ class PushNotificationService {
         throw new Error('Failed to save subscription');
       }
 
-      console.log('Push subscription saved to server');
+      console.log('✅ Push subscription saved to server');
       
       // Load badge count after subscription
-      badgeManager.loadCount();
+      await badgeManager.loadCount();
       
       return true;
     } catch (err) {
@@ -177,6 +189,7 @@ class PushNotificationService {
     }
   }
 
+  // Unsubscribe from push notifications
   async unsubscribe() {
     if (!this.swRegistration) return true;
 
@@ -188,7 +201,7 @@ class PushNotificationService {
 
       const token = localStorage.getItem('token');
       if (token) {
-        await fetch('/api/notifications/unsubscribe', {
+        await fetch(`${BASE_URL}/api/notifications/unsubscribe`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -196,7 +209,11 @@ class PushNotificationService {
         });
       }
 
-      console.log('Successfully unsubscribed');
+      console.log('✅ Successfully unsubscribed');
+      
+      // Clear badge on unsubscribe
+      await badgeManager.updateBadgeCount(0);
+      
       return true;
     } catch (err) {
       console.error('Failed to unsubscribe:', err);
@@ -204,7 +221,14 @@ class PushNotificationService {
     }
   }
 
+  // Convert VAPID key to Uint8Array
   urlBase64ToUint8Array(base64String) {
+    // Safety check
+    if (!base64String || base64String === 'undefined' || base64String === 'null') {
+      console.error('Invalid VAPID key:', base64String);
+      return new Uint8Array(0);
+    }
+    
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
       .replace(/\-/g, '+')
@@ -219,8 +243,14 @@ class PushNotificationService {
     return outputArray;
   }
 
+  // Get current permission status
   getPermissionStatus() {
     return Notification.permission;
+  }
+
+  // Clear all badges (useful on logout)
+  async clearBadge() {
+    await badgeManager.updateBadgeCount(0);
   }
 }
 

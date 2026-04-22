@@ -3235,11 +3235,43 @@ app.post("/api/login", async (req, res) => {
       data: { lastActive: new Date() },
     });
 
+     const admins = await prisma.user.findMany({
+      where: { role: "admin" },
+      select: { id: true }
+    });
+
+    if (admins.length > 0) {
+      const now = new Date();
+      const notifications = admins.map(admin => ({
+        id: `login-${user.id}-${admin.id}-${Date.now()}`,
+        userId: admin.id,
+        type: "user_login",
+        title: "👤 User Login",
+        message: `${user.fullName} just logged in`,
+        read: false,
+        createdAt: now,
+      }));
+
+      await prisma.notification.createMany({ data: notifications });
+
+      // Send real-time notifications to admins
+      notifications.forEach(notif => {
+        io.to(notif.userId).emit("new_notification", {
+          ...notif,
+          createdAt: now.toISOString()
+        });
+      });
+    }
+
     res.json({ token, user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
 
 // ================== ROLE LOGIN ==================
 app.post("/api/role-login", async (req, res) => {
@@ -3336,9 +3368,44 @@ app.post("/api/role-login", async (req, res) => {
         accessLevel = "choir_moderator";
         break;
       case "media_moderator":  
-    permissions = ["manage_media"];
-    accessLevel = "media_moderator";
-    break;
+        permissions = ["manage_media"];
+        accessLevel = "media_moderator";
+        break;
+    }
+
+    // ✅ ADD THIS - Notify admins about role login
+    const admins = await prisma.user.findMany({
+      where: { role: "admin" },
+      select: { id: true }
+    });
+
+    if (admins.length > 0) {
+      const now = new Date();
+      const notifications = admins.map(admin => ({
+        id: `role-login-${user.id}-${admin.id}-${Date.now()}`,
+        userId: admin.id,
+        type: "user_login",
+        title: "👤 Role Login",
+        message: `${user.fullName} logged in as ${matchedRole.role}`,
+        data: { 
+          userId: user.id, 
+          userName: user.fullName, 
+          role: matchedRole.role,
+          jumuia: matchedRole.jumuiaName || null
+        },
+        read: false,
+        createdAt: now,
+      }));
+
+      await prisma.notification.createMany({ data: notifications });
+
+      // Send real-time notifications to admins
+      notifications.forEach(notif => {
+        io.to(notif.userId).emit("new_notification", {
+          ...notif,
+          createdAt: now.toISOString()
+        });
+      });
     }
 
     const token = jwt.sign(

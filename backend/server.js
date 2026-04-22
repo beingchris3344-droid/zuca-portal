@@ -65,9 +65,6 @@ const markAsRead = (userId) => {
   return userNotifs;
 };
 
-// ================== SOCKET.IO ==================
-const { Server } = require("socket.io");
-const server = http.createServer(app);
 
 // ================== CORS CONFIGURATION - SINGLE PLACE ==================
 const allowedOrigins = [
@@ -110,13 +107,65 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS for Socket.IO
+
+// ================== SOCKET.IO WITH ONLINE TRACKING ==================
+const { Server } = require("socket.io");
+const server = http.createServer(app);
+
+// Create io instance with CORS
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: allowedOrigins,  // This uses the allowedOrigins array defined above
     methods: ["GET", "POST"],
     credentials: true
   },
+});
+
+// Track online users
+let onlineUsers = new Map(); // userId -> socketId
+let userSocketMap = new Map(); // socketId -> userId
+
+io.on("connection", (socket) => {
+  console.log("🟢 User connected:", socket.id);
+
+  // When user joins with their userId (from frontend)
+  socket.on("join", (userId) => {
+    if (!userId) return;
+    
+    // Store the mapping
+    onlineUsers.set(userId, socket.id);
+    userSocketMap.set(socket.id, userId);
+    
+    // Join user to their private room
+    socket.join(userId);
+    
+    console.log(`✅ User ${userId} joined. Online count: ${onlineUsers.size}`);
+    
+    // Broadcast updated online count to all clients
+    io.emit("online_members", { count: onlineUsers.size });
+  });
+
+  // When user joins a jumuia room
+  socket.on("join-jumuia", (jumuiaId) => {
+    if (!jumuiaId) return;
+    socket.join(`jumuia-${jumuiaId}`);
+    console.log(`User joined jumuia room: jumuia-${jumuiaId}`);
+  });
+
+  // Handle disconnect
+  socket.on("disconnect", () => {
+    const userId = userSocketMap.get(socket.id);
+    if (userId) {
+      onlineUsers.delete(userId);
+      userSocketMap.delete(socket.id);
+      console.log(`🔴 User ${userId} disconnected. Online count: ${onlineUsers.size}`);
+      
+      // Broadcast updated online count
+      io.emit("online_members", { count: onlineUsers.size });
+    } else {
+      console.log("🔴 Unknown user disconnected:", socket.id);
+    }
+  });
 });
 
 // ================== PUBLIC TEST ENDPOINT ==================
@@ -2271,12 +2320,13 @@ async function initGemini() {
   }
 }
 
-// Call this
-initGemini();
-// ================== AUTH MIDDLEWARE ==================
-function authenticate(req, res, next) {
-  // ... your auth code here
-}
+
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+
+
 
 
 
@@ -3145,7 +3195,7 @@ app.post("/api/register", async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "365d" }
     );
 
     await prisma.user.update({
@@ -3178,7 +3228,7 @@ app.post("/api/login", async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "365d" });
 
     await prisma.user.update({
       where: { id: user.id },
@@ -3302,7 +3352,7 @@ app.post("/api/role-login", async (req, res) => {
         jumuiaName: matchedRole.jumuiaName || null
       },
       JWT_SECRET,
-      { expiresIn: "8h" }
+      { expiresIn: "365h" }
     );
 
     res.json({
@@ -3322,6 +3372,58 @@ app.post("/api/role-login", async (req, res) => {
   } catch (err) {
     console.error("Role login error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ================== TOKEN REFRESH ENDPOINT ==================
+app.post("/api/auth/refresh-token", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    
+    // Verify the existing token (ignore expiration)
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    // Check if user still exists and is active
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId }
+    });
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+    
+    // Create NEW token with fresh 7-day expiry
+    const newToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "365d" }
+    );
+    
+    // Update last active timestamp
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastActive: new Date() }
+    });
+    
+    // Send back the new token
+    res.json({ 
+      success: true, 
+      token: newToken,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role
+      }
+    });
+    
+  } catch (err) {
+    console.error("Token refresh error:", err);
+    res.status(401).json({ error: "Invalid token" });
   }
 });
 
@@ -3387,7 +3489,7 @@ app.post("/api/auth/request-reset", async (req, res) => {
     res.json({ 
       message: "Reset code generated",
       code: resetCode,
-      expiresIn: 15,
+      expiresIn: 5,
       attemptsRemaining: 5 - userAttempts.attempts
     });
     
@@ -3439,7 +3541,7 @@ app.post("/api/auth/resend-code", async (req, res) => {
     res.json({ 
       message: "New code generated",
       code: resetCode,
-      expiresIn: 15,
+      expiresIn: 5,
       attemptsRemaining: 5 - userAttempts.attempts
     });
     
@@ -9018,9 +9120,6 @@ app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/notifications/vapid-public-key', (req, res) => {
-  res.json({ publicKey: vapidKeys.publicKey });
-});
 
 async function sendPushNotification(userId, title, body, data = {}) {
   try {

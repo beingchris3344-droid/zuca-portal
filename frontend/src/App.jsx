@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 import BASE_URL from "./api";
 
 // Import Notification Manager and Badge Manager
-import NotificationManager from "./components/NotificationManager";
+//import NotificationManager from "./components/NotificationManager";
 import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
 
@@ -81,6 +81,62 @@ function AppContent() {
   const [showAI, setShowAI] = useState(false);
   const [isAIFullPage, setIsAIFullPage] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // ✅ SERVICE WORKER UPDATE DETECTION - Auto refresh
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      
+      // Listen for controller change (new service worker takes over)
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        
+        console.log('🔄 New version available! Refreshing...');
+        
+        // Auto-refresh after 500ms
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      });
+      
+      // Check for waiting service worker on page load
+      navigator.serviceWorker.ready.then((registration) => {
+        // Check for waiting worker
+        if (registration.waiting) {
+          console.log('⏳ Update waiting, applying...');
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        
+        // Listen for new service worker
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          console.log('🆕 New service worker found');
+          
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('✅ Update ready, refreshing...');
+              setUpdateAvailable(true);
+              // Auto refresh after 2 seconds
+              setTimeout(() => {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }, 2000);
+            }
+          });
+        });
+      });
+      
+      // Periodic check for updates (every 60 seconds)
+      const checkForUpdates = async () => {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.update();
+      };
+      
+      const interval = setInterval(checkForUpdates, 60000);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   // Listen for User AI open events
   useEffect(() => {
@@ -137,7 +193,7 @@ function AppContent() {
     socket.on("new_notification", (notification) => {
       console.log("🔔 New notification received:", notification);
       
-      // ✅ Increment badge count
+      // Increment badge count
       badgeManager.increment();
       
       // Show in-app toast if available
@@ -154,9 +210,8 @@ function AppContent() {
         });
       }
       
-      // Show browser notification if permitted
+      // Show browser notification if permitted and tab is hidden
       if (Notification.permission === "granted" && document.hidden) {
-        // Only show browser notification if tab is hidden
         new Notification(notification.title || "New Notification", {
           body: notification.message,
           icon: "/android-chrome-192x192.png",

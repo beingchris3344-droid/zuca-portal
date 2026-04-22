@@ -196,6 +196,7 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('message', (event) => {
   console.log('[SW] Message from app:', event.data);
   
+  // Handle badge updates
   if (event.data.type === 'UPDATE_BADGE') {
     const count = event.data.count || 0;
     if (self.navigator && self.navigator.setAppBadge) {
@@ -207,5 +208,11 @@ self.addEventListener('message', (event) => {
         console.log('[SW] Badge cleared');
       }
     }
+  }
+  
+  // ✅ Handle skip waiting for auto-updates
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Skipping waiting, activating new version...');
+    self.skipWaiting();
   }
 });

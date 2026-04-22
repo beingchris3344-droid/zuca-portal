@@ -6,6 +6,7 @@ import io from "socket.io-client";
 import { FiMessageSquare } from "react-icons/fi";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
+import badgeManager from '../../utils/badgeManager';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -30,6 +31,9 @@ export default function AdminLayout() {
 
     socket.on('new_notification', (notification) => {
       setNotifications(prev => [notification, ...prev].slice(0, 20));
+      if (badgeManager) {
+    badgeManager.increment();
+      }
     });
 
     socket.on('pledge_updated', (updatedPledge) => {
@@ -50,6 +54,10 @@ export default function AdminLayout() {
         read: false,
         createdAt: new Date().toISOString()
       }, ...prev].slice(0, 20));
+
+       if (badgeManager) {
+    badgeManager.increment();
+       }
     });
 
     socket.on('online_members', (data) => {
@@ -60,7 +68,7 @@ export default function AdminLayout() {
   }, []);
 
 
-  // ✅ ADD THIS - Fetch existing notifications on load
+ // ✅ ADD THIS - Fetch existing notifications on load
 useEffect(() => {
   const fetchNotifications = async () => {
     try {
@@ -82,10 +90,13 @@ useEffect(() => {
       const data = await response.json();
       
       // Handle the response format - your API returns array directly
-      let notificationsList = Array.isArray(data) ? data : [];
+      let allNotifications = Array.isArray(data) ? data : [];
+      
+      // ✅ FIX: Only show UNREAD notifications
+      const unreadOnly = allNotifications.filter(notif => !notif.read);
       
       // Format notifications for display
-      const formattedNotifs = notificationsList.slice(0, 20).map(notif => ({
+      const formattedNotifs = unreadOnly.slice(0, 20).map(notif => ({
         id: notif.id,
         type: notif.type,
         title: notif.title,
@@ -96,7 +107,13 @@ useEffect(() => {
       }));
       
       setNotifications(formattedNotifs);
-      console.log('✅ Loaded existing notifications:', formattedNotifs.length);
+      
+      // ✅ Also update the app icon badge count
+      if (badgeManager) {
+        badgeManager.updateBadgeCount(unreadOnly.length);
+      }
+      
+      console.log('✅ Loaded unread notifications:', formattedNotifs.length);
       
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
@@ -170,6 +187,57 @@ const getIconForType = (type) => {
     { label: "CHAT MONITOR", path: "chat", icon: "💬" },
   ];
 
+  // Add this function in AdminLayout.jsx (before return)
+const markAllAsRead = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!user.id) return;
+    
+    const response = await fetch(`${BASE_URL}/api/notifications/${user.id}/read-all`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      setNotifications([]);
+      // ✅ Update badge count to 0
+      badgeManager.updateBadgeCount(0);
+      console.log('✅ All notifications marked as read');
+    }
+  } catch (err) {
+    console.error('Failed to mark notifications as read:', err);
+  }
+};
+
+// Add this function next to markAllAsRead
+const markAsRead = async (notificationId) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch(`${BASE_URL}/api/notifications/${notificationId}/read`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      // ✅ Decrement badge count
+      badgeManager.decrement();
+      console.log('✅ Notification marked as read');
+    }
+  } catch (err) {
+    console.error('Failed to mark notification as read:', err);
+  }
+};
+
   return (
     <div className="admin-layout">
       {/* Top Bar */}
@@ -215,7 +283,7 @@ const getIconForType = (type) => {
                   <div className="notification-header">
                     <h3>Notifications</h3>
                     {notifications.length > 0 && (
-                      <button onClick={() => setNotifications([])}>Clear</button>
+                      <button onClick={markAllAsRead}>Mark all as read</button>
                     )}
                   </div>
                   <div className="notification-list">
@@ -223,7 +291,8 @@ const getIconForType = (type) => {
                       <div className="notification-empty">No new notifications</div>
                     ) : (
                       notifications.map((notif, index) => (
-                        <div key={index} className={`notification-item ${notif.type || ''}`}>
+                        <div key={index} className={`notification-item ${notif.type || ''}`}
+                        onClick={() => markAsRead(notif.id)}  >
                           <div className="notification-icon">
                             {notif.icon || (notif.type === 'message' ? '💬' : '📌')}
                           </div>

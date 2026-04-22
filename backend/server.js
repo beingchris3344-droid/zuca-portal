@@ -6234,12 +6234,7 @@ app.post("/api/jumuia/chat/rooms/:roomId/messages", authenticate, async (req, re
       data: { lastMessageAt: new Date() }
     });
 
-    if (replyToId) {
-      await prisma.jumuiaChatMessage.update({
-        where: { id: replyToId },
-        data: { replyCount: { increment: 1 } }
-      });
-    }
+   
 
     const mentionRegex = /@(\w+)/g;
     let match;
@@ -7142,12 +7137,7 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
       }
     });
 
-    if (replyToId) {
-      await prisma.message.update({
-        where: { id: replyToId },
-        data: { replyCount: { increment: 1 } }
-      });
-    }
+   
 
     await prisma.chatRoom.update({
       where: { id: defaultRoom.id },
@@ -7499,11 +7489,9 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
   try {
     const { messageId } = req.params;
 
-    const message = await prisma.message.findFirst({
-      where: { 
-        id: messageId,
-        isDeleted: false 
-      },
+    // Get the message with its room
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
       include: { room: true }
     });
 
@@ -7511,88 +7499,90 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
       return res.status(404).json({ error: "Message not found" });
     }
 
-    const existingPin = await prisma.pin.findUnique({
-      where: {
-        roomId_messageId: {
-          roomId: message.roomId,
-          messageId
-        }
+    // Check if already pinned
+    const existingPin = await prisma.pin.findFirst({
+      where: { 
+        messageId: messageId,
+        roomId: message.roomId
       }
     });
 
     if (existingPin) {
+      // UNPIN
       await prisma.pin.delete({
         where: { id: existingPin.id }
       });
+      
       io.emit("message_unpinned", { messageId, roomId: message.roomId });
-      res.json({ message: "Message unpinned" });
-    } else {
-      const pin = await prisma.pin.create({
-        data: {
-          messageId,
-          roomId: message.roomId,
-          userId: req.user.userId
+      return res.json({ message: "Message unpinned" });
+    } 
+    
+    // PIN - Include ALL required fields
+    const pin = await prisma.pin.create({
+      data: {
+        messageId: messageId,
+        roomId: message.roomId,
+        userId: req.user.userId  // REQUIRED - add the current user's ID
+      },
+      include: {
+        user: {
+          select: { id: true, fullName: true }
         },
-        include: {
-          user: {
-            select: { id: true, fullName: true }
-          },
-          message: {
-            include: {
-              user: {
-                select: { id: true, fullName: true }
-              },
-              files: {
-                select: {
-                  id: true,
-                  name: true,
-                  type: true,
-                  size: true
-                }
+        message: {
+          include: {
+            user: {
+              select: { id: true, fullName: true }
+            },
+            files: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                size: true
               }
             }
           }
         }
+      }
+    });
+
+    const formattedPin = {
+      ...pin,
+      createdAt: pin.createdAt.toISOString(),
+      message: {
+        ...pin.message,
+        createdAt: pin.message.createdAt.toISOString(),
+        files: pin.message.files.map(f => ({
+          ...f,
+          url: `/api/chat/files/${f.id}`,
+          thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
+        }))
+      }
+    };
+
+    io.emit("message_pinned", formattedPin);
+
+    // Notify message author
+    if (message.userId !== req.user.userId) {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: message.userId,
+          type: "pin",
+          title: "📌 Your message was pinned",
+          message: `Your message was pinned by an admin`,
+          read: false,
+          createdAt: new Date(),
+        }
       });
 
-      const formattedPin = {
-        ...pin,
-        createdAt: pin.createdAt.toISOString(),
-        message: {
-          ...pin.message,
-          createdAt: pin.message.createdAt.toISOString(),
-          files: pin.message.files.map(f => ({
-            ...f,
-            url: `/api/chat/files/${f.id}`,
-            thumbnail: f.type.startsWith('image/') ? `/api/chat/files/${f.id}` : null
-          }))
-        }
-      };
-
-      io.emit("message_pinned", formattedPin);
-
-      if (message.userId !== req.user.userId) {
-        const now = new Date();
-        const notification = await prisma.notification.create({
-          data: {
-            id: `pin-${messageId}-${Date.now()}`,
-            userId: message.userId,
-            type: "pin",
-            title: "📌 Your message was pinned",
-            message: `Your message was pinned by ${user.fullName}`,
-            read: false,
-            createdAt: now,
-          }
-        });
-
-        io.to(message.userId).emit("new_notification", {
-          ...notification,
-          createdAt: now.toISOString()
-        });
-      }
-
-      res.status(201).json(formattedPin);
+      io.to(message.userId).emit("new_notification", {
+        ...notification,
+        createdAt: notification.createdAt.toISOString()
+      });
     }
+
+    res.status(201).json(formattedPin);
+    
   } catch (err) {
     console.error("Error pinning message:", err);
     res.status(500).json({ error: err.message });

@@ -52,6 +52,14 @@ function Chat() {
 
   const goBack = () => navigate('/dashboard');
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [avatarErrors, setAvatarErrors] = useState({});
+  // Loading states for chat actions
+const [deletingMessageId, setDeletingMessageId] = useState(null);
+const [editingMessageId, setEditingMessageId] = useState(null);
+const [reactingMessageId, setReactingMessageId] = useState(null);
+const [pinningMessageId, setPinningMessageId] = useState(null);
+const [blockingUserId, setBlockingUserId] = useState(null);
+  
 
 
 
@@ -228,16 +236,18 @@ socket.on('new_message', (newMessage) => {
     }
   };
 
-  const toggleBlockUser = async (userId) => {
-    try {
-      const response = await axios.post(`${BASE_URL}/api/chat/block/${userId}`, {}, { headers });
-      showNotification(response.data.message, "success");
-      fetchBlockedUsers();
-    } catch (err) {
-      showNotification("Failed to block user", "error");
-    }
-  };
-
+ const toggleBlockUser = async (userId) => {
+  setBlockingUserId(userId);
+  try {
+    const response = await axios.post(`${BASE_URL}/api/chat/block/${userId}`, {}, { headers });
+    showNotification(response.data.message, "success");
+    fetchBlockedUsers();
+  } catch (err) {
+    showNotification("Failed to block user", "error");
+  } finally {
+    setBlockingUserId(null);
+  }
+};
   const searchMessages = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -303,29 +313,40 @@ socket.on('new_message', (newMessage) => {
 };
 
   const handleEditMessage = async () => {
-    if (!editMessage || !editMessage.content.trim()) return;
-    try {
-      const response = await axios.put(`${BASE_URL}/api/chat/${editMessage.id}`, { content: editMessage.content }, { headers });
-      setMessages(prev => prev.map(msg => msg.id === editMessage.id ? { ...msg, content: response.data.content, isEdited: true } : msg));
-      setEditMessage(null);
-      showNotification("Message edited", "success");
-    } catch (err) {
-      showNotification("Failed to edit message", "error");
-    }
-  };
+  if (!editMessage || !editMessage.content.trim()) return;
+  setEditingMessageId(editMessage.id);
+  try {
+    const response = await axios.put(`${BASE_URL}/api/chat/${editMessage.id}`, 
+      { content: editMessage.content }, 
+      { headers }
+    );
+    setMessages(prev => prev.map(msg => 
+      msg.id === editMessage.id ? { ...msg, content: response.data.content, isEdited: true } : msg
+    ));
+    setEditMessage(null);
+    showNotification("Message edited", "success");
+  } catch (err) {
+    showNotification("Failed to edit message", "error");
+  } finally {
+    setEditingMessageId(null);
+  }
+};
 
-  const handleDeleteMessage = async (messageId) => {
-    if (!window.confirm("Delete this message?")) return;
-    try {
-      await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      setShowMessageActions(false);
-      setSelectedMessage(null);
-      showNotification("Message deleted", "success");
-    } catch (err) {
-      showNotification("Failed to delete message", "error");
-    }
-  };
+ const handleDeleteMessage = async (messageId) => {
+  if (!window.confirm("Delete this message?")) return;
+  setDeletingMessageId(messageId);
+  try {
+    await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+    showNotification("Message deleted", "success");
+  } catch (err) {
+    showNotification("Failed to delete message", "error");
+  } finally {
+    setDeletingMessageId(null);
+  }
+};
 
   const handleHardDeleteMessage = async (messageId) => {
     if (!window.confirm("Permanently delete this message? This cannot be undone!")) return;
@@ -340,26 +361,29 @@ socket.on('new_message', (newMessage) => {
     }
   };
 
-  const addReaction = async (messageId, reaction) => {
-    try {
-      const response = await axios.post(`${BASE_URL}/api/chat/${messageId}/reactions`, { reaction }, { headers });
-      setMessages(prev => prev.map(msg => {
-        if (msg.id === messageId) {
-          const existingReaction = msg.reactions?.find(r => r.userId === user?.id && r.reaction === reaction);
-          if (existingReaction) {
-            return { ...msg, reactions: msg.reactions.filter(r => r !== existingReaction) };
-          } else {
-            return { ...msg, reactions: [...(msg.reactions || []), response.data] };
-          }
+ const addReaction = async (messageId, reaction) => {
+  setReactingMessageId(messageId);
+  try {
+    const response = await axios.post(`${BASE_URL}/api/chat/${messageId}/reactions`, { reaction }, { headers });
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId) {
+        const existingReaction = msg.reactions?.find(r => r.userId === user?.id && r.reaction === reaction);
+        if (existingReaction) {
+          return { ...msg, reactions: msg.reactions.filter(r => r !== existingReaction) };
+        } else {
+          return { ...msg, reactions: [...(msg.reactions || []), response.data] };
         }
-        return msg;
-      }));
-      setShowMessageActions(false);
-      setSelectedMessage(null);
-    } catch (err) {
-      console.error("Error adding reaction:", err);
-    }
-  };
+      }
+      return msg;
+    }));
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  } catch (err) {
+    console.error("Error adding reaction:", err);
+  } finally {
+    setReactingMessageId(null);
+  }
+};
 
   const handleReply = (message) => {
     setReplyTo(message);
@@ -716,19 +740,43 @@ const handleSendMessage = async () => {
               <h3>Online Members</h3>
               <button onClick={() => setShowOnlineList(false)}>✕</button>
             </div>
-            <div style={styles.onlineList}>
-              {onlineUsers.length === 0 ? (
-                <p style={styles.noOnline}>No one online</p>
-              ) : (
-                onlineUsers.map(u => (
-                  <div key={u.id} style={styles.onlineItem}>
-                    <div style={styles.onlineAvatar}>{u.fullName?.charAt(0).toUpperCase()}</div>
-                    <span style={styles.onlineName}>{u.fullName}</span>
-                    {u.role === 'admin' && <span style={styles.adminBadge}>Admin</span>}
-                  </div>
-                ))
-              )}
-            </div>
+    <div style={styles.onlineList}>
+  {onlineUsers.length === 0 ? (
+    <p style={styles.noOnline}>No one online</p>
+  ) : (
+    onlineUsers.map(u => (
+      <div key={u.id} style={styles.onlineItem}>
+        <div style={styles.onlineAvatar}>
+          {u.profileImage ? (
+            <img 
+              src={u.profileImage.startsWith("http") ? u.profileImage : `${BASE_URL}/${u.profileImage}`}
+              alt={u.fullName}
+              style={{
+                width: '100%',
+                height: '100%',
+                borderRadius: '50%',
+                objectFit: 'cover'
+              }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const textNode = document.createTextNode(u.fullName?.charAt(0).toUpperCase() || '?');
+                e.target.parentElement.appendChild(textNode);
+              }}
+            />
+          ) : (
+            <span style={{ fontSize: '14px', fontWeight: '600' }}>
+              {u.fullName?.charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
+        </div>
+        {/* ADD THE USER NAME - THIS WAS MISSING! */}
+        <span style={styles.onlineName}>{u.fullName}</span>
+        {u.role === 'admin' && <span style={styles.adminBadge}>Admin</span>}
+      </div>
+    ))
+  )}
+</div>
+             
           </motion.div>
         )}
       </AnimatePresence>
@@ -844,8 +892,26 @@ const handleSendMessage = async () => {
               onClick={e => e.stopPropagation()}
             >
               <div style={styles.actionHeader}>
-                <div style={styles.actionAvatar}>{selectedMessage.user?.fullName?.charAt(0).toUpperCase()}</div>
-                <div style={styles.actionUserInfo}>
+<div style={styles.actionAvatar}>
+  {selectedMessage.user?.profileImage ? (
+    <img 
+      src={selectedMessage.user.profileImage.startsWith("http") ? selectedMessage.user.profileImage : `${BASE_URL}/${selectedMessage.user.profileImage}`}
+      alt={selectedMessage.user?.fullName}
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: '50%',
+        objectFit: 'cover'
+      }}
+      onError={(e) => {
+        e.target.style.display = 'none';
+        e.target.parentElement.innerHTML = selectedMessage.user?.fullName?.charAt(0).toUpperCase() || '?';
+      }}
+    />
+  ) : (
+    selectedMessage.user?.fullName?.charAt(0).toUpperCase() || '?'
+  )}
+</div>                <div style={styles.actionUserInfo}>
                   <span style={styles.actionUserName}>{selectedMessage.user?.fullName}</span>
                   <span style={styles.actionTime}>{formatMessageTime(selectedMessage.createdAt)}</span>
                 </div>
@@ -865,10 +931,15 @@ const handleSendMessage = async () => {
                   </button>
                 )}
                 {selectedMessage.isOwn && (
-                  <button style={styles.actionItem} onClick={() => { setEditMessage(selectedMessage); setShowMessageActions(false); setSelectedMessage(null); }}>
-                    <span>✏️</span><span>Edit</span>
-                  </button>
-                )}
+  <button 
+    style={styles.actionItem} 
+    onClick={() => { setEditMessage(selectedMessage); setShowMessageActions(false); setSelectedMessage(null); }}
+    disabled={editingMessageId === selectedMessage.id}
+  >
+    <span>{editingMessageId === selectedMessage.id ? '⏳' : '✏️'}</span>
+    <span>{editingMessageId === selectedMessage.id ? 'Opening...' : 'Edit'}</span>
+  </button>
+)}
                 {user?.role === 'admin' && (
                   <button style={styles.actionItem} onClick={() => togglePinMessage(selectedMessage.id)}>
                     <span>{pinnedMessages.some(p => p.messageId === selectedMessage.id) ? '📌' : '📍'}</span>
@@ -876,16 +947,25 @@ const handleSendMessage = async () => {
                   </button>
                 )}
                 {(selectedMessage.isOwn || user?.role === 'admin') && (
-                  <button style={{...styles.actionItem, color: '#ff4444'}} onClick={() => handleDeleteMessage(selectedMessage.id)}>
-                    <span>🗑️</span><span>Delete</span>
-                  </button>
-                )}
+  <button 
+    style={{...styles.actionItem, color: '#ff4444'}} 
+    onClick={() => handleDeleteMessage(selectedMessage.id)}
+    disabled={deletingMessageId === selectedMessage.id}
+  >
+    <span>{deletingMessageId === selectedMessage.id ? '⏳' : '🗑️'}</span>
+    <span>{deletingMessageId === selectedMessage.id ? 'Deleting...' : 'Delete'}</span>
+  </button>
+)}
                 {!selectedMessage.isOwn && (
-                  <button style={styles.actionItem} onClick={() => toggleBlockUser(selectedMessage.userId)}>
-                    <span>{blockedUsers.some(b => b.id === selectedMessage.userId) ? '🔓' : '🔒'}</span>
-                    <span>{blockedUsers.some(b => b.id === selectedMessage.userId) ? 'Unblock' : 'Block'}</span>
-                  </button>
-                )}
+  <button 
+    style={styles.actionItem} 
+    onClick={() => toggleBlockUser(selectedMessage.userId)}
+    disabled={blockingUserId === selectedMessage.userId}
+  >
+    <span>{blockingUserId === selectedMessage.userId ? '⏳' : (blockedUsers.some(b => b.id === selectedMessage.userId) ? '🔓' : '🔒')}</span>
+    <span>{blockingUserId === selectedMessage.userId ? 'Processing...' : (blockedUsers.some(b => b.id === selectedMessage.userId) ? 'Unblock' : 'Block')}</span>
+  </button>
+)}
               </div>
               <button style={styles.actionCancel} onClick={() => { setShowMessageActions(false); setSelectedMessage(null); }}>Cancel</button>
             </motion.div>
@@ -908,7 +988,13 @@ const handleSendMessage = async () => {
               <textarea value={editMessage.content} onChange={(e) => setEditMessage({ ...editMessage, content: e.target.value })} style={styles.editModalInput} rows="3" autoFocus />
               <div style={styles.editModalButtons}>
                 <button onClick={() => setEditMessage(null)} style={styles.editModalCancel}>Cancel</button>
-                <button onClick={handleEditMessage} style={styles.editModalSave}>Save</button>
+                <button 
+  onClick={handleEditMessage} 
+  style={styles.editModalSave}
+  disabled={editingMessageId === editMessage?.id}
+>
+  {editingMessageId === editMessage?.id ? 'Saving...' : 'Save'}
+</button>
               </div>
             </motion.div>
           </motion.div>
@@ -940,14 +1026,34 @@ const handleSendMessage = async () => {
                     <div
                       key={msg.id}
                       id={`msg-${msg.id}`}
-                      style={{ ...styles.messageRow, ...(isOwn ? styles.messageRowOwn : {}) }}
-                      onTouchStart={(e) => handleTouchStart(e, msg)}
+style={{ ...styles.messageRow, ...(isOwn ? styles.messageRowOwn : {}) }}                      onTouchStart={(e) => handleTouchStart(e, msg)}
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                       onContextMenu={(e) => { e.preventDefault(); setSelectedMessage(msg); setShowMessageActions(true); if (navigator.vibrate) navigator.vibrate(50); }}
                     >
-                      {!isOwn && <div style={styles.messageAvatar}>{msg.user?.fullName?.charAt(0).toUpperCase()}{isAdmin && <span style={styles.adminCrown}>👑</span>}</div>}
-                      <div style={{ ...styles.messageBubbleWrapper, ...(isOwn ? styles.messageBubbleWrapperOwn : {}) }}>
+{(
+  <div style={styles.messageAvatar}>
+    {msg.user?.profileImage ? (
+      <img 
+        src={msg.user.profileImage.startsWith("http") ? msg.user.profileImage : `${BASE_URL}/${msg.user.profileImage}`}
+        alt={msg.user?.fullName}
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          objectFit: 'cover'
+        }}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.parentElement.innerHTML = msg.user?.fullName?.charAt(0).toUpperCase() || '?';
+        }}
+      />
+    ) : (
+      msg.user?.fullName?.charAt(0).toUpperCase() || '?'
+    )}
+    {isAdmin && <span style={styles.adminCrown}>👑</span>}
+  </div>
+)}                      <div style={{ ...styles.messageBubbleWrapper, ...(isOwn ? styles.messageBubbleWrapperOwn : {}) }}>
                         {!isOwn && <span style={styles.messageSenderName}>{msg.user?.fullName}</span>}
                         {isPinned && <div style={styles.pinIndicator}>📌 Pinned</div>}
                         {msg.replyTo && (
@@ -1072,12 +1178,12 @@ const handleSendMessage = async () => {
             rows="1"
           />
           <button
-            onClick={editMessage ? handleEditMessage : handleSendMessage}
-            disabled={sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)}
-            style={{ ...styles.sendButton, ...((sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)) && styles.sendButtonDisabled) }}
-          >
-            {sending ? <div style={styles.sendSpinner}></div> : <FiSend size={16} />}
-          </button>
+  onClick={editMessage ? handleEditMessage : handleSendMessage}
+  disabled={sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)}
+  style={{ ...styles.sendButton, ...((sending || (selectedFiles.length === 0 && !newMessage.trim() && !editMessage)) && styles.sendButtonDisabled) }}
+>
+  <FiSend size={16} />
+</button>
         </div>
 
         {/* Emoji Picker */}
@@ -1194,8 +1300,19 @@ const styles = {
   onlineHeader: { padding: "16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", "& h3": { fontSize: "16px", fontWeight: "600", color: "#1e293b", margin: 0 }, "& button": { background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#64748b" } },
   onlineList: { maxHeight: "300px", overflowY: "auto", padding: "8px" },
   onlineItem: { display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", borderRadius: "12px", "&:hover": { background: "#f8fafc" } },
-  onlineAvatar: { width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "600", color: "white" },
-  onlineName: { flex: 1, fontSize: "14px", fontWeight: "500", color: "#1e293b" },
+onlineAvatar: { 
+  width: "36px", 
+  height: "36px", 
+  borderRadius: "50%", 
+  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  fontSize: "14px", 
+  fontWeight: "600", 
+  color: "white",
+  overflow: "hidden"  // Add this line
+},  onlineName: { flex: 1, fontSize: "14px", fontWeight: "500", color: "#1e293b" },
   adminBadge: { fontSize: "10px", padding: "2px 8px", background: "#fef3c7", color: "#d97706", borderRadius: "12px" },
   noOnline: { textAlign: "center", color: "#64748b", padding: "20px", fontSize: "13px" },
   
@@ -1224,12 +1341,23 @@ const styles = {
   actionOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 10000, padding: "20px" },
   actionModal: { width: "100%", maxWidth: "400px", background: "#ffffff", borderRadius: "24px", overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" },
   actionHeader: { padding: "20px", display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px solid #e2e8f0" },
-  actionAvatar: { width: "48px", height: "48px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: "600", color: "white" },
-  actionUserInfo: { flex: 1 },
+actionAvatar: { 
+  width: "48px", 
+  height: "48px", 
+  borderRadius: "50%", 
+  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  fontSize: "20px", 
+  fontWeight: "600", 
+  color: "white",
+  overflow: "hidden"  // Add this line
+},  actionUserInfo: { flex: 1 },
   actionUserName: { display: "block", fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "2px" },
   actionTime: { fontSize: "11px", color: "#64748b" },
   actionPreview: { padding: "16px 20px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #e2e8f0" },
-  actionGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", padding: "16px", borderBottom: "1px solid #e2e8f0" },
+  actionGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", padding: "16px", borderBottom: "1px solid #e2e8f0" },
   actionEmoji: { padding: "12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", fontSize: "20px", cursor: "pointer" },
   actionDivider: { height: "8px", background: "#f8fafc" },
   actionList: { padding: "8px" },
@@ -1252,9 +1380,22 @@ const styles = {
   dateText: { background: "#f1f5f9", padding: "6px 16px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", color: "#64748b" },
   
   messageRow: { display: "flex", gap: "12px", marginBottom: "16px" },
-  messageRowOwn: { justifyContent: "flex-end" },
-  messageAvatar: { width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "600", color: "white", flexShrink: 0, position: "relative" },
-  adminCrown: { position: "absolute", top: "-4px", right: "-4px", fontSize: "10px" },
+  messageRowOwn: { flexDirection: "row-reverse"},
+messageAvatar: { 
+  width: "36px", 
+  height: "36px", 
+  borderRadius: "50%", 
+  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  fontSize: "14px", 
+  fontWeight: "600", 
+  color: "white", 
+  flexShrink: 0, 
+  position: "relative",
+  overflow: "hidden"  // Add this line - important for images
+},  adminCrown: { position: "absolute", top: "-4px", right: "-4px", fontSize: "10px" },
   messageBubbleWrapper: { maxWidth: "100%", position: "relative" },
   messageBubbleWrapperOwn: { display: "flex", flexDirection: "column", alignItems: "flex-end" },
   messageSenderName: { fontSize: "11px", fontWeight: "600", color: "#ffffff", marginBottom: "2px", marginLeft: "4px" },

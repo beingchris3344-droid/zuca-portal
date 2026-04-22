@@ -2631,7 +2631,7 @@ const styles = {
   exportMenu: {
     position: 'absolute',
     top: '100%',
-    right: 0,
+    right: -100,
     marginTop: '8px',
     width: '300px',
     background: '#fff',

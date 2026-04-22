@@ -678,7 +678,7 @@ This is the chorus`;
             </button>
 
             {/* OCR Scanner Button */}
-           scan to add lylics
+           
 <button onClick={() => navigate("/admin/ocr-scanner")} style={styles.ocrBtn}>
   <FiCamera size={18} /> Scan Lyrics from Book
 </button>
@@ -1577,13 +1577,14 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: "24px",
-    paddingBottom: "16px",
+    marginBottom: "-0px",
+    marginTop: 45,
+    paddingBottom: "-50px",
     borderBottom: "2px solid #e2e8f0",
     flexWrap: "wrap",
-    gap: "16px",
+    gap: "-50px",
   },
-  modalTitle: { fontSize: window.innerWidth <= 768 ? "20px" : "26px", fontWeight: "700", color: "#0f172a", margin: 0 },
+  modalTitle: { fontSize: window.innerWidth <= 768 ? "20px" : "66px", fontWeight: "700", color: "#0f172a", margin: 0 },
   modalSubtitle: { fontSize: "13px", color: "#64748b", margin: "4px 0 0" },
   modalHeaderActions: { display: "flex", gap: "10px", alignItems: "center" },
   

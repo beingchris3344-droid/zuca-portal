@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../../api";
+import { FiCamera } from "react-icons/fi"; 
 
 function ChatMonitorPage() {
   const navigate = useNavigate();
@@ -67,6 +68,23 @@ function ChatMonitorPage() {
 
   // Common emojis for reactions
   const commonReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
+  // ==================== LOADING STATES FOR ALL ACTIONS ====================
+const [pinningMessageId, setPinningMessageId] = useState(null);
+const [deletingMessageId, setDeletingMessageId] = useState(null);
+const [likingMessageId, setLikingMessageId] = useState(null);
+const [replyingToId, setReplyingToId] = useState(null);
+const [editingMessageId, setEditingMessageId] = useState(null);
+const [sendingMessage, setSendingMessage] = useState(false);
+const [uploadingFiles, setUploadingFiles] = useState(false);
+const [mutingUserId, setMutingUserId] = useState(null);
+const [unmutingUserId, setUnmutingUserId] = useState(null);
+const [bulkDeleting, setBulkDeleting] = useState(false);
+const [exportingData, setExportingData] = useState(false);
+const [refreshingChat, setRefreshingChat] = useState(false);
+const [fetchingPinned, setFetchingPinned] = useState(false);
+const [fetchingOnline, setFetchingOnline] = useState(false);
+const [fetchingStats, setFetchingStats] = useState(false);
+const [deletingPermanentId, setDeletingPermanentId] = useState(null);
 
   // Check authentication and get user
 
@@ -170,7 +188,6 @@ function ChatMonitorPage() {
       });
     }
   };
-// Fetch messages
 const fetchMessages = async (isInitialLoad = false) => {
   try {
     const container = chatContainerRef.current;
@@ -181,16 +198,39 @@ const fetchMessages = async (isInitialLoad = false) => {
     
     const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, { headers });
     
-    const parsedMessages = response.data.map(msg => ({
+    // KEY FIX: Reverse the messages to get newest first, then sort for display
+    const parsedMessages = response.data.reverse().map(msg => ({
       ...msg,
       attachments: parseAttachments(msg.attachments),
       files: msg.files || []
-    })).reverse();
+    }));
     
-    setMessages(parsedMessages);
-    calculateStats(parsedMessages);
+    // Merge with existing messages and sort oldest to newest for proper display
+    setMessages(prev => {
+      const messageMap = new Map();
+      // Add existing messages first
+      prev.forEach(msg => messageMap.set(msg.id, msg));
+      // Add or update with server messages
+      parsedMessages.forEach(newMsg => {
+        const existingMsg = messageMap.get(newMsg.id);
+        if (existingMsg && existingMsg.isTemp) {
+          messageMap.set(newMsg.id, { ...newMsg, isTemp: false });
+        } else if (!existingMsg) {
+          messageMap.set(newMsg.id, newMsg);
+        }
+      });
+      // Sort from oldest to newest for proper display (so newest at bottom)
+      const sortedMessages = Array.from(messageMap.values()).sort((a, b) => 
+        new Date(a.createdAt) - new Date(b.createdAt)
+      );
+      
+      // ADD THIS BACK - Calculate stats whenever messages change
+      calculateStats(sortedMessages);
+      
+      return sortedMessages;
+    });
     
-    // SCROLL HANDLING - EXACTLY like user Chat.jsx
+    // SCROLL HANDLING - Always scroll to bottom on initial load
     setTimeout(() => {
       if (container) {
         if (isInitialLoad) {
@@ -217,53 +257,54 @@ const fetchMessages = async (isInitialLoad = false) => {
     }
   }
 };
-
 // Add this after your fetchMessages call
 useEffect(() => {
   if (!loading && chatContainerRef.current && messages.length > 0) {
-    // Force scroll to bottom after messages are rendered
     const scrollToBottom = () => {
       if (chatContainerRef.current) {
         chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
       }
     };
     
-    // Call once immediately
     scrollToBottom();
-    
-    // Call again after a tiny delay to ensure all images/attachments loaded
     setTimeout(scrollToBottom, 100);
   }
 }, [loading, messages]);
   // Fetch pinned messages
-  const fetchPinnedMessages = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/chat/pinned`, { headers });
-      setPinnedMessages(response.data);
-    } catch (err) {
-      console.error("Error fetching pinned messages:", err);
-    }
-  };
-
+ const fetchPinnedMessages = async () => {
+  setFetchingPinned(true);
+  try {
+    const response = await axios.get(`${BASE_URL}/api/chat/pinned`, { headers });
+    setPinnedMessages(response.data);
+  } catch (err) {
+    console.error("Error fetching pinned messages:", err);
+  } finally {
+    setFetchingPinned(false);
+  }
+};
   // Fetch online users
-  const fetchOnlineUsers = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/chat/online`, { headers });
-      setOnlineUsers(response.data);
-    } catch (err) {
-      console.error("Error fetching online users:", err);
-    }
-  };
+ const fetchOnlineUsers = async () => {
+  setFetchingOnline(true);
+  try {
+    const response = await axios.get(`${BASE_URL}/api/chat/online`, { headers });
+    setOnlineUsers(response.data);
+  } catch (err) {
+    console.error("Error fetching online users:", err);
+  } finally {
+    setFetchingOnline(false);
+  }
+};
 
   // Fetch stats
-  const fetchStats = async () => {
+ const fetchStats = async () => {
+  setFetchingStats(true);
   try {
-    // Change from /api/admin/chat/stats to /api/admin/stats
     const response = await axios.get(`${BASE_URL}/api/admin/stats`, { headers });
     setStats(prev => ({ ...prev, ...response.data }));
   } catch (err) {
     console.error("Error fetching stats:", err);
-    // Don't show notification for stats error - it's not critical
+  } finally {
+    setFetchingStats(false);
   }
 };
      // Initial data fetch
@@ -278,19 +319,10 @@ useEffect(() => {
     loadInitialData();
   }, []);  // <-- IMPORTANT: Close the useEffect here
 
-  // Update the refresh interval useEffect
- useEffect(() => {
-  if (autoRefresh && hasInitialLoadRef.current) {
-    refreshTimerRef.current = setInterval(() => {
-      fetchMessages(false);
-      fetchOnlineUsers();
-    }, refreshInterval);
-  }
-  return () => {
-    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-  };
-}, [autoRefresh, refreshInterval]);
+
   
+
+
 
 
   // Calculate stats from messages
@@ -315,6 +347,8 @@ useEffect(() => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+      
+
     setStats({
       totalMessages: messageData.length,
       activeUsers: new Set(messageData.map(m => m.user?.id)).size,
@@ -322,6 +356,8 @@ useEffect(() => {
       topUsers
     });
   };
+
+  
 
   // Handle file selection - SAME AS USER CHAT
   const handleFileSelect = (e) => {
@@ -379,6 +415,7 @@ useEffect(() => {
   // Send message - SAME AS USER CHAT
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && selectedFiles.length === 0) || sending) return;
+    
 
     setSending(true);
     const messageText = newMessage.trim();
@@ -457,81 +494,94 @@ useEffect(() => {
   };
 
   // Delete message
-  const handleDeleteMessage = async (messageId) => {
-    try {
-      await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-      setShowMessageActions(false);
-      setSelectedMessage(null);
-      setShowDeleteModal(false);
-      setMessageToDelete(null);
-      showNotification("Message deleted successfully");
-    } catch (err) {
-      console.error("Error deleting message:", err);
-      showNotification("Failed to delete message", "error");
-    }
-  };
-
-  // Edit message
-  const handleEditMessage = async () => {
-    if (!editMessage || !editMessage.content.trim()) return;
-    try {
-      const response = await axios.put(`${BASE_URL}/api/chat/${editMessage.id}`, 
-        { content: editMessage.content }, 
-        { headers }
-      );
-      setMessages(prev => prev.map(msg => 
-        msg.id === editMessage.id ? { ...msg, content: response.data.content, isEdited: true } : msg
-      ));
-      setEditMessage(null);
-      showNotification("Message edited", "success");
-    } catch (err) {
-      showNotification("Failed to edit message", "error");
-    }
-  };
-
-  // Pin/Unpin message
-  const handlePinMessage = async (messageId) => {
-    try {
-      const response = await axios.post(`${BASE_URL}/api/chat/${messageId}/pin`, {}, { headers });
-      
-      if (response.data.message === "Message unpinned") {
-        setPinnedMessages(prev => prev.filter(p => p.messageId !== messageId));
-        showNotification("Message unpinned");
-      } else {
-        fetchPinnedMessages();
-        showNotification("Message pinned");
-      }
-      setShowMessageActions(false);
-      setSelectedMessage(null);
-    } catch (err) {
-      console.error("Error pinning message:", err);
-      showNotification("Failed to pin message", "error");
-    }
-  };
-
-  // Add reaction
-  const handleAddReaction = async (messageId, reaction) => {
-    try {
-      await axios.post(`${BASE_URL}/api/chat/${messageId}/reactions`, { reaction }, { headers });
-      fetchMessages(false);
-      setShowMessageActions(false);
-      setSelectedMessage(null);
-    } catch (err) {
-      console.error("Error adding reaction:", err);
-    }
-  };
-
-  // Reply to message
-  const handleReply = (message) => {
-    setReplyTo(message);
+const handleDeleteMessage = async (messageId) => {
+  setDeletingMessageId(messageId);
+  try {
+    await axios.delete(`${BASE_URL}/api/chat/${messageId}`, { headers });
+    setMessages(prev => prev.filter(m => m.id !== messageId));
     setShowMessageActions(false);
     setSelectedMessage(null);
-    setTimeout(() => {
-      const input = document.querySelector('textarea');
-      if (input) input.focus();
-    }, 100);
-  };
+    setShowDeleteModal(false);
+    setMessageToDelete(null);
+    showNotification("Message deleted successfully");
+  } catch (err) {
+    console.error("Error deleting message:", err);
+    showNotification("Failed to delete message", "error");
+  } finally {
+    setDeletingMessageId(null);
+  }
+};
+
+  // Edit message
+ const handleEditMessage = async () => {
+  if (!editMessage || !editMessage.content.trim()) return;
+  setEditingMessageId(editMessage.id);
+  try {
+    const response = await axios.put(`${BASE_URL}/api/chat/${editMessage.id}`, 
+      { content: editMessage.content }, 
+      { headers }
+    );
+    setMessages(prev => prev.map(msg => 
+      msg.id === editMessage.id ? { ...msg, content: response.data.content, isEdited: true } : msg
+    ));
+    setEditMessage(null);
+    showNotification("Message edited", "success");
+  } catch (err) {
+    showNotification("Failed to edit message", "error");
+  } finally {
+    setEditingMessageId(null);
+  }
+};
+
+  // Pin/Unpin message
+ const handlePinMessage = async (messageId) => {
+  setPinningMessageId(messageId);
+  try {
+    const response = await axios.post(`${BASE_URL}/api/chat/${messageId}/pin`, {}, { headers });
+    if (response.data.message === "Message unpinned") {
+      setPinnedMessages(prev => prev.filter(p => p.messageId !== messageId));
+      showNotification("Message unpinned");
+    } else {
+      await fetchPinnedMessages();
+      showNotification("Message pinned");
+    }
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  } catch (err) {
+    console.error("Error pinning message:", err);
+    showNotification("Failed to pin message", "error");
+  } finally {
+    setPinningMessageId(null);
+  }
+};
+
+  // Add reaction
+ const handleAddReaction = async (messageId, reaction) => {
+  setLikingMessageId(messageId);
+  try {
+    await axios.post(`${BASE_URL}/api/chat/${messageId}/reactions`, { reaction }, { headers });
+    await fetchMessages(false);
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  } catch (err) {
+    console.error("Error adding reaction:", err);
+  } finally {
+    setLikingMessageId(null);
+  }
+};
+
+  // Reply to message
+ const handleReply = (message) => {
+  setReplyingToId(message.id);
+  setReplyTo(message);
+  setShowMessageActions(false);
+  setSelectedMessage(null);
+  setTimeout(() => {
+    const input = document.querySelector('textarea');
+    if (input) input.focus();
+    setReplyingToId(null);
+  }, 100);
+};
 
   // Copy message
   const handleCopy = (content) => {
@@ -543,38 +593,42 @@ useEffect(() => {
 
   // Mute user
   const handleMuteUser = (userId) => {
-    setMutedUsers(prev => [...prev, userId]);
-    setShowMessageActions(false);
-    setSelectedMessage(null);
-    showNotification("User muted", "success");
-  };
+  setMutingUserId(userId);
+  setMutedUsers(prev => [...prev, userId]);
+  setShowMessageActions(false);
+  setSelectedMessage(null);
+  showNotification("User muted", "success");
+  setTimeout(() => setMutingUserId(null), 500);
+};
 
-  // Unmute user
-  const handleUnmuteUser = (userId) => {
-    setMutedUsers(prev => prev.filter(id => id !== userId));
-    showNotification("User unmuted", "success");
-  };
+const handleUnmuteUser = (userId) => {
+  setUnmutingUserId(userId);
+  setMutedUsers(prev => prev.filter(id => id !== userId));
+  showNotification("User unmuted", "success");
+  setTimeout(() => setUnmutingUserId(null), 500);
+};
 
   // Bulk delete
-  const handleBulkDelete = async () => {
-    if (selectedMessages.length === 0) return;
-
-    try {
-      await Promise.all(
-        selectedMessages.map(id => 
-          axios.delete(`${BASE_URL}/api/chat/${id}`, { headers })
-        )
-      );
-      setMessages(prev => prev.filter(m => !selectedMessages.includes(m.id)));
-      setSelectedMessages([]);
-      setSelectAll(false);
-      showNotification(`${selectedMessages.length} messages deleted`);
-    } catch (err) {
-      console.error("Error bulk deleting messages:", err);
-      showNotification("Failed to delete messages", "error");
-    }
-  };
-
+ const handleBulkDelete = async () => {
+  if (selectedMessages.length === 0) return;
+  setBulkDeleting(true);
+  try {
+    await Promise.all(
+      selectedMessages.map(id => 
+        axios.delete(`${BASE_URL}/api/chat/${id}`, { headers })
+      )
+    );
+    setMessages(prev => prev.filter(m => !selectedMessages.includes(m.id)));
+    setSelectedMessages([]);
+    setSelectAll(false);
+    showNotification(`${selectedMessages.length} messages deleted`);
+  } catch (err) {
+    console.error("Error bulk deleting messages:", err);
+    showNotification("Failed to delete messages", "error");
+  } finally {
+    setBulkDeleting(false);
+  }
+};
   // Toggle select all
   const toggleSelectAll = () => {
     if (selectAll) {
@@ -623,14 +677,14 @@ useEffect(() => {
       a.download = `chat-export-${dateRange.start}-to-${dateRange.end}.csv`;
       a.click();
 
-      showNotification("Export completed");
-    } catch (err) {
-      console.error("Error exporting messages:", err);
-      showNotification("Export failed", "error");
-    } finally {
-      setExportLoading(false);
-    }
-  };
+        showNotification("Export completed");
+  } catch (err) {
+    console.error("Error exporting messages:", err);
+    showNotification("Export failed", "error");
+  } finally {
+    setExportingData(false);
+  }
+};
 
   // Handle typing
   const handleTyping = (e) => {
@@ -734,8 +788,20 @@ useEffect(() => {
             >
               <div style={actionModalStyles.header}>
                 <div style={actionModalStyles.avatar}>
-                  {selectedMessage.user?.fullName?.charAt(0).toUpperCase()}
-                </div>
+  {selectedMessage.user?.profileImage ? (
+    <img 
+      src={selectedMessage.user.profileImage.startsWith("http") ? selectedMessage.user.profileImage : `${BASE_URL}/${selectedMessage.user.profileImage}`}
+      alt={selectedMessage.user?.fullName}
+      style={actionModalStyles.avatarImage}
+      onError={(e) => {
+        e.target.style.display = 'none';
+        e.target.parentElement.innerHTML = selectedMessage.user?.fullName?.charAt(0).toUpperCase() || '?';
+      }}
+    />
+  ) : (
+    selectedMessage.user?.fullName?.charAt(0).toUpperCase() || '?'
+  )}
+</div>
                 <div style={actionModalStyles.userInfo}>
                   <span style={actionModalStyles.userName}>{selectedMessage.user?.fullName}</span>
                   <span style={actionModalStyles.time}>{formatTime(selectedMessage.createdAt)}</span>
@@ -773,23 +839,41 @@ useEffect(() => {
                   </button>
                 )}
 
-                {selectedMessage.isOwn && (
-                  <button style={actionModalStyles.item} onClick={() => { setEditMessage(selectedMessage); setShowMessageActions(false); setSelectedMessage(null); }}>
-                    <span style={actionModalStyles.icon}>✏️</span>
-                    <span>Edit</span>
-                  </button>
-                )}
+              {selectedMessage.isOwn && (
+  <button 
+    style={actionModalStyles.item} 
+    onClick={() => { setEditMessage(selectedMessage); setShowMessageActions(false); setSelectedMessage(null); }}
+    disabled={editingMessageId === selectedMessage.id}
+  >
+    <span style={actionModalStyles.icon}>
+      {editingMessageId === selectedMessage.id ? (
+        <div className="spinner-small" style={{ width: '16px', height: '16px' }}></div>
+      ) : '✏️'}
+    </span>
+    <span>{editingMessageId === selectedMessage.id ? 'Opening...' : 'Edit'}</span>
+  </button>
+)}
 
                 {currentUser?.role === 'admin' && (
-                  <button style={actionModalStyles.item} onClick={() => handlePinMessage(selectedMessage.id)}>
-                    <span style={actionModalStyles.icon}>
-                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? '📌' : '📍'}
-                    </span>
-                    <span>
-                      {pinnedMessages.some(p => p.messageId === selectedMessage.id) ? 'Unpin' : 'Pin'}
-                    </span>
-                  </button>
-                )}
+  <button 
+    style={actionModalStyles.item} 
+    onClick={() => handlePinMessage(selectedMessage.id)}
+    disabled={pinningMessageId === selectedMessage.id}
+  >
+    <span style={actionModalStyles.icon}>
+      {pinningMessageId === selectedMessage.id ? (
+        <div className="spinner-small" style={{ width: '16px', height: '16px' }}></div>
+      ) : (
+        pinnedMessages.some(p => p.messageId === selectedMessage.id) ? '📌' : '📍'
+      )}
+    </span>
+    <span>
+      {pinningMessageId === selectedMessage.id ? 'Processing...' : 
+        (pinnedMessages.some(p => p.messageId === selectedMessage.id) ? 'Unpin' : 'Pin')
+      }
+    </span>
+  </button>
+)}
 
                 {(selectedMessage.isOwn || currentUser?.role === 'admin') && (
                   <button 
@@ -805,22 +889,29 @@ useEffect(() => {
                   </button>
                 )}
 
-                {!selectedMessage.isOwn && (
-                  <button 
-                    style={actionModalStyles.item} 
-                    onClick={() => mutedUsers.includes(selectedMessage.user?.id) 
-                      ? handleUnmuteUser(selectedMessage.user?.id) 
-                      : handleMuteUser(selectedMessage.user?.id)
-                    }
-                  >
-                    <span style={actionModalStyles.icon}>
-                      {mutedUsers.includes(selectedMessage.user?.id) ? '🔊' : '🔇'}
-                    </span>
-                    <span>
-                      {mutedUsers.includes(selectedMessage.user?.id) ? 'Unmute' : 'Mute'}
-                    </span>
-                  </button>
-                )}
+               {!selectedMessage.isOwn && (
+  <button 
+    style={actionModalStyles.item} 
+    onClick={() => mutedUsers.includes(selectedMessage.user?.id) 
+      ? handleUnmuteUser(selectedMessage.user?.id) 
+      : handleMuteUser(selectedMessage.user?.id)
+    }
+    disabled={mutingUserId === selectedMessage.user?.id || unmutingUserId === selectedMessage.user?.id}
+  >
+    <span style={actionModalStyles.icon}>
+      {(mutingUserId === selectedMessage.user?.id || unmutingUserId === selectedMessage.user?.id) ? (
+        <div className="spinner-small" style={{ width: '16px', height: '16px' }}></div>
+      ) : (
+        mutedUsers.includes(selectedMessage.user?.id) ? '🔊' : '🔇'
+      )}
+    </span>
+    <span>
+      {(mutingUserId === selectedMessage.user?.id || unmutingUserId === selectedMessage.user?.id) ? 'Processing...' :
+        (mutedUsers.includes(selectedMessage.user?.id) ? 'Unmute' : 'Mute')
+      }
+    </span>
+  </button>
+)}
               </div>
 
               <button 
@@ -1090,12 +1181,24 @@ useEffect(() => {
                   onTouchCancel={handleTouchEnd}
                   onContextMenu={(e) => handleContextMenu(e, msg)}
                 >
-                  {!isOwn && showAvatar && (
-                    <div style={styles.messageAvatar}>
-                      {msg.user?.fullName?.charAt(0).toUpperCase()}
-                      {isAdmin && <span style={styles.messageAdminBadge}>👑</span>}
-                    </div>
-                  )}
+                 {!isOwn && showAvatar && (
+  <div style={styles.messageAvatar}>
+    {msg.user?.profileImage ? (
+      <img 
+        src={msg.user.profileImage.startsWith("http") ? msg.user.profileImage : `${BASE_URL}/${msg.user.profileImage}`}
+        alt={msg.user?.fullName}
+        style={styles.avatarImage}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.parentElement.innerHTML = msg.user?.fullName?.charAt(0).toUpperCase() || '?';
+        }}
+      />
+    ) : (
+      msg.user?.fullName?.charAt(0).toUpperCase() || '?'
+    )}
+    {isAdmin && <span style={styles.messageAdminBadge}>👑</span>}
+  </div>
+)}
 
                   <div style={{
                     ...styles.messageContent,
@@ -1241,16 +1344,18 @@ const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
                           >
                             ❤️
                           </button>
-                          <button
-                            style={{
-                              ...styles.messageAction,
-                              ...(isPinned && styles.messageActionActive)
-                            }}
-                            onClick={() => handlePinMessage(msg.id)}
-                            title={isPinned ? "Unpin" : "Pin"}
-                          >
-                            📌
-                          </button>
+                         {currentUser?.role === 'admin' && (
+  <button
+    style={{
+      ...styles.messageAction,
+      ...(isPinned && styles.messageActionActive)
+    }}
+    onClick={() => handlePinMessage(msg.id)}
+    title={isPinned ? "Unpin" : "Pin"}
+  >
+    📌
+  </button>
+)}
                           <button
                             style={{ ...styles.messageAction, color: "#ff4d6d" }}
                             onClick={() => {
@@ -1413,10 +1518,22 @@ const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
               ) : (
                 onlineUsers.map(user => (
                   <div key={user.id} style={styles.adminUserCard}>
-                    <div style={styles.adminUserAvatar}>
-                      {user.fullName?.charAt(0).toUpperCase()}
-                      <span style={styles.onlineDot} />
-                    </div>
+                   <div style={styles.adminUserAvatar}>
+  {user.profileImage ? (
+    <img 
+      src={user.profileImage.startsWith("http") ? user.profileImage : `${BASE_URL}/${user.profileImage}`}
+      alt={user.fullName}
+      style={styles.avatarImageSmall}
+      onError={(e) => {
+        e.target.style.display = 'none';
+        e.target.parentElement.innerHTML = user.fullName?.charAt(0).toUpperCase() || '?';
+      }}
+    />
+  ) : (
+    user.fullName?.charAt(0).toUpperCase() || '?'
+  )}
+  <span style={styles.onlineDot} />
+</div>
                     <div style={styles.adminUserInfo}>
                       <span style={styles.adminUserName}>
                         {user.fullName}
@@ -1581,6 +1698,24 @@ const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
           .message-wrapper:hover .message-actions {
             opacity: 1 !important;
           }
+
+          .spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  /* ... rest of media query ... */
+}
           
           @media (max-width: 768px) {
             .stats-grid {
@@ -1589,11 +1724,17 @@ const fileUrl = `${BASE_URL}/api/public/files/${file.id}`;
             .message-content {
               max-width: 85% !important;
             }
+
+            
             .message-actions {
               opacity: 1 !important;
               top: -25px !important;
             }
           }
+
+          
+
+
         `}
       </style>
     </div>
@@ -1631,21 +1772,32 @@ const actionModalStyles = {
     gap: "12px",
     borderBottom: "1px solid #e2e8f0",
   },
-  avatar: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    background: "#3b82f6",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "20px",
-    fontWeight: "600",
-    color: "#fff",
-  },
+ // Update in actionModalStyles
+avatar: {
+  width: "48px",
+  height: "48px",
+  borderRadius: "50%",
+  background: "#3b82f6",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "20px",
+  fontWeight: "600",
+  color: "#fff",
+  overflow: "hidden", // Important for images
+},
   userInfo: {
     flex: 1,
   },
+
+  // Add to actionModalStyles object
+avatarImage: {
+  width: '100%',
+  height: '100%',
+  borderRadius: '50%',
+  objectFit: 'cover',
+},
+
   userName: {
     display: "block",
     fontSize: "16px",
@@ -1757,7 +1909,7 @@ const styles = {
   },
   notification: {
     position: "fixed",
-    top: "20px",
+    top: "70px",
     right: "20px",
     padding: "12px 20px",
     borderRadius: "10px",
@@ -1769,6 +1921,7 @@ const styles = {
   },
   notificationSuccess: { background: "#10b981" },
   notificationError: { background: "#ef4444" },
+ 
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -1959,20 +2112,22 @@ const styles = {
   messageWrapperOwn: {
     justifyContent: "flex-end",
   },
-  messageAvatar: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "50%",
-    background: "#3b82f6",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "14px",
-    fontWeight: "600",
-    position: "relative",
-    flexShrink: 0,
-    color: "white",
-  },
+ // Update in styles object
+messageAvatar: {
+  width: "40px",
+  height: "40px",
+  borderRadius: "50%",
+  background: "#3b82f6",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "14px",
+  fontWeight: "600",
+  position: "relative",
+  flexShrink: 0,
+  color: "white",
+  overflow: "hidden", // Important for images
+},
   messageAdminBadge: {
     position: "absolute",
     top: "-4px",
@@ -2030,6 +2185,22 @@ const styles = {
     maxWidth: "100%",
     wordWrap: "break-word",
   },
+
+  // Add to styles object
+avatarImage: {
+  width: '100%',
+  height: '100%',
+  borderRadius: '50%',
+  objectFit: 'cover',
+},
+avatarImageSmall: {
+  width: '100%',
+  height: '100%',
+  borderRadius: '50%',
+  objectFit: 'cover',
+},
+
+
   messageText: {
     fontSize: "14px",
     lineHeight: "1.5",
@@ -2201,8 +2372,21 @@ fallbackImage: {
   adminCardTitle: { fontSize: "16px", fontWeight: "600", marginBottom: "16px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" },
   onlineUsersGrid: { display: "flex", flexDirection: "column", gap: "8px", maxHeight: "300px", overflowY: "auto" },
   adminUserCard: { display: "flex", alignItems: "center", gap: "12px", padding: "10px", background: "white", borderRadius: "12px", border: "1px solid #e2e8f0" },
-  adminUserAvatar: { width: "40px", height: "40px", borderRadius: "50%", background: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "600", position: "relative", color: "white" },
-  adminUserInfo: { flex: 1 },
+// Update in styles object
+adminUserAvatar: {
+  width: "40px",
+  height: "40px",
+  borderRadius: "50%",
+  background: "#3b82f6",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "16px",
+  fontWeight: "600",
+  position: "relative",
+  color: "white",
+  overflow: "hidden", // Important for images
+},  adminUserInfo: { flex: 1 },
   adminUserName: { fontSize: "14px", fontWeight: "500", display: "flex", alignItems: "center", gap: "4px" },
   adminUserTime: { fontSize: "11px", color: "#64748b", display: "block" },
   muteBtn: { width: "30px", height: "30px", borderRadius: "8px", border: "none", background: "#f1f5f9", color: "#64748b", fontSize: "14px", cursor: "pointer", "&:hover": { background: "#e2e8f0" } },
@@ -2309,6 +2493,8 @@ styleSheet.textContent = `
     background: #f1f5f9;
     border-radius: 10px;
   }
+
+  
   
   ::-webkit-scrollbar-thumb {
     background: #cbd5e1;

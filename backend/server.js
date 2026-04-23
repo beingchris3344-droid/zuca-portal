@@ -9609,6 +9609,7 @@ socket.on("send_game_invite", async (data) => {
   const { fromUserId, toUserId, fromUserName, gameType } = data;
   
   try {
+    // Store invite in database
     const invite = await prisma.gameInvite.create({
       data: {
         fromUserId: fromUserId,
@@ -9617,30 +9618,61 @@ socket.on("send_game_invite", async (data) => {
         status: "pending"
       },
       include: {
-        fromUser: { select: { id: true, fullName: true } }
+        fromUser: { select: { id: true, fullName: true, profileImage: true } }
       }
     });
     
-    await prisma.notification.create({
+    // ✅ CREATE NOTIFICATION FOR THE BELL ICON
+    const notification = await prisma.notification.create({
       data: {
         userId: toUserId,
         type: "game_invite",
         title: "🎮 Game Invite!",
         message: `${fromUserName} invited you to play ${gameType}!`,
-        data: { inviteId: invite.id, fromUserId },
+        data: { 
+          inviteId: invite.id, 
+          fromUserId: fromUserId,
+          fromUserName: fromUserName,
+          gameType: gameType
+        },
         read: false,
         createdAt: new Date()
       }
     });
     
+    console.log(`✅ Notification created for user ${toUserId}: ${notification.id}`);
+    
+    // ✅ SEND REALTIME NOTIFICATION TO BELL (matches frontend format)
+    io.to(toUserId).emit("new_notification", {
+      id: notification.id,
+      userId: toUserId,
+      type: "game_invite",
+      title: "🎮 Game Invite!",
+      message: `${fromUserName} invited you to play ${gameType}!`,
+      data: { 
+        inviteId: invite.id, 
+        fromUserId: fromUserId,
+        fromUserName: fromUserName,
+        gameType: gameType
+      },
+      read: false,
+      createdAt: notification.createdAt.toISOString()
+    });
+    
+    // Also emit game invite specific event for popup
     io.to(toUserId).emit("game_invite_received", {
       id: invite.id,
-      fromUser: { id: fromUserId, fullName: fromUserName },
+      fromUser: { 
+        id: fromUserId, 
+        fullName: fromUserName,
+        profileImage: invite.fromUser.profileImage
+      },
       gameType: gameType,
       timestamp: new Date()
     });
     
     socket.emit("game_invite_sent", { toUserId, status: "sent" });
+    
   } catch (err) {
     console.error("Error sending game invite:", err);
     socket.emit("game_invite_error", { error: err.message });

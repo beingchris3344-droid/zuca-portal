@@ -354,7 +354,7 @@ const generateShareImage = async (program) => {
     </div>
     ${songsHtml}
     <div style="text-align: center; margin-top: 20px; font-size: 10px; opacity: 0.7;">
-      Zetech University Catholic Action | ZUCA Portal
+      ZUCA SYSTEM GENERATED | ZUCA Portal
     </div>
   `;
 
@@ -421,7 +421,7 @@ const shareImageToWhatsApp = async (program) => {
         ${songsHtml}
       </div>
       <div style="margin-top: 25px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px;">
-        Zetech University Catholic Action | ZUCA Portal
+        ZUCA SYSTEM GENERATED | ZUCA Portal
       </div>
     `;
 
@@ -570,7 +570,7 @@ const shareImageToWhatsApp = async (program) => {
           ${songsHtml}
         </div>
         <div style="margin-top: 25px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px;">
-          Zetech University Catholic Action | ZUCA Portal
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL
         </div>
       `;
 
@@ -647,7 +647,7 @@ const shareImageToWhatsApp = async (program) => {
           <tbody>${songsRows}</tbody>
         </table>
         <div class="footer">
-          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu! 🙏
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL 🙏
         </div>
       </div>
     </body>
@@ -719,7 +719,7 @@ const shareImageToWhatsApp = async (program) => {
         </div>
         ${songsRows}
         <div class="footer">
-          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu!
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL 🙏
         </div>
       </div>
     </body>
@@ -856,7 +856,7 @@ const shareImageToWhatsApp = async (program) => {
           ${songsRows}
         </table>
         <div class="footer">
-          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu!
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL 🙏
         </div>
       </body>
       </html>

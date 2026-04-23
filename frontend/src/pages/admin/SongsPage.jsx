@@ -529,7 +529,7 @@ return false;
           <tbody>${songsRows}</tbody>
         </table>
         <div class="footer">
-          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu! 🙏
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL🙏
         </div>
       </div>
     </body>
@@ -593,7 +593,7 @@ return false;
         </div>
         ${songsRows}
         <div class="footer">
-          Zetech University Catholic Action (ZUCA) | Tumsifu Yesu Kristu!
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL
         </div>
       </div>
     </body>
@@ -654,7 +654,7 @@ return false;
           ${songsHtml}
         </div>
         <div style="margin-top: 25px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px;">
-          Zetech University Catholic Action | ZUCA Portal
+          ZUCA SYSTEM GENERATED | ZUCA PORTAL 🙏
         </div>
       `;
 

@@ -9657,6 +9657,17 @@ socket.on("accept_game_invite", async (data) => {
       return;
     }
     
+    // ✅ FIX: Get the actual user names from database
+    const player1 = await prisma.user.findUnique({
+      where: { id: fromUserId },
+      select: { id: true, fullName: true }
+    });
+    
+    const player2 = await prisma.user.findUnique({
+      where: { id: toUserId },
+      select: { id: true, fullName: true }
+    });
+    
     // Create game session
     const gameSession = await prisma.gameSession.create({
       data: {
@@ -9682,25 +9693,30 @@ socket.on("accept_game_invite", async (data) => {
       }
     });
     
-    // Notify both players
+    // ✅ FIXED: Send actual names instead of "Opponent" and "Host"
     io.to(fromUserId).emit("game_start", {
       gameId: gameSession.id,
       playerSymbol: "X",
-      opponent: { id: toUserId, fullName: "Opponent" },
+      opponent: { 
+        id: toUserId, 
+        fullName: player2?.fullName || "Opponent" 
+      },
       firstTurn: true
     });
     
     io.to(toUserId).emit("game_start", {
       gameId: gameSession.id,
       playerSymbol: "O",
-      opponent: { id: fromUserId, fullName: "Host" },
+      opponent: { 
+        id: fromUserId, 
+        fullName: player1?.fullName || "Host" 
+      },
       firstTurn: false
     });
   } catch (err) {
     console.error("Error accepting game invite:", err);
   }
 });
-
 // Decline game invite
 socket.on("decline_game_invite", async (data) => {
   const { inviteId, fromUserId } = data;

@@ -269,37 +269,43 @@ function TicTacToe() {
     });
   };
 
-  const handleGameStart = (data) => {
-    if (multiplayerGame.isActive && multiplayerGame.gameId === data.gameId) return;
-    
-    if (socketRef.current) {
-      socketRef.current.emit("join_game_room", data.gameId);
-    }
-    
-    const gameData = {
-      isActive: true,
-      gameId: data.gameId,
-      opponent: data.opponent,
-      playerSymbol: data.playerSymbol,
-      isMyTurn: data.firstTurn
-    };
-    
-    const emptyBoard = Array(9).fill(null);
-    boardRef.current = emptyBoard;
-    setBoard(emptyBoard);
-    setMultiplayerGame(gameData);
-    multiplayerGameRef.current = gameData;
-    setWinner(null);
-    setGameStarted(true);
-    setGameMode(null);
-    
-    setNotification({
-      title: "🎮 Game Started!",
-      message: `You are playing as ${data.playerSymbol}. ${data.firstTurn ? "You go first!" : "Opponent goes first."}`,
-      type: "success"
-    });
-    setTimeout(() => setNotification(null), 3000);
+const handleGameStart = (data) => {
+  if (multiplayerGame.isActive && multiplayerGame.gameId === data.gameId) return;
+  
+  if (socketRef.current) {
+    socketRef.current.emit("join_game_room", data.gameId);
+  }
+  
+  // ✅ This should now receive the real name from backend
+  const opponentName = data.opponent?.fullName || "Opponent";
+  
+  const gameData = {
+    isActive: true,
+    gameId: data.gameId,
+    opponent: {
+      id: data.opponent?.id,
+      fullName: opponentName
+    },
+    playerSymbol: data.playerSymbol,
+    isMyTurn: data.firstTurn
   };
+  
+  const emptyBoard = Array(9).fill(null);
+  boardRef.current = emptyBoard;
+  setBoard(emptyBoard);
+  setMultiplayerGame(gameData);
+  multiplayerGameRef.current = gameData;
+  setWinner(null);
+  setGameStarted(true);
+  setGameMode(null);
+  
+  setNotification({
+    title: "🎮 Game Started!",
+    message: `You are playing against ${opponentName} as ${data.playerSymbol}. ${data.firstTurn ? "You go first!" : `${opponentName} goes first.`}`,
+    type: "success"
+  });
+  setTimeout(() => setNotification(null), 3000);
+};
 
   const handleOpponentMove = (data) => {
     if (multiplayerGameRef.current.gameId !== data.gameId) return;
@@ -604,8 +610,7 @@ function TicTacToe() {
           <button onClick={() => navigate('/games')} style={styles.backBtn}>← Back to Games</button>
           <button onClick={changeMode} style={styles.changeModeBtn}>Exit Game</button>
         </div>
-        <h1 style={styles.title}>🎮 Tic Tac Toe (Online vs {multiplayerGame.opponent?.fullName?.split(' ')[0]})</h1>
-        
+<h1 style={styles.title}>🎮 Tic Tac Toe (Online vs {multiplayerGame.opponent?.fullName?.split(' ')[0]})</h1>        
         <div style={styles.playersInfo}>
           <div style={{ ...styles.playerCard, ...(isMyTurn && !winner && styles.activeTurn) }}>
             <div style={styles.playerSymbol}>{playerSymbol}</div>
@@ -614,10 +619,10 @@ function TicTacToe() {
           </div>
           <div style={styles.vsDivider}>VS</div>
           <div style={{ ...styles.playerCard, ...(!isMyTurn && !winner && styles.activeTurn) }}>
-            <div style={styles.playerSymbol}>{opponentSymbol}</div>
-            <div style={styles.playerName}>{multiplayerGame.opponent?.fullName?.split(' ')[0]}</div>
-            {!isMyTurn && !winner && <div style={styles.turnIndicator}>🤔 Their Turn</div>}
-          </div>
+  <div style={styles.playerSymbol}>{opponentSymbol}</div>
+  <div style={styles.playerName}>{multiplayerGame.opponent?.fullName?.split(' ')[0] || 'Opponent'}</div>
+  {!isMyTurn && !winner && <div style={styles.turnIndicator}>🤔 Their Turn</div>}
+</div>
         </div>
         
         <div style={styles.board}>
@@ -635,23 +640,25 @@ function TicTacToe() {
           ))}
         </div>
         
-        {winner && (
-          <div style={styles.winnerMessage}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>
-              {winner === 'tie' ? "🤝 It's a Tie! 🤝" : winner === 'user' ? "🎉 You Win! 🎉" : `🏆 ${multiplayerGame.opponent?.fullName?.split(' ')[0]} Wins! 🏆`}
-            </div>
-            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-              <button style={styles.playAgainBtn} onClick={resetMultiplayerGame}>Play Again</button>
-              <button style={styles.exitGameBtn} onClick={changeMode}>Exit Game</button>
-            </div>
-          </div>
-        )}
+       {winner && (
+  <div style={styles.winnerMessage}>
+    <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>
+      {winner === 'tie' ? "🤝 It's a Tie! 🤝" : 
+       winner === 'user' ? `🎉 You Win! 🎉` : 
+       `🏆 ${multiplayerGame.opponent?.fullName?.split(' ')[0] || 'Opponent'} Wins! 🏆`}
+    </div>
+    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+      <button style={styles.playAgainBtn} onClick={resetMultiplayerGame}>Play Again</button>
+      <button style={styles.exitGameBtn} onClick={changeMode}>Exit Game</button>
+    </div>
+  </div>
+)}
         
         {!winner && (
-          <div style={styles.statusMessage}>
-            {isMyTurn ? "👆 Your turn - Tap a square" : "⏳ Waiting for opponent..."}
-          </div>
-        )}
+  <div style={styles.statusMessage}>
+    {isMyTurn ? "👆 Your turn - Tap a square" : `⏳ Waiting for ${multiplayerGame.opponent?.fullName?.split(' ')[0] || 'opponent'}...`}
+  </div>
+)}
       </div>
     );
   }

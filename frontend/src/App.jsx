@@ -40,7 +40,13 @@ import GalleryPage from "./pages/gallery";
 import Landing from "./pages/Landing";
 import UserManual from './pages/UserManual';
 import Games from "./pages/Games";
+
+//GAMES
 import TicTacToe from "./pages/games/TicTacToe";
+import Snake from "./pages/games/Snake";
+import BibleTrivia from "./pages/games/BibleTrivia";
+
+
 
 // ===== EXECUTIVE SYSTEM IMPORTS =====
 import ExecutivePage from "./pages/ExecutivePage";
@@ -334,7 +340,13 @@ function AppContent() {
           <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/games" element={<Games />} />
+
+
+          //GAMES 
 <Route path="/games/tictactoe" element={<TicTacToe />} />
+<Route path="/games/snake" element={<Snake />} />
+<Route path="/games/trivia" element={<BibleTrivia />} />
+
         </Route>
 
         {/* ================= JUMUIA DETAIL PAGE ================= */}

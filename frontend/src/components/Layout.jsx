@@ -102,6 +102,7 @@ function Layout() {
     { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
     { path: "/chat", label: "Chat", icon: "💬" },
     { path: "/executive", label: "Executive Team", icon: "👔" },
+    { path: "/games", label: "Games Arcade", icon: "🎮" },
   ];
 
   return (

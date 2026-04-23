@@ -257,7 +257,7 @@ export default function Notifications({ userId }) {
         )
       );
 
-      badgeManager.decrementBadge();
+     // badgeManager.decrementBadge();
 
       const token = localStorage.getItem("token");
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
@@ -311,43 +311,54 @@ export default function Notifications({ userId }) {
     badgeManager.updateBadgeCount(newUnreadCount);
   };
 
-  const handleNotificationClick = (notif) => {
-    if (!notif.read) {
-      markAsRead(notif.id);
-    }
-    
-    let path = '/dashboard';
-    switch(notif.type) {
-      case 'announcement':
-        path = '/announcements';
-        break;
-      case 'program':
-        path = '/mass-programs';
-        break;
-      case 'message':
-        path = '/chat';
-        break;
-      case 'contribution':
-        path = '/contributions';
-        break;
-      case 'new_media':
+ const handleNotificationClick = (notif) => {
+  if (!notif.read) {
+    markAsRead(notif.id);
+  }
+  
+  let path = '/dashboard';
+  let state = {};
+  
+  switch(notif.type) {
+    case 'announcement':
+      path = '/announcements';
+      break;
+    case 'program':
+      path = '/mass-programs';
+      break;
+    case 'message':
+      path = '/chat';
+      break;
+    case 'contribution':
+      path = '/contributions';
+      break;
+    case 'new_media':
+      path = '/gallery';
+      break;
+    case 'game_invite':  // SPECIAL HANDLING FOR GAME INVITES
+      // Navigate to games page with the invite ID in state
+      path = '/games';
+      state = { 
+        pendingInviteId: notif.data?.inviteId,
+        fromUserId: notif.data?.fromUserId,
+        gameType: notif.data?.gameType
+      };
+      break;
+    case 'media_comment':
+      if (notif.data?.mediaId) {
+        path = `/gallery?media=${notif.data.mediaId}`;
+      } else {
         path = '/gallery';
-        break;
-      case 'media_comment':
-        if (notif.data?.mediaId) {
-          path = `/gallery?media=${notif.data.mediaId}`;
-        } else {
-          path = '/gallery';
-        }
-        break;
-      case 'media_like':
-        path = '/gallery';
-        break;
-    }
-    
-    navigate(path);
-    setShowDropdown(false);
-  };
+      }
+      break;
+    case 'media_like':
+      path = '/gallery';
+      break;
+  }
+  
+  navigate(path, { state });
+  setShowDropdown(false);
+};
 
   const formatTime = (dateString) => {
     if (!dateString) return 'Just now';
@@ -380,6 +391,7 @@ export default function Notifications({ userId }) {
       case 'new_media': return '📸';
       case 'media_comment': return '💬';
       case 'media_like': return '❤️';
+       case 'game_invite': return '🎮'; 
       default: return '🔔';
     }
   };

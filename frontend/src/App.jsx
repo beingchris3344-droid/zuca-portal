@@ -39,6 +39,8 @@ import FullReadings from './pages/FullReadings';
 import GalleryPage from "./pages/gallery";
 import Landing from "./pages/Landing";
 import UserManual from './pages/UserManual';
+import Games from "./pages/Games";
+import TicTacToe from "./pages/games/TicTacToe";
 
 // ===== EXECUTIVE SYSTEM IMPORTS =====
 import ExecutivePage from "./pages/ExecutivePage";
@@ -331,6 +333,8 @@ function AppContent() {
           <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/games" element={<Games />} />
+<Route path="/games/tictactoe" element={<TicTacToe />} />
         </Route>
 
         {/* ================= JUMUIA DETAIL PAGE ================= */}

@@ -70,6 +70,11 @@ model User {
 
    executiveAssignments Executive[]      // Positions this user holds
   executiveHistory     ExecutiveHistory[] // Historical positions this user held
+   // Game relations
+  sentGameInvites   GameInvite[] @relation("SentInvites")
+  receivedInvites   GameInvite[] @relation("ReceivedInvites")
+  gamesAsPlayer1    GameSession[] @relation("Player1Games")
+  gamesAsPlayer2    GameSession[] @relation("Player2Games")
 
 
   files            File[] // Files uploaded by this user
@@ -649,4 +654,34 @@ model ExecutiveHistory {
   @@index([userId])
   @@index([positionId])
   @@index([removedAt])
+}
+
+
+model GameSession {
+  id           String   @id @default(uuid())
+  gameType     String   // 'tictactoe', 'snake', etc.
+  player1Id    String
+  player2Id    String?
+  status       String   @default("waiting") // waiting, active, completed, cancelled
+  currentTurn  String?  // player id whose turn it is
+  gameState    Json?    // board state, scores, etc.
+  winner       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  player1      User     @relation("Player1Games", fields: [player1Id], references: [id])
+  player2      User?    @relation("Player2Games", fields: [player2Id], references: [id])
+}
+
+model GameInvite {
+  id           String   @id @default(uuid())
+  fromUserId   String
+  toUserId     String
+  gameType     String
+  sessionId    String?
+  status       String   @default("pending") // pending, accepted, declined, cancelled
+  createdAt    DateTime @default(now())
+  
+  fromUser     User     @relation("SentInvites", fields: [fromUserId], references: [id])
+  toUser       User     @relation("ReceivedInvites", fields: [toUserId], references: [id])
 }

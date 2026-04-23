@@ -108,6 +108,121 @@ app.use((req, res, next) => {
 });
 
 
+// TEST ROUTE - PUT THIS RIGHT HERE
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Server is working!", time: new Date().toISOString() });
+});
+
+// GAME TEST ROUTE
+app.get("/api/game-test", authenticate, (req, res) => {
+  res.json({ message: "Game auth works!", userId: req.user.userId });
+});
+
+// ==================== ADD GAME ROUTES HERE ====================
+
+// Get all users for game invites
+app.get("/api/games/users", authenticate, async (req, res) => {
+  console.log("🎮 /api/games/users called!"); // Debug log
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        id: { not: req.user.userId }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        membership_number: true,
+        profileImage: true,
+        lastActive: true,
+        role: true
+      },
+      orderBy: { fullName: 'asc' }
+    });
+    
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const usersWithStatus = users.map(u => ({
+      ...u,
+      isOnline: u.lastActive ? new Date(u.lastActive) > fiveMinutesAgo : false
+    }));
+    
+    res.json(usersWithStatus);
+  } catch (err) {
+    console.error("Error fetching game users:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user's pending game invites
+app.get("/api/games/invites", authenticate, async (req, res) => {
+  console.log("🎮 /api/games/invites called!"); // Debug log
+  try {
+    const invites = await prisma.gameInvite.findMany({
+      where: {
+        toUserId: req.user.userId,
+        status: "pending"
+      },
+      include: {
+        fromUser: { 
+          select: { 
+            id: true, 
+            fullName: true,
+            profileImage: true 
+          } 
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json(invites);
+  } catch (err) {
+    console.error("Error fetching invites:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get count of pending game invites
+app.get("/api/games/invites/count", authenticate, async (req, res) => {
+  console.log("🎮 /api/games/invites/count called!"); // Debug log
+  try {
+    const count = await prisma.gameInvite.count({
+      where: {
+        toUserId: req.user.userId,
+        status: "pending"
+      }
+    });
+    res.json({ count });
+  } catch (err) {
+    console.error("Error fetching invite count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create game invite
+app.post("/api/games/invite", authenticate, async (req, res) => {
+  console.log("🎮 /api/games/invite called!"); // Debug log
+  try {
+    const { opponentId, gameType } = req.body;
+    
+    const invite = await prisma.gameInvite.create({
+      data: {
+        fromUserId: req.user.userId,
+        toUserId: opponentId,
+        gameType: gameType,
+        status: "pending"
+      },
+      include: {
+        fromUser: { select: { id: true, fullName: true, profileImage: true } }
+      }
+    });
+    
+    res.json(invite);
+  } catch (err) {
+    console.error("Error creating invite:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ================== SOCKET.IO WITH ONLINE TRACKING ==================
 const { Server } = require("socket.io");
 const server = http.createServer(app);
@@ -3725,6 +3840,9 @@ app.post("/api/auth/verify-reset", async (req, res) => {
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
+
+
+
 
 // ================== DASHBOARD STATS ==================
 app.get("/api/announcements/unread", authenticate, async (req, res) => {
@@ -9455,23 +9573,232 @@ app.delete('/api/notifications/:userId/clear-all', authenticate, async (req, res
 
 // ================== SOCKET.IO ==================
 io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
+  console.log("🟢 User connected:", socket.id);
 
+  // Join user to their personal room
   socket.on("join", (userId) => {
     socket.join(userId);
-    console.log(`User ${userId} joined room ${userId}`);
+    console.log(`✅ User ${userId} joined their room`);
   });
 
+  // Join jumuia room
   socket.on("join-jumuia", (jumuiaId) => {
     socket.join(`jumuia-${jumuiaId}`);
     console.log(`User joined jumuia room: jumuia-${jumuiaId}`);
   });
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
+// ==================== GAME EVENTS ====================
+
+// Join game room
+socket.on("join_game_room", (gameId) => {
+  socket.join(gameId);
+  console.log(`User joined game room: ${gameId}`);
 });
 
+// Send game invite to specific user
+socket.on("send_game_invite", async (data) => {
+  const { fromUserId, toUserId, fromUserName, gameType } = data;
+  
+  try {
+    // Store invite in database
+    const invite = await prisma.gameInvite.create({
+      data: {
+        fromUserId: fromUserId,
+        toUserId: toUserId,
+        gameType: gameType,
+        status: "pending"
+      },
+      include: {
+        fromUser: { select: { id: true, fullName: true } }
+      }
+    });
+    
+    // Also create a notification for the bell icon
+    await prisma.notification.create({
+      data: {
+        userId: toUserId,
+        type: "game_invite",
+        title: "🎮 Game Invite!",
+        message: `${fromUserName} invited you to play ${gameType}!`,
+        data: { inviteId: invite.id, fromUserId },
+        read: false,
+        createdAt: new Date()
+      }
+    });
+    
+    // Emit to the receiving user
+    io.to(toUserId).emit("game_invite_received", {
+      id: invite.id,
+      fromUser: { id: fromUserId, fullName: fromUserName },
+      gameType: gameType,
+      timestamp: new Date()
+    });
+    
+    // Also emit confirmation to sender
+    socket.emit("game_invite_sent", { toUserId, status: "sent" });
+  } catch (err) {
+    console.error("Error sending game invite:", err);
+    socket.emit("game_invite_error", { error: err.message });
+  }
+});
+
+// Accept game invite
+socket.on("accept_game_invite", async (data) => {
+  const { inviteId, fromUserId, toUserId, gameType } = data;
+  
+  try {
+    // Check if invite is still pending
+    const invite = await prisma.gameInvite.findUnique({
+      where: { id: inviteId }
+    });
+    
+    if (!invite || invite.status !== "pending") {
+      console.log("Invite already processed");
+      return;
+    }
+    
+    // Create game session
+    const gameSession = await prisma.gameSession.create({
+      data: {
+        gameType: gameType,
+        player1Id: fromUserId,
+        player2Id: toUserId,
+        status: "active",
+        currentTurn: fromUserId,
+        gameState: { board: Array(9).fill(null) }
+      }
+    });
+    
+    // Update invite status
+    await prisma.gameInvite.update({
+      where: { id: inviteId },
+      data: { status: "accepted", sessionId: gameSession.id }
+    });
+    
+    // Have both players join the game room
+    io.sockets.sockets.forEach(s => {
+      if (s.userId === fromUserId || s.userId === toUserId) {
+        s.join(gameSession.id);
+      }
+    });
+    
+    // Notify both players
+    io.to(fromUserId).emit("game_start", {
+      gameId: gameSession.id,
+      playerSymbol: "X",
+      opponent: { id: toUserId, fullName: "Opponent" },
+      firstTurn: true
+    });
+    
+    io.to(toUserId).emit("game_start", {
+      gameId: gameSession.id,
+      playerSymbol: "O",
+      opponent: { id: fromUserId, fullName: "Host" },
+      firstTurn: false
+    });
+  } catch (err) {
+    console.error("Error accepting game invite:", err);
+  }
+});
+
+// Decline game invite
+socket.on("decline_game_invite", async (data) => {
+  const { inviteId, fromUserId } = data;
+  
+  try {
+    await prisma.gameInvite.update({
+      where: { id: inviteId },
+      data: { status: "declined" }
+    });
+    
+    io.to(fromUserId).emit("game_invite_declined", {
+      message: "The user declined your invitation"
+    });
+  } catch (err) {
+    console.error("Error declining game invite:", err);
+  }
+});
+
+// Make a move in game - SINGLE HANDLER
+socket.on("game_move", async (data) => {
+  const { gameId, index, symbol, nextTurn, board } = data;
+  
+  console.log("🎮 Game move received:", { gameId, index, symbol, nextTurn });
+  
+  try {
+    // Update game state in database
+    await prisma.gameSession.update({
+      where: { id: gameId },
+      data: {
+        gameState: { board: board },
+        currentTurn: nextTurn
+      }
+    });
+    
+    // IMPORTANT: Emit ONLY to the opponent, NOT to the sender
+    // This prevents the sender from receiving their own move as an opponent move
+    io.to(nextTurn).emit("opponent_move", {
+      gameId: gameId,
+      index: index,
+      symbol: symbol
+    });
+    
+    console.log("🎮 Emitted opponent_move to:", nextTurn);
+  } catch (err) {
+    console.error("Error making game move:", err);
+  }
+});
+
+// Game over
+socket.on("game_over", async (data) => {
+  const { gameId, winner } = data;
+  
+  try {
+    await prisma.gameSession.update({
+      where: { id: gameId },
+      data: {
+        status: "completed",
+        winner: winner
+      }
+    });
+    
+    // Notify both players about game over
+    io.to(gameId).emit("game_finished", { winner });
+  } catch (err) {
+    console.error("Error ending game:", err);
+  }
+});
+
+
+// Game reset
+socket.on("game_reset", async (data) => {
+  const { gameId, opponentId } = data;
+  
+  try {
+    // Reset game state in database
+    await prisma.gameSession.update({
+      where: { id: gameId },
+      data: {
+        gameState: { board: Array(9).fill(null) },
+        currentTurn: opponentId, // The player who called reset goes first
+        status: "active"
+      }
+    });
+    
+    // Notify opponent to reset their board
+    io.to(opponentId).emit("game_reset_opponent", {
+      gameId: gameId,
+      firstTurn: false
+    });
+  } catch (err) {
+    console.error("Error resetting game:", err);
+  }
+});
+
+  socket.on("disconnect", () => {
+    console.log("🔴 User disconnected:", socket.id);
+  });
+});
 
 // ================== ADMIN AI ASSISTANT (SEPARATE ENDPOINT) ==================
 app.post("/api/admin/ai/assistant", authenticate, async (req, res) => {
@@ -10602,6 +10929,10 @@ app.post("/api/ocr/ocr-space", authenticate, multerMemory.single("image"), async
     });
   }
 });
+
+
+
+
 
 
 

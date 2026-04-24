@@ -234,7 +234,7 @@ function Landing2() {
               📷 Gallery
             </button>
             <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
-              📅 Calendar
+              📅liturgical Calendar
             </button>
             <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
               <FaUserPlus />📚 User Manual

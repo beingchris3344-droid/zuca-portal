@@ -11,6 +11,7 @@ import { BsMegaphone } from "react-icons/bs";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 import BASE_URL from "../../api";
+import AdminSchedules from "./AdminSchedules";
 
 export default function AdminAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
@@ -36,6 +37,7 @@ export default function AdminAnnouncements() {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
   const socketRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("announcements");
 
   // Socket connection
   useEffect(() => {
@@ -318,343 +320,343 @@ export default function AdminAnnouncements() {
   );
 
   return (
-    <div className="announcements-page">
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#fff',
-            color: '#1e293b',
-            borderRadius: '12px',
-            padding: '12px 16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          },
-        }}
-      />
-      
-      <div className="content-wrapper">
-        {/* Header */}
-        <div className="header">
-          <div className="header-left">
-            <div className="title-icon">
-              <BsMegaphone />
+  <div className="announcements-page">
+    <Toaster 
+      position="top-right"
+      toastOptions={{
+        duration: 3000,
+        style: {
+          background: '#fff',
+          color: '#1e293b',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        },
+      }}
+    />
+    
+    <div className="content-wrapper">
+      {/* Header */}
+      <div className="header">
+        <div className="header-left">
+          <div className="title-icon">
+            <BsMegaphone />
+          </div>
+          <div>
+            <h1 className="page-title">Secretary Dashboard</h1>
+            <p className="page-subtitle">Manage announcements and schedules</p>
+          </div>
+        </div>
+        
+        <div className="header-actions">
+          <button 
+            className="refresh-btn"
+            onClick={() => activeTab === "announcements" ? fetchAnnouncements(true) : null}
+            disabled={refreshing}
+          >
+            <FiRefreshCw className={refreshing ? 'spinning' : ''} />
+          </button>
+        </div>
+      </div>
+
+      {/* TAB BUTTONS - ADD THIS */}
+      <div className="tab-navigation">
+        <button
+          className={`tab-btn ${activeTab === "announcements" ? "active" : ""}`}
+          onClick={() => setActiveTab("announcements")}
+        >
+          📢 Announcements
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "schedules" ? "active" : ""}`}
+          onClick={() => setActiveTab("schedules")}
+        >
+          📅 Schedules
+        </button>
+      </div>
+
+      {/* ANNOUNCEMENTS TAB CONTENT - shows when "announcements" tab is clicked */}
+      {activeTab === "announcements" && (
+        <>
+          {/* Stats Cards */}
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-icon total">
+                <MdOutlineAnnouncement />
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{stats.total}</span>
+                <span className="stat-label">Total Announcements</span>
+              </div>
             </div>
-            <div>
-              <h1 className="page-title">Announcements</h1>
-              <p className="page-subtitle">Manage and publish announcements</p>
+
+            <div className="stat-card">
+              <div className="stat-icon categories">
+                <FiTag />
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{stats.categories}</span>
+                <span className="stat-label">Categories</span>
+              </div>
             </div>
           </div>
-          
-          <div className="header-actions">
-            <button 
-              className="refresh-btn"
-              onClick={() => fetchAnnouncements(true)}
-              disabled={refreshing}
+
+          {/* Search and Filter Bar */}
+          <div className="search-filter-bar">
+            <div className="search-box">
+              <FiSearch className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search announcements..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+
+            <select 
+              className="filter-select"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
             >
-              <FiRefreshCw className={refreshing ? 'spinning' : ''} />
-            </button>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat === 'all' ? 'All Categories' : cat}
+                </option>
+              ))}
+            </select>
+
             <button 
               className="btn-primary"
               onClick={() => setShowForm(!showForm)}
-              disabled={isSubmitting}
             >
               {showForm ? <FiX /> : <FiPlus />}
               <span>{showForm ? 'Cancel' : 'New Announcement'}</span>
             </button>
           </div>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon total">
-              <MdOutlineAnnouncement />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{stats.total}</span>
-              <span className="stat-label">Total Announcements</span>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon categories">
-              <FiTag />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{stats.categories}</span>
-              <span className="stat-label">Categories</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Search and Filter Bar */}
-        <div className="search-filter-bar">
-          <div className="search-box">
-            <FiSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search announcements..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-
-          <select 
-            className="filter-select"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-          >
-            {categories.map(cat => (
-              <option key={cat} value={cat}>
-                {cat === 'all' ? 'All Categories' : cat}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Create Form */}
-        <AnimatePresence>
-          {showForm && (
-            <motion.div 
-              className="form-card"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <h3 className="form-title">Create New Announcement</h3>
-              
-              <div className="form-group">
-                <label className="form-label">Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Sunday Service Update"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="form-input"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="form-select"
-                  disabled={isSubmitting}
-                >
-                  <option value="General">General</option>
-                  <option value="Mass">Mass</option>
-                  <option value="Event">Event</option>
-                  <option value="Urgent">Urgent</option>
-                  <option value="Reminder">Reminder</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Content</label>
-                <textarea
-                  placeholder="Write your announcement here..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={5}
-                  className="form-textarea"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-actions">
-                <button 
-                  className="btn-secondary"
-                  onClick={() => setShowForm(false)}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className={`btn-primary ${isSubmitting ? 'loading' : ''}`}
-                  onClick={handleAdd}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <FiLoader className="spinning" />
-                      Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <FiCheck />
-                      Publish Announcement
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Content Area */}
-        <div className="content-area">
-          {loading ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Loading announcements...</p>
-            </div>
-          ) : error ? (
-            <div className="error-state">
-              <FiAlertCircle className="error-icon" />
-              <p>{error}</p>
-              <button 
-                className="btn-secondary"
-                onClick={() => fetchAnnouncements()}
+          {/* Create Form */}
+          <AnimatePresence>
+            {showForm && (
+              <motion.div 
+                className="form-card"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
               >
-                Try Again
-              </button>
-            </div>
-          ) : filteredAnnouncements.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">
-                <BsMegaphone />
-              </div>
-              <h3>No announcements found</h3>
-              <p>
-                {searchTerm || filterCategory !== 'all' 
-                  ? 'Try adjusting your search or filters' 
-                  : 'Create your first announcement to get started'}
-              </p>
-              {!searchTerm && filterCategory === 'all' && (
-                <button 
-                  className="btn-primary"
-                  onClick={() => setShowForm(true)}
-                >
-                  <FiPlus /> Create Announcement
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="announcements-list">
-              {filteredAnnouncements.map((announcement, index) => {
-                const categoryColor = getCategoryColor(announcement.category);
-                return (
-                  <motion.div
-                    key={announcement.id}
-                    className="announcement-card"
-                    style={{ borderLeftColor: categoryColor.bg }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                <h3 className="form-title">Create New Announcement</h3>
+                
+                <div className="form-group">
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Sunday Service Update"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="form-select"
                   >
-                    {editingId === announcement.id ? (
-                      <div className="edit-mode">
-                        <input
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          className="edit-input"
-                          placeholder="Title"
-                          disabled={isUpdating}
-                        />
-                        <select
-                          value={editCategory}
-                          onChange={(e) => setEditCategory(e.target.value)}
-                          className="edit-select"
-                          disabled={isUpdating}
-                        >
-                          <option value="General">General</option>
-                          <option value="Mass">Mass</option>
-                          <option value="Event">Event</option>
-                          <option value="Urgent">Urgent</option>
-                          <option value="Reminder">Reminder</option>
-                        </select>
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={4}
-                          className="edit-textarea"
-                          placeholder="Content"
-                          disabled={isUpdating}
-                        />
-                        <div className="edit-actions">
-                          <button 
-                            className="btn-secondary btn-small"
-                            onClick={cancelEdit}
-                            disabled={isUpdating}
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            className={`btn-primary btn-small ${isUpdating ? 'loading' : ''}`}
-                            onClick={() => handleUpdate(announcement.id)}
-                            disabled={isUpdating}
-                          >
-                            {isUpdating ? (
-                              <>
-                                <FiLoader className="spinning" />
-                                Saving...
-                              </>
-                            ) : (
-                              'Save Changes'
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                    <option value="General">General</option>
+                    <option value="Mass">Mass</option>
+                    <option value="Event">Event</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Reminder">Reminder</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Content</label>
+                  <textarea
+                    placeholder="Write your announcement here..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    rows={5}
+                    className="form-textarea"
+                  />
+                </div>
+
+                <div className="form-actions">
+                  <button 
+                    className="btn-secondary"
+                    onClick={() => setShowForm(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={handleAdd}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <FiLoader className="spinning" />
+                        Publishing...
+                      </>
                     ) : (
                       <>
-                        <div className="card-header">
-                          <div className="card-meta">
-                            <span 
-                              className="card-category"
-                              style={{ 
-                                background: categoryColor.light,
-                                color: categoryColor.bg
-                              }}
-                            >
-                              {announcement.category || 'General'}
-                            </span>
-                            <span className="card-date">
-                              <FiClock /> {formatDate(announcement.createdAt)}
-                            </span>
-                          </div>
-                          <div className="card-actions">
+                        <FiCheck />
+                        Publish Announcement
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Content Area */}
+          <div className="content-area">
+            {loading ? (
+              <div className="loading-state">
+                <div className="spinner"></div>
+                <p>Loading announcements...</p>
+              </div>
+            ) : error ? (
+              <div className="error-state">
+                <FiAlertCircle className="error-icon" />
+                <p>{error}</p>
+                <button 
+                  className="btn-secondary"
+                  onClick={() => fetchAnnouncements()}
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : filteredAnnouncements.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <BsMegaphone />
+                </div>
+                <h3>No announcements found</h3>
+                <p>
+                  {searchTerm || filterCategory !== 'all' 
+                    ? 'Try adjusting your search or filters' 
+                    : 'Create your first announcement to get started'}
+                </p>
+              </div>
+            ) : (
+              <div className="announcements-list">
+                {filteredAnnouncements.map((announcement, index) => {
+                  const categoryColor = getCategoryColor(announcement.category);
+                  return (
+                    <motion.div
+                      key={announcement.id}
+                      className="announcement-card"
+                      style={{ borderLeftColor: categoryColor.bg }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      {editingId === announcement.id ? (
+                        <div className="edit-mode">
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="edit-input"
+                            placeholder="Title"
+                          />
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="edit-select"
+                          >
+                            <option value="General">General</option>
+                            <option value="Mass">Mass</option>
+                            <option value="Event">Event</option>
+                            <option value="Urgent">Urgent</option>
+                            <option value="Reminder">Reminder</option>
+                          </select>
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            rows={4}
+                            className="edit-textarea"
+                            placeholder="Content"
+                          />
+                          <div className="edit-actions">
                             <button 
-                              className="action-btn edit"
-                              onClick={() => startEdit(announcement)}
-                              title="Edit"
-                              disabled={isUpdating || isDeleting}
+                              className="btn-secondary btn-small"
+                              onClick={cancelEdit}
                             >
-                              <FiEdit2 />
+                              Cancel
                             </button>
                             <button 
-                              className="action-btn delete"
-                              onClick={() => setDeleteConfirmId(announcement.id)}
-                              title="Delete"
-                              disabled={isUpdating || isDeleting}
+                              className="btn-primary btn-small"
+                              onClick={() => handleUpdate(announcement.id)}
                             >
-                              <FiTrash2 />
+                              Save Changes
                             </button>
                           </div>
                         </div>
-                        
-                        <h3 className="card-title">{announcement.title}</h3>
-                        <p className="card-content">{announcement.content}</p>
-                        
-                        {announcement.updatedAt !== announcement.createdAt && (
-                          <span className="edited-badge">
-                            Edited {formatDate(announcement.updatedAt)}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+                      ) : (
+                        <>
+                          <div className="card-header">
+                            <div className="card-meta">
+                              <span 
+                                className="card-category"
+                                style={{ 
+                                  background: categoryColor.light,
+                                  color: categoryColor.bg
+                                }}
+                              >
+                                {announcement.category || 'General'}
+                              </span>
+                              <span className="card-date">
+                                <FiClock /> {formatDate(announcement.createdAt)}
+                              </span>
+                            </div>
+                            <div className="card-actions">
+                              <button 
+                                className="action-btn edit"
+                                onClick={() => startEdit(announcement)}
+                                title="Edit"
+                              >
+                                <FiEdit2 />
+                              </button>
+                              <button 
+                                className="action-btn delete"
+                                onClick={() => setDeleteConfirmId(announcement.id)}
+                                title="Delete"
+                              >
+                                <FiTrash2 />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <h3 className="card-title">{announcement.title}</h3>
+                          <p className="card-content">{announcement.content}</p>
+                          
+                          {announcement.updatedAt !== announcement.createdAt && (
+                            <span className="edited-badge">
+                              Edited {formatDate(announcement.updatedAt)}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
+      {/* SCHEDULES TAB CONTENT - shows when "schedules" tab is clicked */}
+      {activeTab === "schedules" && (
+        <AdminSchedules />
+      )}
+
+      {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <DeleteConfirmModal 
           id={deleteConfirmId}
@@ -662,6 +664,7 @@ export default function AdminAnnouncements() {
           onCancel={() => setDeleteConfirmId(null)}
         />
       )}
+    </div>
 
       <style>{`
         .announcements-page {
@@ -742,6 +745,40 @@ export default function AdminAnnouncements() {
           cursor: pointer;
           transition: all 0.2s;
         }
+
+             .tab-navigation {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0;
+      }
+
+      .tab-btn {
+        padding: 10px 24px;
+        background: none;
+        border: none;
+        font-size: 15px;
+        font-weight: 500;
+        color: #64748b;
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .tab-btn:hover {
+        color: #3b82f6;
+        background: #f1f5f9;
+      }
+
+      .tab-btn.active {
+        color: #3b82f6;
+        border-bottom: 2px solid #3b82f6;
+        background: #eff6ff;
+      }
         .refresh-btn:hover:not(:disabled) {
           background: #f8fafc;
           color: #0f172a;

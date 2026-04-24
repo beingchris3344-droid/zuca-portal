@@ -397,18 +397,19 @@ function AppContent() {
           <Route path="executive" element={<AdminExecutivePage />} />
         </Route>
 
-        {/* ================= SECRETARY ================= */}
-        <Route
-          path="/secretary"
-          element={
-            <RoleRoute allowedRoles={["secretary"]}>
-              <RoleLayout />
-            </RoleRoute>
-          }
-        >
-          <Route index element={<Navigate to="announcements" replace />} />
-          <Route path="announcements" element={<AnnouncementsPage />} />
-        </Route>
+   {/* ================= SECRETARY ================= */}
+<Route
+  path="/secretary"
+  element={
+    <RoleRoute allowedRoles={["secretary"]}>
+      <RoleLayout />
+    </RoleRoute>
+  }
+>
+  <Route index element={<Navigate to="announcements" replace />} />
+  <Route path="announcements" element={<AnnouncementsPage />} />
+  <Route path="schedules" element={<AdminSchedules />} />  {/* ← ADD THIS LINE */}
+</Route>
 
         {/* ================= TREASURER ================= */}
         <Route

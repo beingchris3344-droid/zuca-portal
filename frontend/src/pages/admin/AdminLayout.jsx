@@ -174,6 +174,7 @@ const getIconForType = (type) => {
     { label: "ADMIN DASHBOARD", path: "", icon: "📊" },
     { label: "USER MANUAL", path: "security", icon: "🔒" },
     { label: "ALL USERS", path: "users", icon: "👥" },
+    { label: "SCHEDULE MANAGER", path: "schedules", icon: "📅" },
     { label: "ROLE MANAGEMENT", path: "roles", icon: "👑" },
     { label: "EXECUTIVE MANAGEMENT", path: "executive", icon: "👔" },
     { label: "JUMUIA MANAGEMENT", path: "jumuia-management", icon: "⛪" },

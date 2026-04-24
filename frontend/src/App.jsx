@@ -40,6 +40,8 @@ import GalleryPage from "./pages/gallery";
 import Landing from "./pages/Landing";
 import UserManual from './pages/UserManual';
 import Games from "./pages/Games";
+import UserSchedules from "./pages/UserSchedules";
+
 
 //GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -70,6 +72,7 @@ import SecurityPage from "./pages/admin/SecurityPage";
 import PendingSongs from "./pages/admin/PendingSongs";
 import OCRScannerPage from "./pages/admin/OCRScanner";
 import AddHymn from './pages/admin/AddHymn';
+import AdminSchedules from "./pages/admin/AdminSchedules";
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -340,6 +343,7 @@ function AppContent() {
           <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/games" element={<Games />} />
+          <Route path="/schedules" element={<UserSchedules />} />
 
 
           //GAMES 
@@ -381,6 +385,7 @@ function AppContent() {
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="contributions" element={<ContributionsPage />} />
           <Route path="jumuia-management" element={<JumuiaManagement />} />
+          <Route path="/admin/schedules" element={<AdminSchedules />} />
           <Route path="chat" element={<ChatMonitorPage />} />
           <Route path="security" element={<SecurityPage />} />
           <Route path="media" element={<AdminMediaPage />} />

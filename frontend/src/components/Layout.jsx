@@ -91,6 +91,7 @@ function Layout() {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
+    { path: "/schedules", label: "Schedules", icon: "📅" },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
     { path: "/gallery", label: "Gallery", icon: "🖼️" },

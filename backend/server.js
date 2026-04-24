@@ -11273,10 +11273,923 @@ app.post("/api/ocr/ocr-space", authenticate, multerMemory.single("image"), async
 });
 
 
+// ==================== COMPLETE SCHEDULE MANAGEMENT SYSTEM ====================
 
+// Helper function to check if user is admin or secretary
+function isAdminOrSecretary(user) {
+  return user.role === "admin" || user.specialRole === "secretary";
+}
 
+// Helper function to parse date string
+function parseDateString(dateStr) {
+  if (!dateStr) return null;
+  const currentYear = new Date().getFullYear();
+  const monthMap = {
+    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+    'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
+    'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+  };
+  
+  const parts = dateStr.split(' ');
+  if (parts.length === 2) {
+    let day = parseInt(parts[0]);
+    let month = monthMap[parts[1]];
+    if (!isNaN(day) && month !== undefined) {
+      return new Date(currentYear, month, day);
+    }
+  }
+  return null;
+}
 
+// Helper function to generate notification message
+function getNotificationMessage(event, timing) {
+  const eventTime = event.eventTime || "16:30";
+  const location = event.location || "Room 002";
+  const eventDateFormatted = new Date(event.eventDate).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  const messages = {
+    "1 week before": `📅 REMINDER: "${event.title}" is in 1 week on ${eventDateFormatted} at ${eventTime} in ${location}. Please prepare and mark your calendar!`,
+    "3 days before": `📅 REMINDER: "${event.title}" is in 3 days on ${eventDateFormatted} at ${eventTime} in ${location}. Don't forget to attend!`,
+    "1 day before": `🔔 IMPORTANT: "${event.title}" is TOMORROW at ${eventTime} in ${location}. Please be punctual and prepared!`,
+    "12 hours before": `⏰ "${event.title}" is in 12 hours (Today at ${eventTime} in ${location}). Get ready!`,
+    "6 hours before": `⏰ "${event.title}" is in 6 hours at ${eventTime} in ${location}. Make your way to the venue.`,
+    "1 hour before": `🚨 URGENT: "${event.title}" starts in 1 hour at ${eventTime} in ${location}. Please head to the venue now!`,
+    "30 minutes before": `🚨 "${event.title}" starts in 30 minutes at ${location}. Please take your seats!`,
+    "Event starting now": `🔴 LIVE: "${event.title}" is starting NOW at ${location}! Join us immediately!`
+  };
+  
+  return messages[timing] || `📢 "${event.title}" is scheduled for ${eventDateFormatted} at ${eventTime} in ${location}.`;
+}
 
+// Helper function to create scheduled notifications for an event (OPTIMIZED)
+async function createEventNotifications(event, scheduleId) {
+  try {
+    const eventDate = new Date(event.eventDate);
+    const eventTime = event.eventTime || "16:30";
+    const [hours, minutes] = eventTime.split(":");
+    
+    const eventDateTime = new Date(eventDate);
+    eventDateTime.setHours(parseInt(hours), parseInt(minutes), 0);
+    
+    const notificationTimings = [
+      { daysBefore: 7, label: "1 week before", priority: "normal" },
+      { daysBefore: 3, label: "3 days before", priority: "normal" },
+      { daysBefore: 1, label: "1 day before", priority: "high" },
+      { hoursBefore: 12, label: "12 hours before", priority: "high" },
+      { hoursBefore: 6, label: "6 hours before", priority: "high" },
+      { hoursBefore: 1, label: "1 hour before", priority: "urgent" },
+      { hoursBefore: 0.5, label: "30 minutes before", priority: "urgent" }
+    ];
+    
+    for (const timing of notificationTimings) {
+      let notifyAt;
+      
+      if (timing.daysBefore !== undefined) {
+        notifyAt = new Date(eventDateTime);
+        notifyAt.setDate(notifyAt.getDate() - timing.daysBefore);
+      } else {
+        notifyAt = new Date(eventDateTime);
+        notifyAt.setHours(notifyAt.getHours() - timing.hoursBefore);
+      }
+      
+      if (notifyAt && notifyAt > new Date()) {
+        const existing = await prisma.scheduledNotification.findFirst({
+          where: { eventId: event.id, notifyAt: notifyAt }
+        });
+        
+        if (!existing) {
+          await prisma.scheduledNotification.create({
+            data: {
+              eventId: event.id,
+              scheduleId: scheduleId,
+              title: `⏰ ${timing.label}: ${event.title}`,
+              message: getNotificationMessage(event, timing.label),
+              notifyAt: notifyAt,
+              priority: timing.priority,
+              isSent: false
+            }
+          });
+        }
+      }
+    }
+    console.log(`✅ Created notifications for event: ${event.title}`);
+  } catch (err) {
+    console.error(`❌ Error creating notifications for event ${event.title}:`, err.message);
+  }
+}
+
+// Helper function to notify all users (OPTIMIZED - BATCH PROCESSING)
+async function notifyAllUsers(title, message, type, data = {}) {
+  try {
+    console.log(`📢 Sending notifications: ${title}`);
+    
+    const users = await prisma.user.findMany({ select: { id: true } });
+    console.log(`👥 Found ${users.length} users`);
+    
+    if (users.length === 0) return;
+    
+    const now = new Date();
+    const batchSize = 50;
+    const notifications = [];
+    
+    for (const user of users) {
+      notifications.push({
+        userId: user.id,
+        type: type,
+        title: title,
+        message: message,
+        data: data,
+        read: false,
+        createdAt: now
+      });
+    }
+    
+    for (let i = 0; i < notifications.length; i += batchSize) {
+      const batch = notifications.slice(i, i + batchSize);
+      await prisma.notification.createMany({ data: batch, skipDuplicates: true });
+      console.log(`  ✅ Batch ${Math.floor(i / batchSize) + 1} completed`);
+    }
+    
+    for (const user of users) {
+      io.to(user.id).emit("new_notification", {
+        id: `${type}-${Date.now()}-${user.id}`,
+        title,
+        message,
+        type,
+        data,
+        createdAt: now.toISOString()
+      });
+    }
+    
+    console.log(`✅ Notifications sent to ${users.length} users`);
+  } catch (err) {
+    console.error("❌ Error sending notifications:", err.message);
+  }
+}
+
+// ==================== SCHEDULE DRAFTS ROUTES ====================
+
+// GET all drafts for current user
+app.get("/api/admin/schedules/drafts", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const drafts = await prisma.scheduleDraft.findMany({
+      where: { createdBy: req.user.userId },
+      orderBy: { updatedAt: 'desc' }
+    });
+    
+    res.json(drafts);
+  } catch (err) {
+    console.error("Error fetching drafts:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE new draft
+app.post("/api/admin/schedules/drafts", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { title, formData, freeContent, activeTab } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
+    const draft = await prisma.scheduleDraft.create({
+      data: {
+        title: title,
+        content: "",
+        description: title,
+        formData: formData,
+        freeContent: freeContent || "",
+        activeTab: activeTab || "structured",
+        createdBy: req.user.userId
+      }
+    });
+    
+    res.status(201).json(draft);
+  } catch (err) {
+    console.error("Error saving draft:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE draft
+app.put("/api/admin/schedules/drafts/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { title, formData, freeContent, activeTab } = req.body;
+
+    const existingDraft = await prisma.scheduleDraft.findFirst({
+      where: { id, createdBy: req.user.userId }
+    });
+
+    if (!existingDraft) {
+      return res.status(404).json({ error: "Draft not found" });
+    }
+
+    const updatedDraft = await prisma.scheduleDraft.update({
+      where: { id },
+      data: {
+        title: title || existingDraft.title,
+        formData: formData || existingDraft.formData,
+        freeContent: freeContent !== undefined ? freeContent : existingDraft.freeContent,
+        activeTab: activeTab || existingDraft.activeTab,
+        updatedAt: new Date()
+      }
+    });
+    
+    res.json(updatedDraft);
+  } catch (err) {
+    console.error("Error updating draft:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE draft
+app.delete("/api/admin/schedules/drafts/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const existingDraft = await prisma.scheduleDraft.findFirst({
+      where: { id, createdBy: req.user.userId }
+    });
+
+    if (!existingDraft) {
+      return res.status(404).json({ error: "Draft not found" });
+    }
+
+    await prisma.scheduleDraft.delete({ where: { id } });
+    
+    res.json({ success: true, message: "Draft deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting draft:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== SCHEDULE PUBLISHING ROUTES ====================
+
+// CREATE schedule (publish) - OPTIMIZED VERSION
+app.post("/api/admin/schedules", authenticate, async (req, res) => {
+  try {
+    console.log("📝 Received schedule creation request");
+    
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized. Admin or Secretary only." });
+    }
+
+    const { 
+      title, 
+      content, 
+      description, 
+      startDate, 
+      endDate, 
+      isPublished,
+      events,
+      sections,
+      generalPoints,
+      additionalNotes,
+      semesterPeriod
+    } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: "Title and content are required" });
+    }
+
+    console.log("📋 Creating schedule:", title);
+
+    // Create schedule with structured data
+    const schedule = await prisma.schedule.create({
+      data: {
+        title,
+        content,
+        description: description || null,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        isPublished: isPublished || false,
+        createdBy: req.user.userId,
+        sections: sections || [],
+        generalPoints: generalPoints || [],
+        additionalNotes: additionalNotes || "",
+        semesterPeriod: semesterPeriod || { start: null, end: null }
+      }
+    });
+
+    console.log("✅ Schedule created with ID:", schedule.id);
+
+    // Create events if provided
+    const createdEvents = [];
+    if (events && events.length > 0) {
+      console.log(`📝 Creating ${events.length} events...`);
+      
+      for (const event of events) {
+        const createdEvent = await prisma.scheduleEvent.create({
+          data: {
+            scheduleId: schedule.id,
+            title: event.title,
+            description: event.description || event.title,
+            eventDate: new Date(event.eventDate),
+            eventTime: event.eventTime || "16:30",
+            location: event.location || "Room 002",
+            groupName: event.groupName,
+            reminderDays: event.reminderDays || [7, 1, 0]
+          }
+        });
+        createdEvents.push(createdEvent);
+        console.log(`  ✅ Event created: ${event.title}`);
+      }
+    }
+
+    // SEND RESPONSE IMMEDIATELY
+    res.status(201).json({ success: true, schedule });
+    
+    // THEN process notifications in the background (don't await)
+    if (isPublished) {
+      console.log("📢 Processing notifications in background...");
+      
+      // Send new schedule notification
+      notifyAllUsers(
+        `📅 New Schedule Published`,
+        `${title} has been published`,
+        "schedule",
+        { scheduleId: schedule.id }
+      ).catch(console.error);
+      
+      // Create notification schedules for events
+      for (const event of createdEvents) {
+        setTimeout(() => {
+          createEventNotifications(event, schedule.id).catch(console.error);
+        }, 100);
+      }
+    }
+    
+  } catch (err) {
+    console.error("❌ Error creating schedule:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all schedules (Public)
+app.get("/api/schedules", async (req, res) => {
+  try {
+    const { upcoming, published } = req.query;
+    
+    let where = {};
+    
+    if (published === 'true' || !req.headers.authorization) {
+      where.isPublished = true;
+    }
+    
+    if (upcoming === 'true') {
+      where.startDate = { gte: new Date() };
+    }
+    
+    const schedules = await prisma.schedule.findMany({
+      where,
+      include: {
+        events: {
+          orderBy: { eventDate: 'asc' }
+        },
+        creator: {
+          select: { id: true, fullName: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json(schedules);
+  } catch (err) {
+    console.error("Error fetching schedules:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single schedule
+app.get("/api/schedules/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const schedule = await prisma.schedule.findUnique({
+      where: { id },
+      include: {
+        events: {
+          orderBy: { eventDate: 'asc' }
+        },
+        creator: {
+          select: { id: true, fullName: true }
+        }
+      }
+    });
+    
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+    
+    let user = null;
+    if (req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.split(" ")[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      } catch (e) {}
+    }
+    
+    const isAuthorized = user && (user.role === "admin" || user.specialRole === "secretary");
+    
+    if (!schedule.isPublished && !isAuthorized) {
+      return res.status(403).json({ error: "Schedule not published yet" });
+    }
+    
+    res.json(schedule);
+  } catch (err) {
+    console.error("Error fetching schedule:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE schedule
+app.put("/api/admin/schedules/:id", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized. Admin or Secretary only." });
+    }
+
+    const { id } = req.params;
+    const { 
+      title, 
+      content, 
+      description, 
+      startDate, 
+      endDate, 
+      isActive,
+      isPublished,
+      events,
+      sections,
+      generalPoints,
+      additionalNotes,
+      semesterPeriod
+    } = req.body;
+
+    // Update schedule
+    const schedule = await prisma.schedule.update({
+      where: { id },
+      data: {
+        title,
+        content,
+        description: description || null,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        isActive: isActive !== undefined ? isActive : true,
+        isPublished: isPublished !== undefined ? isPublished : false,
+        updatedAt: new Date(),
+        sections: sections !== undefined ? sections : undefined,
+        generalPoints: generalPoints !== undefined ? generalPoints : undefined,
+        additionalNotes: additionalNotes !== undefined ? additionalNotes : undefined,
+        semesterPeriod: semesterPeriod !== undefined ? semesterPeriod : undefined
+      }
+    });
+    
+    // Update events if provided
+    if (events !== undefined) {
+      // Delete old events and their scheduled notifications
+      const oldEvents = await prisma.scheduleEvent.findMany({ where: { scheduleId: id } });
+      for (const oldEvent of oldEvents) {
+        await prisma.scheduledNotification.deleteMany({ where: { eventId: oldEvent.id } });
+      }
+      await prisma.scheduleEvent.deleteMany({ where: { scheduleId: id } });
+      
+      // Create new events
+      const newEvents = [];
+      if (events.length > 0) {
+        for (const event of events) {
+          const newEvent = await prisma.scheduleEvent.create({
+            data: {
+              scheduleId: id,
+              title: event.title,
+              description: event.description || event.title,
+              eventDate: new Date(event.eventDate),
+              eventTime: event.eventTime || "16:30",
+              location: event.location || "Room 002",
+              groupName: event.groupName,
+              reminderDays: event.reminderDays || [7, 1, 0]
+            }
+          });
+          newEvents.push(newEvent);
+        }
+      }
+      
+      // Create notification schedules for new events in background
+      if (isPublished) {
+        for (const newEvent of newEvents) {
+          setTimeout(() => {
+            createEventNotifications(newEvent, id).catch(console.error);
+          }, 100);
+        }
+      }
+    }
+    
+    const updatedSchedule = await prisma.schedule.findUnique({
+      where: { id },
+      include: {
+        events: true,
+        creator: {
+          select: { id: true, fullName: true }
+        }
+      }
+    });
+
+    res.json({ success: true, schedule: updatedSchedule });
+  } catch (err) {
+    console.error("Error updating schedule:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE schedule
+app.delete("/api/admin/schedules/:id", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized. Admin or Secretary only." });
+    }
+
+    const { id } = req.params;
+    
+    // Delete scheduled notifications first
+    const events = await prisma.scheduleEvent.findMany({ where: { scheduleId: id } });
+    for (const event of events) {
+      await prisma.scheduledNotification.deleteMany({ where: { eventId: event.id } });
+    }
+    
+    await prisma.scheduleEvent.deleteMany({ where: { scheduleId: id } });
+    await prisma.schedule.delete({ where: { id } });
+    
+    res.json({ success: true, message: "Schedule deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting schedule:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== NOTIFICATION ROUTES (USER-FACING) ====================
+
+// Check and send pending notifications for current user
+app.post("/api/schedules/check-notifications", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const now = new Date();
+    
+    const pendingNotifications = await prisma.scheduledNotification.findMany({
+      where: {
+        notifyAt: { lte: now },
+        isSent: false
+      },
+      include: {
+        event: {
+          include: {
+            schedule: true
+          }
+        }
+      }
+    });
+    
+    const notificationsSent = [];
+    
+    for (const notification of pendingNotifications) {
+      const alreadyReceived = await prisma.notification.findFirst({
+        where: {
+          userId: userId,
+          data: { path: `notification_${notification.id}` }
+        }
+      });
+      
+      if (!alreadyReceived) {
+        const newNotification = await prisma.notification.create({
+          data: {
+            userId: userId,
+            type: "event_reminder",
+            title: notification.title,
+            message: notification.message,
+            data: { 
+              eventId: notification.eventId,
+              scheduleId: notification.scheduleId,
+              priority: notification.priority,
+              notificationId: notification.id
+            },
+            read: false
+          }
+        });
+        
+        notificationsSent.push(newNotification);
+        
+        io.to(userId).emit("new_notification", {
+          id: newNotification.id,
+          title: notification.title,
+          message: notification.message,
+          type: "event_reminder",
+          priority: notification.priority,
+          data: { eventId: notification.eventId },
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      newNotifications: notificationsSent.length,
+      notifications: notificationsSent 
+    });
+  } catch (err) {
+    console.error("Error checking notifications:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get upcoming events for current user
+app.get("/api/schedules/my-upcoming-events", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const now = new Date();
+    const sixtyDaysLater = new Date(now);
+    sixtyDaysLater.setDate(sixtyDaysLater.getDate() + 60);
+    
+    const events = await prisma.scheduleEvent.findMany({
+      where: {
+        eventDate: { gte: now, lte: sixtyDaysLater },
+        schedule: { isPublished: true }
+      },
+      include: {
+        schedule: {
+          select: {
+            title: true,
+            id: true
+          }
+        }
+      },
+      orderBy: { eventDate: 'asc' }
+    });
+    
+    const eventsWithNotifications = await Promise.all(events.map(async (event) => {
+      const notificationSchedules = await prisma.scheduledNotification.findMany({
+        where: { eventId: event.id },
+        orderBy: { notifyAt: 'asc' }
+      });
+      
+      const notificationStatus = await Promise.all(notificationSchedules.map(async (ns) => {
+        const received = await prisma.notification.findFirst({
+          where: {
+            userId: userId,
+            data: { path: `notification_${ns.id}` }
+          }
+        });
+        
+        const eventDateTime = new Date(event.eventDate);
+        const [hours, minutes] = (event.eventTime || "16:30").split(":");
+        eventDateTime.setHours(parseInt(hours), parseInt(minutes), 0);
+        
+        return {
+          ...ns,
+          received: !!received,
+          timeUntilEvent: eventDateTime.getTime() - now.getTime(),
+          hoursUntilEvent: Math.round((eventDateTime.getTime() - now.getTime()) / (1000 * 60 * 60))
+        };
+      }));
+      
+      const nextNotification = notificationStatus.find(n => !n.received && n.notifyAt > now);
+      const daysUntilEvent = Math.ceil((new Date(event.eventDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        ...event,
+        notificationSchedules: notificationStatus,
+        nextNotification: nextNotification || null,
+        daysUntilEvent: daysUntilEvent,
+        isToday: daysUntilEvent === 0,
+        isTomorrow: daysUntilEvent === 1,
+        isThisWeek: daysUntilEvent <= 7 && daysUntilEvent > 0
+      };
+    }));
+    
+    res.json(eventsWithNotifications);
+  } catch (err) {
+    console.error("Error fetching upcoming events:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get event notifications for a specific event
+app.get("/api/schedules/events/:eventId/notifications", authenticate, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user.userId;
+    
+    const notifications = await prisma.scheduledNotification.findMany({
+      where: { eventId },
+      orderBy: { notifyAt: 'asc' }
+    });
+    
+    const notificationsWithStatus = await Promise.all(notifications.map(async (notification) => {
+      const received = await prisma.notification.findFirst({
+        where: {
+          userId: userId,
+          data: { path: `notification_${notification.id}` }
+        }
+      });
+      
+      return {
+        ...notification,
+        received: !!received,
+        receivedAt: received?.createdAt || null
+      };
+    }));
+    
+    res.json(notificationsWithStatus);
+  } catch (err) {
+    console.error("Error fetching event notifications:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark notification as read
+app.put("/api/schedules/notifications/:id/read", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await prisma.notification.update({
+      where: { id },
+      data: { read: true, readAt: new Date() }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error marking notification as read:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark all notifications as read
+app.put("/api/schedules/notifications/read-all", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    await prisma.notification.updateMany({
+      where: {
+        userId: userId,
+        read: false,
+        type: "event_reminder"
+      },
+      data: { read: true, readAt: new Date() }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error marking all notifications as read:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get unread notification count
+app.get("/api/schedules/notifications/unread-count", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const count = await prisma.notification.count({
+      where: {
+        userId: userId,
+        read: false,
+        type: "event_reminder"
+      }
+    });
+    
+    res.json({ unreadCount: count });
+  } catch (err) {
+    console.error("Error getting unread count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all user notifications (paginated)
+app.get("/api/schedules/notifications", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where: {
+          userId: userId,
+          type: "event_reminder"
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: skip,
+        take: parseInt(limit)
+      }),
+      prisma.notification.count({
+        where: {
+          userId: userId,
+          type: "event_reminder"
+        }
+      })
+    ]);
+    
+    res.json({
+      notifications,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (err) {
+    console.error("Error fetching notifications:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manually trigger reminder for an event (admin only)
+app.post("/api/admin/schedules/events/:eventId/remind", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const { eventId } = req.params;
+    const { message, priority = "urgent" } = req.body;
+    
+    const event = await prisma.scheduleEvent.findUnique({
+      where: { id: eventId },
+      include: { schedule: true }
+    });
+    
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    
+    // Send immediate reminder in background
+    notifyAllUsers(
+      `🔔 REMINDER: ${event.title}`,
+      message || `This is a reminder for "${event.title}" happening on ${new Date(event.eventDate).toLocaleDateString()} at ${event.eventTime} in ${event.location}`,
+      "event_reminder",
+      { eventId, manual: true, priority: priority }
+    ).catch(console.error);
+    
+    res.json({ success: true, message: "Reminder sent successfully" });
+  } catch (err) {
+    console.error("Error sending reminder:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+console.log("✅ Schedule management routes loaded successfully");
 
 // ================== START SERVER ==================
 const PORT = 5000;

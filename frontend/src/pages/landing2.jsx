@@ -374,7 +374,7 @@ function Landing2() {
             </p>
 
             <p className="about-text">
-              Our matron was Madam Veronica and our patron was Mr. Martin Butita. The chair was <strong>Magige Brian</strong>, the vice moderator was <strong>Shiru</strong>, <strong>Nick</strong> was the secretary, and <strong>Petronila</strong> was the organizing secretary. I cannot remember the specific roles of the others.
+              Our matron was Madam Veronica and our patron was Mr. Martin Butita. The chair was <strong>Magige Brian</strong>, the vice moderator was <strong>Shiru</strong>, <strong>Nick</strong> was the secretary, and <strong>Petronila</strong> was the organizing secretary. 
             </p>
 
             <p className="about-text">

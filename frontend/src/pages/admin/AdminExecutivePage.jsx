@@ -328,21 +328,7 @@ export default function AdminExecutivePage() {
   const goBack = () => navigate(-1);
   const goHome = () => navigate('/admin');
 
-  if (loading) {
-    return (
-      <div className="admin-executive-loader">
-        <div className="loader-spinner">
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <Shield size={40} className="loader-icon" />
-        </div>
-        <h3>Executive Management</h3>
-        <p>Loading leadership structure...</p>
-      </div>
-    );
-  }
-
+ 
   const grouped = groupedPositions();
 
   return (

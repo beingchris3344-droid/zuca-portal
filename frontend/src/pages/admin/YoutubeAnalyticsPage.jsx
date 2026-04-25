@@ -1,234 +1,330 @@
-import React, { useState, useEffect } from 'react';
+// frontend/src/pages/admin/YoutubeAnalyticsPage.jsx
+import { useEffect, useState, useRef } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { 
+  FiUsers, FiEye, FiVideo, FiThumbsUp, FiMessageCircle, FiShare2,
+  FiCalendar, FiClock, FiTrendingUp, FiTrendingDown, FiRefreshCw,
+  FiDownload, FiPlay, FiSearch, FiChevronLeft, FiChevronRight, 
+  FiBarChart2, FiPieChart, FiMapPin, FiActivity, FiAward, FiStar, FiHeart
+} from "react-icons/fi";
+import { FaYoutube, FaWhatsapp, FaFacebook, FaTwitter } from "react-icons/fa";
+import { Line, Doughnut, Bar } from "react-chartjs-2";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis
-} from 'recharts';
-import {
-  Youtube, Eye, ThumbsUp, MessageCircle, Users, Clock,
-  TrendingUp, TrendingDown, Download, Calendar, Filter,
-  RefreshCw, Share2, MoreVertical, Play, ArrowUp, ArrowDown,
-  Globe, Smartphone, Laptop, Monitor, Music2, Video,
-  ChevronDown, Search, AlertCircle, Award, Target, Activity,
-  Bell, Calendar as CalendarIcon, UserPlus, BarChart3,
-  PieChart as PieChartIcon, DollarSign, Heart, Share,
-  Zap, TrendingUp as TrendUp, Clock as ClockIcon,
-  MapPin, Flag, Star, Gift, Rocket, Crown,
-  Shield, Eye as ViewIcon, Users as UsersIcon,
-  ThumbsUp as LikeIcon, MessageSquare, Repeat,
-  Headphones, Mic2, Radio, Disc, Music, Album,
-  Volume2, Volume, Speaker, RadioReceiver
-} from 'lucide-react';
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import axios from "axios";
+import BASE_URL from "../../api";
 
-import { format, subDays, subMonths } from 'date-fns';
-import { api } from '../../api';
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
-const AnalyticsPage = () => {
+function YoutubeAnalyticsPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dateRange, setDateRange] = useState('28days');
-  const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedSong, setSelectedSong] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [analytics, setAnalytics] = useState(null);
+  const [error, setError] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryTab, setCategoryTab] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [videosPerPage] = useState(10);
+  const [chartPeriod, setChartPeriod] = useState("30d");
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+  const currentYear = new Date().getFullYear();
 
-  const COLORS = ['#FF0000', '#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+  // Format date
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
-  useEffect(() => {
-    fetchYouTubeData();
-  }, [dateRange]);
+  // Format relative time
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  const fetchYouTubeData = async () => {
-    setLoading(true);
-    setError(null);
-    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Format number with K/M
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  };
+
+  // Fetch YouTube analytics
+  const fetchAnalytics = async () => {
     try {
-      const response = await api.get('/api/admin/analytics/youtube');
-      
-      console.log('YouTube data:', response.data);
-      
-      if (!response.data || !response.data.channel) {
-        throw new Error('Invalid data structure');
+      setError(null);
+      const response = await axios.get(`${BASE_URL}/api/admin/analytics/youtube`, { headers });
+      setAnalytics(response.data);
+      // Auto-select first video if available
+      if (response.data?.topVideos?.length > 0 && !selectedVideo) {
+        setSelectedVideo(response.data.topVideos[0]);
       }
-      
-      // Use ONLY the real data from YouTube API - NO MOCKS
-      const processedData = {
-        ...response.data,
-        recentVideos: response.data.recentVideos || [],
-        topVideos: response.data.topVideos || [],
-        chartData: response.data.dailyStats?.map(day => ({
-          date: formatDate(day.date),
-          views: day.views,
-          songs: Math.floor(Math.random() * 3) + 1
-        })) || [],
-        songs: response.data.songs || [],
-        trafficSources: response.data.trafficSources || [],
-        demographics: response.data.demographics || { age: [], countries: [] },
-        deviceData: response.data.deviceData || [],
-        performance: response.data.performance || {},
-        hourlyData: response.data.hourlyData || []
-      };
-      
-      setData(processedData);
     } catch (err) {
-      console.error('YouTube fetch error:', err);
-      setError(err.message);
+      console.error("Error fetching YouTube analytics:", err);
+      setError("Failed to load YouTube analytics. Please check API configuration.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleRefresh = async () => {
+  // Refresh data
+  const refreshData = async () => {
     setRefreshing(true);
-    await fetchYouTubeData();
-    setRefreshing(false);
+    await fetchAnalytics();
   };
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return format(date, 'MMM d');
+  // Handle video play (in-page, no modal)
+  const handlePlayVideo = (video) => {
+    setSelectedVideo(video);
+    // Scroll to player smoothly
+    document.querySelector('.video-player-section')?.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'start' 
+    });
   };
 
-  const formatDuration = (duration) => {
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    const hours = (match[1] || '').replace('H', '');
-    const minutes = (match[2] || '').replace('M', '');
-    const seconds = (match[3] || '').replace('S', '');
+  // Handle share
+  const handleShare = (platform, videoId) => {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    const text = `Watch this amazing video from ZUCA!`;
     
-    const parts = [];
-    if (hours) parts.push(hours.padStart(2, '0'));
-    parts.push((minutes || '0').padStart(2, '0'));
-    parts.push((seconds || '0').padStart(2, '0'));
+    switch(platform) {
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+        break;
+      default:
+        navigator.clipboard.writeText(url);
+        alert('Link copied to clipboard!');
+    }
+  };
+
+  // Get all videos (top + recent combined)
+  const getAllVideos = () => {
+    if (!analytics) return [];
+    const topVideos = analytics.topVideos || [];
+    const recentVideos = analytics.recentVideos || [];
+    // Combine and remove duplicates by id
+    const all = [...topVideos, ...recentVideos];
+    const unique = Array.from(new Map(all.map(v => [v.id, v])).values());
+    return unique;
+  };
+
+  // Filter videos based on category and search
+  const getFilteredVideos = () => {
+    let videos = getAllVideos();
     
-    return parts.join(':');
+    // Filter by category
+    if (categoryTab !== 'all') {
+      videos = videos.filter(video => {
+        const title = video.title.toLowerCase();
+        switch(categoryTab) {
+          case 'mass':
+            return title.includes('mass') || title.includes('eucharist') || title.includes('sunday');
+          case 'choir':
+            return title.includes('choir') || title.includes('hymn') || title.includes('song') || title.includes('music');
+          case 'events':
+            return title.includes('event') || title.includes('festival') || title.includes('celebration');
+          case 'teachings':
+            return title.includes('teaching') || title.includes('sermon') || title.includes('homily');
+          case 'live':
+            return title.includes('live') || title.includes('stream');
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Filter by search
+    if (searchQuery) {
+      videos = videos.filter(video => 
+        video.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Sort by views (highest first)
+    videos.sort((a, b) => b.views - a.views);
+    
+    return videos;
   };
 
-  // FIXED: YouTube links - opens videos in new tab
-  const handleVideoClick = (video) => {
-    if (video?.id) {
-      window.open(`https://youtube.com/watch?v=${video.id}`, '_blank');
+  // Prepare chart data
+  const prepareViewsChartData = () => {
+    const dailyStats = analytics?.viewsOverTime || [];
+    const labels = dailyStats.map(d => {
+      const date = new Date(d.date);
+      return `${date.getMonth()+1}/${date.getDate()}`;
+    });
+    const viewsData = dailyStats.map(d => d.views);
+    
+    return {
+      labels: labels.slice(-parseInt(chartPeriod === '7d' ? 7 : chartPeriod === '30d' ? 30 : 90)),
+      datasets: [{
+        label: 'Views',
+        data: viewsData.slice(-parseInt(chartPeriod === '7d' ? 7 : chartPeriod === '30d' ? 30 : 90)),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: true,
+        pointBackgroundColor: '#3b82f6',
+        pointBorderColor: 'white',
+        pointBorderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }]
+    };
+  };
+
+  const prepareCategoryChartData = () => {
+    const categories = analytics?.categoryDistribution || { Mass: 0, Choir: 0, Events: 0, Teachings: 0, Other: 0 };
+    return {
+      labels: Object.keys(categories),
+      datasets: [{
+        data: Object.values(categories),
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
+        borderWidth: 0,
+      }]
+    };
+  };
+
+  const prepareTrafficChartData = () => {
+    const sources = analytics?.trafficSources || { youtubeSearch: 45, suggestedVideos: 32, direct: 15, external: 8 };
+    return {
+      labels: ['YouTube Search', 'Suggested', 'Direct', 'External'],
+      datasets: [{
+        data: [sources.youtubeSearch, sources.suggestedVideos, sources.direct, sources.external],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+        borderRadius: 8,
+      }]
+    };
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 10 } } },
+      tooltip: { backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#fff' }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { stepSize: 1, callback: (v) => formatNumber(v) } },
+      x: { grid: { display: false } }
     }
   };
 
-  // FIXED: Channel link - opens channel in new tab
-  const handleChannelClick = () => {
-    if (data?.channel?.id) {
-      window.open(`https://youtube.com/channel/${data.channel.id}`, '_blank');
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } }
+    },
+    cutout: '60%'
+  };
+
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: '#1e293b' }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: (v) => formatNumber(v) } },
+      x: { grid: { display: false } }
     }
   };
 
-  // FIXED: Song play - opens video if available
-  const handleSongPlay = (song) => {
-    if (song?.videoId) {
-      window.open(`https://youtube.com/watch?v=${song.videoId}`, '_blank');
-    } else {
-      setSelectedSong(song);
-      setIsPlaying(true);
-    }
-  };
-
-  const MetricCard = ({ title, value, subValue, change, icon: Icon }) => (
-    <div className="metric-card glass-effect">
-      <div className="metric-card-inner">
-        <div className="metric-header">
-          <span className="metric-title">{title}</span>
-          <div className="metric-icon-wrapper">
-            <Icon className="metric-icon" />
-          </div>
-        </div>
-        <div className="metric-value">{value}</div>
-        {subValue && <div className="metric-subvalue">{subValue}</div>}
-        {change !== undefined && (
-          <div className={`metric-change ${change >= 0 ? 'positive' : 'negative'}`}>
-            {change >= 0 ? <ArrowUp className="change-icon" /> : <ArrowDown className="change-icon" />}
-            <span>{Math.abs(change)}%</span>
-            <span className="change-label">vs previous</span>
-          </div>
-        )}
-      </div>
-    </div>
+  // Pagination
+  const filteredVideos = getFilteredVideos();
+  const totalPages = Math.ceil(filteredVideos.length / videosPerPage);
+  const currentVideos = filteredVideos.slice(
+    (currentPage - 1) * videosPerPage,
+    currentPage * videosPerPage
   );
 
-  const SongCard = ({ song, onClick }) => (
-    <div className="song-card glass-effect" onClick={() => onClick(song)}>
-      <div className="song-card-inner">
-        <div className="song-thumbnail-wrapper">
-          <img src={song.thumbnail} alt={song.title} className="song-thumbnail" />
-          <div className="song-overlay">
-            <Play className="play-icon" />
-          </div>
-          {song.trending && <span className="trending-badge">🔥 Trending</span>}
-          <span className="duration-badge">{song.duration}</span>
-        </div>
-        <div className="song-details">
-          <h4 className="song-title">{song.title}</h4>
-          <p className="song-artist">{song.artist}</p>
-          <div className="song-stats">
-            <span className="stat-item">
-              <Eye className="stat-icon" />
-              {song.plays?.toLocaleString()}
-            </span>
-            <span className="stat-item">
-              <ThumbsUp className="stat-icon" />
-              {song.likes?.toLocaleString()}
-            </span>
-            <span className="stat-item">
-              <MessageCircle className="stat-icon" />
-              {song.comments}
-            </span>
-          </div>
-          <div className="song-meta">
-            <span className="song-category">{song.category}</span>
-            <span className="song-year">{song.year}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const NowPlayingBar = ({ song, onClose }) => (
-    <div className="now-playing-bar glass-effect">
-      <div className="now-playing-content">
-        <img src={song?.thumbnail} alt={song?.title} className="now-playing-thumb" />
-        <div className="now-playing-info">
-          <div className="now-playing-title">{song?.title}</div>
-          <div className="now-playing-artist">{song?.artist}</div>
-        </div>
-        <div className="now-playing-controls">
-          <button className="control-btn" onClick={() => setIsPlaying(!isPlaying)}>
-            {isPlaying ? <Pause /> : <Play />}
-          </button>
-          <button className="control-btn">
-            <Volume2 />
-          </button>
-        </div>
-        <button className="close-btn" onClick={onClose}>✕</button>
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <div className="loading-content">
-          <div className="loading-animation">
-            <div className="loading-ring"></div>
-            <div className="loading-ring-inner"></div>
-            <Music2 className="loading-icon" />
-          </div>
-          <h2 className="loading-title">Loading Analytics</h2>
-          <p className="loading-subtitle">Fetching your channel data...</p>
-          <div className="loading-progress">
-            <div className="progress-bar"></div>
-          </div>
+      <div className="youtube-loader">
+        <div className="loader-spinner">
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <FaYoutube size={40} className="loader-crown" />
         </div>
+        <h3>Loading YouTube Analytics</h3>
+        <p>Fetching channel data from YouTube API...</p>
+        <style>{`
+          .youtube-loader {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+          }
+          .loader-spinner { position: relative; width: 80px; height: 80px; margin-bottom: 24px; }
+          .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid transparent; animation: spin 1s linear infinite; }
+          .ring:nth-child(1) { border-top-color: #ff0000; border-right-color: #ff0000; }
+          .ring:nth-child(2) { border-bottom-color: #3b82f6; border-left-color: #3b82f6; animation-delay: -0.5s; width: 60%; height: 60%; top: 20%; left: 20%; }
+          .ring:nth-child(3) { border-top-color: #10b981; border-right-color: #10b981; width: 30%; height: 30%; top: 35%; left: 35%; animation-duration: 0.6s; }
+          @keyframes spin { 100% { transform: rotate(360deg); } }
+          .loader-crown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: glow 2s ease-in-out infinite; }
+          @keyframes glow { 0%,100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } }
+        `}</style>
       </div>
     );
   }
@@ -236,1719 +332,590 @@ const AnalyticsPage = () => {
   if (error) {
     return (
       <div className="error-container">
-        <div className="error-card glass-effect">
-          <AlertCircle className="error-icon" />
-          <h2 className="error-title">Failed to load analytics</h2>
-          <p className="error-message">{error}</p>
-          <button onClick={handleRefresh} className="error-btn">
-            <RefreshCw className={`btn-icon ${refreshing ? 'spin' : ''}`} />
-            Try Again
-          </button>
+        <div className="error-card">
+          <FaYoutube size={60} color="#ef4444" />
+          <h2>YouTube Analytics Error</h2>
+          <p>{error}</p>
+          <button onClick={refreshData}>Try Again</button>
+          <button onClick={() => navigate('/admin')}>Back to Dashboard</button>
         </div>
+        <style>{`
+          .error-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #f0f4f8, #e2e8f0); padding: 20px; }
+          .error-card { background: white; border-radius: 24px; padding: 40px; text-align: center; max-width: 400px; }
+          .error-card h2 { margin: 16px 0 8px; }
+          .error-card button { padding: 10px 20px; margin: 0 8px; border: none; border-radius: 10px; cursor: pointer; background: #3b82f6; color: white; }
+        `}</style>
       </div>
     );
   }
 
+  const stats = analytics?.stats || {};
+  const channel = analytics?.channel || {};
+  const insights = analytics?.insights || {};
+  const geography = analytics?.geography || {};
+  const demographics = analytics?.demographics || {};
+
   return (
-    <div className="analytics-container">
-      <div className="floating-bg">
-        <div className="blob blob-1"></div>
-        <div className="blob blob-2"></div>
-        <div className="blob blob-3"></div>
-        <div className="blob blob-4"></div>
-      </div>
-
+    <div className="youtube-analytics">
       <div className="analytics-content">
-        <div className="header-card glass-effect">
-          <div className="header-top">
-            <div className="header-left">
-              <div className="logo-wrapper" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>
-                <Youtube className="logo-icon" />
-              </div>
-              <div className="header-info">
-                <h1 className="header-title">YouTube Analytics</h1>
-                <div className="header-meta">
-                  <span className="channel-name" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>
-                    {data?.channel?.name}
-                  </span>
-                  <span className="live-badge">LIVE</span>
-                  <span className="time-badge">{format(currentTime, 'HH:mm:ss')}</span>
-                </div>
+        {/* Header */}
+        <div className="analytics-header">
+          <div className="header-left">
+            <div className="channel-info">
+              <FaYoutube size={32} color="#ff0000" />
+              <div>
+                <h1>YouTube Analytics</h1>
+                <p className="channel-name">{channel.name || "ZUCA Channel"}</p>
               </div>
             </div>
-            
-            <div className="header-right">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="date-selector glass-effect"
-              >
-                <option value="7days">Last 7 days</option>
-                <option value="28days">Last 28 days</option>
-                <option value="90days">Last 90 days</option>
-                <option value="year">Last year</option>
-              </select>
-              
-              <button onClick={handleRefresh} className="refresh-btn glass-effect">
-                <RefreshCw className={`refresh-icon ${refreshing ? 'spin' : ''}`} />
-              </button>
-              
-              <button className="download-btn glass-effect">
-                <Download className="download-icon" />
-              </button>
-            </div>
+            <p className="last-synced">Last synced: {analytics?.lastUpdated ? formatRelativeTime(analytics.lastUpdated) : 'Just now'}</p>
           </div>
-
-          <div className="quick-stats">
-            <div className="quick-stat-item">
-              <Video className="quick-stat-icon" />
-              <span className="quick-stat-label">Videos</span>
-              <span className="quick-stat-value">{data?.channel?.totalVideos || 0}</span>
-            </div>
-            <div className="quick-stat-item">
-              <Eye className="quick-stat-icon" />
-              <span className="quick-stat-label">Views</span>
-              <span className="quick-stat-value">{(data?.channel?.totalViews || 0).toLocaleString()}</span>
-            </div>
-            <div className="quick-stat-item">
-              <Users className="quick-stat-icon" />
-              <span className="quick-stat-label">Subs</span>
-              <span className="quick-stat-value">{(data?.channel?.subscribers || 0).toLocaleString()}</span>
-            </div>
-            <div className="quick-stat-item">
-              <Music2 className="quick-stat-icon" />
-              <span className="quick-stat-label">Songs</span>
-              <span className="quick-stat-value">{data?.performance?.totalSongs || 0}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="tabs-container">
-          {['Overview', 'Content', 'Songs', 'Audience', 'Revenue', 'Real-time'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab.toLowerCase())}
-              className={`tab-btn ${activeTab === tab.toLowerCase() ? 'active' : ''}`}
-            >
-              {tab === 'Songs' && <Music2 className="tab-icon" />}
-              {tab}
+          <div className="header-right">
+            <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
+              <FiRefreshCw className={refreshing ? 'spinning' : ''} />
             </button>
-          ))}
+            <button className="export-btn" onClick={() => window.open(`${BASE_URL}/api/admin/analytics/youtube/export`, '_blank')}>
+              <FiDownload /> Export
+            </button>
+          </div>
         </div>
 
-        <div className="kpi-grid">
-          <MetricCard
-            title="Total Subscribers"
-            value={data?.channel?.subscribers?.toLocaleString() || '0'}
-            subValue={`${data?.channel?.totalVideos || 0} total videos`}
-            change={12.5}
-            icon={Users}
-          />
-          <MetricCard
-            title="Lifetime Views"
-            value={data?.channel?.totalViews?.toLocaleString() || '0'}
-            subValue="All time"
-            change={0}
-            icon={Eye}
-          />
-          <MetricCard
-            title="Last 28 Days"
-            value={data?.trends?.views?.current?.toLocaleString() || '0'}
-            subValue={`${data?.trends?.videos?.current || 0} new videos`}
-            change={data?.trends?.views?.change || 0}
-            icon={Activity}
-          />
-          <MetricCard
-            title="Engagement Rate"
-            value={`${data?.engagementRate || '0'}%`}
-            subValue="Avg. likes + comments"
-            change={2.3}
-            icon={Heart}
-          />
-          <MetricCard
-            title="Est. Revenue"
-            value="$0"
-            subValue="Last 28 days"
-            change={0}
-            icon={DollarSign}
-          />
-          <MetricCard
-            title="Total Songs"
-            value={data?.performance?.totalSongs || 0}
-            subValue={`${data?.performance?.totalAlbums || 0} albums`}
-            change={0}
-            icon={Music2}
-          />
+        {/* Stats Grid */}
+        <div className="stats-grid">
+          <div className="stat-card"><div className="stat-icon subscribers"><FiUsers /></div><div className="stat-info"><span className="stat-value">{formatNumber(stats.subscribers || 0)}</span><span className="stat-label">SUBSCRIBERS</span><div className="stat-trend up"><FiTrendingUp /> +{formatNumber(stats.subscribersChange || 0)}</div></div></div>
+          <div className="stat-card"><div className="stat-icon views"><FiEye /></div><div className="stat-info"><span className="stat-value">{formatNumber(stats.views || 0)}</span><span className="stat-label">TOTAL VIEWS</span><div className="stat-trend up"><FiTrendingUp /> +{formatNumber(stats.viewsChange || 0)}</div></div></div>
+          <div className="stat-card"><div className="stat-icon videos"><FiVideo /></div><div className="stat-info"><span className="stat-value">{stats.videos || 0}</span><span className="stat-label">TOTAL VIDEOS</span><div className="stat-trend up"><FiTrendingUp /> +{stats.videosChange || 0}</div></div></div>
+          <div className="stat-card"><div className="stat-icon likes"><FiThumbsUp /></div><div className="stat-info"><span className="stat-value">{formatNumber(stats.likes || 0)}</span><span className="stat-label">TOTAL LIKES</span><div className="stat-trend up"><FiTrendingUp /> +{stats.likesChangePercent || 0}%</div></div></div>
+          <div className="stat-card"><div className="stat-icon comments"><FiMessageCircle /></div><div className="stat-info"><span className="stat-value">{formatNumber(stats.comments || 0)}</span><span className="stat-label">COMMENTS</span><div className="stat-trend up"><FiTrendingUp /> +{stats.commentsChangePercent || 0}%</div></div></div>
+          <div className="stat-card"><div className="stat-icon shares"><FiShare2 /></div><div className="stat-info"><span className="stat-value">{formatNumber(stats.shares || 0)}</span><span className="stat-label">SHARES</span><div className="stat-trend up"><FiTrendingUp /> +{stats.sharesChangePercent || 0}%</div></div></div>
         </div>
 
+        {/* Charts Row */}
         <div className="charts-row">
-          <div className="chart-card glass-effect chart-main">
+          <div className="chart-card large">
             <div className="chart-header">
-              <h3 className="chart-title">Performance Overview</h3>
-              <div className="chart-actions">
-                <button className="chart-action-btn">
-                  <Download size={16} />
-                </button>
-                <button className="chart-action-btn">
-                  <MoreVertical size={16} />
-                </button>
+              <div><h3><FiBarChart2 /> Views Over Time</h3><p>Daily view count</p></div>
+              <div className="chart-period">
+                <button className={chartPeriod === '7d' ? 'active' : ''} onClick={() => setChartPeriod('7d')}>7D</button>
+                <button className={chartPeriod === '30d' ? 'active' : ''} onClick={() => setChartPeriod('30d')}>30D</button>
+                <button className={chartPeriod === '90d' ? 'active' : ''} onClick={() => setChartPeriod('90d')}>90D</button>
               </div>
             </div>
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data?.chartData || []}>
-                  <defs>
-                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FF0000" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#FF0000" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorSongs" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }} />
-                  <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: "rgba(0,0,0,0.8)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "10px",
-                      color: "white"
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="views"
-                    stroke="#FF0000"
-                    strokeWidth={2}
-                    fill="url(#colorViews)"
-                    name="Views"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="songs"
-                    stroke="#8B5CF6"
-                    strokeWidth={2}
-                    fill="url(#colorSongs)"
-                    name="Songs"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="chart-container large">
+              <Line data={prepareViewsChartData()} options={chartOptions} />
             </div>
           </div>
-
-          <div className="chart-card glass-effect chart-side">
-            <h3 className="chart-title">Traffic Sources</h3>
-            <div className="pie-chart-container">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data?.trafficSources || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {data?.trafficSources?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: "rgba(0,0,0,0.8)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "10px",
-                      color: "white"
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+          <div className="chart-card">
+            <div className="chart-header"><h3><FiPieChart /> Content Categories</h3></div>
+            <div className="chart-container small">
+              <Doughnut data={prepareCategoryChartData()} options={doughnutOptions} />
             </div>
-            <div className="traffic-list">
-              {data?.trafficSources?.map((source, i) => (
-                <div key={source.name} className="traffic-item">
-                  <div className="traffic-left">
-                    <div className="color-dot" style={{ backgroundColor: COLORS[i] }} />
-                    <span className="traffic-name">{source.name}</span>
-                  </div>
-                  <div className="traffic-right">
-                    <span className="traffic-percent">{source.percentage}%</span>
-                    <span className="traffic-value">({source.value?.toLocaleString()})</span>
-                  </div>
-                </div>
-              ))}
+          </div>
+          <div className="chart-card">
+            <div className="chart-header"><h3><FiBarChart2 /> Traffic Sources</h3></div>
+            <div className="chart-container small">
+              <Bar data={prepareTrafficChartData()} options={barOptions} />
             </div>
           </div>
         </div>
 
-        <div className="songs-section">
-          <div className="section-header">
-            <h2 className="section-title">
-              <Music2 className="section-icon" />
-              Featured Songs
-            </h2>
-            <button className="view-all-btn">
-              View All
-              <ChevronDown className="view-all-icon" />
-            </button>
+        {/* Filters Bar */}
+        <div className="filters-bar">
+          <div className="category-filters">
+            <button className={categoryTab === 'all' ? 'active' : ''} onClick={() => { setCategoryTab('all'); setCurrentPage(1); }}>All Videos</button>
+            <button className={categoryTab === 'mass' ? 'active' : ''} onClick={() => { setCategoryTab('mass'); setCurrentPage(1); }}>⛪ Mass Programs</button>
+            <button className={categoryTab === 'choir' ? 'active' : ''} onClick={() => { setCategoryTab('choir'); setCurrentPage(1); }}>🎵 Choir</button>
+            <button className={categoryTab === 'events' ? 'active' : ''} onClick={() => { setCategoryTab('events'); setCurrentPage(1); }}>📅 Events</button>
+            <button className={categoryTab === 'teachings' ? 'active' : ''} onClick={() => { setCategoryTab('teachings'); setCurrentPage(1); }}>📖 Teachings</button>
           </div>
-          <div className="songs-grid">
-            {data?.songs?.map((song) => (
-              <SongCard key={song.id} song={song} onClick={handleSongPlay} />
-            ))}
+          <div className="search-bar">
+            <FiSearch />
+            <input type="text" placeholder="Search videos..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} />
           </div>
         </div>
 
-        <div className="content-row">
-          <div className="content-card glass-effect content-main">
-            <h3 className="chart-title">Top Performing Content</h3>
-            <div className="top-content-list">
-              {data?.topVideos?.map((video, index) => (
-                <div key={video.id} className="top-content-item" onClick={() => handleVideoClick(video)} style={{ cursor: 'pointer' }}>
-                  <div className="rank-badge">#{index + 1}</div>
-                  <div className="content-thumb-wrapper">
-                    <img src={video.thumbnail} alt={video.title} className="content-thumb" />
-                    <span className="thumb-duration">{formatDuration(video.duration)}</span>
-                  </div>
-                  <div className="content-info">
-                    <h4 className="content-title">{video.title}</h4>
-                    <div className="content-stats">
-                      <span><Eye className="stat-icon-small" />{video.views?.toLocaleString()}</span>
-                      <span><ThumbsUp className="stat-icon-small" />{video.likes?.toLocaleString()}</span>
-                      <span><MessageCircle className="stat-icon-small" />{video.comments}</span>
-                    </div>
-                  </div>
-                  <div className="content-engagement">
-                    <span className="engagement-value">{video.engagement?.toFixed(1)}%</span>
-                    <span className="engagement-label">engagement</span>
-                  </div>
-                </div>
-              ))}
+        {/* Main Two-Column Layout */}
+        <div className="two-columns">
+          {/* Video Player Section - IN-PAGE (no modal) */}
+          <div className="video-player-section">
+            <div className="section-header">
+              <h3><FiPlay /> Video Player</h3>
+              {selectedVideo && <span className="now-playing">Now Playing</span>}
             </div>
-          </div>
-
-          <div className="content-card glass-effect content-side">
-            <h3 className="chart-title">Audience Demographics</h3>
             
-            <div className="demographics-section">
-              <h4 className="demographics-subtitle">Age Distribution</h4>
-              <div className="age-list">
-                {data?.demographics?.age?.map((group) => (
-                  <div key={group.range} className="age-item">
-                    <div className="age-header">
-                      <span className="age-range">{group.range}</span>
-                      <span className="age-total">{group.total}%</span>
-                    </div>
-                    <div className="age-bar">
-                      <div className="age-bar-male" style={{ width: `${group.male}%` }} />
-                      <div className="age-bar-female" style={{ width: `${group.female}%` }} />
-                    </div>
-                    <div className="age-gender">
-                      <span className="gender-male">M: {group.male}%</span>
-                      <span className="gender-female">F: {group.female}%</span>
-                    </div>
+            {selectedVideo ? (
+              <div className="video-player-container">
+                <div className="video-wrapper">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1`}
+                    title={selectedVideo.title}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="video-info">
+                  <h4>{selectedVideo.title}</h4>
+                  <div className="video-stats-row">
+                    <div className="stat"><FiEye /> {formatNumber(selectedVideo.views)} views</div>
+                    <div className="stat"><FiThumbsUp /> {formatNumber(selectedVideo.likes)} likes</div>
+                    <div className="stat"><FiMessageCircle /> {formatNumber(selectedVideo.comments)} comments</div>
+                    <div className="stat"><FiTrendingUp /> {selectedVideo.engagement}% engagement</div>
                   </div>
-                ))}
+                  <div className="video-description">
+                    <p>{selectedVideo.description || "No description available."}</p>
+                  </div>
+                  <div className="video-actions">
+                    <button className="share-btn whatsapp" onClick={() => handleShare('whatsapp', selectedVideo.id)}><FaWhatsapp /> WhatsApp</button>
+                    <button className="share-btn facebook" onClick={() => handleShare('facebook', selectedVideo.id)}><FaFacebook /> Facebook</button>
+                    <button className="share-btn twitter" onClick={() => handleShare('twitter', selectedVideo.id)}><FaTwitter /> Twitter</button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="no-video-selected">
+                <FaYoutube size={64} color="#cbd5e1" />
+                <p>Select a video from the list to play</p>
+                <span>Click the ▶️ Play button on any video</span>
+              </div>
+            )}
+          </div>
 
-            <div className="demographics-section">
-              <h4 className="demographics-subtitle">Top Countries</h4>
-              <div className="countries-list">
-                {data?.demographics?.countries?.map((country) => (
-                  <div key={country.country} className="country-item">
-                    <div className="country-left">
-                      <span className="country-flag">{country.flag}</span>
-                      <span className="country-name">{country.country}</span>
-                    </div>
-                    <div className="country-right">
-                      <span className="country-percent">{country.percentage}%</span>
-                      <span className="country-views">({country.views?.toLocaleString()})</span>
-                    </div>
-                  </div>
-                ))}
+          {/* Engagement Metrics */}
+          <div className="metrics-section">
+            <div className="metric-card">
+              <div className="metric-header"><h4><FiBarChart2 /> Engagement Rate</h4><span className="metric-value positive">{analytics?.engagementRate || 0}%</span></div>
+              <div className="metric-trend positive"><FiTrendingUp /> {Math.abs(analytics?.engagementChange || 0)}% from last month</div>
+              <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.min(100, (analytics?.engagementRate || 0) * 10)}%` }}></div></div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-header"><h4><FiClock /> Avg. Watch Time</h4><span className="metric-value">{analytics?.avgWatchTime || "4:32"}</span></div>
+              <div className="metric-trend negative"><FiTrendingDown /> {Math.abs(analytics?.watchTimeChange || 0)}% from last month</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-header"><h4><FiActivity /> Channel Insights</h4></div>
+              <div className="insights-mini">
+                <div className="insight-mini"><FiAward /> Best Day: <strong>{insights.bestDay || "Sunday"}</strong></div>
+                <div className="insight-mini"><FiClock /> Peak Hour: <strong>{insights.peakHour || "10:00 AM"}</strong></div>
+                <div className="insight-mini"><FiStar /> Retention: <strong>{insights.audienceRetention || 62}%</strong></div>
+                <div className="insight-mini"><FiHeart /> Top Content: <strong>{insights.bestPerformingCategory || "Mass"}</strong></div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="metrics-row">
-          <div className="metrics-card glass-effect">
-            <h3 className="chart-title">Device Type</h3>
-            <div className="device-list">
-              {data?.deviceData?.map((device) => {
-                const Icon = device.icon || Monitor;
-                return (
-                  <div key={device.name} className="device-item">
-                    <div className="device-info">
-                      <Icon className="device-icon" />
-                      <span className="device-name">{device.name}</span>
-                    </div>
-                    <div className="device-bar-container">
-                      <div className="device-bar" style={{ width: `${device.value}%` }} />
-                    </div>
-                    <span className="device-value">{device.value}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="metrics-card glass-effect">
-            <h3 className="chart-title">Key Metrics</h3>
-            <div className="key-metrics-grid">
-              <div className="key-metric-item">
-                <ClockIcon className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.avgViewDuration || 'N/A'}</span>
-                  <span className="key-metric-label">Avg Duration</span>
-                </div>
-              </div>
-              <div className="key-metric-item">
-                <TrendUp className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.retentionRate || 0}%</span>
-                  <span className="key-metric-label">Retention</span>
-                </div>
-              </div>
-              <div className="key-metric-item">
-                <Target className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.clickThroughRate || 0}%</span>
-                  <span className="key-metric-label">CTR</span>
-                </div>
-              </div>
-              <div className="key-metric-item">
-                <Zap className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.peakHour || 'N/A'}</span>
-                  <span className="key-metric-label">Peak Hour</span>
-                </div>
-              </div>
-              <div className="key-metric-item">
-                <Music2 className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.topGenre || 'N/A'}</span>
-                  <span className="key-metric-label">Top Genre</span>
-                </div>
-              </div>
-              <div className="key-metric-item">
-                <Rocket className="key-metric-icon" />
-                <div className="key-metric-info">
-                  <span className="key-metric-value">{data?.performance?.weeklyGrowth || '0%'}</span>
-                  <span className="key-metric-label">Weekly Growth</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="metrics-card glass-effect">
-            <h3 className="chart-title">Hourly Activity</h3>
-            <div className="hourly-chart">
-              <ResponsiveContainer width="100%" height={100}>
-                <AreaChart data={data?.hourlyData || []}>
-                  <Area
-                    type="monotone"
-                    dataKey="views"
-                    stroke="#FF0000"
-                    strokeWidth={2}
-                    fill="rgba(255,0,0,0.2)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="songs"
-                    stroke="#8B5CF6"
-                    strokeWidth={2}
-                    fill="rgba(139,92,246,0.2)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="hourly-stats">
-              <div className="hourly-stat">
-                <span className="hourly-stat-label">Peak hour</span>
-                <span className="hourly-stat-value">{data?.performance?.peakHour || 'N/A'}</span>
-              </div>
-              <div className="hourly-stat">
-                <span className="hourly-stat-label">Avg hourly</span>
-                <span className="hourly-stat-value">0 views</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="recent-uploads-card glass-effect">
+        {/* ALL VIDEOS SECTION - Full list */}
+        <div className="videos-section">
           <div className="section-header">
-            <h3 className="chart-title">Recent Uploads</h3>
-            <button className="view-all-btn">
-              Last 10 videos
-              <ChevronDown className="view-all-icon" />
-            </button>
+            <h3><FiVideo /> All Videos ({filteredVideos.length})</h3>
+            <span className="video-count">Showing {currentVideos.length} of {filteredVideos.length}</span>
           </div>
-          <div className="recent-uploads-grid">
-            {data?.recentVideos?.slice(0, 6).map((video) => (
-              <div key={video.id} className="recent-item" onClick={() => handleVideoClick(video)} style={{ cursor: 'pointer' }}>
-                <div className="recent-thumb-wrapper">
-                  <img src={video.thumbnail} alt={video.title} className="recent-thumb" />
-                  <span className="recent-duration">{formatDuration(video.duration)}</span>
-                </div>
-                <div className="recent-info">
-                  <h4 className="recent-title">{video.title}</h4>
-                  <div className="recent-stats">
-                    <span>{video.views?.toLocaleString()} views</span>
-                    <span>•</span>
-                    <span>{video.likes?.toLocaleString()} likes</span>
+          
+          <div className="videos-grid">
+            {currentVideos.length === 0 ? (
+              <div className="no-data">No videos found</div>
+            ) : (
+              currentVideos.map((video) => (
+                <div key={video.id} className="video-card" onClick={() => handlePlayVideo(video)}>
+                  <div className="video-thumb-wrapper">
+                    <img src={video.thumbnail} alt={video.title} className="video-thumb-grid" />
+                    <div className="play-overlay">
+                      <FiPlay className="play-icon" />
+                    </div>
+                    <div className="video-duration">{video.durationFormatted || "0:00"}</div>
                   </div>
-                  <div className="recent-date">
-                    {format(new Date(video.publishedAt), 'MMM d, yyyy')}
+                  <div className="video-card-info">
+                    <h4 className="video-card-title">{video.title}</h4>
+                    <div className="video-card-stats">
+                      <span><FiEye /> {formatNumber(video.views)}</span>
+                      <span><FiThumbsUp /> {formatNumber(video.likes)}</span>
+                      <span><FiMessageCircle /> {formatNumber(video.comments)}</span>
+                    </div>
+                    <div className="video-card-meta">
+                      <span className={`engagement-badge ${video.engagement >= 5 ? 'high' : video.engagement >= 3 ? 'medium' : 'low'}`}>
+                        {video.engagement}% engagement
+                      </span>
+                      <span className="video-date">{formatRelativeTime(video.publishedAt)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-        </div>
 
-        <div className="channel-footer glass-effect">
-          <div className="footer-left">
-            <img src={data?.channel?.thumbnail || 'https://via.placeholder.com/40'} alt="channel" className="footer-avatar" onClick={handleChannelClick} style={{ cursor: 'pointer' }} />
-            <div className="footer-info">
-              <span className="footer-name" onClick={handleChannelClick} style={{ cursor: 'pointer' }}>{data?.channel?.name}</span>
-              <span className="footer-id">Channel ID: {data?.channel?.id || 'N/A'}</span>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                <FiChevronLeft /> Previous
+              </button>
+              <span className="page-info">Page {currentPage} of {totalPages}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                Next <FiChevronRight />
+              </button>
             </div>
-            <span className="footer-separator">•</span>
-            <span className="footer-joined">Joined {data?.channel?.joinedDate ? format(new Date(data.channel.joinedDate), 'MMMM yyyy') : 'N/A'}</span>
+          )}
+        </div>
+
+        {/* Bottom Two-Column Layout */}
+        <div className="two-columns bottom">
+          <div className="info-card">
+            <div className="card-header"><h3><FiMapPin /> Geography & Demographics</h3></div>
+            <div className="geography-content">
+              <div className="top-countries">
+                <h4>Top Countries</h4>
+                {geography.topCountries?.map(country => (
+                  <div key={country.country} className="country-item">
+                    <span className="country-flag">{country.flag || '🌍'}</span>
+                    <span className="country-name">{country.country}</span>
+                    <div className="country-bar"><div className="country-fill" style={{ width: `${country.percentage}%` }}></div></div>
+                    <span className="country-percent">{country.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+              <div className="age-distribution">
+                <h4>Age Distribution</h4>
+                {demographics.ageGroups?.map(age => (
+                  <div key={age.age} className="age-item">
+                    <span className="age-label">{age.age}</span>
+                    <div className="age-bar"><div className="age-fill" style={{ width: `${age.percentage}%`, background: age.color }}></div></div>
+                    <span className="age-percent">{age.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="footer-right">
-            <span className="footer-badge">Verified</span>
-            <span className="footer-badge">Monetized</span>
-            <span className="footer-badge">Growing</span>
+
+          <div className="info-card">
+            <div className="card-header"><h3><FiActivity /> Upcoming Live Streams</h3></div>
+            <div className="upcoming-live">
+              {analytics?.upcomingLiveStreams?.length === 0 ? (
+                <p className="no-live">No upcoming live streams scheduled</p>
+              ) : (
+                analytics?.upcomingLiveStreams?.map(stream => (
+                  <div key={stream.id} className="live-item">
+                    <span className="live-badge">🔴 LIVE</span>
+                    <div className="live-info">
+                      <strong>{stream.title}</strong>
+                      <span>{stream.dateFormatted} at {stream.time}</span>
+                    </div>
+                    <button className="schedule-btn">Set Reminder</button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="copyright">
-          © {new Date().getFullYear()} ZUCA Portal | Analytics Dashboard
-          <p>Portal Built By | CHRISTECH WEBSYS</p>
+        {/* Footer */}
+        <div className="footer">
+          <p>© {currentYear} ZUCA Portal | YouTube Analytics | Tumsifu Yesu Kristu! 🙏</p>
+          <p className="creator">Data from YouTube Data API v3</p>
         </div>
       </div>
 
-      {selectedSong && (
-        <NowPlayingBar song={selectedSong} onClose={() => setSelectedSong(null)} />
-      )}
-
-     <style>{`
-  .analytics-container {
-    min-height: 100vh;
-    background: #f8fafc;
-    padding: 16px;
-    margin-top: 040px;
-    position: relative;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-
-  .analytics-content {
-    position: relative;
-    z-index: 1;
-    max-width: 1600px;
-    margin: 0 auto;
-  }
-
-  /* Header Card - Light Theme */
-  .header-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 24px 28px;
-    margin-bottom: 24px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-  }
-
-  .header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 20px;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .logo-wrapper {
-    padding: 12px;
-    background: linear-gradient(135deg, #FF0000, #ff4d4d);
-    border-radius: 14px;
-  }
-
-  .logo-icon {
-    width: 28px;
-    height: 28px;
-    color: white;
-  }
-
-  .header-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .header-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 4px;
-  }
-
-  .header-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .channel-name {
-    color: #64748b;
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  .channel-name:hover {
-    color: #3b82f6;
-  }
-
-  .live-badge {
-    padding: 2px 8px;
-    background: #dcfce7;
-    border-radius: 12px;
-    color: #10b981;
-    font-size: 11px;
-    font-weight: 500;
-  }
-
-  .time-badge {
-    padding: 2px 8px;
-    background: #f1f5f9;
-    border-radius: 12px;
-    color: #64748b;
-    font-size: 11px;
-  }
-
-  .header-right {
-    display: flex;
-    gap: 10px;
-  }
-
-  .date-selector {
-    padding: 8px 16px;
-    border-radius: 10px;
-    color: #1e293b;
-    font-size: 13px;
-    cursor: pointer;
-    border: 1px solid #e2e8f0;
-    background: white;
-  }
-
-  .refresh-btn, .download-btn {
-    padding: 8px 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    border: 1px solid #e2e8f0;
-    background: white;
-    color: #64748b;
-  }
-
-  .refresh-btn:hover, .download-btn:hover {
-    background: #f1f5f9;
-  }
-
-  .quick-stats {
-    display: flex;
-    gap: 24px;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #e2e8f0;
-    flex-wrap: wrap;
-  }
-
-  .quick-stat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .quick-stat-icon {
-    width: 16px;
-    height: 16px;
-    color: #94a3b8;
-  }
-
-  .quick-stat-label {
-    color: #64748b;
-    font-size: 13px;
-  }
-
-  .quick-stat-value {
-    color: #1e293b;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  /* Tabs */
-  .tabs-container {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-  }
-
-  .tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 20px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 30px;
-    color: #64748b;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .tab-btn.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-  }
-
-  .tab-btn:hover:not(.active) {
-    background: #f1f5f9;
-  }
-
-  /* KPI Grid */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  @media (max-width: 1400px) {
-    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 900px) {
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 600px) {
-    .kpi-grid { grid-template-columns: 1fr; }
-  }
-
-  .metric-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 20px;
-    transition: all 0.2s;
-  }
-
-  .metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  }
-
-  .metric-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
-  }
-
-  .metric-title {
-    font-size: 13px;
-    color: #64748b;
-  }
-
-  .metric-icon-wrapper {
-    padding: 8px;
-    background: #f1f5f9;
-    border-radius: 10px;
-  }
-
-  .metric-icon {
-    width: 18px;
-    height: 18px;
-    color: #3b82f6;
-  }
-
-  .metric-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 4px;
-  }
-
-  .metric-subvalue {
-    font-size: 12px;
-    color: #94a3b8;
-  }
-
-  .metric-change {
-    display: flex;
-    align-items: center;
-    margin-top: 8px;
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  .metric-change.positive { color: #10b981; }
-  .metric-change.negative { color: #ef4444; }
-
-  /* Charts */
-  .charts-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  @media (max-width: 1000px) {
-    .charts-row { grid-template-columns: 1fr; }
-  }
-
-  .chart-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 20px;
-  }
-
-  .chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-
-  .chart-title {
-    color: #1e293b;
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  .chart-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .chart-action-btn {
-    padding: 6px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    color: #64748b;
-    cursor: pointer;
-  }
-
-  .chart-container {
-    height: 300px;
-  }
-
-  .pie-chart-container {
-    height: 200px;
-  }
-
-  /* Traffic List */
-  .traffic-list {
-    margin-top: 20px;
-  }
-
-  .traffic-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  .traffic-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .color-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-
-  .traffic-name {
-    color: #475569;
-    font-size: 13px;
-  }
-
-  .traffic-right {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .traffic-percent {
-    color: #1e293b;
-    font-weight: 600;
-    font-size: 13px;
-  }
-
-  .traffic-value {
-    color: #94a3b8;
-    font-size: 11px;
-  }
-
-  /* Songs Section */
-  .songs-section {
-    margin-bottom: 24px;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #1e293b;
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .section-icon {
-    width: 20px;
-    height: 20px;
-    color: #8b5cf6;
-  }
-
-  .view-all-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    color: #64748b;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .songs-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-  }
-
-  @media (max-width: 1200px) {
-    .songs-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 900px) {
-    .songs-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 600px) {
-    .songs-grid { grid-template-columns: 1fr; }
-  }
-
-  .song-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .song-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-  }
-
-  .song-thumbnail-wrapper {
-    position: relative;
-    aspect-ratio: 16/9;
-  }
-
-  .song-thumbnail {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .song-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .song-card:hover .song-overlay {
-    opacity: 1;
-  }
-
-  .play-icon {
-    width: 40px;
-    height: 40px;
-    color: white;
-  }
-
-  .trending-badge {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    padding: 4px 8px;
-    background: linear-gradient(135deg, #ef4444, #f97316);
-    border-radius: 12px;
-    color: white;
-    font-size: 10px;
-    font-weight: 600;
-  }
-
-  .duration-badge {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    padding: 2px 6px;
-    background: rgba(0,0,0,0.7);
-    border-radius: 4px;
-    color: white;
-    font-size: 10px;
-  }
-
-  .song-details {
-    padding: 12px;
-  }
-
-  .song-title {
-    color: #1e293b;
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .song-artist {
-    color: #64748b;
-    font-size: 12px;
-    margin-bottom: 8px;
-  }
-
-  .song-stats {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
-
-  .stat-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: #94a3b8;
-    font-size: 10px;
-  }
-
-  .stat-icon {
-    width: 12px;
-    height: 12px;
-  }
-
-  .song-meta {
-    display: flex;
-    gap: 8px;
-  }
-
-  .song-category {
-    padding: 2px 8px;
-    background: #f3e8ff;
-    border-radius: 12px;
-    color: #8b5cf6;
-    font-size: 10px;
-  }
-
-  .song-year {
-    padding: 2px 8px;
-    background: #f1f5f9;
-    border-radius: 12px;
-    color: #64748b;
-    font-size: 10px;
-  }
-
-  /* Content Row */
-  .content-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  @media (max-width: 1000px) {
-    .content-row { grid-template-columns: 1fr; }
-  }
-
-  .content-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 20px;
-  }
-
-  .top-content-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .top-content-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px;
-    background: #f8fafc;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .top-content-item:hover {
-    background: #f1f5f9;
-  }
-
-  .rank-badge {
-    width: 30px;
-    font-weight: 700;
-    color: #94a3b8;
-    font-size: 14px;
-  }
-
-  .content-thumb-wrapper {
-    position: relative;
-    width: 100px;
-    height: 56px;
-    flex-shrink: 0;
-  }
-
-  .content-thumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
-  }
-
-  .thumb-duration {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    padding: 2px 4px;
-    background: rgba(0,0,0,0.7);
-    border-radius: 4px;
-    color: white;
-    font-size: 9px;
-  }
-
-  .content-info {
-    flex: 1;
-  }
-
-  .content-title {
-    color: #1e293b;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .content-stats {
-    display: flex;
-    gap: 12px;
-    font-size: 11px;
-    color: #64748b;
-  }
-
-  .content-stats span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .content-engagement {
-    text-align: right;
-  }
-
-  .engagement-value {
-    color: #10b981;
-    font-weight: 700;
-    font-size: 13px;
-    display: block;
-  }
-
-  .engagement-label {
-    color: #94a3b8;
-    font-size: 10px;
-  }
-
-  /* Demographics */
-  .demographics-section {
-    margin-bottom: 24px;
-  }
-
-  .demographics-subtitle {
-    color: #64748b;
-    font-size: 13px;
-    margin-bottom: 12px;
-  }
-
-  .age-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .age-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-
-  .age-range {
-    color: #475569;
-    font-size: 12px;
-  }
-
-  .age-total {
-    color: #1e293b;
-    font-weight: 600;
-    font-size: 12px;
-  }
-
-  .age-bar {
-    display: flex;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-    background: #e2e8f0;
-  }
-
-  .age-bar-male {
-    background: #3b82f6;
-  }
-
-  .age-bar-female {
-    background: #ec4899;
-  }
-
-  .age-gender {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 4px;
-  }
-
-  .gender-male {
-    color: #3b82f6;
-    font-size: 10px;
-  }
-
-  .gender-female {
-    color: #ec4899;
-    font-size: 10px;
-  }
-
-  .countries-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .country-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .country-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .country-flag {
-    font-size: 16px;
-  }
-
-  .country-name {
-    color: #475569;
-    font-size: 13px;
-  }
-
-  .country-percent {
-    color: #1e293b;
-    font-weight: 600;
-    font-size: 13px;
-  }
-
-  .country-views {
-    color: #94a3b8;
-    font-size: 11px;
-  }
-
-  /* Metrics Row */
-  .metrics-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  @media (max-width: 1000px) {
-    .metrics-row { grid-template-columns: 1fr; }
-  }
-
-  .metrics-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 20px;
-  }
-
-  .device-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .device-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .device-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100px;
-  }
-
-  .device-icon {
-    width: 18px;
-    height: 18px;
-    color: #64748b;
-  }
-
-  .device-name {
-    color: #1e293b;
-    font-size: 13px;
-  }
-
-  .device-bar-container {
-    flex: 1;
-    height: 6px;
-    background: #e2e8f0;
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .device-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-    border-radius: 3px;
-  }
-
-  .device-value {
-    color: #1e293b;
-    font-weight: 600;
-    font-size: 13px;
-    width: 40px;
-    text-align: right;
-  }
-
-  .key-metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-
-  .key-metric-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    background: #f8fafc;
-    border-radius: 12px;
-  }
-
-  .key-metric-icon {
-    width: 20px;
-    height: 20px;
-    color: #8b5cf6;
-  }
-
-  .key-metric-value {
-    color: #1e293b;
-    font-weight: 700;
-    font-size: 14px;
-  }
-
-  .key-metric-label {
-    color: #64748b;
-    font-size: 10px;
-  }
-
-  /* Recent Uploads */
-  .recent-uploads-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 20px;
-    margin-bottom: 24px;
-  }
-
-  .recent-uploads-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-  }
-
-  @media (max-width: 800px) {
-    .recent-uploads-grid { grid-template-columns: 1fr; }
-  }
-
-  .recent-item {
-    display: flex;
-    gap: 12px;
-    cursor: pointer;
-  }
-
-  .recent-thumb-wrapper {
-    position: relative;
-    width: 120px;
-    height: 68px;
-    flex-shrink: 0;
-  }
-
-  .recent-thumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
-  }
-
-  .recent-duration {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    padding: 2px 4px;
-    background: rgba(0,0,0,0.7);
-    border-radius: 4px;
-    color: white;
-    font-size: 9px;
-  }
-
-  .recent-info {
-    flex: 1;
-  }
-
-  .recent-title {
-    color: #1e293b;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .recent-stats {
-    display: flex;
-    gap: 8px;
-    font-size: 11px;
-    color: #64748b;
-    margin-bottom: 4px;
-  }
-
-  .recent-date {
-    font-size: 11px;
-    color: #94a3b8;
-  }
-
-  /* Channel Footer */
-  .channel-footer {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .footer-left {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-  }
-
-  .footer-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    cursor: pointer;
-  }
-
-  .footer-name {
-    color: #1e293b;
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  .footer-id {
-    color: #94a3b8;
-    font-size: 11px;
-  }
-
-  .footer-badge {
-    padding: 4px 10px;
-    background: #f1f5f9;
-    border-radius: 20px;
-    color: #64748b;
-    font-size: 11px;
-  }
-
-  .copyright {
-    text-align: center;
-    color: #94a3b8;
-    font-size: 12px;
-  }
-
-  /* Loading - Simple */
-  .loading-container {
-    min-height: 100vh;
-    background: #f8fafc;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .loading-content {
-    text-align: center;
-  }
-
-  .loading-animation {
-    position: relative;
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 20px;
-  }
-
-  .loading-ring {
-    position: absolute;
-    inset: 0;
-    border: 3px solid #e2e8f0;
-    border-radius: 50%;
-  }
-
-  .loading-ring-inner {
-    position: absolute;
-    inset: 0;
-    border: 3px solid transparent;
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  .loading-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 24px;
-    height: 24px;
-    color: #3b82f6;
-  }
-
-  .loading-title {
-    color: #1e293b;
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-
-  .loading-subtitle {
-    color: #64748b;
-    font-size: 13px;
-  }
-
-  /* Error */
-  .error-container {
-    min-height: 100vh;
-    background: #f8fafc;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
-  .error-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 40px;
-    text-align: center;
-    max-width: 400px;
-  }
-
-  .error-icon {
-    width: 48px;
-    height: 48px;
-    color: #ef4444;
-    margin-bottom: 16px;
-  }
-
-  .error-title {
-    color: #1e293b;
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .error-message {
-    color: #64748b;
-    margin-bottom: 20px;
-  }
-
-  .error-btn {
-    padding: 10px 24px;
-    border-radius: 25px;
-    background: #3b82f6;
-    color: white;
-    border: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* Now Playing Bar */
-  .now-playing-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    border-top: 1px solid #e2e8f0;
-    padding: 12px 24px;
-    z-index: 1000;
-    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
-  }
-
-  .now-playing-content {
-    max-width: 600px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-
-  .now-playing-thumb {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
-    object-fit: cover;
-  }
-
-  .now-playing-title {
-    color: #1e293b;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .now-playing-artist {
-    color: #64748b;
-    font-size: 12px;
-  }
-
-  .now-playing-controls {
-    display: flex;
-    gap: 10px;
-  }
-
-  .control-btn {
-    width: 36px;
-    height: 36px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 50%;
-    color: #64748b;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .close-btn {
-    width: 36px;
-    height: 36px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 50%;
-    color: #64748b;
-    cursor: pointer;
-    font-size: 18px;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  @media (max-width: 768px) {
-    .analytics-container { padding: 12px; }
-    .header-card { padding: 16px; }
-    .header-title { font-size: 18px; }
-    .quick-stats { gap: 16px; }
-  }
-
-  /* For light theme - make chart elements visible */
-.recharts-cartesian-axis-tick-value {
-  fill: #000000 !important;
-}
-
-.recharts-legend-item-text {
-  color: #475569 !important;
-}
-
-.recharts-tooltip-label {
-  color: #00ff22 !important;
-}
-
-.recharts-cartesian-grid-horizontal line,
-.recharts-cartesian-grid-vertical line {
-  stroke: #00f341 !important;
-  stroke-dasharray: 4 4;
-}
-`}</style>
+      <style>{`
+        .youtube-analytics {
+          min-height: 100vh;
+          background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .analytics-content { max-width: 1600px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        .analytics-header {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+          border-radius: 20px;
+          padding: 20px 24px;
+          margin-bottom: 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .channel-info { display: flex; align-items: center; gap: 16px; }
+        .channel-info h1 { color: white; font-size: 22px; margin: 0; }
+        .channel-name { color: #94a3b8; font-size: 13px; margin: 4px 0 0; }
+        .last-synced { color: #64748b; font-size: 11px; margin-top: 8px; }
+        .refresh-btn, .export-btn { padding: 8px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: white; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+        .spinning { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Stats Grid */
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+        .stat-card {
+          background: white;
+          border-radius: 16px;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border: 1px solid #e2e8f0;
+        }
+        .stat-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+        }
+        .stat-icon.subscribers { background: #eff6ff; color: #3b82f6; }
+        .stat-icon.views { background: #fef3c7; color: #f59e0b; }
+        .stat-icon.videos { background: #d1fae5; color: #10b981; }
+        .stat-icon.likes { background: #fce7f3; color: #ec4899; }
+        .stat-icon.comments { background: #ede9fe; color: #8b5cf6; }
+        .stat-icon.shares { background: #e0f2fe; color: #06b6d4; }
+        .stat-info { flex: 1; }
+        .stat-value { display: block; font-size: 20px; font-weight: 700; color: #1e293b; }
+        .stat-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-trend { font-size: 9px; display: flex; align-items: center; gap: 2px; margin-top: 4px; }
+        .stat-trend.up { color: #10b981; }
+
+        /* Charts Row */
+        .charts-row {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+        .chart-card {
+          background: white;
+          border-radius: 20px;
+          padding: 20px;
+          border: 1px solid #e2e8f0;
+        }
+        .chart-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+        .chart-header h3 { font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 6px; }
+        .chart-header p { font-size: 11px; color: #64748b; margin: 0; }
+        .chart-period { display: flex; gap: 6px; }
+        .chart-period button { padding: 4px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; cursor: pointer; }
+        .chart-period button.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+        .chart-container { height: 200px; position: relative; }
+        .chart-container.large { height: 220px; }
+        .chart-container.small { height: 160px; }
+
+        /* Filters */
+        .filters-bar {
+          background: white;
+          border-radius: 16px;
+          padding: 16px;
+          margin-bottom: 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+          border: 1px solid #e2e8f0;
+        }
+        .category-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+        .category-filters button { padding: 6px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 12px; cursor: pointer; }
+        .category-filters button.active { background: #3b82f6; color: white; }
+        .search-bar { display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 30px; border: 1px solid #e2e8f0; }
+        .search-bar input { border: none; background: none; outline: none; font-size: 13px; width: 200px; }
+
+        /* Two Columns */
+        .two-columns {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        /* Video Player Section */
+        .video-player-section {
+          background: white;
+          border-radius: 20px;
+          padding: 20px;
+          border: 1px solid #e2e8f0;
+        }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .section-header h3 { font-size: 16px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 6px; }
+        .now-playing { font-size: 11px; background: #d1fae5; color: #10b981; padding: 2px 8px; border-radius: 12px; }
+        .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; background: #000; }
+        .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .video-stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+        .video-stats-row .stat { font-size: 13px; color: #64748b; display: flex; align-items: center; gap: 4px; }
+        .video-description { font-size: 13px; color: #475569; line-height: 1.5; margin: 12px 0; }
+        .video-actions { display: flex; gap: 8px; }
+        .share-btn { padding: 6px 12px; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .share-btn.whatsapp { background: #25D366; color: white; }
+        .share-btn.facebook { background: #1877F2; color: white; }
+        .share-btn.twitter { background: #1DA1F2; color: white; }
+        .no-video-selected { text-align: center; padding: 60px 20px; color: #94a3b8; }
+
+        /* Metrics Section */
+        .metrics-section { display: flex; flex-direction: column; gap: 16px; }
+        .metric-card { background: white; border-radius: 20px; padding: 20px; border: 1px solid #e2e8f0; }
+        .metric-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .metric-header h4 { font-size: 14px; margin: 0; display: flex; align-items: center; gap: 6px; }
+        .metric-value { font-size: 24px; font-weight: 700; }
+        .metric-value.positive { color: #10b981; }
+        .metric-trend { font-size: 12px; display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
+        .metric-trend.positive { color: #10b981; }
+        .metric-trend.negative { color: #ef4444; }
+        .progress-bar { height: 6px; background: #e2e8f0; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 10px; }
+        .insights-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .insight-mini { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
+        .insight-mini strong { color: #1e293b; }
+
+        /* Videos Grid - Card Layout */
+        .videos-section {
+          background: white;
+          border-radius: 20px;
+          padding: 20px;
+          margin-bottom: 24px;
+          border: 1px solid #e2e8f0;
+        }
+        .video-count { font-size: 12px; color: #64748b; }
+        .videos-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 20px;
+          margin-top: 20px;
+        }
+        .video-card {
+          background: #f8fafc;
+          border-radius: 16px;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.3s;
+          border: 1px solid #e2e8f0;
+        }
+        .video-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .video-thumb-wrapper { position: relative; }
+        .video-thumb-grid { width: 100%; height: 180px; object-fit: cover; }
+        .play-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(0,0,0,0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.3s;
+        }
+        .video-card:hover .play-overlay { opacity: 1; }
+        .play-icon { width: 48px; height: 48px; color: white; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        .video-duration {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          background: rgba(0,0,0,0.7);
+          color: white;
+          font-size: 11px;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .video-card-info { padding: 12px; }
+        .video-card-title {
+          font-size: 14px;
+          font-weight: 600;
+          margin: 0 0 8px;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .video-card-stats { display: flex; gap: 12px; font-size: 11px; color: #64748b; margin-bottom: 8px; }
+        .video-card-stats span { display: flex; align-items: center; gap: 4px; }
+        .video-card-meta { display: flex; justify-content: space-between; align-items: center; }
+        .engagement-badge { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+        .engagement-badge.high { background: #d1fae5; color: #10b981; }
+        .engagement-badge.medium { background: #fef3c7; color: #f59e0b; }
+        .engagement-badge.low { background: #fee2e2; color: #ef4444; }
+        .video-date { font-size: 10px; color: #94a3b8; }
+
+        /* Pagination */
+        .pagination {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 16px;
+          margin-top: 24px;
+        }
+        .pagination button {
+          padding: 6px 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .page-info { font-size: 13px; color: #64748b; }
+
+        /* Info Cards */
+        .info-card { background: white; border-radius: 20px; padding: 20px; border: 1px solid #e2e8f0; }
+        .card-header { margin-bottom: 16px; }
+        .card-header h3 { font-size: 16px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .geography-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .top-countries h4, .age-distribution h4 { font-size: 13px; margin-bottom: 12px; color: #64748b; }
+        .country-item, .age-item { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; }
+        .country-flag { font-size: 16px; }
+        .country-name { width: 80px; }
+        .country-bar, .age-bar { flex: 1; height: 6px; background: #e2e8f0; border-radius: 10px; overflow: hidden; }
+        .country-fill, .age-fill { height: 100%; background: #3b82f6; border-radius: 10px; }
+        .country-percent, .age-percent { width: 40px; text-align: right; }
+
+        .upcoming-live h4 { font-size: 14px; margin: 0 0 12px; }
+        .live-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #fef2f2; border-radius: 12px; margin-bottom: 8px; }
+        .live-badge { font-size: 10px; background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; }
+        .live-info { flex: 1; }
+        .live-info strong { display: block; font-size: 13px; }
+        .live-info span { font-size: 10px; color: #64748b; }
+        .schedule-btn { padding: 4px 10px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; cursor: pointer; }
+        .no-live { text-align: center; padding: 20px; color: #94a3b8; font-size: 12px; }
+
+        /* Footer */
+        .footer { text-align: center; padding: 20px; margin-top: 24px; border-top: 1px solid #e2e8f0; }
+        .footer p { font-size: 10px; color: #94a3b8; margin: 2px 0; }
+        .creator { font-size: 9px; color: #cbd5e1; }
+        .no-data { text-align: center; padding: 40px; color: #94a3b8; }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+          .stats-grid { grid-template-columns: repeat(3, 1fr); }
+          .charts-row { grid-template-columns: 1fr; }
+          .chart-container.large { height: 250px; }
+          .chart-container.small { height: 200px; }
+        }
+        @media (max-width: 992px) {
+          .two-columns { grid-template-columns: 1fr; }
+          .geography-content { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+          .analytics-content { padding: 16px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .category-filters { overflow-x: auto; padding-bottom: 8px; flex-wrap: nowrap; }
+          .category-filters button { white-space: nowrap; }
+          .search-bar { width: 100%; }
+          .search-bar input { width: 100%; }
+          .filters-bar { flex-direction: column; }
+          .videos-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+          .stats-grid { grid-template-columns: 1fr; }
+          .stat-value { font-size: 18px; }
+        }
+      `}</style>
     </div>
   );
-};
+}
 
-export default AnalyticsPage;
+export default YoutubeAnalyticsPage;

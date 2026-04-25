@@ -585,84 +585,7 @@ export default function AdminMediaPage() {
   ];
   const currentStage = stages[loadingStage] || stages[0];
 
-  if (loading) {
-    return (
-      <div className="premium-loading-screen">
-        <div className="loading-gradient-bg">
-          <div className="gradient-orb orb-1"></div>
-          <div className="gradient-orb orb-2"></div>
-          <div className="gradient-orb orb-3"></div>
-          <div className="gradient-orb orb-4"></div>
-        </div>
-
-        <div className="loading-glass-container">
-          <div className="loading-content-wrapper">
-            <div className="loading-logo-section">
-              <div className="logo-animation">
-                <div className="logo-ring ring-1"></div>
-                <div className="logo-ring ring-2"></div>
-                <div className="logo-ring ring-3"></div>
-                <div className="logo-icon-container">
-                  <Camera className="logo-camera" size={56} />
-                  <div className="logo-sparkle">
-                    <Sparkles size={24} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="loading-text-section">
-              <div className="loading-stage-icon">
-                <span className="stage-icon">{currentStage.icon}</span>
-              </div>
-              <h2 className="loading-main-message">
-                {currentStage.message}
-              </h2>
-              <p className="loading-description">
-                {currentStage.description}
-              </p>
-            </div>
-
-            <div className="loading-progress-section">
-              <div className="progress-label">
-                <span className="progress-text">Loading media library</span>
-                <span className="progress-percentage">{Math.min(Math.floor(loadingProgress), 100)}%</span>
-              </div>
-              <div className="glass-progress-bar">
-                <div 
-                  className="glass-progress-fill"
-                  style={{ width: `${Math.min(loadingProgress, 100)}%` }}
-                >
-                  <div className="progress-glow"></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="loading-particles">
-              {[...Array(12)].map((_, i) => (
-                <div 
-                  key={i}
-                  className="particle"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    animationDuration: `${2 + Math.random() * 3}s`
-                  }}
-                />
-              ))}
-            </div>
-
-            <div className="loading-quote">
-              <div className="quote-content">
-                <Compass size={16} />
-                <span>Managing your media library</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+ 
 
   return (
     <div className={`admin-media-page ${showContent ? 'content-fade-in' : ''}`}>
@@ -1043,7 +966,8 @@ export default function AdminMediaPage() {
 
         .admin-media-page {
           min-height: 100vh;
-          margin-top: 50px;
+          margin-top: 0px;
+          margin-bottom:60px;
           background: #f8fafc;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           overflow-y: auto;

@@ -75,12 +75,7 @@ export default function RoleManagement() {
   const admins = filteredUsers.filter(user => user.role === "admin" && !user.specialRole);
   const regularMembers = filteredUsers.filter(user => user.role === "member" && !user.specialRole);
 
-  if (loading) return (
-    <div className="loading-container">
-      <div className="spinner"></div>
-      <p>Loading users...</p>
-    </div>
-  );
+ 
 
   return (
     <motion.div

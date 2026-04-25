@@ -2680,7 +2680,7 @@ app.get("/api/songs", async (req, res) => {
         lyrics: true,
         createdAt: true
       },
-      orderBy: { title: "asc" },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit
     });
@@ -2771,7 +2771,7 @@ app.get("/api/songs/search", async (req, res) => {
         reference: true,
         lyrics: true
       },
-      orderBy: { title: "asc" },
+      orderBy: { createdAt: "desc" },
       take: 50
     });
     
@@ -2870,7 +2870,7 @@ app.get("/api/admin/songs", authenticate, async (req, res) => {
         createdAt: true,
         updatedAt: true
       },
-      orderBy: { title: "asc" },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit
     });

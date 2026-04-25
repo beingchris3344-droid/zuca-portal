@@ -407,6 +407,7 @@ const styles = {
     border: "1px solid #e2e8f0",
     borderRadius: "8px",
     cursor: "pointer",
+    marginTop: "40px",
     fontSize: "14px",
     color: "#475569",
     fontWeight: "500",

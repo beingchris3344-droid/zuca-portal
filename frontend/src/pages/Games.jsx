@@ -83,7 +83,7 @@ const styles = {
     minHeight: "100vh",
     background: "#f8fafc",
     padding: "20px",
-    marginTop: "50px",
+    marginTop: "0px",
     fontFamily: "'Inter', sans-serif",
   },
   header: {

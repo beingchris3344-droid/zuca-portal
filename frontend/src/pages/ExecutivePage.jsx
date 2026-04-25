@@ -60,20 +60,6 @@ export default function ExecutivePage() {
   const goBack = () => navigate(-1);
   const goHome = () => navigate('/dashboard');
 
-  if (loading) {
-    return (
-      <div className="executive-loader">
-        <div className="loader-spinner">
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <Crown size={40} className="loader-crown" />
-        </div>
-        <h3>ZUCA Executive Council</h3>
-        <p>Loading organizational structure...</p>
-      </div>
-    );
-  }
 
   const chair = getMember('Chairperson');
   const viceChair = getMember('Vice Chairperson');
@@ -726,16 +712,103 @@ export default function ExecutivePage() {
         .full-image-caption h3 { font-size: 18px; margin-bottom: 4px; }
         .full-image-caption p { font-size: 13px; opacity: 0.8; }
 
-        /* Loader */
-        .executive-loader { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f172a, #1e293b); color: white; }
-        .loader-spinner { position: relative; width: 70px; height: 70px; margin-bottom: 20px; }
-        .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent; animation: spin 1.5s infinite; }
-        .ring:nth-child(1) { border-top-color: #3b82f6; border-right-color: #3b82f6; }
-        .ring:nth-child(2) { border-bottom-color: #8b5cf6; border-left-color: #8b5cf6; animation-delay: 0.3s; width: 70%; height: 70%; top: 15%; left: 15%; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .loader-crown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .executive-loader h3 { font-size: 18px; margin-bottom: 6px; }
-        .executive-loader p { color: #94a3b8; font-size: 13px; }
+  /* Professional Loader */
+.executive-loader { 
+  min-height: 100vh; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  background: linear-gradient(135deg, #0f172a, #1e293b); 
+  color: white; 
+}
+
+.loader-spinner { 
+  position: relative; 
+  width: 80px; 
+  height: 80px; 
+  margin-bottom: 24px; 
+}
+
+.ring { 
+  position: absolute; 
+  inset: 0; 
+  border-radius: 50%; 
+  border: 2px solid transparent; 
+  animation: spin 1s linear infinite; 
+}
+
+.ring:nth-child(1) { 
+  border-top-color: #3b82f6; 
+  border-right-color: #3b82f6; 
+}
+
+.ring:nth-child(2) { 
+  border-bottom-color: #8b5cf6; 
+  border-left-color: #8b5cf6; 
+  animation-delay: -0.5s;
+  width: 60%; 
+  height: 60%; 
+  top: 20%; 
+  left: 20%; 
+}
+
+.ring:nth-child(3) { 
+  border-top-color: #10b981; 
+  border-right-color: #10b981; 
+  width: 30%; 
+  height: 30%; 
+  top: 35%; 
+  left: 35%; 
+  animation-duration: 0.8s;
+}
+
+@keyframes spin { 
+  100% { transform: rotate(360deg); } 
+}
+
+.loader-crown { 
+  position: absolute; 
+  top: 50%; 
+  left: 50%; 
+  transform: translate(-50%, -50%); 
+  opacity: 0.9;
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+.executive-loader h3 { 
+  font-size: 20px; 
+  margin-bottom: 8px; 
+  font-weight: 600;
+  background: linear-gradient(135deg, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.executive-loader p { 
+  color: #64748b; 
+  font-size: 13px; 
+  letter-spacing: 0.5px;
+}
+
+/* Add loading dots animation */
+.executive-loader p::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
 
         /* Responsive - Mobile */
         @media (max-width: 768px) {

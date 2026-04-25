@@ -110,18 +110,18 @@ function Layout() {
     <div style={containerStyle}>
       <AnimatedBackground />
   
-  <AnimatePresence>
-    {isMobile && menuOpen && (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        style={backdropStyle}
-        onClick={() => setMenuOpen(false)}
-      />
-    )}
-  </AnimatePresence>
+      <AnimatePresence>
+        {isMobile && menuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={backdropStyle}
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <motion.aside
         ref={sidebarRef}
@@ -170,15 +170,15 @@ function Layout() {
               >
                 {({ isActive }) => (
                   <motion.div
-                    style={navItemStyle(isActive)}
+                    style={navCardStyle(isActive)}
                     whileHover={{ x: 5 }}
                     whileTap={{ scale: 0.98 }}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <span style={navIconStyle}>{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span style={navCardIcon}>{item.icon}</span>
+                    <span style={navCardLabel(isActive)}>{item.label}</span>
                     {isActive && (
                       <motion.div
                         layoutId="activeIndicator"
@@ -228,7 +228,6 @@ function Layout() {
           </div>
 
           <div style={headerRightStyle}>
-            {/* Enhanced Bell Background Wrapper */}
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
             </div>
@@ -280,15 +279,8 @@ function Layout() {
           </div>
         </motion.header>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          style={contentStyle}
-          className="page-content"
-        >
-          <Outlet />
-        </motion.div>
+        {/* REMOVED the motion.div wrapper that was affecting pages */}
+        <Outlet />
       </main>
 
       <FloatingInstallButton />
@@ -338,64 +330,9 @@ function Layout() {
             background: #94a3b8;
           }
 
-          .page-content {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 #f1f5f9;
-          }
-          
-          .page-content::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          
-          .page-content::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 10px;
-          }
-          
-          .page-content::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-          }
-
           @media (max-width: 900px) {
             .mobile-hamburger {
               display: flex !important;
-            }
-            
-            .page-content {
-              padding: 16px !important;
-            }
-            
-            .page-content > * {
-              max-width: 100% !important;
-            }
-            
-            .page-content .card,
-            .page-content [class*="card"],
-            .page-content [class*="Card"] {
-              margin: 0 !important;
-              width: 100% !important;
-              border-radius: 12px !important;
-            }
-            
-            .page-content table {
-              display: block;
-              width: 100%;
-              overflow-x: auto;
-              white-space: nowrap;
-            }
-            
-            .page-content .grid,
-            .page-content [class*="grid"] {
-              margin: 0 !important;
-              width: 100% !important;
-            }
-          }
-
-          @media (min-width: 901px) {
-            .page-content {
-              padding: 20px !important;
             }
           }
 
@@ -447,7 +384,7 @@ const sidebarStyle = {
   top: 0,
   height: "100vh",
   width: "280px",
-  background: "#ffffff",
+  background: "#b3b3b3d5",
   boxShadow: "2px 0 12px rgba(0, 0, 0, 0.05)",
   padding: "24px 16px",
   display: "flex",
@@ -507,14 +444,14 @@ const userBadgeAvatar = {
   height: "44px",
   borderRadius: "44px",
   objectFit: "cover",
-  border: "2px solid #3b82f6",
+  border: "2px solid #3b83f600",
 };
 
 const userBadgeFallback = {
   width: "44px",
   height: "44px",
   borderRadius: "44px",
-  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+  background: "linear-gradient(135deg, #f63b3b, #5025ebc5)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -554,31 +491,38 @@ const navContainer = (shadow) => ({
 const navStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "6px",
+  gap: "8px",
 };
 
-const navItemStyle = (isActive) => ({
-  padding: "10px 14px",
-  borderRadius: "10px",
+// NEW: Card styles for navigation (replaces old navItemStyle)
+const navCardStyle = (isActive) => ({
+  padding: "12px 16px",
+  borderRadius: "12px",
   textDecoration: "none",
-  color: isActive ? "#3b82f6" : "#475569",
+  color: isActive ? "#00ff55" : "#475569",
   fontWeight: isActive ? "600" : "500",
   fontSize: "14px",
   fontFamily: "'Inter', sans-serif",
-  backgroundColor: isActive ? "#eff6ff" : "transparent",
-  border: isActive ? "1px solid #bfdbfe" : "1px solid transparent",
+  backgroundColor: isActive ? "#9c9c9c" : "#ffffff",
+  border: isActive ? "1px solid #bfdbfe" : "1px solid #e2e8f0",
   display: "flex",
   alignItems: "center",
   gap: "12px",
   position: "relative",
   transition: "all 0.2s",
   cursor: "pointer",
+  boxShadow: isActive ? "0 2px 4px rgba(59, 130, 246, 0.1)" : "none",
 });
 
-const navIconStyle = {
-  fontSize: "18px",
-  width: "24px",
+const navCardIcon = {
+  fontSize: "20px",
+  width: "28px",
 };
+
+const navCardLabel = (isActive) => ({
+  color: isActive ? "#ffffff" : "#475569",
+  fontWeight: isActive ? "600" : "500",
+});
 
 const activeIndicatorStyle = {
   position: "absolute",
@@ -587,7 +531,7 @@ const activeIndicatorStyle = {
   transform: "translateY(-50%)",
   width: "3px",
   height: "20px",
-  background: "#3b82f6",
+  background: "#ff0000",
   borderRadius: "0 3px 3px 0",
 };
 
@@ -613,6 +557,8 @@ const sidebarLogoutButton = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+    marginBottom: "49px",
+
   gap: "8px",
   cursor: "pointer",
   transition: "all 0.2s",
@@ -622,17 +568,18 @@ const logoutIconStyle = {
   fontSize: "16px",
 };
 
+// CHANGED: Removed padding so pages control their own spacing
 const mainContentStyle = (isMobile, menuOpen) => ({
   marginLeft: isMobile ? 0 : "280px",
-  padding: isMobile ? "0" : "20px",
+  padding: 0,  // REMOVED: was "20px" on desktop
   position: "relative",
   zIndex: 1,
-  height: "auto",
+  height: "100vh",  
   overflowY: "auto",
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
   width: isMobile ? "100%" : `calc(100% - 280px)`,
-  background: "#f8fafc03",
+  background: "#f8fafc",
 });
 
 const headerStyle = {
@@ -645,7 +592,8 @@ const headerStyle = {
   marginBottom: "0px",
   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
   border: "1px solid #e2e8f0",
-  position: "relative",
+  position: "sticky",
+  top: 0,
   zIndex: 30,
   flexShrink: 0,
 };
@@ -697,13 +645,12 @@ const headerRightStyle = {
   },
 };
 
-// ENHANCED: Official, professional background for the bell
 const enhancedNotificationWrapperStyle = {
   position: "relative",
   zIndex: 999999,
   isolation: "isolate",
-  background: "#f1f5f9", // Clean official light gray
-  borderRadius: "12px", // Slightly rounded square - modern enterprise style
+  background: "#f1f5f9",
+  borderRadius: "12px",
   padding: "0px",
   border: "1px solid #e2e8f0",
   transition: "all 0.2s ease",
@@ -712,7 +659,6 @@ const enhancedNotificationWrapperStyle = {
   alignItems: "center",
   justifyContent: "center",
 };
-
 
 const userMenuContainerStyle = {
   position: "relative",
@@ -740,7 +686,7 @@ const headerAvatarStyle = {
   height: "36px",
   borderRadius: "36px",
   objectFit: "cover",
-  border: "2px solid #3b82f6",
+  border: "2px solid #3b83f600",
   "@media (max-width: 900px)": {
     width: "32px",
     height: "32px",
@@ -751,7 +697,7 @@ const headerAvatarFallbackStyle = {
   width: "36px",
   height: "36px",
   borderRadius: "36px",
-  background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+  background: "linear-gradient(135deg, #f3052d, #2563eb)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -834,15 +780,6 @@ const dropdownLogoutIcon = {
   fontSize: "16px",
 };
 
-const contentStyle = {
-  height: "calc(100vh - 85px)",
-  overflowY: "auto",
-  overflowX: "hidden",
-  position: "relative",
-  zIndex: 1,
-  "@media (max-width: 900px)": {
-    height: "calc(100vh - 70px)",
-  },
-};
+// REMOVED: contentStyle - no longer needed since we removed the wrapper
 
 export default Layout;

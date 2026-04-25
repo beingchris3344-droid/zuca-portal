@@ -395,6 +395,7 @@ const styles = {
     padding: "28px 32px",
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     position: "relative",
+    marginBottom: "40px",
     overflowX: "hidden",
   },
 

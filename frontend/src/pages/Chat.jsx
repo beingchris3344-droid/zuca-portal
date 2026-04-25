@@ -1272,7 +1272,7 @@ const styles = {
   height: "calc(100vh - 80px)",  // Fixed height instead of minHeight
   maxHeight: "calc(100vh - 80px)",  // Maximum height
   overflow: "hidden",  // Prevents container from scrolling
-     marginTop: "-85px",
+     marginTop: "-65px",
   },
   
   backButtonContainer: { padding: "16px 20px 0" },

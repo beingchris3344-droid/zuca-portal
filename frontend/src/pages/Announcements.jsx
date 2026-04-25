@@ -953,10 +953,10 @@ const iconStyle = {
 
 // Container
 const container = {
-  padding: "0rem",
+  padding: "1.4rem",
   maxWidth: "1400px",
-  margin: "0 auto",
-  marginRight: "9px",
+  margin: "9px auto",
+  marginRight: "0px",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
   minHeight: "80vh",
   position: "relative",

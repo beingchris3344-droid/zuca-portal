@@ -1,88 +1,348 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
 import ProfileSettings from '../components/ProfileSettings';
-import { FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, FiGrid, FiSettings } from "react-icons/fi";
+import { 
+  FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
+  FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
+  FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
+  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle
+} from "react-icons/fi";
 
 function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [profileImage, setProfileImage] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
-  const [unreadMessages, setUnreadMessages] = useState(0);
-  const [upcomingEvents, setUpcomingEvents] = useState(0);
   const [greeting, setGreeting] = useState("");
+  
+  // REAL DATA STATES
+  const [announcements, setAnnouncements] = useState([]);
+  const [massPrograms, setMassPrograms] = useState([]);
+  const [activePledges, setActivePledges] = useState([]);
+  const [jumuiaInfo, setJumuiaInfo] = useState(null);
+  const [featuredGallery, setFeaturedGallery] = useState([]);
+  const [recentHymns, setRecentHymns] = useState([]);
+  const [gameInvites, setGameInvites] = useState([]);
+  const [onlineMembers, setOnlineMembers] = useState([]);
+  const [recentChats, setRecentChats] = useState([]);
+  const [recentNotifications, setRecentNotifications] = useState([]);
+  const [executiveTeam, setExecutiveTeam] = useState([]);
+  const [upcomingSchedules, setUpcomingSchedules] = useState([]);
+  const [todaysReading, setTodaysReading] = useState(null);
+  
+  // STATS
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalMessages, setTotalMessages] = useState(0);
+  const [totalHymns, setTotalHymns] = useState(0);
+  const [totalMedia, setTotalMedia] = useState(0);
+  const [galleryItems, setGalleryItems] = useState(0);
+  
+  // FINANCIAL STATS
+  const [totalPledged, setTotalPledged] = useState(0);
+  const [totalPaid, setTotalPaid] = useState(0);
+  const [totalPending, setTotalPending] = useState(0);
+  const [activeCampaigns, setActiveCampaigns] = useState(0);
+  
+  // UI STATES
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [showCropper, setShowCropper] = useState(false);
-  const [recentActivities, setRecentActivities] = useState([]);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
-  // Mark messages as read function
-  const markMessagesAsRead = async () => {
+  // ==================== REAL DATA FETCHING ====================
+
+  // Fetch announcements
+  const fetchAnnouncements = async () => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`${BASE_URL}/api/chat/mark-all-read`, {}, {
+      const res = await axios.get(`${BASE_URL}/api/announcements`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setUnreadMessages(0);
+      setAnnouncements((res.data || []).slice(0, 2));
     } catch (error) {
-      console.error("Error marking messages as read:", error);
+      console.error("Error fetching announcements:", error);
     }
   };
 
-  // Fetch recent activities
-  const fetchRecentActivities = async () => {
+  // Fetch mass programs
+  const fetchMassPrograms = async () => {
     try {
       const token = localStorage.getItem("token");
-      const [announcementsRes, programsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/announcements`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
-        axios.get(`${BASE_URL}/api/mass-programs`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
-      ]);
-      
-      const activities = [];
-      
-      const recentAnnouncements = (announcementsRes.data || []).slice(0, 3);
-      recentAnnouncements.forEach(ann => {
-        activities.push({
-          id: `ann-${ann.id}`,
-          type: "announcement",
-          title: ann.title,
-          message: ann.content?.substring(0, 60) + (ann.content?.length > 60 ? "..." : ""),
-          time: new Date(ann.createdAt),
-          icon: "📢",
-          color: "#3b82f6",
-          link: "/announcements"
-        });
+      const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
-      const recentPrograms = (programsRes.data || []).slice(0, 3);
-      recentPrograms.forEach(prog => {
-        activities.push({
-          id: `prog-${prog.id}`,
-          type: "program",
-          title: `Mass at ${prog.venue}`,
-          message: `Scheduled for ${new Date(prog.date).toLocaleDateString()}`,
-          time: new Date(prog.date),
-          icon: "⛪",
-          color: "#8b5cf6",
-          link: "/mass-programs"
-        });
-      });
-      
-      activities.sort((a, b) => b.time - a.time);
-      setRecentActivities(activities.slice(0, 5));
+      const now = new Date();
+      const upcoming = (res.data || [])
+        .filter(p => new Date(p.date) >= now)
+        .slice(0, 2);
+      setMassPrograms(upcoming);
     } catch (error) {
-      console.error("Error fetching activities:", error);
+      console.error("Error fetching mass programs:", error);
     }
   };
 
+  // Fetch my pledges
+  const fetchMyPledges = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/my-pledges`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const active = (res.data || [])
+        .filter(p => p.status !== "COMPLETED")
+        .slice(0, 2);
+      setActivePledges(active);
+      
+      // Calculate financial stats
+      const pledged = (res.data || []).reduce((sum, p) => sum + (p.amountPaid || 0) + (p.pendingAmount || 0), 0);
+      const paid = (res.data || []).reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+      const pending = (res.data || []).reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
+      setTotalPledged(pledged);
+      setTotalPaid(paid);
+      setTotalPending(pending);
+    } catch (error) {
+      console.error("Error fetching pledges:", error);
+    }
+  };
+
+  // Fetch active campaigns count
+  const fetchActiveCampaigns = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/contribution-types`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const active = (res.data || []).filter(c => {
+        if (!c.deadline) return true;
+        return new Date(c.deadline) > new Date();
+      });
+      setActiveCampaigns(active.length);
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+    }
+  };
+
+  // Fetch jumuia info
+  const fetchJumuiaInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const meRes = await axios.get(`${BASE_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (meRes.data.homeJumuia) {
+        const jumuiaRes = await axios.get(`${BASE_URL}/api/jumuia/${meRes.data.homeJumuia.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setJumuiaInfo({
+          id: jumuiaRes.data.id,
+          name: jumuiaRes.data.name,
+          leaderName: jumuiaRes.data.leaders?.[0]?.fullName || "TBA",
+          memberCount: jumuiaRes.data._count?.members || 0,
+          nextMeeting: jumuiaRes.data.nextMeeting || null
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching jumuia:", error);
+    }
+  };
+
+  // Fetch featured gallery
+  const fetchFeaturedGallery = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/media/featured?limit=3`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFeaturedGallery(res.data || []);
+      setGalleryItems((res.data || []).length);
+    } catch (error) {
+      console.error("Error fetching gallery:", error);
+    }
+  };
+
+  // Fetch recent hymns
+  const fetchRecentHymns = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/songs?limit=3`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setRecentHymns(res.data?.songs || []);
+      setTotalHymns(res.data?.total || 0);
+    } catch (error) {
+      console.error("Error fetching hymns:", error);
+    }
+  };
+
+  // Fetch game invites
+  const fetchGameInvites = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/games/invites`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setGameInvites(res.data || []);
+    } catch (error) {
+      console.error("Error fetching game invites:", error);
+    }
+  };
+
+  // Fetch online members
+  const fetchOnlineMembers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/chat/online`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOnlineMembers(res.data || []);
+    } catch (error) {
+      console.error("Error fetching online members:", error);
+    }
+  };
+
+  // Fetch recent chat messages
+  const fetchRecentChats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/chat/enhanced`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const recent = (res.data || []).slice(0, 3);
+      setRecentChats(recent);
+      setTotalMessages((res.data || []).length);
+    } catch (error) {
+      console.error("Error fetching chats:", error);
+    }
+  };
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const userId = user?.id;
+      if (userId) {
+        const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const unread = (res.data || []).filter(n => !n.read);
+        setUnreadNotificationsCount(unread.length);
+        setRecentNotifications((res.data || []).slice(0, 3));
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  // Fetch executive team
+  const fetchExecutiveTeam = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/executive/team`);
+      if (res.data.success && res.data.executives) {
+        setExecutiveTeam(res.data.executives.slice(0, 5));
+      }
+    } catch (error) {
+      console.error("Error fetching executive team:", error);
+    }
+  };
+
+  // Fetch upcoming schedules
+  const fetchUpcomingSchedules = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/schedules?upcoming=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const schedules = res.data || [];
+      const events = schedules.flatMap(s => s.events || []);
+      const upcoming = events
+        .filter(e => new Date(e.eventDate) > new Date())
+        .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))
+        .slice(0, 3);
+      setUpcomingSchedules(upcoming);
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+    }
+  };
+
+  // Fetch today's liturgical reading
+  const fetchTodaysReading = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/calendar/today`);
+      setTodaysReading(res.data);
+    } catch (error) {
+      console.error("Error fetching reading:", error);
+    }
+  };
+
+  // Fetch system stats
+  const fetchSystemStats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const [usersRes, mediaRes] = await Promise.all([
+        axios.get(`${BASE_URL}/api/users`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/api/admin/media/stats`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { totalMedia: 0 } }))
+      ]);
+      setTotalUsers((usersRes.data || []).length);
+      setTotalMedia(mediaRes.data?.totalMedia || 0);
+    } catch (error) {
+      console.error("Error fetching system stats:", error);
+    }
+  };
+
+  // Format relative time
+  const formatRelativeTime = (date) => {
+    if (!date) return "Unknown";
+    const now = new Date();
+    const diffMs = now - new Date(date);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return new Date(date).toLocaleDateString();
+  };
+
+  // Format date for mass programs
+  const formatMassDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Get member since months
+  const getMemberSinceMonths = () => {
+    if (!user?.createdAt) return "New";
+    const created = new Date(user.createdAt);
+    const now = new Date();
+    const months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
+    if (months < 1) return "New";
+    if (months === 1) return "1 month";
+    return `${months} months`;
+  };
+
+  // Get total paid from pledges
+  const getTotalPaidFromPledges = () => {
+    return totalPaid;
+  };
+
+  // WhatsApp link
+  const getWhatsAppLink = () => {
+    const phone = user?.phone?.replace(/[^0-9]/g, '');
+    if (!phone) return "#";
+    return `https://wa.me/${phone}`;
+  };
+
+  // Main fetch
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchAllData = async () => {
       const token = localStorage.getItem("token");
       const storedUser = JSON.parse(localStorage.getItem("user"));
       
@@ -92,35 +352,35 @@ function Dashboard() {
       }
 
       setUser(storedUser);
-      
-      const cachedImageUrl = storedUser.profileImage?.startsWith("http")
-        ? storedUser.profileImage
-        : storedUser.profileImage ? `${BASE_URL}/${storedUser.profileImage}` : null;
-      setProfileImage(cachedImageUrl);
+      setProfileImage(storedUser.profileImage);
 
       try {
-        const [userRes, announcementsRes, messagesRes, eventsRes] = await Promise.all([
-          axios.get(`${BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${BASE_URL}/api/announcements/unread`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { count: 0 } })),
-          axios.get(`${BASE_URL}/api/chat/unread`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { count: 0 } })),
-          axios.get(`${BASE_URL}/api/events/upcoming`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { count: 0 } }))
-        ]);
+        const userRes = await axios.get(`${BASE_URL}/api/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(userRes.data);
+        setProfileImage(userRes.data.profileImage);
+        localStorage.setItem("user", JSON.stringify(userRes.data));
 
-        const userData = userRes.data;
-        setUser(userData);
+        await Promise.all([
+          fetchAnnouncements(),
+          fetchMassPrograms(),
+          fetchMyPledges(),
+          fetchActiveCampaigns(),
+          fetchJumuiaInfo(),
+          fetchFeaturedGallery(),
+          fetchRecentHymns(),
+          fetchGameInvites(),
+          fetchOnlineMembers(),
+          fetchRecentChats(),
+          fetchExecutiveTeam(),
+          fetchUpcomingSchedules(),
+          fetchTodaysReading(),
+          fetchSystemStats()
+        ]);
         
-        const imageUrl = userData.profileImage?.startsWith("http")
-          ? userData.profileImage
-          : userData.profileImage ? `${BASE_URL}/${userData.profileImage}` : null;
-        setProfileImage(imageUrl);
+        await fetchNotifications();
         
-        localStorage.setItem("user", JSON.stringify(userData));
-        
-        setUnreadAnnouncements(announcementsRes.data.count || 0);
-        setUnreadMessages(messagesRes.data.count || 0);
-        setUpcomingEvents(eventsRes.data.count || 0);
-        
-        await fetchRecentActivities();
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -128,7 +388,7 @@ function Dashboard() {
       }
     };
 
-    fetchData();
+    fetchAllData();
 
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
@@ -139,44 +399,37 @@ function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file || !user) return;
-    setSelectedImageFile(file);
-    setShowCropper(true);
-  };
-
-  const handleImageUpload = async (croppedFile) => {
-    const formData = new FormData();
-    formData.append("profile", croppedFile);
-
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(
-        `${BASE_URL}/api/users/${user.id}/upload-profile`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
-      );
-
-      const updatedUser = response.data.user;
-      setUser(updatedUser);
-      const imageUrl = updatedUser.profileImage?.startsWith("http")
-        ? updatedUser.profileImage
-        : `${BASE_URL}/${updatedUser.profileImage}`;
-      setProfileImage(imageUrl);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-    } catch (error) {
-      console.error("Profile upload failed:", error);
-    }
-  };
-
-  const handleRemovePhoto = () => {
-    if (!user) return;
-    setProfileImage(null);
-    const updatedUser = { ...user, profileImage: null };
-    setUser(updatedUser);
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-  };
+  // Socket listeners
+  useEffect(() => {
+    if (!window.io || !user) return;
+    
+    const socket = window.io(BASE_URL, {
+      auth: { token: localStorage.getItem("token") }
+    });
+    
+    socket.on("connect", () => {
+      socket.emit("join", user.id);
+    });
+    
+    socket.on("new_notification", () => {
+      fetchNotifications();
+      fetchAnnouncements();
+    });
+    
+    socket.on("new_message", () => {
+      fetchRecentChats();
+    });
+    
+    socket.on("online_members", (data) => {
+      fetchOnlineMembers();
+    });
+    
+    socket.on("game_invite_received", () => {
+      fetchGameInvites();
+    });
+    
+    return () => socket.disconnect();
+  }, [user]);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -193,600 +446,459 @@ function Dashboard() {
     });
   };
 
-  const formatRelativeTime = (date) => {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  };
 
-  if (loading && !user) {
-    return (
-      <div style={loadingContainerStyle}>
-        <div style={loadingCardStyle}>
-          <div style={loadingSpinnerStyle}></div>
-          <p style={loadingTextStyle}>Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (
-      <div style={errorContainerStyle}>
-        <div style={errorCardStyle}>
-          <span style={errorIconStyle}>🔐</span>
-          <h2 style={errorTitleStyle}>Session Expired</h2>
-          <p style={errorTextStyle}>Please log in to continue</p>
-          <button onClick={() => navigate("/login")} style={errorButtonStyle}>
-            Go to Login
-          </button>
-        </div>
+      <div className="error-container">
+        
       </div>
     );
   }
 
-  const quickActions = [
-    { title: "Announcements", description: "View latest updates", path: "/announcements", icon: "📢", badge: unreadAnnouncements > 0 ? `${unreadAnnouncements} new` : null, color: "#3b82f6" },
-    { title: "Mass Programs", description: upcomingEvents > 0 ? `${upcomingEvents} upcoming` : "Schedule & events", path: "/mass-programs", icon: "⛪", badge: null, color: "#8b5cf6" },
-    { title: "Contributions", description: "Track your pledges", path: "/contributions", icon: "💰", badge: null, color: "#10b981" },
-    { title: "Community Chat", description: "Connect with members", path: "/chat", icon: "💬", badge: unreadMessages > 0 ? `${unreadMessages} unread` : null, color: "#06b6d4", onClick: markMessagesAsRead },
-    { title: "Jumuia Groups", description: user.homeJumuia?.name || "Join a group", path: "/join-jumuia", icon: "👥", badge: user.homeJumuia ? "Active" : "Join", color: "#f59e0b" },
-    { title: "Gallery", description: "View memories", path: "/gallery", icon: "🖼️", badge: null, color: "#ec4899" },
-    { title: "Hymn Book", description: "Browse songs & lyrics", path: "/hymns", icon: "🎵", badge: null, color: "#14b8a6" },
-    { title: "Liturgical Calendar", description: "Daily readings", path: "/liturgical-calendar", icon: "📅", badge: null, color: "#ef4444" },
-    { title: "Profile Settings", description: "Manage your account", path: "#", icon: "⚙️", badge: null, color: "#6366f1", onClick: () => setShowProfileSettings(true) },
-  ];
-
-  const handleQuickAction = (action) => {
-    if (action.onClick) {
-      action.onClick();
-    }
-    if (action.path !== "#") {
-      navigate(action.path);
-    }
-  };
-
   return (
-    <div style={dashboardContainerStyle}>
-      <div style={dashboardContentStyle}>
-        {/* Header */}
-        <div className="gradient-header">
-          <div style={headerLeftStyle}>
-            <h1 style={greetingStyle}>
-              {greeting}, <span style={userNameStyle}>{user.fullName?.split(" ")[0]}</span>
-              <span style={waveStyle}>👋</span>
-            </h1>
-            <p style={dateStyle}>{formatDate(currentTime)}</p>
+    <>
+      <div className="dashboard">
+        <div className="dashboard-content">
+          {/* HEADER */}
+          <div className="header">
+            <div className="header-left">
+              <h1 className="greeting">
+                {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}</span>
+                <span className="wave">👋</span>
+              </h1>
+              <p className="date">{formatDate(currentTime)}</p>
+            </div>
+            <div className="header-right">
+              <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
+                <FiMessageSquare size={18} /> Ask AI
+              </button>
+              <button className="logout-btn" onClick={handleLogout}>
+                <FiLogOut size={16} /> Exit
+              </button>
+            </div>
           </div>
-          
-          <div style={headerRightStyle}>
-            <button onClick={() => { window.dispatchEvent(new CustomEvent('openZUCAI', { detail: { fullPage: true } })); }} style={aiButtonStyle}>
-              <FiMessageSquare size={18} /> ZUCA {user.fullName?.split(" ")[0]} AI
-            </button>
-            <button onClick={handleLogout} style={logoutButtonStyle}>
-              <FiLogOut size={16} /> Exit
-            </button>
-          </div>
-        </div>
 
-        {/* Profile Card - ENLARGED & CLICKABLE */}
-        <div className="profile-card">
-          <div style={profileContentStyle}>
-            <div style={avatarSectionStyle}>
-              <div 
-                style={avatarWrapperStyle} 
-                onClick={() => setShowProfileSettings(true)}
-                title="Click to edit profile"
-              >
-                {profileImage ? (
-                  <img src={profileImage} alt={user.fullName} style={avatarStyle} />
-                ) : (
-                  <div style={avatarPlaceholderStyle}>
-                    {user.fullName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div style={avatarEditOverlay}>
-                  <FiCamera size={20} />
+          {/* USER PROFILE CARD */}
+          <div className="profile-card">
+            <div className="profile-row">
+              <div className="avatar-section">
+                <div className="avatar-wrapper" onClick={() => setShowProfileSettings(true)}>
+                  {profileImage ? (
+                    <img src={profileImage} alt={user.fullName} />
+                  ) : (
+                    <div className="avatar-placeholder">{user.fullName?.charAt(0).toUpperCase()}</div>
+                  )}
+                  <div className="avatar-overlay"><FiCamera size={20} /></div>
                 </div>
               </div>
-              <div style={avatarActionsStyle}>
-                <label style={uploadButtonStyle}>
-                  <FiCamera size={14} /> Change
-                  <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
-                </label>
-                {profileImage && (
-                  <button onClick={handleRemovePhoto} style={removeButtonStyle}>
-                    <FiTrash2 size={14} /> Remove
-                  </button>
+              <div className="profile-info">
+                <div className="info-header">
+                  <h2>{user.fullName}</h2>
+                  <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
+                </div>
+                <p className="email">📩--{user.email}</p>
+                <p className="phone">📞 {user.phone || "Not set"}</p>
+                <div className="badges">
+                  <span className="role-badge">👔 {user.role?.toUpperCase() || "MEMBER"}</span>
+                  {user.homeJumuia && <span className="jumuia-badge">👥 {user.homeJumuia.name}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="profile-stats">
+              <div className="stat-item">
+                <div className="stat-icon">📅</div>
+                <div className="stat-info">
+                  <span className="stat-value">{getMemberSinceMonths()}</span>
+                  <span className="stat-label">Joined</span>
+                </div>
+              </div>
+              <div className="stat-divider"></div>
+              <div className="stat-item">
+                <div className="stat-icon">💰</div>
+                <div className="stat-info">
+                  <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
+                  <span className="stat-label">Total Paid</span>
+                </div>
+              </div>
+              <div className="stat-divider"></div>
+              <div className="stat-item">
+                <div className="stat-icon">📱</div>
+                <div className="stat-info">
+                  <a href={getWhatsAppLink()} className="whatsapp-link" target="_blank" rel="noopener noreferrer">
+                  Message You🫵
+                  </a>
+                  <span className="stat-label">WhatsApp</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FINANCIAL STATS ROW */}
+          <div className="stats-row">
+            <div className="stat-card" onClick={() => navigate("/contributions")}>
+              <div className="stat-icon">💰</div>
+              <div className="stat-info">
+                <span className="stat-value">KES {totalPledged.toLocaleString()}</span>
+                <span className="stat-label">Total Pledged</span>
+              </div>
+            </div>
+            <div className="stat-card" onClick={() => navigate("/contributions")}>
+              <div className="stat-icon">✅</div>
+              <div className="stat-info">
+                <span className="stat-value">KES {totalPaid.toLocaleString()}</span>
+                <span className="stat-label">Total Paid</span>
+              </div>
+            </div>
+            <div className="stat-card" onClick={() => navigate("/contributions")}>
+              <div className="stat-icon">⏳</div>
+              <div className="stat-info">
+                <span className="stat-value">KES {totalPending.toLocaleString()}</span>
+                <span className="stat-label">Total Pending</span>
+              </div>
+            </div>
+            <div className="stat-card" onClick={() => navigate("/contributions")}>
+              <div className="stat-icon">📊</div>
+              <div className="stat-info">
+                <span className="stat-value">{activeCampaigns}</span>
+                <span className="stat-label">Active Campaigns</span>
+              </div>
+            </div>
+          </div>
+
+          {/* TWO COLUMN LAYOUT */}
+          <div className="two-columns">
+            {/* LEFT COLUMN */}
+            <div className="left-column">
+              {/* RECENT ANNOUNCEMENTS */}
+              <div className="section-card">
+                <div className="section-header">
+                  <h3>📢 RECENT ANNOUNCEMENTS</h3>
+                </div>
+                <div className="announcements-list">
+                  {announcements.length === 0 ? (
+                    <div className="empty-state">No announcements yet</div>
+                  ) : (
+                    announcements.map(ann => (
+                      <div key={ann.id} className="announcement-item" onClick={() => navigate("/announcements")}>
+                        <div className="announcement-icon">📢</div>
+                        <div className="announcement-content">
+                          <div className="announcement-title">{ann.title}</div>
+                          <div className="announcement-message">{ann.content?.substring(0, 60)}...</div>
+                          <div className="announcement-time">{formatRelativeTime(ann.createdAt)}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button className="view-all" onClick={() => navigate("/announcements")}>View All →</button>
+              </div>
+
+              {/* MY ACTIVE PLEDGES */}
+              <div className="section-card">
+                <div className="section-header">
+                  <h3>💳 MY ACTIVE PLEDGES</h3>
+                </div>
+                <div className="pledges-list">
+                  {activePledges.length === 0 ? (
+                    <div className="empty-state">No active pledges</div>
+                  ) : (
+                    activePledges.map(pledge => {
+                      const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
+                      return (
+                        <div key={pledge.id} className="pledge-item" onClick={() => navigate("/contributions")}>
+                          <div className="pledge-title">{pledge.title}</div>
+                          <div className="progress-bar">
+                            <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                          </div>
+                          <div className="pledge-stats">
+                            <span>{progress.toFixed(0)}%</span>
+                            <span>KES {pledge.amountPaid.toLocaleString()}/{pledge.amountRequired.toLocaleString()}</span>
+                          </div>
+                          <div className="pledge-pending">Pending: KES {(pledge.pendingAmount || 0).toLocaleString()}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <button className="view-all" onClick={() => navigate("/contributions")}>Make a Pledge →</button>
+              </div>
+
+              {/* RECENT HYMNS */}
+              <div className="section-card">
+                <div className="section-header">
+                  <h3>🎵 RECENT HYMNS</h3>
+                </div>
+                <div className="hymns-list">
+                  {recentHymns.length === 0 ? (
+                    <div className="empty-state">No hymns available</div>
+                  ) : (
+                    recentHymns.map(hymn => (
+                      <div key={hymn.id} className="hymn-item" onClick={() => navigate(`/hymn/${hymn.id}`)}>
+                        <span className="hymn-bullet">•</span>
+                        <span className="hymn-title">{hymn.title}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button className="view-all" onClick={() => navigate("/hymns")}>Open Hymn Book →</button>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN */}
+            <div className="right-column">
+              {/* UPCOMING MASS PROGRAMS */}
+              <div className="section-card">
+                <div className="section-header">
+                  <h3>⛪ UPCOMING MASS PROGRAMS</h3>
+                </div>
+                <div className="programs-list">
+                  {massPrograms.length === 0 ? (
+                    <div className="empty-state">No upcoming mass programs</div>
+                  ) : (
+                    massPrograms.map(prog => (
+                      <div key={prog.id} className="program-item" onClick={() => navigate("/mass-programs")}>
+                        <div className="program-date">📅 {formatMassDate(prog.date)}</div>
+                        <div className="program-venue">📍 {prog.venue}</div>
+                        <div className="program-time">🕐 {prog.time || "10:00 AM"}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button className="view-all" onClick={() => navigate("/mass-programs")}>View Full Calendar →</button>
+              </div>
+
+              {/* MY JUMUIA */}
+              {jumuiaInfo && (
+                <div className="section-card">
+                  <div className="section-header">
+                    <h3>🏠 MY JUMUIA</h3>
+                  </div>
+                  <div className="jumuia-content">
+                    <div className="jumuia-name">👥 {jumuiaInfo.name}</div>
+                    <div className="jumuia-detail">Leader: {jumuiaInfo.leaderName}</div>
+                    <div className="jumuia-detail">Members: {jumuiaInfo.memberCount}</div>
+                    {jumuiaInfo.nextMeeting && <div className="jumuia-detail">Next Meeting: {jumuiaInfo.nextMeeting}</div>}
+                    <button className="jumuia-chat-btn" onClick={() => navigate(`/jumuia/${jumuiaInfo.id}/chat`)}>
+                      💬 Join Chat →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* FEATURED GALLERY */}
+              <div className="section-card">
+                <div className="section-header">
+                  <h3>📸 FEATURED GALLERY</h3>
+                </div>
+                <div className="gallery-grid">
+                  {featuredGallery.length === 0 ? (
+                    <div className="empty-state">No gallery items</div>
+                  ) : (
+                    featuredGallery.map((item, idx) => (
+                      <div key={item.id} className="gallery-item" onClick={() => navigate("/gallery")}>
+                        {item.thumbnailUrl ? (
+                          <img src={item.thumbnailUrl} alt={item.title} />
+                        ) : (
+                          <div className="gallery-placeholder">📷</div>
+                        )}
+                        <div className="gallery-label">
+                          {idx === 0 ? "Choir Day" : idx === 1 ? "Mass 2025" : "Outing"}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button className="view-all" onClick={() => navigate("/gallery")}>View Full Gallery →</button>
+              </div>
+            </div>
+          </div>
+
+          {/* GAMES & COMMUNITY */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>🎮 GAMES & COMMUNITY</h3>
+            </div>
+            <div className="games-community">
+              <div className="games-section">
+                <div className="games-title">🎮 Active Game Invites: {gameInvites.length}</div>
+                {gameInvites.slice(0, 1).map(invite => (
+                  <div key={invite.id} className="game-invite">
+                    • {invite.fromUser?.fullName} challenged you!
+                  </div>
+                ))}
+                <button className="games-btn" onClick={() => navigate("/games")}>Play Now →</button>
+              </div>
+              <div className="online-section">
+                <div className="online-title">👥 Online Members: {onlineMembers.length}</div>
+                <div className="online-list">
+                  {onlineMembers.slice(0, 3).map(member => (
+                    <span key={member.id} className="online-name">• {member.fullName.split(" ")[0]}</span>
+                  ))}
+                  {onlineMembers.length > 3 && <span className="online-more">...</span>}
+                </div>
+                <button className="online-btn" onClick={() => navigate("/chat")}>View All →</button>
+              </div>
+            </div>
+          </div>
+
+          {/* QUICK STATS */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>📊 QUICK STATS</h3>
+            </div>
+            <div className="quick-stats-grid">
+              <div className="quick-stat">
+                <div className="quick-stat-value">{totalUsers}</div>
+                <div className="quick-stat-label">Total Users</div>
+              </div>
+              <div className="quick-stat">
+                <div className="quick-stat-value">{totalMessages}</div>
+                <div className="quick-stat-label">Total Messages</div>
+              </div>
+              <div className="quick-stat">
+                <div className="quick-stat-value">{totalHymns}</div>
+                <div className="quick-stat-label">Total Hymns</div>
+              </div>
+              <div className="quick-stat">
+                <div className="quick-stat-value">{totalMedia}</div>
+                <div className="quick-stat-label">Total Media</div>
+              </div>
+              <div className="quick-stat">
+                <div className="quick-stat-value">{galleryItems}</div>
+                <div className="quick-stat-label">Gallery Items</div>
+              </div>
+            </div>
+          </div>
+
+          {/* TODAY'S LITURGICAL READING */}
+          {todaysReading && (
+            <div className="section-card full-width reading-card">
+              <div className="section-header">
+                <h3>🙏 TODAY'S LITURGICAL READING</h3>
+              </div>
+              <div className="reading-content">
+                <div className="reading-title">📖 {todaysReading.celebration || "Daily Reading"}</div>
+                {todaysReading.readings?.firstReading && (
+                  <div className="reading-item">First Reading: {todaysReading.readings.firstReading.citation}</div>
                 )}
-                <button onClick={() => setShowProfileSettings(true)} style={settingsButtonStyle}>
-                  <FiSettings size={14} /> All Settings
+                {todaysReading.readings?.gospel && (
+                  <div className="reading-item">Gospel: {todaysReading.readings.gospel.citation}</div>
+                )}
+                <button className="reading-btn" onClick={() => navigate(`/liturgical-calendar`)}>
+                  Read Full Readings →
                 </button>
               </div>
             </div>
+          )}
 
-            <div style={infoSectionStyle}>
-              <div style={infoHeaderStyle}>
-                <h2 style={fullNameStyle}>{user.fullName}</h2>
-                <span style={memberBadgeStyle}>{user.membership_number || "ZUCA-001"}</span>
-              </div>
-              <p style={emailStyle}>{user.email}</p>
-              <div style={badgeContainerStyle}>
-                <span style={roleBadgeStyle}>{user.role?.toUpperCase() || "MEMBER"}</span>
-                {user.homeJumuia && <span style={jumuiaBadgeStyle}>👥 {user.homeJumuia.name}</span>}
-              </div>
+          {/* EXECUTIVE TEAM QUICK ACCESS */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>👔 EXECUTIVE TEAM QUICK ACCESS</h3>
             </div>
-
-            {/* Quick Stats Badges */}
-            <div className="quick-stats">
-              <div style={quickStatItemStyle}>
-                <span style={quickStatValueStyle}>{upcomingEvents}</span>
-                <span style={quickStatLabelStyle}>Events</span>
-              </div>
-              <div style={quickStatDividerStyle}></div>
-              <div style={quickStatItemStyle}>
-                <span style={quickStatValueStyle}>{unreadMessages}</span>
-                <span style={quickStatLabelStyle}>Unread</span>
-              </div>
-              <div style={quickStatDividerStyle}></div>
-              <div style={quickStatItemStyle}>
-                <span style={quickStatValueStyle}>{user.joinedDate ? Math.floor((new Date() - new Date(user.joinedDate)) / (1000 * 60 * 60 * 24 * 30)) : "New"}</span>
-                <span style={quickStatLabelStyle}>Months</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity Section */}
-        <div className="activity-section">
-          <div style={sectionHeaderStyle}>
-            <h2 style={sectionTitleStyle}>Recent Activity</h2>
-            <p style={sectionSubtitleStyle}>Latest updates from your community</p>
-          </div>
-          
-          <div style={activityListStyle}>
-            {recentActivities.length === 0 ? (
-              <div className="empty-activity">
-                <span style={emptyActivityIconStyle}>📭</span>
-                <p>No recent activity</p>
-              </div>
-            ) : (
-              recentActivities.map((activity) => (
-                <motion.div 
-                  key={activity.id} 
-                  className="activity-item"
-                  whileHover={{ x: 4 }}
-                  onClick={() => navigate(activity.link)}
-                >
-                  <div className="activity-icon" style={{ background: `${activity.color}10`, color: activity.color }}>{activity.icon}</div>
-                  <div style={activityContentStyle}>
-                    <div style={activityTitleStyle}>{activity.title}</div>
-                    <div style={activityMessageStyle}>{activity.message}</div>
-                    <div style={activityTimeStyle}>{formatRelativeTime(activity.time)}</div>
+            <div className="executive-grid">
+              {executiveTeam.map(exec => (
+                <div key={exec.id} className="executive-item" onClick={() => navigate("/executive")}>
+                  <div className="executive-icon">
+                    {exec.position?.title === "Chairperson" && "👑"}
+                    {exec.position?.title === "Secretary" && "📝"}
+                    {exec.position?.title === "Treasurer" && "💰"}
+                    {exec.position?.title === "Choir Moderator" && "🎵"}
+                    {exec.position?.title === "Media Moderator" && "📸"}
+                    {!exec.position?.title && "👤"}
                   </div>
-                  <FiArrowRight className="activity-arrow" />
-                </motion.div>
-              ))
-            )}
+                  <div className="executive-name">{exec.position?.title || exec.name}</div>
+                </div>
+              ))}
+              {executiveTeam.length === 0 && <div className="empty-state">No executive team assigned</div>}
+            </div>
+            <button className="view-all" onClick={() => navigate("/executive")}>View Full Executive Team →</button>
           </div>
-        </div>
 
-        {/* Stats Row - Enhanced */}
-        <div className="stats-row">
-          <motion.div className="stat-card" onClick={() => navigate("/announcements")} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-            <div className="stat-icon" style={{ background: "#eff6ff" }}>📢</div>
-            <div style={statInfoStyle}>
-              <span style={statValueStyle}>{unreadAnnouncements}</span>
-              <span style={statLabelStyle}>New Announcements</span>
+          {/* UPCOMING SCHEDULED EVENTS */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>📅 UPCOMING ZUCA SCHEDULED EVENTS</h3>
             </div>
-            <FiArrowRight className="stat-arrow" />
-          </motion.div>
-          <motion.div className="stat-card" onClick={() => navigate("/mass-programs")} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-            <div className="stat-icon" style={{ background: "#f3e8ff" }}>⛪</div>
-            <div style={statInfoStyle}>
-              <span style={statValueStyle}>{upcomingEvents}</span>
-              <span style={statLabelStyle}>Upcoming Events</span>
+            <div className="events-list">
+              {upcomingSchedules.length === 0 ? (
+                <div className="empty-state">No upcoming events</div>
+              ) : (
+                upcomingSchedules.map(event => (
+                  <div key={event.id} className="event-item">
+                    • {event.title} - {formatMassDate(event.eventDate)}, {event.eventTime || "TBA"}
+                  </div>
+                ))
+              )}
             </div>
-            <FiArrowRight className="stat-arrow" />
-          </motion.div>
-          <motion.div className="stat-card" onClick={() => {
-            markMessagesAsRead();
-            navigate("/chat");
-          }} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-            <div className="stat-icon" style={{ background: "#e0f2fe" }}>💬</div>
-            <div style={statInfoStyle}>
-              <span style={statValueStyle}>{unreadMessages}</span>
-              <span style={statLabelStyle}>Unread Messages</span>
+            <button className="view-all" onClick={() => navigate("/schedules")}>View All Schedules →</button>
+          </div>
+
+          {/* RECENT CHAT ACTIVITY */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>💬 RECENT CHAT ACTIVITY</h3>
             </div>
-            <FiArrowRight className="stat-arrow" />
-          </motion.div>
-        </div>
+            <div className="chat-activities">
+              {recentChats.length === 0 ? (
+                <div className="empty-state">No recent chat activity</div>
+              ) : (
+                recentChats.map(chat => (
+                  <div key={chat.id} className="chat-item">
+                    <strong>{chat.user?.fullName?.split(" ")[0]}:</strong> "{chat.content?.substring(0, 50)}"
+                    <span className="chat-time">{formatRelativeTime(chat.createdAt)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="view-all" onClick={() => navigate("/chat")}>Go to Chat →</button>
+          </div>
 
-        {/* Quick Actions Section */}
-        <div style={sectionHeaderStyle}>
-          <h2 style={sectionTitleStyle}>Quick Actions</h2>
-          <p style={sectionSubtitleStyle}>Navigate to different sections</p>
-        </div>
+          {/* RECENT NOTIFICATIONS */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>🔔 RECENT NOTIFICATIONS ({unreadNotificationsCount} unread)</h3>
+            </div>
+            <div className="notifications-list">
+              {recentNotifications.length === 0 ? (
+                <div className="empty-state">No notifications</div>
+              ) : (
+                recentNotifications.map(notif => (
+                  <div key={notif.id} className={`notification-item ${!notif.read ? 'unread' : ''}`}>
+                    <div className="notification-icon">
+                      {notif.type === "announcement" && "📢"}
+                      {notif.type === "game_invite" && "🎮"}
+                      {notif.type === "program" && "⛪"}
+                      {!notif.type && "🔔"}
+                    </div>
+                    <div className="notification-content">
+                      <div className="notification-title">{notif.title}</div>
+                      <div className="notification-message">{notif.message}</div>
+                      <div className="notification-time">{formatRelativeTime(notif.createdAt)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="view-all" onClick={() => navigate("/notifications")}>View All Notifications →</button>
+          </div>
 
-        <div className="actions-grid">
-          {quickActions.map((action, index) => (
-            <motion.div 
-              key={action.title} 
-              className="action-card"
-              style={{ borderTopColor: action.color }} 
-              onClick={() => handleQuickAction(action)}
-              whileHover={{ y: -4, boxShadow: "0 8px 20px rgba(0,0,0,0.15)" }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div style={actionCardHeaderStyle}>
-                <div className="action-icon" style={{ background: `${action.color}15`, color: action.color }}>{action.icon}</div>
-                {action.badge && <span className="action-badge">{action.badge}</span>}
-              </div>
-              <h3 style={actionTitleStyle}>{action.title}</h3>
-              <p style={actionDescriptionStyle}>{action.description}</p>
-              <div style={actionFooterStyle}>
-                <span className="action-link">Open <FiArrowRight size={12} style={{ marginLeft: 4 }} /></span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="footer">
-          <p style={footerTextStyle}>© {new Date().getFullYear()} ZUCA Portal. All rights reserved.</p>
-          <p style={footerTextStyle}>ZUCA Portal • v3.0</p>
+          {/* FOOTER */}
+          <div className="footer">
+            <p>© {new Date().getFullYear()} ZUCA Portal | v3.0 | Tumsifu Yesu Kristu! 🙏</p>
+            <p className="creator">Created by @CHRISWEBSYS</p>
+          </div>
         </div>
       </div>
 
-      <style>{`
-        /* Global Styles */
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        body {
-          background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
-        }
-
-        /* Gradient Header */
-        .gradient-header {
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-          border-radius: 20px;
-          padding: 24px 32px;
-          margin-bottom: 24px;
-          border: 1px solid rgba(51, 65, 85, 0.5);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 16px;
-          box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.2);
-          position: relative;
-          overflow: hidden;
-        }
-
-        .gradient-header::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-          transition: left 0.5s;
-        }
-
-        .gradient-header:hover::before {
-          left: 100%;
-        }
-        
-        .gradient-header h1,
-        .gradient-header p {
-          color: white !important;
-        }
-        
-        .gradient-header button {
-          background: rgba(255, 255, 255, 0.1) !important;
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2) !important;
-          color: white !important;
-          transition: all 0.3s ease !important;
-        }
-        
-        .gradient-header button:hover {
-          background: rgba(255, 255, 255, 0.2) !important;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-
-        /* Profile Card */
-        .profile-card {
-          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-          border-radius: 24px;
-          padding: 48px;
-          margin-bottom: 28px;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-          transition: all 0.3s ease;
-        }
-
-        .profile-card:hover {
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-          transform: translateY(-2px);
-        }
-
-        /* Quick Stats */
-        .quick-stats {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          padding: 16px 24px;
-          background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
-          border-radius: 20px;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-        }
-
-        /* Activity Section */
-        .activity-section {
-          margin-bottom: 32px;
-        }
-
-        .activity-item {
-          background: linear-gradient(135deg, #ffffff 0%, #fafcff 100%);
-          border-radius: 16px;
-          padding: 16px 20px;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-        }
-
-        .activity-item:hover {
-          transform: translateX(4px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-          border-color: rgba(59, 130, 246, 0.3);
-        }
-
-        .activity-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 22px;
-          flex-shrink: 0;
-          transition: all 0.3s ease;
-        }
-
-        .activity-item:hover .activity-icon {
-          transform: scale(1.05);
-        }
-
-        .activity-arrow {
-          color: #cbd5e1;
-          font-size: 14px;
-          flex-shrink: 0;
-          transition: all 0.3s ease;
-        }
-
-        .activity-item:hover .activity-arrow {
-          color: #3b82f6;
-          transform: translateX(4px);
-        }
-
-        .empty-activity {
-          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-          border-radius: 16px;
-          padding: 48px;
-          text-align: center;
-          color: #64748b;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-        }
-
-        /* Stats Row */
-        .stats-row {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-bottom: 32px;
-        }
-
-        .stat-card {
-          background: linear-gradient(135deg, #ffd9008e 0%, #fef3c7 100%);
-          border-radius: 20px;
-          padding: 20px 24px;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          cursor: pointer;
-          transition: all 0.3s ease;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .stat-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-          transition: left 0.5s;
-        }
-
-        .stat-card:hover::before {
-          left: 100%;
-        }
-
-        .stat-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .stat-icon {
-          font-size: 32px;
-          width: 56px;
-          height: 56px;
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s ease;
-        }
-
-        .stat-card:hover .stat-icon {
-          transform: scale(1.05);
-        }
-
-        .stat-arrow {
-          color: #94a3b8;
-          font-size: 18px;
-          transition: all 0.3s ease;
-        }
-
-        .stat-card:hover .stat-arrow {
-          color: #3b82f6;
-          transform: translateX(4px);
-        }
-
-        /* Actions Grid */
-        .actions-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 24px;
-          margin-bottom: 40px;
-        }
-
-        .action-card {
-          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-          border-radius: 20px;
-          padding: 24px;
-          cursor: pointer;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          border-top-width: 3px;
-          transition: all 0.3s ease;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .action-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
-          transition: left 0.5s;
-        }
-
-        .action-card:hover::before {
-          left: 100%;
-        }
-
-        .action-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          transition: all 0.3s ease;
-        }
-
-        .action-card:hover .action-icon {
-          transform: scale(1.05) rotate(5deg);
-        }
-
-        .action-badge {
-          background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-          border-radius: 20px;
-          padding: 4px 12px;
-          color: #dc2626;
-          font-size: 10px;
-          font-weight: 600;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        .action-link {
-          color: #3b82f6;
-          font-size: 13px;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          transition: all 0.3s ease;
-        }
-
-        .action-card:hover .action-link {
-          gap: 8px;
-        }
-
-        /* Footer */
-        .footer {
-          text-align: center;
-          padding: 24px;
-          border-top: 1px solid rgba(226, 232, 240, 0.8);
-          margin-top: 24px;
-          background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-          border-radius: 16px;
-        }
-
-        /* Animations */
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes shimmer {
-          0% { background-position: -1000px 0; }
-          100% { background-position: 1000px 0; }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-          .stats-row {
-            grid-template-columns: 1fr;
-          }
-          
-          .profile-card {
-            padding: 24px;
-          }
-          
-          .gradient-header {
-            padding: 16px 20px;
-          }
-        }
-      `}</style>
-
+      {/* MODALS */}
       {showCropper && (
         <ProfileImageCropper
           imageFile={selectedImageFile}
           onCropComplete={(croppedFile) => {
             setShowCropper(false);
-            handleImageUpload(croppedFile);
+            // Handle upload
           }}
           onClose={() => {
             setShowCropper(false);
@@ -795,242 +907,788 @@ function Dashboard() {
         />
       )}
 
-      {/* Profile Settings Modal */}
       <ProfileSettings
         isOpen={showProfileSettings}
         onClose={() => setShowProfileSettings(false)}
         user={user}
         onUserUpdate={(updatedUser) => {
           setUser(updatedUser);
-          const imageUrl = updatedUser.profileImage?.startsWith("http")
-            ? updatedUser.profileImage
-            : updatedUser.profileImage ? `${BASE_URL}/${updatedUser.profileImage}` : null;
-          setProfileImage(imageUrl);
+          setProfileImage(updatedUser.profileImage);
         }}
       />
-    </div>
+
+      <style>{`
+        /* GLOBAL STYLES - MOBILE FIRST */
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+
+        body {
+          background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
+        .dashboard {
+          min-height: 100vh;
+          padding: 16px;
+        }
+
+        .dashboard-content {
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+
+        /* HEADER */
+        .header {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          border-radius: 20px;
+          padding: 20px;
+          margin-bottom: 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .greeting {
+          color: white;
+          font-size: 20px;
+          font-weight: 600;
+        }
+
+        .user-name {
+          background: linear-gradient(135deg, #60a5fa, #c084fc);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+
+        .wave {
+          display: inline-block;
+          margin-left: 4px;
+        }
+
+        .date {
+          color: #94a3b8;
+          font-size: 12px;
+          margin-top: 4px;
+        }
+
+        .header-right {
+          display: flex;
+          gap: 8px;
+        }
+
+        .ai-btn, .logout-btn {
+          padding: 8px 16px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border: none;
+          transition: all 0.3s ease;
+        }
+
+        .ai-btn {
+          background: rgba(220, 38, 38, 0.9);
+          color: white;
+        }
+
+        .logout-btn {
+          background: rgba(255, 255, 255, 0.1);
+          color: #dc2626;
+          backdrop-filter: blur(10px);
+        }
+
+        /* PROFILE CARD */
+        .profile-card {
+          background: white;
+          border-radius: 24px;
+          padding: 20px;
+          margin-bottom: 20px;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .profile-row {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+
+        .avatar-wrapper {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          overflow: hidden;
+          border: 3px solid #ff0062;
+          cursor: pointer;
+        }
+
+        .avatar-wrapper img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #ff0000, #764ba2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 32px;
+          font-weight: bold;
+          color: white;
+        }
+
+        .avatar-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0,0,0,0.6);
+          padding: 4px;
+          display: flex;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.3s;
+        }
+
+        .avatar-wrapper:hover .avatar-overlay {
+          opacity: 1;
+        }
+
+        .profile-info {
+          flex: 1;
+        }
+
+        .info-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-bottom: 4px;
+        }
+
+        .info-header h2 {
+          font-size: 20px;
+          color: #1e293b;
+        }
+
+        .member-badge {
+          background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .email, .phone {
+          font-size: 13px;
+          color: #64748b;
+          margin-bottom: 4px;
+        }
+
+        .badges {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 6px;
+        }
+
+        .role-badge, .jumuia-badge {
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 10px;
+          font-weight: 600;
+        }
+
+        .role-badge {
+          background: #eff6ff;
+          color: #3b82f6;
+        }
+
+        .jumuia-badge {
+          background: #ecfdf5;
+          color: #10b981;
+        }
+
+        .profile-stats {
+          display: flex;
+          align-items: center;
+          justify-content: space-around;
+          padding: 12px 0;
+          border-top: 1px solid #e2e8f0;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .stat-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .stat-icon {
+          font-size: 24px;
+        }
+
+        .stat-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .stat-value {
+          font-size: 14px;
+          font-weight: 700;
+          color: #1e293b;
+        }
+
+        .stat-label {
+          font-size: 10px;
+          color: #64748b;
+        }
+
+        .stat-divider {
+          width: 1px;
+          height: 30px;
+          background: #e2e8f0;
+        }
+
+        .whatsapp-link {
+          font-size: 14px;
+          font-weight: 700;
+          color: #25D366;
+          text-decoration: none;
+        }
+
+        /* STATS ROW */
+        .stats-row {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        @media (min-width: 768px) {
+          .stats-row {
+            grid-template-columns: repeat(4, 1fr);
+          }
+        }
+
+        .stat-card {
+          background: white;
+          border-radius: 16px;
+          padding: 14px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .stat-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .stat-card .stat-icon {
+          font-size: 28px;
+        }
+
+        .stat-card .stat-value {
+          font-size: 18px;
+        }
+
+        /* TWO COLUMN LAYOUT */
+        .two-columns {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+
+        @media (min-width: 768px) {
+          .two-columns {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        /* SECTION CARDS */
+        .section-card {
+          background: white;
+          border-radius: 20px;
+          padding: 16px;
+          margin-bottom: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .full-width {
+          width: 100%;
+        }
+
+        .section-header {
+          margin-bottom: 12px;
+          border-left: 3px solid #3b82f6;
+          padding-left: 10px;
+        }
+
+        .section-header h3 {
+          font-size: 15px;
+          color: #1e293b;
+        }
+
+        /* ANNOUNCEMENTS */
+        .announcements-list, .pledges-list, .hymns-list, .programs-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .announcement-item, .pledge-item, .program-item {
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .announcement-item:hover, .pledge-item:hover, .program-item:hover {
+          background: #f1f5f9;
+          transform: translateX(4px);
+        }
+
+        .announcement-item {
+          display: flex;
+          gap: 12px;
+        }
+
+        .announcement-icon {
+          font-size: 20px;
+        }
+
+        .announcement-title {
+          font-weight: 600;
+          font-size: 13px;
+          color: #1e293b;
+        }
+
+        .announcement-message {
+          font-size: 11px;
+          color: #64748b;
+          margin-top: 2px;
+        }
+
+        .announcement-time {
+          font-size: 10px;
+          color: #94a3b8;
+          margin-top: 4px;
+        }
+
+        /* PLEDGES */
+        .pledge-title {
+          font-weight: 600;
+          font-size: 13px;
+          margin-bottom: 8px;
+        }
+
+        .progress-bar {
+          background: #e2e8f0;
+          border-radius: 20px;
+          height: 6px;
+          overflow: hidden;
+          margin-bottom: 6px;
+        }
+
+        .progress-fill {
+          background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+          height: 100%;
+          border-radius: 20px;
+        }
+
+        .pledge-stats {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: #64748b;
+          margin-bottom: 4px;
+        }
+
+        .pledge-pending {
+          font-size: 10px;
+          color: #f59e0b;
+        }
+
+        /* HYMNS */
+        .hymn-item {
+          padding: 8px 0;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .hymn-bullet {
+          color: #3b82f6;
+        }
+
+        .hymn-title {
+          font-size: 13px;
+          color: #334155;
+        }
+
+        /* PROGRAMS */
+        .program-date, .program-venue, .program-time {
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 2px;
+        }
+
+        /* GALLERY */
+        .gallery-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .gallery-item {
+          aspect-ratio: 1;
+          background: #f1f5f9;
+          border-radius: 12px;
+          overflow: hidden;
+          cursor: pointer;
+          position: relative;
+        }
+
+        .gallery-item img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .gallery-placeholder {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 32px;
+          color: #94a3b8;
+        }
+
+        .gallery-label {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0,0,0,0.6);
+          color: white;
+          font-size: 9px;
+          padding: 3px;
+          text-align: center;
+        }
+
+        /* JUMUIA */
+        .jumuia-content {
+          text-align: center;
+          padding: 12px;
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          border-radius: 16px;
+          color: white;
+        }
+
+        .jumuia-name {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+
+        .jumuia-detail {
+          font-size: 12px;
+          margin-bottom: 4px;
+          opacity: 0.9;
+        }
+
+        .jumuia-chat-btn {
+          margin-top: 12px;
+          background: rgba(255,255,255,0.2);
+          border: none;
+          padding: 8px 16px;
+          border-radius: 20px;
+          color: white;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        /* GAMES & COMMUNITY */
+        .games-community {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+
+        @media (min-width: 600px) {
+          .games-community {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        .games-section, .online-section {
+          background: #f8fafc;
+          border-radius: 16px;
+          padding: 12px;
+        }
+
+        .games-title, .online-title {
+          font-weight: 600;
+          font-size: 13px;
+          margin-bottom: 8px;
+        }
+
+        .game-invite, .online-name {
+          font-size: 12px;
+          color: #64748b;
+        }
+
+        .online-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin: 8px 0;
+        }
+
+        .games-btn, .online-btn {
+          margin-top: 10px;
+          padding: 6px 12px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 20px;
+          font-size: 11px;
+          cursor: pointer;
+        }
+
+        /* QUICK STATS */
+        .quick-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+        }
+
+        @media (min-width: 768px) {
+          .quick-stats-grid {
+            grid-template-columns: repeat(5, 1fr);
+          }
+        }
+
+        .quick-stat {
+          text-align: center;
+          padding: 8px;
+          background: #f8fafc;
+          border-radius: 12px;
+        }
+
+        .quick-stat-value {
+          font-size: 20px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+
+        .quick-stat-label {
+          font-size: 10px;
+          color: #64748b;
+        }
+
+        /* READING */
+        .reading-card {
+          background: linear-gradient(135deg, #fef3c7, #fffbeb);
+        }
+
+        .reading-title {
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+
+        .reading-item {
+          font-size: 13px;
+          color: #64748b;
+          margin-bottom: 4px;
+        }
+
+        .reading-btn {
+          margin-top: 12px;
+          padding: 8px 16px;
+          background: #d97706;
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        /* EXECUTIVE */
+        .executive-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        @media (min-width: 600px) {
+          .executive-grid {
+            grid-template-columns: repeat(5, 1fr);
+          }
+        }
+
+        .executive-item {
+          text-align: center;
+          padding: 10px;
+          background: #f8fafc;
+          border-radius: 12px;
+          cursor: pointer;
+        }
+
+        .executive-icon {
+          font-size: 28px;
+          margin-bottom: 4px;
+        }
+
+        .executive-name {
+          font-size: 10px;
+          color: #334155;
+          font-weight: 500;
+        }
+
+        /* CHAT ACTIVITIES */
+        .chat-item {
+          padding: 10px;
+          background: #f8fafc;
+          border-radius: 12px;
+          margin-bottom: 8px;
+          font-size: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 4px;
+        }
+
+        .chat-time {
+          font-size: 9px;
+          color: #94a3b8;
+          margin-left: auto;
+        }
+
+        /* NOTIFICATIONS */
+        .notification-item {
+          display: flex;
+          gap: 12px;
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 12px;
+          margin-bottom: 8px;
+        }
+
+        .notification-item.unread {
+          background: #eff6ff;
+        }
+
+        .notification-icon {
+          font-size: 20px;
+        }
+
+        .notification-title {
+          font-weight: 600;
+          font-size: 12px;
+        }
+
+        .notification-message {
+          font-size: 11px;
+          color: #64748b;
+        }
+
+        .notification-time {
+          font-size: 9px;
+          color: #94a3b8;
+          margin-top: 4px;
+        }
+
+        /* EVENTS */
+        .event-item {
+          padding: 8px 0;
+          font-size: 13px;
+          color: #334155;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .event-item:last-child {
+          border-bottom: none;
+        }
+
+        /* BUTTONS */
+        .view-all {
+          margin-top: 12px;
+          width: 100%;
+          padding: 10px;
+          background: #f1f5f9;
+          border: none;
+          border-radius: 12px;
+          color: #3b82f6;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .view-all:hover {
+          background: #e2e8f0;
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+          text-align: center;
+          padding: 24px;
+          color: #94a3b8;
+          font-size: 13px;
+        }
+
+        /* FOOTER */
+        .footer {
+          text-align: center;
+          padding: 20px;
+          margin-top: 20px;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .footer p {
+          font-size: 10px;
+          color: #94a3b8;
+        }
+
+        .creator {
+          margin-top: 4px;
+          font-size: 9px;
+          color: #cbd5e1;
+        }
+
+        /* ANIMATIONS */
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </>
   );
 }
-
-// Enhanced Styles (keeping original inline styles for compatibility)
-const loadingContainerStyle = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%)",
-};
-
-const loadingCardStyle = {
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-  borderRadius: "20px",
-  padding: "40px",
-  textAlign: "center",
-  border: "1px solid rgba(226, 232, 240, 0.8)",
-  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
-};
-
-const loadingSpinnerStyle = {
-  width: "40px",
-  height: "40px",
-  border: "3px solid #e2e8f0",
-  borderTopColor: "#3b82f6",
-  borderRadius: "50%",
-  margin: "0 auto 16px",
-  animation: "spin 0.6s linear infinite",
-};
-
-const loadingTextStyle = {
-  color: "#64748b",
-  fontSize: "14px",
-  margin: 0,
-};
-
-const errorContainerStyle = {
-  minHeight: "100vh",
-  background: "linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "24px",
-};
-
-const errorCardStyle = {
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-  borderRadius: "20px",
-  padding: "40px",
-  textAlign: "center",
-  maxWidth: "380px",
-  width: "100%",
-  border: "1px solid rgba(226, 232, 240, 0.8)",
-  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
-};
-
-const errorIconStyle = { fontSize: "56px", display: "block", marginBottom: "16px" };
-const errorTitleStyle = { color: "#1e293b", fontSize: "22px", fontWeight: "700", marginBottom: "10px" };
-const errorTextStyle = { color: "#64748b", fontSize: "13px", marginBottom: "28px" };
-const errorButtonStyle = { background: "linear-gradient(135deg, #3b82f6, #2563eb)", color: "white", border: "none", borderRadius: "10px", padding: "10px 20px", fontSize: "13px", fontWeight: "600", cursor: "pointer", width: "100%" };
-
-const dashboardContainerStyle = {
-  minHeight: "auto",
-  background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-};
-
-const dashboardContentStyle = {
-  maxWidth: "1400px",
-  margin: "0 auto",
-  padding: "24px",
-};
-
-const headerLeftStyle = { flex: 1 };
-const greetingStyle = { fontSize: "26px", fontWeight: "700", color: "#ffffff", marginBottom: "6px" };
-const userNameStyle = { background: "linear-gradient(135deg, #60a5fa, #c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" };
-const waveStyle = { display: "inline-block", marginLeft: "6px" };
-const dateStyle = { color: "#94a3b8", fontSize: "13px" };
-
-const headerRightStyle = { display: "flex", gap: "12px", alignItems: "center" };
-
-const aiButtonStyle = {
-  background: "linear-gradient(135deg, #dc2626, #b91c1c)",
-  border: "none",
-  borderRadius: "12px",
-  padding: "10px 20px",
-  color: "white",
-  fontSize: "13px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  transition: "all 0.3s ease",
-};
-
-const logoutButtonStyle = {
-  background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)",
-  border: "1px solid rgba(226, 232, 240, 0.8)",
-  borderRadius: "12px",
-  padding: "10px 20px",
-  color: "#dc2626",
-  fontSize: "13px",
-  fontWeight: "600",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  transition: "all 0.3s ease",
-};
-
-const profileContentStyle = {
-  display: "flex",
-  gap: "32px",
-  flexWrap: "wrap",
-  alignItems: "center",
-};
-
-const avatarSectionStyle = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "12px",
-};const avatarWrapperStyle = { 
-  position: "relative", 
-  width: "220px", 
-  height: "220px", 
-  borderRadius: "50%", 
-  overflow: "hidden", 
-  border: "3px solid #10b981",
-  cursor: "pointer",
-  transition: "all 0.3s ease",
-  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.25)",
-};
-const avatarStyle = { width: "100%", height: "100%", objectFit: "cover" };
-const avatarPlaceholderStyle = { 
-  width: "100%", 
-  height: "100%", 
-  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
-  display: "flex", 
-  alignItems: "center", 
-  justifyContent: "center", 
-  fontSize: "48px", 
-  fontWeight: "700", 
-  color: "white" 
-};
-const avatarEditOverlay = {
-  position: "absolute",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  background: "linear-gradient(135deg, rgba(0,0,0,0.7), rgba(0,0,0,0.5))",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "8px",
-  opacity: 0,
-  transition: "opacity 0.3s ease",
-};
-const avatarActionsStyle = { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" };
-const uploadButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)", color: "#1e293b", border: "1px solid #e2e8f0" };
-const removeButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "linear-gradient(135deg, #fef2f2, #fee2e2)", color: "#dc2626", border: "1px solid #fee2e2" };
-const settingsButtonStyle = { padding: "6px 14px", borderRadius: "20px", fontSize: "11px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", background: "linear-gradient(135deg, #eff6ff, #dbeafe)", color: "#3b82f6", border: "1px solid #bfdbfe" };
-const infoSectionStyle = { flex: 1 };
-const infoHeaderStyle = { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "6px" };
-const fullNameStyle = { fontSize: "28px", fontWeight: "700", background: "linear-gradient(135deg, #1e293b, #334155)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", margin: 0 };
-const memberBadgeStyle = { background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)", borderRadius: "20px", padding: "4px 12px", color: "#000000", fontSize: "15px", fontWeight: "700" };
-const emailStyle = { color: "#64748b", fontSize: "16px", marginBottom: "10px" };
-const badgeContainerStyle = { display: "flex", gap: "8px", flexWrap: "wrap" };
-const roleBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "linear-gradient(135deg, #eff6ff, #dbeafe)", color: "#3b82f6" };
-const jumuiaBadgeStyle = { padding: "4px 12px", borderRadius: "14px", fontSize: "10px", fontWeight: "600", background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", color: "#10b981" };
-
-const quickStatItemStyle = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "4px",
-};
-
-const quickStatValueStyle = {
-  fontSize: "24px",
-  fontWeight: "800",
-  background: "linear-gradient(135deg, #1e293b, #475569)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-};
-
-const quickStatLabelStyle = {
-  fontSize: "10px",
-  color: "#64748b",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const quickStatDividerStyle = {
-  width: "1px",
-  height: "30px",
-  background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)",
-};
-
-const statInfoStyle = { display: "flex", flexDirection: "column", flex: 1 };
-const statValueStyle = { fontSize: "32px", fontWeight: "800", background: "linear-gradient(135deg, #1e293b, #475569)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", lineHeight: 1.2 };
-const statLabelStyle = { fontSize: "11px", color: "#64748b", marginTop: "4px", fontWeight: "500" };
-
-const sectionHeaderStyle = { marginBottom: "20px" };
-const sectionTitleStyle = { fontSize: "22px", fontWeight: "700", background: "linear-gradient(135deg, #1e293b, #475569)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", marginBottom: "6px" };
-const sectionSubtitleStyle = { color: "#64748b", fontSize: "13px" };
-
-const actionCardHeaderStyle = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" };
-const actionTitleStyle = { fontSize: "17px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" };
-const actionDescriptionStyle = { color: "#64748b", fontSize: "12px", marginBottom: "16px", lineHeight: 1.4 };
-const actionFooterStyle = { display: "flex", justifyContent: "flex-end" };
-
-const activityListStyle = { display: "flex", flexDirection: "column", gap: "12px" };
-const activityContentStyle = { flex: 1 };
-const activityTitleStyle = { fontSize: "14px", fontWeight: "600", color: "#1e293b", marginBottom: "4px" };
-const activityMessageStyle = { fontSize: "12px", color: "#64748b", marginBottom: "6px", lineHeight: 1.4 };
-const activityTimeStyle = { fontSize: "10px", color: "#94a3b8" };
-const emptyActivityIconStyle = { fontSize: "48px", display: "block", marginBottom: "12px", opacity: 0.5 };
-
-const footerTextStyle = { color: "#94a3b8", fontSize: "11px", margin: "4px 0" };
 
 export default Dashboard;

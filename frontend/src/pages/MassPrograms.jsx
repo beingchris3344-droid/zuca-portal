@@ -1452,6 +1452,7 @@ const container = {
   fontFamily: "'Inter', -apple-system, sans-serif",
   background: "#f8fafc",
   minHeight: "100vh",
+  marginBottom: "40px",
   borderRadius: "25px",
 };
 
@@ -1572,7 +1573,7 @@ const songActionIcon = { cursor: "pointer", padding: "2px" };
 const songNote = { fontSize: "9px", color: "#8b5cf6", marginTop: "4px", padding: "2px 4px", background: "#ede9fe", borderRadius: "4px", display: "flex", alignItems: "center", gap: "2px" };
 const expandMoreButton = { gridColumn: "span 2", padding: "10px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", fontSize: "11px", fontWeight: "500", color: "#4f46e5", cursor: "pointer", marginTop: "4px" };
 const actionButtons = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", marginTop: "10px", position: "relative" };
-const actionButton = { display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "8px 2px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: "9px", fontWeight: "500", color: "#475569", cursor: "pointer", width: "100%", transition: "all 0.2s" };
+const actionButton = { display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", padding: "8px 2px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: "9px", fontWeight: "500", color: "#475569", cursor: "pointer", width: "100%", transition: "all 0.2s" };
 const downloadDropdownContainer = { position: "relative", gridColumn: "span 4", marginTop: "7px" };
 const downloadMenu = { position: "absolute", bottom: "100%", left: 0, right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, marginBottom: "8px", display: "flex", flexDirection: "column", gap: "8px" };
 const previewToast = { position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", background: "#ffffff", color: "#0f172a", padding: "10px 20px", borderRadius: "30px", fontSize: "13px", fontWeight: "500", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)", zIndex: 9998, display: "flex", alignItems: "center", gap: "8px", border: "1px solid #e2e8f0" };

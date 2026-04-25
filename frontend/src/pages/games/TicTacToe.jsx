@@ -1212,7 +1212,7 @@ const styles = {
     minHeight: "calc(100vh - 220px)",
     background: "linear-gradient(135deg, #667eea00 0%, #764ba200 100%)",
     padding: "20px",
-    marginTop: "15px",
+    marginTop: "35px",
     marginBottom: "-1px",
     borderRadius: "24px",
     display: "flex",

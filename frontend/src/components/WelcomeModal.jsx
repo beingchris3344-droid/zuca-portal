@@ -1,8 +1,95 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheck, FiHeart } from "react-icons/fi";
+import { FiCheck, FiCopy, FiAlertCircle } from "react-icons/fi";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import BASE_URL from "../api";
+import zucaLlogo from "../assets/zuca-logo.png";
 
-export default function WelcomeModal({ isOpen, onClose, userName }) {
+export default function WelcomeModal({ isOpen, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const [understood, setUnderstood] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [membershipNumber, setMembershipNumber] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user data from database (same as Dashboard)
+  useEffect(() => {
+    if (isOpen) {
+      const fetchUserData = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const storedUser = JSON.parse(localStorage.getItem("user"));
+          
+          if (token && storedUser) {
+            // First, use stored user data
+            setUserName(storedUser.fullName || storedUser.name || "Member");
+            setMembershipNumber(storedUser.membership_number || "");
+            
+            // Then fetch fresh data from API
+            const response = await axios.get(`${BASE_URL}/api/me`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            const userData = response.data;
+            setUserName(userData.fullName || userData.name || "Member");
+            setMembershipNumber(userData.membership_number || "");
+            
+            // Update localStorage with fresh data
+            localStorage.setItem("user", JSON.stringify(userData));
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          // Fallback to localStorage
+          const storedUser = JSON.parse(localStorage.getItem("user"));
+          if (storedUser) {
+            setUserName(storedUser.fullName || storedUser.name || "Member");
+            setMembershipNumber(storedUser.membership_number || "");
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchUserData();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+  
+  const handleCopy = () => {
+    if (membershipNumber) {
+      navigator.clipboard.writeText(membershipNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleContinue = () => {
+    if (understood && membershipNumber) {
+      onClose();
+    }
+  };
+
+  if (loading) {
+    return (
+      <AnimatePresence>
+        <div style={styles.overlay}>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            style={styles.modal}
+          >
+            <div style={styles.logoContainer}>
+              <img src={zucaLlogo} alt="ZUCA Logo" style={styles.logoImage} />
+            </div>
+            <div style={styles.loadingSpinner}></div>
+            <p style={styles.loadingText}>Loading your account...</p>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -13,28 +100,82 @@ export default function WelcomeModal({ isOpen, onClose, userName }) {
           exit={{ scale: 0.8, opacity: 0 }}
           style={styles.modal}
         >
-          <div style={styles.iconContainer}>
-            <FiHeart size={48} color="#ef4444" />
+          {/* ZUCA Logo */}
+          <div style={styles.logoContainer}>
+            <img src={zucaLlogo} alt="ZUCA Logo" style={styles.logoImage} />
           </div>
           
           <h2 style={styles.title}>
-            Welcome to ZUCA Portal! 🙏
+           Hello <strong>{userName}</strong> Welcome to ZUCA Portal! 
           </h2>
           
           <p style={styles.message}>
-            Hello <strong>{userName}</strong>!<br />
+            🙏<br />
             You are now part of the Zetech University Catholic Action community.
           </p>
           
-          <p style={styles.subMessage}>
-            Explore mass programs, join discussions,<br />
-            make contributions, and grow in faith with us.<br /><br />
-            Tumsifu Yesu Kristu!
-          </p>
+          {/* Membership Number Section - Shows exactly as in database */}
+          <div style={styles.membershipSection}>
+            <div style={styles.membershipHeader}>
+              <FiAlertCircle size={16} color="#4f46e5" />
+              <span style={styles.membershipLabel}>YOUR MEMBERSHIP NUMBER</span>
+            </div>
+            
+            <div style={styles.membershipCard}>
+              {/* Display membership number exactly as from database */}
+              <div style={styles.membershipDisplay}>
+                {membershipNumber}
+              </div>
+              
+              <div style={styles.membershipConfirmed}>
+                <span style={styles.confirmedText}>
+                  ✓ Your --ZUCA-- Membership 
+                  Number is : {membershipNumber}
+                </span>
+                <button onClick={handleCopy} style={styles.copyButton}>
+                  <FiCopy size={14} /> {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+            
+            {/* Important Instructions */}
+            <div style={styles.importantBox}>
+              <div style={styles.importantTitle}>⚠️ IMPORTANT - READ CAREFULLY</div>
+              <ul style={styles.importantList}>
+                <li>Your membership number <strong>{membershipNumber}</strong> will be used to <strong>reset your password</strong></li>
+                <li>Must be linked with your <strong>phone number</strong> for account recovery</li>
+                <li><strong>Memorize or save</strong> this number - you cannot change it later</li>
+                <li>Always use this exact format: <strong style={{color: "#ef4444", fontSize: "14px"}}>{membershipNumber}</strong> when asked</li>
+              </ul>
+            </div>
+          </div>
           
-          <button onClick={onClose} style={styles.button}>
+          {/* Confirmation Checkbox */}
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={understood}
+              onChange={(e) => setUnderstood(e.target.checked)}
+              style={styles.checkbox}
+            />
+            <span>I understand and will remember that my membership number is <strong>{membershipNumber}</strong>, which I need to reset my password and recover my account</span>
+          </label>
+          
+          <button 
+            onClick={handleContinue}
+            style={{
+              ...styles.button,
+              opacity: understood && membershipNumber ? 1 : 0.5,
+              cursor: understood && membershipNumber ? "pointer" : "not-allowed"
+            }}
+            disabled={!understood || !membershipNumber}
+          >
             <FiCheck size={18} /> I Accept & Continue
           </button>
+          
+          <p style={styles.footnote}>
+            ⭐ Keep your membership number safe: <strong>{membershipNumber}</strong>
+          </p>
         </motion.div>
       </div>
     </AnimatePresence>
@@ -48,7 +189,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
     backdropFilter: "blur(8px)",
     display: "flex",
     alignItems: "center",
@@ -59,43 +200,139 @@ const styles = {
   modal: {
     background: "linear-gradient(135deg, #ffffff, #f8fafc)",
     borderRadius: "28px",
-    padding: "48px 40px",
-    maxWidth: "480px",
+    padding: "40px 32px",
+    maxWidth: "520px",
     width: "100%",
     textAlign: "center",
     boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
-    border: "1px solid rgba(0,198,255,0.2)",
+    border: "1px solid rgba(79,70,229,0.2)",
+    maxHeight: "90vh",
+    overflowY: "auto",
   },
-  iconContainer: {
-    width: "90px",
-    height: "90px",
-    background: "linear-gradient(135deg, #fef2f2, #fee2e2)",
-    borderRadius: "50%",
+  logoContainer: {
+    marginBottom: "20px",
     display: "flex",
-    alignItems: "center",
     justifyContent: "center",
-    margin: "0 auto 24px",
-    boxShadow: "0 4px 15px rgba(239,68,68,0.2)",
+  },
+  logoImage: {
+    width: "80px",
+    height: "80px",
+    objectFit: "contain",
+    borderRadius: "50%",
+    boxShadow: "0 8px 20px rgba(79,70,229,0.3)",
   },
   title: {
-    fontSize: "28px",
+    fontSize: "24px",
     fontWeight: "700",
     background: "linear-gradient(135deg, #0f172a, #1e293b)",
     WebkitBackgroundClip: "text",
     WebkitTextFillColor: "transparent",
-    marginBottom: "16px",
+    marginBottom: "12px",
   },
   message: {
-    fontSize: "16px",
+    fontSize: "15px",
     color: "#334155",
-    lineHeight: "1.6",
+    lineHeight: "1.5",
+    marginBottom: "24px",
+  },
+  membershipSection: {
+    marginBottom: "24px",
+  },
+  membershipHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    marginBottom: "12px",
+  },
+  membershipLabel: {
+    fontSize: "12px",
+    fontWeight: "700",
+    letterSpacing: "1px",
+    color: "#4f46e5",
+    textTransform: "uppercase",
+  },
+  membershipCard: {
+    background: "#f1f5f9",
+    borderRadius: "16px",
+    padding: "20px",
     marginBottom: "16px",
   },
-  subMessage: {
-    fontSize: "14px",
-    color: "#64748b",
-    lineHeight: "1.5",
-    marginBottom: "32px",
+  membershipDisplay: {
+    fontSize: "32px",
+    fontWeight: "800",
+    fontFamily: "monospace",
+    marginBottom: "16px",
+    padding: "16px",
+    background: "linear-gradient(135deg, #e0e7ff, #fef3c7)",
+    borderRadius: "12px",
+    color: "#1e293b",
+    wordBreak: "break-all",
+  },
+  membershipConfirmed: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+  },
+  confirmedText: {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#065f46",
+    background: "#d1fae5",
+    padding: "10px 16px",
+    borderRadius: "12px",
+    flex: 1,
+    wordBreak: "break-all",
+  },
+  copyButton: {
+    padding: "8px 16px",
+    fontSize: "12px",
+    background: "#4f46e5",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    fontWeight: "500",
+  },
+  importantBox: {
+    background: "#fffbeb",
+    borderLeft: "4px solid #f59e0b",
+    padding: "16px",
+    borderRadius: "12px",
+    textAlign: "left",
+  },
+  importantTitle: {
+    fontSize: "13px",
+    fontWeight: "700",
+    color: "#d97706",
+    marginBottom: "8px",
+  },
+  importantList: {
+    fontSize: "13px",
+    color: "#78350f",
+    margin: 0,
+    paddingLeft: "20px",
+    lineHeight: "1.6",
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "12px",
+    marginBottom: "24px",
+    fontSize: "13px",
+    textAlign: "left",
+    color: "#334155",
+    cursor: "pointer",
+  },
+  checkbox: {
+    marginTop: "2px",
+    width: "18px",
+    height: "18px",
+    cursor: "pointer",
   },
   button: {
     background: "linear-gradient(135deg, #4f46e5, #6366f1)",
@@ -113,4 +350,33 @@ const styles = {
     width: "100%",
     transition: "all 0.2s",
   },
+  footnote: {
+    marginTop: "16px",
+    fontSize: "11px",
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  loadingSpinner: {
+    width: "40px",
+    height: "40px",
+    border: "3px solid #e2e8f0",
+    borderTopColor: "#4f46e5",
+    borderRadius: "50%",
+    margin: "20px auto",
+    animation: "spin 0.6s linear infinite",
+  },
+  loadingText: {
+    color: "#64748b",
+    fontSize: "14px",
+  },
 };
+
+// Add keyframes for spinner animation
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(styleSheet);

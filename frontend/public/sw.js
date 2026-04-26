@@ -1,5 +1,5 @@
-// ZUCA Portal - Complete Working Service Worker
-const CACHE_NAME = 'zuca-v3';
+// ZUCA Portal - WORKING PUSH NOTIFICATIONS
+const CACHE_NAME = 'zuca-v4';
 
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
@@ -11,59 +11,70 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// THIS IS THE CRITICAL PART - PUSH HANDLER
-self.addEventListener('push', function(event) {
-  console.log('[SW] Push received');
+// CRITICAL: Push event handler
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push received!');
   
-  let data = {
-    title: 'ZUCA Portal',
+  // Default notification
+  let title = 'ZUCA Portal';
+  let options = {
     body: 'You have a new notification',
     icon: '/android-chrome-192x192.png',
-    url: '/'
-  };
-  
-  if (event.data) {
-    try {
-      data = event.data.json();
-      console.log('[SW] Data:', data);
-    } catch(e) {
-      console.log('[SW] Could not parse JSON');
-    }
-  }
-  
-  const options = {
-    body: data.body || 'You have a new notification',
-    icon: data.icon || '/android-chrome-192x192.png',
     badge: '/favicon.ico',
     vibrate: [200, 100, 200],
-    data: {
-      url: data.url || data.data?.url || '/'
-    },
+    data: { url: '/' },
     requireInteraction: true,
     silent: false
   };
   
+  // Parse push data
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      console.log('[SW] Payload:', payload);
+      
+      title = payload.title || title;
+      options.body = payload.body || options.body;
+      options.data.url = payload.url || payload.data?.url || '/';
+      options.data.type = payload.type || 'general';
+      
+      // Special handling for different types
+      if (payload.type === 'announcement') {
+        options.body = `📢 ${options.body}`;
+      } else if (payload.type === 'game_invite') {
+        options.body = `🎮 ${options.body}`;
+        options.vibrate = [500, 200, 500];
+      }
+    } catch (e) {
+      console.log('[SW] Could not parse JSON, using text');
+      options.body = event.data.text() || options.body;
+    }
+  }
+  
+  // Show the notification
   event.waitUntil(
-    self.registration.showNotification(data.title || 'ZUCA Portal', options)
+    self.registration.showNotification(title, options)
+      .then(() => console.log('[SW] ✅ Notification displayed!'))
+      .catch(err => console.error('[SW] ❌ Show failed:', err))
   );
 });
 
-self.addEventListener('notificationclick', function(event) {
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked');
   event.notification.close();
   
   const url = event.notification.data?.url || '/';
   
   event.waitUntil(
-    self.clients.matchAll({type: 'window'}).then(function(clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if (client.url === url && 'focus' in client) {
-          return client.focus();
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(clients => {
+        for (const client of clients) {
+          if (client.url === url || (client.url.includes('/dashboard') && url === '/')) {
+            return client.focus();
+          }
         }
-      }
-      if (self.clients.openWindow) {
         return self.clients.openWindow(url);
-      }
-    })
+      })
   );
 });

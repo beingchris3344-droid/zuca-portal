@@ -2142,6 +2142,10 @@ app.get("/api/media/featured", async (req, res) => {
   }
 });
 
+
+
+
+
 // ==================== MEDIA INTERACTIONS ====================
 
 // 8. Like/Unlike media
@@ -2165,6 +2169,182 @@ app.post("/api/media/:id/like", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ==================== LIVE ACTIVITIES ENDPOINTS ====================
+
+// Get recent likes with user and media info
+app.get("/api/media/recent-likes", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const recentLikes = await prisma.mediaLike.findMany({
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } },
+        media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+      }
+    });
+    
+    res.json(recentLikes);
+  } catch (err) {
+    console.error("Error fetching recent likes:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get recent comments with user and media info
+app.get("/api/media/recent-comments", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const recentComments = await prisma.mediaComment.findMany({
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } },
+        media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+      }
+    });
+    
+    res.json(recentComments);
+  } catch (err) {
+    console.error("Error fetching recent comments:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get recent shares with user and media info
+app.get("/api/media/recent-shares", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const recentShares = await prisma.mediaShare.findMany({
+      take: parseInt(limit),
+      orderBy: { sharedAt: 'desc' },
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } },
+        media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+      }
+    });
+    
+    res.json(recentShares);
+  } catch (err) {
+    console.error("Error fetching recent shares:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get combined live feed (all activities)
+app.get("/api/media/live-feed", async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+    
+    // Fetch all activities in parallel
+    const [likes, comments, shares] = await Promise.all([
+      prisma.mediaLike.findMany({
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, fullName: true, profileImage: true } },
+          media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+        }
+      }),
+      prisma.mediaComment.findMany({
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, fullName: true, profileImage: true } },
+          media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+        }
+      }),
+      prisma.mediaShare.findMany({
+        take: parseInt(limit),
+        orderBy: { sharedAt: 'desc' },
+        include: {
+          user: { select: { id: true, fullName: true, profileImage: true } },
+          media: { select: { id: true, title: true, thumbnailUrl: true, type: true } }
+        }
+      })
+    ]);
+    
+    // Combine and format activities
+    const activities = [
+      ...likes.map(like => ({
+        id: `like-${like.id}`,
+        type: 'like',
+        userId: like.userId,
+        userName: like.user.fullName,
+        userAvatar: like.user.profileImage,
+        mediaId: like.media.id,
+        mediaTitle: like.media.title,
+        mediaThumbnail: like.media.thumbnailUrl,
+        mediaType: like.media.type,
+        action: 'liked',
+        icon: '❤️',
+        timestamp: like.createdAt,
+        timeAgo: formatRelativeTimeStatic(like.createdAt)
+      })),
+      ...comments.map(comment => ({
+        id: `comment-${comment.id}`,
+        type: 'comment',
+        userId: comment.userId,
+        userName: comment.user.fullName,
+        userAvatar: comment.user.profileImage,
+        mediaId: comment.media.id,
+        mediaTitle: comment.media.title,
+        mediaThumbnail: comment.media.thumbnailUrl,
+        mediaType: comment.media.type,
+        action: 'commented',
+        icon: '💬',
+        timestamp: comment.createdAt,
+        timeAgo: formatRelativeTimeStatic(comment.createdAt),
+        commentContent: comment.content
+      })),
+      ...shares.map(share => ({
+        id: `share-${share.id}`,
+        type: 'share',
+        userId: share.userId,
+        userName: share.user.fullName,
+        userAvatar: share.user.profileImage,
+        mediaId: share.media.id,
+        mediaTitle: share.media.title,
+        mediaThumbnail: share.media.thumbnailUrl,
+        mediaType: share.media.type,
+        action: 'shared',
+        icon: '↗️',
+        timestamp: share.sharedAt,
+        timeAgo: formatRelativeTimeStatic(share.sharedAt),
+        platform: share.platform
+      }))
+    ];
+    
+    // Sort by timestamp (newest first) and limit
+    activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    res.json(activities.slice(0, parseInt(limit)));
+  } catch (err) {
+    console.error("Error fetching live feed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Helper function for time formatting
+function formatRelativeTimeStatic(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+}
 
 // 9. Check if user liked media
 app.get("/api/media/:id/liked", authenticate, async (req, res) => {
@@ -2253,6 +2433,9 @@ app.get("/api/media/:id/comments", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
 
 // 12. Delete comment (owner, media owner, or admin)
 app.delete("/api/media/comments/:commentId", authenticate, async (req, res) => {
@@ -2376,6 +2559,8 @@ app.get("/api/media/trending", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 
 
@@ -9927,13 +10112,58 @@ app.get("/api/user/contribution-stats", authenticate, async (req, res) => {
   }
 });
 
+
+// ================== GET VAPID PUBLIC KEY ==================
+app.get("/api/notifications/vapid-public-key", (req, res) => {
+  try {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    
+    if (!publicKey) {
+      console.error("❌ VAPID_PUBLIC_KEY not set in environment");
+      return res.status(500).json({ error: "VAPID key not configured" });
+    }
+    
+    res.json({ publicKey });
+  } catch (err) {
+    console.error("Error serving VAPID key:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/send-test-notification", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    await createAndSendNotification({
+      userId,
+      type: "test",
+      title: "📱 Mobile Test",
+      message: "This notification arrived on your phone! 🎉",
+      data: { url: "/dashboard", type: "test" }
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================== PUSH NOTIFICATIONS ==================
 const webpush = require('web-push');
 
+// Read from environment variables
 const vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY || 'YOUR_GENERATED_PUBLIC_KEY',
-  privateKey: process.env.VAPID_PRIVATE_KEY || 'YOUR_GENERATED_PRIVATE_KEY'
+  publicKey: process.env.VAPID_PUBLIC_KEY,
+  privateKey: process.env.VAPID_PRIVATE_KEY
 };
+
+// Validate keys exist
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  console.error('❌ VAPID keys missing! Please add to .env file');
+  console.error('Run: node -e "const webpush = require(\'web-push\'); console.log(webpush.generateVAPIDKeys());"');
+} else {
+  console.log('✅ VAPID keys loaded successfully');
+}
 
 webpush.setVapidDetails(
   'mailto:zucaportal2025@gmail.com',

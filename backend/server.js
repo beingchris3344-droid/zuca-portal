@@ -10044,7 +10044,6 @@ app.post("/api/send-test-notification", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // ================== PUSH NOTIFICATIONS ==================
 const webpush = require('web-push');
 
@@ -10100,7 +10099,9 @@ app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
   }
 });
 
-
+// ============================================
+// FIX #1: ENHANCED sendPushNotification
+// ============================================
 async function sendPushNotification(userId, title, body, data = {}) {
   try {
     const subscription = await prisma.pushSubscription.findUnique({
@@ -10109,7 +10110,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
 
     if (!subscription) return;
 
-    // ✅ Get current unread count for this user
+    // Get current unread count for badge
     const unreadCount = await prisma.notification.count({
       where: { 
         userId: userId, 
@@ -10119,26 +10120,110 @@ async function sendPushNotification(userId, title, body, data = {}) {
 
     const pushSubscription = JSON.parse(subscription.subscription);
     
-    await webpush.sendNotification(pushSubscription, JSON.stringify({
-      title,
-      body,
-      icon: '/android-chrome-192x192.png',
-      badge: '/favicon.ico',
-      badgeCount: unreadCount + 1,  // ✅ This sets the app icon badge!
-      data,
-      timestamp: Date.now()
-    }));
+    // ✅ ENHANCED PAYLOAD FOR ANDROID VISIBILITY
+    const payload = {
+      title: title,
+      body: body,
+      icon: data.icon || '/android-chrome-192x192.png',
+      badge: data.badge || '/badge-icon.png',
+      vibrate: [500, 200, 500, 200, 500],  // Strong vibration for attention
+      timestamp: Date.now(),
+      requireInteraction: true,   // ✅ Forces notification to stay on screen
+      silent: false,              // ✅ Must be false for sound/vibration
+      renotify: true,             // ✅ Notify even if duplicate
+      tag: `${data.type || 'general'}-${Date.now()}`,
+      urgency: 'high',            // ✅ Critical for Android - HIGH priority
+      priority: 2,                // ✅ Chrome priority (0=low,2=highest)
+      badgeCount: unreadCount + 1,
+      data: {
+        url: data.url || '/dashboard',
+        type: data.type || 'general',
+        id: data.id,
+        entityId: data.entityId,
+        fromUserId: data.fromUserId,
+        ...data
+      }
+    };
     
-    console.log(`📱 Push sent to ${userId} (badge: ${unreadCount + 1})`);
+    // Add custom actions based on notification type
+    if (data.type === 'announcement') {
+      payload.actions = [
+        { action: 'view', title: '📢 Read Announcement' },
+        { action: 'dismiss', title: 'Close' }
+      ];
+    } else if (data.type === 'game_invite') {
+      payload.actions = [
+        { action: 'accept', title: '🎮 Accept' },
+        { action: 'decline', title: '❌ Decline' }
+      ];
+      payload.requireInteraction = true;
+    } else if (data.type === 'pledge_approved' || data.type === 'payment_added') {
+      payload.actions = [
+        { action: 'view', title: '💰 View Pledge' },
+        { action: 'dismiss', title: 'Close' }
+      ];
+    } else if (data.type === 'event_reminder') {
+      payload.actions = [
+        { action: 'view', title: '📅 View Event' },
+        { action: 'dismiss', title: 'Close' }
+      ];
+    } else {
+      payload.actions = [
+        { action: 'view', title: '📖 View Details' },
+        { action: 'dismiss', title: 'Close' }
+      ];
+    }
+    
+    console.log(`📱 Sending HIGH-PRIORITY push to ${userId}:`, payload.title);
+    
+    // ✅ Send with high priority options
+    await webpush.sendNotification(
+      pushSubscription, 
+      JSON.stringify(payload),
+      {
+        urgency: 'high',      // ✅ FCM urgency level
+        priority: 2,          // ✅ Chrome priority
+        contentEncoding: 'aes128gcm'  // ✅ Better for mobile
+      }
+    );
+    
+    console.log(`✅ Push sent to ${userId} (badge: ${unreadCount + 1})`);
   } catch (err) {
     console.error('Error sending push notification:', err);
     if (err.statusCode === 410) {
       await prisma.pushSubscription.deleteMany({ where: { userId } });
+      console.log(`Removed expired subscription for ${userId}`);
     }
   }
 }
 
+// ============================================
+// Enhanced createAndSendNotification
+// ============================================
 async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  // Determine URL based on notification type
+  let url = data.url;
+  if (!url) {
+    const urlMap = {
+      'announcement': '/announcements',
+      'game_invite': '/games',
+      'pledge_approved': '/contributions',
+      'payment_added': '/contributions',
+      'new_media': '/gallery',
+      'new_program': '/mass-programs',
+      'event_reminder': '/schedules',
+      'chat_mention': '/chat',
+      'executive_appointment': '/executive',
+      'contribution': '/contributions'
+    };
+    url = urlMap[type] || '/dashboard';
+    
+    // Add entity ID if exists
+    if (data.entityId && type === 'announcement') {
+      url = `/announcements/${data.entityId}`;
+    }
+  }
+  
   const notif = await prisma.notification.create({
     data: {
       id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -10148,25 +10233,30 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       message,
       read: false,
       createdAt: new Date(),
+      data: { url, ...data }  // Store URL in notification
     }
   });
 
+  // Real-time via Socket.IO
   io.to(userId).emit('new_notification', {
     ...notif,
     createdAt: notif.createdAt.toISOString()
   });
 
-try {
-    await sendPushNotification(userId, title, message, { type, ...data });
+  // Send enhanced push notification
+  try {
+    await sendPushNotification(userId, title, message, { 
+      ...data, 
+      type, 
+      url,
+      requireInteraction: true 
+    });
   } catch (err) {
-    console.log('Push not sent (user may not have PWA installed):', err.message);
+    console.log('Push not sent:', err.message);
   }
 
   return notif;
 }
-
-
-
 
 
 // ================== NOTIFICATIONS ==================

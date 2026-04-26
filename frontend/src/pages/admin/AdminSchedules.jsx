@@ -8,6 +8,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "react-quill/dist/quill.snow.css";
 import "react-datepicker/dist/react-datepicker.css";
+import { createPortal } from 'react-dom';
 
 function AdminSchedules() {
   const navigate = useNavigate();
@@ -1306,53 +1307,51 @@ const downloadAsWord = (scheduleData = null) => {
         )}
       </div>
 
-      {/* FULL PAGE FORM */}
-     {showForm && (
-  <div style={styles.fullPageForm}>
-    <div style={styles.fullPageHeader}>
-      <h2>{editingId ? "Edit" : previewMode ? "View" : "Create"} Semester Schedule</h2>
-      <div>
-        {previewMode ? (
-          // Back to Edit button - appears when in preview mode
-          <button 
-            onClick={() => setPreviewMode(false)} 
-            style={styles.backToEditBtn}
-          >
-            ✏️ Back to Edit
-          </button>
-        ) : (
-          // Preview button - appears when in edit mode
-          <button 
-            onClick={() => setPreviewMode(true)} 
-            style={styles.previewBtn}
-          >
-            👁️ Preview
-          </button>
-        )}
-        <button 
-          onClick={() => { 
-            setShowForm(false); 
-            setPreviewMode(false); 
-          }} 
-          style={styles.closeBtn}
-        >
-          ✕
-        </button>
-      </div>
-    </div>
+       {/* FULL PAGE FORM WITH PORTAL - FIXES SIDEBAR OVERLAY ISSUE */}
+      {showForm && createPortal(
+        <div style={styles.fullPageForm}>
+          <div style={styles.fullPageHeader}>
+            <h2>{editingId ? "Edit" : previewMode ? "View" : "Create"} Semester Schedule</h2>
+            <div>
+              {previewMode ? (
+                <button 
+                  onClick={() => setPreviewMode(false)} 
+                  style={styles.backToEditBtn}
+                >
+                  ✏️ Back to Edit
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setPreviewMode(true)} 
+                  style={styles.previewBtn}
+                >
+                  👁️ Preview
+                </button>
+              )}
+              <button 
+                onClick={() => { 
+                  setShowForm(false); 
+                  setPreviewMode(false); 
+                }} 
+                style={styles.closeBtn}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
 
-    {previewMode ? (
-      <>
-        <div style={styles.downloadBar}>
-          <button onClick={() => downloadAsPDF()} style={styles.downloadBtn} disabled={loading}>📄 PDF</button>
-          <button onClick={() => downloadAsImage()} style={styles.downloadBtn} disabled={loading}>🖼️ Image</button>
-          <button onClick={() => downloadAsWord()} style={styles.downloadBtn} disabled={loading}>📝 Word</button>
-        </div>
-        <div ref={previewRef}>
-          <div style={styles.previewContainer} dangerouslySetInnerHTML={{ __html: buildFullDocumentHTML() }} />
-        </div>
-      </>
-    ) : (
+          {previewMode ? (
+            <>
+              <div style={styles.downloadBar}>
+                <button onClick={() => downloadAsPDF()} style={styles.downloadBtn} disabled={loading}>📄 PDF</button>
+                <button onClick={() => downloadAsImage()} style={styles.downloadBtn} disabled={loading}>🖼️ Image</button>
+                <button onClick={() => downloadAsWord()} style={styles.downloadBtn} disabled={loading}>📝 Word</button>
+              </div>
+              <div ref={previewRef}>
+                <div style={styles.previewContainer} dangerouslySetInnerHTML={{ __html: buildFullDocumentHTML() }} />
+              </div>
+            </>
+          ) : (
             <form onSubmit={handleSubmit} style={styles.form}>
               <div style={styles.tabContainer}>
                 <button type="button" onClick={() => setActiveTab("structured")} style={{...styles.tab, background: activeTab === "structured" ? "#3b82f6" : "#f1f5f9", color: activeTab === "structured" ? "white" : "#475569"}}>📋 Structured Mode</button>
@@ -1536,7 +1535,8 @@ const downloadAsWord = (scheduleData = null) => {
               </div>
             </form>
           )}
-        </div>
+        </div>,
+        document.body  // ← THIS IS THE KEY - renders at body level, escaping the Layout sidebar!
       )}
     </div>
   );
@@ -1607,9 +1607,10 @@ const styles = {
     right: 0,
     bottom: 0,
     background: "#f8fafc",
-    zIndex: 1000,
+    zIndex: 99999999990,
     overflowY: "auto",
     padding: "20px",
+    
     paddingTop: "80px",
   },
   fullPageHeader: {

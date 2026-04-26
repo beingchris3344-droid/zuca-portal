@@ -574,7 +574,7 @@ const sidebarStyle = {
   padding: "24px 16px",
   display: "flex",
   flexDirection: "column",
-  zIndex: 0,
+  zIndex: 50,
   overflowY: "hidden",
 };
 

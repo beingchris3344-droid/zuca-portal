@@ -152,20 +152,22 @@ function Dashboard() {
     }
   };
 
-  // Fetch featured gallery
-  const fetchFeaturedGallery = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/media/featured?limit=3`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setFeaturedGallery(res.data || []);
-      setGalleryItems((res.data || []).length);
-    } catch (error) {
-      console.error("Error fetching gallery:", error);
-    }
-  };
-
+ // Fetch 3 random non-featured media for dashboard
+const fetchFeaturedGallery = async () => {
+  try {
+    const res = await axios.get(`${BASE_URL}/api/media/public?limit=5`);
+    
+    // Filter out featured items and get 3 random ones
+    const nonFeatured = res.data.media.filter(item => !item.isFeatured);
+    const shuffled = [...nonFeatured].sort(() => 0.5 - Math.random());
+    const random3 = shuffled.slice(0, 3);
+    
+    setFeaturedGallery(random3);
+    setGalleryItems(random3.length);
+  } catch (error) {
+    console.error("Error fetching gallery:", error);
+  }
+};
   // Fetch recent hymns
   const fetchRecentHymns = async () => {
     try {

@@ -1,4 +1,6 @@
 // public/sw.js - Enhanced with Badge Support
+self.__WB_MANIFEST;
+
 const CACHE_NAME = 'zuca-portal-v3';
 const urlsToCache = [
   '/',

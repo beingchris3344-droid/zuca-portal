@@ -1,124 +1,69 @@
-// ============================================
-// ZUCA PORTAL - SERVICE WORKER
-// Fixed for visible notifications on Android
-// ============================================
+// ZUCA Portal - Complete Working Service Worker
+const CACHE_NAME = 'zuca-v3';
 
-const CACHE_NAME = 'zuca-v2';
-
-// Files to cache
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.ico',
-  '/android-chrome-192x192.png',
-  '/android-chrome-512x512.png'
-];
-
-// Install event
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Caching assets');
-        return cache.addAll(urlsToCache);
-      })
-      .then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
-// Activate event
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
+  event.waitUntil(self.clients.claim());
 });
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
-});
-
-// ============================================
-// PUSH NOTIFICATION - THE IMPORTANT PART
-// ============================================
-self.addEventListener('push', (event) => {
-  console.log('[SW] Push received!');
+// THIS IS THE CRITICAL PART - PUSH HANDLER
+self.addEventListener('push', function(event) {
+  console.log('[SW] Push received');
   
-  let title = 'ZUCA Portal';
-  let options = {
+  let data = {
+    title: 'ZUCA Portal',
     body: 'You have a new notification',
     icon: '/android-chrome-192x192.png',
-    badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
-    requireInteraction: true,
-    silent: false,
-    data: {
-      url: '/dashboard',
-      type: 'general'
-    }
+    url: '/'
   };
   
-  try {
-    if (event.data) {
-      const pushData = event.data.json();
-      console.log('[SW] Push data:', pushData);
-      
-      title = pushData.title || title;
-      options.body = pushData.body || options.body;
-      options.data.url = pushData.url || pushData.data?.url || '/dashboard';
-      options.data.type = pushData.type || 'general';
-      options.data.id = pushData.id;
+  if (event.data) {
+    try {
+      data = event.data.json();
+      console.log('[SW] Data:', data);
+    } catch(e) {
+      console.log('[SW] Could not parse JSON');
     }
-  } catch (err) {
-    console.error('[SW] Parse error:', err);
   }
   
+  const options = {
+    body: data.body || 'You have a new notification',
+    icon: data.icon || '/android-chrome-192x192.png',
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    data: {
+      url: data.url || data.data?.url || '/'
+    },
+    requireInteraction: true,
+    silent: false
+  };
+  
   event.waitUntil(
-    self.registration.showNotification(title, options)
-      .then(() => console.log('[SW] ✅ Notification shown!'))
-      .catch(err => console.error('[SW] Failed:', err))
+    self.registration.showNotification(data.title || 'ZUCA Portal', options)
   );
 });
 
-// ============================================
-// NOTIFICATION CLICK
-// ============================================
-self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked');
-  
+self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   
-  const url = event.notification.data?.url || '/dashboard';
+  const url = event.notification.data?.url || '/';
   
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(clientList => {
-        for (const client of clientList) {
-          if (client.url === url || client.url.includes('/dashboard')) {
-            return client.focus();
-          }
+    self.clients.matchAll({type: 'window'}).then(function(clientList) {
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if (client.url === url && 'focus' in client) {
+          return client.focus();
         }
+      }
+      if (self.clients.openWindow) {
         return self.clients.openWindow(url);
-      })
+      }
+    })
   );
 });

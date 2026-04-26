@@ -145,7 +145,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
                 <li>Your membership number <strong>{membershipNumber}</strong> will be used to <strong>reset your password</strong></li>
                 <li>Must be linked with your <strong>phone number</strong> for account recovery</li>
                 <li><strong>Memorize or save</strong> this number - you cannot change it later</li>
-                <li>Always use this exact format: <strong style={{color: "#ef4444", fontSize: "14px"}}>{membershipNumber}</strong> when asked</li>
+                <li>Always use this exact format:(Z-ZUCA + #-Number + membership number =) <strong style={{color: "#ef4444", fontSize: "14px"}}>{membershipNumber}</strong> when asked</li>
               </ul>
             </div>
           </div>

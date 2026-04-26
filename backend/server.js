@@ -10044,6 +10044,32 @@ app.post("/api/send-test-notification", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ================== PUSH NOTIFICATIONS ==================
+const webpush = require('web-push');
+
+// Read from environment variables
+const vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY,
+  privateKey: process.env.VAPID_PRIVATE_KEY
+};
+
+// Validate keys exist
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  console.error('❌ VAPID keys missing! Please add to .env file');
+  console.error('Run: node -e "const webpush = require(\'web-push\'); console.log(webpush.generateVAPIDKeys());"');
+} else {
+  console.log('✅ VAPID keys loaded successfully');
+}
+
+webpush.setVapidDetails(
+  'mailto:zucaportal2025@gmail.com',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
+// ============================================
+// FIRST: Define sendPushNotification
+// ============================================
 async function sendPushNotification(userId, title, body, data = {}) {
   try {
     const subscription = await prisma.pushSubscription.findUnique({
@@ -10052,7 +10078,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
 
     if (!subscription) return;
 
-    // ✅ Get current unread count for this user
+    // Get current unread count for this user
     const unreadCount = await prisma.notification.count({
       where: { 
         userId: userId, 
@@ -10062,7 +10088,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
 
     const pushSubscription = JSON.parse(subscription.subscription);
     
-    // ✅ CHANGE: Add urgency: 'high' option
+    // Send with HIGH URGENCY to fix "background update" issue
     await webpush.sendNotification(
       pushSubscription, 
       JSON.stringify({
@@ -10075,7 +10101,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
         timestamp: Date.now()
       }),
       {
-        urgency: 'high'  // ← THIS ONE LINE FIXES THE "BACKGROUND UPDATE" ISSUE
+        urgency: 'high'  // ← This fixes the "app updated in background" issue
       }
     );
     
@@ -10087,6 +10113,93 @@ async function sendPushNotification(userId, title, body, data = {}) {
     }
   }
 }
+
+// ============================================
+// SECOND: Define createAndSendNotification
+// ============================================
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  const notif = await prisma.notification.create({
+    data: {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      createdAt: new Date(),
+    }
+  });
+
+  // Send real-time via Socket.IO
+  io.to(userId).emit('new_notification', {
+    ...notif,
+    createdAt: notif.createdAt.toISOString()
+  });
+
+  // Send push notification
+  try {
+    await sendPushNotification(userId, title, message, { type, ...data });
+  } catch (err) {
+    console.log('Push not sent (user may not have PWA installed):', err.message);
+  }
+
+  return notif;
+}
+
+// ============================================
+// THIRD: Define Express routes
+// ============================================
+app.post('/api/notifications/subscribe', authenticate, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    const userId = req.user.userId;
+
+    await prisma.pushSubscription.upsert({
+      where: { userId },
+      update: { subscription: JSON.stringify(subscription) },
+      create: {
+        userId,
+        subscription: JSON.stringify(subscription)
+      }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    await prisma.pushSubscription.deleteMany({ where: { userId } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test endpoint to verify notifications work
+app.post('/api/send-test-notification', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    await createAndSendNotification({
+      userId,
+      type: "test",
+      title: "🔔 Test Notification",
+      message: "If you see this, push notifications are working! 🎉",
+      data: { url: "/dashboard", type: "test" }
+    });
+    
+    res.json({ success: true, message: "Test notification sent" });
+  } catch (err) {
+    console.error('Test notification error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 // ================== NOTIFICATIONS ==================

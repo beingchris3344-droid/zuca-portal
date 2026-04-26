@@ -10138,7 +10138,7 @@ app.post("/api/send-test-notification", authenticate, async (req, res) => {
       userId,
       type: "test",
       title: "📱 Mobile Test",
-      message: "This notification arrived on your phone! 🎉",
+      message: "This notifocation arrived on your phone! 🎉",
       data: { url: "/dashboard", type: "test" }
     });
     

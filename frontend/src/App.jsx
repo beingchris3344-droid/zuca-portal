@@ -4,7 +4,6 @@ import { io } from "socket.io-client";
 import BASE_URL from "./api";
 
 // Import Notification Manager and Badge Manager
-//import NotificationManager from "./components/NotificationManager";
 import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
 
@@ -42,13 +41,10 @@ import UserManual from './pages/UserManual';
 import Games from "./pages/Games";
 import UserSchedules from "./pages/UserSchedules";
 
-
-//GAMES
+// GAMES
 import TicTacToe from "./pages/games/TicTacToe";
 import Snake from "./pages/games/Snake";
 import BibleTrivia from "./pages/games/BibleTrivia";
-
-
 
 // ===== EXECUTIVE SYSTEM IMPORTS =====
 import ExecutivePage from "./pages/ExecutivePage";
@@ -77,13 +73,15 @@ import AdminSchedules from "./pages/admin/AdminSchedules";
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
 
-// Create socket instance
+// Create socket instance with better configuration
 const socket = io(BASE_URL, {
   path: '/socket.io',
   transports: ['websocket', 'polling'],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
 });
 
 // Create a wrapper component that has access to navigate
@@ -93,6 +91,7 @@ function AppContent() {
   const [isAIFullPage, setIsAIFullPage] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
 
   // ✅ SERVICE WORKER UPDATE DETECTION - Auto refresh
   useEffect(() => {
@@ -186,7 +185,7 @@ function AppContent() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Socket.IO connection setup
+  // Socket.IO connection setup with FCM compatibility
   useEffect(() => {
     const token = localStorage.getItem("token");
     const user = localStorage.getItem("user");
@@ -223,19 +222,49 @@ function AppContent() {
       
       // Show browser notification if permitted and tab is hidden
       if (Notification.permission === "granted" && document.hidden) {
-        new Notification(notification.title || "New Notification", {
+        // For FCM compatibility on Android, ensure proper notification format
+        const notificationOptions = {
           body: notification.message,
           icon: "/android-chrome-192x192.png",
-          badge: "/favicon.ico",
-          tag: notification.id,
+          badge: "/badge-icon.png",
+          tag: notification.id || `notif-${Date.now()}`,
           vibrate: [200, 100, 200],
+          requireInteraction: notification.type === 'game_invite' || notification.type === 'event_reminder',
+          renotify: true,
           data: {
-            url: `/dashboard`,
+            url: notification.data?.url || `/dashboard`,
             id: notification.id,
             type: notification.type,
-            entityId: notification.entityId
-          }
-        });
+            entityId: notification.entityId,
+            timestamp: Date.now()
+          },
+          actions: []
+        };
+        
+        // Add action buttons based on notification type
+        if (notification.type === 'game_invite') {
+          notificationOptions.actions = [
+            { action: 'accept', title: '🎮 Accept' },
+            { action: 'decline', title: '❌ Decline' }
+          ];
+        } else if (notification.type === 'pledge_approved' || notification.type === 'payment_added') {
+          notificationOptions.actions = [
+            { action: 'view', title: '💰 View Pledge' },
+            { action: 'dismiss', title: 'Dismiss' }
+          ];
+        } else if (notification.type === 'event_reminder') {
+          notificationOptions.actions = [
+            { action: 'view', title: '📅 View Event' },
+            { action: 'dismiss', title: 'Dismiss' }
+          ];
+        } else {
+          notificationOptions.actions = [
+            { action: 'view', title: '📖 View Details' },
+            { action: 'dismiss', title: 'Dismiss' }
+          ];
+        }
+        
+        new Notification(notification.title || "New Notification", notificationOptions);
       }
     });
     
@@ -244,13 +273,23 @@ function AppContent() {
       badgeManager.loadCount();
     });
     
+    // Listen for FCM subscription refresh events
+    socket.on("push_subscription_refresh", async (data) => {
+      console.log("🔄 Push subscription refresh requested:", data);
+      if (data.reason === 'expired' || data.reason === 'migration') {
+        await pushService.unsubscribe();
+        await pushService.subscribe();
+      }
+    });
+    
     return () => {
       socket.off("new_notification");
       socket.off("new_notification_batch");
+      socket.off("push_subscription_refresh");
     };
   }, []);
   
-  // Initialize push notifications
+  // Initialize push notifications with FCM compatibility
   useEffect(() => {
     const initPushNotifications = async () => {
       const token = localStorage.getItem("token");
@@ -259,9 +298,15 @@ function AppContent() {
           await pushService.init();
           await pushService.registerServiceWorker();
           const permission = await pushService.requestPermission();
+          
           if (permission) {
-            await pushService.subscribe();
-            console.log("✅ Push notifications enabled");
+            const subscribed = await pushService.subscribe();
+            if (subscribed) {
+              setPushEnabled(true);
+              console.log("✅ Push notifications enabled successfully");
+            }
+          } else {
+            console.log("⚠️ Notification permission not granted");
           }
           await badgeManager.loadCount();
         } catch (err) {
@@ -270,6 +315,31 @@ function AppContent() {
       }
     };
     initPushNotifications();
+  }, []);
+  
+  // Handle service worker messages (for FCM)
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        console.log('📨 Message from service worker:', event.data);
+        
+        const { type, data } = event.data || {};
+        
+        // Handle game invite accept/decline from notification actions
+        if (type === 'GAME_INVITE_ACCEPTED') {
+          window.dispatchEvent(new CustomEvent('acceptGameInvite', { detail: data }));
+        }
+        
+        if (type === 'GAME_INVITE_DECLINED') {
+          window.dispatchEvent(new CustomEvent('declineGameInvite', { detail: data }));
+        }
+        
+        // Handle pledge payment from notification actions
+        if (type === 'PLEDGE_PAYMENT') {
+          window.dispatchEvent(new CustomEvent('openPledgePayment', { detail: data }));
+        }
+      });
+    }
   }, []);
   
   // Listen for user login/logout events
@@ -282,7 +352,7 @@ function AppContent() {
         try {
           const userData = JSON.parse(user);
           socket.emit("join", userData.id);
-          pushService.subscribe();
+          pushService.setupForUser(); // Use enhanced setup
           badgeManager.loadCount();
           setCurrentUser(userData);
         } catch (e) {}
@@ -291,6 +361,7 @@ function AppContent() {
         pushService.unsubscribe();
         badgeManager.updateBadgeCount(0);
         setCurrentUser(null);
+        setPushEnabled(false);
       }
     };
     
@@ -345,12 +416,10 @@ function AppContent() {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
 
-
-          //GAMES 
-<Route path="/games/tictactoe" element={<TicTacToe />} />
-<Route path="/games/snake" element={<Snake />} />
-<Route path="/games/trivia" element={<BibleTrivia />} />
-
+          {/* GAMES */}
+          <Route path="/games/tictactoe" element={<TicTacToe />} />
+          <Route path="/games/snake" element={<Snake />} />
+          <Route path="/games/trivia" element={<BibleTrivia />} />
         </Route>
 
         {/* ================= JUMUIA DETAIL PAGE ================= */}
@@ -397,19 +466,19 @@ function AppContent() {
           <Route path="executive" element={<AdminExecutivePage />} />
         </Route>
 
-   {/* ================= SECRETARY ================= */}
-<Route
-  path="/secretary"
-  element={
-    <RoleRoute allowedRoles={["secretary"]}>
-      <RoleLayout />
-    </RoleRoute>
-  }
->
-  <Route index element={<Navigate to="announcements" replace />} />
-  <Route path="announcements" element={<AnnouncementsPage />} />
-  <Route path="schedules" element={<AdminSchedules />} />  {/* ← ADD THIS LINE */}
-</Route>
+        {/* ================= SECRETARY ================= */}
+        <Route
+          path="/secretary"
+          element={
+            <RoleRoute allowedRoles={["secretary"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="announcements" replace />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="schedules" element={<AdminSchedules />} />
+        </Route>
 
         {/* ================= TREASURER ================= */}
         <Route

@@ -664,17 +664,14 @@ app.post("/api/admin/executive/assign", authenticate, requireAdmin, async (req, 
       });
     }
 
-    // Create notification
-    await prisma.notification.create({
-      data: {
-        userId: userId,
-        type: "executive_appointment",
-        title: "🎉 Executive Appointment",
-        message: `Congratulations! You have been appointed as ${position.title}. Thank you for serving ZUCA!`,
-        read: false,
-        createdAt: new Date()
-      }
-    });
+   // Create notification with push
+await createAndSendNotification({
+  userId: userId,
+  type: "executive_appointment",
+  title: "🎉 Executive Appointment",
+  message: `Congratulations! You have been appointed as ${position.title}. Thank you for serving ZUCA!`,
+  data: { position: position.title, type: "executive_appointment" }
+});
 
     const formattedAssignment = {
       id: assignment.id,
@@ -783,16 +780,13 @@ app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdm
       });
     }
 
-    await prisma.notification.create({
-      data: {
-        userId: assignment.userId,
-        type: "executive_removed",
-        title: "📋 Executive Role Updated",
-        message: `You have been removed from the position of ${assignment.position.title}. Thank you for your service!`,
-        read: false,
-        createdAt: new Date()
-      }
-    });
+await createAndSendNotification({
+  userId: assignment.userId,
+  type: "executive_removed",
+  title: "📋 Executive Role Updated",
+  message: `You have been removed from the position of ${assignment.position.title}. Thank you for your service!`,
+  data: { position: assignment.position.title, type: "executive_removed" }
+});
 
     res.json({ 
       success: true, 
@@ -1901,14 +1895,17 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
         createdAt: now,
       }));
 
-      await prisma.notification.createMany({ data: notifications });
-      
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
+      // Send push notifications to each user
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}
+     
     }
 
     res.status(201).json({ success: true, media: uploadedMedia });
@@ -2383,21 +2380,16 @@ app.post("/api/media/:id/comments", authenticate, async (req, res) => {
         user: { select: { id: true, fullName: true, profileImage: true } }
       }
     });
-    
-    // Notify media owner
-    const media = await prisma.media.findUnique({ where: { id }, select: { uploadedById: true } });
-    if (media && media.uploadedById !== userId) {
-      const notification = await prisma.notification.create({
-        data: {
-          id: `comment-${comment.id}-${Date.now()}`,
-          userId: media.uploadedById,
-          type: "media_comment",
-          title: "💬 New Comment",
-          message: `${comment.user.fullName} commented on your media`,
-          read: false,
-          createdAt: new Date()
-        }
-      });
+   // Notify media owner
+const media = await prisma.media.findUnique({ where: { id }, select: { uploadedById: true } });
+if (media && media.uploadedById !== userId) {
+  await createAndSendNotification({
+    userId: media.uploadedById,
+    type: "media_comment",
+    title: "💬 New Comment",
+    message: `${comment.user.fullName} commented on your media`,
+    data: { mediaId: id, commentId: comment.id }
+  });
       io.to(media.uploadedById).emit("new_notification", {
         ...notification,
         createdAt: notification.createdAt.toISOString()
@@ -4229,15 +4221,16 @@ app.post("/api/login", async (req, res) => {
         createdAt: now,
       }));
 
-      await prisma.notification.createMany({ data: notifications });
-
-      // Send real-time notifications to admins
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
+   // Send push notifications to admins
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}
     }
 
     res.json({ token, user });
@@ -4351,72 +4344,61 @@ app.post("/api/role-login", async (req, res) => {
     }
 
     // ✅ ADD THIS - Notify admins about role login
-    const admins = await prisma.user.findMany({
-      where: { role: "admin" },
-      select: { id: true }
-    });
+const admins = await prisma.user.findMany({
+  where: { role: "admin" },
+  select: { id: true }
+});
 
-    if (admins.length > 0) {
-      const now = new Date();
-      const notifications = admins.map(admin => ({
-        id: `role-login-${user.id}-${admin.id}-${Date.now()}`,
-        userId: admin.id,
-        type: "user_login",
-        title: "👤 Role Login",
-        message: `${user.fullName} logged in as ${matchedRole.role}`,
-        data: { 
-          userId: user.id, 
-          userName: user.fullName, 
-          role: matchedRole.role,
-          jumuia: matchedRole.jumuiaName || null
-        },
-        read: false,
-        createdAt: now,
-      }));
-
-      await prisma.notification.createMany({ data: notifications });
-
-      // Send real-time notifications to admins
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
-    }
-
-    const token = jwt.sign(
-      { 
+if (admins.length > 0) {
+  // Send push notifications to each admin
+  for (const admin of admins) {
+    await createAndSendNotification({
+      userId: admin.id,
+      type: "user_login",
+      title: "👤 Role Login",
+      message: `${user.fullName} logged in as ${matchedRole.role}`,
+      data: { 
         userId: user.id, 
+        userName: user.fullName, 
         role: matchedRole.role,
-        email: user.email,
-        accessLevel,
-        permissions,
-        jumuiaCode: matchedRole.jumuiaCode || null,
-        jumuiaName: matchedRole.jumuiaName || null
-      },
-      JWT_SECRET,
-      { expiresIn: "365h" }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        phone: user.phone,
-        role: matchedRole.role,
-        jumuia: matchedRole.jumuiaName || null,
-        permissions,
-        accessLevel
+        jumuia: matchedRole.jumuiaName || null
       }
     });
-
-  } catch (err) {
-    console.error("Role login error:", err);
-    res.status(500).json({ error: err.message });
   }
+}
+
+const token = jwt.sign(
+  { 
+    userId: user.id, 
+    role: matchedRole.role,
+    email: user.email,
+    accessLevel,
+    permissions,
+    jumuiaCode: matchedRole.jumuiaCode || null,
+    jumuiaName: matchedRole.jumuiaName || null
+  },
+  JWT_SECRET,
+  { expiresIn: "365h" }
+);
+
+res.json({
+  token,
+  user: {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    role: matchedRole.role,
+    jumuia: matchedRole.jumuiaName || null,
+    permissions,
+    accessLevel
+  }
+});
+
+} catch (err) {
+  console.error("Role login error:", err);
+  res.status(500).json({ error: err.message });
+}
 });
 
 
@@ -4824,12 +4806,18 @@ app.post("/api/announcements", authenticate, async (req, res) => {
         createdAt: now,
       }));
 
-      const result = await prisma.notification.createMany({
-        data: notifications,
-        skipDuplicates: true,
-      });
+     // Send push notifications to all users
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}
 
-      console.log(`✅ Created ${result.count} notifications`);
+console.log(`✅ Sent ${notifications.length} push notifications`);
       
       if (io) {
         notifications.forEach(notif => {
@@ -5238,16 +5226,24 @@ const response = {
         createdAt: new Date(),
       }));
 
-      await prisma.notification.createMany({ data: notifications });
+     // Send push notifications to all users
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}
     }
 
-    res.status(201).json(response);
-  } catch (err) {
-    console.error("Error creating mass program:", err);
-    res.status(500).json({ error: err.message });
-  }
+res.status(201).json(response);
+} catch (err) {
+  console.error("Error creating mass program:", err);
+  res.status(500).json({ error: err.message });
+}
 });
-
 
 
 // UPDATE mass program (admin/choir moderator only)
@@ -6051,16 +6047,17 @@ app.post("/api/jumuia/:jumuiaId/contributions", authenticate, checkJumuiaAccess,
         createdAt: now,
       }));
 
-      await prisma.notification.createMany({ data: notifications });
-
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
+    // Send push notifications to all users
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}
     }
-
     res.status(201).json(contribution);
   } catch (err) {
     console.error("Error creating jumuia contribution:", err);
@@ -6203,20 +6200,15 @@ app.put("/api/jumuia/pledges/:pledgeId/approve", authenticate, async (req, res) 
       }
     });
 
-    const notification = await prisma.notification.create({
-      data: {
-        userId: pledge.userId,
-        jumuiaId: pledge.contributionType.jumuiaId,
-        type: "pledge_approved",
-        title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
-        message: newStatus === "COMPLETED" 
-          ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
-          : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
-        data: { pledgeId: updated.id },
-        read: false,
-        createdAt: new Date()
-      }
-    });
+  await createAndSendNotification({
+  userId: pledge.userId,
+  type: "pledge_approved",
+  title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
+  message: newStatus === "COMPLETED" 
+    ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
+    : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+  data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
+});
 
     io.to(pledge.userId).emit("new_notification", {
       ...notification,
@@ -6310,18 +6302,13 @@ app.put("/api/jumuia/pledges/:pledgeId/manual-add", authenticate, async (req, re
       message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
     }
 
-    const notification = await prisma.notification.create({
-      data: {
-        userId: pledge.userId,
-        jumuiaId: pledge.contributionType.jumuiaId,
-        type: "payment_added",
-        title,
-        message,
-        data: { pledgeId: updated.id },
-        read: false,
-        createdAt: new Date()
-      }
-    });
+   await createAndSendNotification({
+  userId: pledge.userId,
+  type: "payment_added",
+  title: title,
+  message: message,
+  data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
+});
 
     io.to(pledge.userId).emit("new_notification", {
       ...notification,
@@ -6644,20 +6631,15 @@ app.post("/api/jumuia/pledges/bulk-approve", authenticate, async (req, res) => {
 
       results.push(updated);
 
-      await prisma.notification.create({
-        data: {
-          userId: pledge.userId,
-          jumuiaId: pledge.contributionType.jumuiaId,
-          type: "pledge_approved",
-          title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
-          message: newStatus === "COMPLETED" 
-            ? `Your pledge for "${pledge.contributionType.title}" has been fully paid!`
-            : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
-          data: { pledgeId: updated.id },
-          read: false,
-          createdAt: new Date()
-        }
-      });
+     await createAndSendNotification({
+  userId: pledge.userId,
+  type: "pledge_approved",
+  title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
+  message: newStatus === "COMPLETED" 
+    ? `Your pledge for "${pledge.contributionType.title}" has been fully paid!`
+    : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+  data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
+});
     }
 
     res.json({ 
@@ -6830,18 +6812,13 @@ app.post("/api/jumuia/:jumuiaId/leaders", authenticate, async (req, res) => {
     const jumuia = await prisma.jumuia.findUnique({
       where: { id: jumuiaId }
     });
-
-    await prisma.notification.create({
-      data: {
-        userId,
-        jumuiaId,
-        type: "role_change",
-        title: "👑 You are now a Jumuia Leader",
-        message: `You have been appointed as leader of ${jumuia.name}`,
-        read: false,
-        createdAt: new Date()
-      }
-    });
+await createAndSendNotification({
+  userId: userId,
+  type: "role_change",
+  title: "👑 You are now a Jumuia Leader",
+  message: `You have been appointed as leader of ${jumuia.name}`,
+  data: { jumuiaId: jumuiaId, jumuiaName: jumuia.name }
+});
 
     res.json(updatedUser);
   } catch (err) {
@@ -7215,15 +7192,16 @@ app.post("/api/jumuia/chat/rooms/:roomId/messages", authenticate, async (req, re
         createdAt: now,
       }));
 
-      await prisma.notification.createMany({ data: notifications });
-
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
-    }
+   // Send push notifications to all members
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}}
 
     const formattedMessage = {
       ...message,
@@ -7477,16 +7455,16 @@ app.post("/api/jumuia/:jumuiaId/announcements", authenticate, checkJumuiaAccess,
         createdAt: now,
       }));
 
-      await prisma.notification.createMany({ data: notifications });
-
-      notifications.forEach(notif => {
-        io.to(notif.userId).emit("new_notification", {
-          ...notif,
-          createdAt: now.toISOString()
-        });
-      });
-    }
-
+      // Send push notifications to all users
+for (const notif of notifications) {
+  await createAndSendNotification({
+    userId: notif.userId,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    data: notif.data || {}
+  });
+}}
     const formatted = {
       ...announcement,
       createdAt: announcement.createdAt.toISOString()
@@ -8000,7 +7978,6 @@ app.get("/api/chat/enhanced", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post("/api/chat/enhanced", authenticate, async (req, res) => {
   try {
     const { content, replyToId, attachments } = req.body;
@@ -8038,7 +8015,7 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
         await prisma.file.updateMany({
           where: { 
             id: { in: fileIds },
-            userId: req.user.userId // Ensure user owns these files
+            userId: req.user.userId
           },
           data: { messageId: message.id }
         });
@@ -8077,8 +8054,6 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
       }
     });
 
-   
-
     await prisma.chatRoom.update({
       where: { id: defaultRoom.id },
       data: { lastMessageAt: new Date() }
@@ -8108,27 +8083,14 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
           data: mentions
         });
 
-        const now = new Date();
-        const notifications = mentions.map(m => ({
-          id: `mention-${message.id}-${m.userId}-${Date.now()}`,
-          userId: m.userId,
-          type: "mention",
-          title: "👤 You were mentioned",
-          message: `${req.user.fullName} mentioned you: ${content.substring(0, 50)}...`,
-          read: false,
-          createdAt: now,
-        }));
-
-        await prisma.notification.createMany({
-          data: notifications
-        });
-
-        if (io) {
-          notifications.forEach(notif => {
-            io.to(notif.userId).emit("new_notification", {
-              ...notif,
-              createdAt: now.toISOString()
-            });
+        // Send push notifications for mentions
+        for (const mention of mentions) {
+          await createAndSendNotification({
+            userId: mention.userId,
+            type: "mention",
+            title: "👤 You were mentioned",
+            message: `${req.user.fullName} mentioned you: ${content.substring(0, 50)}...`,
+            data: { messageId: message.id }
           });
         }
       }
@@ -8145,14 +8107,13 @@ app.post("/api/chat/enhanced", authenticate, async (req, res) => {
     };
 
     io.emit("new_message", formattedMessage);
-
     res.status(201).json(formattedMessage);
+    
   } catch (err) {
     console.error("Error creating enhanced message:", err);
     res.status(500).json({ error: err.message });
   }
-});
-
+}); // <-- Make sure this closing bracket is here
 // ================== MESSAGE MANAGEMENT ==================
 
 // Delete message (soft delete)
@@ -8502,31 +8463,23 @@ app.post("/api/chat/:messageId/pin", authenticate, requireAdmin, async (req, res
 
     io.emit("message_pinned", formattedPin);
 
-    // Notify message author
-    if (message.userId !== req.user.userId) {
-      const notification = await prisma.notification.create({
-        data: {
-          userId: message.userId,
-          type: "pin",
-          title: "📌 Your message was pinned",
-          message: `Your message was pinned by an admin`,
-          read: false,
-          createdAt: new Date(),
-        }
-      });
+   // Notify message author
+if (message.userId !== req.user.userId) {
+  await createAndSendNotification({
+    userId: message.userId,
+    type: "pin",
+    title: "📌 Your message was pinned",
+    message: `Your message was pinned by an admin`,
+    data: { messageId: message.id }
+  });
+}
 
-      io.to(message.userId).emit("new_notification", {
-        ...notification,
-        createdAt: notification.createdAt.toISOString()
-      });
-    }
+res.status(201).json(formattedPin);
 
-    res.status(201).json(formattedPin);
-    
-  } catch (err) {
-    console.error("Error pinning message:", err);
-    res.status(500).json({ error: err.message });
-  }
+} catch (err) {
+  console.error("Error pinning message:", err);
+  res.status(500).json({ error: err.message });
+}
 });
 
 app.get("/api/chat/pinned", authenticate, async (req, res) => {
@@ -9270,33 +9223,23 @@ app.post("/api/contribution-types", authenticate, async (req, res) => {
     }
 
     if (users.length > 0) {
-      const now = new Date();
-      const notifications = users.map(user => ({
-        id: `contribution-${newType.id}-${user.id}-${Date.now()}`,
-        userId: user.id,
-        type: "contribution",
-        title: "💰 New Contribution Campaign",
-        message: `A new contribution "${title}" has been launched. Target: ${amountRequired} per member`,
-        read: false,
-        createdAt: now,
-      }));
-
-      await prisma.notification.createMany({
-        data: notifications,
-        skipDuplicates: true,
-      });
-
-      console.log(`✅ Created ${notifications.length} contribution notifications`);
-
-      if (io) {
-        notifications.forEach(notif => {
-          io.to(notif.userId).emit("new_notification", {
-            ...notif,
-            createdAt: now.toISOString()
+      // Send push notifications to all users
+      for (const user of users) {
+        try {
+          await createAndSendNotification({
+            userId: user.id,
+            type: "contribution",
+            title: "💰 New Contribution Campaign",
+            message: `A new contribution "${title}" has been launched. Target: ${amountRequired} per member`,
+            data: { contributionId: newType.id }
           });
-        });
+        } catch (err) {
+          console.error("Failed to send notification to user:", user.id, err.message);
+        }
       }
     }
+
+    console.log(`✅ Sent ${users.length} contribution push notifications`);
 
     res.json(newType);
   } catch (err) {
@@ -9304,7 +9247,6 @@ app.post("/api/contribution-types", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get("/api/contribution-types", authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
@@ -9599,46 +9541,32 @@ app.post("/api/pledges/:contributionTypeId", authenticate, async (req, res) => {
       const now = new Date();
       
       // Get the pledger's name
-      const pledger = await prisma.user.findUnique({
-        where: { id: req.user.userId },
-        select: { fullName: true }
-      });
-      const pledgerName = pledger?.fullName || 'A user';
-      
-      const notifications = uniqueNotifyIds.map(id => ({
-        id: `pledge-${pledge.id}-${id}-${Date.now()}`,
-        userId: id,
-        jumuiaId: type.jumuiaId,
-        type: "new_pledge",
-        title: "💰 New Pledge",
-        message: `${pledgerName} pledged ${amount} for "${type.title}"`,
-        data: { 
-          pledgeId: pledge.id,
-          contributionId: type.id,
-          amount,
-          pledgerName
-        },
-        read: false,
-        createdAt: now,
-      }));
+const pledger = await prisma.user.findUnique({
+  where: { id: req.user.userId },
+  select: { fullName: true }
+});
+const pledgerName = pledger?.fullName || 'A user';
 
-      await prisma.notification.createMany({
-        data: notifications,
-        skipDuplicates: true,
-      });
-
-      // Emit socket events
-      uniqueNotifyIds.forEach(id => {
-        const notif = notifications.find(n => n.userId === id);
-        if (notif && io) {
-          io.to(id).emit("new_notification", {
-            ...notif,
-            createdAt: now.toISOString()
-          });
-        }
-      });
-    }
-
+// Send push notifications to admins, treasurers, and leaders
+for (const id of uniqueNotifyIds) {
+  try {
+    await createAndSendNotification({
+      userId: id,
+      type: "new_pledge",
+      title: "💰 New Pledge",
+      message: `${pledgerName} pledged ${amount} for "${type.title}"`,
+      data: { 
+        pledgeId: pledge.id,
+        contributionId: type.id,
+        amount,
+        pledgerName,
+        jumuiaId: type.jumuiaId
+      }
+    });
+  } catch (err) {
+    console.error("Failed to send pledge notification to user:", id, err.message);
+  }
+}}
     // Safe response with fallbacks
     res.json({
       ...updated,
@@ -9810,37 +9738,25 @@ app.post("/api/pledges/:pledgeId/messages", authenticate, async (req, res) => {
       const now = new Date();
       const allNotifyIds = notifyUserId ? [notifyUserId, ...uniqueNotifyIds] : uniqueNotifyIds;
       
-      const notifications = allNotifyIds.map(id => ({
-        id: `msg-${message.id}-${id}-${Date.now()}`,
-        userId: id,
-        jumuiaId: pledge.contributionType.jumuiaId,
-        type: "pledge_message",
-        title: isOwner ? "📬 New question about your pledge" : "📬 New reply to your message",
-        message: content.substring(0, 100),
-        data: { 
-          pledgeId, 
-          messageId: message.id,
-          fromUser: user.fullName 
-        },
-        read: false,
-        createdAt: now,
-      }));
-
-      await prisma.notification.createMany({
-        data: notifications,
-        skipDuplicates: true,
-      });
-
-      allNotifyIds.forEach(id => {
-        const notif = notifications.find(n => n.userId === id);
-        if (notif && io) {
-          io.to(id).emit("new_notification", {
-            ...notif,
-            createdAt: now.toISOString()
-          });
-        }
-      });
-    }
+   // Send push notifications to all users
+for (const id of allNotifyIds) {
+  try {
+    await createAndSendNotification({
+      userId: id,
+      type: "pledge_message",
+      title: isOwner ? "📬 New question about your pledge" : "📬 New reply to your message",
+      message: content.substring(0, 100),
+      data: { 
+        pledgeId, 
+        messageId: message.id,
+        fromUser: user.fullName,
+        jumuiaId: pledge.contributionType.jumuiaId
+      }
+    });
+  } catch (err) {
+    console.error("Failed to send pledge message notification to user:", id, err.message);
+  }
+}}
 
     const formattedMessage = {
       ...message,
@@ -9927,31 +9843,22 @@ app.put("/api/pledges/:pledgeId/approve", authenticate, async (req, res) => {
       }
     });
 
-    // Create notification for the user
-    const notification = await prisma.notification.create({
-      data: {
-        userId: pledge.userId,
-        type: "pledge_approved",
-        title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
-        message: newStatus === "COMPLETED" 
-          ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
-          : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
-        data: { pledgeId: updated.id },
-        read: false,
-        createdAt: new Date()
-      }
-    });
+   // Send push notification to the user
+await createAndSendNotification({
+  userId: pledge.userId,
+  type: "pledge_approved",
+  title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
+  message: newStatus === "COMPLETED" 
+    ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
+    : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+  data: { pledgeId: updated.id }
+});
 
-    io.to(pledge.userId).emit("new_notification", {
-      ...notification,
-      createdAt: notification.createdAt.toISOString()
-    });
-
-    res.json(updated);
-  } catch (err) {
-    console.error("Error approving pledge:", err);
-    res.status(500).json({ error: err.message });
-  }
+res.json(updated);
+} catch (err) {
+  console.error("Error approving pledge:", err);
+  res.status(500).json({ error: err.message });
+}
 });
 
 app.put("/api/pledges/:pledgeId/manual-add", authenticate, async (req, res) => {
@@ -10028,41 +9935,31 @@ app.put("/api/pledges/:pledgeId/manual-add", authenticate, async (req, res) => {
       }
     });
 
-    // Create notification
-    let title = "💰 Payment Added";
-    let message = `KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
-    
-    if (newStatus === "COMPLETED") {
-      title = "🎉 Pledge Completed!";
-      message = `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
-    } else if (pledge.pendingAmount > 0 && newPendingAmount === 0) {
-      message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
-    }
+   // Send push notification to the user
+let title = "💰 Payment Added";
+let message = `KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
 
-    const notification = await prisma.notification.create({
-      data: {
-        userId: pledge.userId,
-        type: "payment_added",
-        title,
-        message,
-        data: { pledgeId: updated.id },
-        read: false,
-        createdAt: new Date()
-      }
-    });
+if (newStatus === "COMPLETED") {
+  title = "🎉 Pledge Completed!";
+  message = `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
+} else if (pledge.pendingAmount > 0 && newPendingAmount === 0) {
+  message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
+}
 
-    io.to(pledge.userId).emit("new_notification", {
-      ...notification,
-      createdAt: notification.createdAt.toISOString()
-    });
-
-    res.json(updated);
-  } catch (err) {
-    console.error("Error adding manual payment:", err);
-    res.status(500).json({ error: err.message });
-  }
+await createAndSendNotification({
+  userId: pledge.userId,
+  type: "payment_added",
+  title: title,
+  message: message,
+  data: { pledgeId: updated.id }
 });
 
+res.json(updated);
+} catch (err) {
+  console.error("Error adding manual payment:", err);
+  res.status(500).json({ error: err.message });
+}
+});
 // ================== USER STATS ==================
 app.get("/api/user/contribution-stats", authenticate, async (req, res) => {
   try {
@@ -10282,32 +10179,19 @@ app.post("/api/notify", authenticate, async (req, res) => {
 
     let dbNotif = null;
     if (userId) {
-      const notifId = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const now = new Date();
-      dbNotif = await prisma.notification.create({
-        data: {
-          id: notifId,
-          userId,
-          type,
-          title,
-          message,
-          read: false,
-          createdAt: now,
-        },
+      // Use createAndSendNotification for push notifications
+      dbNotif = await createAndSendNotification({
+        userId,
+        type,
+        title,
+        message,
+        data: { from: "api/notify" }
       });
       
       dbNotif = {
         ...dbNotif,
         createdAt: dbNotif.createdAt.toISOString()
       };
-    }
-
-    if (io) {
-      if (userId) {
-        io.to(userId).emit("new_notification", dbNotif);
-      } else {
-        io.emit("new_notification", dbNotif);
-      }
     }
 
     res.status(201).json(dbNotif);
@@ -10489,26 +10373,21 @@ socket.on("send_game_invite", async (data) => {
       }
     });
     
-    // ✅ CREATE NOTIFICATION FOR THE BELL ICON
-    const notification = await prisma.notification.create({
-      data: {
-        userId: toUserId,
-        type: "game_invite",
-        title: "🎮 Game Invite!",
-        message: `${fromUserName} invited you to play ${gameType}!`,
-        data: { 
-          inviteId: invite.id, 
-          fromUserId: fromUserId,
-          fromUserName: fromUserName,
-          gameType: gameType
-        },
-        read: false,
-        createdAt: new Date()
-      }
-    });
-    
-    console.log(`✅ Notification created for user ${toUserId}: ${notification.id}`);
-    
+    // ✅ CREATE NOTIFICATION FOR THE BELL ICON AND PUSH NOTIFICATION
+await createAndSendNotification({
+  userId: toUserId,
+  type: "game_invite",
+  title: "🎮 Game Invite!",
+  message: `${fromUserName} invited you to play ${gameType}!`,
+  data: { 
+    inviteId: invite.id, 
+    fromUserId: fromUserId,
+    fromUserName: fromUserName,
+    gameType: gameType
+  }
+});
+
+console.log(`✅ Notification created and sent for user ${toUserId}`);
     // ✅ SEND REALTIME NOTIFICATION TO BELL (matches frontend format)
     io.to(toUserId).emit("new_notification", {
       id: notification.id,
@@ -11040,7 +10919,7 @@ app.post("/api/admin/ai/assistant", authenticate, async (req, res) => {
       if (typeof keywords === 'string') return lowerMsg.includes(keywords);
       return keywords.some(keyword => lowerMsg.includes(keyword));
     };
-    
+  
     // ============ USER MANAGEMENT ============
     
    // List all users - IMPROVED VERSION
@@ -11054,6 +10933,7 @@ if (hasKeyword(['list users', 'all users', 'show users', 'get users', 'user list
     orderBy: { createdAt: 'desc' },
     take: 20
   });
+
   
   if (allUsers.length === 0) {
     return res.json({ success: true, response: "👥 No users found in the system." });
@@ -11149,10 +11029,7 @@ if (hasKeyword(['find user', 'search user', 'find', 'get user', 'user details', 
         success: true, 
         response: `❌ User "${searchTerm}" not found.\n\n💡 Try:\n• "Find user [name]"\n• "Find user [email]"\n• "List users" to see all users` 
       });
-    }
-  }
-}
-    
+    }}
     // Delete user
     if (hasKeyword(['delete user', 'remove user', 'delete member', 'erase user'])) {
       let targetUser = message.replace(/delete user|remove user|delete member|erase user/gi, '').trim();
@@ -11340,28 +11217,29 @@ if (hasKeyword(['find user', 'search user', 'find', 'get user', 'user details', 
           }
         });
         
-        const allUsers = await prisma.user.findMany({ select: { id: true } });
-        const notifications = allUsers.map(u => ({
-          userId: u.id,
-          type: "announcement",
-          title: "📢 New Announcement",
-          message: title,
-          read: false,
-          createdAt: new Date()
-        }));
-        await prisma.notification.createMany({ data: notifications });
-        
+       const allUsers = await prisma.user.findMany({ select: { id: true } });
+
+ // Send push notifications to all users
+        for (const user of allUsers) {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "announcement",
+              title: "📢 New Announcement",
+              message: title,
+              data: { announcementId: announcement.id }
+            });
+          } catch (err) {
+            console.error("Failed to send announcement to user:", user.id, err.message);
+          }
+        }
+
         return res.json({
           success: true,
           response: `✅ Announcement **"${title}"** has been posted to all users!`
         });
-      } else {
-        return res.json({
-          success: true,
-          response: `📢 To create an announcement, say:\n**"Create announcement: Prayer meeting tomorrow at 5pm"**`
-        });
       }
-    }
+    } 
     
     // List announcements
     if (hasKeyword(['list announcements', 'all announcements', 'show announcements'])) {
@@ -11505,6 +11383,7 @@ if (hasKeyword(['find user', 'search user', 'find', 'get user', 'user details', 
         }
       }
     }
+  }
     
     // ============ JUMUIA MANAGEMENT ============
     
@@ -11570,6 +11449,7 @@ if (hasKeyword(['find user', 'search user', 'find', 'get user', 'user details', 
     });
   }
 });
+
 
 // ================== COMPLETE ZUCA AI WITH PROPER PRIORITY ==================
 app.post("/api/ai/assistant", authenticate, async (req, res) => {
@@ -12277,29 +12157,26 @@ async function notifyAllUsers(title, message, type, data = {}) {
       });
     }
     
-    for (let i = 0; i < notifications.length; i += batchSize) {
-      const batch = notifications.slice(i, i + batchSize);
-      await prisma.notification.createMany({ data: batch, skipDuplicates: true });
-      console.log(`  ✅ Batch ${Math.floor(i / batchSize) + 1} completed`);
-    }
-    
+    // Send push notifications to all users
     for (const user of users) {
-      io.to(user.id).emit("new_notification", {
-        id: `${type}-${Date.now()}-${user.id}`,
-        title,
-        message,
-        type,
-        data,
-        createdAt: now.toISOString()
-      });
+      try {
+        await createAndSendNotification({
+          userId: user.id,
+          type: type,
+          title: title,
+          message: message,
+          data: data || {}
+        });
+      } catch (err) {
+        console.error("Failed to send notification to user:", user.id, err.message);
+      }
     }
-    
-    console.log(`✅ Notifications sent to ${users.length} users`);
+
+    console.log(`✅ Push notifications sent to ${users.length} users`);
   } catch (err) {
     console.error("❌ Error sending notifications:", err.message);
   }
-}
-
+}  
 // ==================== SCHEDULE DRAFTS ROUTES ====================
 
 // GET all drafts for current user
@@ -12778,33 +12655,21 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
       });
       
       if (!alreadyReceived) {
-        const newNotification = await prisma.notification.create({
-          data: {
-            userId: userId,
-            type: "event_reminder",
-            title: notification.title,
-            message: notification.message,
-            data: { 
-              eventId: notification.eventId,
-              scheduleId: notification.scheduleId,
-              priority: notification.priority,
-              notificationId: notification.id
-            },
-            read: false
+        // Send push notification
+        await createAndSendNotification({
+          userId: userId,
+          type: "event_reminder",
+          title: notification.title,
+          message: notification.message,
+          data: { 
+            eventId: notification.eventId,
+            scheduleId: notification.scheduleId,
+            priority: notification.priority,
+            notificationId: notification.id
           }
         });
         
-        notificationsSent.push(newNotification);
-        
-        io.to(userId).emit("new_notification", {
-          id: newNotification.id,
-          title: notification.title,
-          message: notification.message,
-          type: "event_reminder",
-          priority: notification.priority,
-          data: { eventId: notification.eventId },
-          createdAt: new Date().toISOString()
-        });
+        notificationsSent.push(notification);
       }
     }
     
@@ -13055,6 +12920,10 @@ app.post("/api/admin/schedules/events/:eventId/remind", authenticate, async (req
     res.status(500).json({ error: err.message });
   }
 });
+
+console.log("✅ Schedule management routes loaded successfully");
+
+
 
 console.log("✅ Schedule management routes loaded successfully");
 

@@ -1,6 +1,7 @@
 {
   "name": "ZUCA Portal - Catholic Action",
   "short_name": "ZUCA",
+   "gcm_sender_id": "103953800507",
   "description": "Zetech University Catholic Action - Faith, Fellowship & Community",
   "start_url": "/dashboard",
   "display": "standalone",

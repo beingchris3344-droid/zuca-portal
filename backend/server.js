@@ -6210,11 +6210,7 @@ app.put("/api/jumuia/pledges/:pledgeId/approve", authenticate, async (req, res) 
   data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
 });
 
-    io.to(pledge.userId).emit("new_notification", {
-      ...notification,
-      createdAt: notification.createdAt.toISOString()
-    });
-
+   
     res.json(updated);
   } catch (err) {
     console.error("Error approving pledge:", err);
@@ -6293,13 +6289,13 @@ app.put("/api/jumuia/pledges/:pledgeId/manual-add", authenticate, async (req, re
     });
 
     let title = "💰 Payment Added";
-    let message = `KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
+    let message = `Hi ${pledge.user.fullName}, KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
     
     if (newStatus === "COMPLETED") {
       title = "🎉 Pledge Completed!";
-      message = `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
+      message = `Hi ${pledge.user.fullName}, your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
     } else if (pledge.pendingAmount > 0 && newPendingAmount === 0) {
-      message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
+      message = `Hi ${pledge.user.fullName}, KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
     }
 
    await createAndSendNotification({
@@ -6310,10 +6306,6 @@ app.put("/api/jumuia/pledges/:pledgeId/manual-add", authenticate, async (req, re
   data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
 });
 
-    io.to(pledge.userId).emit("new_notification", {
-      ...notification,
-      createdAt: notification.createdAt.toISOString()
-    });
 
     res.json(updated);
   } catch (err) {
@@ -6636,8 +6628,8 @@ app.post("/api/jumuia/pledges/bulk-approve", authenticate, async (req, res) => {
   type: "pledge_approved",
   title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
   message: newStatus === "COMPLETED" 
-    ? `Your pledge for "${pledge.contributionType.title}" has been fully paid!`
-    : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+    ? `Hi ${pledge.user.fullName}, Your pledge for "${pledge.contributionType.title}" has been fully paid!`
+    : `Hi ${pledge.user.fullName}, Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
   data: { pledgeId: updated.id, jumuiaId: pledge.contributionType.jumuiaId }
 });
     }
@@ -7476,6 +7468,389 @@ for (const notif of notifications) {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+// ==================== COMPLETE JUMUIA CHAT MISSING ROUTES ====================
+
+// 1. Delete Jumuia Chat Message (Soft delete)
+app.delete("/api/jumuia/chat/messages/:messageId", authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    
+    const message = await prisma.jumuiaChatMessage.findUnique({
+      where: { id: messageId },
+      include: { room: { include: { jumuia: true } } }
+    });
+    
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { leadingJumuia: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isLeader = user.leadingJumuia?.id === message.room.jumuiaId;
+    const isOwner = message.userId === req.user.userId;
+    
+    if (!isAdmin && !isLeader && !isOwner) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // Soft delete
+    const deleted = await prisma.jumuiaChatMessage.update({
+      where: { id: messageId },
+      data: { 
+        isDeleted: true, 
+        deletedAt: new Date(),
+        deletedBy: req.user.userId,
+        content: "[Message deleted]"
+      }
+    });
+    
+    // Emit delete event to room
+    io.to(`jumuia-${message.room.jumuiaId}`).emit("jumuia_message_deleted", { 
+      messageId, 
+      deletedBy: req.user.userId 
+    });
+    
+    res.json({ success: true, message: "Message deleted" });
+  } catch (err) {
+    console.error("Error deleting jumuia message:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Edit Jumuia Chat Message
+app.put("/api/jumuia/chat/messages/:messageId", authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { content } = req.body;
+    
+    if (!content || content.trim() === "") {
+      return res.status(400).json({ error: "Message content cannot be empty" });
+    }
+    
+    const message = await prisma.jumuiaChatMessage.findUnique({
+      where: { id: messageId },
+      include: { room: { include: { jumuia: true } } }
+    });
+    
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+    
+    // Only message owner can edit (not even admin)
+    if (message.userId !== req.user.userId) {
+      return res.status(403).json({ error: "Only message owner can edit" });
+    }
+    
+    // Can't edit deleted messages
+    if (message.isDeleted) {
+      return res.status(400).json({ error: "Cannot edit deleted message" });
+    }
+    
+    const updated = await prisma.jumuiaChatMessage.update({
+      where: { id: messageId },
+      data: { 
+        content: content.trim(),
+        isEdited: true,
+        updatedAt: new Date()
+      },
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } }
+      }
+    });
+    
+    // Emit edit event to room
+    io.to(`jumuia-${message.room.jumuiaId}`).emit("jumuia_message_edited", {
+      id: updated.id,
+      content: updated.content,
+      isEdited: updated.isEdited,
+      updatedAt: updated.updatedAt
+    });
+    
+    res.json(updated);
+  } catch (err) {
+    console.error("Error editing jumuia message:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Get unread message count for a jumuia room
+app.get("/api/jumuia/chat/rooms/:roomId/unread-count", authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+    
+    // Get the room and verify access
+    const room = await prisma.jumuiaChatRoom.findUnique({
+      where: { id: roomId },
+      include: { jumuia: true }
+    });
+    
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { homeJumuia: true, leadingJumuia: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isMember = user.homeJumuia?.id === room.jumuiaId;
+    const isLeader = user.leadingJumuia?.id === room.jumuiaId;
+    
+    if (!isAdmin && !isMember && !isLeader) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Count unread messages (messages without a read receipt from this user)
+    const unreadCount = await prisma.jumuiaChatMessage.count({
+      where: {
+        roomId: roomId,
+        isDeleted: false,
+        userId: { not: userId }, // Don't count user's own messages
+        readReceipts: {
+          none: { userId: userId }
+        }
+      }
+    });
+    
+    res.json({ unreadCount });
+  } catch (err) {
+    console.error("Error getting unread count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Search jumuia chat messages
+app.get("/api/jumuia/chat/search", authenticate, async (req, res) => {
+  try {
+    const { q, jumuiaId, roomId, limit = 50 } = req.query;
+    
+    if (!q || q.trim() === "") {
+      return res.status(400).json({ error: "Search query required" });
+    }
+    
+    // Build where clause
+    const where = {
+      isDeleted: false,
+      content: { contains: q, mode: 'insensitive' }
+    };
+    
+    if (roomId) {
+      where.roomId = roomId;
+    } else if (jumuiaId) {
+      // Search across all rooms in a jumuia
+      const rooms = await prisma.jumuiaChatRoom.findMany({
+        where: { jumuiaId },
+        select: { id: true }
+      });
+      where.roomId = { in: rooms.map(r => r.id) };
+    }
+    
+    const messages = await prisma.jumuiaChatMessage.findMany({
+      where,
+      include: {
+        user: { select: { id: true, fullName: true, profileImage: true } },
+        room: { select: { id: true, name: true, jumuiaId: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit)
+    });
+    
+    res.json(messages);
+  } catch (err) {
+    console.error("Error searching jumuia messages:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Typing indicator for jumuia chat
+app.post("/api/jumuia/chat/rooms/:roomId/typing", authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { isTyping } = req.body;
+    
+    const room = await prisma.jumuiaChatRoom.findUnique({
+      where: { id: roomId },
+      include: { jumuia: true }
+    });
+    
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+    
+    // Emit typing event to everyone in the jumuia room
+    io.to(`jumuia-${room.jumuiaId}`).emit("jumuia_typing", {
+      roomId,
+      userId: req.user.userId,
+      userName: req.user.fullName,
+      isTyping: isTyping || false
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error sending typing indicator:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== COMPLETE JUMUIA ANNOUNCEMENTS MISSING ROUTES ====================
+
+// 6. Update Jumuia Announcement
+app.put("/api/jumuia/:jumuiaId/announcements/:announcementId", authenticate, async (req, res) => {
+  try {
+    const { jumuiaId, announcementId } = req.params;
+    const { title, content, category, published } = req.body;
+    
+    const announcement = await prisma.announcement.findFirst({
+      where: { id: announcementId, jumuiaId }
+    });
+    
+    if (!announcement) {
+      return res.status(404).json({ error: "Announcement not found" });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { leadingJumuia: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isLeader = user.leadingJumuia?.id === jumuiaId;
+    const isCreator = announcement.createdBy === req.user.userId;
+    
+    if (!isAdmin && !isSecretary && !isLeader && !isCreator) {
+      return res.status(403).json({ error: "Not authorized to update this announcement" });
+    }
+    
+    const updated = await prisma.announcement.update({
+      where: { id: announcementId },
+      data: {
+        title: title || announcement.title,
+        content: content || announcement.content,
+        category: category || announcement.category,
+        published: published !== undefined ? published : announcement.published
+      },
+      include: {
+        author: { select: { id: true, fullName: true, profileImage: true } }
+      }
+    });
+    
+    // Emit update event to jumuia room
+    io.to(`jumuia-${jumuiaId}`).emit("jumuia_announcement_updated", updated);
+    
+    res.json(updated);
+  } catch (err) {
+    console.error("Error updating jumuia announcement:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Delete Jumuia Announcement
+app.delete("/api/jumuia/:jumuiaId/announcements/:announcementId", authenticate, async (req, res) => {
+  try {
+    const { jumuiaId, announcementId } = req.params;
+    
+    const announcement = await prisma.announcement.findFirst({
+      where: { id: announcementId, jumuiaId }
+    });
+    
+    if (!announcement) {
+      return res.status(404).json({ error: "Announcement not found" });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { leadingJumuia: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isLeader = user.leadingJumuia?.id === jumuiaId;
+    const isCreator = announcement.createdBy === req.user.userId;
+    
+    if (!isAdmin && !isSecretary && !isLeader && !isCreator) {
+      return res.status(403).json({ error: "Not authorized to delete this announcement" });
+    }
+    
+    await prisma.announcement.delete({ where: { id: announcementId } });
+    
+    // Emit delete event to jumuia room
+    io.to(`jumuia-${jumuiaId}`).emit("jumuia_announcement_deleted", { announcementId });
+    
+    res.json({ success: true, message: "Announcement deleted" });
+  } catch (err) {
+    console.error("Error deleting jumuia announcement:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Toggle publish status for jumuia announcement
+app.patch("/api/jumuia/:jumuiaId/announcements/:announcementId/publish", authenticate, async (req, res) => {
+  try {
+    const { jumuiaId, announcementId } = req.params;
+    const { published } = req.body;
+    
+    const announcement = await prisma.announcement.findFirst({
+      where: { id: announcementId, jumuiaId }
+    });
+    
+    if (!announcement) {
+      return res.status(404).json({ error: "Announcement not found" });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { leadingJumuia: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isLeader = user.leadingJumuia?.id === jumuiaId;
+    
+    if (!isAdmin && !isSecretary && !isLeader) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const updated = await prisma.announcement.update({
+      where: { id: announcementId },
+      data: { published: published }
+    });
+    
+    if (published) {
+      // Send notification to all jumuia members when published
+      const members = await prisma.user.findMany({
+        where: { jumuiaId },
+        select: { id: true }
+      });
+      
+      for (const member of members) {
+        await createAndSendNotification({
+          userId: member.id,
+          type: "announcement",
+          title: `📢 ${announcement.title}`,
+          message: announcement.content.substring(0, 100),
+          data: { announcementId, jumuiaId }
+        });
+      }
+    }
+    
+    res.json(updated);
+  } catch (err) {
+    console.error("Error toggling announcement publish:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+console.log("✅ Complete Jumuia Chat & Announcements routes added!");
 
 // ================== JUMUIA NOTIFICATIONS ==================
 app.get("/api/jumuia/:jumuiaId/notifications", authenticate, checkJumuiaAccess, async (req, res) => {
@@ -9849,8 +10224,8 @@ await createAndSendNotification({
   type: "pledge_approved",
   title: newStatus === "COMPLETED" ? "🎉 Pledge Completed!" : "✅ Pledge Approved",
   message: newStatus === "COMPLETED" 
-    ? `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
-    : `Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
+    ? `Hi ${pledge.user.fullName}, Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`
+    : `Hi ${pledge.user.fullName}, Your pledge of ${pledge.pendingAmount} for "${pledge.contributionType.title}" has been approved.`,
   data: { pledgeId: updated.id }
 });
 
@@ -9937,13 +10312,13 @@ app.put("/api/pledges/:pledgeId/manual-add", authenticate, async (req, res) => {
 
    // Send push notification to the user
 let title = "💰 Payment Added";
-let message = `KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
+let message = `Hi ${pledge.user.fullName}, KES ${amount} has been added to your pledge for "${pledge.contributionType.title}".`;
 
 if (newStatus === "COMPLETED") {
   title = "🎉 Pledge Completed!";
-  message = `Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
+  message = `Hi ${pledge.user.fullName}, Your pledge for "${pledge.contributionType.title}" has been fully paid! Thank you.`;
 } else if (pledge.pendingAmount > 0 && newPendingAmount === 0) {
-  message = `KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
+  message = `Hi ${pledge.user.fullName}, KES ${amount} cleared your pending pledge for "${pledge.contributionType.title}".`;
 }
 
 await createAndSendNotification({

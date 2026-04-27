@@ -8,6 +8,7 @@ import SimpleMessageModal from "./SimpleMessageModal";
 
 function Contributions() {
   const [contributions, setContributions] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pledgeInputs, setPledgeInputs] = useState({});
@@ -43,7 +44,7 @@ function Contributions() {
         const paidAmount = updatedPledge.amountPaid;
         const remaining = updatedPledge.amountRequired - paidAmount;
         showNotification(
-          `✅ Your pledge of ${updatedPledge.pendingAmount} has been approved! ${
+          `✅ Hi ${user?.fullName?.split(' ')[0] || 'User'}, your pledge of ${updatedPledge.pendingAmount} has been approved! ${
             remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'
           }`, 
           "success"
@@ -410,6 +411,7 @@ function Contributions() {
                 expandedCard === contribution.id ? null : contribution.id
               )}
               onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
+               user={user}
             />
           ))}
         </div>
@@ -767,7 +769,8 @@ const ContributionCard = ({
   remainingAmount,
   isExpanded,
   onToggle,
-  onOpenMessage  // NEW prop
+  onOpenMessage,
+  user // NEW prop
 }) => {
   const completed = contribution.amountPaid >= contribution.amountRequired;
   const status = completed ? "COMPLETED" : contribution.status;
@@ -986,6 +989,7 @@ const ContributionCard = ({
           border-radius: 30px;
           box-shadow: 0 2px 8px rgba(0,0,0,0.05);
           overflow: hidden;
+          margin-bottom: 40px;
           transition: all 0.2s;
         }
         .contribution-card.submitting {

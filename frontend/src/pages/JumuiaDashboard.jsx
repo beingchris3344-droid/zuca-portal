@@ -14,6 +14,7 @@ import {
 
 function JumuiaDashboard() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("contributions");
   const [jumuiaName, setJumuiaName] = useState("");
   const [jumuiaId, setJumuiaId] = useState("");
@@ -29,6 +30,7 @@ function JumuiaDashboard() {
   const [expandedCard, setExpandedCard] = useState(null);
   const [filter, setFilter] = useState("all");
   const [messageThread, setMessageThread] = useState(null);
+  const [isJumuiaReady, setIsJumuiaReady] = useState(false);
   
   // Announcements state
   const [announcements, setAnnouncements] = useState([]);
@@ -48,6 +50,81 @@ function JumuiaDashboard() {
 
   const goBack = () => navigate('/dashboard');
 
+
+  // Replace your existing useEffect that gets jumuia info (lines 57-70)
+useEffect(() => {
+  const getUserJumuia = async () => {
+    if (!token) return;
+    
+    try {
+      const res = await axios.get(`${BASE_URL}/api/me`, { headers });
+      console.log("User data from /api/me:", res.data);
+      
+      if (res.data.homeJumuia) {
+        setJumuiaId(res.data.homeJumuia.id);
+        setJumuiaName(res.data.homeJumuia.name);
+        console.log("✅ Jumuia ID set from API:", res.data.homeJumuia.id);
+      } else {
+        console.log("User has no jumuia assigned");
+      }
+    } catch (err) {
+      console.error("Failed to get user jumuia:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  getUserJumuia();
+}, [token]);
+
+// Add this near the top with other useEffects (around line 55)
+useEffect(() => {
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    try {
+      const userData = JSON.parse(userStr);
+      setUser(userData);
+      console.log("User loaded from localStorage:", userData.fullName);
+    } catch (e) {
+      console.error("Failed to parse user", e);
+    }
+  }
+}, []);
+useEffect(() => {
+  const loadChat = async () => {
+    console.log("🔵 LOAD CHAT CALLED - activeTab:", activeTab, "jumuiaId:", jumuiaId);
+    
+    if (activeTab !== 'chat' || !jumuiaId) {
+      console.log("⏸️ Skipping chat load - conditions not met");
+      return;
+    }
+    
+    console.log("🟢 Starting chat load...");
+    setLoadingChat(true);
+    const room = await getOrCreateChatRoom();
+    console.log("🟢 Room from getOrCreateChatRoom:", room);
+    
+   if (room) {
+  setChatRoom(room);
+  try {
+    const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
+    setChatMessages(msgRes.data.messages || []);
+    // Force scroll after messages are set
+    setTimeout(() => scrollToBottom(), 300);
+  } catch (err) {
+    console.error("Failed to load messages:", err);
+  }
+} else {
+      console.error("❌ No chat room returned!");
+    }
+    setLoadingChat(false);
+  };
+  
+  loadChat();
+}, [activeTab, jumuiaId]);
+
+
+
   // Get user's jumuia info
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -66,14 +143,18 @@ function JumuiaDashboard() {
     }
   }, []);
 
-  const fetchJumuiaId = async (code) => {
-    try {
-      const res = await axios.get(`${BASE_URL}/api/jumuia/${code}`, { headers });
-      setJumuiaId(res.data.id);
-    } catch (err) {
-      console.error("Failed to fetch jumuia ID:", err);
-    }
-  };
+
+  
+ const fetchJumuiaId = async (code) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/api/jumuia/${code}`, { headers });
+    setJumuiaId(res.data.id);
+    setIsJumuiaReady(true); // ← ADD THIS LINE
+  } catch (err) {
+    console.error("Failed to fetch jumuia ID:", err);
+    setIsJumuiaReady(true); // Also set true on error to prevent infinite loading
+  }
+};
 
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
@@ -99,7 +180,7 @@ function JumuiaDashboard() {
         const paidAmount = updatedPledge.amountPaid;
         const remaining = updatedPledge.amountRequired - paidAmount;
         showNotification(
-          `✅ Your pledge has been approved! ${remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'}`, 
+          `✅ Hi ${user?.fullName?.split(' ')[0] || 'User'}, your pledge has been approved! ${remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'}`, 
           "success"
         );
       } else if (updatedPledge.status === "COMPLETED") {
@@ -297,26 +378,47 @@ function JumuiaDashboard() {
 
   // ==================== ANNOUNCEMENTS ====================
 
-  const fetchAnnouncements = async () => {
-    if (!jumuiaId) return;
-    
-    setLoadingAnnouncements(true);
-    try {
-      const res = await axios.get(`${BASE_URL}/api/jumuia/${jumuiaId}/announcements`, { headers });
-      setAnnouncements(res.data);
-    } catch (err) {
-      console.error("Failed to fetch announcements:", err);
-      showNotification("Failed to load announcements", "error");
-    } finally {
-      setLoadingAnnouncements(false);
-    }
-  };
+ const fetchAnnouncements = async () => {
+  console.log("📢 fetchAnnouncements called, jumuiaId:", jumuiaId);
+  if (!jumuiaId) {
+    console.log("❌ No jumuiaId, skipping");
+    return;
+  }
+  
+  setLoadingAnnouncements(true);
+  try {
+    const res = await axios.get(`${BASE_URL}/api/jumuia/${jumuiaId}/announcements`, { headers });
+    console.log("📢 Announcements response:", res.data);
+    setAnnouncements(res.data);
+  } catch (err) {
+    console.error("Failed to fetch announcements:", err);
+    showNotification("Failed to load announcements", "error");
+  } finally {
+    setLoadingAnnouncements(false);
+  }
+};
+// Change FROM:
+useEffect(() => {
+  if (isJumuiaReady && jumuiaId && activeTab === "announcements") {
+    fetchAnnouncements();
+  }
+}, [isJumuiaReady, jumuiaId, activeTab]);
 
-  useEffect(() => {
-    if (jumuiaId && activeTab === "announcements") {
-      fetchAnnouncements();
-    }
-  }, [jumuiaId, activeTab]);
+// TO:
+useEffect(() => {
+  if (jumuiaId && activeTab === "announcements") {
+    console.log("📢 Fetching announcements for jumuiaId:", jumuiaId);
+    fetchAnnouncements();
+  }
+}, [jumuiaId, activeTab]);
+
+// TO:
+useEffect(() => {
+  if (jumuiaId && activeTab === "announcements") {
+    console.log("📢 Fetching announcements for jumuiaId:", jumuiaId);
+    fetchAnnouncements();
+  }
+}, [jumuiaId, activeTab]);
 
   // ==================== CHAT ====================
 
@@ -342,57 +444,66 @@ function JumuiaDashboard() {
     }
   };
 
-  useEffect(() => {
-    const loadChat = async () => {
-      if (activeTab !== 'chat' || !jumuiaId) return;
-      
-      setLoadingChat(true);
-      const room = await getOrCreateChatRoom();
-      
-      if (room) {
-        setChatRoom(room);
-        try {
-          const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
-          setChatMessages(msgRes.data.messages || []);
-          scrollToBottom();
-        } catch (err) {
-          console.error("Failed to load messages:", err);
-        }
-      }
-      setLoadingChat(false);
-    };
+ useEffect(() => {
+  const loadChat = async () => {
+    if (activeTab !== 'chat' || !isJumuiaReady || !jumuiaId) return;
     
-    loadChat();
-  }, [activeTab, jumuiaId]);
-
-  useEffect(() => {
-    if (!jumuiaId) return;
-
-    const socket = io(BASE_URL);
+    setLoadingChat(true);
+    const room = await getOrCreateChatRoom();
     
-    socket.on('connect', () => {
-      socket.emit('join-jumuia', jumuiaId);
-    });
-
-    socket.on('new_jumuia_message', (message) => {
-      setChatMessages(prev => [message, ...prev]);
-      scrollToBottom();
-      
-      if (message.userId !== getCurrentUserId()) {
-        showNotification(`💬 New message from ${message.user?.fullName}`, "info");
+    if (room) {
+      setChatRoom(room);
+      try {
+        const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
+        setChatMessages(msgRes.data.messages || []);
+        scrollToBottom();  // ← ADD THIS HERE
+      } catch (err) {
+        console.error("Failed to load messages:", err);
       }
-    });
-
-    return () => socket.disconnect();
-  }, [jumuiaId]);
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    }
+    setLoadingChat(false);
   };
+  
+  loadChat();
+}, [activeTab, isJumuiaReady, jumuiaId]);
+
+  useEffect(() => {
+  if (!isJumuiaReady || !jumuiaId) return; // ← Added isJumuiaReady
+
+  const socket = io(BASE_URL);
+  
+  socket.on('connect', () => {
+    socket.emit('join-jumuia', jumuiaId);
+  });
+
+  socket.on('new_jumuia_message', (message) => {
+  setChatMessages(prev => [...prev, message]);  // Add to END, not beginning
+  scrollToBottom();
+  
+  if (message.userId !== getCurrentUserId()) {
+    showNotification(`💬 New message from ${message.user?.fullName}`, "info");
+  }
+});
+
+  return () => socket.disconnect();
+}, [isJumuiaReady, jumuiaId]); // ← Added isJumuiaReady
+
+  // Replace your existing scrollToBottom function (around line 300-310)
+
+const scrollToBottom = () => {
+  setTimeout(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, 100);
+};
+
+  // Auto-scroll to bottom whenever messages change
+useEffect(() => {
+  if (chatMessages.length > 0 && !loadingChat) {
+    scrollToBottom();
+  }
+}, [chatMessages, loadingChat]);
 
   const getCurrentUserId = () => {
     try {
@@ -405,42 +516,55 @@ function JumuiaDashboard() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !chatRoom || sendingMessage) return;
+const handleSendMessage = async () => {
+  console.log("=== SEND MESSAGE DEBUG ===");
+  console.log("newMessage:", newMessage);
+  console.log("chatRoom:", chatRoom);
+  console.log("sendingMessage:", sendingMessage);
+  console.log("jumuiaId:", jumuiaId);
+  
+  // ✅ FIRST: Validate
+  if (!newMessage.trim() || !chatRoom || sendingMessage) {
+    console.log("❌ Cannot send - conditions not met");
+    return;
+  }
 
-    setSendingMessage(true);
+  setSendingMessage(true);
 
-    const tempMessage = {
-      id: 'temp-' + Date.now(),
-      content: newMessage,
-      userId: getCurrentUserId(),
-      user: { fullName: 'You' },
-      createdAt: new Date().toISOString(),
-      isTemp: true
-    };
-
-    setChatMessages(prev => [tempMessage, ...prev]);
-    const messageToSend = newMessage;
-    setNewMessage('');
-    scrollToBottom();
-
-    try {
-      const res = await axios.post(
-        `${BASE_URL}/api/jumuia/chat/rooms/${chatRoom.id}/messages`,
-        { content: messageToSend },
-        { headers }
-      );
-      
-      setChatMessages(prev => 
-        prev.map(msg => msg.id === tempMessage.id ? res.data : msg)
-      );
-    } catch (err) {
-      setChatMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-      showNotification("Failed to send message", "error");
-    } finally {
-      setSendingMessage(false);
-    }
+  // ✅ THEN: Create temp message
+  const tempMessage = {
+    id: 'temp-' + Date.now(),
+    content: newMessage,
+    userId: getCurrentUserId(),
+    user: { fullName: 'You' },
+    createdAt: new Date().toISOString(),
+    isTemp: true
   };
+
+  // ✅ THEN: Update UI
+  setChatMessages(prev => [...prev, tempMessage]);
+  scrollToBottom();
+  
+  const messageToSend = newMessage;
+  setNewMessage('');
+
+  try {
+    const res = await axios.post(
+      `${BASE_URL}/api/jumuia/chat/rooms/${chatRoom.id}/messages`,
+      { content: messageToSend },
+      { headers }
+    );
+    
+    setChatMessages(prev => 
+      prev.map(msg => msg.id === tempMessage.id ? res.data : msg)
+    );
+  } catch (err) {
+    setChatMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+    showNotification("Failed to send message", "error");
+  } finally {
+    setSendingMessage(false);
+  }
+};
 
   if (!token) return null;
 
@@ -638,6 +762,9 @@ function JumuiaDashboard() {
                       expandedCard === contribution.id ? null : contribution.id
                     )}
                     onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
+                    user={user}
+
+                    
                   />
                 ))}
               </div>
@@ -679,66 +806,152 @@ function JumuiaDashboard() {
           </div>
         )}
 
-        {/* CHAT TAB */}
-        {activeTab === 'chat' && (
-          <div>
-            {loadingChat ? (
-              <div style={styles.loadingState}>
-                <div style={styles.spinner}></div>
-                <p>Loading chat...</p>
+        {/* CHAT TAB - REDESIGNED */}
+  {activeTab === 'chat' && (
+  <div style={styles.chatContainer}>
+    {/* Chat Header */}
+    <div style={styles.chatHeader}>
+      <div style={styles.chatHeaderLeft}>
+        <div style={styles.chatHeaderAvatar}>
+          <FiMessageCircle size={18} />
+        </div>
+        <div>
+          <h3 style={styles.chatHeaderTitle}>{jumuiaName || 'Jumuia'} Chat</h3>
+          <p style={styles.chatHeaderSubtitle}>Community discussion</p>
+        </div>
+      </div>
+    </div>
+
+    {loadingChat ? (
+      <div style={styles.loadingState}>
+        <div style={styles.spinner}></div>
+        <p>Loading messages...</p>
+      </div>
+    ) : (
+      <>
+        <div style={styles.messagesWrapper}>
+          <div style={styles.messagesContainer}>
+            {chatMessages.length === 0 ? (
+              <div style={styles.emptyChat}>
+                <div style={styles.emptyIcon}>💬</div>
+                <h3>No messages yet</h3>
+                <p>Be the first to start the conversation!</p>
               </div>
             ) : (
-              <div style={styles.chatContainer}>
-                <div style={styles.messagesList}>
-                  {chatMessages.length === 0 ? (
-                    <div style={styles.emptyChat}>
-                      <p>No messages yet. Start the conversation!</p>
+              // REMOVED .reverse() - messages should already be in correct order from API
+              chatMessages.map((message) => {
+                const isOwn = message.userId === getCurrentUserId();
+                const isAdmin = message.user?.role === "admin";
+                
+                return (
+                  <div
+                    key={message.id}
+                    style={{
+                      ...styles.messageRow,
+                      ...(isOwn ? styles.messageRowOwn : {})
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={styles.messageAvatar}>
+                      {message.user?.profileImage ? (
+                        <img 
+                          src={message.user.profileImage}
+                          alt={message.user?.fullName}
+                          style={styles.avatarImage}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML = message.user?.fullName?.charAt(0).toUpperCase() || '?';
+                          }}
+                        />
+                      ) : (
+                        <span style={styles.avatarText}>
+                          {message.user?.fullName?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                      )}
+                      {isAdmin && <span style={styles.adminCrown}>👑</span>}
                     </div>
-                  ) : (
-                    chatMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        style={{
-                          ...styles.messageBubble,
-                          ...(message.userId === getCurrentUserId() ? styles.ownMessage : {}),
-                          ...(message.isTemp ? styles.tempMessage : {})
-                        }}
-                      >
-                        <div style={styles.messageHeader}>
-                          <strong>{message.user?.fullName || 'Unknown'}</strong>
+
+                    {/* Message Bubble */}
+                    <div style={styles.messageBubbleWrapper}>
+                      {!isOwn && (
+                        <span style={styles.messageSenderName}>
+                          {message.user?.fullName}
+                        </span>
+                      )}
+                      
+                      <div style={{
+                        ...styles.messageBubble,
+                        ...(isOwn ? styles.messageBubbleOwn : {})
+                      }}>
+                        {message.isEdited && (
+                          <span style={styles.editedIndicator}>(edited) </span>
+                        )}
+                        <p style={styles.messageText}>{message.content}</p>
+                        
+                        {/* File Attachments */}
+                        {message.attachments?.length > 0 && (
+                          <div style={styles.attachments}>
+                            {message.attachments.map((file, idx) => {
+                              const isImage = file.type?.startsWith('image/');
+                              return isImage ? (
+                                <img 
+                                  key={idx} 
+                                  src={file.url} 
+                                  alt="attachment" 
+                                  style={styles.attachmentImage}
+                                />
+                              ) : (
+                                <a key={idx} href={file.url} style={styles.fileAttachment}>
+                                  📎 {file.name}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                        
+                        <div style={styles.messageFooter}>
                           <span style={styles.messageTime}>
-                            {new Date(message.createdAt).toLocaleTimeString()}
+                            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p style={styles.messageContent}>{message.content}</p>
                       </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                <div style={styles.chatInputArea}>
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    style={styles.chatInput}
-                    disabled={sendingMessage}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || sendingMessage}
-                    style={styles.sendButton}
-                  >
-                    {sendingMessage ? '...' : <FiSend size={18} />}
-                  </button>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
+            <div ref={messagesEndRef} />
           </div>
-        )}
+        </div>
+
+        {/* Input Area */}
+        <div style={styles.inputWrapper}>
+          <div style={styles.inputContainer}>
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              placeholder="Type a message..."
+              style={styles.messageInput}
+              rows="1"
+              disabled={sendingMessage}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim() || sendingMessage}
+              style={{
+                ...styles.sendButton,
+                ...((!newMessage.trim() || sendingMessage) && styles.sendButtonDisabled)
+              }}
+            >
+              {sendingMessage ? <div style={styles.sendSpinner} /> : <FiSend size={18} />}
+            </button>
+          </div>
+        </div>
+      </>
+    )}
+  </div>
+)}
       </div>
 
       {/* Message Modal */}
@@ -774,7 +987,10 @@ const ContributionCard = ({
   remainingAmount,
   isExpanded,
   onToggle,
-  onOpenMessage
+  onOpenMessage,
+  user
+
+  
 }) => {
   const amountPaid = contribution.amountPaid || 0;
   const pendingAmount = contribution.pendingAmount || 0;
@@ -966,7 +1182,7 @@ const ContributionCard = ({
                 <span style={styles.completedIcon}>🎉</span>
                 <div>
                   <h4>Contribution Completed!</h4>
-                  <p>Thank you for your generous contribution.</p>
+                  <p>Thank you {user?.fullName?.split(' ')[0] || 'User'} for your generous contribution.</p>
                 </div>
               </div>
             )}
@@ -984,6 +1200,7 @@ const styles = {
     minHeight: "100vh",
     background: "#f8fafc",
     padding: "20px",
+    marginBottom: "40px",
     fontFamily: "'Inter', -apple-system, sans-serif",
   },
   
@@ -1347,6 +1564,218 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Add these to your styles object (around line 800+, before the closing })
+
+  chatHeader: {
+    padding: "16px 20px",
+    borderBottom: "1px solid #e2e8f0",
+    background: "#ffffff",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: "16px 16px 0 0",
+  },
+  chatHeaderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  chatHeaderAvatar: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+  },
+  chatHeaderTitle: {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#1e293b",
+    margin: 0,
+  },
+  chatHeaderSubtitle: {
+    fontSize: "12px",
+    color: "#64748b",
+    margin: "2px 0 0",
+  },
+  messagesWrapper: {
+    flex: 1,
+    overflow: "hidden",
+    position: "relative",
+  },
+  messagesContainer: {
+    height: "100%",
+    overflowY: "auto",
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
+  messageRow: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "flex-start",
+  },
+  messageRowOwn: {
+    flexDirection: "row-reverse",
+  },
+  messageAvatar: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "white",
+    flexShrink: 0,
+    position: "relative",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  avatarText: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "white",
+  },
+  adminCrown: {
+    position: "absolute",
+    top: "-4px",
+    right: "-4px",
+    fontSize: "12px",
+  },
+  messageBubbleWrapper: {
+    maxWidth: "70%",
+    position: "relative",
+  },
+  messageSenderName: {
+    fontSize: "11px",
+    fontWeight: "600",
+    color: "#3b82f6",
+    marginBottom: "2px",
+    marginLeft: "4px",
+    display: "block",
+  },
+  messageBubble: {
+    background: "#f1f5f9",
+    borderRadius: "18px",
+    padding: "10px 14px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+  },
+  messageBubbleOwn: {
+    background: "#3b82f6",
+    borderColor: "#3b82f6",
+  },
+  editedIndicator: {
+    fontSize: "9px",
+    color: "#94a3b8",
+    fontStyle: "italic",
+    marginRight: "4px",
+  },
+  messageText: {
+    fontSize: "14px",
+    lineHeight: "1.5",
+    margin: 0,
+    color: "#1e293b",
+    wordBreak: "break-word",
+  },
+  attachments: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    marginTop: "8px",
+  },
+  attachmentImage: {
+    maxWidth: "200px",
+    maxHeight: "150px",
+    borderRadius: "8px",
+    objectFit: "cover",
+  },
+  fileAttachment: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 10px",
+    background: "#ffffff",
+    borderRadius: "8px",
+    textDecoration: "none",
+    fontSize: "12px",
+    color: "#475569",
+  },
+  messageFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "4px",
+    marginTop: "4px",
+  },
+  messageTime: {
+    fontSize: "9px",
+    color: "#94a3b8",
+  },
+  inputWrapper: {
+    background: "#ffffff",
+    borderTop: "1px solid #e2e8f0",
+    padding: "12px 16px",
+  },
+  inputContainer: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "flex-end",
+  },
+  messageInput: {
+    flex: 1,
+    padding: "10px 16px",
+    borderRadius: "24px",
+    border: "1px solid #e2e8f0",
+    fontSize: "14px",
+    minHeight: "42px",
+    maxHeight: "100px",
+    fontFamily: "inherit",
+    background: "#f8fafc",
+    resize: "none",
+  },
+  sendButton: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "50%",
+    background: "#3b82f6",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "white",
+    transition: "all 0.2s",
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
+  },
+  sendSpinner: {
+    width: "16px",
+    height: "16px",
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "white",
+    borderRadius: "50%",
+    animation: "spin 0.6s linear infinite",
+  },
+  emptyChat: {
+    textAlign: "center",
+    padding: "60px 20px",
+    color: "#94a3b8",
   },
 };
 

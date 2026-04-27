@@ -92,111 +92,61 @@ function AppContent() {
   const [currentUser, setCurrentUser] = useState(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [isValidating, setIsValidating] = useState(true);
 
-  // ========== CRITICAL FIX: Validate user on app start ==========
+  // ✅ SERVICE WORKER UPDATE DETECTION - Auto refresh
   useEffect(() => {
-    const validateAndSetUser = async () => {
-      const token = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
+    if ('serviceWorker' in navigator) {
+      let refreshing = false;
       
-      if (!token || !storedUser) {
-        setIsValidating(false);
-        return;
-      }
+      // Listen for controller change (new service worker takes over)
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        
+        console.log('🔄 New version available! Refreshing...');
+        
+        // Auto-refresh after 500ms
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      });
       
-      try {
-        // Decode token to check role
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        const userData = JSON.parse(storedUser);
-        
-        console.log('🔐 Token validation:', {
-          tokenRole: decoded.role,
-          storedRole: userData.role,
-          userId: decoded.userId
-        });
-        
-        // If token role doesn't match stored user role, refresh user data from server
-        if (decoded.role !== userData.role) {
-          console.log('⚠️ Role mismatch! Refreshing user data from server...');
-          
-          const response = await fetch(`${BASE_URL}/api/me`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          
-          if (response.ok) {
-            const freshUser = await response.json();
-            localStorage.setItem('user', JSON.stringify(freshUser));
-            setCurrentUser(freshUser);
-            console.log('✅ User data refreshed, role:', freshUser.role);
-          } else {
-            // Token invalid, clear everything
-            console.log('❌ Token invalid, clearing storage');
-            localStorage.clear();
-            setCurrentUser(null);
-          }
-        } else {
-          // Roles match, use stored user
-          setCurrentUser(userData);
-          console.log('✅ User validated, role:', userData.role);
+      // Check for waiting service worker on page load
+      navigator.serviceWorker.ready.then((registration) => {
+        // Check for waiting worker
+        if (registration.waiting) {
+          console.log('⏳ Update waiting, applying...');
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-      } catch (err) {
-        console.error('❌ Token validation failed:', err);
-        localStorage.clear();
-        setCurrentUser(null);
-      }
-      
-      setIsValidating(false);
-    };
-    
-    validateAndSetUser();
-  }, []);
-
-  // ========== Reload user data when app comes to foreground ==========
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (!document.hidden) {
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            console.log('🔄 App resumed, refreshing user data...');
-            const response = await fetch(`${BASE_URL}/api/me`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-              const freshUser = await response.json();
-              const currentStored = localStorage.getItem('user');
-              const currentUserData = currentStored ? JSON.parse(currentStored) : null;
-              
-              // Only update if role changed
-              if (!currentUserData || currentUserData.role !== freshUser.role) {
-                console.log('🔄 Role changed from', currentUserData?.role, 'to', freshUser.role);
-                localStorage.setItem('user', JSON.stringify(freshUser));
-                setCurrentUser(freshUser);
-                
-                // Force reload to apply new role
-                if (currentUserData && currentUserData.role !== freshUser.role) {
-                  window.location.reload();
-                }
-              } else {
-                setCurrentUser(freshUser);
-              }
-            } else {
-              // Token invalid, redirect to login
-              localStorage.clear();
-              setCurrentUser(null);
-              navigate('/login');
+        
+        // Listen for new service worker
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          console.log('🆕 New service worker found');
+          
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('✅ Update ready, refreshing...');
+              setUpdateAvailable(true);
+              // Auto refresh after 2 seconds
+              setTimeout(() => {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }, 2000);
             }
-          } catch(e) {
-            console.error('Failed to refresh user:', e);
-          }
-        }
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [navigate]);
+          });
+        });
+      });
+      
+      // Periodic check for updates (every 60 seconds)
+      const checkForUpdates = async () => {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.update();
+      };
+      
+      const interval = setInterval(checkForUpdates, 60000);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   // Listen for User AI open events
   useEffect(() => {
@@ -206,6 +156,9 @@ function AppContent() {
       setIsAIFullPage(event.detail?.fullPage || true);
     };
     window.addEventListener('openZUCAI', handleOpenUserAI);
+    
+    const user = JSON.parse(localStorage.getItem('user'));
+    setCurrentUser(user);
     
     return () => window.removeEventListener('openZUCAI', handleOpenUserAI);
   }, []);
@@ -222,75 +175,38 @@ function AppContent() {
     return () => window.removeEventListener('openAdminAI', handleOpenAdminAI);
   }, []);
 
-  // Update user when storage changes (from other tabs)
+  // Update user when storage changes
   useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'user') {
-        const newUser = e.newValue ? JSON.parse(e.newValue) : null;
-        setCurrentUser(newUser);
-        console.log('📦 User updated from storage:', newUser?.role);
-      }
-      if (e.key === 'token' && !e.newValue) {
-        setCurrentUser(null);
-      }
+    const handleStorageChange = () => {
+      const user = JSON.parse(localStorage.getItem('user'));
+      setCurrentUser(user);
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // ✅ SERVICE WORKER UPDATE DETECTION - Auto refresh
+  // Socket.IO connection setup with FCM compatibility
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      let refreshing = false;
-      
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        console.log('🔄 New version available! Refreshing...');
-        setTimeout(() => window.location.reload(), 500);
-      });
-      
-      navigator.serviceWorker.ready.then((registration) => {
-        if (registration.waiting) {
-          console.log('⏳ Update waiting, applying...');
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-        
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          console.log('🆕 New service worker found');
-          
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('✅ Update ready, refreshing...');
-              setUpdateAvailable(true);
-              setTimeout(() => newWorker.postMessage({ type: 'SKIP_WAITING' }), 2000);
-            }
-          });
-        });
-      });
-      
-      const checkForUpdates = async () => {
-        const registration = await navigator.serviceWorker.ready;
-        await registration.update();
-      };
-      
-      const interval = setInterval(checkForUpdates, 60000);
-      return () => clearInterval(interval);
-    }
-  }, []);
-
-  // Socket.IO connection setup
-  useEffect(() => {
-    if (currentUser?.id) {
-      socket.emit("join", currentUser.id);
-      console.log("📡 Joined socket room for user:", currentUser.id);
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+    
+    if (token && user) {
+      try {
+        const userData = JSON.parse(user);
+        socket.emit("join", userData.id);
+        console.log("📡 Joined socket room for user:", userData.id);
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
     }
     
     socket.on("new_notification", (notification) => {
       console.log("🔔 New notification received:", notification);
+      
+      // Increment badge count
       badgeManager.increment();
       
+      // Show in-app toast if available
       if (window.showInAppToast) {
         window.showInAppToast({
           title: notification.title || "New Notification",
@@ -304,7 +220,9 @@ function AppContent() {
         });
       }
       
+      // Show browser notification if permitted and tab is hidden
       if (Notification.permission === "granted" && document.hidden) {
+        // For FCM compatibility on Android, ensure proper notification format
         const notificationOptions = {
           body: notification.message,
           icon: "/android-chrome-192x192.png",
@@ -323,6 +241,7 @@ function AppContent() {
           actions: []
         };
         
+        // Add action buttons based on notification type
         if (notification.type === 'game_invite') {
           notificationOptions.actions = [
             { action: 'accept', title: '🎮 Accept' },
@@ -354,6 +273,7 @@ function AppContent() {
       badgeManager.loadCount();
     });
     
+    // Listen for FCM subscription refresh events
     socket.on("push_subscription_refresh", async (data) => {
       console.log("🔄 Push subscription refresh requested:", data);
       if (data.reason === 'expired' || data.reason === 'migration') {
@@ -367,9 +287,9 @@ function AppContent() {
       socket.off("new_notification_batch");
       socket.off("push_subscription_refresh");
     };
-  }, [currentUser?.id]);
+  }, []);
   
-  // Initialize push notifications
+  // Initialize push notifications with FCM compatibility
   useEffect(() => {
     const initPushNotifications = async () => {
       const token = localStorage.getItem("token");
@@ -397,7 +317,7 @@ function AppContent() {
     initPushNotifications();
   }, []);
   
-  // Handle service worker messages
+  // Handle service worker messages (for FCM)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (event) => {
@@ -405,6 +325,7 @@ function AppContent() {
         
         const { type, data } = event.data || {};
         
+        // Handle game invite accept/decline from notification actions
         if (type === 'GAME_INVITE_ACCEPTED') {
           window.dispatchEvent(new CustomEvent('acceptGameInvite', { detail: data }));
         }
@@ -413,49 +334,45 @@ function AppContent() {
           window.dispatchEvent(new CustomEvent('declineGameInvite', { detail: data }));
         }
         
+        // Handle pledge payment from notification actions
         if (type === 'PLEDGE_PAYMENT') {
           window.dispatchEvent(new CustomEvent('openPledgePayment', { detail: data }));
         }
       });
     }
   }, []);
+  
+  // Listen for user login/logout events
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const token = localStorage.getItem("token");
+      const user = localStorage.getItem("user");
+      
+      if (token && user) {
+        try {
+          const userData = JSON.parse(user);
+          socket.emit("join", userData.id);
+          pushService.setupForUser(); // Use enhanced setup
+          badgeManager.loadCount();
+          setCurrentUser(userData);
+        } catch (e) {}
+      } else {
+        socket.emit("leave-all");
+        pushService.unsubscribe();
+        badgeManager.updateBadgeCount(0);
+        setCurrentUser(null);
+        setPushEnabled(false);
+      }
+    };
+    
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
-  // Check if user is admin (FIXED - uses currentUser state)
-  const isAdmin = currentUser?.role === "admin";
-  const isSecretary = currentUser?.specialRole === "secretary";
-  const isTreasurer = currentUser?.specialRole === "treasurer";
-
-  // Show loading while validating
-  if (isValidating) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        color: "white"
-      }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            border: "3px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00c6ff",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite",
-            margin: "0 auto 20px"
-          }} />
-          <p>Loading...</p>
-        </div>
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
+  // Check if user is admin
+  const isAdmin = currentUser?.role === "admin" || 
+                  currentUser?.specialRole === "secretary" || 
+                  currentUser?.specialRole === "treasurer";
 
   return (
     <>

@@ -5,37 +5,7 @@ const AnimatedBackground = () => {
   const [bubbles, setBubbles] = useState([]);
   const [stars, setStars] = useState([]);
 
-  useEffect(() => {
-    // Generate random bubbles - VERY VISIBLE
-    const bubbleCount = 15;
-    const newBubbles = [];
-    for (let i = 0; i < bubbleCount; i++) {
-      newBubbles.push({
-        id: i,
-        size: Math.random() * 6 + 9,
-        top: Math.random() * 100,
-        left: Math.random() * 100,
-        duration: Math.random() * 20 + 15,
-        delay: Math.random() * 10,
-      });
-    }
-    setBubbles(newBubbles);
-
-    // Generate random stars - VERY VISIBLE
-    const starCount = 50;
-    const newStars = [];
-    for (let i = 0; i < starCount; i++) {
-      newStars.push({
-        id: i,
-        size: Math.random() * 1 + 2,
-        top: Math.random() * 100,
-        left: Math.random() * 100,
-        duration: Math.random() * 3 + 2,
-        delay: Math.random() * 5,
-      });
-    }
-    setStars(newStars);
-  }, []);
+  
 
   return (
     <div className="animated-bg-container">

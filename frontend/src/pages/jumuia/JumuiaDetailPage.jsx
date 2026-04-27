@@ -96,6 +96,15 @@ export default function JumuiaDetailPage() {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
+
+  //announcements
+
+  // Announcements state
+const [announcements, setAnnouncements] = useState([]);
+const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
+const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", category: "General" });
+const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
+
   // Load user from localStorage on mount
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -765,6 +774,48 @@ export default function JumuiaDetailPage() {
     );
   };
 
+
+  useEffect(() => {
+  if (jumuia?.id && activeTab === 'announcements') {
+    fetchAnnouncements();
+  }
+}, [jumuia?.id, activeTab]);
+
+  const fetchAnnouncements = async () => {
+  if (!jumuia?.id) return;
+  setLoadingAnnouncements(true);
+  try {
+    const response = await api.get(`/api/jumuia/${jumuia.id}/announcements`);
+    setAnnouncements(response.data);
+  } catch (err) {
+    console.error('Error fetching announcements:', err);
+    showNotification("Failed to load announcements", "error");
+  } finally {
+    setLoadingAnnouncements(false);
+  }
+};
+
+const handleCreateAnnouncement = async () => {
+  if (!newAnnouncement.title || !newAnnouncement.content) {
+    showNotification("Title and content are required", "error");
+    return;
+  }
+  
+  setCreatingAnnouncement(true);
+  try {
+    const response = await api.post(`/api/jumuia/${jumuia.id}/announcements`, newAnnouncement);
+    setAnnouncements(prev => [response.data, ...prev]);
+    setNewAnnouncement({ title: "", content: "", category: "General" });
+    showNotification("Announcement posted successfully", "success");
+  } catch (err) {
+    showNotification(err.response?.data?.error || "Failed to post announcement", "error");
+  } finally {
+    setCreatingAnnouncement(false);
+  }
+};
+
+
+
   // ==================== TAB HANDLING ====================
 
   const handleTabChange = async (tab) => {
@@ -989,6 +1040,15 @@ export default function JumuiaDetailPage() {
           <Icons.Users /> Members
         </button>
         <button
+  style={{
+    ...styles.tab,
+    ...(activeTab === 'announcements' && styles.activeTab)
+  }}
+  onClick={() => handleTabChange('announcements')}
+>
+  📢 Announcements
+</button>
+        <button
           style={{
             ...styles.tab,
             ...(activeTab === 'contributions' && styles.activeTab)
@@ -998,6 +1058,7 @@ export default function JumuiaDetailPage() {
           💰 Contributions
         </button>
       </div>
+      
 
       {/* Tab Content */}
       <div style={styles.tabContent}>
@@ -1012,6 +1073,86 @@ export default function JumuiaDetailPage() {
             onAddMember={() => setShowAddMemberModal(true)}
           />
         )}
+
+        {activeTab === 'announcements' && (
+  <div style={styles.announcementsContainer}>
+    {/* Create Announcement Form - Only for leaders/admins */}
+    {canModify && (
+      <div style={styles.createAnnouncementCard}>
+        <h3 style={styles.subSectionTitle}>📢 Create New Announcement</h3>
+        <div style={styles.announcementForm}>
+          <input
+            type="text"
+            placeholder="Announcement Title"
+            style={styles.formInput}
+            value={newAnnouncement.title}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
+          />
+          <textarea
+            placeholder="Announcement Content"
+            style={{...styles.formInput, minHeight: '100px'}}
+            value={newAnnouncement.content}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
+          />
+          <select
+            style={styles.formInput}
+            value={newAnnouncement.category}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, category: e.target.value})}
+          >
+            <option value="General">General</option>
+            <option value="Meeting">Meeting</option>
+            <option value="Event">Event</option>
+            <option value="Important">Important</option>
+            <option value="Prayer">Prayer</option>
+          </select>
+          <button 
+            style={styles.createBtn}
+            onClick={handleCreateAnnouncement}
+            disabled={creatingAnnouncement || !newAnnouncement.title || !newAnnouncement.content}
+          >
+            {creatingAnnouncement ? "Posting..." : "📢 Post Announcement"}
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Announcements List */}
+    {loadingAnnouncements ? (
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner} />
+        <p>Loading announcements...</p>
+      </div>
+    ) : announcements.length === 0 ? (
+      <div style={styles.emptyAnnouncements}>
+        <span style={{ fontSize: '48px' }}>📢</span>
+        <h3>No Announcements Yet</h3>
+        <p>Be the first to post an announcement!</p>
+      </div>
+    ) : (
+      <div style={styles.announcementsList}>
+        {announcements.map((ann) => (
+          <div key={ann.id} style={styles.announcementCard}>
+            <div style={styles.announcementHeader}>
+              <div>
+                <h3 style={styles.announcementTitle}>{ann.title}</h3>
+                <span style={styles.announcementCategory}>{ann.category}</span>
+              </div>
+              <span style={styles.announcementDate}>
+                {new Date(ann.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+            <p style={styles.announcementContent}>{ann.content}</p>
+            <div style={styles.announcementFooter}>
+              <span>By: {ann.author?.fullName || 'Unknown'}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+        
 
         {activeTab === 'contributions' && (
           <ContributionsSection
@@ -3167,6 +3308,78 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
   },
+  
+  announcementsContainer: {
+  background: '#fff',
+  borderRadius: '12px',
+  padding: '20px',
+},
+createAnnouncementCard: {
+  background: '#f8fafc',
+  borderRadius: '12px',
+  padding: '20px',
+  marginBottom: '24px',
+},
+announcementForm: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  marginTop: '12px',
+},
+announcementsList: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+},
+announcementCard: {
+  border: '1px solid #e2e8f0',
+  borderRadius: '12px',
+  padding: '16px',
+  background: '#fff',
+},
+announcementHeader: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  marginBottom: '12px',
+  flexWrap: 'wrap',
+  gap: '8px',
+},
+announcementTitle: {
+  fontSize: '16px',
+  fontWeight: '600',
+  margin: 0,
+  color: '#0f172a',
+},
+announcementCategory: {
+  fontSize: '11px',
+  padding: '2px 8px',
+  borderRadius: '12px',
+  background: '#e2e8f0',
+  color: '#64748b',
+  marginLeft: '8px',
+},
+announcementDate: {
+  fontSize: '12px',
+  color: '#64748b',
+},
+announcementContent: {
+  fontSize: '14px',
+  lineHeight: '1.5',
+  color: '#475569',
+  margin: '0 0 12px 0',
+},
+announcementFooter: {
+  fontSize: '12px',
+  color: '#94a3b8',
+  borderTop: '1px solid #f1f5f9',
+  paddingTop: '12px',
+},
+emptyAnnouncements: {
+  textAlign: 'center',
+  padding: '60px 20px',
+  color: '#64748b',
+},
 };
 
 // Add global keyframes

@@ -9,6 +9,7 @@ import jsPDF from "jspdf";
 import "react-quill/dist/quill.snow.css";
 import "react-datepicker/dist/react-datepicker.css";
 import { createPortal } from 'react-dom';
+import BASE_URL from "../../api";
 
 function AdminSchedules() {
   const navigate = useNavigate();
@@ -28,7 +29,12 @@ function AdminSchedules() {
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState(null);
   const [showSavedNotifications, setShowSavedNotifications] = useState(false);
   const [savedNotifications, setSavedNotifications] = useState([]);
-  const [actionLoading, setActionLoading] = useState({}); // Track loading per action
+  const [actionLoading, setActionLoading] = useState({});
+  
+  // OCR States
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [pendingOCRImage, setPendingOCRImage] = useState(null);
+  const fileInputRef = useRef(null);
   
   // Auto-save key for localStorage
   const UNSAVED_KEY = "unsaved_schedule_data";
@@ -54,7 +60,6 @@ function AdminSchedules() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
-  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const quillModules = {
     toolbar: [
@@ -71,15 +76,213 @@ function AdminSchedules() {
 
   const showToast = useCallback((message, type = "info") => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 5000);
   }, []);
 
-  // Set loading for a specific action
   const setActionLoadingState = useCallback((action, isLoading) => {
     setActionLoading(prev => ({ ...prev, [action]: isLoading }));
   }, []);
 
-  // Load saved notifications from localStorage
+  // ==================== OCR FUNCTIONS ====================
+  const handleImageUploadForOCR = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("❌ Image too large. Max 5MB.", "error");
+      return;
+    }
+    
+    setPendingOCRImage(file);
+    showToast("📸 Image uploaded. Switch to Structured Mode to extract schedule.", "info");
+  };
+
+const parseExtractedTextToSchedule = (text) => {
+  const result = { hasData: false, sections: [], generalPoints: [] };
+  if (!text || !text.trim()) return result;
+  
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  
+  // Extract title
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    if (lines[i].includes("SEMESTER SCHEDULE") || lines[i].includes("MAY-AUGUST")) {
+      result.title = lines[i];
+      result.hasData = true;
+      break;
+    }
+  }
+  
+  // Extract bullet points as general points
+  const bulletPoints = [];
+  let inActivities = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].toLowerCase().includes("activities will take place")) {
+      inActivities = true;
+      continue;
+    }
+    if (inActivities && lines[i].match(/^[-•*]/)) {
+      if (lines[i].toUpperCase() === lines[i] && lines[i].length > 10) {
+        inActivities = false;
+      } else {
+        bulletPoints.push(lines[i].replace(/^[-•*]\s*/, ''));
+      }
+    }
+    if (inActivities && lines[i].match(/^\d/)) {
+      inActivities = false;
+    }
+  }
+  
+  if (bulletPoints.length > 0) {
+    result.generalPoints = bulletPoints.map((point, idx) => ({
+      id: Date.now() + idx,
+      text: point
+    }));
+    result.hasData = true;
+  }
+  
+  // Detect section headers
+  const sections = [];
+  let currentSection = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Check for section header (ALL CAPS or contains MASS ANIMATIONS)
+    if ((line === line.toUpperCase() && line.length > 15) || 
+        line.includes("MASS ANIMATIONS") ||
+        line.includes("OUTDOOR ACTIVITIES")) {
+      if (currentSection && currentSection.rows.length > 0) {
+        sections.push(currentSection);
+      }
+      currentSection = {
+        title: line,
+        rows: []
+      };
+    } else if (currentSection) {
+      // Try to parse date-event pairs from the line
+      const dateMatch = line.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+      if (dateMatch) {
+        // Extract date and what follows as event
+        let date = dateMatch[0];
+        let event = line.replace(dateMatch[0], '').trim();
+        
+        // Clean up event
+        event = event.replace(/^[-•*]\s*/, '');
+        
+        // If event contains multiple events (space separated), try to split
+        if (event.includes("St ") || event.includes("ZUCA") || event.includes("Cultural")) {
+          // This line has multiple events - split them
+          const eventParts = event.split(/\s+(?=St\s|ZUCA|Cultural)/);
+          for (let part of eventParts) {
+            if (part.trim()) {
+              currentSection.rows.push({
+                id: Date.now() + Math.random(),
+                date: date,
+                dateValue: null,
+                event: part.trim()
+              });
+              date = ""; // Only use date for first event
+            }
+          }
+        } else {
+          currentSection.rows.push({
+            id: Date.now() + i,
+            date: date,
+            dateValue: null,
+            event: event || "Event"
+          });
+        }
+      } else if (line.match(/^\d/)) {
+        // Line starts with number - might be a date without month
+        const parts = line.split(/\s+/);
+        if (parts.length >= 2) {
+          currentSection.rows.push({
+            id: Date.now() + i,
+            date: parts[0],
+            dateValue: null,
+            event: parts.slice(1).join(" ")
+          });
+        }
+      }
+    }
+  }
+  
+  if (currentSection && currentSection.rows.length > 0) {
+    sections.push(currentSection);
+  }
+  
+  // Convert sections to result format
+  for (let s = 0; s < sections.length; s++) {
+    result.sections.push({
+      id: Date.now() + s,
+      title: sections[s].title,
+      tableRows: sections[s].rows,
+      freeText: ""
+    });
+    result.hasData = true;
+  }
+  
+  return result;
+};
+
+  const processImageWithOCR = async (imageFile) => {
+    if (!imageFile) return;
+    
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    
+    try {
+      const response = await axios.post(`${BASE_URL}/api/ocr/ocr-space`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        },
+        timeout: 60000
+      });
+      
+      if (response.data.success && response.data.text) {
+        const extractedText = response.data.text;
+        setFreeContent(extractedText);
+        
+        const parsedData = parseExtractedTextToSchedule(extractedText);
+        
+        if (parsedData.hasData) {
+          if (parsedData.title) {
+            setFormData(prev => ({ ...prev, title: parsedData.title }));
+          }
+          if (parsedData.generalPoints && parsedData.generalPoints.length > 0) {
+            setFormData(prev => ({ ...prev, generalPoints: parsedData.generalPoints }));
+          }
+          if (parsedData.sections && parsedData.sections.length > 0) {
+            setFormData(prev => ({ ...prev, sections: parsedData.sections }));
+          }
+          showToast(`✅ Schedule extracted from image! Found ${parsedData.sections?.length || 0} sections.`, "success");
+        } else {
+          showToast(`📝 Text extracted (${response.data.wordCount || 'unknown'} words). Please fill form manually.`, "info");
+        }
+      } else {
+        showToast("❌ No text detected in image. Try a clearer image with good lighting.", "error");
+      }
+    } catch (err) {
+      console.error("OCR error:", err);
+      const errorMsg = err.response?.data?.error || err.message || "Failed to extract text";
+      showToast(`❌ OCR failed: ${errorMsg}`, "error");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Process OCR when switching from free to structured mode
+  useEffect(() => {
+    if (activeTab === "structured" && pendingOCRImage) {
+      processImageWithOCR(pendingOCRImage);
+      setPendingOCRImage(null);
+    }
+  }, [activeTab, pendingOCRImage]);
+
+  // ==================== NOTIFICATION FUNCTIONS ====================
   const loadSavedNotifications = useCallback(() => {
     const saved = localStorage.getItem(NOTIFICATIONS_KEY);
     if (saved) {
@@ -92,45 +295,6 @@ function AdminSchedules() {
     }
   }, []);
 
-  // Save a new notification (only if it has actual content)
-  const addNotification = useCallback((formDataState, action = "autosaved") => {
-    // Check if there's actual content worth saving
-    const hasTitle = formDataState.title && formDataState.title.trim().length > 0;
-    const hasGeneralPoints = formDataState.generalPoints.some(p => p.text && p.text.trim().length > 0);
-    const hasSections = formDataState.sections.some(s => 
-      s.title?.trim() || s.tableRows.some(r => r.date || r.event) || s.freeText?.trim()
-    );
-    const hasAdditionalNotes = formDataState.additionalNotes && formDataState.additionalNotes.trim().length > 0;
-    
-    // Don't save if completely empty
-    if (!hasTitle && !hasGeneralPoints && !hasSections && !hasAdditionalNotes) {
-      return null;
-    }
-
-    const notification = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      action: action,
-      title: formDataState.title || "Untitled Schedule",
-      hasContent: {
-        title: hasTitle,
-        generalPoints: hasGeneralPoints,
-        sections: hasSections,
-        additionalNotes: hasAdditionalNotes
-      },
-      preview: getPreviewText(formDataState)
-    };
-
-    setSavedNotifications(prev => {
-      const newNotifications = [notification, ...prev].slice(0, 20); // Keep last 20
-      localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(newNotifications));
-      return newNotifications;
-    });
-
-    return notification;
-  }, []);
-
-  // Get preview text for notification
   const getPreviewText = (formDataState) => {
     const parts = [];
     if (formDataState.title) parts.push(`Title: ${formDataState.title.substring(0, 30)}`);
@@ -141,11 +305,37 @@ function AdminSchedules() {
     return parts.join(" | ") || "Empty schedule";
   };
 
-  // Delete a notification
+  const addNotification = useCallback((formDataState, action = "autosaved", success = true) => {
+    const hasTitle = formDataState.title && formDataState.title.trim().length > 0;
+    const hasGeneralPoints = formDataState.generalPoints.some(p => p.text && p.text.trim().length > 0);
+    const hasSections = formDataState.sections.some(s => 
+      s.title?.trim() || s.tableRows.some(r => r.date || r.event) || s.freeText?.trim()
+    );
+    
+    if (!hasTitle && !hasGeneralPoints && !hasSections) {
+      return null;
+    }
+
+    const notification = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      action: action,
+      success: success,
+      title: formDataState.title || "Untitled Schedule",
+      preview: getPreviewText(formDataState)
+    };
+
+    setSavedNotifications(prev => {
+      const newNotifications = [notification, ...prev].slice(0, 20);
+      localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(newNotifications));
+      return newNotifications;
+    });
+
+    return notification;
+  }, []);
+
   const deleteNotification = useCallback(async (id) => {
     setActionLoadingState(`delete_notif_${id}`, true);
-    // Simulate delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
     setSavedNotifications(prev => {
       const newNotifications = prev.filter(n => n.id !== id);
       localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(newNotifications));
@@ -155,11 +345,9 @@ function AdminSchedules() {
     showToast("🗑️ Notification deleted", "success");
   }, [showToast, setActionLoadingState]);
 
-  // Clear all notifications
   const clearAllNotifications = useCallback(async () => {
     if (window.confirm("Delete all saved notifications?")) {
       setActionLoadingState("clear_all_notif", true);
-      await new Promise(resolve => setTimeout(resolve, 300));
       setSavedNotifications([]);
       localStorage.removeItem(NOTIFICATIONS_KEY);
       setActionLoadingState("clear_all_notif", false);
@@ -167,17 +355,13 @@ function AdminSchedules() {
     }
   }, [showToast, setActionLoadingState]);
 
-  // Auto-save to localStorage (only if has content)
+  // ==================== AUTO-SAVE FUNCTIONS ====================
   const autoSaveToLocal = useCallback(() => {
-    // Check if form has actual content
     const hasContent = formData.title?.trim() || 
       formData.generalPoints.some(p => p.text?.trim()) ||
-      formData.sections.some(s => s.title?.trim() || s.tableRows.some(r => r.date || r.event) || s.freeText?.trim()) ||
-      formData.additionalNotes?.trim();
+      formData.sections.some(s => s.title?.trim() || s.tableRows.some(r => r.date || r.event));
     
-    if (!hasContent) {
-      return; // Don't save empty forms
-    }
+    if (!hasContent) return;
     
     const unsavedData = {
       formData,
@@ -188,11 +372,8 @@ function AdminSchedules() {
       timestamp: new Date().toISOString()
     };
     localStorage.setItem(UNSAVED_KEY, JSON.stringify(unsavedData));
-    // Add notification for auto-save
-    addNotification(formData, "auto-saved");
-  }, [formData, freeContent, activeTab, editingId, editingDraftId, addNotification]);
+  }, [formData, freeContent, activeTab, editingId, editingDraftId]);
 
-  // Load unsaved data from localStorage
   const loadUnsavedFromLocal = useCallback(() => {
     const saved = localStorage.getItem(UNSAVED_KEY);
     if (saved) {
@@ -202,11 +383,9 @@ function AdminSchedules() {
         const now = new Date();
         const hoursDiff = (now - savedTime) / (1000 * 60 * 60);
         
-        // Only load if less than 24 hours old AND has content
         if (hoursDiff < 24) {
           const hasContent = unsavedData.formData.title || 
-            unsavedData.formData.generalPoints?.some(p => p.text) ||
-            unsavedData.formData.sections?.some(s => s.title || s.tableRows?.some(r => r.date || r.event));
+            unsavedData.formData.generalPoints?.some(p => p.text);
           
           if (hasContent && window.confirm("You have unsaved changes from " + savedTime.toLocaleString() + ". Do you want to restore them?")) {
             setFormData(unsavedData.formData);
@@ -219,6 +398,7 @@ function AdminSchedules() {
             return true;
           }
         }
+        localStorage.removeItem(UNSAVED_KEY);
       } catch (e) {
         console.error("Error loading unsaved data:", e);
       }
@@ -226,19 +406,17 @@ function AdminSchedules() {
     return false;
   }, [showToast]);
 
-  // Auto-save every 30 seconds when form is open (less frequent to avoid spam)
   useEffect(() => {
     let interval;
     if (showForm && !previewMode) {
-      interval = setInterval(() => {
-        autoSaveToLocal();
-      }, 30000); // Save every 30 seconds
+      interval = setInterval(autoSaveToLocal, 30000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [showForm, previewMode, autoSaveToLocal]);
 
+  // ==================== API CALLS ====================
   const fetchSchedules = useCallback(async () => {
     setActionLoadingState("fetch_schedules", true);
     try {
@@ -246,7 +424,7 @@ function AdminSchedules() {
       setSchedules(response.data);
     } catch (err) {
       console.error("Error fetching schedules:", err);
-      showToast("Failed to load schedules", "error");
+      showToast("Failed to load schedules. Check your connection.", "error");
     } finally {
       setActionLoadingState("fetch_schedules", false);
     }
@@ -261,31 +439,17 @@ function AdminSchedules() {
     }
   }, [BASE_URL, headers]);
 
-  const checkForNotifications = useCallback(async () => {
-    try {
-      const response = await axios.post(
-        `${BASE_URL}/api/schedules/check-notifications`,
-        {},
-        { headers }
-      );
-      if (response.data.newNotifications > 0) {
-        showToast(`📬 ${response.data.newNotifications} new event reminders!`, "info");
-      }
-    } catch (err) {
-      console.error("Error checking notifications:", err);
-    }
-  }, [BASE_URL, headers, showToast]);
-
   useEffect(() => {
     if (!initialLoadDone) {
       fetchSchedules();
       fetchDrafts();
-      checkForNotifications();
       loadSavedNotifications();
+      loadUnsavedFromLocal();
       setInitialLoadDone(true);
     }
-  }, [fetchSchedules, fetchDrafts, checkForNotifications, loadSavedNotifications, initialLoadDone]);
+  }, [fetchSchedules, fetchDrafts, loadSavedNotifications, loadUnsavedFromLocal, initialLoadDone]);
 
+  // ==================== SCHEDULE FUNCTIONS ====================
   const buildFullDocumentHTML = useCallback(() => {
     let html = `
       <!DOCTYPE html>
@@ -294,23 +458,16 @@ function AdminSchedules() {
         <meta charset="UTF-8">
         <title>${formData.title || "Schedule"}</title>
         <style>
-          body { 
-            font-family: 'Times New Roman', Arial, sans-serif; 
-            font-size: 12pt;
-            line-height: 1.4;
-            margin: 0 auto;
-            padding: 40px;
-            max-width: 900px;
-          }
+          body { font-family: 'Times New Roman', Arial, sans-serif; font-size: 12pt; line-height: 1.4; margin: 0 auto; padding: 40px; max-width: 900px; }
           h1 { font-size: 20pt; font-weight: bold; margin: 10pt 0; text-align: center; }
           h2 { font-size: 18pt; font-weight: bold; margin: 8pt 0; text-align: center; }
           h3 { font-size: 16pt; font-weight: bold; margin: 6pt 0; border-left: 3px solid #3b82f6; padding-left: 10px; }
-          table { border-collapse: collapse; width: 100%; margin: 15px 0; page-break-inside: avoid; }
+          table { border-collapse: collapse; width: 100%; margin: 15px 0; }
           th, td { border: 1px solid #999; padding: 8px; text-align: left; vertical-align: top; }
           th { background: #f5f5f5; font-weight: bold; }
           ul, ol { margin: 5px 0; padding-left: 20px; }
           li { margin: 3px 0; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9pt; color: #666; page-break-before: avoid; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9pt; color: #666; }
         </style>
       </head>
       <body>
@@ -318,9 +475,8 @@ function AdminSchedules() {
           <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
           <h2>${formData.title || "Schedule"}</h2>
           ${formData.semesterPeriod.start ? `<p style="text-align: center;">📅 ${new Date(formData.semesterPeriod.start).toLocaleDateString()} - ${new Date(formData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
-          
           <div style="margin: 20px 0;">
-            <p><strong>The ${formData.title || "schedule"} activities will take place as follows:</strong></p>
+            <p><strong>Activities will take place as follows:</strong></p>
             <ul>
               ${formData.generalPoints.filter(p => p.text && p.text.trim()).map(p => `<li>${p.text}</li>`).join('')}
             </ul>
@@ -328,24 +484,19 @@ function AdminSchedules() {
     `;
     
     formData.sections.forEach(section => {
-      if (section.title || section.tableRows.some(r => r.date || r.event) || section.freeText) {
+      if (section.title || section.tableRows.some(r => r.date || r.event)) {
         html += `
           <div style="margin: 25px 0;">
             <h3>${section.title || "Section"}</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr><th>DATE</th><th>EVENT</th></tr>
-              </thead>
+            <table>
+              <thead><tr><th>DATE</th><th>EVENT</th></tr></thead>
               <tbody>
                 ${section.tableRows.filter(row => row.date && row.event).map(row => `
-                  <tr>
-                    <td>${row.date}</td>
-                    <td>${row.event}</td>
-                  </tr>
+                  <tr><td>${row.date}</td><td>${row.event}</td></tr>
                 `).join('')}
               </tbody>
             </table>
-            ${section.freeText ? `<p style="margin-top: 10px;">${section.freeText}</p>` : ''}
+            ${section.freeText ? `<p>${section.freeText}</p>` : ''}
           </div>
         `;
       }
@@ -353,11 +504,9 @@ function AdminSchedules() {
     
     html += `
         <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc;">
-          ${formData.additionalNotes ? formData.additionalNotes.split('\n').map(line => `<p style="margin: 0 0 4px;">${line}</p>`).join('') : ''}
+          ${formData.additionalNotes ? formData.additionalNotes.split('\n').map(line => `<p>${line}</p>`).join('') : ''}
         </div>
-        <div class="footer">
-          ZUCA PORTAL AUTO SYSTEM GENERATED
-        </div>
+        <div class="footer">ZUCA PORTAL AUTO SYSTEM GENERATED</div>
       </body>
       </html>
     `;
@@ -373,7 +522,8 @@ function AdminSchedules() {
           if (row.dateValue && row.dateValue instanceof Date && !isNaN(row.dateValue)) {
             validDate = row.dateValue;
           } else if (row.date) {
-            validDate = parseDateString(row.date);
+            const parsed = parseDateString(row.date);
+            validDate = parsed;
           }
           if (validDate && row.event) {
             events.push({
@@ -396,9 +546,7 @@ function AdminSchedules() {
     const currentYear = new Date().getFullYear();
     const monthMap = {
       'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
-      'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
-      'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
     };
     const parts = dateStr.split(' ');
     if (parts.length === 2) {
@@ -411,8 +559,16 @@ function AdminSchedules() {
     return null;
   };
 
+  // ==================== CRUD OPERATIONS ====================
   const saveAsDraft = async () => {
     setActionLoadingState("save_draft", true);
+    
+    if (!formData.title || formData.title.trim() === "") {
+      showToast("❌ Title is required to save as draft", "error");
+      setActionLoadingState("save_draft", false);
+      return;
+    }
+    
     const draftData = {
       title: formData.title,
       formData: formData,
@@ -421,57 +577,26 @@ function AdminSchedules() {
     };
     
     try {
+      let response;
       if (editingDraftId) {
-        await axios.put(`${BASE_URL}/api/admin/schedules/drafts/${editingDraftId}`, draftData, { headers });
+        response = await axios.put(`${BASE_URL}/api/admin/schedules/drafts/${editingDraftId}`, draftData, { headers });
         showToast("✅ Draft updated successfully", "success");
         setEditingDraftId(null);
       } else {
-        await axios.post(`${BASE_URL}/api/admin/schedules/drafts`, draftData, { headers });
+        response = await axios.post(`${BASE_URL}/api/admin/schedules/drafts`, draftData, { headers });
         showToast("✅ Draft saved successfully", "success");
       }
       fetchDrafts();
       setShowDraftsPanel(true);
-      // Add notification for manual save
-      addNotification(formData, "draft-saved");
-      // Clear unsaved data after successful save
+      addNotification(formData, "draft-saved", true);
       localStorage.removeItem(UNSAVED_KEY);
     } catch (err) {
       console.error("Error saving draft:", err);
-      showToast("❌ Failed to save draft", "error");
+      const errorMsg = err.response?.data?.error || err.message || "Failed to save draft";
+      showToast(`❌ ${errorMsg}`, "error");
+      addNotification(formData, "draft-failed", false);
     } finally {
       setActionLoadingState("save_draft", false);
-    }
-  };
-
-  const loadDraft = (draft) => {
-    setActionLoadingState("load_draft", true);
-    setTimeout(() => {
-      setFormData(draft.formData);
-      setFreeContent(draft.freeContent || "");
-      setActiveTab(draft.activeTab || "structured");
-      setEditingDraftId(draft.id);
-      setShowForm(true);
-      setShowDraftsPanel(false);
-      // Clear unsaved data since we're loading a saved draft
-      localStorage.removeItem(UNSAVED_KEY);
-      setActionLoadingState("load_draft", false);
-      showToast("📝 Draft loaded", "success");
-    }, 300);
-  };
-
-  const deleteDraft = async (id) => {
-    if (window.confirm("Delete this draft permanently?")) {
-      setActionLoadingState(`delete_draft_${id}`, true);
-      try {
-        await axios.delete(`${BASE_URL}/api/admin/schedules/drafts/${id}`, { headers });
-        fetchDrafts();
-        showToast("🗑️ Draft deleted", "success");
-      } catch (err) {
-        console.error("Error deleting draft:", err);
-        showToast("❌ Failed to delete draft", "error");
-      } finally {
-        setActionLoadingState(`delete_draft_${id}`, false);
-      }
     }
   };
 
@@ -479,42 +604,77 @@ function AdminSchedules() {
     e.preventDefault();
     setActionLoadingState("publish", true);
     
+    // Validation
+    if (!formData.title || formData.title.trim() === "") {
+      showToast("❌ Schedule title is required", "error");
+      setActionLoadingState("publish", false);
+      return;
+    }
+    
     const content = buildFullDocumentHTML();
     const events = extractEventsFromSections();
     
+    // Format dates properly
+    const startDateValue = formData.semesterPeriod?.start instanceof Date && !isNaN(formData.semesterPeriod.start)
+      ? formData.semesterPeriod.start 
+      : null;
+    const endDateValue = formData.semesterPeriod?.end instanceof Date && !isNaN(formData.semesterPeriod.end)
+      ? formData.semesterPeriod.end 
+      : null;
+    
     const payload = {
-      title: formData.title,
+      title: formData.title.trim(),
       content: content,
-      description: formData.title,
-      startDate: formData.semesterPeriod.start,
-      endDate: formData.semesterPeriod.end,
-      isPublished: formData.isPublished,
+      description: formData.title.trim(),
+      startDate: startDateValue,
+      endDate: endDateValue,
+      isPublished: formData.isPublished || false,
       events: events,
       sections: formData.sections,
-      generalPoints: formData.generalPoints,
-      additionalNotes: formData.additionalNotes,
-      semesterPeriod: formData.semesterPeriod
+      generalPoints: formData.generalPoints.filter(p => p.text && p.text.trim()),
+      additionalNotes: formData.additionalNotes || "",
+      semesterPeriod: {
+        start: startDateValue,
+        end: endDateValue
+      }
     };
     
     try {
+      let response;
       if (editingId) {
-        await axios.put(`${BASE_URL}/api/admin/schedules/${editingId}`, payload, { headers });
-        showToast("✅ Schedule updated successfully", "success");
-        addNotification(formData, "updated");
+        response = await axios.put(`${BASE_URL}/api/admin/schedules/${editingId}`, payload, { headers });
+        showToast("✅ Schedule updated successfully!", "success");
+        addNotification(formData, "updated", true);
       } else {
-        await axios.post(`${BASE_URL}/api/admin/schedules`, payload, { headers });
-        showToast("✅ Schedule created successfully", "success");
-        addNotification(formData, "published");
+        response = await axios.post(`${BASE_URL}/api/admin/schedules`, payload, { headers });
+        showToast("✅ Schedule published successfully! Users will be notified.", "success");
+        addNotification(formData, "published", true);
       }
+      
       fetchSchedules();
       setShowForm(false);
       setPreviewMode(false);
       resetForm();
-      // Clear unsaved data after successful publish
       localStorage.removeItem(UNSAVED_KEY);
     } catch (err) {
       console.error("Error saving schedule:", err);
-      showToast("❌ Failed to save schedule", "error");
+      let errorMessage = "Failed to save schedule";
+      
+      if (err.response) {
+        // Server responded with error
+        errorMessage = err.response.data?.error || err.response.data?.message || `Server error: ${err.response.status}`;
+        console.error("Response data:", err.response.data);
+        console.error("Response status:", err.response.status);
+      } else if (err.request) {
+        // Request made but no response
+        errorMessage = "No response from server. Check your connection.";
+      } else {
+        // Other error
+        errorMessage = err.message || "Unknown error occurred";
+      }
+      
+      showToast(`❌ ${errorMessage}`, "error");
+      addNotification(formData, editingId ? "update-failed" : "publish-failed", false);
     } finally {
       setActionLoadingState("publish", false);
     }
@@ -543,7 +703,7 @@ function AdminSchedules() {
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
       pdf.save(`${(dataToUse.title || "schedule").replace(/\s/g, '_')}.pdf`);
-      showToast("📄 PDF downloaded", "success");
+      showToast("📄 PDF downloaded successfully", "success");
     } catch (err) {
       console.error("PDF error:", err);
       showToast("❌ Failed to generate PDF", "error");
@@ -561,23 +721,16 @@ function AdminSchedules() {
         <meta charset="UTF-8">
         <title>${scheduleData.title || "Schedule"}</title>
         <style>
-          body { 
-            font-family: 'Times New Roman', Arial, sans-serif; 
-            font-size: 12pt;
-            line-height: 1.4;
-            margin: 0 auto;
-            padding: 40px;
-            max-width: 900px;
-          }
+          body { font-family: 'Times New Roman', Arial, sans-serif; font-size: 12pt; line-height: 1.4; margin: 0 auto; padding: 40px; max-width: 900px; }
           h1 { font-size: 20pt; font-weight: bold; margin: 10pt 0; text-align: center; }
           h2 { font-size: 18pt; font-weight: bold; margin: 8pt 0; text-align: center; }
           h3 { font-size: 16pt; font-weight: bold; margin: 6pt 0; border-left: 3px solid #3b82f6; padding-left: 10px; }
-          table { border-collapse: collapse; width: 100%; margin: 15px 0; page-break-inside: avoid; }
+          table { border-collapse: collapse; width: 100%; margin: 15px 0; }
           th, td { border: 1px solid #999; padding: 8px; text-align: left; vertical-align: top; }
           th { background: #f5f5f5; font-weight: bold; }
           ul, ol { margin: 5px 0; padding-left: 20px; }
           li { margin: 3px 0; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9pt; color: #666; page-break-before: avoid; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9pt; color: #666; }
         </style>
       </head>
       <body>
@@ -585,9 +738,8 @@ function AdminSchedules() {
           <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
           <h2>${scheduleData.title || "Schedule"}</h2>
           ${scheduleData.semesterPeriod?.start ? `<p style="text-align: center;">📅 ${new Date(scheduleData.semesterPeriod.start).toLocaleDateString()} - ${new Date(scheduleData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
-          
           <div style="margin: 20px 0;">
-            <p><strong>The ${scheduleData.title || "schedule"} activities will take place as follows:</strong></p>
+            <p><strong>Activities will take place as follows:</strong></p>
             <ul>
               ${scheduleData.generalPoints?.filter(p => p.text && p.text.trim()).map(p => `<li>${p.text}</li>`).join('')}
             </ul>
@@ -595,24 +747,19 @@ function AdminSchedules() {
     `;
     
     scheduleData.sections?.forEach(section => {
-      if (section.title || section.tableRows?.some(r => r.date || r.event) || section.freeText) {
+      if (section.title || section.tableRows?.some(r => r.date || r.event)) {
         html += `
           <div style="margin: 25px 0;">
             <h3>${section.title || "Section"}</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr><th>DATE</th><th>EVENT</th></tr>
-              </thead>
+            <table>
+              <thead><tr><th>DATE</th><th>EVENT</th></tr></thead>
               <tbody>
                 ${section.tableRows?.filter(row => row.date && row.event).map(row => `
-                  <tr>
-                    <td>${row.date}</td>
-                    <td>${row.event}</td>
-                  </tr>
+                  <tr><td>${row.date}</td><td>${row.event}</td></tr>
                 `).join('')}
               </tbody>
             </table>
-            ${section.freeText ? `<p style="margin-top: 10px;">${section.freeText}</p>` : ''}
+            ${section.freeText ? `<p>${section.freeText}</p>` : ''}
           </div>
         `;
       }
@@ -620,11 +767,9 @@ function AdminSchedules() {
     
     html += `
         <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #ccc;">
-          ${scheduleData.additionalNotes ? scheduleData.additionalNotes.split('\n').map(line => `<p style="margin: 0 0 4px;">${line}</p>`).join('') : ''}
+          ${scheduleData.additionalNotes ? scheduleData.additionalNotes.split('\n').map(line => `<p>${line}</p>`).join('') : ''}
         </div>
-        <div class="footer">
-          ZUCA PORTAL AUTO SYSTEM GENERATED
-        </div>
+        <div class="footer">ZUCA PORTAL AUTO SYSTEM GENERATED</div>
       </body>
       </html>
     `;
@@ -652,7 +797,7 @@ function AdminSchedules() {
       link.download = `${(dataToUse.title || "schedule").replace(/\s/g, '_')}.png`;
       link.href = canvas.toDataURL();
       link.click();
-      showToast("🖼️ Image downloaded", "success");
+      showToast("🖼️ Image downloaded successfully", "success");
     } catch (err) {
       console.error("Image error:", err);
       showToast("❌ Failed to generate image", "error");
@@ -662,224 +807,68 @@ function AdminSchedules() {
     }
   };
 
-const downloadAsWord = (scheduleData = null) => {
-  setActionLoadingState("download_word", true);
-  try {
-    const dataToUse = scheduleData || formData;
-    
-    // Use LET instead of CONST for variables that will be reassigned
-    let wordHtml = `<!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>${dataToUse.title || "Schedule"}</title>
-      <style>
-        /* FLEXIBLE & COMPACT - ADAPTS TO CONTENT */
-        body { 
-          font-family: 'Times New Roman', Arial, sans-serif; 
-          font-size: 11pt;
-          line-height: 1.2;
-          margin: 0.5in auto;
-          padding: 0;
-          max-width: 100%;
-        }
-        
-        * {
-          page-break-inside: avoid;
-          page-break-after: avoid;
-          box-sizing: border-box;
-        }
-        
-        h1 { 
-          font-size: 18pt; 
-          font-weight: bold; 
-          margin: 6pt 0; 
-          text-align: center; 
-        }
-        h2 { 
-          font-size: 16pt; 
-          font-weight: bold; 
-          margin: 5pt 0; 
-          text-align: center; 
-        }
-     h3 { 
-  font-size: 13pt; 
-  font-weight: bold; 
-  margin: 5pt 0 2pt 0;   /* small bottom margin */
-  border-left: 2px solid #3b82f6; 
-  padding-left: 8px;
-  line-height: 1.1;
-  display: block;        /* ⭐ IMPORTANT FIX */
-}
-        
-        table { 
-          border-collapse: collapse; 
-          width: 100%; 
-           margin: 0 0 2pt 0;
-          table-layout: auto;
-        }
-        
-        th, td { 
-          border: 0.5px solid #999; 
-          padding: 3pt 5pt;
-          text-align: left; 
-          vertical-align: top;
-          font-size: 10pt;
-          word-wrap: break-word;
-          word-break: break-word;
-        }
-        
-        td:first-child, th:first-child {
-          white-space: nowrap;
-          width: 1%;
-        }
-        
-        td:last-child, th:last-child {
-          width: auto;
-        }
-        
-        th { 
-          background: #f5f5f5; 
-          font-weight: bold;
-        }
-        
-        ul, ol { 
-          margin: 2pt 0; 
-          padding-left: 18pt;
-        }
-        li { 
-          margin: 1pt 0; 
-          font-size: 10pt;
-        }
-        
-        p {
-          margin: 2pt 0;
-          font-size: 10pt;
-        }
-        
-        .date-range {
-          text-align: center;
-          font-size: 10pt;
-          margin: 2pt 0;
-          color: #555;
-        }
-        
-        .footer { 
-          text-align: center; 
-          margin-top: 10pt; 
-          padding-top: 5pt; 
-          border-top: 0.5px solid #ccc; 
-          font-size: 8pt; 
-          color: #666;
-        }
-        
-        .section-group {
-          margin-bottom: 0pt;
-        }
-        
-        tr {
-          page-break-inside: avoid;
-        }
-      </style>
-    </head>
-    <body>
-      <div>
+  const downloadAsWord = (scheduleData = null) => {
+    setActionLoadingState("download_word", true);
+    try {
+      const dataToUse = scheduleData || formData;
+      
+      let wordHtml = `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${dataToUse.title || "Schedule"}</title>
+        <style>
+          body { font-family: 'Times New Roman', Arial, sans-serif; font-size: 12pt; margin: 1in; }
+          h1 { font-size: 18pt; text-align: center; }
+          h2 { font-size: 16pt; text-align: center; }
+          h3 { font-size: 14pt; border-left: 3px solid #3b82f6; padding-left: 10px; }
+          table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+          th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+          th { background: #f0f0f0; }
+          .footer { text-align: center; margin-top: 20px; font-size: 9pt; color: #666; }
+        </style>
+      </head>
+      <body>
         <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
         <h2>${dataToUse.title || "Schedule"}</h2>`;
-    
-    // Date range
-    if (dataToUse.semesterPeriod?.start) {
-      wordHtml += `<p class="date-range">📅 ${new Date(dataToUse.semesterPeriod.start).toLocaleDateString()} - ${new Date(dataToUse.semesterPeriod.end).toLocaleDateString()}</p>`;
-    }
-    
-    // General points
-    if (dataToUse.generalPoints?.some(p => p.text?.trim())) {
-      wordHtml += `<p><strong>Activities:</strong></p><ul>`;
-      dataToUse.generalPoints.filter(p => p.text?.trim()).forEach(p => {
-        let text = p.text;
-        if (text && text.length > 100) {
-          text = text.substring(0, 100) + '...';
-        }
-        wordHtml += `<li>${text || ''}</li>`;
-      });
-      wordHtml += `</ul>`;
-    }
-    
-    // Sections
-    if (dataToUse.sections && dataToUse.sections.length > 0) {
-      dataToUse.sections.forEach(section => {
+      
+      if (dataToUse.generalPoints?.some(p => p.text?.trim())) {
+        wordHtml += `<ul>`;
+        dataToUse.generalPoints.filter(p => p.text?.trim()).forEach(p => {
+          wordHtml += `<li>${p.text}</li>`;
+        });
+        wordHtml += `</ul>`;
+      }
+      
+      dataToUse.sections?.forEach(section => {
         const validRows = section.tableRows?.filter(r => r.date && r.event) || [];
-        
-        if (validRows.length === 0 && !section.title?.trim() && !section.freeText?.trim()) {
-          return;
-        }
-        
-        wordHtml += `<div class="section-group">`;
-        
-        if (section.title?.trim()) {
-          wordHtml += `<h3>${section.title}</h3>`;
-        }
-        
         if (validRows.length > 0) {
-          wordHtml += `<table>`;
-          wordHtml += `<thead><tr><th style="width: 25%">DATE</th><th>EVENT/LEADING</th></tr></thead>`;
-          wordHtml += `<tbody>`;
-          
+          wordHtml += `<h3>${section.title || "Section"}</h3>`;
+          wordHtml += `<table><thead><tr><th>DATE</th><th>EVENT</th></tr></thead><tbody>`;
           validRows.forEach(row => {
-            let eventText = row.event;
-            if (eventText && eventText.length > 80) {
-              eventText = eventText.substring(0, 80) + '...';
-            }
-            wordHtml += `<tr><td style="white-space: nowrap">${row.date || ''}</td><td>${eventText || ''}</td></tr>`;
+            wordHtml += `<tr><td>${row.date}</td><td>${row.event}</td></tr>`;
           });
-          
           wordHtml += `</tbody></table>`;
         }
-        
-        if (section.freeText?.trim()) {
-          wordHtml += `<p style="font-size: 9pt; margin-top: 2pt;">${section.freeText}</p>`;
-        }
-        
-        wordHtml += `</div>`;
       });
+      
+      wordHtml += `<div class="footer">ZUCA PORTAL AUTO SYSTEM GENERATED</div></body></html>`;
+      
+      const blob = new Blob([wordHtml], { type: 'application/msword' });
+      const link = document.createElement('a');
+      link.download = `${(dataToUse.title || "schedule").replace(/\s/g, '_')}.doc`;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast("📝 Word document downloaded successfully", "success");
+    } catch (err) {
+      console.error("Word error:", err);
+      showToast("❌ Failed to generate Word document", "error");
+    } finally {
+      setActionLoadingState("download_word", false);
+      setDownloadDropdownOpen(null);
     }
-    
-    // Additional notes
-    if (dataToUse.additionalNotes?.trim()) {
-      wordHtml += `<div style="margin-top: 5pt;">`;
-      const notes = dataToUse.additionalNotes.split('\n');
-      notes.forEach(line => {
-        if (line && line.trim()) {
-          let shortLine = line;
-          if (shortLine.length > 150) {
-            shortLine = shortLine.substring(0, 150) + '...';
-          }
-          wordHtml += `<p style="font-size: 9pt;">${shortLine}</p>`;
-        }
-      });
-      wordHtml += `</div>`;
-    }
-    
-    wordHtml += `<div class="footer">ZUCA PORTAL AUTO SYSTEM GENERATED</div>`;
-    wordHtml += `</div></body></html>`;
-    
-    // Download
-    const blob = new Blob([wordHtml], { type: 'application/msword' });
-    const link = document.createElement('a');
-    link.download = `${(dataToUse.title || "schedule").replace(/\s/g, '_')}.doc`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-    showToast("📝 Word document downloaded", "success");
-    
-  } catch (err) {
-    console.error("Word error:", err);
-    showToast("❌ Failed to generate Word document", "error");
-  } finally {
-    setActionLoadingState("download_word", false);
-    setDownloadDropdownOpen(null);
-  }
-};
+  };
 
   const resetForm = () => {
     if (window.confirm("Are you sure you want to reset? All unsaved changes will be lost.")) {
@@ -907,15 +896,15 @@ const downloadAsWord = (scheduleData = null) => {
   };
 
   const deleteSchedule = async (id) => {
-    if (window.confirm("Delete this schedule?")) {
+    if (window.confirm("Delete this schedule permanently?")) {
       setActionLoadingState(`delete_schedule_${id}`, true);
       try {
         await axios.delete(`${BASE_URL}/api/admin/schedules/${id}`, { headers });
         fetchSchedules();
-        showToast("🗑️ Schedule deleted", "success");
+        showToast("🗑️ Schedule deleted successfully", "success");
       } catch (err) {
         console.error("Error deleting:", err);
-        showToast("❌ Failed to delete", "error");
+        showToast("❌ Failed to delete schedule", "error");
       } finally {
         setActionLoadingState(`delete_schedule_${id}`, false);
       }
@@ -936,8 +925,12 @@ const downloadAsWord = (scheduleData = null) => {
       } else {
         sections = sections.map(section => ({
           ...section,
-          tableRows: section.tableRows || [{ id: Date.now(), date: "", dateValue: null, event: "" }],
-          freeText: section.freeText || ""
+          id: Date.now(),
+          tableRows: (section.tableRows || []).map(row => ({
+            ...row,
+            id: Date.now(),
+            dateValue: row.date ? parseDateString(row.date) : null
+          }))
         }));
       }
 
@@ -952,13 +945,13 @@ const downloadAsWord = (scheduleData = null) => {
           : [{ id: Date.now(), text: "" }],
         sections: sections,
         additionalNotes: schedule.additionalNotes || "",
-        isPublished: schedule.isPublished
+        isPublished: schedule.isPublished || false
       });
       setEditingId(schedule.id);
       setShowForm(true);
-      // Clear unsaved data when editing a saved schedule
       localStorage.removeItem(UNSAVED_KEY);
       setActionLoadingState("edit_schedule", false);
+      showToast("📝 Schedule loaded for editing", "success");
     }, 300);
   };
 
@@ -983,6 +976,7 @@ const downloadAsWord = (scheduleData = null) => {
     }, 300);
   };
 
+  // Form field handlers
   const addGeneralPoint = () => {
     setFormData(prev => ({
       ...prev,
@@ -1072,7 +1066,8 @@ const downloadAsWord = (scheduleData = null) => {
       sections: prev.sections.map(s => 
         s.id === sectionId 
           ? { ...s, tableRows: s.tableRows.map(r => r.id === rowId ? { ...r, event } : r) }
-          : s      )
+          : s
+      )
     }));
   };
 
@@ -1087,14 +1082,37 @@ const downloadAsWord = (scheduleData = null) => {
     }));
   };
 
-  // Load unsaved data when component mounts (only once)
-  useEffect(() => {
-    if (!initialLoadDone) {
-      loadUnsavedFromLocal();
-    }
-  }, [loadUnsavedFromLocal, initialLoadDone]);
+  const loadDraft = (draft) => {
+    setActionLoadingState("load_draft", true);
+    setTimeout(() => {
+      setFormData(draft.formData);
+      setFreeContent(draft.freeContent || "");
+      setActiveTab(draft.activeTab || "structured");
+      setEditingDraftId(draft.id);
+      setShowForm(true);
+      setShowDraftsPanel(false);
+      localStorage.removeItem(UNSAVED_KEY);
+      setActionLoadingState("load_draft", false);
+      showToast("📝 Draft loaded successfully", "success");
+    }, 300);
+  };
 
-  // Loading spinner component
+  const deleteDraft = async (id) => {
+    if (window.confirm("Delete this draft permanently?")) {
+      setActionLoadingState(`delete_draft_${id}`, true);
+      try {
+        await axios.delete(`${BASE_URL}/api/admin/schedules/drafts/${id}`, { headers });
+        fetchDrafts();
+        showToast("🗑️ Draft deleted successfully", "success");
+      } catch (err) {
+        console.error("Error deleting draft:", err);
+        showToast("❌ Failed to delete draft", "error");
+      } finally {
+        setActionLoadingState(`delete_draft_${id}`, false);
+      }
+    }
+  };
+
   const LoadingSpinner = ({ size = 20 }) => (
     <div style={{
       display: "inline-block",
@@ -1119,7 +1137,7 @@ const downloadAsWord = (scheduleData = null) => {
       {toast && (
         <div style={{
           ...styles.toast,
-          background: toast.type === "success" ? "#22c55e" : toast.type === "error" ? "#ef4444" : "#3b82f6"
+          background: toast.type === "success" ? "#22c55e" : toast.type === "error" ? "#ef4444" : toast.type === "warning" ? "#f59e0b" : "#3b82f6"
         }}>
           {toast.message}
         </div>
@@ -1143,14 +1161,10 @@ const downloadAsWord = (scheduleData = null) => {
       {showSavedNotifications && (
         <div style={styles.notificationsPanel}>
           <div style={styles.notificationsHeader}>
-            <h3>📋 Activity Notifications</h3>
+            <h3>📋 Activity Log</h3>
             <div>
               {savedNotifications.length > 0 && (
-                <button 
-                  onClick={clearAllNotifications} 
-                  style={styles.clearAllBtn}
-                  disabled={actionLoading.clear_all_notif}
-                >
+                <button onClick={clearAllNotifications} style={styles.clearAllBtn} disabled={actionLoading.clear_all_notif}>
                   {actionLoading.clear_all_notif ? <LoadingSpinner size={16} /> : "🗑️ Clear All"}
                 </button>
               )}
@@ -1158,41 +1172,33 @@ const downloadAsWord = (scheduleData = null) => {
             </div>
           </div>
           {savedNotifications.length === 0 ? (
-            <div style={styles.noNotifications}>No notifications yet. Your schedule activities will appear here!</div>
+            <div style={styles.noNotifications}>No activity yet. Your schedule actions will appear here!</div>
           ) : (
             <div style={styles.notificationsList}>
               {savedNotifications.map((notif) => (
-                <div key={notif.id} style={styles.notificationCard}>
+                <div key={notif.id} style={{...styles.notificationCard, borderLeft: `3px solid ${notif.success ? '#22c55e' : '#ef4444'}`}}>
                   <div style={styles.notificationIcon}>
-                    {notif.action === "published" && "📢"}
-                    {notif.action === "updated" && "✏️"}
-                    {notif.action === "draft-saved" && "💾"}
+                    {notif.action === "published" && (notif.success ? "✅" : "❌")}
+                    {notif.action === "updated" && (notif.success ? "✏️" : "❌")}
+                    {notif.action === "draft-saved" && (notif.success ? "💾" : "❌")}
                     {notif.action === "auto-saved" && "🔄"}
-                    {!notif.action && "📝"}
                   </div>
                   <div style={styles.notificationContent}>
                     <div style={styles.notificationTitle}>
-                      <strong>{notif.action === "published" ? "Published" : 
-                                 notif.action === "updated" ? "Updated" : 
-                                 notif.action === "draft-saved" ? "Draft Saved" : 
-                                 notif.action === "auto-saved" ? "Auto-Saved" : "Saved"}</strong>
+                      <strong>
+                        {notif.action === "published" ? (notif.success ? "Published" : "Publish Failed") : 
+                         notif.action === "updated" ? (notif.success ? "Updated" : "Update Failed") : 
+                         notif.action === "draft-saved" ? (notif.success ? "Draft Saved" : "Save Failed") : 
+                         "Auto-Saved"}
+                      </strong>
                       <span style={styles.notificationTime}>
                         {new Date(notif.timestamp).toLocaleString()}
                       </span>
                     </div>
                     <div style={styles.notificationPreview}>{notif.preview}</div>
-                    <div style={styles.notificationTags}>
-                      {notif.hasContent?.title && <span style={styles.tag}>📌 Has Title</span>}
-                      {notif.hasContent?.generalPoints && <span style={styles.tag}>📝 Has Points</span>}
-                      {notif.hasContent?.sections && <span style={styles.tag}>📋 Has Sections</span>}
-                    </div>
                   </div>
-                  <button 
-                    onClick={() => deleteNotification(notif.id)} 
-                    style={styles.deleteNotifBtn}
-                    disabled={actionLoading[`delete_notif_${notif.id}`]}
-                  >
-                    {actionLoading[`delete_notif_${notif.id}`] ? <LoadingSpinner size={14} /> : "🗑️"}
+                  <button onClick={() => deleteNotification(notif.id)} style={styles.deleteNotifBtn}>
+                    🗑️
                   </button>
                 </div>
               ))}
@@ -1201,6 +1207,7 @@ const downloadAsWord = (scheduleData = null) => {
         </div>
       )}
 
+      {/* Drafts Panel */}
       {showDraftsPanel && (
         <div style={styles.draftsPanel}>
           <div style={styles.draftsHeader}>
@@ -1218,18 +1225,10 @@ const downloadAsWord = (scheduleData = null) => {
                     <small>Last edited: {new Date(draft.updatedAt).toLocaleString()}</small>
                   </div>
                   <div style={styles.draftActions}>
-                    <button 
-                      onClick={() => loadDraft(draft)} 
-                      style={styles.loadDraftBtn}
-                      disabled={actionLoading.load_draft}
-                    >
+                    <button onClick={() => loadDraft(draft)} style={styles.loadDraftBtn} disabled={actionLoading.load_draft}>
                       {actionLoading.load_draft ? <LoadingSpinner size={14} /> : "Load"}
                     </button>
-                    <button 
-                      onClick={() => deleteDraft(draft.id)} 
-                      style={styles.deleteDraftBtn}
-                      disabled={actionLoading[`delete_draft_${draft.id}`]}
-                    >
+                    <button onClick={() => deleteDraft(draft.id)} style={styles.deleteDraftBtn} disabled={actionLoading[`delete_draft_${draft.id}`]}>
                       {actionLoading[`delete_draft_${draft.id}`] ? <LoadingSpinner size={14} /> : "Delete"}
                     </button>
                   </div>
@@ -1240,6 +1239,7 @@ const downloadAsWord = (scheduleData = null) => {
         </div>
       )}
 
+      {/* Published Schedules List */}
       <div style={styles.scheduleList}>
         <h2 style={styles.sectionTitle}>📋 Published Schedules</h2>
         {actionLoading.fetch_schedules ? (
@@ -1248,7 +1248,7 @@ const downloadAsWord = (scheduleData = null) => {
             <p>Loading schedules...</p>
           </div>
         ) : schedules.length === 0 ? (
-          <div style={styles.emptyState}>No published schedules yet.</div>
+          <div style={styles.emptyState}>No published schedules yet. Create your first schedule!</div>
         ) : (
           schedules.map((schedule) => (
             <motion.div key={schedule.id} style={styles.scheduleCard}>
@@ -1260,36 +1260,18 @@ const downloadAsWord = (scheduleData = null) => {
                   </p>
                 </div>
                 <div style={styles.cardActions}>
-                  {!schedule.isPublished && <span style={styles.draftBadge}>Draft</span>}
-                  <button 
-                    onClick={() => viewSchedule(schedule)} 
-                    style={styles.viewBtn}
-                    disabled={actionLoading.view_schedule}
-                  >
+                  <button onClick={() => viewSchedule(schedule)} style={styles.viewBtn} disabled={actionLoading.view_schedule}>
                     {actionLoading.view_schedule ? <LoadingSpinner size={14} /> : "👁️ View"}
                   </button>
-                  <button 
-                    onClick={() => editSchedule(schedule)} 
-                    style={styles.editBtn}
-                    disabled={actionLoading.edit_schedule}
-                  >
+                  <button onClick={() => editSchedule(schedule)} style={styles.editBtn} disabled={actionLoading.edit_schedule}>
                     {actionLoading.edit_schedule ? <LoadingSpinner size={14} /> : "✏️ Edit"}
                   </button>
-                  <button 
-                    onClick={() => deleteSchedule(schedule.id)} 
-                    style={styles.deleteBtn}
-                    disabled={actionLoading[`delete_schedule_${schedule.id}`]}
-                  >
+                  <button onClick={() => deleteSchedule(schedule.id)} style={styles.deleteBtn} disabled={actionLoading[`delete_schedule_${schedule.id}`]}>
                     {actionLoading[`delete_schedule_${schedule.id}`] ? <LoadingSpinner size={14} /> : "🗑️ Delete"}
                   </button>
                   <div style={styles.downloadDropdown}>
-                    <button 
-                      onClick={() => setDownloadDropdownOpen(downloadDropdownOpen === schedule.id ? null : schedule.id)} 
-                      style={styles.downloadDropdownBtn}
-                      disabled={actionLoading.download_pdf || actionLoading.download_image || actionLoading.download_word}
-                    >
-                      {actionLoading.download_pdf || actionLoading.download_image || actionLoading.download_word ? 
-                        <LoadingSpinner size={14} /> : "⬇️ Download ▼"}
+                    <button onClick={() => setDownloadDropdownOpen(downloadDropdownOpen === schedule.id ? null : schedule.id)} style={styles.downloadDropdownBtn}>
+                      ⬇️ Download ▼
                     </button>
                     {downloadDropdownOpen === schedule.id && (
                       <div style={styles.downloadDropdownMenu}>
@@ -1307,45 +1289,27 @@ const downloadAsWord = (scheduleData = null) => {
         )}
       </div>
 
-       {/* FULL PAGE FORM WITH PORTAL - FIXES SIDEBAR OVERLAY ISSUE */}
+      {/* Full Page Form Portal */}
       {showForm && createPortal(
         <div style={styles.fullPageForm}>
           <div style={styles.fullPageHeader}>
             <h2>{editingId ? "Edit" : previewMode ? "View" : "Create"} Semester Schedule</h2>
             <div>
               {previewMode ? (
-                <button 
-                  onClick={() => setPreviewMode(false)} 
-                  style={styles.backToEditBtn}
-                >
-                  ✏️ Back to Edit
-                </button>
+                <button onClick={() => setPreviewMode(false)} style={styles.backToEditBtn}>✏️ Back to Edit</button>
               ) : (
-                <button 
-                  onClick={() => setPreviewMode(true)} 
-                  style={styles.previewBtn}
-                >
-                  👁️ Preview
-                </button>
+                <button onClick={() => setPreviewMode(true)} style={styles.previewBtn}>👁️ Preview</button>
               )}
-              <button 
-                onClick={() => { 
-                  setShowForm(false); 
-                  setPreviewMode(false); 
-                }} 
-                style={styles.closeBtn}
-              >
-                ✕
-              </button>
+              <button onClick={() => { setShowForm(false); setPreviewMode(false); }} style={styles.closeBtn}>✕</button>
             </div>
           </div>
 
           {previewMode ? (
             <>
               <div style={styles.downloadBar}>
-                <button onClick={() => downloadAsPDF()} style={styles.downloadBtn} disabled={loading}>📄 PDF</button>
-                <button onClick={() => downloadAsImage()} style={styles.downloadBtn} disabled={loading}>🖼️ Image</button>
-                <button onClick={() => downloadAsWord()} style={styles.downloadBtn} disabled={loading}>📝 Word</button>
+                <button onClick={() => downloadAsPDF()} style={styles.downloadBtn}>📄 PDF</button>
+                <button onClick={() => downloadAsImage()} style={styles.downloadBtn}>🖼️ Image</button>
+                <button onClick={() => downloadAsWord()} style={styles.downloadBtn}>📝 Word</button>
               </div>
               <div ref={previewRef}>
                 <div style={styles.previewContainer} dangerouslySetInnerHTML={{ __html: buildFullDocumentHTML() }} />
@@ -1354,26 +1318,72 @@ const downloadAsWord = (scheduleData = null) => {
           ) : (
             <form onSubmit={handleSubmit} style={styles.form}>
               <div style={styles.tabContainer}>
-                <button type="button" onClick={() => setActiveTab("structured")} style={{...styles.tab, background: activeTab === "structured" ? "#3b82f6" : "#f1f5f9", color: activeTab === "structured" ? "white" : "#475569"}}>📋 Structured Mode</button>
-                <button type="button" onClick={() => setActiveTab("free")} style={{...styles.tab, background: activeTab === "free" ? "#3b82f6" : "#f1f5f9", color: activeTab === "free" ? "white" : "#475569"}}>📝 Free Mode</button>
+                <button type="button" onClick={() => setActiveTab("structured")} style={{...styles.tab, background: activeTab === "structured" ? "#3b82f6" : "#f1f5f9", color: activeTab === "structured" ? "white" : "#475569"}}>
+                  📋 Structured Mode
+                </button>
+                <button type="button" onClick={() => setActiveTab("free")} style={{...styles.tab, background: activeTab === "free" ? "#3b82f6" : "#f1f5f9", color: activeTab === "free" ? "white" : "#475569"}}>
+                  📝 Free Mode
+                </button>
               </div>
 
               {activeTab === "free" ? (
                 <div style={styles.sectionCard}>
                   <h3>📝 Paste Your Schedule Here</h3>
-                  <p style={styles.hint}>Paste any formatted text, table, or document. Dates will be auto-extracted for notifications!</p>
-                  <ReactQuill theme="snow" value={freeContent} onChange={setFreeContent} modules={quillModules} style={styles.freeEditor} />
+                  <p style={styles.hint}>Paste any formatted text, table, or document. Use the button below to upload an image and extract schedule data.</p>
+                  
+                  {/* Image Upload for OCR */}
+                  <div style={{ marginBottom: "15px" }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleImageUploadForOCR}
+                      style={{ display: "none" }}
+                      id="ocr-upload-input"
+                    />
+                    <label 
+                      htmlFor="ocr-upload-input" 
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        background: uploadingImage ? "#cbd5e1" : "#8b5cf6",
+                        color: "white",
+                        borderRadius: "8px",
+                        cursor: uploadingImage ? "not-allowed" : "pointer",
+                        fontWeight: "500",
+                        fontSize: "14px"
+                      }}
+                    >
+                      {uploadingImage ? "⏳ Processing..." : "📸 Upload Image to Extract Schedule"}
+                    </label>
+                    {pendingOCRImage && !uploadingImage && (
+                      <span style={{ marginLeft: "10px", fontSize: "12px", color: "#10b981" }}>
+                        ✓ Image ready. Switch to Structured Mode to extract.
+                      </span>
+                    )}
+                  </div>
+                  
+                  <ReactQuill 
+                    theme="snow" 
+                    value={freeContent} 
+                    onChange={setFreeContent} 
+                    modules={quillModules} 
+                    style={styles.freeEditor} 
+                  />
                 </div>
               ) : (
                 <>
                   <div style={styles.formGroup}>
-                    <label>Schedule Title</label>
+                    <label>Schedule Title *</label>
                     <input 
                       type="text" 
                       value={formData.title} 
                       onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} 
                       style={styles.input} 
                       placeholder="e.g., Semester 1 Schedule 2024" 
+                      required
                     />
                   </div>
 
@@ -1385,6 +1395,7 @@ const downloadAsWord = (scheduleData = null) => {
                         onChange={(date) => setFormData(prev => ({ ...prev, semesterPeriod: { ...prev.semesterPeriod, start: date } }))} 
                         dateFormat="dd/MM/yyyy" 
                         placeholderText="Select start date" 
+                        isClearable
                       />
                     </div>
                     <div style={styles.formGroup}>
@@ -1394,6 +1405,7 @@ const downloadAsWord = (scheduleData = null) => {
                         onChange={(date) => setFormData(prev => ({ ...prev, semesterPeriod: { ...prev.semesterPeriod, end: date } }))} 
                         dateFormat="dd/MM/yyyy" 
                         placeholderText="Select end date" 
+                        isClearable
                       />
                     </div>
                   </div>
@@ -1455,7 +1467,7 @@ const downloadAsWord = (scheduleData = null) => {
                                       customInput={<button type="button" style={styles.calendarBtn}>📅</button>}
                                     />
                                   </div>
-                                </td>
+                                 </td>
                                 <td style={{ border: "1px solid #e2e8f0", padding: "8px" }}>
                                   <input
                                     type="text"
@@ -1464,11 +1476,11 @@ const downloadAsWord = (scheduleData = null) => {
                                     style={styles.tableInput}
                                     placeholder="Event/Leading (e.g., Leaders Meeting)"
                                   />
-                                </td>
+                                 </td>
                                 <td style={{ border: "1px solid #e2e8f0", padding: "8px", width: "50px" }}>
                                   <button type="button" onClick={() => removeTableRow(section.id, row.id)} style={styles.removeRowBtn}>✕</button>
-                                </td>
-                              </tr>
+                                 </td>
+                               </tr>
                             ))}
                           </tbody>
                         </table>
@@ -1510,33 +1522,20 @@ const downloadAsWord = (scheduleData = null) => {
               </div>
 
               <div style={styles.formActions}>
-                <button 
-                  type="button" 
-                  onClick={saveAsDraft} 
-                  disabled={actionLoading.save_draft || loading} 
-                  style={styles.draftSaveBtn}
-                >
+                <button type="button" onClick={saveAsDraft} disabled={actionLoading.save_draft} style={styles.draftSaveBtn}>
                   {actionLoading.save_draft ? <LoadingSpinner size={14} /> : "💾 Save as Draft"}
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => { setShowForm(false); setPreviewMode(false); }} 
-                  style={styles.cancelBtn}
-                >
+                <button type="button" onClick={() => { setShowForm(false); setPreviewMode(false); }} style={styles.cancelBtn}>
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={actionLoading.publish || loading} 
-                  style={styles.submitBtn}
-                >
-                  {actionLoading.publish ? <LoadingSpinner size={14} /> : (editingId ? "Update" : "Publish")}
+                <button type="submit" disabled={actionLoading.publish} style={styles.submitBtn}>
+                  {actionLoading.publish ? <LoadingSpinner size={14} /> : (editingId ? "Update Schedule" : "Publish Schedule")}
                 </button>
               </div>
             </form>
           )}
         </div>,
-        document.body  // ← THIS IS THE KEY - renders at body level, escaping the Layout sidebar!
+        document.body
       )}
     </div>
   );
@@ -1567,8 +1566,6 @@ const styles = {
   notificationTitle: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" },
   notificationTime: { fontSize: "11px", color: "#94a3b8" },
   notificationPreview: { fontSize: "13px", color: "#475569", marginBottom: "6px" },
-  notificationTags: { display: "flex", gap: "6px", flexWrap: "wrap" },
-  tag: { fontSize: "10px", padding: "2px 6px", background: "#e2e8f0", borderRadius: "4px", color: "#475569" },
   deleteNotifBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "16px", padding: "4px 8px", borderRadius: "4px", color: "#94a3b8" },
   
   draftsPanel: { background: "white", borderRadius: "16px", padding: "20px", marginBottom: "20px", border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" },
@@ -1588,16 +1585,15 @@ const styles = {
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "15px", flexWrap: "wrap", gap: "10px" },
   scheduleTitle: { fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "5px" },
   scheduleMeta: { fontSize: "12px", color: "#64748b" },
-  cardActions: { display: "flex", gap: "10px", alignItems: "center" },
-  draftBadge: { background: "#f59e0b", color: "white", padding: "4px 8px", borderRadius: "4px", fontSize: "11px" },
-  viewBtn: { padding: "4px 12px", minWidth: "70px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" },
-  editBtn: { padding: "4px 12px", minWidth: "70px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" },
-  deleteBtn: { padding: "4px 12px", minWidth: "70px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" },
+  cardActions: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
+  viewBtn: { padding: "6px 12px", minWidth: "65px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  editBtn: { padding: "6px 12px", minWidth: "65px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  deleteBtn: { padding: "6px 12px", minWidth: "65px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   downloadDropdown: { position: "relative", display: "inline-block" },
-  downloadDropdownBtn: { padding: "4px 12px", background: "#6366f1", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" },
+  downloadDropdownBtn: { padding: "6px 12px", background: "#6366f1", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   downloadDropdownMenu: { position: "absolute", top: "100%", right: 0, background: "white", minWidth: "120px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", borderRadius: "8px", zIndex: 10, overflow: "hidden" },
   dropdownItem: { display: "block", width: "100%", padding: "10px 15px", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1e293b" },
-  cardPreview: { fontSize: "14px", color: "#475569", marginBottom: "10px" },
+  cardPreview: { fontSize: "14px", color: "#475569", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #e2e8f0" },
   emptyState: { textAlign: "center", padding: "60px", background: "white", borderRadius: "16px", color: "#64748b" },
   
   fullPageForm: {
@@ -1610,7 +1606,6 @@ const styles = {
     zIndex: 99999999990,
     overflowY: "auto",
     padding: "20px",
-    
     paddingTop: "80px",
   },
   fullPageHeader: {
@@ -1633,8 +1628,8 @@ const styles = {
   textarea: { padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", width: "100%" },
   sectionCard: { border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", background: "#fafafa", marginBottom: "15px" },
   sectionHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" },
-  sectionTitleInput: { flex: 1, padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "16px", fontWeight: "600", placeholder: "Section Title" },
-  removeSectionBtn: { padding: "6px 12px", background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px", cursor: "pointer" },
+  sectionTitleInput: { flex: 1, padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "16px", fontWeight: "600" },
+  removeSectionBtn: { padding: "6px 12px", background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   hint: { fontSize: "12px", color: "#64748b", marginBottom: "12px" },
   bulletRow: { display: "flex", gap: "10px", marginBottom: "10px", alignItems: "center" },
   bulletInput: { flex: 1, padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "14px" },
@@ -1643,47 +1638,24 @@ const styles = {
   tableContainer: { overflowX: "auto", marginBottom: "15px" },
   table: { width: "100%", borderCollapse: "collapse", background: "white", borderRadius: "8px" },
   dateInputWrapper: { display: "flex", gap: "5px", alignItems: "center" },
-  dateTextInput: { flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "13px", placeholder: "dd(th)/month" },
+  dateTextInput: { flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "13px" },
   calendarBtn: { padding: "6px 8px", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: "4px", cursor: "pointer", fontSize: "14px" },
-  tableInput: { width: "100%", padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "13px", placeholder: "Event/Leading" },
+  tableInput: { width: "100%", padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "13px" },
   removeRowBtn: { background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", cursor: "pointer", padding: "4px 8px" },
   addRowBtn: { padding: "6px 12px", background: "#f1f5f9", border: "1px dashed #cbd5e1", borderRadius: "6px", cursor: "pointer", width: "100%", marginTop: "5px" },
   freeTextZone: { marginTop: "12px" },
-  addSectionBtn: { padding: "12px 20px", background: "#e0e7ff", color: "#4f46e5", border: "2px dashed #818cf8", borderRadius: "12px", cursor: "pointer", fontWeight: "600", marginBottom: "15px" },
+  addSectionBtn: { padding: "12px 20px", background: "#e0e7ff", color: "#4f46e5", border: "2px dashed #818cf8", borderRadius: "12px", cursor: "pointer", fontWeight: "600", marginBottom: "15px", width: "100%" },
   freeEditor: { height: "400px", marginBottom: "50px" },
   checkbox: { display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" },
   formActions: { display: "flex", justifyContent: "flex-end", gap: "15px", marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e2e8f0" },
-  cancelBtn: { padding: "10px 20px", background: "#f1f5f9", border: "none", borderRadius: "8px", cursor: "pointer" },
+  cancelBtn: { padding: "10px 20px", background: "#f1f5f9", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
   draftSaveBtn: { padding: "10px 20px", minWidth: "130px", background: "#8b5cf6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
-  submitBtn: { padding: "10px 20px", minWidth: "100px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  submitBtn: { padding: "10px 20px", minWidth: "140px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
   downloadBar: { display: "flex", gap: "10px", justifyContent: "flex-end", marginBottom: "20px", flexWrap: "wrap" },
   downloadBtn: { padding: "8px 16px", minWidth: "80px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px" },
- backToEditBtn: { 
-    padding: "8px 16px", 
-    background: "#f59e0b", 
-    color: "white", 
-    border: "none", 
-    borderRadius: "8px", 
-    cursor: "pointer", 
-    marginRight: "10px" 
-  },
-  previewBtn: { 
-    padding: "8px 16px", 
-    background: "#10b981", 
-    color: "white", 
-    border: "none", 
-    borderRadius: "8px", 
-    cursor: "pointer", 
-    marginRight: "10px" 
-  },
-  closeBtn: { 
-    background: "none", 
-    border: "none", 
-    fontSize: "24px", 
-    cursor: "pointer", 
-    color: "#64748b" 
-  },
+  backToEditBtn: { padding: "8px 16px", background: "#f59e0b", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "10px" },
+  previewBtn: { padding: "8px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "10px" },
+  closeBtn: { background: "none", border: "none", fontSize: "24px", cursor: "pointer", color: "#64748b" },
 };
 
 export default AdminSchedules;
-

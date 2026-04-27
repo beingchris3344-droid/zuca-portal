@@ -705,7 +705,7 @@ const fetchFeaturedGallery = async () => {
                           <div className="gallery-placeholder">📷</div>
                         )}
                         <div className="gallery-label">
-                          {idx === 0 ? "zuca" : idx === 1 ? "zuca" : "Outing"}
+                          {idx === 0 ? "zuca" : idx === 1 ? "zuca" : "zuca"}
                         </div>
                       </div>
                     ))

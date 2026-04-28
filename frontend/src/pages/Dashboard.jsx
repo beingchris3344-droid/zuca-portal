@@ -536,6 +536,69 @@ const fetchFeaturedGallery = async () => {
             </div>
           </div>
 
+
+          {/* TODAY'S LITURGICAL READING */}
+          {todaysReading && (
+            <div className="section-card full-width reading-card">
+              <div className="section-header">
+                <h3>🙏 TODAY'S LITURGICAL READING</h3>
+              </div>
+              <div className="reading-content">
+                <div className="reading-title">📖 {todaysReading.celebration || "Daily Reading"}</div>
+                {todaysReading.readings?.firstReading && (
+                  <div className="reading-item">First Reading: {todaysReading.readings.firstReading.citation}</div>
+                )}
+                {todaysReading.readings?.gospel && (
+                  <div className="reading-item">Gospel: {todaysReading.readings.gospel.citation}</div>
+                )}
+                <button className="reading-btn" onClick={() => navigate(`/liturgical-calendar`)}>
+                  Read Full Readings →
+                </button>
+              </div>
+            </div>
+          )}
+
+
+             {/* MY JUMUIA */}
+              {jumuiaInfo && (
+                <div className="section-card">
+                  <div className="section-header">
+                    <h3>🏠 MY JUMUIA</h3>
+                  </div>
+                  <div className="jumuia-content">
+                    <div className="jumuia-name">👥 {jumuiaInfo.name}</div>
+                    <div className="jumuia-detail">Leader: {jumuiaInfo.leaderName}</div>
+                    <div className="jumuia-detail">Members: {jumuiaInfo.memberCount}</div>
+                    {jumuiaInfo.nextMeeting && <div className="jumuia-detail">Next Meeting: {jumuiaInfo.nextMeeting}</div>}
+                    <button className="jumuia-chat-btn" onClick={() => navigate(`/jumuia/${jumuiaInfo.id}/chat`)}>
+                      💬 Join Chat →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+
+              {/* UPCOMING SCHEDULED EVENTS */}
+          <div className="section-card full-width">
+            <div className="section-header">
+              <h3>📅 UPCOMING ZUCA SCHEDULED EVENTS</h3>
+            </div>
+            <div className="events-list">
+              {upcomingSchedules.length === 0 ? (
+                <div className="empty-state">No upcoming events</div>
+              ) : (
+                upcomingSchedules.map(event => (
+                  <div key={event.id} className="event-item">
+                    • {event.title} - {formatMassDate(event.eventDate)}, {event.eventTime || "TBA"}
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="view-all" onClick={() => navigate("/schedules")}>View All Schedules →</button>
+          </div>
+
+
+
           {/* FINANCIAL STATS ROW */}
           <div className="stats-row">
             <div className="stat-card" onClick={() => navigate("/contributions")}>
@@ -670,24 +733,7 @@ const fetchFeaturedGallery = async () => {
                 <button className="view-all" onClick={() => navigate("/mass-programs")}>View Full Calendar →</button>
               </div>
 
-              {/* MY JUMUIA */}
-              {jumuiaInfo && (
-                <div className="section-card">
-                  <div className="section-header">
-                    <h3>🏠 MY JUMUIA</h3>
-                  </div>
-                  <div className="jumuia-content">
-                    <div className="jumuia-name">👥 {jumuiaInfo.name}</div>
-                    <div className="jumuia-detail">Leader: {jumuiaInfo.leaderName}</div>
-                    <div className="jumuia-detail">Members: {jumuiaInfo.memberCount}</div>
-                    {jumuiaInfo.nextMeeting && <div className="jumuia-detail">Next Meeting: {jumuiaInfo.nextMeeting}</div>}
-                    <button className="jumuia-chat-btn" onClick={() => navigate(`/jumuia/${jumuiaInfo.id}/chat`)}>
-                      💬 Join Chat →
-                    </button>
-                  </div>
-                </div>
-              )}
-
+           
               {/* FEATURED GALLERY */}
               <div className="section-card">
                 <div className="section-header">
@@ -773,26 +819,7 @@ const fetchFeaturedGallery = async () => {
             </div>
           </div>
 
-          {/* TODAY'S LITURGICAL READING */}
-          {todaysReading && (
-            <div className="section-card full-width reading-card">
-              <div className="section-header">
-                <h3>🙏 TODAY'S LITURGICAL READING</h3>
-              </div>
-              <div className="reading-content">
-                <div className="reading-title">📖 {todaysReading.celebration || "Daily Reading"}</div>
-                {todaysReading.readings?.firstReading && (
-                  <div className="reading-item">First Reading: {todaysReading.readings.firstReading.citation}</div>
-                )}
-                {todaysReading.readings?.gospel && (
-                  <div className="reading-item">Gospel: {todaysReading.readings.gospel.citation}</div>
-                )}
-                <button className="reading-btn" onClick={() => navigate(`/liturgical-calendar`)}>
-                  Read Full Readings →
-                </button>
-              </div>
-            </div>
-          )}
+          
 
           {/* EXECUTIVE TEAM QUICK ACCESS */}
           <div className="section-card full-width">
@@ -816,25 +843,6 @@ const fetchFeaturedGallery = async () => {
               {executiveTeam.length === 0 && <div className="empty-state">No executive team assigned</div>}
             </div>
             <button className="view-all" onClick={() => navigate("/executive")}>View Full Executive Team →</button>
-          </div>
-
-          {/* UPCOMING SCHEDULED EVENTS */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>📅 UPCOMING ZUCA SCHEDULED EVENTS</h3>
-            </div>
-            <div className="events-list">
-              {upcomingSchedules.length === 0 ? (
-                <div className="empty-state">No upcoming events</div>
-              ) : (
-                upcomingSchedules.map(event => (
-                  <div key={event.id} className="event-item">
-                    • {event.title} - {formatMassDate(event.eventDate)}, {event.eventTime || "TBA"}
-                  </div>
-                ))
-              )}
-            </div>
-            <button className="view-all" onClick={() => navigate("/schedules")}>View All Schedules →</button>
           </div>
 
           {/* RECENT CHAT ACTIVITY */}

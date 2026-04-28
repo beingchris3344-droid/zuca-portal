@@ -6,8 +6,6 @@ import BASE_URL from "./api";
 // Import Notification Manager and Badge Manager
 import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
-import NotificationManager from "./components/NotificationManager"; // Add this
-import PushNotificationToggle from "./components/PushNotificationToggle"; // Add this
 
 // Import AI Assistants
 import ZucaAIAssistant from "./components/ZucaAIAssistant";
@@ -208,7 +206,7 @@ function AppContent() {
       // Increment badge count
       badgeManager.increment();
       
-      // Show in-app toast if available (using your InAppNotification component)
+      // Show in-app toast if available
       if (window.showInAppToast) {
         window.showInAppToast({
           title: notification.title || "New Notification",
@@ -224,6 +222,7 @@ function AppContent() {
       
       // Show browser notification if permitted and tab is hidden
       if (Notification.permission === "granted" && document.hidden) {
+        // For FCM compatibility on Android, ensure proper notification format
         const notificationOptions = {
           body: notification.message,
           icon: "/android-chrome-192x192.png",
@@ -376,198 +375,195 @@ function AppContent() {
                   currentUser?.specialRole === "treasurer";
 
   return (
-    // Wrap everything with NotificationManager for in-app notifications
-    <NotificationManager>
-      <>
-        <Routes>
-          {/* ================= LANDING PAGE ================= */}
-          <Route path="/" element={<Landing2 />} />
+    <>
+      <Routes>
+        {/* ================= LANDING PAGE ================= */}
+        <Route path="/" element={<Landing2 />} />
+        
+        {/* ================= PUBLIC ROUTES ================= */}
+        <Route path="/home" element={<Home />} />
+        <Route path="/readings/:date" element={<FullReadings />} />
+        <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/gallery" element={<GalleryPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/landing" element={<Landing />} />
+        <Route path="/user-manual" element={<UserManual />} />
+        
+        {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
+        <Route path="/executive" element={<ExecutivePage />} />
+
+        {/* ================= MEMBER PORTAL ================= */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/mass-programs" element={<MassPrograms />} />
+          <Route path="/contributions" element={<Contributions />} />
+          <Route path="/jumuia-contributions" element={<JumuiaDashboard />} /> 
+                
+          <Route path="/join-jumuia" element={<JoinJumuia />} />
+          <Route path="/hymns" element={<HymnBook />} />
+          <Route path="/hymn/:id" element={<HymnLyrics />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/games" element={<Games />} />
+          <Route path="/schedules" element={<UserSchedules />} />
+
+          {/* GAMES */}
+          <Route path="/games/tictactoe" element={<TicTacToe />} />
+          <Route path="/games/snake" element={<Snake />} />
+          <Route path="/games/trivia" element={<BibleTrivia />} />
+        </Route>
+
+        {/* ================= JUMUIA DETAIL PAGE ================= */}
+        <Route
+          path="/jumuia/:jumuiaCode"
+          element={
+            <ProtectedRoute>
+              <JumuiaRoute>
+                <JumuiaDetailPage />
+              </JumuiaRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= ADMIN PORTAL ================= */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="activity" element={<ActivityPage />} />
+          <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
+          <Route path="songs" element={<SongsPage />} />
+          <Route path="/admin/hymns" element={<AdminHymns />} />
+          <Route path="/admin/hymns/edit/:id" element={<AddHymn />} />
+          <Route path="roles" element={<RoleManagement />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="contributions" element={<ContributionsPage />} />
+          <Route path="jumuia-management" element={<JumuiaManagement />} />
+          <Route path="/admin/schedules" element={<AdminSchedules />} />
+          <Route path="chat" element={<ChatMonitorPage />} />
+          <Route path="security" element={<SecurityPage />} />
+          <Route path="media" element={<AdminMediaPage />} />
+          <Route path="/admin/hymns/add" element={<AddHymn />} /> 
+          <Route path="/admin/pending-songs" element={<PendingSongs />} />
+          <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
           
-          {/* ================= PUBLIC ROUTES ================= */}
-          <Route path="/home" element={<Home />} />
-          <Route path="/readings/:date" element={<FullReadings />} />
-          <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/landing" element={<Landing />} />
-          <Route path="/user-manual" element={<UserManual />} />
-          
-          {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
-          <Route path="/executive" element={<ExecutivePage />} />
+          {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
+          <Route path="executive" element={<AdminExecutivePage />} />
+        </Route>
 
-          {/* ================= MEMBER PORTAL ================= */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/announcements" element={<Announcements />} />
-            <Route path="/mass-programs" element={<MassPrograms />} />
-            <Route path="/contributions" element={<Contributions />} />
-            <Route path="/jumuia-contributions" element={<JumuiaDashboard />} /> 
-                  
-            <Route path="/join-jumuia" element={<JoinJumuia />} />
-            <Route path="/hymns" element={<HymnBook />} />
-            <Route path="/hymn/:id" element={<HymnLyrics />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/games" element={<Games />} />
-            <Route path="/schedules" element={<UserSchedules />} />
+        {/* ================= SECRETARY ================= */}
+        <Route
+          path="/secretary"
+          element={
+            <RoleRoute allowedRoles={["secretary"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="announcements" replace />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="schedules" element={<AdminSchedules />} />
+        </Route>
 
-            {/* GAMES */}
-            <Route path="/games/tictactoe" element={<TicTacToe />} />
-            <Route path="/games/snake" element={<Snake />} />
-            <Route path="/games/trivia" element={<BibleTrivia />} />
-          </Route>
+        {/* ================= TREASURER ================= */}
+        <Route
+          path="/treasurer"
+          element={
+            <RoleRoute allowedRoles={["treasurer"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="contributions" replace />} />
+          <Route path="contributions" element={<ContributionsPage />} />
+        </Route>
 
-          {/* ================= JUMUIA DETAIL PAGE ================= */}
-          <Route
-            path="/jumuia/:jumuiaCode"
-            element={
-              <ProtectedRoute>
-                <JumuiaRoute>
-                  <JumuiaDetailPage />
-                </JumuiaRoute>
-              </ProtectedRoute>
-            }
+        {/* ================= CHOIR MODERATOR ================= */}
+        <Route
+          path="/choir"
+          element={
+            <RoleRoute allowedRoles={["choir_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="songs" replace />} />
+          <Route path="songs" element={<SongsPage />} />
+        </Route>
+
+        {/* ================= JUMUIA LEADER ================= */}
+        <Route
+          path="/leader"
+          element={
+            <RoleRoute allowedRoles={["jumuia_leader"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<JumuiaManagement />} />
+        </Route>
+
+        {/* ================= MEDIA MODERATOR ================= */}
+        <Route
+          path="/media-moderator"
+          element={
+            <RoleRoute allowedRoles={["media_moderator"]}>
+              <RoleLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<Navigate to="media" replace />} />
+          <Route path="media" element={<AdminMediaPage />} />
+        </Route>
+
+        {/* ================= CATCH ALL ================= */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {/* ========== GLOBAL AI OVERLAY - CHOOSE BASED ON ROLE ========== */}
+      {showAI && currentUser && (
+        isAdmin ? (
+          <AdminAIAssistant 
+            user={currentUser}
+            onClose={() => { 
+              setShowAI(false); 
+              setIsAIFullPage(false); 
+            }}
+            isOpen={showAI}
+            isFullPage={isAIFullPage}
+            onBack={() => setIsAIFullPage(false)}
+            navigate={navigate}
           />
-
-          {/* ================= ADMIN PORTAL ================= */}
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminLayout />
-              </AdminRoute>
-            }
-          >
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="activity" element={<ActivityPage />} />
-            <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
-            <Route path="songs" element={<SongsPage />} />
-            <Route path="/admin/hymns" element={<AdminHymns />} />
-            <Route path="/admin/hymns/edit/:id" element={<AddHymn />} />
-            <Route path="roles" element={<RoleManagement />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-            <Route path="contributions" element={<ContributionsPage />} />
-            <Route path="jumuia-management" element={<JumuiaManagement />} />
-            <Route path="/admin/schedules" element={<AdminSchedules />} />
-            <Route path="chat" element={<ChatMonitorPage />} />
-            <Route path="security" element={<SecurityPage />} />
-            <Route path="media" element={<AdminMediaPage />} />
-            <Route path="/admin/hymns/add" element={<AddHymn />} /> 
-            <Route path="/admin/pending-songs" element={<PendingSongs />} />
-            <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
-            
-            {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
-            <Route path="executive" element={<AdminExecutivePage />} />
-          </Route>
-
-          {/* ================= SECRETARY ================= */}
-          <Route
-            path="/secretary"
-            element={
-              <RoleRoute allowedRoles={["secretary"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="announcements" replace />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-            <Route path="schedules" element={<AdminSchedules />} />
-          </Route>
-
-          {/* ================= TREASURER ================= */}
-          <Route
-            path="/treasurer"
-            element={
-              <RoleRoute allowedRoles={["treasurer"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="contributions" replace />} />
-            <Route path="contributions" element={<ContributionsPage />} />
-          </Route>
-
-          {/* ================= CHOIR MODERATOR ================= */}
-          <Route
-            path="/choir"
-            element={
-              <RoleRoute allowedRoles={["choir_moderator"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="songs" replace />} />
-            <Route path="songs" element={<SongsPage />} />
-          </Route>
-
-          {/* ================= JUMUIA LEADER ================= */}
-          <Route
-            path="/leader"
-            element={
-              <RoleRoute allowedRoles={["jumuia_leader"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<JumuiaManagement />} />
-          </Route>
-
-          {/* ================= MEDIA MODERATOR ================= */}
-          <Route
-            path="/media-moderator"
-            element={
-              <RoleRoute allowedRoles={["media_moderator"]}>
-                <RoleLayout />
-              </RoleRoute>
-            }
-          >
-            <Route index element={<Navigate to="media" replace />} />
-            <Route path="media" element={<AdminMediaPage />} />
-          </Route>
-
-          {/* ================= CATCH ALL ================= */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-
-        {/* ========== GLOBAL AI OVERLAY - CHOOSE BASED ON ROLE ========== */}
-        {showAI && currentUser && (
-          isAdmin ? (
-            <AdminAIAssistant 
-              user={currentUser}
-              onClose={() => { 
-                setShowAI(false); 
-                setIsAIFullPage(false); 
-              }}
-              isOpen={showAI}
-              isFullPage={isAIFullPage}
-              onBack={() => setIsAIFullPage(false)}
-              navigate={navigate}
-            />
-          ) : (
-            <ZucaAIAssistant 
-              user={currentUser}
-              onClose={() => { 
-                setShowAI(false); 
-                setIsAIFullPage(false); 
-              }}
-              isOpen={showAI}
-              isFullPage={isAIFullPage}
-              onBack={() => setIsAIFullPage(false)}
-              navigate={navigate}
-            />
-          )
-        )}
-      </>
-    </NotificationManager>
+        ) : (
+          <ZucaAIAssistant 
+            user={currentUser}
+            onClose={() => { 
+              setShowAI(false); 
+              setIsAIFullPage(false); 
+            }}
+            isOpen={showAI}
+            isFullPage={isAIFullPage}
+            onBack={() => setIsAIFullPage(false)}
+            navigate={navigate}
+          />
+        )
+      )}
+    </>
   );
 }
 

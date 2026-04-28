@@ -1414,7 +1414,7 @@ const fetchFeaturedGallery = async () => {
         .jumuia-content {
           text-align: center;
           padding: 12px;
-          background: linear-gradient(135deg, #51bd75, #17bd1f);
+          background: linear-gradient(135deg, #0bc549c2, #47ee05bd);
           border-radius: 16px;
           color: white;
         }

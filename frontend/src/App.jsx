@@ -40,6 +40,7 @@ import Landing from "./pages/Landing";
 import UserManual from './pages/UserManual';
 import Games from "./pages/Games";
 import UserSchedules from "./pages/UserSchedules";
+import UserYoutubeHub from "./pages/UserYoutubeHub";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -415,6 +416,7 @@ function AppContent() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
+          <Route path="/youtube" element={<UserYoutubeHub />} />
 
           {/* GAMES */}
           <Route path="/games/tictactoe" element={<TicTacToe />} />

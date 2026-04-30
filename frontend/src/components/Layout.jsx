@@ -7,6 +7,14 @@ import Notifications from "./Notifications";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
 import FloatingInstallButton from "./FloatingInstallButton";
+import { 
+  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
+  FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
+  FiAward, FiYoutube, FiMapPin, 
+} from "react-icons/fi";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie } from "react-icons/fa";
+import { GiGamepad } from "react-icons/gi";
+
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -94,6 +102,8 @@ function Layout() {
     { path: "/schedules", label: "Schedules", icon: "📅" },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
+      { path: "/youtube", label: "ZUCA Y-Tube Hub", icon: <FaYoutube size={18} color="#ff0000" /> },
+
     { path: "/gallery", label: "Gallery", icon: "🖼️" },
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },

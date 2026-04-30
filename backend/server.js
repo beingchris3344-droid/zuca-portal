@@ -3583,11 +3583,6 @@ async function checkYouTubeForUpdates() {
   }
 }
 
-// Start polling every 5 minutes
-setInterval(() => {
-  console.log("🔍 Checking YouTube for new videos/live streams...");
-  checkYouTubeForUpdates();
-}, 5 * 60 * 1000); // Check every 5 minutes
 
 // Run immediately on startup
 setTimeout(() => {

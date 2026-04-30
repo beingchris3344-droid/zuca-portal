@@ -9,8 +9,9 @@ import {
   FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
-  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle
+  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, 
 } from "react-icons/fi";
+import { FaWhatsapp } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -525,7 +526,9 @@ const fetchFeaturedGallery = async () => {
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
-                <div className="stat-icon">📱</div>
+              <div className="stat-icon">
+  <FaWhatsapp color="#25D366" size={24} />
+</div>
                 <div className="stat-info">
                   <a href={getWhatsAppLink()} className="whatsapp-link" target="_blank" rel="noopener noreferrer">
                   Message You🫵

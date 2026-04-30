@@ -3462,6 +3462,451 @@ app.get("/api/admin/analytics/youtube/export", authenticate, requireAdmin, async
 
 console.log("✅ YouTube Analytics Routes loaded successfully");
 
+
+// ================== YOUTUBE WEBHOOK / POLLING SYSTEM ==================
+
+// Store last known video IDs and live status
+let lastVideoIds = new Set();
+let lastLiveVideoId = null;
+let lastCheckTime = new Date();
+
+// Function to fetch latest videos and check for new ones
+async function checkYouTubeForUpdates() {
+  try {
+    const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    
+    if (!apiKey) {
+      console.log("⚠️ YouTube API key not configured - skipping check");
+      return;
+    }
+    
+    // Get latest videos
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&order=date&maxResults=10&type=video`
+    );
+    
+    const videos = response.data.items || [];
+    const currentVideoIds = new Set();
+    let newVideoFound = null;
+    let isLiveNow = false;
+    let liveVideo = null;
+    
+    for (const video of videos) {
+      const videoId = video.id.videoId;
+      const isLive = video.snippet.liveBroadcastContent === 'live';
+      const isUpcoming = video.snippet.liveBroadcastContent === 'upcoming';
+      
+      currentVideoIds.add(videoId);
+      
+      // Check for live stream
+      if (isLive) {
+        isLiveNow = true;
+        liveVideo = video;
+      }
+      
+      // Check for new video (not in our stored set)
+      if (!lastVideoIds.has(videoId)) {
+        newVideoFound = video;
+      }
+    }
+    
+    // NEW VIDEO DETECTED - Send notification
+    if (newVideoFound && !lastVideoIds.has(newVideoFound.id.videoId)) {
+      console.log(`🎬 NEW VIDEO DETECTED: ${newVideoFound.snippet.title}`);
+      
+      const videoDetails = await axios.get(
+        `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${newVideoFound.id.videoId}&part=snippet,statistics`
+      );
+      
+      const videoData = videoDetails.data.items?.[0] || {};
+      const stats = videoData.statistics || {};
+      
+      const notificationTitle = "📹 NEW VIDEO UPLOADED!";
+      const notificationMessage = `${newVideoFound.snippet.title}\n\n👁️ ${parseInt(stats.viewCount || 0).toLocaleString()} views\n👍 ${parseInt(stats.likeCount || 0).toLocaleString()} likes`;
+      
+      // Send to ALL users
+      const allUsers = await prisma.user.findMany({ select: { id: true } });
+      for (const user of allUsers) {
+        await createAndSendNotification({
+          userId: user.id,
+          type: "youtube_new_video",
+          title: notificationTitle,
+          message: notificationMessage,
+          data: {
+            videoId: newVideoFound.id.videoId,
+            videoTitle: newVideoFound.snippet.title,
+            videoThumbnail: newVideoFound.snippet.thumbnails.high?.url,
+            videoUrl: `https://www.youtube.com/watch?v=${newVideoFound.id.videoId}`,
+            type: "new_video"
+          }
+        });
+      }
+      
+      console.log(`✅ Sent ${allUsers.length} notifications for new video`);
+    }
+    
+    // LIVE STREAM DETECTED
+    if (isLiveNow && lastLiveVideoId !== liveVideo?.id.videoId) {
+      console.log(`🔴 LIVE STREAM DETECTED: ${liveVideo?.snippet.title}`);
+      
+      const notificationTitle = "🔴ZUCA IS LIVE NOW!";
+      const notificationMessage = `${liveVideo?.snippet.title}\n\nWatch live now on ZUCA!`;
+      
+      const allUsers = await prisma.user.findMany({ select: { id: true } });
+      for (const user of allUsers) {
+        await createAndSendNotification({
+          userId: user.id,
+          type: "youtube_live",
+          title: notificationTitle,
+          message: notificationMessage,
+          data: {
+            videoId: liveVideo.id.videoId,
+            videoTitle: liveVideo.snippet.title,
+            videoThumbnail: liveVideo.snippet.thumbnails.high?.url,
+            videoUrl: `https://www.youtube.com/watch?v=${liveVideo.id.videoId}`,
+            type: "live_now"
+          }
+        });
+      }
+      
+      lastLiveVideoId = liveVideo?.id.videoId;
+      console.log(`✅ Sent ${allUsers.length} notifications for live stream`);
+    }
+    
+    // Update stored IDs
+    lastVideoIds = currentVideoIds;
+    lastCheckTime = new Date();
+    
+  } catch (error) {
+    console.error("❌ YouTube check error:", error.message);
+  }
+}
+
+// Start polling every 5 minutes
+setInterval(() => {
+  console.log("🔍 Checking YouTube for new videos/live streams...");
+  checkYouTubeForUpdates();
+}, 5 * 60 * 1000); // Check every 5 minutes
+
+// Run immediately on startup
+setTimeout(() => {
+  checkYouTubeForUpdates();
+}, 5000);
+
+// ================== MANUAL NOTIFICATION TRIGGERS ==================
+
+// Admin endpoint to manually send notification about new video
+app.post("/api/admin/youtube/notify-new-video", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { videoId, videoTitle, videoThumbnail } = req.body;
+    
+    if (!videoId || !videoTitle) {
+      return res.status(400).json({ error: "videoId and videoTitle required" });
+    }
+    
+    const allUsers = await prisma.user.findMany({ select: { id: true } });
+    
+    for (const user of allUsers) {
+      await createAndSendNotification({
+        userId: user.id,
+        type: "youtube_new_video",
+        title: "📹 NEW VIDEO UPLOADED!",
+        message: `${videoTitle}\n\nClick to watch on ZUCA!`,
+        data: {
+          videoId: videoId,
+          videoTitle: videoTitle,
+          videoThumbnail: videoThumbnail,
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+          type: "new_video"
+        }
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Sent ${allUsers.length} notifications for new video: ${videoTitle}` 
+    });
+    
+  } catch (error) {
+    console.error("Error sending video notification:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin endpoint to manually notify about live stream
+app.post("/api/admin/youtube/notify-live", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { videoId, videoTitle, videoThumbnail } = req.body;
+    
+    if (!videoId || !videoTitle) {
+      return res.status(400).json({ error: "videoId and videoTitle required" });
+    }
+    
+    const allUsers = await prisma.user.findMany({ select: { id: true } });
+    
+    for (const user of allUsers) {
+      await createAndSendNotification({
+        userId: user.id,
+        type: "youtube_live",
+        title: "🔴ZUCA IS LIVE NOW!",
+        message: `${videoTitle}\n\nWatch live now on ZUCA!`,
+        data: {
+          videoId: videoId,
+          videoTitle: videoTitle,
+          videoThumbnail: videoThumbnail,
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+          type: "live_now"
+        }
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Sent ${allUsers.length} notifications for live stream: ${videoTitle}` 
+    });
+    
+  } catch (error) {
+    console.error("Error sending live notification:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ================== NOTIFICATION SUBSCRIPTION ==================
+
+app.post("/api/notifications/subscribe", authenticate, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    const userId = req.user.userId;
+
+    if (!subscription) {
+      return res.status(400).json({ error: "Subscription object required" });
+    }
+
+    console.log(`📱 Saving push subscription for user: ${userId}`);
+
+    // Check if subscription already exists
+    const existing = await prisma.pushSubscription.findUnique({
+      where: { userId }
+    });
+
+    if (existing) {
+      // Update existing
+      await prisma.pushSubscription.update({
+        where: { userId },
+        data: { 
+          subscription: JSON.stringify(subscription),
+          updatedAt: new Date()
+        }
+      });
+    } else {
+      // Create new
+      await prisma.pushSubscription.create({
+        data: {
+          userId,
+          subscription: JSON.stringify(subscription)
+        }
+      });
+    }
+
+    console.log(`✅ Push subscription saved for user: ${userId}`);
+    res.json({ success: true, message: "Subscription saved" });
+    
+  } catch (error) {
+    console.error("❌ Error saving subscription:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================== PUBLIC YOUTUBE ROUTE FOR USERS ==================
+
+// Get latest YouTube videos for user page (NO AUTH NEEDED)
+app.get("/api/youtube/latest", async (req, res) => {
+  try {
+    const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(400).json({ error: "YouTube API key not configured" });
+    }
+    
+    // Get latest videos
+    const videosResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&order=date&maxResults=20&type=video`
+    );
+    
+    const videoIds = videosResponse.data.items.map(v => v.id.videoId).filter(id => id).join(',');
+    
+    let videoStats = { data: { items: [] } };
+    if (videoIds) {
+      videoStats = await axios.get(
+        `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${videoIds}&part=statistics`
+      );
+    }
+    
+    // Get channel info
+    const channelResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${apiKey}`
+    );
+    
+    const channel = channelResponse.data.items?.[0] || {};
+    const isLive = videosResponse.data.items.some(v => v.snippet.liveBroadcastContent === 'live');
+    const liveVideo = videosResponse.data.items.find(v => v.snippet.liveBroadcastContent === 'live');
+    
+    const videos = videosResponse.data.items.map(video => {
+      const stats = videoStats.data.items.find(v => v.id === video.id.videoId) || {};
+      const isLiveVideo = video.snippet.liveBroadcastContent === 'live';
+      const isUpcoming = video.snippet.liveBroadcastContent === 'upcoming';
+      
+      return {
+        id: video.id.videoId,
+        title: video.snippet.title,
+        description: video.snippet.description,
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium?.url,
+        publishedAt: video.snippet.publishedAt,
+        views: parseInt(stats.statistics?.viewCount || 0),
+        likes: parseInt(stats.statistics?.likeCount || 0),
+        comments: parseInt(stats.statistics?.commentCount || 0),
+        isLive: isLiveVideo,
+        isUpcoming: isUpcoming
+      };
+    });
+    
+    res.json({
+      success: true,
+      channel: {
+        name: channel.snippet?.title || "ZUCA Channel",
+        subscribers: parseInt(channel.statistics?.subscriberCount || 0),
+        totalViews: parseInt(channel.statistics?.viewCount || 0),
+        totalVideos: parseInt(channel.statistics?.videoCount || 0),
+        thumbnail: channel.snippet?.thumbnails?.default?.url,
+        description: channel.snippet?.description
+      },
+      isLive: isLive,
+      liveVideo: liveVideo ? {
+        id: liveVideo.id.videoId,
+        title: liveVideo.snippet.title,
+        thumbnail: liveVideo.snippet.thumbnails.high?.url
+      } : null,
+      videos: videos,
+      lastUpdated: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error("Error fetching YouTube videos:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single video details
+app.get("/api/youtube/video/:videoId", async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(400).json({ error: "YouTube API key not configured" });
+    }
+    
+    const videoResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${videoId}&part=snippet,statistics,contentDetails`
+    );
+    
+    const video = videoResponse.data.items?.[0];
+    
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+    
+    const stats = video.statistics || {};
+    const snippet = video.snippet || {};
+    const contentDetails = video.contentDetails || {};
+    
+    res.json({
+      success: true,
+      video: {
+        id: videoId,
+        title: snippet.title,
+        description: snippet.description,
+        thumbnail: snippet.thumbnails.high?.url,
+        publishedAt: snippet.publishedAt,
+        views: parseInt(stats.viewCount || 0),
+        likes: parseInt(stats.likeCount || 0),
+        comments: parseInt(stats.commentCount || 0),
+        duration: contentDetails.duration,
+        tags: snippet.tags || [],
+        channelTitle: snippet.channelTitle
+      }
+    });
+    
+  } catch (error) {
+    console.error("Error fetching video:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+console.log("✅ YouTube notification routes loaded successfully!");
+
+// ================== PUBLIC YOUTUBE SEARCH - SEARCH ANYTHING ON YOUTUBE ==================
+app.get("/api/youtube/search-any", async (req, res) => {
+  try {
+    const { q, maxResults = 20 } = req.query;
+    const apiKey = process.env.YOUTUBE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "YouTube API key not configured" });
+    }
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({ error: "Search query required" });
+    }
+
+    console.log(`🔍 Searching entire YouTube: "${q}"`);
+
+    // Search ALL of YouTube (no channel filter)
+    const searchResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&part=snippet&q=${encodeURIComponent(q)}&maxResults=${maxResults}&type=video`
+    );
+
+    const videoIds = searchResponse.data.items.map(v => v.id.videoId).filter(id => id).join(',');
+    let videoStats = { data: { items: [] } };
+    
+    if (videoIds) {
+      videoStats = await axios.get(
+        `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${videoIds}&part=statistics`
+      );
+    }
+
+    const videos = searchResponse.data.items?.map(video => {
+      const stats = videoStats.data.items.find(v => v.id === video.id.videoId) || {};
+      return {
+        id: video.id.videoId,
+        title: video.snippet.title,
+        description: video.snippet.description,
+        channelTitle: video.snippet.channelTitle,
+        channelId: video.snippet.channelId,
+        thumbnail: video.snippet.thumbnails.medium?.url,
+        publishedAt: video.snippet.publishedAt,
+        views: parseInt(stats.statistics?.viewCount || 0),
+        likes: parseInt(stats.statistics?.likeCount || 0),
+        comments: parseInt(stats.statistics?.commentCount || 0)
+      };
+    }) || [];
+
+    res.json({
+      success: true,
+      query: q,
+      total: videos.length,
+      videos: videos
+    });
+    
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ====================
 // SIMPLE PAGINATED SONGS
 // ====================

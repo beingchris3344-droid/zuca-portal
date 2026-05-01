@@ -12,22 +12,46 @@ let isFailingOver = false;
 let failoverAttempts = 0;
 const MAX_FAILOVER_ATTEMPTS = 2;
 
-// Helper to test if a server is reachable
-const testServerReachability = async (url, timeout = 3000) => {
+// Helper to test if a server is TRULY reachable and healthy
+const testServerReachability = async (url, timeout = 5000) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
     const response = await fetch(`${url}/api/health`, {
-      method: 'HEAD',
-      signal: controller.signal,
-      mode: 'no-cors' // This bypasses CORS for just testing reachability
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      },
+      signal: controller.signal
     });
     
     clearTimeout(timeoutId);
-    return true;
+    
+    // Must get 200-299 status
+    if (!response.ok) {
+      console.log(`${url} health check failed with status: ${response.status}`);
+      return false;
+    }
+    
+    // Verify response body is valid
+    const data = await response.json();
+    const isValid = data && (data.status === 'ok' || data.message);
+    
+    if (isValid) {
+      console.log(`${url} is healthy ✅`);
+    } else {
+      console.log(`${url} returned invalid health response`);
+    }
+    
+    return isValid;
+    
   } catch (error) {
-    console.log(`${url} is not reachable:`, error.message);
+    if (error.name === 'AbortError') {
+      console.log(`${url} health check timed out after ${timeout}ms`);
+    } else {
+      console.log(`${url} health check failed:`, error.message);
+    }
     return false;
   }
 };
@@ -37,7 +61,7 @@ export const api = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 8000 // 8 second timeout
+  timeout: 8000
 });
 
 export const publicApi = axios.create({
@@ -72,7 +96,7 @@ const switchToServer = async (newServerURL, reason) => {
   api.defaults.baseURL = currentBaseURL;
   publicApi.defaults.baseURL = currentBaseURL;
   
-  // Store preference (with expiration)
+  // Store preference
   localStorage.setItem('lastWorkingServer', newServerURL);
   localStorage.setItem('lastServerSwitch', Date.now().toString());
   
@@ -199,10 +223,9 @@ const initSocket = () => {
       
       if (isReachable) {
         await switchToServer(targetServer, 'Socket connection failed');
-        // Socket will be recreated by switchToServer
       } else {
         console.log('⚠️ Backup server also unreachable, will retry socket later');
-        reconnectAttempts = MAX_SOCKET_RECONNECT - 1; // Reset to keep trying
+        reconnectAttempts = MAX_SOCKET_RECONNECT - 1;
       }
     }
   });
@@ -220,7 +243,6 @@ export const socket = initSocket();
 
 // Periodically check if primary server (laptop) is back online
 setInterval(async () => {
-  // Only check if we're currently on backup (Render)
   if (currentBaseURL === RENDER_URL) {
     console.log('🔍 Checking if laptop is back online...');
     const isLaptopReachable = await testServerReachability(LAPTOP_URL);
@@ -232,13 +254,14 @@ setInterval(async () => {
   }
 }, 30000); // Check every 30 seconds
 
-// Force switch function for manual override
+// Force switch functions for manual override
 export const forceSwitchToLaptop = async () => {
   const isReachable = await testServerReachability(LAPTOP_URL);
   if (isReachable) {
     await switchToServer(LAPTOP_URL, 'Manual override');
     return true;
   }
+  console.error('❌ Laptop is not reachable');
   return false;
 };
 
@@ -248,6 +271,7 @@ export const forceSwitchToRender = async () => {
     await switchToServer(RENDER_URL, 'Manual override');
     return true;
   }
+  console.error('❌ Render is not reachable');
   return false;
 };
 
@@ -258,7 +282,7 @@ export const getCurrentServer = () => ({
   socketConnected: socketInstance?.connected || false
 });
 
-// Export URLs
+// Export URL helpers
 export const CONTRIBUTION_TYPES_URL = () => `${currentBaseURL}/api/contribution-types`;
 export const CONTRIBUTION_TYPE_URL = (id) => `${currentBaseURL}/api/contribution-types/${id}`;
 export const PLEDGE_URL = (id) => `${currentBaseURL}/api/pledges/${id}`;

@@ -68,7 +68,8 @@ const wakeUpRender = async () => {
     const timeoutId = setTimeout(() => controller.abort(), 65000); // 65 second timeout
     
     const startTime = Date.now();
-    const response = await fetch(`${RENDER_URL}/api/health`, {
+    // FIXED: Changed from /api/health to /health
+    const response = await fetch(`${RENDER_URL}/health`, {
       method: 'GET',
       signal: controller.signal
     });

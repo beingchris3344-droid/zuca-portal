@@ -63,12 +63,10 @@ const wakeUpRender = async () => {
   console.log('⏰ Render is sleeping. Attempting to wake it up (this takes 30-60 seconds)...');
   
   try {
-    // Use a much longer timeout for cold start
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 65000);
     
     const startTime = Date.now();
-    // FIXED: Changed from /api/health to /health
     const response = await fetch(`${RENDER_URL}/health`, {
       method: 'GET',
       signal: controller.signal
@@ -99,7 +97,7 @@ export const api = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 30000 // 30 second timeout (Render cold start)
+  timeout: 30000
 });
 
 export const publicApi = axios.create({
@@ -142,7 +140,7 @@ const switchToServer = async (newServerURL, reason) => {
   initSocket();
 };
 
-// Main failover interceptor
+// ========== MAIN FAILOVER INTERCEPTOR - FIXED FOR 502/503 ==========
 const failoverInterceptor = async (error) => {
   const originalRequest = error.config;
   
@@ -150,12 +148,17 @@ const failoverInterceptor = async (error) => {
     return Promise.reject(error);
   }
   
-  // Check if it's a network error or timeout
+  // Check if it's a network error OR server error (502, 503, etc.)
   const isNetworkError = error.code === 'ERR_NETWORK' || 
                          error.code === 'ECONNABORTED' ||
                          error.message?.includes('timeout');
   
-  if (!isNetworkError) {
+  const isServerError = error.response?.status === 502 ||
+                        error.response?.status === 503 ||
+                        error.response?.status === 500;
+  
+  // If it's NOT a network error AND NOT a server error, reject
+  if (!isNetworkError && !isServerError) {
     return Promise.reject(error);
   }
   
@@ -163,15 +166,13 @@ const failoverInterceptor = async (error) => {
   isFailingOver = true;
   failoverAttempts++;
   
-  console.warn(`⚠️ Server ${currentBaseURL} failed. Attempting failover (${failoverAttempts}/${MAX_FAILOVER_ATTEMPTS})...`);
+  console.warn(`⚠️ Server ${currentBaseURL} failed (${error.response?.status || 'NETWORK_ERROR'}). Attempting failover (${failoverAttempts}/${MAX_FAILOVER_ATTEMPTS})...`);
   
   try {
     const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
     
-    // Special handling for Render (might be sleeping)
     let isReachable = false;
     if (targetServer === RENDER_URL) {
-      // Try to wake up Render first
       isReachable = await wakeUpRender();
       if (!isReachable) {
         console.log('⚠️ Render did not respond to wake-up, trying regular check...');
@@ -183,16 +184,21 @@ const failoverInterceptor = async (error) => {
     
     if (isReachable) {
       console.log(`✅ ${targetServer} is reachable, switching...`);
-      await switchToServer(targetServer, `${currentBaseURL} failed`);
+      await switchToServer(targetServer, `${currentBaseURL} failed (${error.response?.status || 'NETWORK'})`);
       
       originalRequest.baseURL = currentBaseURL;
       
-      // Increase timeout for the retry if switching to Render
-      if (currentBaseURL === RENDER_URL) {
-        originalRequest.timeout = 45000; // 45 seconds for first request after wake
+      // Re-attach auth token
+      const token = localStorage.getItem("token");
+      if (token && originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
       }
       
-      const response = await api(originalRequest);
+      if (currentBaseURL === RENDER_URL) {
+        originalRequest.timeout = 45000;
+      }
+      
+      const response = await axios(originalRequest);
       isFailingOver = false;
       failoverAttempts = 0;
       return response;
@@ -215,6 +221,7 @@ const failoverInterceptor = async (error) => {
     return Promise.reject(error);
   }
 };
+// ========== END FAILOVER INTERCEPTOR ==========
 
 api.interceptors.response.use(
   response => response,
@@ -246,7 +253,7 @@ const initSocket = () => {
     reconnectionDelay: 2000,
     reconnectionDelayMax: 10000,
     transports: ['websocket', 'polling'],
-    timeout: 20000, // 20 second timeout for socket
+    timeout: 20000,
   });
   
   socketInstance.on('connect', () => {

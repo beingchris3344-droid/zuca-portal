@@ -76,7 +76,10 @@ const allowedOrigins = [
   "http://192.168.100.141:5173",
   "https://zetechcatholic.vercel.app",
   "https://zuca-backend-iw9p.onrender.com",
-  "https://zucaportal.onrender.com"
+  "https://zucaportal.onrender.com",
+  // ADD YOUR TAILSCALE DOMAIN - THIS IS THE MISSING ONE!
+  "https://chris-laptop.tail96b26f.ts.net",
+  "http://chris-laptop.tail96b26f.ts.net"  // Also add HTTP version
 ];
 
 // CORS for Express
@@ -85,16 +88,17 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
+      console.log(`❌ CORS blocked: ${origin}`);  // Add logging to debug
       const msg = 'CORS policy does not allow access from this origin.';
       return callback(new Error(msg), false);
     }
+    console.log(`✅ CORS allowed: ${origin}`);  // Add logging to debug
     return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
 // Handle preflight requests
 app.options('*', cors());
 

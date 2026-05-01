@@ -5,25 +5,11 @@ import { io } from "socket.io-client";
 const LAPTOP_URL = "https://chris-laptop.tail96b26f.ts.net";
 const RENDER_URL = "https://zuca-backend-iw9p.onrender.com";
 
-// ========== STARTUP CHECK - ONLY RUNS ONCE ==========
-const checkLaptopAndSwitch = async () => {
-  // Don't check if we already failed over this session
-  if (sessionStorage.getItem('switchedToRender') === 'true') {
-    console.log('📌 Already using Render (from earlier check)');
-    return;
-  }
-  
-  // If user manually wants Render
-  if (localStorage.getItem('activeServer') === 'render') {
-    console.log('📌 Using Render (user preference)');
-    sessionStorage.setItem('switchedToRender', 'true');
-    return;
-  }
-  
+// ========== CHECK IF LAPTOP IS REACHABLE ==========
+const isLaptopReachable = async () => {
   try {
-    console.log('🔍 Checking laptop availability...');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     
     await fetch(`${LAPTOP_URL}/health`, {
       method: 'HEAD',
@@ -32,35 +18,87 @@ const checkLaptopAndSwitch = async () => {
     });
     
     clearTimeout(timeoutId);
-    console.log('✅ Laptop is reachable, using as primary');
-    sessionStorage.setItem('switchedToRender', 'false');
-    
-  } catch (error) {
-    console.warn('⚠️ Laptop is NOT reachable, switching to Render');
-    sessionStorage.setItem('switchedToRender', 'true');
-    localStorage.setItem('activeServer', 'render');
-    window.location.reload();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// ========== SWITCH TO LAPTOP SILENTLY ==========
+const switchToLaptop = () => {
+  console.log('🔄 Switching back to Laptop backend...');
+  
+  // Update the active server in localStorage
+  localStorage.setItem('activeServer', 'laptop');
+  sessionStorage.setItem('switchedToRender', 'false');
+  
+  // Reload the page to use laptop
+  window.location.reload();
+};
+
+// ========== STARTUP CHECK - RUNS ONCE ==========
+const checkLaptopAndSwitch = async () => {
+  // Check if we're currently on Render (by checking URL or localStorage)
+  const currentServer = localStorage.getItem('activeServer');
+  const isOnRender = currentServer === 'render' || sessionStorage.getItem('switchedToRender') === 'true';
+  
+  if (isOnRender) {
+    console.log('📌 Currently on Render, will check for laptop periodically...');
+    return;
+  }
+  
+  // If we're supposed to be on laptop, check if it's actually reachable
+  if (currentServer !== 'render') {
+    const laptopReachable = await isLaptopReachable();
+    if (!laptopReachable) {
+      console.warn('⚠️ Laptop not reachable, switching to Render');
+      localStorage.setItem('activeServer', 'render');
+      sessionStorage.setItem('switchedToRender', 'true');
+      window.location.reload();
+    } else {
+      console.log('✅ Laptop is reachable, using as primary');
+    }
   }
 };
 
 // Determine which server to use
 const getActiveServer = () => {
+  // If we've explicitly switched to Render in this session
   if (sessionStorage.getItem('switchedToRender') === 'true') {
     return RENDER_URL;
   }
+  // If user preference is Render
   if (localStorage.getItem('activeServer') === 'render') {
     return RENDER_URL;
   }
+  // Default to laptop
   return LAPTOP_URL;
 };
 
-// Wait for laptop check before creating axios instances
+// Run startup check
 await checkLaptopAndSwitch();
 
 let currentBaseURL = getActiveServer();
 let currentSocketURL = currentBaseURL;
 
 console.log(`🔗 Using backend: ${currentBaseURL}`);
+
+// ========== PERIODIC CHECK FOR LAPTOP (every 60 seconds) ==========
+// This runs ONLY when we're on Render, to check if laptop is back
+if (currentBaseURL === RENDER_URL) {
+  console.log('🔍 Will check for laptop availability every 60 seconds...');
+  
+  setInterval(async () => {
+    const laptopReachable = await isLaptopReachable();
+    
+    if (laptopReachable) {
+      console.log('✅ Laptop is back online! Switching to laptop to save Render hours...');
+      switchToLaptop();
+    } else {
+      console.log('🔍 Laptop still offline, staying on Render');
+    }
+  }, 60000); // Check every 60 seconds
+}
 
 // Create axios instances
 export const api = axios.create({
@@ -89,7 +127,7 @@ const addAuthToken = (config) => {
 api.interceptors.request.use(addAuthToken);
 publicApi.interceptors.request.use(addAuthToken);
 
-// ========== FALLBACK INTERCEPTOR ==========
+// ========== FAILOVER INTERCEPTOR (only for network errors) ==========
 api.interceptors.response.use(
   (response) => response,
   async (error) => {

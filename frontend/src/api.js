@@ -45,38 +45,45 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-// Add automatic fallback to Render when laptop is down
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // If laptop failed and we haven't tried fallback yet
-    if (error.code === 'ERR_NETWORK' && !originalRequest._retry && BASE_URL !== RENDER_URL) {
-      originalRequest._retry = true;
+// INTERCEPTOR FOR BOTH API INSTANCES - THIS IS THE FIX!
+const addFallbackInterceptor = (axiosInstance) => {
+  axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
       
-      console.warn('Laptop backend unreachable, falling back to Render...');
+      // If laptop failed and we haven't tried fallback yet
+      if (error.code === 'ERR_NETWORK' && !originalRequest._retry && BASE_URL !== RENDER_URL) {
+        originalRequest._retry = true;
+        
+        console.warn('⚠️ Laptop backend unreachable, falling back to Render...');
+        
+        // Store that we should use Render from now on
+        localStorage.setItem('useRender', 'true');
+        
+        // Update URLs to Render
+        BASE_URL = RENDER_URL;
+        SOCKET_URL = RENDER_URL;
+        originalRequest.baseURL = RENDER_URL;
+        
+        // Update ALL axios instances
+        api.defaults.baseURL = RENDER_URL;
+        publicApi.defaults.baseURL = RENDER_URL;
+        
+        // Retry the original request with new baseURL
+        return axiosInstance(originalRequest);
+      }
       
-      // Store that we should use Render from now on
-      localStorage.setItem('useRender', 'true');
-      
-      // Update URLs to Render
-      BASE_URL = RENDER_URL;
-      SOCKET_URL = RENDER_URL;
-      originalRequest.baseURL = RENDER_URL;
-      
-      // Update axios instance baseURL
-      api.defaults.baseURL = RENDER_URL;
-      publicApi.defaults.baseURL = RENDER_URL;
-      
-      // Retry the request with Render
-      return api(originalRequest);
+      return Promise.reject(error);
     }
-    
-    return Promise.reject(error);
-  }
-);
+  );
+};
 
+// Add interceptor to BOTH instances
+addFallbackInterceptor(api);
+addFallbackInterceptor(publicApi);
+
+// Add auth token interceptor to both
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -85,70 +92,71 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Socket.IO with proper fallback logic
-let socketInstance;
+publicApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Socket.IO with proper fallback logic - FIXED VERSION
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
+let currentSocket = null;
 
 const initSocket = () => {
   // If we've already failed over, use Render URL
-  const socketUrl = localStorage.getItem('useRender') === 'true' ? RENDER_URL : SOCKET_URL;
+  const useRender = localStorage.getItem('useRender') === 'true';
+  const socketUrl = useRender ? RENDER_URL : SOCKET_URL;
+  
+  console.log(`🔌 Connecting socket to: ${socketUrl}`);
   
   const socket = io(socketUrl, {
     withCredentials: true,
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
+    reconnectionDelay: 2000,
     transports: ['websocket', 'polling'],
     path: '/socket.io',
+    timeout: 10000,
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ Socket connected! ID:', socket.id);
+    reconnectAttempts = 0; // Reset attempts on successful connection
   });
 
   socket.on('connect_error', async (error) => {
+    console.log(`❌ Socket connection error (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS}):`, error.message);
     reconnectAttempts++;
-    console.log(`Socket connection failed (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
     
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS && localStorage.getItem('useRender') !== 'true') {
-      console.log('Switching to Render for socket connection...');
+      console.log('🔄 Switching to Render for socket connection...');
       localStorage.setItem('useRender', 'true');
       
-      // Close current socket
-      socket.disconnect();
-      
-      // Create new socket connection to Render
-      const newSocket = io(RENDER_URL, {
-        withCredentials: true,
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 1000,
-        transports: ['websocket', 'polling'],
-        path: '/socket.io',
-      });
-      
-      // Replace the socket instance
-      window.__socket = newSocket;
-      return newSocket;
+      // Force page reload to use Render URL for everything
+      window.location.reload();
     }
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('🔌 Socket disconnected:', reason);
   });
 
   return socket;
 };
 
+// Create and export the socket
 export const socket = initSocket();
 
-socket.on('connect', () => {
-  console.log('✅ Socket connected! ID:', socket.id);
-  reconnectAttempts = 0; // Reset attempts on successful connection
-});
-
-socket.on('connect_error', (error) => {
-  console.log('❌ Socket connection error:', error.message);
-});
-
-socket.on('disconnect', (reason) => {
-  console.log('🔌 Socket disconnected:', reason);
-});
+// Helper to manually check/switch to Render
+export const forceSwitchToRender = () => {
+  console.log('🔄 Manually switching to Render...');
+  localStorage.setItem('useRender', 'true');
+  window.location.reload();
+};
 
 export const CONTRIBUTION_TYPES_URL = () => `${api.defaults.baseURL}/api/contribution-types`;
 export const CONTRIBUTION_TYPE_URL = (id) => `${api.defaults.baseURL}/api/contribution-types/${id}`;

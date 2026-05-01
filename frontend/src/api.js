@@ -20,7 +20,7 @@ const testServerReachability = async (url, timeout = 10000) => {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
     const startTime = Date.now();
-    const response = await fetch(`${url}/api/health`, {
+    const response = await fetch(`${url}/health`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json'

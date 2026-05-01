@@ -2,144 +2,53 @@
 import axios from "axios";
 import { io } from "socket.io-client";
 
-let BASE_URL;
-let SOCKET_URL;
-
-const hostname = window.location.hostname;
-
-// Your laptop Tailscale URL
 const LAPTOP_URL = "https://chris-laptop.tail96b26f.ts.net";
-// Your Render backup URL
 const RENDER_URL = "https://zuca-backend-iw9p.onrender.com";
 
-// Helper to check if laptop is alive
-const checkLaptopHealth = async () => {
+// Track current server and failover state
+let currentBaseURL = LAPTOP_URL; // Start with laptop
+let currentSocketURL = LAPTOP_URL;
+let isFailingOver = false;
+let failoverAttempts = 0;
+const MAX_FAILOVER_ATTEMPTS = 2;
+
+// Helper to test if a server is reachable
+const testServerReachability = async (url, timeout = 3000) => {
   try {
-    await axios.get(`${LAPTOP_URL}/api/health`, { timeout: 3000 });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    const response = await fetch(`${url}/api/health`, {
+      method: 'HEAD',
+      signal: controller.signal,
+      mode: 'no-cors' // This bypasses CORS for just testing reachability
+    });
+    
+    clearTimeout(timeoutId);
     return true;
-  } catch {
+  } catch (error) {
+    console.log(`${url} is not reachable:`, error.message);
     return false;
   }
 };
 
-// Get initial server choice
-const getInitialServer = () => {
-  // On localhost, use local server
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return { base: "http://localhost:5000", socket: "http://localhost:5000" };
-  }
-  
-  // On local network, use local IP
-  if (hostname === "192.168.100.141") {
-    return { base: "http://192.168.100.141:5000", socket: "http://192.168.100.141:5000" };
-  }
-  
-  // Check localStorage preference but with expiry (15 minutes)
-  const storedServer = localStorage.getItem('activeServer');
-  const storedTimestamp = localStorage.getItem('serverTimestamp');
-  const now = Date.now();
-  
-  // If preference is stale (>15 min) or doesn't exist, check laptop health
-  if (!storedServer || !storedTimestamp || (now - parseInt(storedTimestamp)) > 900000) {
-    // Check laptop health asynchronously, but return default for now
-    checkLaptopHealth().then(isLaptopAlive => {
-      if (isLaptopAlive && storedServer !== 'laptop') {
-        console.log('🔄 Laptop is back online! Switching back...');
-        localStorage.setItem('activeServer', 'laptop');
-        localStorage.setItem('serverTimestamp', Date.now().toString());
-        window.location.reload();
-      }
-    });
-    
-    // Default to laptop first (will failover if needed)
-    return { base: LAPTOP_URL, socket: LAPTOP_URL };
-  }
-  
-  // Use stored preference
-  if (storedServer === 'laptop') {
-    return { base: LAPTOP_URL, socket: LAPTOP_URL };
-  } else {
-    return { base: RENDER_URL, socket: RENDER_URL };
-  }
-};
-
-const initialServers = getInitialServer();
-BASE_URL = initialServers.base;
-SOCKET_URL = initialServers.socket;
-
-console.log(`🌐 Using backend: ${BASE_URL}`);
-
 // Create axios instances
-export const publicApi = axios.create({
-  baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json" },
-  withCredentials: true,
-});
-
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
+  timeout: 8000 // 8 second timeout
 });
 
-// Add fallback interceptor to both instances
-const addFallbackInterceptor = (axiosInstance) => {
-  axiosInstance.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      const originalRequest = error.config;
-      
-      // Don't retry if already retrying or if it's a non-network error
-      if (originalRequest._retry || error.code !== 'ERR_NETWORK') {
-        return Promise.reject(error);
-      }
-      
-      originalRequest._retry = true;
-      
-      const currentServer = localStorage.getItem('activeServer');
-      const isCurrentlyOnLaptop = currentServer === 'laptop' || !currentServer;
-      
-      console.log(`⚠️ Request failed to ${axiosInstance.defaults.baseURL}`);
-      
-      // If currently on laptop and failed, try Render
-      if (isCurrentlyOnLaptop) {
-        console.warn('🔄 Laptop unreachable, falling back to Render...');
-        localStorage.setItem('activeServer', 'render');
-        localStorage.setItem('serverTimestamp', Date.now().toString());
-        
-        // Update all URLs
-        const newBaseURL = RENDER_URL;
-        api.defaults.baseURL = newBaseURL;
-        publicApi.defaults.baseURL = newBaseURL;
-        originalRequest.baseURL = newBaseURL;
-        
-        // Retry the request with new base URL
-        return axiosInstance(originalRequest);
-      } 
-      // If currently on Render and laptop is the target, check if laptop is available
-      else if (!isCurrentlyOnLaptop && originalRequest.baseURL === LAPTOP_URL) {
-        // Check if laptop is actually available
-        const isLaptopAlive = await checkLaptopHealth();
-        if (isLaptopAlive) {
-          console.log('✅ Laptop is back online, switching back...');
-          localStorage.setItem('activeServer', 'laptop');
-          localStorage.setItem('serverTimestamp', Date.now().toString());
-          originalRequest.baseURL = LAPTOP_URL;
-          return axiosInstance(originalRequest);
-        }
-      }
-      
-      return Promise.reject(error);
-    }
-  );
-};
+export const publicApi = axios.create({
+  baseURL: currentBaseURL,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+  timeout: 8000
+});
 
-// Add interceptor to BOTH instances
-addFallbackInterceptor(api);
-addFallbackInterceptor(publicApi);
-
-// Add auth token interceptor to both
-const authInterceptor = (config) => {
+// Add auth token interceptor
+const addAuthToken = (config) => {
   const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -147,111 +56,212 @@ const authInterceptor = (config) => {
   return config;
 };
 
-api.interceptors.request.use(authInterceptor);
-publicApi.interceptors.request.use(authInterceptor);
+api.interceptors.request.use(addAuthToken);
+publicApi.interceptors.request.use(addAuthToken);
 
-// Socket connection with bidirectional failover
+// Function to switch servers
+const switchToServer = async (newServerURL, reason) => {
+  if (currentBaseURL === newServerURL) return;
+  
+  console.log(`🔄 Switching from ${currentBaseURL} to ${newServerURL} (Reason: ${reason})`);
+  
+  currentBaseURL = newServerURL;
+  currentSocketURL = newServerURL;
+  
+  // Update axios instances
+  api.defaults.baseURL = currentBaseURL;
+  publicApi.defaults.baseURL = currentBaseURL;
+  
+  // Store preference (with expiration)
+  localStorage.setItem('lastWorkingServer', newServerURL);
+  localStorage.setItem('lastServerSwitch', Date.now().toString());
+  
+  // Reconnect socket
+  if (window.currentSocket) {
+    window.currentSocket.disconnect();
+  }
+  initSocket();
+};
+
+// Main failover interceptor
+const failoverInterceptor = async (error) => {
+  const originalRequest = error.config;
+  
+  // Don't retry if we already tried or if it's not a connection error
+  if (originalRequest._retry || isFailingOver) {
+    return Promise.reject(error);
+  }
+  
+  // Check if it's a network error or server unavailable
+  const isNetworkError = error.code === 'ERR_NETWORK' || 
+                         error.code === 'ECONNABORTED' ||
+                         error.message?.includes('timeout') ||
+                         error.response?.status === 503 ||
+                         error.response?.status === 502;
+  
+  if (!isNetworkError) {
+    return Promise.reject(error);
+  }
+  
+  originalRequest._retry = true;
+  isFailingOver = true;
+  failoverAttempts++;
+  
+  console.warn(`⚠️ Server ${currentBaseURL} failed. Attempting failover (${failoverAttempts}/${MAX_FAILOVER_ATTEMPTS})...`);
+  
+  try {
+    const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
+    
+    // Test if target server is reachable
+    const isReachable = await testServerReachability(targetServer);
+    
+    if (isReachable) {
+      console.log(`✅ ${targetServer} is reachable, switching...`);
+      await switchToServer(targetServer, `${currentBaseURL} failed`);
+      
+      // Update the original request to use new server
+      originalRequest.baseURL = currentBaseURL;
+      
+      // Retry the request
+      const response = await api(originalRequest);
+      isFailingOver = false;
+      failoverAttempts = 0;
+      return response;
+    } else {
+      console.log(`❌ ${targetServer} is also unreachable`);
+      
+      if (failoverAttempts >= MAX_FAILOVER_ATTEMPTS) {
+        // Both servers appear down
+        console.error('🔥 Both servers are unreachable!');
+        isFailingOver = false;
+        return Promise.reject(new Error('Service temporarily unavailable. Please try again.'));
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      isFailingOver = false;
+      return failoverInterceptor(error);
+    }
+  } catch (failoverError) {
+    console.error('Failover failed:', failoverError);
+    isFailingOver = false;
+    return Promise.reject(error);
+  }
+};
+
+// Add interceptor to both instances
+api.interceptors.response.use(
+  response => response,
+  failoverInterceptor
+);
+
+publicApi.interceptors.response.use(
+  response => response,
+  failoverInterceptor
+);
+
+// Socket.IO with automatic failover
+let socketInstance = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 3;
-let currentSocket = null;
+const MAX_SOCKET_RECONNECT = 5;
 
 const initSocket = () => {
-  const activeServer = localStorage.getItem('activeServer');
-  const socketUrl = activeServer === 'render' ? RENDER_URL : LAPTOP_URL;
+  if (socketInstance) {
+    socketInstance.disconnect();
+  }
   
-  console.log(`🔌 Connecting socket to: ${socketUrl}`);
+  console.log(`🔌 Connecting socket to ${currentSocketURL}`);
   
-  const socket = io(socketUrl, {
+  socketInstance = io(currentSocketURL, {
     withCredentials: true,
     autoConnect: true,
     reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 2000,
+    reconnectionAttempts: MAX_SOCKET_RECONNECT,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
     transports: ['websocket', 'polling'],
-    path: '/socket.io',
-    timeout: 10000,
+    timeout: 10000
   });
-
-  socket.on('connect', () => {
-    console.log('✅ Socket connected to:', socketUrl);
+  
+  socketInstance.on('connect', () => {
+    console.log(`✅ Socket connected to ${currentSocketURL} ID: ${socketInstance.id}`);
     reconnectAttempts = 0;
   });
-
-  socket.on('connect_error', async (error) => {
-    console.log(`❌ Socket connection error (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+  
+  socketInstance.on('connect_error', async (error) => {
+    console.log(`❌ Socket error to ${currentSocketURL}:`, error.message);
     reconnectAttempts++;
     
-    const activeServer = localStorage.getItem('activeServer');
-    const isOnLaptop = activeServer === 'laptop' || !activeServer;
-    
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      if (isOnLaptop) {
-        // Try switching to Render
-        console.log('🔄 Switching to Render for socket...');
-        localStorage.setItem('activeServer', 'render');
-        localStorage.setItem('serverTimestamp', Date.now().toString());
-        window.location.reload();
+    if (reconnectAttempts >= MAX_SOCKET_RECONNECT) {
+      console.log('🔄 Socket failed, attempting server failover...');
+      const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
+      const isReachable = await testServerReachability(targetServer);
+      
+      if (isReachable) {
+        await switchToServer(targetServer, 'Socket connection failed');
+        // Socket will be recreated by switchToServer
       } else {
-        // On Render, check if laptop is back
-        const isLaptopAlive = await checkLaptopHealth();
-        if (isLaptopAlive) {
-          console.log('🔄 Laptop is back! Switching to laptop...');
-          localStorage.setItem('activeServer', 'laptop');
-          localStorage.setItem('serverTimestamp', Date.now().toString());
-          window.location.reload();
-        } else {
-          // Keep trying Render
-          reconnectAttempts = 0; // Reset counter to keep trying
-        }
+        console.log('⚠️ Backup server also unreachable, will retry socket later');
+        reconnectAttempts = MAX_SOCKET_RECONNECT - 1; // Reset to keep trying
       }
     }
   });
-
-  socket.on('disconnect', (reason) => {
+  
+  socketInstance.on('disconnect', (reason) => {
     console.log('🔌 Socket disconnected:', reason);
   });
-
-  return socket;
+  
+  window.currentSocket = socketInstance;
+  return socketInstance;
 };
 
-// Create and export the socket
+// Initialize socket
 export const socket = initSocket();
 
-// Manual server switcher for debugging
-export const switchServer = async (server) => {
-  if (server === 'laptop') {
-    const isAlive = await checkLaptopHealth();
-    if (!isAlive) {
-      console.error('❌ Laptop is not reachable!');
-      return false;
+// Periodically check if primary server (laptop) is back online
+setInterval(async () => {
+  // Only check if we're currently on backup (Render)
+  if (currentBaseURL === RENDER_URL) {
+    console.log('🔍 Checking if laptop is back online...');
+    const isLaptopReachable = await testServerReachability(LAPTOP_URL);
+    
+    if (isLaptopReachable) {
+      console.log('✅ Laptop is back online! Switching back to primary...');
+      await switchToServer(LAPTOP_URL, 'Primary server restored');
     }
   }
-  
-  localStorage.setItem('activeServer', server);
-  localStorage.setItem('serverTimestamp', Date.now().toString());
-  window.location.reload();
-  return true;
-};
+}, 30000); // Check every 30 seconds
 
-// Health check helper
-export const checkCurrentServer = async () => {
-  const currentURL = api.defaults.baseURL;
-  try {
-    await axios.get(`${currentURL}/api/health`, { timeout: 5000 });
-    console.log(`✅ ${currentURL} is healthy`);
+// Force switch function for manual override
+export const forceSwitchToLaptop = async () => {
+  const isReachable = await testServerReachability(LAPTOP_URL);
+  if (isReachable) {
+    await switchToServer(LAPTOP_URL, 'Manual override');
     return true;
-  } catch (error) {
-    console.log(`❌ ${currentURL} is unhealthy`);
-    return false;
   }
+  return false;
 };
 
-export const CONTRIBUTION_TYPES_URL = () => `${api.defaults.baseURL}/api/contribution-types`;
-export const CONTRIBUTION_TYPE_URL = (id) => `${api.defaults.baseURL}/api/contribution-types/${id}`;
-export const PLEDGE_URL = (id) => `${api.defaults.baseURL}/api/pledges/${id}`;
+export const forceSwitchToRender = async () => {
+  const isReachable = await testServerReachability(RENDER_URL);
+  if (isReachable) {
+    await switchToServer(RENDER_URL, 'Manual override');
+    return true;
+  }
+  return false;
+};
 
-export const authHeader = (token) => ({
-  headers: { Authorization: `Bearer ${token}` },
+// Helper to check current status
+export const getCurrentServer = () => ({
+  url: currentBaseURL,
+  isPrimary: currentBaseURL === LAPTOP_URL,
+  socketConnected: socketInstance?.connected || false
 });
 
-export default BASE_URL;
+// Export URLs
+export const CONTRIBUTION_TYPES_URL = () => `${currentBaseURL}/api/contribution-types`;
+export const CONTRIBUTION_TYPE_URL = (id) => `${currentBaseURL}/api/contribution-types/${id}`;
+export const PLEDGE_URL = (id) => `${currentBaseURL}/api/pledges/${id}`;
+export const authHeader = (token) => ({ headers: { Authorization: `Bearer ${token}` } });
+
+export default currentBaseURL;

@@ -6,18 +6,20 @@ const LAPTOP_URL = "https://chris-laptop.tail96b26f.ts.net";
 const RENDER_URL = "https://zuca-backend-iw9p.onrender.com";
 
 // Track current server and failover state
-let currentBaseURL = LAPTOP_URL; // Start with laptop
+let currentBaseURL = LAPTOP_URL;
 let currentSocketURL = LAPTOP_URL;
 let isFailingOver = false;
+let isWakingRender = false;
 let failoverAttempts = 0;
 const MAX_FAILOVER_ATTEMPTS = 2;
 
-// Helper to test if a server is TRULY reachable and healthy
-const testServerReachability = async (url, timeout = 5000) => {
+// Helper to test if a server is reachable (handles Render sleep)
+const testServerReachability = async (url, timeout = 10000) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
+    const startTime = Date.now();
     const response = await fetch(`${url}/api/health`, {
       method: 'GET',
       headers: {
@@ -26,49 +28,84 @@ const testServerReachability = async (url, timeout = 5000) => {
       signal: controller.signal
     });
     
+    const duration = Date.now() - startTime;
     clearTimeout(timeoutId);
     
-    // Must get 200-299 status
-    if (!response.ok) {
-      console.log(`${url} health check failed with status: ${response.status}`);
-      return false;
+    // 401 means server IS running (just needs auth)
+    if (response.status === 401) {
+      console.log(`${url} is ONLINE (${duration}ms) ✅`);
+      return true;
     }
     
-    // Verify response body is valid
-    const data = await response.json();
-    const isValid = data && (data.status === 'ok' || data.message);
-    
-    if (isValid) {
-      console.log(`${url} is healthy ✅`);
-    } else {
-      console.log(`${url} returned invalid health response`);
+    if (response.ok) {
+      console.log(`${url} is healthy (${duration}ms) ✅`);
+      return true;
     }
     
-    return isValid;
+    console.log(`${url} returned ${response.status} (${duration}ms)`);
+    return false;
     
   } catch (error) {
     if (error.name === 'AbortError') {
-      console.log(`${url} health check timed out after ${timeout}ms`);
+      console.log(`${url} timeout after ${timeout}ms - may be sleeping`);
     } else {
-      console.log(`${url} health check failed:`, error.message);
+      console.log(`${url} unreachable:`, error.message);
     }
     return false;
   }
 };
 
-// Create axios instances
+// Special function to wake up Render (with longer timeout)
+const wakeUpRender = async () => {
+  if (isWakingRender) return false;
+  
+  isWakingRender = true;
+  console.log('⏰ Render is sleeping. Attempting to wake it up (this takes 30-60 seconds)...');
+  
+  try {
+    // Use a much longer timeout for cold start
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65 second timeout
+    
+    const startTime = Date.now();
+    const response = await fetch(`${RENDER_URL}/api/health`, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    const duration = Date.now() - startTime;
+    clearTimeout(timeoutId);
+    
+    if (response.ok || response.status === 401) {
+      console.log(`✅ Render woke up successfully! (${duration}ms)`);
+      isWakingRender = false;
+      return true;
+    }
+    
+    console.log(`⚠️ Render responded but with status: ${response.status}`);
+    isWakingRender = false;
+    return false;
+    
+  } catch (error) {
+    console.log(`❌ Render wake-up failed:`, error.message);
+    isWakingRender = false;
+    return false;
+  }
+};
+
+// Create axios instances with longer timeout for Render
 export const api = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 8000
+  timeout: 30000 // 30 second timeout (Render cold start)
 });
 
 export const publicApi = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 8000
+  timeout: 30000
 });
 
 // Add auth token interceptor
@@ -92,15 +129,12 @@ const switchToServer = async (newServerURL, reason) => {
   currentBaseURL = newServerURL;
   currentSocketURL = newServerURL;
   
-  // Update axios instances
   api.defaults.baseURL = currentBaseURL;
   publicApi.defaults.baseURL = currentBaseURL;
   
-  // Store preference
   localStorage.setItem('lastWorkingServer', newServerURL);
   localStorage.setItem('lastServerSwitch', Date.now().toString());
   
-  // Reconnect socket
   if (window.currentSocket) {
     window.currentSocket.disconnect();
   }
@@ -111,17 +145,14 @@ const switchToServer = async (newServerURL, reason) => {
 const failoverInterceptor = async (error) => {
   const originalRequest = error.config;
   
-  // Don't retry if we already tried or if it's not a connection error
   if (originalRequest._retry || isFailingOver) {
     return Promise.reject(error);
   }
   
-  // Check if it's a network error or server unavailable
+  // Check if it's a network error or timeout
   const isNetworkError = error.code === 'ERR_NETWORK' || 
                          error.code === 'ECONNABORTED' ||
-                         error.message?.includes('timeout') ||
-                         error.response?.status === 503 ||
-                         error.response?.status === 502;
+                         error.message?.includes('timeout');
   
   if (!isNetworkError) {
     return Promise.reject(error);
@@ -136,17 +167,30 @@ const failoverInterceptor = async (error) => {
   try {
     const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
     
-    // Test if target server is reachable
-    const isReachable = await testServerReachability(targetServer);
+    // Special handling for Render (might be sleeping)
+    let isReachable = false;
+    if (targetServer === RENDER_URL) {
+      // Try to wake up Render first
+      isReachable = await wakeUpRender();
+      if (!isReachable) {
+        console.log('⚠️ Render did not respond to wake-up, trying regular check...');
+        isReachable = await testServerReachability(targetServer, 15000);
+      }
+    } else {
+      isReachable = await testServerReachability(targetServer);
+    }
     
     if (isReachable) {
       console.log(`✅ ${targetServer} is reachable, switching...`);
       await switchToServer(targetServer, `${currentBaseURL} failed`);
       
-      // Update the original request to use new server
       originalRequest.baseURL = currentBaseURL;
       
-      // Retry the request
+      // Increase timeout for the retry if switching to Render
+      if (currentBaseURL === RENDER_URL) {
+        originalRequest.timeout = 45000; // 45 seconds for first request after wake
+      }
+      
       const response = await api(originalRequest);
       isFailingOver = false;
       failoverAttempts = 0;
@@ -155,14 +199,12 @@ const failoverInterceptor = async (error) => {
       console.log(`❌ ${targetServer} is also unreachable`);
       
       if (failoverAttempts >= MAX_FAILOVER_ATTEMPTS) {
-        // Both servers appear down
         console.error('🔥 Both servers are unreachable!');
         isFailingOver = false;
-        return Promise.reject(new Error('Service temporarily unavailable. Please try again.'));
+        return Promise.reject(new Error('Service temporarily unavailable. Please refresh and try again.'));
       }
       
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       isFailingOver = false;
       return failoverInterceptor(error);
     }
@@ -173,7 +215,6 @@ const failoverInterceptor = async (error) => {
   }
 };
 
-// Add interceptor to both instances
 api.interceptors.response.use(
   response => response,
   failoverInterceptor
@@ -201,10 +242,10 @@ const initSocket = () => {
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: MAX_SOCKET_RECONNECT,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
     transports: ['websocket', 'polling'],
-    timeout: 10000
+    timeout: 20000, // 20 second timeout for socket
   });
   
   socketInstance.on('connect', () => {
@@ -219,7 +260,13 @@ const initSocket = () => {
     if (reconnectAttempts >= MAX_SOCKET_RECONNECT) {
       console.log('🔄 Socket failed, attempting server failover...');
       const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
-      const isReachable = await testServerReachability(targetServer);
+      
+      let isReachable = false;
+      if (targetServer === RENDER_URL) {
+        isReachable = await wakeUpRender();
+      } else {
+        isReachable = await testServerReachability(targetServer);
+      }
       
       if (isReachable) {
         await switchToServer(targetServer, 'Socket connection failed');
@@ -238,23 +285,22 @@ const initSocket = () => {
   return socketInstance;
 };
 
-// Initialize socket
 export const socket = initSocket();
 
-// Periodically check if primary server (laptop) is back online
+// Check if primary server is back (with special handling)
 setInterval(async () => {
   if (currentBaseURL === RENDER_URL) {
     console.log('🔍 Checking if laptop is back online...');
-    const isLaptopReachable = await testServerReachability(LAPTOP_URL);
+    const isLaptopReachable = await testServerReachability(LAPTOP_URL, 5000);
     
     if (isLaptopReachable) {
       console.log('✅ Laptop is back online! Switching back to primary...');
       await switchToServer(LAPTOP_URL, 'Primary server restored');
     }
   }
-}, 30000); // Check every 30 seconds
+}, 30000);
 
-// Force switch functions for manual override
+// Manual switch functions
 export const forceSwitchToLaptop = async () => {
   const isReachable = await testServerReachability(LAPTOP_URL);
   if (isReachable) {
@@ -266,7 +312,8 @@ export const forceSwitchToLaptop = async () => {
 };
 
 export const forceSwitchToRender = async () => {
-  const isReachable = await testServerReachability(RENDER_URL);
+  console.log('🔄 Manually switching to Render...');
+  const isReachable = await wakeUpRender();
   if (isReachable) {
     await switchToServer(RENDER_URL, 'Manual override');
     return true;
@@ -275,14 +322,12 @@ export const forceSwitchToRender = async () => {
   return false;
 };
 
-// Helper to check current status
 export const getCurrentServer = () => ({
   url: currentBaseURL,
   isPrimary: currentBaseURL === LAPTOP_URL,
   socketConnected: socketInstance?.connected || false
 });
 
-// Export URL helpers
 export const CONTRIBUTION_TYPES_URL = () => `${currentBaseURL}/api/contribution-types`;
 export const CONTRIBUTION_TYPE_URL = (id) => `${currentBaseURL}/api/contribution-types/${id}`;
 export const PLEDGE_URL = (id) => `${currentBaseURL}/api/pledges/${id}`;

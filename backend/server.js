@@ -4515,7 +4515,6 @@ app.post("/api/auth/verify", async (req, res) => {
 
 // ================== ROOT ==================
 app.get("/", (req, res) => res.json({ message: "ZUCA Backend Running 🚀" }));
-
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });

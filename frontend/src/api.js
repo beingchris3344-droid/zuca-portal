@@ -5,125 +5,56 @@ import { io } from "socket.io-client";
 const LAPTOP_URL = "https://chris-laptop.tail96b26f.ts.net";
 const RENDER_URL = "https://zuca-backend-iw9p.onrender.com";
 
-// Track current server and failover state
-let currentBaseURL = LAPTOP_URL;
-let currentSocketURL = LAPTOP_URL;
-let isFailingOver = false;
-let isWakingRender = false;
-let failoverAttempts = 0;
-const MAX_FAILOVER_ATTEMPTS = 2;
-
-// Helper to test if a server is reachable (handles Render sleep)
-const testServerReachability = async (url, timeout = 10000) => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
-    const startTime = Date.now();
-    const response = await fetch(`${url}/health`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      },
-      signal: controller.signal
-    });
-    
-    const duration = Date.now() - startTime;
-    clearTimeout(timeoutId);
-    
-    // 401 means server IS running (just needs auth)
-    if (response.status === 401) {
-      console.log(`${url} is ONLINE (${duration}ms) ✅`);
-      return true;
-    }
-    
-    if (response.ok) {
-      console.log(`${url} is healthy (${duration}ms) ✅`);
-      return true;
-    }
-    
-    console.log(`${url} returned ${response.status} (${duration}ms)`);
-    return false;
-    
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log(`${url} timeout after ${timeout}ms - may be sleeping`);
-    } else {
-      console.log(`${url} unreachable:`, error.message);
-    }
-    return false;
-  }
+// Get the server to use (checks localStorage)
+const getActiveServer = () => {
+  const saved = localStorage.getItem('activeServer');
+  if (saved === 'render') return RENDER_URL;
+  return LAPTOP_URL; // Default to laptop
 };
 
-// Special function to wake up Render (with longer timeout)
-const wakeUpRender = async () => {
-  if (isWakingRender) return false;
-  
-  isWakingRender = true;
-  console.log('⏰ Render is sleeping. Attempting to wake it up (this takes 30-60 seconds)...');
-  
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 65000);
-    
-    const startTime = Date.now();
-    const response = await fetch(`${RENDER_URL}/health`, {
-      method: 'GET',
-      signal: controller.signal
-    });
-    
-    const duration = Date.now() - startTime;
-    clearTimeout(timeoutId);
-    
-    if (response.ok || response.status === 401) {
-      console.log(`✅ Render woke up successfully! (${duration}ms)`);
-      isWakingRender = false;
-      return true;
-    }
-    
-    console.log(`⚠️ Render responded but with status: ${response.status}`);
-    isWakingRender = false;
-    return false;
-    
-  } catch (error) {
-    console.log(`❌ Render wake-up failed:`, error.message);
-    isWakingRender = false;
-    return false;
-  }
-};
+// Set initial server
+let currentBaseURL = getActiveServer();
+let currentSocketURL = currentBaseURL;
 
-// Create axios instances with longer timeout for Render
+console.log(`🔗 Using backend: ${currentBaseURL}`);
+
+// Create axios instances
 export const api = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 30000
+  timeout: 15000
 });
 
 export const publicApi = axios.create({
   baseURL: currentBaseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
-  timeout: 30000
+  timeout: 15000
 });
 
 // Add auth token interceptor
-const addAuthToken = (config) => {
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
-};
+});
 
-api.interceptors.request.use(addAuthToken);
-publicApi.interceptors.request.use(addAuthToken);
+publicApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 // Function to switch servers
-const switchToServer = async (newServerURL, reason) => {
+const switchToServer = (newServerURL) => {
   if (currentBaseURL === newServerURL) return;
   
-  console.log(`🔄 Switching from ${currentBaseURL} to ${newServerURL} (Reason: ${reason})`);
+  console.log(`🔄 Switching from ${currentBaseURL} to ${newServerURL}`);
   
   currentBaseURL = newServerURL;
   currentSocketURL = newServerURL;
@@ -131,209 +62,87 @@ const switchToServer = async (newServerURL, reason) => {
   api.defaults.baseURL = currentBaseURL;
   publicApi.defaults.baseURL = currentBaseURL;
   
-  localStorage.setItem('lastWorkingServer', newServerURL);
-  localStorage.setItem('lastServerSwitch', Date.now().toString());
+  localStorage.setItem('activeServer', newServerURL === RENDER_URL ? 'render' : 'laptop');
   
-  if (window.currentSocket) {
-    window.currentSocket.disconnect();
-  }
-  initSocket();
+  // Reload page to apply new server
+  window.location.reload();
 };
 
-// ========== MAIN FAILOVER INTERCEPTOR - FIXED FOR 502/503 ==========
-const failoverInterceptor = async (error) => {
-  const originalRequest = error.config;
-  
-  if (originalRequest._retry || isFailingOver) {
-    return Promise.reject(error);
-  }
-  
-  // Check if it's a network error OR server error (502, 503, etc.)
-  const isNetworkError = error.code === 'ERR_NETWORK' || 
-                         error.code === 'ECONNABORTED' ||
-                         error.message?.includes('timeout');
-  
-  const isServerError = error.response?.status === 502 ||
-                        error.response?.status === 503 ||
-                        error.response?.status === 500;
-  
-  // If it's NOT a network error AND NOT a server error, reject
-  if (!isNetworkError && !isServerError) {
-    return Promise.reject(error);
-  }
-  
-  originalRequest._retry = true;
-  isFailingOver = true;
-  failoverAttempts++;
-  
-  console.warn(`⚠️ Server ${currentBaseURL} failed (${error.response?.status || 'NETWORK_ERROR'}). Attempting failover (${failoverAttempts}/${MAX_FAILOVER_ATTEMPTS})...`);
-  
+// Function to check if laptop is healthy
+const isLaptopHealthy = async () => {
   try {
-    const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
-    
-    let isReachable = false;
-    if (targetServer === RENDER_URL) {
-      isReachable = await wakeUpRender();
-      if (!isReachable) {
-        console.log('⚠️ Render did not respond to wake-up, trying regular check...');
-        isReachable = await testServerReachability(targetServer, 15000);
-      }
-    } else {
-      isReachable = await testServerReachability(targetServer);
-    }
-    
-    if (isReachable) {
-      console.log(`✅ ${targetServer} is reachable, switching...`);
-      await switchToServer(targetServer, `${currentBaseURL} failed (${error.response?.status || 'NETWORK'})`);
-      
-      originalRequest.baseURL = currentBaseURL;
-      
-      // Re-attach auth token
-      const token = localStorage.getItem("token");
-      if (token && originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-      }
-      
-      if (currentBaseURL === RENDER_URL) {
-        originalRequest.timeout = 45000;
-      }
-      
-      const response = await axios(originalRequest);
-      isFailingOver = false;
-      failoverAttempts = 0;
-      return response;
-    } else {
-      console.log(`❌ ${targetServer} is also unreachable`);
-      
-      if (failoverAttempts >= MAX_FAILOVER_ATTEMPTS) {
-        console.error('🔥 Both servers are unreachable!');
-        isFailingOver = false;
-        return Promise.reject(new Error('Service temporarily unavailable. Please refresh and try again.'));
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      isFailingOver = false;
-      return failoverInterceptor(error);
-    }
-  } catch (failoverError) {
-    console.error('Failover failed:', failoverError);
-    isFailingOver = false;
-    return Promise.reject(error);
+    const response = await fetch(`${LAPTOP_URL}/health`, {
+      method: 'GET',
+      mode: 'no-cors', // This prevents CORS preflight
+      signal: AbortSignal.timeout(5000)
+    });
+    return true; // If no-cors, we know it's reachable
+  } catch (error) {
+    console.log('Laptop health check failed:', error.message);
+    return false;
   }
 };
-// ========== END FAILOVER INTERCEPTOR ==========
 
+// MAIN FAILOVER LOGIC - Runs on every request
 api.interceptors.response.use(
-  response => response,
-  failoverInterceptor
+  (response) => response,
+  async (error) => {
+    // If we're on laptop and request failed, switch to Render
+    if (currentBaseURL === LAPTOP_URL) {
+      console.warn('⚠️ Laptop request failed, automatically switching to Render...');
+      switchToServer(RENDER_URL);
+    }
+    return Promise.reject(error);
+  }
 );
 
 publicApi.interceptors.response.use(
-  response => response,
-  failoverInterceptor
+  (response) => response,
+  async (error) => {
+    // If we're on laptop and request failed, switch to Render
+    if (currentBaseURL === LAPTOP_URL) {
+      console.warn('⚠️ Laptop request failed, automatically switching to Render...');
+      switchToServer(RENDER_URL);
+    }
+    return Promise.reject(error);
+  }
 );
 
-// Socket.IO with automatic failover
-let socketInstance = null;
-let reconnectAttempts = 0;
-const MAX_SOCKET_RECONNECT = 5;
-
-const initSocket = () => {
-  if (socketInstance) {
-    socketInstance.disconnect();
-  }
-  
-  console.log(`🔌 Connecting socket to ${currentSocketURL}`);
-  
-  socketInstance = io(currentSocketURL, {
-    withCredentials: true,
-    autoConnect: true,
-    reconnection: true,
-    reconnectionAttempts: MAX_SOCKET_RECONNECT,
-    reconnectionDelay: 2000,
-    reconnectionDelayMax: 10000,
-    transports: ['websocket', 'polling'],
-    timeout: 20000,
-  });
-  
-  socketInstance.on('connect', () => {
-    console.log(`✅ Socket connected to ${currentSocketURL} ID: ${socketInstance.id}`);
-    reconnectAttempts = 0;
-  });
-  
-  socketInstance.on('connect_error', async (error) => {
-    console.log(`❌ Socket error to ${currentSocketURL}:`, error.message);
-    reconnectAttempts++;
-    
-    if (reconnectAttempts >= MAX_SOCKET_RECONNECT) {
-      console.log('🔄 Socket failed, attempting server failover...');
-      const targetServer = currentBaseURL === LAPTOP_URL ? RENDER_URL : LAPTOP_URL;
-      
-      let isReachable = false;
-      if (targetServer === RENDER_URL) {
-        isReachable = await wakeUpRender();
-      } else {
-        isReachable = await testServerReachability(targetServer);
-      }
-      
-      if (isReachable) {
-        await switchToServer(targetServer, 'Socket connection failed');
-      } else {
-        console.log('⚠️ Backup server also unreachable, will retry socket later');
-        reconnectAttempts = MAX_SOCKET_RECONNECT - 1;
-      }
-    }
-  });
-  
-  socketInstance.on('disconnect', (reason) => {
-    console.log('🔌 Socket disconnected:', reason);
-  });
-  
-  window.currentSocket = socketInstance;
-  return socketInstance;
-};
-
-export const socket = initSocket();
-
-// Check if primary server is back (with special handling)
+// Check if laptop is back online every 30 seconds while on Render
 setInterval(async () => {
   if (currentBaseURL === RENDER_URL) {
-    console.log('🔍 Checking if laptop is back online...');
-    const isLaptopReachable = await testServerReachability(LAPTOP_URL, 5000);
-    
-    if (isLaptopReachable) {
-      console.log('✅ Laptop is back online! Switching back to primary...');
-      await switchToServer(LAPTOP_URL, 'Primary server restored');
+    const laptopHealthy = await isLaptopHealthy();
+    if (laptopHealthy) {
+      console.log('✅ Laptop is back online, switching back to primary...');
+      switchToServer(LAPTOP_URL);
     }
   }
 }, 30000);
 
-// Manual switch functions
-export const forceSwitchToLaptop = async () => {
-  const isReachable = await testServerReachability(LAPTOP_URL);
-  if (isReachable) {
-    await switchToServer(LAPTOP_URL, 'Manual override');
-    return true;
-  }
-  console.error('❌ Laptop is not reachable');
-  return false;
-};
+// Socket.IO
+export const socket = io(currentSocketURL, {
+  withCredentials: true,
+  autoConnect: true,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+});
 
-export const forceSwitchToRender = async () => {
-  console.log('🔄 Manually switching to Render...');
-  const isReachable = await wakeUpRender();
-  if (isReachable) {
-    await switchToServer(RENDER_URL, 'Manual override');
-    return true;
-  }
-  console.error('❌ Render is not reachable');
-  return false;
-};
+socket.on('connect', () => {
+  console.log('✅ Socket connected! ID:', socket.id);
+});
 
-export const getCurrentServer = () => ({
-  url: currentBaseURL,
-  isPrimary: currentBaseURL === LAPTOP_URL,
-  socketConnected: socketInstance?.connected || false
+socket.on('connect_error', (error) => {
+  console.log('❌ Socket connection error:', error.message);
+  // If socket fails on laptop, switch to Render
+  if (currentBaseURL === LAPTOP_URL) {
+    console.warn('⚠️ Socket failed on laptop, switching to Render...');
+    switchToServer(RENDER_URL);
+  }
+});
+
+socket.on('disconnect', (reason) => {
+  console.log('🔌 Socket disconnected:', reason);
 });
 
 export const CONTRIBUTION_TYPES_URL = () => `${currentBaseURL}/api/contribution-types`;

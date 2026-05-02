@@ -4521,7 +4521,6 @@ app.get("/", (req, res) => res.json({ message: "ZUCA Backend Running 🚀" }));
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
-
 // ================== REGISTER ==================
 app.post("/api/register", async (req, res) => {
   try {
@@ -4613,6 +4612,16 @@ app.post("/api/register", async (req, res) => {
       where: { id: user.id },
       data: { lastActive: new Date() }
     });
+
+    // ========== SEND WELCOME EMAIL ==========
+    try {
+      await sendWelcomeEmail(user, membershipNumber);
+      console.log(`✅ Welcome email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error(`❌ Welcome email failed for ${user.email}:`, emailErr.message);
+      // Don't block registration if email fails
+    }
+    // ========== END OF WELCOME EMAIL ==========
 
     const { password: _, ...userWithoutPassword } = user;
 

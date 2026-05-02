@@ -832,8 +832,8 @@ function Register() {
                     onKeyDown={(e) => handleVerificationKeyDown(e, index)}
                     onPaste={(e) => handlePasteCode(e)}
                     style={{
-                      width: "60px",
-                      height: "70px",
+                      width: "40px",
+                      height: "50px",
                       textAlign: "center",
                       fontSize: "32px",
                       fontWeight: "bold",

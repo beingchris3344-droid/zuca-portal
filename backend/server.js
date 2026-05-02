@@ -3516,8 +3516,10 @@ async function checkYouTubeForUpdates() {
     }
     
     // NEW VIDEO DETECTED - Send notification
-    if (newVideoFound && !lastVideoIds.has(newVideoFound.id.videoId)) {
-      console.log(`🎬 NEW VIDEO DETECTED: ${newVideoFound.snippet.title}`);
+// Only notify if video was published in the last 1 hour
+const videoDate = new Date(newVideoFound.snippet.publishedAt);
+const hoursSinceUpload = (Date.now() - videoDate.getTime()) / (1000 * 60 * 60);
+if (newVideoFound && !lastVideoIds.has(newVideoFound.id.videoId) && hoursSinceUpload < 1) {      console.log(`🎬 NEW VIDEO DETECTED: ${newVideoFound.snippet.title}`);
       
       const videoDetails = await axios.get(
         `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${newVideoFound.id.videoId}&part=snippet,statistics`

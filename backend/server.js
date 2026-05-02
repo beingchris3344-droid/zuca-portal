@@ -29,7 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const resetAttempts = new Map();
 
 // ================== EMAIL ==================
-const { sendPasswordResetEmail, sendPersonalizedEmail } = require("./services/mailer");
+const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
 const notifications = new Map();
 
@@ -4516,12 +4516,6 @@ app.post("/api/auth/verify", async (req, res) => {
   }
 });
 
-// ================== ROOT ==================
-app.get("/", (req, res) => res.json({ message: "ZUCA Backend Running 🚀" }));
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
-
 // ================== REGISTER ==================
 app.post("/api/register", async (req, res) => {
   try {
@@ -4614,12 +4608,24 @@ app.post("/api/register", async (req, res) => {
       data: { lastActive: new Date() }
     });
 
+    // ✅ SEND RESPONSE IMMEDIATELY - DON'T WAIT FOR EMAIL
     const { password: _, ...userWithoutPassword } = user;
 
     res.json({
       token,
       user: userWithoutPassword
     });
+
+    // ✅ SEND WELCOME EMAIL IN BACKGROUND (AFTER response is sent)
+    // This runs asynchronously and won't block the user
+    (async () => {
+      try {
+        await sendWelcomeEmail(user, membershipNumber);
+        console.log(`✅ Welcome email sent to ${user.email}`);
+      } catch (emailErr) {
+        console.error(`❌ Welcome email failed for ${user.email}:`, emailErr.message);
+      }
+    })();
 
   } catch (err) {
     console.error("Registration Error:", err);

@@ -4,12 +4,13 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import bg from "../assets/background4.webp";
 import logo from "../assets/zuca-logo.png";
-import BASE_URL from "../api"; // centralized API URL
-import WelcomeModal from "../components/WelcomeModal"; // Add this import
+import BASE_URL from "../api";
+import WelcomeModal from "../components/WelcomeModal";
 
 function Register() {
   const navigate = useNavigate();
 
+  // Registration form states
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -23,6 +24,15 @@ function Register() {
   const [focusedField, setFocusedField] = useState(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordMatch, setPasswordMatch] = useState(null);
+  
+  // Verification modal states
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""]);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationTimer, setVerificationTimer] = useState(300);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
   
   // Welcome modal states
   const [showWelcome, setShowWelcome] = useState(false);
@@ -59,6 +69,120 @@ function Register() {
     }
   }, [password, confirmPassword]);
 
+  // Timer for verification code
+  useEffect(() => {
+    if (!showVerification) return;
+    
+    const interval = setInterval(() => {
+      setVerificationTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [showVerification]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  const handleVerificationCodeChange = (element, index) => {
+    if (isNaN(element.value)) return;
+    const newCode = [...verificationCode];
+    newCode[index] = element.value;
+    setVerificationCode(newCode);
+    if (element.value !== "" && index < 5) {
+      document.getElementById(`verify-code-${index + 1}`)?.focus();
+    }
+  };
+
+  const handleVerificationKeyDown = (e, index) => {
+    if (e.key === "Backspace") {
+      if (verificationCode[index] === "" && index > 0) {
+        document.getElementById(`verify-code-${index - 1}`)?.focus();
+      }
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    const fullCode = verificationCode.join("");
+    if (fullCode.length !== 6) {
+      setVerificationError("Please enter the complete 6-digit code");
+      return;
+    }
+    
+    setVerificationLoading(true);
+    setVerificationError("");
+    
+    try {
+      const res = await fetch(`${BASE_URL}/api/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail, code: fullCode }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        // Update token with verified status
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+        setVerificationSuccess(true);
+        setShowVerification(false);
+        setShowWelcome(true);
+        setNewUserName(registrationData?.fullName?.split(" ")[0] || "Member");
+      } else {
+        setVerificationError(data.error || "Invalid verification code");
+      }
+    } catch (err) {
+      setVerificationError("Network error. Please try again.");
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setVerificationLoading(true);
+    setVerificationError("");
+    
+    try {
+      const res = await fetch(`${BASE_URL}/api/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setVerificationTimer(300);
+        setVerificationCode(["", "", "", "", "", ""]);
+        // Focus first input
+        setTimeout(() => document.getElementById('verify-code-0')?.focus(), 100);
+        // Show success message
+        const successMsg = document.createElement('div');
+        successMsg.style.cssText = "position:fixed;top:20px;right:20px;background:#10b981;color:white;padding:12px 20px;border-radius:12px;z-index:1001";
+        successMsg.innerText = "New code sent to your email!";
+        document.body.appendChild(successMsg);
+        setTimeout(() => successMsg.remove(), 3000);
+      } else {
+        setVerificationError(data.error || "Failed to resend code");
+      }
+    } catch (err) {
+      setVerificationError("Network error");
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
 
@@ -71,6 +195,8 @@ function Register() {
     let formattedPhone = phone;
     if (phone.startsWith("07")) {
       formattedPhone = "+254" + phone.slice(1);
+    } else if (phone.startsWith("7") && phone.length === 9) {
+      formattedPhone = "+254" + phone;
     }
 
     setLoading(true);
@@ -88,16 +214,19 @@ function Register() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         
-        // Store registration data for welcome modal
-        setNewUserName(data.user.fullName.split(" ")[0]);
+        // Show verification modal instead of welcome modal
+        setVerificationEmail(email);
+        setVerificationCode(["", "", "", "", "", ""]);
+        setVerificationError("");
+        setVerificationTimer(300);
+        setShowVerification(true);
         setRegistrationData(data.user);
-        setShowWelcome(true);
       } else {
         alert(data.error || "Registration failed. Please try again.");
       }
     } catch (err) {
       console.error("Registration Error:", err);
-      alert("Network error. Make sure the backend is reachable from your network.");
+      alert("Network error. Make sure the backend is reachable.");
     } finally {
       setLoading(false);
     }
@@ -291,6 +420,7 @@ function Register() {
                     transition: "all 0.3s"
                   }}
                   whileFocus={{ scale: 1.02 }}
+                  required
                 />
                 {focusedField === "name" && (
                   <motion.span
@@ -327,6 +457,7 @@ function Register() {
                     transition: "all 0.3s"
                   }}
                   whileFocus={{ scale: 1.02 }}
+                  required
                 />
                 {focusedField === "email" && (
                   <motion.span
@@ -352,7 +483,7 @@ function Register() {
               <div style={{ position: "relative", marginBottom: "15px" }}>
                 <motion.input
                   type="tel"
-                  placeholder="Phone Number (+254...)"
+                  placeholder="Phone Number (e.g., 0712345678)"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onFocus={() => setFocusedField("phone")}
@@ -363,6 +494,7 @@ function Register() {
                     transition: "all 0.3s"
                   }}
                   whileFocus={{ scale: 1.02 }}
+                  required
                 />
                 {focusedField === "phone" && (
                   <motion.span
@@ -400,6 +532,7 @@ function Register() {
                     transition: "all 0.3s"
                   }}
                   whileFocus={{ scale: 1.02 }}
+                  required
                 />
                 <motion.span
                   onClick={() => setShowPassword(!showPassword)}
@@ -465,6 +598,7 @@ function Register() {
                     transition: "all 0.3s"
                   }}
                   whileFocus={{ scale: 1.02 }}
+                  required
                 />
                 <motion.span
                   onClick={() => setShowConfirm(!showConfirm)}
@@ -586,6 +720,168 @@ function Register() {
           `}
         </style>
       </motion.div>
+
+      {/* Verification Modal */}
+      <AnimatePresence>
+        {showVerification && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.95)",
+              backdropFilter: "blur(8px)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 10000,
+              padding: "20px"
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 50 }}
+              transition={{ type: "spring", damping: 25 }}
+              style={{
+                background: "linear-gradient(135deg, #1a1a2e, #16213e)",
+                borderRadius: "28px",
+                padding: "35px",
+                maxWidth: "450px",
+                width: "100%",
+                textAlign: "center",
+                border: "1px solid rgba(0,198,255,0.3)",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.5)"
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring" }}
+                style={{ marginBottom: "20px" }}
+              >
+                <img src={logo} alt="ZUCA" style={{ width: "70px", marginBottom: "10px" }} />
+                <h2 style={{ color: "white", marginTop: "10px", fontSize: "24px" }}>Verify Your Email</h2>
+                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px" }}>
+                  We sent a 6-digit code to:<br />
+                  <strong style={{ color: "#00c6ff", fontSize: "16px" }}>{verificationEmail}</strong>
+                </p>
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                style={{ display: "flex", gap: "10px", justifyContent: "center", marginBottom: "20px", flexWrap: "wrap" }}
+              >
+                {verificationCode.map((digit, index) => (
+                  <input
+                    key={index}
+                    id={`verify-code-${index}`}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength="1"
+                    value={digit}
+                    onChange={(e) => handleVerificationCodeChange(e.target, index)}
+                    onKeyDown={(e) => handleVerificationKeyDown(e, index)}
+                    style={{
+                      width: "55px",
+                      height: "65px",
+                      textAlign: "center",
+                      fontSize: "28px",
+                      fontWeight: "bold",
+                      borderRadius: "16px",
+                      border: `2px solid ${digit ? "#00c6ff" : "rgba(0,198,255,0.3)"}`,
+                      background: "rgba(255,255,255,0.1)",
+                      color: "white",
+                      outline: "none",
+                      transition: "all 0.2s"
+                    }}
+                    autoFocus={index === 0}
+                  />
+                ))}
+              </motion.div>
+              
+              <AnimatePresence>
+                {verificationError && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    style={{ color: "#ff6b6b", marginBottom: "15px", fontSize: "14px", background: "rgba(255,107,107,0.1)", padding: "10px", borderRadius: "12px" }}
+                  >
+                    ⚠️ {verificationError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              <motion.button
+                onClick={handleVerifyEmail}
+                disabled={verificationLoading}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: verificationLoading ? "linear-gradient(135deg, #888, #666)" : "linear-gradient(135deg, #00c6ff, #007bff)",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: "16px",
+                  cursor: verificationLoading ? "not-allowed" : "pointer",
+                  marginBottom: "15px"
+                }}
+              >
+                {verificationLoading ? (
+                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <span style={{
+                      display: "inline-block",
+                      width: "16px",
+                      height: "16px",
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      borderRadius: "50%",
+                      borderTopColor: "white",
+                      animation: "spin 1s linear infinite"
+                    }}></span>
+                    Verifying...
+                  </span>
+                ) : (
+                  "Verify Email"
+                )}
+              </motion.button>
+              
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+                {verificationTimer > 0 ? (
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px" }}>
+                    ⏱️ Resend code in <span style={{ color: "#ffd700", fontWeight: "bold" }}>{formatTime(verificationTimer)}</span>
+                  </p>
+                ) : (
+                  <button
+                    onClick={handleResendVerification}
+                    disabled={verificationLoading}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#00c6ff",
+                      cursor: verificationLoading ? "not-allowed" : "pointer",
+                      fontSize: "14px",
+                      textDecoration: "underline"
+                    }}
+                  >
+                    Resend Code
+                  </button>
+                )}
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Welcome Modal */}
       <WelcomeModal

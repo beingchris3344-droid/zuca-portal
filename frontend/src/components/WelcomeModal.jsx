@@ -106,7 +106,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
           </div>
           
           <h2 style={styles.title}>
-           Hello <strong>{userName}</strong> Welcome to ZUCA Portal! 
+            Hello <strong>{userName}</strong>! Welcome to ZUCA!
           </h2>
           
           <p style={styles.message}>
@@ -114,7 +114,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
             You are now part of the Zetech University Catholic Action community.
           </p>
           
-          {/* Membership Number Section - Shows exactly as in database */}
+          {/* Membership Number Section */}
           <div style={styles.membershipSection}>
             <div style={styles.membershipHeader}>
               <FiAlertCircle size={16} color="#4f46e5" />
@@ -122,15 +122,13 @@ export default function WelcomeModal({ isOpen, onClose }) {
             </div>
             
             <div style={styles.membershipCard}>
-              {/* Display membership number exactly as from database */}
               <div style={styles.membershipDisplay}>
                 {membershipNumber}
               </div>
               
               <div style={styles.membershipConfirmed}>
                 <span style={styles.confirmedText}>
-                  ✓ Your --ZUCA-- Membership 
-                  Number is : {membershipNumber}
+                  ✓ Your ZUCA Membership Number: {membershipNumber}
                 </span>
                 <button onClick={handleCopy} style={styles.copyButton}>
                   <FiCopy size={14} /> {copied ? "Copied!" : "Copy"}
@@ -138,19 +136,19 @@ export default function WelcomeModal({ isOpen, onClose }) {
               </div>
             </div>
             
-            {/* Important Instructions */}
+            {/* Updated Important Instructions - Removed password reset reference */}
             <div style={styles.importantBox}>
-              <div style={styles.importantTitle}>⚠️ IMPORTANT - READ CAREFULLY</div>
+              <div style={styles.importantTitle}>⭐ IMPORTANT - SAVE THIS NUMBER</div>
               <ul style={styles.importantList}>
-                <li>Your membership number <strong>{membershipNumber}</strong> will be used to <strong>reset your password</strong></li>
-                <li>Must be linked with your <strong>phone number</strong> for account recovery</li>
-                <li><strong>Memorize or save</strong> this number - you cannot change it later</li>
-                <li>Always use this exact format:(Z-ZUCA + #-Number + membership number =) <strong style={{color: "#ef4444", fontSize: "14px"}}>{membershipNumber}</strong> when asked</li>
+                <li>This is your official <strong>ZUCA Membership Number</strong></li>
+                <li>Use it to identify yourself within the ZUCA community</li>
+                <li><strong>Save this email or screenshot this page</strong> - you'll need it for your profile</li>
+                <li>Your membership number format: <strong style={{color: "#4f46e5", fontSize: "14px"}}>{membershipNumber}</strong></li>
               </ul>
             </div>
           </div>
           
-          {/* Confirmation Checkbox */}
+          {/* Confirmation Checkbox - Updated text */}
           <label style={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -158,7 +156,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
               onChange={(e) => setUnderstood(e.target.checked)}
               style={styles.checkbox}
             />
-            <span>I understand and will remember that my membership number is <strong>{membershipNumber}</strong>, which I need to reset my password and recover my account</span>
+            <span>I understand and will save my ZUCA Membership Number: <strong>{membershipNumber}</strong></span>
           </label>
           
           <button 
@@ -299,8 +297,8 @@ const styles = {
     fontWeight: "500",
   },
   importantBox: {
-    background: "#fffbeb",
-    borderLeft: "4px solid #f59e0b",
+    background: "#f0fdf4",
+    borderLeft: "4px solid #10b981",
     padding: "16px",
     borderRadius: "12px",
     textAlign: "left",
@@ -308,12 +306,12 @@ const styles = {
   importantTitle: {
     fontSize: "13px",
     fontWeight: "700",
-    color: "#d97706",
+    color: "#059669",
     marginBottom: "8px",
   },
   importantList: {
     fontSize: "13px",
-    color: "#78350f",
+    color: "#065f46",
     margin: 0,
     paddingLeft: "20px",
     lineHeight: "1.6",

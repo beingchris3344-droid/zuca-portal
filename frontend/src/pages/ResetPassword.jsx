@@ -1,6 +1,6 @@
-// C:\Users\HP\zuca-portal\frontend\src\pages\ResetPassword.jsx
+// frontend/src/pages/ResetPassword.jsx
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import bg from "../assets/background4.webp";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
@@ -13,39 +13,25 @@ function ResetPassword() {
   const [timer, setTimer] = useState(300);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [showCodeNotification, setShowCodeNotification] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState("");
-  const [phone, setPhone] = useState("");
-  const [membershipNumber, setMembershipNumber] = useState("");
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [email, setEmail] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const storedCode = sessionStorage.getItem('resetCode');
-    const storedExpiry = sessionStorage.getItem('resetCodeExpiry');
-    const storedPhone = sessionStorage.getItem('resetPhone');
-    const storedMembership = sessionStorage.getItem('resetMembership');
+    // Get email from location state (passed from ForgotPassword)
+    const stateEmail = location.state?.email;
+    const storedEmail = sessionStorage.getItem('resetEmail');
     
-    if (!storedPhone || !storedMembership) {
+    if (stateEmail) {
+      setEmail(stateEmail);
+      sessionStorage.setItem('resetEmail', stateEmail);
+    } else if (storedEmail) {
+      setEmail(storedEmail);
+    } else {
+      // No email, redirect to forgot password
       navigate("/forgot-password");
-      return;
     }
-
-    setPhone(storedPhone);
-    setMembershipNumber(storedMembership);
-    
-    if (storedCode && storedExpiry) {
-      const expiryTime = parseInt(storedExpiry);
-      const now = Date.now();
-      
-      if (now < expiryTime) {
-        setGeneratedCode(storedCode);
-        setShowCodeNotification(true);
-        const remainingSeconds = Math.floor((expiryTime - now) / 1000);
-        setTimer(remainingSeconds);
-      }
-    }
-  }, [navigate]);
+  }, [location, navigate]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -60,24 +46,6 @@ function ResetPassword() {
 
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (showCodeNotification) {
-      const timer = setTimeout(() => {
-        setShowCodeNotification(false);
-      }, 15000);
-      return () => clearTimeout(timer);
-    }
-  }, [showCodeNotification]);
-
-  useEffect(() => {
-    if (copySuccess) {
-      const timer = setTimeout(() => {
-        setCopySuccess(false);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [copySuccess]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -124,18 +92,16 @@ function ResetPassword() {
       const res = await fetch(`${BASE_URL}/api/auth/resend-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, membershipNumber }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        sessionStorage.setItem('resetCode', data.code);
-        sessionStorage.setItem('resetCodeExpiry', Date.now() + 15 * 60 * 1000);
-        setGeneratedCode(data.code);
-        setShowCodeNotification(true);
         setTimer(300);
         setCode(["", "", "", "", "", ""]);
+        setSuccess("New code sent to your email!");
+        setTimeout(() => setSuccess(""), 3000);
         document.getElementById('code-0')?.focus();
       } else {
         setError(data.error || "Failed to resend code");
@@ -176,8 +142,7 @@ function ResetPassword() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          phone, 
-          membershipNumber,
+          email, 
           code: fullCode,
           newPassword: newPassword.trim()
         }),
@@ -187,7 +152,7 @@ function ResetPassword() {
 
       if (res.ok) {
         sessionStorage.clear();
-        setSuccess("Password reset successful! Redirecting...");
+        setSuccess("Password reset successful! Redirecting to login...");
         setTimeout(() => {
           navigate("/login", { 
             state: { message: "Password reset successful! Please login." } 
@@ -203,12 +168,7 @@ function ResetPassword() {
     }
   };
 
-  const copyCodeToClipboard = () => {
-    navigator.clipboard.writeText(generatedCode);
-    setCopySuccess(true);
-  };
-
-  // Responsive Styles - Optimized for both mobile and desktop
+  // Styles (same as before, keep your existing styles)
   const styles = {
     page: {
       minHeight: "100vh",
@@ -220,7 +180,7 @@ function ResetPassword() {
       alignItems: "center",
       position: "relative",
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      padding: "10px", // Added padding for mobile
+      padding: "20px",
     },
     overlay: {
       position: "absolute",
@@ -233,244 +193,95 @@ function ResetPassword() {
       zIndex: 1,
       backdropFilter: "blur(10px)",
       background: "rgba(255, 255, 255, 0.1)",
-      padding: "25px 20px", // Responsive padding
+      padding: "25px 20px",
       borderRadius: "24px",
       width: "100%",
       maxWidth: "450px",
       color: "white",
       boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
       border: "1px solid rgba(255,255,255,0.1)",
-      margin: "10px",
-      maxHeight: "auto", // Changed from 70% to auto
-      overflowY: "visible", // Changed from auto to visible
-      "@media (min-width: 768px)": {
-        padding: "30px 35px",
-        margin: "20px",
-      },
     },
     logoContainer: {
       textAlign: "center",
-      marginBottom: "15px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        marginBottom: "20px",
-      },
+      marginBottom: "15px",
     },
     logo: {
-      width: "60px", // Smaller on mobile
+      width: "60px",
       marginBottom: "5px",
-      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
-      "@media (min-width: 768px)": {
-        width: "80px",
-      },
     },
     title: {
-      fontSize: "18px", // Smaller on mobile
+      fontSize: "18px",
       margin: 0,
       color: "white",
       fontWeight: "600",
-      "@media (min-width: 768px)": {
-        fontSize: "20px",
-      },
     },
     heading: {
       textAlign: "center",
-      marginBottom: "10px", // Reduced for mobile
+      marginBottom: "10px",
       color: "white",
-      fontSize: "22px", // Smaller on mobile
+      fontSize: "22px",
       fontWeight: "700",
-      "@media (min-width: 768px)": {
-        fontSize: "26px",
-        marginBottom: "15px",
-      },
     },
     subheading: {
       textAlign: "center",
-      fontSize: "13px", // Smaller on mobile
-      marginBottom: "15px", // Reduced for mobile
+      fontSize: "13px",
+      marginBottom: "15px",
       color: "rgba(255,255,255,0.8)",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-        marginBottom: "25px",
-      },
     },
-    codeNotification: {
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-      borderRadius: "16px",
-      padding: "15px", // Reduced for mobile
-      marginBottom: "15px", // Reduced for mobile
-      boxShadow: "0 10px 30px rgba(102, 126, 234, 0.4)",
-      border: "1px solid rgba(255,255,255,0.2)",
-      "@media (min-width: 768px)": {
-        padding: "20px",
-        marginBottom: "25px",
-      },
-    },
-    codeHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "10px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        marginBottom: "15px",
-      },
-    },
-    codeTitle: {
-      display: "flex",
-      alignItems: "center",
-      gap: "5px", // Reduced for mobile
-      fontSize: "14px", // Smaller on mobile
-      fontWeight: "600",
-      color: "white",
-      "@media (min-width: 768px)": {
-        gap: "8px",
-        fontSize: "16px",
-      },
-    },
-    closeButton: {
-      background: "rgba(255,255,255,0.2)",
-      border: "none",
-      color: "white",
-      fontSize: "14px", // Smaller on mobile
-      cursor: "pointer",
-      padding: "4px 8px", // Smaller on mobile
-      borderRadius: "20px",
-      "@media (min-width: 768px)": {
-        fontSize: "16px",
-        padding: "5px 10px",
-      },
-    },
-    codeDisplay: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "10px", // Reduced for mobile
-      marginBottom: "10px", // Reduced for mobile
-      background: "rgba(255,255,255,0.15)",
-      padding: "10px", // Reduced for mobile
+    emailInfo: {
+      background: "rgba(255,255,255,0.1)",
       borderRadius: "12px",
-      border: "1px dashed rgba(255,255,255,0.3)",
-      "@media (min-width: 768px)": {
-        gap: "15px",
-        marginBottom: "15px",
-        padding: "15px",
-      },
-    },
-    codeText: {
-      fontSize: "28px", // Smaller on mobile
-      fontWeight: "bold",
-      letterSpacing: "5px", // Reduced for mobile
-      color: "white",
-      textShadow: "0 2px 10px rgba(0,0,0,0.3)",
-      fontFamily: "monospace",
-      "@media (min-width: 768px)": {
-        fontSize: "36px",
-        letterSpacing: "8px",
-      },
-    },
-    copyButton: {
-      background: "rgba(255,255,255,0.25)",
-      border: "none",
-      borderRadius: "8px",
-      padding: "6px 10px", // Smaller on mobile
-      cursor: "pointer",
-      fontSize: "16px", // Smaller on mobile
-      color: "white",
-      "@media (min-width: 768px)": {
-        fontSize: "20px",
-        padding: "8px 12px",
-      },
-    },
-    codeExpiry: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "5px",
-      fontSize: "12px", // Smaller on mobile
-      color: "rgba(255,255,255,0.9)",
-      marginBottom: "5px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-        marginBottom: "10px",
-      },
-    },
-    codeInstruction: {
+      padding: "10px",
+      marginBottom: "20px",
       textAlign: "center",
-      fontSize: "12px", // Smaller on mobile
-      color: "rgba(255,255,255,0.8)",
-      margin: 0,
-      "@media (min-width: 768px)": {
-        fontSize: "13px",
-      },
+      fontSize: "14px",
+      color: "#ffd700",
     },
     inputGroup: {
-      marginBottom: "15px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        marginBottom: "20px",
-      },
+      marginBottom: "15px",
     },
     label: {
       display: "block",
-      marginBottom: "5px", // Reduced for mobile
-      fontSize: "13px", // Smaller on mobile
+      marginBottom: "5px",
+      fontSize: "13px",
       fontWeight: "500",
       color: "rgba(255,255,255,0.9)",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-        marginBottom: "8px",
-      },
     },
     input: {
       width: "100%",
-      padding: "12px 14px", // Smaller on mobile
+      padding: "12px 14px",
       borderRadius: "12px",
       border: "2px solid rgba(255,255,255,0.1)",
       outline: "none",
       background: "rgba(255,255,255,0.08)",
       color: "white",
-      fontSize: "14px", // Smaller on mobile
+      fontSize: "14px",
       boxSizing: "border-box",
-      "@media (min-width: 768px)": {
-        padding: "14px 16px",
-        fontSize: "15px",
-      },
     },
     codeContainer: {
       display: "flex",
-      gap: "5px", // Smaller gap on mobile
+      gap: "8px",
       justifyContent: "center",
-      marginBottom: "10px", // Reduced for mobile
-      flexWrap: "wrap", // Allow wrapping on very small screens
-      "@media (min-width: 768px)": {
-        gap: "10px",
-        marginBottom: "15px",
-      },
+      marginBottom: "15px",
+      flexWrap: "wrap",
     },
     codeInput: {
-      width: "40px", // Smaller on mobile
-      height: "50px", // Smaller on mobile
+      width: "45px",
+      height: "55px",
       textAlign: "center",
-      fontSize: "20px", // Smaller on mobile
+      fontSize: "22px",
       fontWeight: "bold",
       borderRadius: "12px",
       border: "2px solid rgba(255,255,255,0.3)",
       background: "rgba(255,255,255,0.15)",
       color: "white",
       outline: "none",
-      "@media (min-width: 768px)": {
-        width: "50px",
-        height: "60px",
-        fontSize: "24px",
-      },
     },
     timerDisplay: {
       textAlign: "center",
-      fontSize: "12px", // Smaller on mobile
-      marginBottom: "15px", // Reduced for mobile
+      fontSize: "12px",
+      marginBottom: "15px",
       color: "rgba(255,255,255,0.7)",
-      "@media (min-width: 768px)": {
-        fontSize: "13px",
-        marginBottom: "20px",
-      },
     },
     timerHighlight: {
       color: "#ffd700",
@@ -478,183 +289,71 @@ function ResetPassword() {
     },
     button: {
       width: "100%",
-      padding: "12px", // Smaller on mobile
+      padding: "12px",
       borderRadius: "12px",
       border: "none",
       cursor: loading ? "not-allowed" : "pointer",
       fontWeight: "bold",
-      fontSize: "15px", // Smaller on mobile
+      fontSize: "15px",
       background: loading 
         ? "linear-gradient(135deg, #888 0%, #666 100%)" 
         : "linear-gradient(135deg, #54dd0f 0%, #3fa30c 100%)",
       color: "white",
-      marginTop: "5px", // Reduced for mobile
+      marginTop: "5px",
       opacity: loading ? 0.7 : 1,
-      "@media (min-width: 768px)": {
-        padding: "15px",
-        fontSize: "16px",
-        marginTop: "10px",
-      },
-    },
-    buttonContent: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    spinner: {
-      display: "inline-block",
-      width: "16px",
-      height: "16px",
-      border: "2px solid rgba(255,255,255,0.3)",
-      borderRadius: "50%",
-      borderTopColor: "white",
-      animation: "spin 1s linear infinite",
-      marginRight: "8px",
     },
     resendSection: {
       textAlign: "center",
-      marginTop: "15px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        marginTop: "20px",
-      },
+      marginTop: "15px",
     },
     resendButton: {
       background: "none",
       border: "none",
       color: "#4da6ff",
       cursor: "pointer",
-      fontSize: "13px", // Smaller on mobile
+      fontSize: "13px",
       textDecoration: "underline",
       padding: "5px",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-      },
     },
     resendText: {
-      fontSize: "12px", // Smaller on mobile
+      fontSize: "12px",
       color: "rgba(255,255,255,0.6)",
       margin: 0,
-      "@media (min-width: 768px)": {
-        fontSize: "13px",
-      },
-    },
-    info: {
-      marginTop: "15px", // Reduced for mobile
-      padding: "10px", // Reduced for mobile
-      background: "rgba(0,0,0,0.3)",
-      borderRadius: "10px",
-      textAlign: "center",
-      "@media (min-width: 768px)": {
-        marginTop: "25px",
-        padding: "12px",
-      },
-    },
-    infoText: {
-      margin: 0,
-      fontSize: "12px", // Smaller on mobile
-      color: "rgba(255,255,255,0.7)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "5px", // Reduced for mobile
-      flexWrap: "wrap",
-      "@media (min-width: 768px)": {
-        fontSize: "13px",
-        gap: "8px",
-      },
-    },
-    linksContainer: {
-      marginTop: "15px", // Reduced for mobile
-      textAlign: "center",
-      "@media (min-width: 768px)": {
-        marginTop: "20px",
-      },
-    },
-    link: {
-      color: "#4da6ff",
-      textDecoration: "none",
-      fontSize: "13px", // Smaller on mobile
-      padding: "5px",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-      },
-    },
-    divider: {
-      color: "rgba(255,255,255,0.3)",
-      margin: "0 5px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        margin: "0 10px",
-      },
     },
     error: {
       background: "rgba(255, 68, 68, 0.15)",
       color: "#ff8a8a",
-      padding: "10px 12px", // Smaller on mobile
+      padding: "10px 12px",
       borderRadius: "12px",
-      marginBottom: "15px", // Reduced for mobile
+      marginBottom: "15px",
       textAlign: "center",
-      fontSize: "13px", // Smaller on mobile
+      fontSize: "13px",
       border: "1px solid rgba(255, 68, 68, 0.3)",
-      display: "flex",
-      alignItems: "center",
-      gap: "5px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        padding: "12px 16px",
-        marginBottom: "20px",
-        fontSize: "14px",
-        gap: "8px",
-      },
     },
     success: {
       background: "rgba(84, 221, 15, 0.15)",
       color: "#a5d6a5",
-      padding: "10px 12px", // Smaller on mobile
+      padding: "10px 12px",
       borderRadius: "12px",
-      marginBottom: "15px", // Reduced for mobile
+      marginBottom: "15px",
       textAlign: "center",
-      fontSize: "13px", // Smaller on mobile
+      fontSize: "13px",
       border: "1px solid rgba(84, 221, 15, 0.3)",
-      display: "flex",
-      alignItems: "center",
-      gap: "5px", // Reduced for mobile
-      "@media (min-width: 768px)": {
-        padding: "12px 16px",
-        marginBottom: "20px",
-        fontSize: "14px",
-        gap: "8px",
-      },
+    },
+    linksContainer: {
+      marginTop: "15px",
+      textAlign: "center",
+    },
+    link: {
+      color: "#4da6ff",
+      textDecoration: "none",
+      fontSize: "13px",
+    },
+    divider: {
+      color: "rgba(255,255,255,0.3)",
+      margin: "0 10px",
     },
   };
-
-  // Add keyframes to document
-  const styleTag = document.createElement('style');
-  styleTag.textContent = `
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    input:focus {
-      border-color: #54dd0f !important;
-      box-shadow: 0 0 0 3px rgba(84, 221, 15, 0.25) !important;
-    }
-    button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(84, 221, 15, 0.4) !important;
-    }
-    .copy-btn:hover {
-      background: rgba(255,255,255,0.35) !important;
-    }
-    .close-btn:hover {
-      background: rgba(255,255,255,0.3) !important;
-    }
-    @media (max-width: 380px) {
-      .code-input {
-        width: 35px !important;
-        height: 45px !important;
-        font-size: 18px !important;
-      }
-    }
-  `;
-  document.head.appendChild(styleTag);
 
   return (
     <div style={styles.page}>
@@ -667,61 +366,16 @@ function ResetPassword() {
 
         <h2 style={styles.heading}>Reset Password</h2>
         
-        {showCodeNotification && (
-          <div style={styles.codeNotification}>
-            <div style={styles.codeHeader}>
-              <div style={styles.codeTitle}>
-                <span style={{ fontSize: "20px" }}>🔐</span>
-                <span>Your Reset Code</span>
-              </div>
-              <button 
-                onClick={() => setShowCodeNotification(false)}
-                style={styles.closeButton}
-                className="close-btn"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div style={styles.codeDisplay}>
-              <span style={styles.codeText}>{generatedCode}</span>
-              <button 
-                onClick={copyCodeToClipboard}
-                style={styles.copyButton}
-                className="copy-btn"
-              >
-                {copySuccess ? "✓" : "📋"}
-              </button>
-            </div>
-            
-            <div style={styles.codeExpiry}>
-              <span>⏱️</span>
-              Code expires in: <span style={{ color: "#ffd700", fontWeight: "600" }}>{formatTime(timer)}</span>
-            </div>
-            
-            <p style={styles.codeInstruction}>
-              Enter this 6-digit code below to reset your password
-            </p>
-          </div>
-        )}
+        <div style={styles.emailInfo}>
+          📧 Code sent to: {email}
+        </div>
 
         <p style={styles.subheading}>
-          Enter the 6-digit code below
+          Enter the 6-digit code sent to your email
         </p>
 
-        {error && (
-          <div style={styles.error}>
-            <span>⚠️</span>
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={styles.success}>
-            <span>✅</span>
-            {success}
-          </div>
-        )}
+        {error && <div style={styles.error}>⚠️ {error}</div>}
+        {success && <div style={styles.success}>✅ {success}</div>}
 
         <form onSubmit={handleSubmit}>
           <div style={styles.codeContainer}>
@@ -737,7 +391,6 @@ function ResetPassword() {
                 onKeyDown={(e) => handleKeyDown(e, index)}
                 onPaste={index === 0 ? handlePaste : undefined}
                 style={styles.codeInput}
-                className="code-input"
                 autoFocus={index === 0}
                 required
                 disabled={loading}
@@ -755,7 +408,7 @@ function ResetPassword() {
             <label style={styles.label}>New Password</label>
             <input
               type="password"
-              placeholder="Enter new password"
+              placeholder="Enter new password (min 6 characters)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               style={styles.input}
@@ -779,17 +432,8 @@ function ResetPassword() {
             />
           </div>
 
-          <button 
-            style={styles.button} 
-            type="submit" 
-            disabled={loading}
-          >
-            {loading ? (
-              <span style={styles.buttonContent}>
-                <span style={styles.spinner}></span>
-                Resetting...
-              </span>
-            ) : "Reset Password"}
+          <button style={styles.button} type="submit" disabled={loading}>
+            {loading ? "Resetting..." : "Reset Password"}
           </button>
 
           <div style={styles.resendSection}>
@@ -807,14 +451,6 @@ function ResetPassword() {
                 Didn't receive code? Wait {formatTime(timer)} to resend
               </p>
             )}
-          </div>
-
-          <div style={styles.info}>
-            <p style={styles.infoText}>
-              <span>📱</span> {phone}
-              <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
-              <span>🆔</span> {membershipNumber}
-            </p>
           </div>
         </form>
 

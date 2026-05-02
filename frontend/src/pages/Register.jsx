@@ -32,7 +32,6 @@ function Register() {
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verificationError, setVerificationError] = useState("");
   const [verificationTimer, setVerificationTimer] = useState(300);
-  const [verificationSuccess, setVerificationSuccess] = useState(false);
   
   // Welcome modal states
   const [showWelcome, setShowWelcome] = useState(false);
@@ -129,16 +128,14 @@ function Register() {
       
       const data = await res.json();
       
-      if (res.ok) {
-        // Update token with verified status
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-          localStorage.setItem("user", JSON.stringify(data.user));
-        }
-        setVerificationSuccess(true);
+      if (res.ok && data.token) {
+        // Save token and user data
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        
         setShowVerification(false);
         setShowWelcome(true);
-        setNewUserName(registrationData?.fullName?.split(" ")[0] || "Member");
+        setNewUserName(data.user?.fullName?.split(" ")[0] || "Member");
       } else {
         setVerificationError(data.error || "Invalid verification code");
       }
@@ -165,9 +162,7 @@ function Register() {
       if (res.ok) {
         setVerificationTimer(300);
         setVerificationCode(["", "", "", "", "", ""]);
-        // Focus first input
         setTimeout(() => document.getElementById('verify-code-0')?.focus(), 100);
-        // Show success message
         const successMsg = document.createElement('div');
         successMsg.style.cssText = "position:fixed;top:20px;right:20px;background:#10b981;color:white;padding:12px 20px;border-radius:12px;z-index:1001";
         successMsg.innerText = "New code sent to your email!";
@@ -191,7 +186,6 @@ function Register() {
       return;
     }
 
-    // Format Kenyan phone number
     let formattedPhone = phone;
     if (phone.startsWith("07")) {
       formattedPhone = "+254" + phone.slice(1);
@@ -210,17 +204,19 @@ function Register() {
 
       const data = await res.json();
 
-      if (res.ok && data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        
-        // Show verification modal instead of welcome modal
+      if (res.ok && data.success) {
         setVerificationEmail(email);
         setVerificationCode(["", "", "", "", "", ""]);
         setVerificationError("");
         setVerificationTimer(300);
         setShowVerification(true);
-        setRegistrationData(data.user);
+        setRegistrationData({ fullName, email });
+        
+        setFullName("");
+        setEmail("");
+        setPhone("");
+        setPassword("");
+        setConfirmPassword("");
       } else {
         alert(data.error || "Registration failed. Please try again.");
       }

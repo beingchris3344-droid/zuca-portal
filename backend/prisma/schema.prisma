@@ -15,6 +15,10 @@ model User {
   password          String
   phone             String    @unique
   phoneVerified     Boolean   @default(false)
+
+   emailVerified     Boolean   @default(false)
+  verificationCode  String?
+  verificationExpiry DateTime?
   role              String    @default("member") // "member", "admin" (for chairman)
   profileImage      String?
   createdAt         DateTime  @default(now())

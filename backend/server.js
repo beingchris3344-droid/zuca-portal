@@ -29,7 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const resetAttempts = new Map();
 
 // ================== EMAIL ==================
-const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail } = require("./services/mailer");
+const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail, sendVerificationEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
 const notifications = new Map();
 
@@ -4515,7 +4515,6 @@ app.post("/api/auth/verify", async (req, res) => {
     res.status(500).json({ error: "Internal server error." });
   }
 });
-
 // ================== REGISTER ==================
 app.post("/api/register", async (req, res) => {
   try {
@@ -4586,6 +4585,11 @@ app.post("/api/register", async (req, res) => {
       membershipNumber = `Z#${timestamp}`;
     }
 
+    // ========== ADD THESE 2 LINES ==========
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    // ========== END OF ADDED LINES ==========
+
     const user = await prisma.user.create({
       data: {
         fullName,
@@ -4593,7 +4597,10 @@ app.post("/api/register", async (req, res) => {
         password: hashed,
         phone: formattedPhone,
         membership_number: membershipNumber,
-        role: "member"
+        role: "member",
+        emailVerified: false,
+        verificationCode: verificationCode,
+        verificationExpiry: verificationExpiry
       }
     });
 
@@ -4608,7 +4615,6 @@ app.post("/api/register", async (req, res) => {
       data: { lastActive: new Date() }
     });
 
-    // ✅ SEND RESPONSE IMMEDIATELY - DON'T WAIT FOR EMAIL
     const { password: _, ...userWithoutPassword } = user;
 
     res.json({
@@ -4616,8 +4622,7 @@ app.post("/api/register", async (req, res) => {
       user: userWithoutPassword
     });
 
-    // ✅ SEND WELCOME EMAIL IN BACKGROUND (AFTER response is sent)
-    // This runs asynchronously and won't block the user
+    // Send welcome email in background
     (async () => {
       try {
         await sendWelcomeEmail(user, membershipNumber);
@@ -4627,12 +4632,140 @@ app.post("/api/register", async (req, res) => {
       }
     })();
 
+    // Send verification email in background
+    (async () => {
+      try {
+        await sendVerificationEmail(user, verificationCode);
+        console.log(`✅ Verification email sent to ${user.email}`);
+      } catch (emailErr) {
+        console.error(`❌ Verification email failed for ${user.email}:`, emailErr.message);
+      }
+    })();
+
   } catch (err) {
     console.error("Registration Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
+
+// ================== VERIFY EMAIL ==================
+app.post("/api/verify-email", async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and verification code required" });
+    }
+    
+    const normalizedEmail = email.toLowerCase();
+    
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    if (user.emailVerified) {
+      return res.status(400).json({ error: "Email already verified" });
+    }
+    
+    if (user.verificationCode !== code) {
+      return res.status(400).json({ error: "Invalid verification code" });
+    }
+    
+    if (user.verificationExpiry && new Date() > user.verificationExpiry) {
+      return res.status(400).json({ error: "Verification code has expired. Request a new one." });
+    }
+    
+    // Update user as verified
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        verificationCode: null,
+        verificationExpiry: null
+      }
+    });
+    
+    // Generate new token with verified status
+    const newToken = jwt.sign(
+      { userId: user.id, role: user.role, emailVerified: true },
+      JWT_SECRET,
+      { expiresIn: "365d" }
+    );
+    
+    res.json({
+      success: true,
+      message: "Email verified successfully!",
+      token: newToken,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        emailVerified: true
+      }
+    });
+    
+  } catch (err) {
+    console.error("Verification error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== RESEND VERIFICATION CODE ==================
+app.post("/api/resend-verification", async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email required" });
+    }
+    
+    const normalizedEmail = email.toLowerCase();
+    
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    if (user.emailVerified) {
+      return res.status(400).json({ error: "Email already verified" });
+    }
+    
+    // Generate new verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationCode: verificationCode,
+        verificationExpiry: verificationExpiry
+      }
+    });
+    
+    // Send new verification email (background)
+    (async () => {
+      await sendVerificationEmail(user, verificationCode);
+    })();
+    
+    res.json({
+      success: true,
+      message: "New verification code sent to your email"
+    });
+    
+  } catch (err) {
+    console.error("Resend verification error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 // ================== LOGIN ==================
 app.post("/api/login", async (req, res) => {
   try {
@@ -4917,135 +5050,58 @@ app.get("/api/me", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// ================== RESET PASSWORD ==================
+// ================== RESET PASSWORD (EMAIL BASED) ==================
 app.post("/api/auth/request-reset", async (req, res) => {
   try {
-    const { phone, membershipNumber } = req.body;
+    const { email } = req.body;
     
-    const attemptKey = `${phone}_${membershipNumber}`;
-    const now = Date.now();
-    
-    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
-    
-    if (userAttempts.attempts >= 5) {
-      const thirtyMinutesAgo = now - 30 * 60 * 1000;
-      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
-        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
-        return res.status(429).json({ 
-          error: `Too many reset attempts. Please try again in ${waitTime} minutes.` 
-        });
-      } else {
-        userAttempts = { attempts: 0, lastAttempt: now };
-      }
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
     }
     
-    const user = await prisma.user.findFirst({
-      where: { phone, membership_number: membershipNumber }
+    const normalizedEmail = email.toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
     });
     
     if (!user) {
-      return res.status(404).json({ error: "No account found" });
+      return res.status(404).json({ error: "No account found with this email" });
     }
     
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetCodeExpiry = new Date(now + 15 * 60 * 1000);
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
     
     await prisma.user.update({
       where: { id: user.id },
       data: { resetCode, resetCodeExpiry }
     });
     
-    userAttempts.attempts += 1;
-    userAttempts.lastAttempt = now;
-    resetAttempts.set(attemptKey, userAttempts);
+    // Send email with reset code
+    await sendPasswordResetEmail(user.email, resetCode);
     
     res.json({ 
-      message: "Reset code generated",
-      code: resetCode,
-      expiresIn: 5,
-      attemptsRemaining: 5 - userAttempts.attempts
+      success: true,
+      message: "Reset code sent to your email",
+      email: user.email
     });
     
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-app.post("/api/auth/resend-code", async (req, res) => {
-  try {
-    const { phone, membershipNumber } = req.body;
-    
-    const attemptKey = `${phone}_${membershipNumber}`;
-    const now = Date.now();
-    
-    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
-    
-    if (userAttempts.attempts >= 5) {
-      const thirtyMinutesAgo = now - 30 * 60 * 1000;
-      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
-        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
-        return res.status(429).json({ 
-          error: `Too many attempts. Try again in ${waitTime} minutes.` 
-        });
-      }
-    }
-    
-    const user = await prisma.user.findFirst({
-      where: { phone, membership_number: membershipNumber }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetCodeExpiry = new Date(now + 15 * 60 * 1000);
-    
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { resetCode, resetCodeExpiry }
-    });
-    
-    userAttempts.attempts += 1;
-    userAttempts.lastAttempt = now;
-    resetAttempts.set(attemptKey, userAttempts);
-    
-    res.json({ 
-      message: "New code generated",
-      code: resetCode,
-      expiresIn: 5,
-      attemptsRemaining: 5 - userAttempts.attempts
-    });
-    
-  } catch (err) {
-    console.error(err);
+    console.error("Request reset error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
 app.post("/api/auth/verify-reset", async (req, res) => {
   try {
-    const { phone, membershipNumber, code, newPassword } = req.body;
+    const { email, code, newPassword } = req.body;
     
-    const attemptKey = `${phone}_${membershipNumber}`;
-    const now = Date.now();
-    
-    let userAttempts = resetAttempts.get(attemptKey) || { attempts: 0, lastAttempt: now };
-    
-    if (userAttempts.attempts >= 5) {
-      const thirtyMinutesAgo = now - 30 * 60 * 1000;
-      if (userAttempts.lastAttempt > thirtyMinutesAgo) {
-        const waitTime = Math.ceil((userAttempts.lastAttempt + 30 * 60 * 1000 - now) / 60000);
-        return res.status(429).json({ 
-          error: `Too many failed attempts. Try again in ${waitTime} minutes.` 
-        });
-      }
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "Email, code, and password are required" });
     }
     
-    const user = await prisma.user.findFirst({
-      where: { phone, membership_number: membershipNumber }
+    const normalizedEmail = email.toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
     });
     
     if (!user) {
@@ -5053,20 +5109,11 @@ app.post("/api/auth/verify-reset", async (req, res) => {
     }
     
     if (user.resetCode !== code) {
-      userAttempts.attempts += 1;
-      userAttempts.lastAttempt = now;
-      resetAttempts.set(attemptKey, userAttempts);
-      
-      const remaining = 5 - userAttempts.attempts;
-      if (remaining <= 0) {
-        return res.status(400).json({ error: "No attempts remaining. Try again in 30 minutes." });
-      } else {
-        return res.status(400).json({ error: `Invalid code. ${remaining} attempts remaining.` });
-      }
+      return res.status(400).json({ error: "Invalid verification code" });
     }
     
     if (!user.resetCodeExpiry || user.resetCodeExpiry < new Date()) {
-      return res.status(400).json({ error: "Code expired" });
+      return res.status(400).json({ error: "Code has expired. Request a new one." });
     }
     
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -5080,12 +5127,54 @@ app.post("/api/auth/verify-reset", async (req, res) => {
       }
     });
     
-    resetAttempts.delete(attemptKey);
-    
-    res.json({ message: "Password updated successfully", success: true });
+    res.json({ 
+      success: true,
+      message: "Password updated successfully" 
+    });
     
   } catch (err) {
-    console.error(err);
+    console.error("Verify reset error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post("/api/auth/resend-code", async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    
+    const normalizedEmail = email.toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        resetCode, 
+        resetCodeExpiry 
+      }
+    });
+    
+    await sendPasswordResetEmail(user.email, resetCode);
+    
+    res.json({ 
+      success: true,
+      message: "New code sent to your email" 
+    });
+    
+  } catch (err) {
+    console.error("Resend code error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

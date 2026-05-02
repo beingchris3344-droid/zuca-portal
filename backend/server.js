@@ -29,7 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const resetAttempts = new Map();
 
 // ================== EMAIL ==================
-const { sendPasswordResetEmail, sendPersonalizedEmail } = require("./services/mailer");
+const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
 const notifications = new Map();
 

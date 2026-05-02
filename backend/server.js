@@ -32,6 +32,7 @@ const resetAttempts = new Map();
 const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail, sendVerificationEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
 const notifications = new Map();
+const pendingRegistrations = new Map();
 
 const createNotification = ({ userId, type, title, message }) => {
   const notif = {
@@ -4515,7 +4516,11 @@ app.post("/api/auth/verify", async (req, res) => {
     res.status(500).json({ error: "Internal server error." });
   }
 });
-// ================== REGISTER ==================
+
+
+
+
+// ================== REGISTER - NO SAVE UNTIL VERIFIED ==================
 app.post("/api/register", async (req, res) => {
   try {
     const { fullName, email, password, phone } = req.body;
@@ -4533,6 +4538,7 @@ app.post("/api/register", async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
+    // Check if email already exists in main User table
     const existingEmail = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
@@ -4585,62 +4591,50 @@ app.post("/api/register", async (req, res) => {
       membershipNumber = `Z#${timestamp}`;
     }
 
-    // ========== ADD THESE 2 LINES ==========
+    // Generate verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    // ========== END OF ADDED LINES ==========
 
-    const user = await prisma.user.create({
-      data: {
-        fullName,
-        email: normalizedEmail,
-        password: hashed,
-        phone: formattedPhone,
-        membership_number: membershipNumber,
-        role: "member",
-        emailVerified: false,
-        verificationCode: verificationCode,
-        verificationExpiry: verificationExpiry
+    // ✅ STORE IN MEMORY/TEMPORARY STORAGE (NOT DATABASE)
+    // Using a Map to store pending registrations in memory
+    const pendingKey = `${normalizedEmail}`;
+    pendingRegistrations.set(pendingKey, {
+      fullName,
+      email: normalizedEmail,
+      password: hashed,
+      phone: formattedPhone,
+      membership_number: membershipNumber,
+      role: "member",
+      verificationCode,
+      verificationExpiry,
+      createdAt: new Date()
+    });
+
+    // Clean up expired pending registrations periodically
+    setTimeout(() => {
+      if (pendingRegistrations.has(pendingKey)) {
+        pendingRegistrations.delete(pendingKey);
       }
-    });
+    }, 15 * 60 * 1000); // Delete after 15 minutes
 
-    const token = jwt.sign(
-      { userId: user.id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "365d" }
-    );
+    // ✅ Send verification email
+    (async () => {
+      try {
+const tempUser = { email: normalizedEmail, fullName: fullName };
+await sendVerificationEmail(tempUser, verificationCode);
+        console.log(`✅ Verification email sent to ${normalizedEmail}`);
+      } catch (err) {
+        console.error(`❌ Verification email failed:`, err.message);
+      }
+    })();
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastActive: new Date() }
-    });
-
-    const { password: _, ...userWithoutPassword } = user;
-
+    // ✅ Send response - NO DATABASE SAVE
     res.json({
-      token,
-      user: userWithoutPassword
+      success: true,
+      message: "Verification code sent to your email. Please verify to complete registration.",
+      email: normalizedEmail,
+      requiresVerification: true
     });
-
-    // Send welcome email in background
-    (async () => {
-      try {
-        await sendWelcomeEmail(user, membershipNumber);
-        console.log(`✅ Welcome email sent to ${user.email}`);
-      } catch (emailErr) {
-        console.error(`❌ Welcome email failed for ${user.email}:`, emailErr.message);
-      }
-    })();
-
-    // Send verification email in background
-    (async () => {
-      try {
-        await sendVerificationEmail(user, verificationCode);
-        console.log(`✅ Verification email sent to ${user.email}`);
-      } catch (emailErr) {
-        console.error(`❌ Verification email failed for ${user.email}:`, emailErr.message);
-      }
-    })();
 
   } catch (err) {
     console.error("Registration Error:", err);
@@ -4648,8 +4642,7 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-
-// ================== VERIFY EMAIL ==================
+// ================== VERIFY EMAIL & THEN SAVE TO DATABASE ==================
 app.post("/api/verify-email", async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -4660,38 +4653,51 @@ app.post("/api/verify-email", async (req, res) => {
     
     const normalizedEmail = email.toLowerCase();
     
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail }
-    });
+    // ✅ Get pending registration from memory
+    const pendingUser = pendingRegistrations.get(normalizedEmail);
     
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    if (!pendingUser) {
+      return res.status(404).json({ error: "No pending registration found or code expired" });
     }
     
-    if (user.emailVerified) {
-      return res.status(400).json({ error: "Email already verified" });
-    }
-    
-    if (user.verificationCode !== code) {
+    if (pendingUser.verificationCode !== code) {
       return res.status(400).json({ error: "Invalid verification code" });
     }
     
-    if (user.verificationExpiry && new Date() > user.verificationExpiry) {
-      return res.status(400).json({ error: "Verification code has expired. Request a new one." });
+    if (pendingUser.verificationExpiry && new Date() > pendingUser.verificationExpiry) {
+      pendingRegistrations.delete(normalizedEmail);
+      return res.status(400).json({ error: "Verification code has expired. Please register again." });
     }
     
-    // Update user as verified
-    await prisma.user.update({
-      where: { id: user.id },
+    // ✅ NOW save to database - ONLY AFTER VERIFICATION
+    const user = await prisma.user.create({
       data: {
+        fullName: pendingUser.fullName,
+        email: pendingUser.email,
+        password: pendingUser.password,
+        phone: pendingUser.phone,
+        membership_number: pendingUser.membership_number,
+        role: pendingUser.role,
         emailVerified: true,
-        verificationCode: null,
-        verificationExpiry: null
+        lastActive: new Date()
       }
     });
     
-    // Generate new token with verified status
-    const newToken = jwt.sign(
+    // ✅ Delete from pending memory
+    pendingRegistrations.delete(normalizedEmail);
+    
+    // ✅ Send welcome email
+    (async () => {
+      try {
+        await sendWelcomeEmail(user, user.membership_number);
+        console.log(`✅ Welcome email sent to ${user.email}`);
+      } catch (err) {
+        console.error(`❌ Welcome email failed:`, err.message);
+      }
+    })();
+    
+    // ✅ Generate token and log user in
+    const token = jwt.sign(
       { userId: user.id, role: user.role, emailVerified: true },
       JWT_SECRET,
       { expiresIn: "365d" }
@@ -4699,8 +4705,8 @@ app.post("/api/verify-email", async (req, res) => {
     
     res.json({
       success: true,
-      message: "Email verified successfully!",
-      token: newToken,
+      message: "Email verified successfully! Account created.",
+      token: token,
       user: {
         id: user.id,
         fullName: user.fullName,
@@ -4716,56 +4722,9 @@ app.post("/api/verify-email", async (req, res) => {
   }
 });
 
-// ================== RESEND VERIFICATION CODE ==================
-app.post("/api/resend-verification", async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: "Email required" });
-    }
-    
-    const normalizedEmail = email.toLowerCase();
-    
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    
-    if (user.emailVerified) {
-      return res.status(400).json({ error: "Email already verified" });
-    }
-    
-    // Generate new verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        verificationCode: verificationCode,
-        verificationExpiry: verificationExpiry
-      }
-    });
-    
-    // Send new verification email (background)
-    (async () => {
-      await sendVerificationEmail(user, verificationCode);
-    })();
-    
-    res.json({
-      success: true,
-      message: "New verification code sent to your email"
-    });
-    
-  } catch (err) {
-    console.error("Resend verification error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// ================== ADD THIS AT THE TOP OF server.js ==================
+// Store pending registrations in memory (resets when server restarts)
+
 // ================== LOGIN ==================
 app.post("/api/login", async (req, res) => {
   try {

@@ -1,8 +1,9 @@
 // services/mailer.js
 const nodemailer = require('nodemailer');
+const SibApiV3Sdk = require('sib-api-v3-sdk');
 
-// Create transporter with your credentials
-const transporter = nodemailer.createTransport({
+// ==================== GMAIL FOR NOTIFICATIONS ====================
+const gmailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
@@ -10,14 +11,34 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Verify connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email transporter error:', error);
-  } else {
-    console.log('✅ Email server ready to send messages');
-  }
-});
+// ==================== BREVO FOR REGISTRATION & RESET ====================
+const defaultClient = SibApiV3Sdk.ApiClient.instance;
+const apiKey = defaultClient.authentications['api-key'];
+apiKey.apiKey = process.env.BREVO_API_KEY;
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+
+// Helper: Send via Brevo
+async function sendViaBrevo(to, subject, htmlContent, textContent) {
+  let sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+  sendSmtpEmail.to = [{ email: to }];
+  sendSmtpEmail.sender = { email: process.env.EMAIL_USER, name: "ZUCA 🙏" };
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = htmlContent;
+  sendSmtpEmail.textContent = textContent || "";
+  
+  await brevoApi.sendTransacEmail(sendSmtpEmail);
+}
+
+// Helper: Send via Gmail
+async function sendViaGmail(to, subject, htmlContent, textContent) {
+  await gmailTransporter.sendMail({
+    from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
+    to: to,
+    subject: subject,
+    html: htmlContent,
+    text: textContent
+  });
+}
 
 // Helper: Get warm, spiritual greeting
 function getTimeBasedGreeting() {
@@ -71,7 +92,7 @@ function getNotificationEmoji(type) {
   return emojis[type] || '🔔';
 }
 
-// Helper: Get color based on notification type (yellow/gold theme)
+// Helper: Get color based on notification type
 function getNotificationColor(type) {
   const colors = {
     'announcement': '#d97706',
@@ -106,7 +127,7 @@ function getRandomBlessing() {
   return blessings[Math.floor(Math.random() * blessings.length)];
 }
 
-// ==================== WELCOME EMAIL FOR NEW USERS ====================
+// ==================== WELCOME EMAIL (USES BREVO) ====================
 async function sendWelcomeEmail(user, membershipNumber) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -150,20 +171,12 @@ async function sendWelcomeEmail(user, membershipNumber) {
       </head>
       <body style="margin: 0; padding: 0; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background: #fef3c7; min-height: 100vh; padding: 20px;">
         <div style="max-width: 600px; margin: 0 auto;">
-          
-          <!-- Main Welcome Card -->
           <div class="welcome-card" style="background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);">
-            
-            <!-- Header with Logo - Yellow/Gold -->
             <div style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); padding: 40px 30px; text-align: center;">
-              <img src="${ZUCA_LOGO_URL}" 
-                   alt="ZUCA Logo" 
-                   style="width: 90px; height: 90px; border-radius: 50%; margin-bottom: 15px; border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); object-fit: cover;">
+              <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" style="width: 90px; height: 90px; border-radius: 50%; margin-bottom: 15px; border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); object-fit: cover;">
               <h1 style="color: white; margin: 0; font-size: 36px; letter-spacing: 2px;">ZUCA</h1>
               <p style="color: white; margin: 10px 0 0; font-size: 14px; font-style: italic;">Zetech University Catholic Action</p>
             </div>
-            
-            <!-- Greeting Section -->
             <div style="padding: 30px 30px 20px; background: #fffbeb;">
               <div style="font-size: 18px; color: #b45309; margin-bottom: 5px;">✨ ${greeting},</div>
               <h2 style="color: #78350f; margin: 0 0 8px; font-size: 28px; font-weight: 600;">${firstName}! 🎉🙏</h2>
@@ -171,8 +184,6 @@ async function sendWelcomeEmail(user, membershipNumber) {
                 🕊️ ${currentTime}
               </div>
             </div>
-            
-            <!-- Welcome Message -->
             <div style="padding: 0 30px;">
               <div style="background: #fef3c7; padding: 20px; border-radius: 20px; margin: 10px 0; text-align: center;">
                 <p style="font-size: 18px; margin: 0; color: #92400e;">🙏</p>
@@ -182,18 +193,13 @@ async function sendWelcomeEmail(user, membershipNumber) {
                 </p>
               </div>
             </div>
-            
-            <!-- Membership Number Section -->
             <div style="padding: 10px 30px;">
               <div style="background: #fffbeb; border-radius: 24px; padding: 25px; margin: 10px 0; border: 1px solid #fde68a;">
-                
                 <div style="text-align: center; margin-bottom: 20px;">
                   <div style="background: #fbbf24; display: inline-block; padding: 6px 16px; border-radius: 30px; font-size: 12px; font-weight: 600; color: #78350f;">
                     ⭐ YOUR MEMBERSHIP NUMBER ⭐
                   </div>
                 </div>
-                
-                <!-- Membership Number Display -->
                 <div class="membership-number" style="background: linear-gradient(135deg, #fef3c7, #fffbeb); padding: 25px; border-radius: 20px; text-align: center; margin-bottom: 20px; border: 2px solid #fbbf24;">
                   <div style="font-size: 36px; font-weight: 800; font-family: monospace; letter-spacing: 2px; color: #78350f; word-break: break-all;">
                     ${membershipNumber}
@@ -202,12 +208,10 @@ async function sendWelcomeEmail(user, membershipNumber) {
                     ✓ Your ZUCA Membership Number
                   </div>
                 </div>
-                
-                <!-- Important Instructions -->
                 <div style="background: #fef3c7; border-left: 4px solid #fbbf24; padding: 18px; border-radius: 16px; margin-top: 15px;">
                   <div style="font-size: 13px; font-weight: 700; color: #b45309; margin-bottom: 12px;">⚠️ IMPORTANT - PLEASE READ</div>
                   <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #78350f; line-height: 1.7;">
-                    <li>Your membership number <strong style="color: #d97706;">${membershipNumber}</strong> is required to <strong>FOR VERIFICATION</strong></li>
+                    <li>Your membership number <strong style="color: #d97706;">${membershipNumber}</strong> is required for verification</li>
                     <li>Must be linked with your <strong>phone number</strong> for account recovery</li>
                     <li><strong>Save this email or memorize this number</strong> - you cannot change it later</li>
                     <li>Always use this exact format when asked: <strong style="color: #d97706; font-size: 14px;">${membershipNumber}</strong></li>
@@ -215,13 +219,10 @@ async function sendWelcomeEmail(user, membershipNumber) {
                 </div>
               </div>
             </div>
-            
-            <!-- Quick Actions -->
             <div style="padding: 0 30px 20px;">
               <a href="${frontendUrl}/dashboard" style="display: block; background: linear-gradient(135deg, #fbbf24, #d97706); color: white; text-align: center; padding: 16px; border-radius: 50px; text-decoration: none; font-weight: 600; margin: 10px 0;">
                 🚀 Go to Your Dashboard
               </a>
-              
               <div style="display: flex; gap: 12px; margin-top: 15px;">
                 <a href="${frontendUrl}/join-jumuia" style="flex: 1; background: #fef3c7; color: #78350f; text-align: center; padding: 12px; border-radius: 50px; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid #fde68a;">
                   🏠 Join a Jumuia
@@ -231,8 +232,6 @@ async function sendWelcomeEmail(user, membershipNumber) {
                 </a>
               </div>
             </div>
-            
-            <!-- What You Can Do -->
             <div style="background: #fffbeb; padding: 25px 30px; border-top: 1px solid #fde68a;">
               <p style="color: #78350f; font-weight: 600; margin: 0 0 15px; text-align: center;">✨ What You Can Do on ZUCA ✨</p>
               <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
@@ -246,20 +245,12 @@ async function sendWelcomeEmail(user, membershipNumber) {
                 <div style="font-size: 13px; color: #92400e;">💬 Join Discussions</div>
               </div>
             </div>
-            
-            <!-- Footer with Blessing -->
             <div style="padding: 30px 25px; text-align: center; background: #78350f; color: #fef3c7;">
               <div style="font-size: 32px; margin-bottom: 15px;">✝️</div>
               <p style="margin: 0 0 12px; font-size: 16px; font-style: italic; font-weight: 500;">${blessing}</p>
-              <p style="margin: 0; font-size: 12px; opacity: 0.9;">
-                Zetech University Catholic Action (ZUCA)
-              </p>
-              <p style="margin: 10px 0 0; font-size: 11px; opacity: 0.7;">
-                © ${new Date().getFullYear()} ZUCA • Tumsifu Yesu Kristu
-              </p>
-              <p style="margin: 15px 0 0; font-size: 11px;">
-                <a href="${frontendUrl}/login" style="color: #fbbf24; text-decoration: none;">🔐 Login to ZUCA</a>
-              </p>
+              <p style="margin: 0; font-size: 12px; opacity: 0.9;">Zetech University Catholic Action (ZUCA)</p>
+              <p style="margin: 10px 0 0; font-size: 11px; opacity: 0.7;">© ${new Date().getFullYear()} ZUCA • Tumsifu Yesu Kristu</p>
+              <p style="margin: 15px 0 0; font-size: 11px;"><a href="${frontendUrl}/login" style="color: #fbbf24; text-decoration: none;">🔐 Login to ZUCA</a></p>
             </div>
           </div>
         </div>
@@ -284,11 +275,9 @@ ${membershipNumber}
 ⚠️ IMPORTANT - PLEASE SAVE THIS NUMBER ⚠️
 ━━━━━━━━━━━━━━━━━━━━━
 
-This number (${membershipNumber}) is required to:
+This number (${membershipNumber}) is required for verification.
 
-• Verify your identity
-
-Please save this email or memorize this number - you cannot change it later.
+Please save this email or memorize this number.
 
 ━━━━━━━━━━━━━━━━━━━━━
 🚀 QUICK ACTIONS
@@ -307,29 +296,20 @@ ZUCA | Zetech University Catholic Action
 ${currentTime}
     `;
     
-    await transporter.sendMail({
-      from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: `🎉 Welcome to ZUCA, ${firstName}!`,
-      html: htmlContent,
-      text: textContent
-    });
-    
-    console.log(`✅ Welcome email sent to ${user.email}`);
+    await sendViaBrevo(user.email, `🎉 Welcome to ZUCA, ${firstName}!`, htmlContent, textContent);
+    console.log(`✅ Welcome email sent to ${user.email} via Brevo`);
     return true;
-    
   } catch (error) {
-    console.error(`❌ Welcome email failed for ${user?.email}:`, error.message);
+    console.error(`❌ Welcome email failed:`, error.message);
     return false;
   }
 }
 
-// ==================== EMAIL VERIFICATION FOR NEW USERS ====================
+// ==================== VERIFICATION EMAIL (USES BREVO) ====================
 async function sendVerificationEmail(user, verificationCode) {
   try {
     const greeting = getTimeBasedGreeting();
     const firstName = user.fullName?.split(' ')[0] || 'Dear Member';
-    const currentTime = getCurrentTime();
     const frontendUrl = process.env.NODE_ENV === 'production' 
       ? 'https://zucaportal.onrender.com'
       : 'https://zetechcatholic.vercel.app';
@@ -344,30 +324,22 @@ async function sendVerificationEmail(user, verificationCode) {
       </head>
       <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #fef3c7; min-height: 100vh; padding: 20px;">
         <div style="max-width: 500px; margin: 20px auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid #fde68a;">
-          
           <div style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); padding: 30px; text-align: center;">
             <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 15px; border: 3px solid white;">
             <h1 style="color: white; margin: 0; font-size: 24px;">Verify Your Email</h1>
             <p style="color: white; margin: 10px 0 0;">Welcome to ZUCA Family!</p>
           </div>
-          
           <div style="padding: 30px; background: #fffbeb;">
             <p style="font-size: 18px; color: #78350f;">${greeting}, ${firstName}!</p>
             <p style="color: #92400e; line-height: 1.6;">Thank you for registering with ZUCA! Please verify your email address to complete your registration.</p>
-            
             <div style="background: #fef3c7; padding: 25px; text-align: center; border-radius: 16px; margin: 30px 0; border: 2px dashed #fbbf24;">
               <div style="font-size: 14px; color: #b45309; margin-bottom: 12px;">🔐 Your verification code is:</div>
               <div style="font-size: 42px; letter-spacing: 10px; font-weight: bold; color: #d97706; font-family: monospace;">${verificationCode}</div>
               <div style="font-size: 12px; color: #92400e; margin-top: 12px;">⏰ Valid for 15 minutes</div>
             </div>
-            
             <p style="color: #92400e; font-size: 14px;">Enter this code in the app to verify your email address and start using ZUCA.</p>
-            
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #fde68a; text-align: center;">
-              <p style="color: #b45309; font-size: 12px; margin: 0;">
-                🙏 God bless you<br>
-                Tumsifu Yesu Kristu!
-              </p>
+              <p style="color: #b45309; font-size: 12px; margin: 0;">🙏 God bless you<br>Tumsifu Yesu Kristu!</p>
             </div>
           </div>
         </div>
@@ -375,24 +347,70 @@ async function sendVerificationEmail(user, verificationCode) {
       </html>
     `;
     
-    await transporter.sendMail({
-      from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: '✅ Verify Your ZUCA Email Address',
-      html: htmlContent,
-      text: `${greeting} ${firstName}!\n\nThank you for registering with ZUCA!\n\nYour verification code is: ${verificationCode}\nValid for 15 minutes.\n\nEnter this code in the app to verify your email.\n\nTumsifu Yesu Kristu! 🙏`
-    });
+    const textContent = `${greeting} ${firstName}!\n\nThank you for registering with ZUCA!\n\nYour verification code is: ${verificationCode}\nValid for 15 minutes.\n\nEnter this code in the app to verify your email.\n\nTumsifu Yesu Kristu! 🙏`;
     
-    console.log(`✅ Verification email sent to ${user.email}`);
+    await sendViaBrevo(user.email, '✅ Verify Your ZUCA Email Address', htmlContent, textContent);
+    console.log(`✅ Verification email sent to ${user.email} via Brevo`);
     return true;
-    
   } catch (error) {
     console.error(`❌ Verification email failed:`, error.message);
     return false;
   }
 }
 
-// ==================== REGULAR NOTIFICATION EMAIL ====================
+// ==================== PASSWORD RESET EMAIL (USES BREVO) ====================
+async function sendPasswordResetEmail(email, resetCode) {
+  try {
+    const greeting = getTimeBasedGreeting();
+    const currentTime = getCurrentTime();
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://zucaportal.onrender.com'
+      : 'https://zetechcatholic.vercel.app';
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>🔐 Password Reset - ZUCA</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Arial, sans-serif; background: #fef3c7; margin: 0; padding: 20px;">
+        <div style="max-width: 500px; margin: 20px auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid #fde68a;">
+          <div style="background: linear-gradient(135deg, #ef4444 0%, #fbbf24 100%); padding: 30px; text-align: center;">
+            <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px; border: 2px solid white;">
+            <h1 style="color: white; margin: 0;">ZUCA</h1>
+            <p style="color: white; margin: 10px 0 0;">Password Reset Request</p>
+          </div>
+          <div style="padding: 30px; background: #fffbeb;">
+            <p style="font-size: 18px; color: #78350f;">${greeting},</p>
+            <p style="color: #92400e;">We received a request to reset your password. Don't worry - we're here to help!</p>
+            <div style="background: #fef3c7; padding: 25px; text-align: center; border-radius: 16px; margin: 30px 0; border: 2px dashed #fbbf24;">
+              <div style="font-size: 14px; color: #b45309;">🔐 Your verification code is:</div>
+              <div style="font-size: 42px; letter-spacing: 10px; font-weight: bold; color: #d97706; font-family: monospace;">${resetCode}</div>
+              <div style="font-size: 12px; color: #92400e; margin-top: 12px;">⏰ Valid for 15 minutes</div>
+            </div>
+            <p style="color: #92400e; font-size: 14px;">If you didn't request this, please ignore this email.</p>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #fde68a; text-align: center;">
+              <p style="color: #b45309; font-size: 12px;">🙏 God bless you<br>${currentTime}</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const textContent = `${greeting}!\n\nYour verification code is: ${resetCode}\nValid for 15 minutes.\n\nTumsifu Yesu Kristu! 🙏`;
+    
+    await sendViaBrevo(email, '🔐 Password Reset - ZUCA', htmlContent, textContent);
+    console.log(`✅ Password reset email sent to ${email} via Brevo`);
+    return true;
+  } catch (error) {
+    console.error('❌ Password reset email error:', error);
+    return false;
+  }
+}
+
+// ==================== REGULAR NOTIFICATION EMAIL (USES GMAIL) ====================
 async function sendPersonalizedEmail(user, notificationType, title, message, data = {}) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -470,13 +488,11 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
       </head>
       <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #fef3c7;">
         <div style="max-width: 600px; margin: 20px auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid #fde68a;">
-          
           <div style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
             <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 15px; border: 3px solid white;">
             <h1 style="color: white; margin: 0; font-size: 28px;">ZUCA</h1>
             <p style="color: white; margin: 8px 0 0; font-size: 13px;">Zetech University Catholic Action</p>
           </div>
-          
           <div style="padding: 30px; background: #fffbeb;">
             <div style="font-size: 18px; color: #b45309;">✨ ${greeting},</div>
             <h2 style="color: #78350f; margin: 0 0 8px; font-size: 28px;">${firstName}! 🙏</h2>
@@ -484,33 +500,26 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
               🕊️ ${currentTime}<br>🏠 ${jumuiaName}
             </div>
           </div>
-          
           <div style="padding: 0 30px;">
             <div style="background: #fef3c7; padding: 12px 18px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #fbbf24;">
               <p style="color: #92400e; margin: 0; font-style: italic;">💛 ${personalMessage}</p>
             </div>
           </div>
-          
           <div style="padding: 0 30px 25px;">
             <div style="display: inline-block; background: #fef3c7; color: #d97706; padding: 6px 14px; border-radius: 30px; font-size: 12px; font-weight: 600; margin-bottom: 20px;">
               ${emoji} ${notificationType.replace(/_/g, ' ').toUpperCase()}
             </div>
-            
             <h3 style="color: #78350f; font-size: 22px; margin: 0 0 15px;">${title}</h3>
-            
             <div style="background: #fef3c7; padding: 25px; border-radius: 16px; margin: 20px 0; border: 1px solid #fde68a;">
               <p style="color: #78350f; line-height: 1.8; margin: 0;">${message}</p>
             </div>
-            
             <div style="text-align: center;">${actionButton}</div>
-            
             ${data.amount ? `
               <div style="background: #fef3c7; padding: 20px; border-radius: 16px; margin-top: 25px; text-align: center; border: 1px solid #fde68a;">
                 <div style="font-size: 32px; font-weight: bold; color: #d97706;">KES ${data.amount.toLocaleString()}</div>
                 <div style="font-size: 13px; color: #92400e;">💝 Your generous pledge amount</div>
               </div>
             ` : ''}
-            
             ${data.position ? `
               <div style="background: #fef3c7; padding: 20px; border-radius: 16px; margin-top: 25px; text-align: center; border: 1px solid #fde68a;">
                 <div style="font-size: 20px; font-weight: bold; color: #d97706;">👑 ${data.position}</div>
@@ -518,7 +527,6 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
               </div>
             ` : ''}
           </div>
-          
           <div style="background: #fffbeb; padding: 25px 30px; border-top: 1px solid #fde68a;">
             <p style="color: #78350f; font-weight: 600; margin: 0 0 12px;">✨ Quick Links:</p>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -529,7 +537,6 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
               <a href="${frontendUrl}/chat" style="color: #d97706; text-decoration: none; font-size: 12px; padding: 5px 12px; background: white; border-radius: 20px; border: 1px solid #fde68a;">💬 Chat</a>
             </div>
           </div>
-          
           <div style="padding: 30px 25px; text-align: center; background: #78350f; color: #fef3c7;">
             <div style="font-size: 28px; margin-bottom: 15px;">✝️</div>
             <p style="margin: 0 0 12px; font-size: 15px; font-style: italic;">${blessing}</p>
@@ -563,24 +570,16 @@ Tumsifu Yesu Kristu! 🙏
 ZUCA | Zetech University Catholic Action
     `;
     
-    await transporter.sendMail({
-      from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: `${emoji} ${title}`,
-      html: htmlContent,
-      text: textContent
-    });
-    
-    console.log(`✅ Email sent to ${user.email} - ${notificationType}`);
+    await sendViaGmail(user.email, `${emoji} ${title}`, htmlContent, textContent);
+    console.log(`✅ Notification email sent to ${user.email} via Gmail`);
     return true;
-    
   } catch (error) {
     console.error(`❌ Email failed:`, error.message);
     return false;
   }
 }
 
-// ==================== BULK EMAIL SENDING ====================
+// ==================== BULK EMAIL SENDING (USES GMAIL) ====================
 async function sendBulkEmails(users, notificationType, title, message, data = {}) {
   if (!users || users.length === 0) {
     console.log('📧 No users to send emails to');
@@ -616,69 +615,6 @@ async function sendBulkEmails(users, notificationType, title, message, data = {}
   
   console.log(`✅ Email batch complete! Sent: ${sent}, Failed: ${failed}`);
   return { sent, failed };
-}
-
-// ==================== PASSWORD RESET EMAIL ====================
-async function sendPasswordResetEmail(email, resetCode) {
-  try {
-    const greeting = getTimeBasedGreeting();
-    const currentTime = getCurrentTime();
-    
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://zucaportal.onrender.com'
-      : 'https://zetechcatholic.vercel.app';
-    
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>🔐 Password Reset - ZUCA</title>
-      </head>
-      <body style="font-family: 'Segoe UI', Arial, sans-serif; background: #fef3c7; margin: 0; padding: 20px;">
-        <div style="max-width: 500px; margin: 20px auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid #fde68a;">
-          <div style="background: linear-gradient(135deg, #ef4444 0%, #fbbf24 100%); padding: 30px; text-align: center;">
-            <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px; border: 2px solid white;">
-            <h1 style="color: white; margin: 0;">ZUCA</h1>
-            <p style="color: white; margin: 10px 0 0;">Password Reset Request</p>
-          </div>
-          
-          <div style="padding: 30px; background: #fffbeb;">
-            <p style="font-size: 18px; color: #78350f;">${greeting},</p>
-            <p style="color: #92400e;">We received a request to reset your password. Don't worry - we're here to help!</p>
-            
-            <div style="background: #fef3c7; padding: 25px; text-align: center; border-radius: 16px; margin: 30px 0; border: 2px dashed #fbbf24;">
-              <div style="font-size: 14px; color: #b45309;">🔐 Your verification code is:</div>
-              <div style="font-size: 42px; letter-spacing: 10px; font-weight: bold; color: #d97706; font-family: monospace;">${resetCode}</div>
-              <div style="font-size: 12px; color: #92400e; margin-top: 12px;">⏰ Valid for 15 minutes</div>
-            </div>
-            
-            <p style="color: #92400e; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-            
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #fde68a; text-align: center;">
-              <p style="color: #b45309; font-size: 12px;">🙏 God bless you<br>${currentTime}</p>
-            </div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    
-    await transporter.sendMail({
-      from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: '🔐 Password Reset - ZUCA',
-      html: htmlContent,
-      text: `${greeting}!\n\nYour verification code is: ${resetCode}\nValid for 15 minutes.\n\nTumsifu Yesu Kristu! 🙏`
-    });
-    
-    console.log(`✅ Password reset email sent to ${email}`);
-    return true;
-    
-  } catch (error) {
-    console.error('❌ Password reset email error:', error);
-    throw error;
-  }
 }
 
 module.exports = { 

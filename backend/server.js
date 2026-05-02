@@ -29,8 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 const resetAttempts = new Map();
 
 // ================== EMAIL ==================
-const { sendPasswordResetEmail } = require("./services/mailer");
-
+const { sendPasswordResetEmail, sendPersonalizedEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
 const notifications = new Map();
 
@@ -10931,7 +10930,6 @@ async function sendPushNotification(userId, title, body, data = {}) {
     }
   }
 }
-
 // ============================================
 // SECOND: Define createAndSendNotification
 // ============================================
@@ -10960,6 +10958,24 @@ async function createAndSendNotification({ userId, type, title, message, data = 
   } catch (err) {
     console.log('Push not sent (user may not have PWA installed):', err.message);
   }
+
+  // ========== ADD THIS EMAIL SECTION ==========
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { homeJumuia: true }
+    });
+    
+    if (user && user.email) {
+      await sendPersonalizedEmail(user, type, title, message, data);
+      console.log(`✅ Email sent to ${user.email}`);
+    } else {
+      console.log(`⚠️ No email found for user ${userId}`);
+    }
+  } catch (err) {
+    console.error('❌ Email error:', err.message);
+  }
+  // ========== END OF EMAIL SECTION ==========
 
   return notif;
 }

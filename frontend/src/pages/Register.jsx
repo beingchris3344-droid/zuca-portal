@@ -96,8 +96,18 @@ function Register() {
     const newCode = [...verificationCode];
     newCode[index] = element.value;
     setVerificationCode(newCode);
+    
+    // Auto-focus next input
     if (element.value !== "" && index < 5) {
       document.getElementById(`verify-code-${index + 1}`)?.focus();
+    }
+    
+    // Auto-verify when all 6 digits are filled (typing)
+    const fullCode = newCode.join("");
+    if (fullCode.length === 6 && newCode.every(d => d !== "")) {
+      setTimeout(() => {
+        handleVerifyEmailAuto(fullCode);
+      }, 100);
     }
   };
 
@@ -109,13 +119,26 @@ function Register() {
     }
   };
 
-  const handleVerifyEmail = async () => {
-    const fullCode = verificationCode.join("");
-    if (fullCode.length !== 6) {
-      setVerificationError("Please enter the complete 6-digit code");
-      return;
-    }
+  const handlePasteCode = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text/plain').trim();
     
+    // Check if pasted data is a 6-digit code
+    if (/^\d{6}$/.test(pastedData)) {
+      const digits = pastedData.split('');
+      setVerificationCode(digits);
+      
+      // Auto-verify immediately after paste
+      setTimeout(() => {
+        handleVerifyEmailAuto(pastedData);
+      }, 100);
+    } else {
+      setVerificationError("Please paste a valid 6-digit code");
+      setTimeout(() => setVerificationError(""), 2000);
+    }
+  };
+
+  const handleVerifyEmailAuto = async (fullCode) => {
     setVerificationLoading(true);
     setVerificationError("");
     
@@ -129,7 +152,6 @@ function Register() {
       const data = await res.json();
       
       if (res.ok && data.token) {
-        // Save token and user data
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         
@@ -138,12 +160,25 @@ function Register() {
         setNewUserName(data.user?.fullName?.split(" ")[0] || "Member");
       } else {
         setVerificationError(data.error || "Invalid verification code");
+        // Clear all inputs on error
+        setVerificationCode(["", "", "", "", "", ""]);
+        document.getElementById('verify-code-0')?.focus();
       }
     } catch (err) {
       setVerificationError("Network error. Please try again.");
+      setVerificationCode(["", "", "", "", "", ""]);
     } finally {
       setVerificationLoading(false);
     }
+  };
+
+  const handleVerifyEmail = async () => {
+    const fullCode = verificationCode.join("");
+    if (fullCode.length !== 6) {
+      setVerificationError("Please enter the complete 6-digit code");
+      return;
+    }
+    await handleVerifyEmailAuto(fullCode);
   };
 
   const handleResendVerification = async () => {
@@ -747,8 +782,8 @@ function Register() {
               style={{
                 background: "linear-gradient(135deg, #1a1a2e, #16213e)",
                 borderRadius: "28px",
-                padding: "35px",
-                maxWidth: "450px",
+                padding: "40px 35px",
+                maxWidth: "480px",
                 width: "100%",
                 textAlign: "center",
                 border: "1px solid rgba(0,198,255,0.3)",
@@ -762,18 +797,28 @@ function Register() {
                 style={{ marginBottom: "20px" }}
               >
                 <img src={logo} alt="ZUCA" style={{ width: "70px", marginBottom: "10px" }} />
-                <h2 style={{ color: "white", marginTop: "10px", fontSize: "24px" }}>Verify Your Email</h2>
-                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px" }}>
+                <h2 style={{ color: "white", marginTop: "10px", fontSize: "26px", fontWeight: "600" }}>Verify Your Email</h2>
+                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", marginTop: "8px" }}>
                   We sent a 6-digit code to:<br />
                   <strong style={{ color: "#00c6ff", fontSize: "16px" }}>{verificationEmail}</strong>
                 </p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "5px" }}>
+                  📋 Just copy and paste the code - it will auto-verify!
+                </p>
               </motion.div>
               
+              {/* Single row code inputs with paste support */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                style={{ display: "flex", gap: "10px", justifyContent: "center", marginBottom: "20px", flexWrap: "wrap" }}
+                style={{ 
+                  display: "flex", 
+                  gap: "12px", 
+                  justifyContent: "center", 
+                  marginBottom: "25px",
+                  flexWrap: "nowrap"
+                }}
               >
                 {verificationCode.map((digit, index) => (
                   <input
@@ -785,11 +830,12 @@ function Register() {
                     value={digit}
                     onChange={(e) => handleVerificationCodeChange(e.target, index)}
                     onKeyDown={(e) => handleVerificationKeyDown(e, index)}
+                    onPaste={(e) => handlePasteCode(e)}
                     style={{
-                      width: "55px",
-                      height: "65px",
+                      width: "60px",
+                      height: "70px",
                       textAlign: "center",
-                      fontSize: "28px",
+                      fontSize: "32px",
                       fontWeight: "bold",
                       borderRadius: "16px",
                       border: `2px solid ${digit ? "#00c6ff" : "rgba(0,198,255,0.3)"}`,
@@ -798,6 +844,7 @@ function Register() {
                       outline: "none",
                       transition: "all 0.2s"
                     }}
+                    onFocus={(e) => e.target.select()}
                     autoFocus={index === 0}
                   />
                 ))}
@@ -809,7 +856,7 @@ function Register() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    style={{ color: "#ff6b6b", marginBottom: "15px", fontSize: "14px", background: "rgba(255,107,107,0.1)", padding: "10px", borderRadius: "12px" }}
+                    style={{ color: "#ff6b6b", marginBottom: "20px", fontSize: "14px", background: "rgba(255,107,107,0.1)", padding: "12px", borderRadius: "12px" }}
                   >
                     ⚠️ {verificationError}
                   </motion.div>
@@ -823,15 +870,15 @@ function Register() {
                 whileTap={{ scale: 0.98 }}
                 style={{
                   width: "100%",
-                  padding: "14px",
-                  borderRadius: "12px",
+                  padding: "16px",
+                  borderRadius: "14px",
                   border: "none",
                   background: verificationLoading ? "linear-gradient(135deg, #888, #666)" : "linear-gradient(135deg, #00c6ff, #007bff)",
                   color: "white",
                   fontWeight: "bold",
                   fontSize: "16px",
                   cursor: verificationLoading ? "not-allowed" : "pointer",
-                  marginBottom: "15px"
+                  marginBottom: "20px"
                 }}
               >
                 {verificationLoading ? (
@@ -874,6 +921,21 @@ function Register() {
                   </button>
                 )}
               </motion.div>
+              
+              <div style={{ marginTop: "20px" }}>
+                <button
+                  onClick={() => setShowVerification(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "rgba(255,255,255,0.5)",
+                    cursor: "pointer",
+                    fontSize: "13px"
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

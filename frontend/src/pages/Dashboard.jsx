@@ -293,6 +293,27 @@ const fetchFeaturedGallery = async () => {
     }
   };
 
+
+   const fetchPublicStats = async () => {
+    try {
+      const [campaignsRes, usersRes, mediaRes] = await Promise.all([
+        axios.get(`${BASE_URL}/api/public/campaigns/count`),
+        axios.get(`${BASE_URL}/api/public/users/count`),
+        axios.get(`${BASE_URL}/api/public/media/count`)
+      ]);
+      
+      setActiveCampaigns(campaignsRes.data.count);
+      setTotalUsers(usersRes.data.count);
+      setTotalMedia(mediaRes.data.count);
+    } catch (error) {
+      console.error("Error fetching public stats:", error);
+      // Set fallback values so dashboard still shows something
+      setActiveCampaigns(0);
+      setTotalUsers(0);
+      setTotalMedia(0);
+    }
+  };
+
   // Format relative time
   const formatRelativeTime = (date) => {
     if (!date) return "Unknown";
@@ -360,22 +381,46 @@ const fetchFeaturedGallery = async () => {
         setProfileImage(userRes.data.profileImage);
         localStorage.setItem("user", JSON.stringify(userRes.data));
 
-        await Promise.all([
-          fetchAnnouncements(),
-          fetchMassPrograms(),
-          fetchMyPledges(),
-          fetchActiveCampaigns(),
-          fetchJumuiaInfo(),
-          fetchFeaturedGallery(),
-          fetchRecentHymns(),
-          fetchGameInvites(),
-          fetchOnlineMembers(),
-          fetchRecentChats(),
-          fetchExecutiveTeam(),
-          fetchUpcomingSchedules(),
-          fetchTodaysReading(),
-          fetchSystemStats()
-        ]);
+               // Check if user is admin or treasurer
+        const isAdmin = storedUser.role === "admin";
+        const isTreasurer = storedUser.specialRole === "treasurer";
+        
+        // Use admin endpoints for admin/treasurer, public endpoints for regular users
+        if (isAdmin || isTreasurer) {
+          await Promise.all([
+            fetchAnnouncements(),
+            fetchMassPrograms(),
+            fetchMyPledges(),
+            fetchActiveCampaigns(),
+            fetchJumuiaInfo(),
+            fetchFeaturedGallery(),
+            fetchRecentHymns(),
+            fetchGameInvites(),
+            fetchOnlineMembers(),
+            fetchRecentChats(),
+            fetchExecutiveTeam(),
+            fetchUpcomingSchedules(),
+            fetchTodaysReading(),
+            fetchSystemStats()
+          ]);
+        } else {
+          await Promise.all([
+            fetchAnnouncements(),
+            fetchMassPrograms(),
+            fetchMyPledges(),
+            fetchPublicStats(),  // ← Uses public endpoint instead
+            fetchJumuiaInfo(),
+            fetchFeaturedGallery(),
+            fetchRecentHymns(),
+            fetchGameInvites(),
+            fetchOnlineMembers(),
+            fetchRecentChats(),
+            fetchExecutiveTeam(),
+            fetchUpcomingSchedules(),
+            fetchTodaysReading()
+            // No fetchSystemStats() for regular users
+          ]);
+        }
         
         await fetchNotifications();
         

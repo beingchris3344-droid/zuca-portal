@@ -13041,6 +13041,39 @@ app.delete("/api/admin/schedules/drafts/:id", authenticate, async (req, res) => 
   }
 });
 
+
+
+app.get("/api/upcoming-events", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const events = await prisma.scheduleEvent.findMany({
+      where: {
+        eventDate: { gte: today },
+        schedule: { isPublished: true }
+      },
+      include: {
+        schedule: {
+          select: {
+            id: true,
+            title: true,
+            isPublished: true
+          }
+        }
+      },
+      orderBy: { eventDate: 'asc' },
+      take: parseInt(limit)
+    });
+    
+    res.json(events);
+  } catch (err) {
+    console.error("Error fetching upcoming events:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== SCHEDULE PUBLISHING ROUTES ====================
 
 // CREATE schedule (publish) - OPTIMIZED VERSION

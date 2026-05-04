@@ -2594,6 +2594,49 @@ app.get("/api/public/files/:fileId", async (req, res) => {
   }
 });
 
+// ================== PUBLIC STATS ENDPOINTS (NO AUTH NEEDED) ==================
+// Add these after your other public routes
+
+// Public - anyone can see campaign count
+app.get("/api/public/campaigns/count", async (req, res) => {
+  try {
+    const count = await prisma.contributionType.count({
+      where: {
+        OR: [
+          { deadline: null },
+          { deadline: { gte: new Date() } }
+        ]
+      }
+    });
+    res.json({ count });
+  } catch (err) {
+    console.error("Error fetching campaign count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public - anyone can see user count
+app.get("/api/public/users/count", async (req, res) => {
+  try {
+    const count = await prisma.user.count();
+    res.json({ count });
+  } catch (err) {
+    console.error("Error fetching user count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public - anyone can see media count
+app.get("/api/public/media/count", async (req, res) => {
+  try {
+    const count = await prisma.media.count({ where: { isPublic: true } });
+    res.json({ count });
+  } catch (err) {
+    console.error("Error fetching media count:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ================== GEMINI AI SETUP ==================
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -13073,6 +13116,10 @@ app.get("/api/upcoming-events", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
 
 // ==================== SCHEDULE PUBLISHING ROUTES ====================
 

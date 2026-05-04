@@ -31,26 +31,31 @@ function AdminSchedules() {
   const [savedNotifications, setSavedNotifications] = useState([]);
   const [actionLoading, setActionLoading] = useState({});
   
-  // OCR States
   const [uploadingImage, setUploadingImage] = useState(false);
   const [pendingOCRImage, setPendingOCRImage] = useState(null);
   const fileInputRef = useRef(null);
   
-  // Auto-save key for localStorage
   const UNSAVED_KEY = "unsaved_schedule_data";
   const NOTIFICATIONS_KEY = "schedule_notifications";
+  
+  const idCounterRef = useRef(1000000);
+  
+  const getUniqueId = useCallback(() => {
+    idCounterRef.current += 1;
+    return idCounterRef.current;
+  }, []);
   
   const [formData, setFormData] = useState({
     title: "",
     semesterPeriod: { start: null, end: null },
     generalPoints: [
-      { id: Date.now(), text: "" }
+      { id: getUniqueId(), text: "" }
     ],
     sections: [
       {
-        id: Date.now(),
+        id: getUniqueId(),
         title: "",
-        tableRows: [{ id: Date.now(), date: "", dateValue: null, event: "" }],
+        tableRows: [{ id: getUniqueId(), date: "", dateValue: null, event: "" }],
         freeText: ""
       }
     ],
@@ -83,12 +88,10 @@ function AdminSchedules() {
     setActionLoading(prev => ({ ...prev, [action]: isLoading }));
   }, []);
 
-  // ==================== OCR FUNCTIONS ====================
   const handleImageUploadForOCR = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       showToast("❌ Image too large. Max 5MB.", "error");
       return;
@@ -98,143 +101,131 @@ function AdminSchedules() {
     showToast("📸 Image uploaded. Switch to Structured Mode to extract schedule.", "info");
   };
 
-const parseExtractedTextToSchedule = (text) => {
-  const result = { hasData: false, sections: [], generalPoints: [] };
-  if (!text || !text.trim()) return result;
-  
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-  
-  // Extract title
-  for (let i = 0; i < Math.min(5, lines.length); i++) {
-    if (lines[i].includes("SEMESTER SCHEDULE") || lines[i].includes("MAY-AUGUST")) {
-      result.title = lines[i];
-      result.hasData = true;
-      break;
-    }
-  }
-  
-  // Extract bullet points as general points
-  const bulletPoints = [];
-  let inActivities = false;
-  
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].toLowerCase().includes("activities will take place")) {
-      inActivities = true;
-      continue;
-    }
-    if (inActivities && lines[i].match(/^[-•*]/)) {
-      if (lines[i].toUpperCase() === lines[i] && lines[i].length > 10) {
-        inActivities = false;
-      } else {
-        bulletPoints.push(lines[i].replace(/^[-•*]\s*/, ''));
+  const parseExtractedTextToSchedule = (text) => {
+    const result = { hasData: false, sections: [], generalPoints: [] };
+    if (!text || !text.trim()) return result;
+    
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      if (lines[i].includes("SEMESTER SCHEDULE") || lines[i].includes("MAY-AUGUST")) {
+        result.title = lines[i];
+        result.hasData = true;
+        break;
       }
     }
-    if (inActivities && lines[i].match(/^\d/)) {
-      inActivities = false;
-    }
-  }
-  
-  if (bulletPoints.length > 0) {
-    result.generalPoints = bulletPoints.map((point, idx) => ({
-      id: Date.now() + idx,
-      text: point
-    }));
-    result.hasData = true;
-  }
-  
-  // Detect section headers
-  const sections = [];
-  let currentSection = null;
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Check for section header (ALL CAPS or contains MASS ANIMATIONS)
-    if ((line === line.toUpperCase() && line.length > 15) || 
-        line.includes("MASS ANIMATIONS") ||
-        line.includes("OUTDOOR ACTIVITIES")) {
-      if (currentSection && currentSection.rows.length > 0) {
-        sections.push(currentSection);
+    
+    const bulletPoints = [];
+    let inActivities = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes("activities will take place")) {
+        inActivities = true;
+        continue;
       }
-      currentSection = {
-        title: line,
-        rows: []
-      };
-    } else if (currentSection) {
-      // Try to parse date-event pairs from the line
-      const dateMatch = line.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
-      if (dateMatch) {
-        // Extract date and what follows as event
-        let date = dateMatch[0];
-        let event = line.replace(dateMatch[0], '').trim();
-        
-        // Clean up event
-        event = event.replace(/^[-•*]\s*/, '');
-        
-        // If event contains multiple events (space separated), try to split
-        if (event.includes("St ") || event.includes("ZUCA") || event.includes("Cultural")) {
-          // This line has multiple events - split them
-          const eventParts = event.split(/\s+(?=St\s|ZUCA|Cultural)/);
-          for (let part of eventParts) {
-            if (part.trim()) {
-              currentSection.rows.push({
-                id: Date.now() + Math.random(),
-                date: date,
-                dateValue: null,
-                event: part.trim()
-              });
-              date = ""; // Only use date for first event
-            }
-          }
+      if (inActivities && lines[i].match(/^[-•*]/)) {
+        if (lines[i].toUpperCase() === lines[i] && lines[i].length > 10) {
+          inActivities = false;
         } else {
-          currentSection.rows.push({
-            id: Date.now() + i,
-            date: date,
-            dateValue: null,
-            event: event || "Event"
-          });
+          bulletPoints.push(lines[i].replace(/^[-•*]\s*/, ''));
         }
-      } else if (line.match(/^\d/)) {
-        // Line starts with number - might be a date without month
-        const parts = line.split(/\s+/);
-        if (parts.length >= 2) {
-          currentSection.rows.push({
-            id: Date.now() + i,
-            date: parts[0],
-            dateValue: null,
-            event: parts.slice(1).join(" ")
-          });
+      }
+      if (inActivities && lines[i].match(/^\d/)) {
+        inActivities = false;
+      }
+    }
+    
+    if (bulletPoints.length > 0) {
+      result.generalPoints = bulletPoints.map((point, idx) => ({
+        id: getUniqueId(),
+        text: point
+      }));
+      result.hasData = true;
+    }
+    
+    const sections = [];
+    let currentSection = null;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if ((line === line.toUpperCase() && line.length > 15) || 
+          line.includes("MASS ANIMATIONS") ||
+          line.includes("OUTDOOR ACTIVITIES")) {
+        if (currentSection && currentSection.rows.length > 0) {
+          sections.push(currentSection);
+        }
+        currentSection = {
+          title: line,
+          rows: []
+        };
+      } else if (currentSection) {
+        const dateMatch = line.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+        if (dateMatch) {
+          let date = dateMatch[0];
+          let event = line.replace(dateMatch[0], '').trim();
+          event = event.replace(/^[-•*]\s*/, '');
+          
+          if (event.includes("St ") || event.includes("ZUCA") || event.includes("Cultural")) {
+            const eventParts = event.split(/\s+(?=St\s|ZUCA|Cultural)/);
+            for (let part of eventParts) {
+              if (part.trim()) {
+                currentSection.rows.push({
+                  id: getUniqueId(),
+                  date: date,
+                  dateValue: null,
+                  event: part.trim()
+                });
+                date = "";
+              }
+            }
+          } else {
+            currentSection.rows.push({
+              id: getUniqueId(),
+              date: date,
+              dateValue: null,
+              event: event || "Event"
+            });
+          }
+        } else if (line.match(/^\d/)) {
+          const parts = line.split(/\s+/);
+          if (parts.length >= 2) {
+            currentSection.rows.push({
+              id: getUniqueId(),
+              date: parts[0],
+              dateValue: null,
+              event: parts.slice(1).join(" ")
+            });
+          }
         }
       }
     }
-  }
-  
-  if (currentSection && currentSection.rows.length > 0) {
-    sections.push(currentSection);
-  }
-  
-  // Convert sections to result format
-  for (let s = 0; s < sections.length; s++) {
-    result.sections.push({
-      id: Date.now() + s,
-      title: sections[s].title,
-      tableRows: sections[s].rows,
-      freeText: ""
-    });
-    result.hasData = true;
-  }
-  
-  return result;
-};
+    
+    if (currentSection && currentSection.rows.length > 0) {
+      sections.push(currentSection);
+    }
+    
+    for (let s = 0; s < sections.length; s++) {
+      result.sections.push({
+        id: getUniqueId(),
+        title: sections[s].title,
+        tableRows: sections[s].rows,
+        freeText: ""
+      });
+      result.hasData = true;
+    }
+    
+    return result;
+  };
 
   const processImageWithOCR = async (imageFile) => {
     if (!imageFile) return;
     
     setUploadingImage(true);
-    const formData = new FormData();
-    formData.append('image', imageFile);
+    const formDataOCR = new FormData();
+    formDataOCR.append('image', imageFile);
     
     try {
-      const response = await axios.post(`${BASE_URL}/api/ocr/ocr-space`, formData, {
+      const response = await axios.post(`${BASE_URL}/api/ocr/ocr-space`, formDataOCR, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`
@@ -274,7 +265,6 @@ const parseExtractedTextToSchedule = (text) => {
     }
   };
 
-  // Process OCR when switching from free to structured mode
   useEffect(() => {
     if (activeTab === "structured" && pendingOCRImage) {
       processImageWithOCR(pendingOCRImage);
@@ -282,7 +272,6 @@ const parseExtractedTextToSchedule = (text) => {
     }
   }, [activeTab, pendingOCRImage]);
 
-  // ==================== NOTIFICATION FUNCTIONS ====================
   const loadSavedNotifications = useCallback(() => {
     const saved = localStorage.getItem(NOTIFICATIONS_KEY);
     if (saved) {
@@ -355,7 +344,6 @@ const parseExtractedTextToSchedule = (text) => {
     }
   }, [showToast, setActionLoadingState]);
 
-  // ==================== AUTO-SAVE FUNCTIONS ====================
   const autoSaveToLocal = useCallback(() => {
     const hasContent = formData.title?.trim() || 
       formData.generalPoints.some(p => p.text?.trim()) ||
@@ -416,7 +404,6 @@ const parseExtractedTextToSchedule = (text) => {
     };
   }, [showForm, previewMode, autoSaveToLocal]);
 
-  // ==================== API CALLS ====================
   const fetchSchedules = useCallback(async () => {
     setActionLoadingState("fetch_schedules", true);
     try {
@@ -449,7 +436,6 @@ const parseExtractedTextToSchedule = (text) => {
     }
   }, [fetchSchedules, fetchDrafts, loadSavedNotifications, loadUnsavedFromLocal, initialLoadDone]);
 
-  // ==================== SCHEDULE FUNCTIONS ====================
   const buildFullDocumentHTML = useCallback(() => {
     let html = `
       <!DOCTYPE html>
@@ -489,7 +475,9 @@ const parseExtractedTextToSchedule = (text) => {
           <div style="margin: 25px 0;">
             <h3>${section.title || "Section"}</h3>
             <table>
-              <thead><tr><th>DATE</th><th>EVENT</th></tr></thead>
+              <thead>
+                <tr><th>DATE</th><th>EVENT</th></tr>
+              </thead>
               <tbody>
                 ${section.tableRows.filter(row => row.date && row.event).map(row => `
                   <tr><td>${row.date}</td><td>${row.event}</td></tr>
@@ -559,7 +547,6 @@ const parseExtractedTextToSchedule = (text) => {
     return null;
   };
 
-  // ==================== CRUD OPERATIONS ====================
   const saveAsDraft = async () => {
     setActionLoadingState("save_draft", true);
     
@@ -604,7 +591,6 @@ const parseExtractedTextToSchedule = (text) => {
     e.preventDefault();
     setActionLoadingState("publish", true);
     
-    // Validation
     if (!formData.title || formData.title.trim() === "") {
       showToast("❌ Schedule title is required", "error");
       setActionLoadingState("publish", false);
@@ -614,7 +600,6 @@ const parseExtractedTextToSchedule = (text) => {
     const content = buildFullDocumentHTML();
     const events = extractEventsFromSections();
     
-    // Format dates properly
     const startDateValue = formData.semesterPeriod?.start instanceof Date && !isNaN(formData.semesterPeriod.start)
       ? formData.semesterPeriod.start 
       : null;
@@ -633,6 +618,8 @@ const parseExtractedTextToSchedule = (text) => {
       sections: formData.sections,
       generalPoints: formData.generalPoints.filter(p => p.text && p.text.trim()),
       additionalNotes: formData.additionalNotes || "",
+      freeContent: freeContent,
+      activeTab: activeTab,
       semesterPeriod: {
         start: startDateValue,
         end: endDateValue
@@ -661,15 +648,12 @@ const parseExtractedTextToSchedule = (text) => {
       let errorMessage = "Failed to save schedule";
       
       if (err.response) {
-        // Server responded with error
         errorMessage = err.response.data?.error || err.response.data?.message || `Server error: ${err.response.status}`;
         console.error("Response data:", err.response.data);
         console.error("Response status:", err.response.status);
       } else if (err.request) {
-        // Request made but no response
         errorMessage = "No response from server. Check your connection.";
       } else {
-        // Other error
         errorMessage = err.message || "Unknown error occurred";
       }
       
@@ -752,7 +736,9 @@ const parseExtractedTextToSchedule = (text) => {
           <div style="margin: 25px 0;">
             <h3>${section.title || "Section"}</h3>
             <table>
-              <thead><tr><th>DATE</th><th>EVENT</th></tr></thead>
+              <thead>
+                <tr><th>DATE</th><th>EVENT</th></tr>
+              </thead>
               <tbody>
                 ${section.tableRows?.filter(row => row.date && row.event).map(row => `
                   <tr><td>${row.date}</td><td>${row.event}</td></tr>
@@ -875,11 +861,11 @@ const parseExtractedTextToSchedule = (text) => {
       setFormData({
         title: "",
         semesterPeriod: { start: null, end: null },
-        generalPoints: [{ id: Date.now(), text: "" }],
+        generalPoints: [{ id: getUniqueId(), text: "" }],
         sections: [{
-          id: Date.now(),
+          id: getUniqueId(),
           title: "",
-          tableRows: [{ id: Date.now(), date: "", dateValue: null, event: "" }],
+          tableRows: [{ id: getUniqueId(), date: "", dateValue: null, event: "" }],
           freeText: ""
         }],
         additionalNotes: "",
@@ -917,36 +903,69 @@ const parseExtractedTextToSchedule = (text) => {
       let sections = schedule.sections;
       if (!sections || sections.length === 0) {
         sections = [{
-          id: Date.now(),
+          id: getUniqueId(),
           title: "",
-          tableRows: [{ id: Date.now(), date: "", dateValue: null, event: "" }],
+          tableRows: [{ id: getUniqueId(), date: "", dateValue: null, event: "" }],
           freeText: ""
         }];
       } else {
-        sections = sections.map(section => ({
-          ...section,
-          id: Date.now(),
-          tableRows: (section.tableRows || []).map(row => ({
-            ...row,
-            id: Date.now(),
-            dateValue: row.date ? parseDateString(row.date) : null
-          }))
-        }));
+        sections = sections.map(section => {
+          const parsedRows = (section.tableRows || []).map(row => {
+            let dateValue = null;
+            let dateDisplay = row.date || "";
+            
+            if (row.date) {
+              const parsed = parseDateString(row.date);
+              if (parsed) {
+                dateValue = parsed;
+                dateDisplay = parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+              }
+            }
+            
+            return {
+              id: getUniqueId(),
+              date: dateDisplay,
+              dateValue: dateValue,
+              event: row.event || ""
+            };
+          });
+          
+          return {
+            ...section,
+            id: getUniqueId(),
+            tableRows: parsedRows
+          };
+        });
+      }
+
+      let startDate = null;
+      let endDate = null;
+      
+      if (schedule.startDate) {
+        const parsedStart = new Date(schedule.startDate);
+        if (!isNaN(parsedStart.getTime())) startDate = parsedStart;
+      }
+      if (schedule.endDate) {
+        const parsedEnd = new Date(schedule.endDate);
+        if (!isNaN(parsedEnd.getTime())) endDate = parsedEnd;
       }
 
       setFormData({
         title: schedule.title || "",
         semesterPeriod: { 
-          start: schedule.startDate ? new Date(schedule.startDate) : null, 
-          end: schedule.endDate ? new Date(schedule.endDate) : null 
+          start: startDate,
+          end: endDate
         },
         generalPoints: schedule.generalPoints && schedule.generalPoints.length > 0 
-          ? schedule.generalPoints 
-          : [{ id: Date.now(), text: "" }],
+          ? schedule.generalPoints.map(p => ({ ...p, id: getUniqueId() }))
+          : [{ id: getUniqueId(), text: "" }],
         sections: sections,
         additionalNotes: schedule.additionalNotes || "",
         isPublished: schedule.isPublished || false
       });
+      
+      setFreeContent(schedule.freeContent || "");
+      setActiveTab(schedule.activeTab || "structured");
       setEditingId(schedule.id);
       setShowForm(true);
       localStorage.removeItem(UNSAVED_KEY);
@@ -964,7 +983,7 @@ const parseExtractedTextToSchedule = (text) => {
           start: schedule.startDate ? new Date(schedule.startDate) : null, 
           end: schedule.endDate ? new Date(schedule.endDate) : null 
         },
-        generalPoints: schedule.generalPoints || [{ id: Date.now(), text: "" }],
+        generalPoints: schedule.generalPoints || [{ id: getUniqueId(), text: "" }],
         sections: schedule.sections || [],
         additionalNotes: schedule.additionalNotes || "",
         isPublished: schedule.isPublished
@@ -976,11 +995,10 @@ const parseExtractedTextToSchedule = (text) => {
     }, 300);
   };
 
-  // Form field handlers
   const addGeneralPoint = () => {
     setFormData(prev => ({
       ...prev,
-      generalPoints: [...prev.generalPoints, { id: Date.now(), text: "" }]
+      generalPoints: [...prev.generalPoints, { id: getUniqueId(), text: "" }]
     }));
   };
 
@@ -1004,9 +1022,9 @@ const parseExtractedTextToSchedule = (text) => {
       sections: [
         ...prev.sections,
         {
-          id: Date.now(),
+          id: getUniqueId(),
           title: "",
-          tableRows: [{ id: Date.now(), date: "", dateValue: null, event: "" }],
+          tableRows: [{ id: getUniqueId(), date: "", dateValue: null, event: "" }],
           freeText: ""
         }
       ]
@@ -1043,7 +1061,13 @@ const parseExtractedTextToSchedule = (text) => {
       ...prev,
       sections: prev.sections.map(s => 
         s.id === sectionId 
-          ? { ...s, tableRows: [...s.tableRows, { id: Date.now(), date: "", dateValue: null, event: "" }] }
+          ? { 
+              ...s, 
+              tableRows: [
+                ...s.tableRows, 
+                { id: getUniqueId(), date: "", dateValue: null, event: "" }
+              ] 
+            }
           : s
       )
     }));
@@ -1054,7 +1078,12 @@ const parseExtractedTextToSchedule = (text) => {
       ...prev,
       sections: prev.sections.map(s => 
         s.id === sectionId 
-          ? { ...s, tableRows: s.tableRows.map(r => r.id === rowId ? { ...r, date, dateValue } : r) }
+          ? { 
+              ...s, 
+              tableRows: s.tableRows.map(r => 
+                r.id === rowId ? { ...r, date, dateValue } : r
+              ) 
+            }
           : s
       )
     }));
@@ -1065,7 +1094,12 @@ const parseExtractedTextToSchedule = (text) => {
       ...prev,
       sections: prev.sections.map(s => 
         s.id === sectionId 
-          ? { ...s, tableRows: s.tableRows.map(r => r.id === rowId ? { ...r, event } : r) }
+          ? { 
+              ...s, 
+              tableRows: s.tableRows.map(r => 
+                r.id === rowId ? { ...r, event } : r
+              ) 
+            }
           : s
       )
     }));
@@ -1085,7 +1119,23 @@ const parseExtractedTextToSchedule = (text) => {
   const loadDraft = (draft) => {
     setActionLoadingState("load_draft", true);
     setTimeout(() => {
-      setFormData(draft.formData);
+      const freshFormData = JSON.parse(JSON.stringify(draft.formData));
+      
+      freshFormData.generalPoints = freshFormData.generalPoints.map(p => ({
+        ...p,
+        id: getUniqueId()
+      }));
+      
+      freshFormData.sections = freshFormData.sections.map(section => ({
+        ...section,
+        id: getUniqueId(),
+        tableRows: section.tableRows.map(row => ({
+          ...row,
+          id: getUniqueId()
+        }))
+      }));
+      
+      setFormData(freshFormData);
       setFreeContent(draft.freeContent || "");
       setActiveTab(draft.activeTab || "structured");
       setEditingDraftId(draft.id);
@@ -1157,7 +1207,6 @@ const parseExtractedTextToSchedule = (text) => {
         </div>
       </div>
 
-      {/* Notifications Panel */}
       {showSavedNotifications && (
         <div style={styles.notificationsPanel}>
           <div style={styles.notificationsHeader}>
@@ -1207,7 +1256,6 @@ const parseExtractedTextToSchedule = (text) => {
         </div>
       )}
 
-      {/* Drafts Panel */}
       {showDraftsPanel && (
         <div style={styles.draftsPanel}>
           <div style={styles.draftsHeader}>
@@ -1239,7 +1287,6 @@ const parseExtractedTextToSchedule = (text) => {
         </div>
       )}
 
-      {/* Published Schedules List */}
       <div style={styles.scheduleList}>
         <h2 style={styles.sectionTitle}>📋 Published Schedules</h2>
         {actionLoading.fetch_schedules ? (
@@ -1289,7 +1336,6 @@ const parseExtractedTextToSchedule = (text) => {
         )}
       </div>
 
-      {/* Full Page Form Portal */}
       {showForm && createPortal(
         <div style={styles.fullPageForm}>
           <div style={styles.fullPageHeader}>
@@ -1331,7 +1377,6 @@ const parseExtractedTextToSchedule = (text) => {
                   <h3>📝 Paste Your Schedule Here</h3>
                   <p style={styles.hint}>Paste any formatted text, table, or document. Use the button below to upload an image and extract schedule data.</p>
                   
-                  {/* Image Upload for OCR */}
                   <div style={{ marginBottom: "15px" }}>
                     <input
                       type="file"
@@ -1467,7 +1512,7 @@ const parseExtractedTextToSchedule = (text) => {
                                       customInput={<button type="button" style={styles.calendarBtn}>📅</button>}
                                     />
                                   </div>
-                                 </td>
+                                  </td>
                                 <td style={{ border: "1px solid #e2e8f0", padding: "8px" }}>
                                   <input
                                     type="text"
@@ -1476,11 +1521,11 @@ const parseExtractedTextToSchedule = (text) => {
                                     style={styles.tableInput}
                                     placeholder="Event/Leading (e.g., Leaders Meeting)"
                                   />
-                                 </td>
+                                  </td>
                                 <td style={{ border: "1px solid #e2e8f0", padding: "8px", width: "50px" }}>
                                   <button type="button" onClick={() => removeTableRow(section.id, row.id)} style={styles.removeRowBtn}>✕</button>
-                                 </td>
-                               </tr>
+                                  </td>
+                              </tr>
                             ))}
                           </tbody>
                         </table>

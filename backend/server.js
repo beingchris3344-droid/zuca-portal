@@ -4727,7 +4727,6 @@ app.post("/api/verify-email", async (req, res) => {
 // ================== ADD THIS AT THE TOP OF server.js ==================
 // Store pending registrations in memory (resets when server restarts)
 
-// ================== LOGIN ==================
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -4746,41 +4745,39 @@ app.post("/api/login", async (req, res) => {
       data: { lastActive: new Date() },
     });
 
-     const admins = await prisma.user.findMany({
-      where: { role: "admin" },
-      select: { id: true }
-    });
-
-    if (admins.length > 0) {
-      const now = new Date();
-      const notifications = admins.map(admin => ({
-        id: `login-${user.id}-${admin.id}-${Date.now()}`,
-        userId: admin.id,
-        type: "user_login",
-        title: "👤 User Login",
-        message: `${user.fullName} just logged in`,
-        read: false,
-        createdAt: now,
-      }));
-
-   // Send push notifications to admins
-for (const notif of notifications) {
-  await createAndSendNotification({
-    userId: notif.userId,
-    type: notif.type,
-    title: notif.title,
-    message: notif.message,
-    data: notif.data || {}
-  });
-}
-    }
-
+    // ✅ SEND RESPONSE IMMEDIATELY - User gets logged in right away
     res.json({ token, user });
+    
+    // ✅ THEN do the slow admin notifications in the background
+    // Don't await this - let it happen after user already got their response
+    notifyAdminsOfLogin(user).catch(err => console.error("Admin notification failed:", err));
+    
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Move admin notification logic to a separate function
+async function notifyAdminsOfLogin(loggedInUser) {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: "admin" },
+      select: { id: true }
+    });
+    
+    for (const admin of admins) {
+      await createAndSendNotification({
+        userId: admin.id,
+        type: "user_login",
+        title: "👤 User Login",
+        message: `${loggedInUser.fullName} just logged in`,
+        data: {}
+      });
+    }
+  } catch (err) {
+    console.error("Failed to notify admins:", err.message);
+  }
+}
 
 
 
@@ -5653,7 +5650,7 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
   }
 });
 
-// UPDATE mass program (admin/choir moderator only) - FIXED VERSION
+// UPDATE mass program (admin/choir moderator only) npm
 app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   
   try {
@@ -5682,7 +5679,7 @@ app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
       }
     });
 
-    // Delete existing songs
+    // Delete  songs
     await prisma.massProgramSong.deleteMany({ 
       where: { massProgramId: id } 
     });

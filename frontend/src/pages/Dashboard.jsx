@@ -256,22 +256,17 @@ const fetchFeaturedGallery = async () => {
 
   // Fetch upcoming schedules
   const fetchUpcomingSchedules = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/schedules?upcoming=true`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const schedules = res.data || [];
-      const events = schedules.flatMap(s => s.events || []);
-      const upcoming = events
-        .filter(e => new Date(e.eventDate) > new Date())
-        .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))
-        .slice(0, 3);
-      setUpcomingSchedules(upcoming);
-    } catch (error) {
-      console.error("Error fetching schedules:", error);
-    }
-  };
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=5`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    setUpcomingSchedules(res.data);
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+  }
+};
 
   // Fetch today's liturgical reading
   const fetchTodaysReading = async () => {

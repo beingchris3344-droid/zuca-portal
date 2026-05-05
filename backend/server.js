@@ -5180,6 +5180,11 @@ app.post("/api/auth/resend-code", async (req, res) => {
   }
 });
 
+
+// ================== GROQ AI ROUTES ==================
+const aiRoutes = require("./routes/ai");
+app.use("/api", aiRoutes);
+
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
 
@@ -14327,6 +14332,8 @@ app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req,
   
   res.json({ success: true, message: "API metrics cache cleared" });
 });
+
+
 
 // ================== START SERVER ==================
 const PORT = 5000;

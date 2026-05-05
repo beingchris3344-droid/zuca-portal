@@ -13741,6 +13741,593 @@ console.log("✅ Schedule management routes loaded successfully");
 
 console.log("✅ Schedule management routes loaded successfully");
 
+
+// ==================== HEALTH CENTRE ROUTES ====================
+
+const os = require('os');
+
+const healthStore = {
+  errors: [],
+  slowRequests: [],
+  userReports: [],
+  apiMetrics: new Map(),
+  serverStartTime: new Date(),
+  requestCount: 0,
+  errorCount: 0
+};
+
+// Malicious requests tracking
+const maliciousRequests = [];
+const bruteForceAttempts = [];
+const sqlInjectionAttempts = [];
+const xssAttempts = [];
+
+// Backend sleep tracking
+let lastRequestTime = new Date();
+let sleepHistory = [];
+
+// Middleware for malicious request detection
+app.use((req, res, next) => {
+  const maliciousPatterns = [
+    { pattern: /<script|alert\(|onerror=|onclick=/i, type: 'XSS' },
+    { pattern: /' OR '1'='1|UNION SELECT|DROP TABLE|DELETE FROM|INSERT INTO/i, type: 'SQL Injection' },
+    { pattern: /\.\.\/|\.\.\\|etc\/passwd/i, type: 'Path Traversal' },
+    { pattern: /<\?php|eval\(|base64_decode|system\(/i, type: 'Code Injection' }
+  ];
+  
+  const url = req.url;
+  const body = JSON.stringify(req.body || '');
+  const fullText = url + body;
+  
+  for (const { pattern, type } of maliciousPatterns) {
+    if (pattern.test(fullText)) {
+      maliciousRequests.unshift({
+        endpoint: req.path,
+        method: req.method,
+        maliciousType: type,
+        ip: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      if (maliciousRequests.length > 100) maliciousRequests.pop();
+      break;
+    }
+  }
+  
+  // Backend sleep tracking
+  const now = new Date();
+  const timeSinceLastRequest = now - lastRequestTime;
+  
+  if (timeSinceLastRequest > 30000) {
+    sleepHistory.unshift({
+      sleptAt: lastRequestTime,
+      wokeAt: now,
+      duration: timeSinceLastRequest,
+      reason: 'No requests for ' + (timeSinceLastRequest / 1000).toFixed(0) + 's'
+    });
+    if (sleepHistory.length > 20) sleepHistory.pop();
+  }
+  lastRequestTime = now;
+  
+  next();
+});
+
+// API performance tracking middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  healthStore.requestCount++;
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const endpoint = `${req.method} ${req.path}`;
+    
+    if (!healthStore.apiMetrics.has(endpoint)) {
+      healthStore.apiMetrics.set(endpoint, { count: 0, totalTime: 0, slowest: 0 });
+    }
+    
+    const metrics = healthStore.apiMetrics.get(endpoint);
+    metrics.count++;
+    metrics.totalTime += duration;
+    if (duration > metrics.slowest) metrics.slowest = duration;
+    
+    if (duration > 2000) {
+      healthStore.slowRequests.unshift({
+        endpoint,
+        duration,
+        timestamp: new Date().toISOString(),
+        userId: req.user?.userId
+      });
+      if (healthStore.slowRequests.length > 100) healthStore.slowRequests.pop();
+    }
+    
+    if (res.statusCode >= 400) {
+      healthStore.errors.unshift({
+        statusCode: res.statusCode,
+        endpoint,
+        method: req.method,
+        message: res.statusMessage || 'Request failed',
+        timestamp: new Date().toISOString(),
+        userId: req.user?.userId,
+        ip: req.ip
+      });
+      if (healthStore.errors.length > 500) healthStore.errors.pop();
+    }
+  });
+  
+  next();
+});
+
+// ==================== HEALTH ENDPOINTS ====================
+
+app.get("/api/admin/health/system", authenticate, requireAdmin, async (req, res) => {
+  const uptime = process.uptime();
+  const totalMemory = os.totalmem();
+  const freeMemory = os.freemem();
+  const usedMemory = totalMemory - freeMemory;
+  
+  res.json({
+    success: true,
+    uptime: {
+      seconds: uptime,
+      formatted: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+      startTime: healthStore.serverStartTime
+    },
+    memory: {
+      total: totalMemory,
+      used: usedMemory,
+      free: freeMemory,
+      percentUsed: ((usedMemory / totalMemory) * 100).toFixed(1)
+    },
+    cpu: {
+      cores: os.cpus().length,
+      model: os.cpus()[0]?.model,
+      loadAverage: os.loadavg()
+    },
+    requests: {
+      total: healthStore.requestCount,
+      errors: healthStore.errors.length
+    }
+  });
+});
+
+app.get("/api/admin/health/errors", authenticate, requireAdmin, async (req, res) => {
+  const { limit = 100, statusCode } = req.query;
+  
+  let errors = [...healthStore.errors];
+  
+  if (statusCode && statusCode !== 'all') {
+    errors = errors.filter(e => e.statusCode === parseInt(statusCode));
+  }
+  
+  res.json({
+    success: true,
+    total: errors.length,
+    errors: errors.slice(0, parseInt(limit))
+  });
+});
+
+app.get("/api/admin/health/slow-requests", authenticate, requireAdmin, async (req, res) => {
+  const { limit = 50 } = req.query;
+  
+  res.json({
+    success: true,
+    total: healthStore.slowRequests.length,
+    requests: healthStore.slowRequests.slice(0, parseInt(limit))
+  });
+});
+
+app.get("/api/admin/health/api-metrics", authenticate, requireAdmin, async (req, res) => {
+  const metrics = [];
+  
+  for (const [endpoint, data] of healthStore.apiMetrics.entries()) {
+    metrics.push({
+      endpoint,
+      count: data.count,
+      avgTime: (data.totalTime / data.count).toFixed(0),
+      slowest: data.slowest
+    });
+  }
+  
+  metrics.sort((a, b) => b.avgTime - a.avgTime);
+  
+  res.json({
+    success: true,
+    endpoints: metrics.slice(0, 50)
+  });
+});
+
+app.get("/api/admin/health/failed-logins", authenticate, requireAdmin, async (req, res) => {
+  const resetAttemptsArray = [];
+  
+  for (const [email, data] of resetAttempts.entries()) {
+    resetAttemptsArray.push({
+      email,
+      attempts: data,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  res.json({
+    success: true,
+    total: resetAttemptsArray.length,
+    attempts: resetAttemptsArray.slice(0, 50)
+  });
+});
+
+app.get("/api/admin/health/pending-resets", authenticate, requireAdmin, async (req, res) => {
+  const pendingResets = await prisma.user.findMany({
+    where: {
+      resetCode: { not: null },
+      resetCodeExpiry: { gt: new Date() }
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      resetCodeExpiry: true
+    }
+  });
+  
+  res.json({
+    success: true,
+    count: pendingResets.length,
+    resets: pendingResets
+  });
+});
+
+app.get("/api/admin/health/pending-verifications", authenticate, requireAdmin, async (req, res) => {
+  const pending = [];
+  
+  for (const [email, data] of pendingRegistrations.entries()) {
+    pending.push({
+      email,
+      fullName: data.fullName,
+      phone: data.phone,
+      expiresAt: data.verificationExpiry
+    });
+  }
+  
+  res.json({
+    success: true,
+    count: pending.length,
+    pending: pending
+  });
+});
+
+app.get("/api/admin/health/online-users", authenticate, requireAdmin, async (req, res) => {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  
+  const onlineUsers = await prisma.user.findMany({
+    where: {
+      lastActive: { gte: fiveMinutesAgo }
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      lastActive: true,
+      role: true
+    }
+  });
+  
+  res.json({
+    success: true,
+    count: onlineUsers.length,
+    users: onlineUsers
+  });
+});
+
+app.get("/api/admin/health/socket-status", authenticate, requireAdmin, async (req, res) => {
+  res.json({
+    success: true,
+    connectedUsers: onlineUsers.size,
+    rooms: Array.from(io.sockets.adapter.rooms.keys()).length
+  });
+});
+
+app.get("/api/admin/health/services", authenticate, requireAdmin, async (req, res) => {
+  const services = {
+    database: { status: 'healthy' },
+    youtube: { status: 'unknown' },
+    email: { status: 'unknown' },
+    gemini: { status: 'unknown' }
+  };
+  
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    services.database.status = 'healthy';
+  } catch (err) {
+    services.database.status = 'down';
+    services.database.message = err.message;
+  }
+  
+  if (process.env.YOUTUBE_API_KEY) {
+    services.youtube.status = 'configured';
+  } else {
+    services.youtube.status = 'missing';
+  }
+  
+  services.gemini.status = geminiModel ? 'healthy' : 'not_initialized';
+  
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    services.pushNotifications = { status: 'configured' };
+  }
+  
+  res.json({ success: true, services });
+});
+
+app.get("/api/admin/health/malicious-requests", authenticate, requireAdmin, async (req, res) => {
+  res.json({
+    success: true,
+    total: maliciousRequests.length,
+    requests: maliciousRequests.slice(0, 100)
+  });
+});
+
+app.get("/api/admin/health/attack-trends", authenticate, requireAdmin, async (req, res) => {
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    const dayMalicious = maliciousRequests.filter(m => 
+      new Date(m.timestamp).toISOString().split('T')[0] === dateStr
+    );
+    
+    last7Days.push({
+      date: dateStr,
+      xss: dayMalicious.filter(m => m.maliciousType === 'XSS').length,
+      sql: dayMalicious.filter(m => m.maliciousType === 'SQL Injection').length,
+      brute: dayMalicious.filter(m => m.maliciousType === 'Brute Force').length
+    });
+  }
+  res.json({ success: true, trends: last7Days });
+});
+
+app.get("/api/admin/health/backend-sleep", authenticate, requireAdmin, async (req, res) => {
+  res.json({
+    success: true,
+    lastActive: lastRequestTime,
+    sleepHistory: sleepHistory,
+    totalSleepEvents: sleepHistory.length
+  });
+});
+
+app.get("/api/admin/health/storage-metrics", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = require("./supabaseClient");
+    
+    let totalSize = 0;
+    let totalFiles = 0;
+    let images = 0;
+    let videos = 0;
+    let documents = 0;
+    
+    const { data: files, error } = await supabase.storage
+      .from("media")
+      .list("", { limit: 1000 });
+    
+    if (files && !error) {
+      totalFiles = files.length;
+      
+      for (const file of files) {
+        totalSize += file.metadata?.size || 0;
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) images++;
+        else if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) videos++;
+        else if (['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx'].includes(ext)) documents++;
+      }
+    }
+    
+    const totalStorage = 50 * 1024 * 1024 * 1024;
+    
+    res.json({
+      success: true,
+      metrics: {
+        totalSize: totalStorage,
+        usedSize: totalSize,
+        freeSize: totalStorage - totalSize,
+        percentUsed: totalStorage > 0 ? (totalSize / totalStorage) * 100 : 0,
+        totalFiles: totalFiles,
+        images: images,
+        videos: videos,
+        documents: documents
+      }
+    });
+  } catch (err) {
+    console.error("Storage metrics error:", err);
+    res.json({
+      success: false,
+      error: err.message,
+      metrics: {
+        totalSize: 0,
+        usedSize: 0,
+        freeSize: 0,
+        percentUsed: 0,
+        totalFiles: 0,
+        images: 0,
+        videos: 0,
+        documents: 0
+      }
+    });
+  }
+});
+
+app.post("/api/admin/health/report", authenticate, requireAdmin, async (req, res) => {
+  const { title, description, severity } = req.body;
+  
+  const report = {
+    id: Date.now(),
+    title,
+    description,
+    severity: severity || 'medium',
+    userId: req.user.userId,
+    userName: req.user.fullName,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  
+  healthStore.userReports.unshift(report);
+  if (healthStore.userReports.length > 200) healthStore.userReports.pop();
+  
+  res.json({ success: true, report });
+});
+
+app.get("/api/admin/health/reports", authenticate, requireAdmin, async (req, res) => {
+  const { status = 'all', limit = 50 } = req.query;
+  
+  let reports = [...healthStore.userReports];
+  
+  if (status !== 'all') {
+    reports = reports.filter(r => r.status === status);
+  }
+  
+  res.json({
+    success: true,
+    total: reports.length,
+    reports: reports.slice(0, parseInt(limit))
+  });
+});
+
+app.put("/api/admin/health/reports/:reportId/resolve", authenticate, requireAdmin, async (req, res) => {
+  const { reportId } = req.params;
+  
+  const report = healthStore.userReports.find(r => r.id === parseInt(reportId));
+  
+  if (!report) {
+    return res.status(404).json({ error: "Report not found" });
+  }
+  
+  report.status = 'resolved';
+  report.resolvedAt = new Date().toISOString();
+  report.resolvedBy = req.user.userId;
+  
+  res.json({ success: true, report });
+});
+
+app.get("/api/admin/health/clear-errors", authenticate, requireAdmin, async (req, res) => {
+  healthStore.errors = [];
+  
+  res.json({ success: true, message: "Error logs cleared" });
+});
+
+app.get("/api/admin/health/database-stats", authenticate, requireAdmin, async (req, res) => {
+  const [userCount, announcementCount, messageCount, pledgeCount, mediaCount, songCount, jumuiaCount] = await Promise.all([
+    prisma.user.count(),
+    prisma.announcement.count(),
+    prisma.message.count(),
+    prisma.pledge.count(),
+    prisma.media.count(),
+    prisma.song.count(),
+    prisma.jumuia.count()
+  ]);
+  
+  res.json({
+    success: true,
+    stats: {
+      users: userCount,
+      announcements: announcementCount,
+      messages: messageCount,
+      pledges: pledgeCount,
+      media: mediaCount,
+      songs: songCount,
+      jumuias: jumuiaCount
+    }
+  });
+});
+
+app.post("/api/admin/health/test-email", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const testUser = await prisma.user.findUnique({
+      where: { id: req.user.userId }
+    });
+    
+    await sendPersonalizedEmail(
+      { email: testUser.email, fullName: testUser.fullName },
+      'test',
+      '🔧 Health Centre Test',
+      'This is a test email from ZUCA Health Centre. If you received this, email service is working!',
+      {}
+    );
+    
+    res.json({ success: true, message: "Test email sent" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/admin/health/test-youtube", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: "YouTube API key not configured" });
+    }
+    
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/channels?part=id&id=${channelId}&key=${apiKey}`
+    );
+    
+    if (response.data.items && response.data.items.length > 0) {
+      res.json({ success: true, message: "YouTube API working" });
+    } else {
+      res.json({ success: false, error: "Channel not found" });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/admin/health/export-logs", authenticate, requireAdmin, async (req, res) => {
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    system: {
+      uptime: process.uptime(),
+      requestCount: healthStore.requestCount,
+      errorCount: healthStore.errors.length
+    },
+    errors: healthStore.errors.slice(0, 500),
+    slowRequests: healthStore.slowRequests.slice(0, 100),
+    userReports: healthStore.userReports.slice(0, 100),
+    apiEndpoints: Array.from(healthStore.apiMetrics.entries()).slice(0, 50),
+    maliciousRequests: maliciousRequests.slice(0, 100),
+    sleepHistory: sleepHistory.slice(0, 20)
+  };
+  
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename=health-logs-${Date.now()}.json`);
+  res.json(exportData);
+});
+
+app.get("/api/admin/health/recent-logins", authenticate, requireAdmin, async (req, res) => {
+  const { limit = 20 } = req.query;
+  
+  const recentLogins = await prisma.user.findMany({
+    orderBy: { lastActive: 'desc' },
+    take: parseInt(limit),
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      lastActive: true,
+      role: true
+    }
+  });
+  
+  res.json({
+    success: true,
+    logins: recentLogins
+  });
+});
+
+app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req, res) => {
+  healthStore.apiMetrics.clear();
+  healthStore.slowRequests = [];
+  
+  res.json({ success: true, message: "API metrics cache cleared" });
+});
+
 // ================== START SERVER ==================
 const PORT = 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));

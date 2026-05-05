@@ -190,6 +190,7 @@ export default function AdminLayout() {
     { label: "GEN ANNOUNCEMENTS", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },
     { label: "GEN CONTRIBUTIONS", path: "contributions", icon: "💰", bg: "#d1fae5", color: "#10b981" },
     { label: "CHAT MONITOR", path: "chat", icon: "💬", bg: "#e0f2fe", color: "#06b6d4" },
+    { label: "HEALTH CENTRE", path: "health-centre", icon: "🏥", bg: "#dcfce7", color: "#10b981" },
     { label: "USER MANUAL", path: "security", icon: "🔒", bg: "#f1f5f9", color: "#64748b" },
   ];
 

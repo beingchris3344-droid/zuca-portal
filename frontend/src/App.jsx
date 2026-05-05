@@ -53,6 +53,7 @@ import AdminExecutivePage from "./pages/admin/AdminExecutivePage";
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
+import AdminHealthCentre from './pages/admin/AdminHealthCentre';
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminMediaPage from "./pages/admin/MediaPage";
 import UsersPage from "./pages/admin/UsersPage";
@@ -409,7 +410,6 @@ function AppContent() {
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
           <Route path="/jumuia-contributions" element={<JumuiaDashboard />} /> 
-                
           <Route path="/join-jumuia" element={<JoinJumuia />} />
           <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
@@ -463,6 +463,7 @@ function AppContent() {
           <Route path="/admin/hymns/add" element={<AddHymn />} /> 
           <Route path="/admin/pending-songs" element={<PendingSongs />} />
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
+          <Route path="/admin/health-centre" element={<AdminHealthCentre />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />

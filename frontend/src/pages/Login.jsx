@@ -18,6 +18,7 @@ function Login() {
   const [detectedRole, setDetectedRole] = useState(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [isCheckingAutoLogin, setIsCheckingAutoLogin] = useState(true);
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const navigate = useNavigate();
 
   // Track mouse for subtle parallax
@@ -38,46 +39,89 @@ function Login() {
       const token = localStorage.getItem('token');
       const userJson = localStorage.getItem('user');
       const rememberMeFlag = localStorage.getItem('rememberMe') === 'true';
+      const rememberExpiry = localStorage.getItem('rememberExpiry');
       
-      // If remember me was checked and we have token, auto-login
-      if (rememberMeFlag && token && userJson) {
-        try {
-          console.log('Auto-login: Found saved session, logging in automatically...');
-          
-          const userData = JSON.parse(userJson);
-          
-          // Redirect based on role (don't even show login page)
-          if (userData.role === "admin") {
-            navigate("/admin");
-          } else if (userData.role === "jumuia_leader") {
-            navigate(`/jumuia/${userData.jumuiaCode}`);
-          } else if (userData.role === "treasurer") {
-            navigate("/treasurer");
-          } else if (userData.role === "secretary") {
-            navigate("/secretary");
-          } else if (userData.role === "choir_moderator") {
-            navigate("/choir");
-          } else if (userData.role === "media_moderator") {
-            navigate("/media-moderator");
-          } else {
-            navigate("/dashboard");
-          }
-          return; // Exit early - user is redirected
-        } catch (error) {
-          console.error('Auto-login failed:', error);
-          // Clear corrupted data
+      // Check if remember me session has expired
+      let isExpired = false;
+      if (rememberExpiry) {
+        const expiryDate = new Date(rememberExpiry);
+        const now = new Date();
+        isExpired = now > expiryDate;
+        if (isExpired) {
+          // Clear expired session
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('rememberMe');
+          localStorage.removeItem('rememberExpiry');
+          localStorage.removeItem('rememberedEmail');
+        }
+      }
+      
+      if (!isExpired && rememberMeFlag && token && userJson) {
+        try {
+          console.log('Auto-login: Found valid saved session, logging in automatically...');
+          const userData = JSON.parse(userJson);
+          
+          // Verify token is still valid with backend (optional but recommended)
+          const verifyRes = await fetch(`${BASE_URL}/api/verify-token`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+          });
+          
+          if (verifyRes.ok) {
+            // Token is valid, auto-login successful
+            console.log('Auto-login: Token verified, redirecting...');
+            
+            // Show toast notification for auto-login
+            showAutoLoginToast(userData.fullName?.split(' ')[0] || 'User');
+            
+            // Redirect based on role
+            setTimeout(() => {
+              if (userData.role === "admin") {
+                navigate("/admin");
+              } else if (userData.role === "jumuia_leader") {
+                navigate(`/jumuia/${userData.jumuiaCode}`);
+              } else if (userData.role === "treasurer") {
+                navigate("/treasurer");
+              } else if (userData.role === "secretary") {
+                navigate("/secretary");
+              } else if (userData.role === "choir_moderator") {
+                navigate("/choir");
+              } else if (userData.role === "media_moderator") {
+                navigate("/media-moderator");
+              } else {
+                navigate("/dashboard");
+              }
+            }, 500);
+            return;
+          } else {
+            // Token expired or invalid
+            console.log('Auto-login: Token invalid, clearing session');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('rememberMe');
+            localStorage.removeItem('rememberExpiry');
+            localStorage.removeItem('rememberedEmail');
+          }
+        } catch (error) {
+          console.error('Auto-login failed:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('rememberMe');
+          localStorage.removeItem('rememberExpiry');
+          localStorage.removeItem('rememberedEmail');
         }
       }
       
       // If no auto-login, just show the login form
       setIsCheckingAutoLogin(false);
       
-      // Still pre-fill email if saved (for convenience)
+      // Pre-fill email if saved (for convenience)
       const savedEmail = localStorage.getItem('rememberedEmail');
-      if (savedEmail) {
+      if (savedEmail && !isExpired) {
         setEmail(savedEmail);
         setRememberMe(true);
       }
@@ -86,12 +130,44 @@ function Login() {
     autoLogin();
   }, [navigate]);
 
-  // Auto-detect if this is a role login based on password format
+  // Show auto-login toast notification
+  const showAutoLoginToast = (userName) => {
+    const toast = document.createElement('div');
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 24px;">✨</span>
+        <div>
+          <strong style="font-size: 15px;">Welcome back, ${userName}!</strong>
+          <div style="font-size: 12px; opacity: 0.9;">Auto-sign in successful</div>
+        </div>
+      </div>
+    `;
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      padding: 14px 20px;
+      border-radius: 16px;
+      font-size: 14px;
+      z-index: 10001;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+      animation: slideInRight 0.3s ease;
+      cursor: pointer;
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.animation = "slideOutRight 0.3s ease";
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  // Auto-detect role login based on password
   useEffect(() => {
     if (password) {
-      if (password.startsWith("stmichael") || password.startsWith("stbenedict") || 
-          password.startsWith("stperegrine") || password.startsWith("christtheking") ||
-          password.startsWith("stgregory") || password.startsWith("stpacificus")) {
+      const roleKeywords = ['stmichael', 'stbenedict', 'stperegrine', 'christtheking', 'stgregory', 'stpacificus'];
+      if (roleKeywords.some(keyword => password.startsWith(keyword))) {
         setLoginMode("role");
         setDetectedRole("jumuia_leader");
       } else if (password.startsWith("treasurer")) {
@@ -116,86 +192,66 @@ function Login() {
     }
   }, [password]);
 
-  // Email validation (only for normal login)
+  // Email validation
   useEffect(() => {
     if (loginMode === "normal" && email && !email.includes("@")) {
-      setEmailError("Hmm, that doesn't look like an email");
+      setEmailError("Please enter a valid email address");
     } else {
       setEmailError("");
     }
   }, [email, loginMode]);
 
-  // Get welcome message based on detected role
-  const getWelcomeMessage = () => {
-    if (loginMode === "normal") {
-      return {
-        greeting: "We've missed you ✨",
-        title: "Welcome back to",
-        subtitle: "ZUCA Portal",
-        color: "#1ce43a" // Blue for normal
-      };
-    }
-
-    switch(detectedRole) {
-      case "jumuia_leader":
-        return {
-          greeting: "👑 Jumuia Leader",
-          title: "Welcome, Shepard!",
-          subtitle: "Lead your community with wisdom",
-          color: "#8b5cf6" // Purple
-        };
-      case "treasurer":
-        return {
-          greeting: "💰 Treasurer",
-          title: "Welcome, Steward!",
-          subtitle: "Manage the contributions",
-          color: "#f59e0b" // Orange
-        };
-      case "secretary":
-        return {
-          greeting: "📝 Secretary",
-          title: "Welcome, Scribe!",
-          subtitle: "Share the good news",
-          color: "#10b981" // Green
-        };
-      case "choir_moderator":
-        return {
-          greeting: "🎵 Choir Moderator",
-          title: "Welcome, Maestro!",
-          subtitle: "Lead the songs of praise",
-          color: "#ec4899" // Pink
-        };
-      case "media_moderator":
-        return {
-          greeting: "📸 Media Moderator",
-          title: "Welcome, Photographer!",
-          subtitle: "Capture and share memories",
-          color: "#3b82f6" // Blue
-        };
-      default:
-        return {
-          greeting: "Special access",
-          title: "Welcome,",
-          subtitle: "continue your service",
-          color: "#8b5cf6"
-        };
+  const welcome = {
+    normal: {
+      greeting: "Welcome Back",
+      title: "Sign in to",
+      subtitle: "ZUCA Portal",
+      color: "#3b82f6"
+    },
+    jumuia_leader: {
+      greeting: "👑 Jumuia Leader",
+      title: "Welcome, Shepherd!",
+      subtitle: "Lead Your Community",
+      color: "#8b5cf6"
+    },
+    treasurer: {
+      greeting: "💰 Treasurer",
+      title: "Welcome, Steward!",
+      subtitle: "Manage Contributions",
+      color: "#f59e0b"
+    },
+    secretary: {
+      greeting: "📝 Secretary",
+      title: "Welcome, Scribe!",
+      subtitle: "Share God's Word",
+      color: "#10b981"
+    },
+    choir_moderator: {
+      greeting: "🎵 Choir Moderator",
+      title: "Welcome, Maestro!",
+      subtitle: "Lead the Praise",
+      color: "#ec4899"
+    },
+    media_moderator: {
+      greeting: "📸 Media Moderator",
+      title: "Welcome, Creator!",
+      subtitle: "Capture Memories",
+      color: "#06b6d4"
     }
   };
 
-  const welcome = getWelcomeMessage();
+  const currentWelcome = detectedRole && welcome[detectedRole] ? welcome[detectedRole] : welcome.normal;
 
-  // Get role icon
   const getRoleIcon = () => {
     if (!detectedRole) return null;
-    
-    switch(detectedRole) {
-      case "jumuia_leader": return "👑";
-      case "treasurer": return "💰";
-      case "secretary": return "📝";
-      case "choir_moderator": return "🎵";
-      case "media_moderator": return "📸";
-      default: return null;
-    }
+    const icons = {
+      jumuia_leader: "👑",
+      treasurer: "💰",
+      secretary: "📝",
+      choir_moderator: "🎵",
+      media_moderator: "📸"
+    };
+    return icons[detectedRole];
   };
 
   const handleLogin = async (e) => {
@@ -203,11 +259,9 @@ function Login() {
     setLoading(true);
     setLoginError("");
 
-    // Simulate a moment of anticipation
     await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
-      // Choose endpoint based on detected mode
       const endpoint = loginMode === "normal" ? "/api/login" : "/api/role-login";
       
       const res = await fetch(`${BASE_URL}${endpoint}`, {
@@ -219,832 +273,667 @@ function Login() {
       const data = await res.json();
 
       if (res.ok && data.token) {
-        // For jumuia leaders, add jumuiaCode if it's missing
         if (data.user.role === 'jumuia_leader' && !data.user.jumuiaCode) {
-          // Get the password from the input field
-          const passwordInput = document.querySelector('input[type="password"]');
-          const password = passwordInput ? passwordInput.value : '';
+          const roleKeywords = ['stmichael', 'stbenedict', 'stperegrine', 'christtheking', 'stgregory', 'stpacificus'];
+          let jumuiaCode = roleKeywords.find(keyword => password.startsWith(keyword));
           
-          // Extract jumuiaCode from password (e.g., "stgregory" from "stgregoryZ#002")
-          let jumuiaCode = null;
-          
-          if (password.startsWith('stmichael')) jumuiaCode = 'stmichael';
-          else if (password.startsWith('stbenedict')) jumuiaCode = 'stbenedict';
-          else if (password.startsWith('stperegrine')) jumuiaCode = 'stperegrine';
-          else if (password.startsWith('christtheking')) jumuiaCode = 'christtheking';
-          else if (password.startsWith('stgregory')) jumuiaCode = 'stgregory';
-          else if (password.startsWith('stpacificus')) jumuiaCode = 'stpacificus';
-          
-          // If still not found, try from jumuia name
-          if (!jumuiaCode && data.user.jumuia) {
-            jumuiaCode = data.user.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+          if (jumuiaCode) {
+            data.user.jumuiaCode = jumuiaCode;
+          } else if (data.user.jumuia) {
+            data.user.jumuiaCode = data.user.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
           }
-          
-          // Add the missing fields
-          data.user.jumuiaCode = jumuiaCode;
           data.user.specialRole = 'jumuia_leader';
-          
-          console.log('Added jumuiaCode:', jumuiaCode);
         }
         
         // Store token and user data
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Handle Remember Me
         if (rememberMe) {
+          // Set remember me for 30 days
           localStorage.setItem('rememberMe', 'true');
           localStorage.setItem('rememberedEmail', email);
-          
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 30);
           localStorage.setItem('rememberExpiry', expiryDate.toISOString());
+          console.log('✅ Remember me ENABLED - Auto-sign in active for 30 days');
           
-          console.log('✅ Remember me ENABLED - will auto-login for 30 days');
+          // Show success toast
+          showToast("Auto-sign in enabled! You'll be automatically logged in next time.", "success");
         } else {
+          // Clear remember me data
           localStorage.setItem('rememberMe', 'false');
           localStorage.removeItem('rememberedEmail');
           localStorage.removeItem('rememberExpiry');
-          
-          console.log('❌ Remember me DISABLED - session only');
+          console.log('❌ Remember me DISABLED - Session only');
         }
 
-        // Redirect based on role
+        // Show welcome toast
+        showWelcomeToast(data.user.fullName?.split(' ')[0] || 'Member', data.user.role);
+
         setTimeout(() => {
-          if (data.user.role === "admin") {
-            navigate("/admin");
-          } else if (data.user.role === "jumuia_leader") {
-            navigate(`/jumuia/${data.user.jumuiaCode}`);
-          } else if (data.user.role === "treasurer") {
-            navigate("/treasurer");
-          } else if (data.user.role === "secretary") {
-            navigate("/secretary");
-          } else if (data.user.role === "choir_moderator") {
-            navigate("/choir");
-          } else if (data.user.role === "media_moderator") {
-            navigate("/media-moderator");
-          } else {
-            navigate("/dashboard");
-          }
+          const roleRedirects = {
+            admin: "/admin",
+            jumuia_leader: `/jumuia/${data.user.jumuiaCode}`,
+            treasurer: "/treasurer",
+            secretary: "/secretary",
+            choir_moderator: "/choir",
+            media_moderator: "/media-moderator"
+          };
+          const redirectPath = roleRedirects[data.user.role] || "/dashboard";
+          navigate(redirectPath);
         }, 500);
       } else {
-        setLoginError(data.error || "Those credentials don't match our records");
+        setLoginError(data.error || "Invalid email or password");
       }
     } catch (err) {
       console.error("Login Error:", err);
-      setLoginError("Connection issue. Please check your network.");
+      setLoginError("Unable to connect. Please check your network.");
     } finally {
       setLoading(false);
     }
   };
 
-  // If checking auto-login, show loading spinner
+  // Show toast notification
+  const showToast = (message, type = "success") => {
+    const toast = document.createElement('div');
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 18px;">${type === "success" ? "✅" : "ℹ️"}</span>
+        <span>${message}</span>
+      </div>
+    `;
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: ${type === "success" ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, #3b82f6, #2563eb)"};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      z-index: 10001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: slideInRight 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.animation = "slideOutRight 0.3s ease";
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  // Show welcome toast on successful login
+  const showWelcomeToast = (userName, role) => {
+    const roleEmoji = {
+      admin: "👑",
+      jumuia_leader: "👥",
+      treasurer: "💰",
+      secretary: "📝",
+      choir_moderator: "🎵",
+      media_moderator: "📸"
+    };
+    
+    const toast = document.createElement('div');
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 28px;">${roleEmoji[role] || "✨"}</span>
+        <div>
+          <strong style="font-size: 15px;">Welcome, ${userName}!</strong>
+          <div style="font-size: 12px; opacity: 0.9;">Successfully signed in</div>
+        </div>
+      </div>
+    `;
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      padding: 14px 20px;
+      border-radius: 16px;
+      font-size: 14px;
+      z-index: 10001;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+      animation: slideInRight 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.animation = "slideOutRight 0.3s ease";
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  // Clear saved session (for debugging/logout)
+  const clearSavedSession = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberMe');
+    localStorage.removeItem('rememberedEmail');
+    localStorage.removeItem('rememberExpiry');
+    showToast("Saved session cleared", "info");
+    window.location.reload();
+  };
+
   if (isCheckingAutoLogin) {
     return (
-      <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        color: "white"
-      }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            border: "3px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00c6ff",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite",
-            margin: "0 auto 20px"
-          }} />
-          <p>Checking for saved session...</p>
-        </div>
+      <div style={styles.loadingContainer}>
+        <div style={styles.loadingSpinner} />
+        <p style={styles.loadingText}>Checking for saved session...</p>
         <style>{`
           @keyframes spin {
             to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
           }
         `}</style>
       </div>
     );
   }
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        when: "beforeChildren",
-        staggerChildren: 0.08,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const childVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        type: "spring",
-        damping: 12,
-        stiffness: 100,
-      },
-    },
-  };
-
-  const glowVariants = {
-    initial: { opacity: 0.3, scale: 1 },
-    hover: { 
-      opacity: 0.6, 
-      scale: 1.02,
-      transition: { duration: 0.3 }
-    },
-  };
-
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      style={containerStyle(bg)}
-    >
-      {/* Animated gradient overlay */}
-      <motion.div 
-        style={{
-          ...overlayStyle,
-          transform: `translate(${mousePosition.x * 0.5}px, ${mousePosition.y * 0.5}px)`,
-        }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.5 }}
-      />
-
-      {/* Atmospheric particles */}
-      <div style={particleFieldStyle}>
-        {[...Array(12)].map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ 
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
-              opacity: 0 
-            }}
-            animate={{ 
-              x: [null, Math.random() * 100 - 50],
-              y: [null, Math.random() * 100 - 50],
-              opacity: [0.1, 0.3, 0.1],
-            }}
-            transition={{
-              duration: 10 + i * 2,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut",
-            }}
-            style={{
-              ...particleStyle,
-              left: `${i * 8}%`,
-              top: `${i * 7}%`,
-              width: `${4 + i % 5}px`,
-              height: `${4 + i % 5}px`,
-              background: i % 3 === 0 ? "rgba(0,198,255,0.3)" : "rgba(255,255,255,0.2)",
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Main Card */}
-      <motion.div
-        variants={childVariants}
-        style={{
-          ...cardStyle,
-          transform: `perspective(1000px) rotateX(${mousePosition.y * 0.02}deg) rotateY(${mousePosition.x * 0.02}deg)`,
-        }}
-        whileHover={{ scale: 1.01 }}
-        transition={{ type: "spring", stiffness: 200 }}
-      >
-        {/* Inner glow effect */}
-        <div style={cardInnerGlowStyle} />
-
-        {/* Logo */}
-        <motion.div 
-          style={logoContainerStyle}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <motion.div
-            animate={{ 
-              rotate: [0, 5, -5, 0],
-            }}
-            transition={{ 
-              duration: 5,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          >
-            <img src={logo} alt="ZUCA Logo" style={logoStyle} />
-          </motion.div>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: "60px" }}
-            transition={{ delay: 0.5, duration: 0.8 }}
-            style={logoUnderlineStyle}
-          />
-        </motion.div>
-
-        {/* Welcome message - changes based on detected role */}
-        <motion.div variants={childVariants}>
-          <h2 style={welcomeStyle}>
-            <span style={welcomeTextStyle}>{welcome.title}</span>
-            <br />
-            <motion.span 
+    <div style={styles.pageWrapper}>
+      <div style={styles.container}>
+        <div 
+          style={{
+            ...styles.backgroundOverlay,
+            transform: `translate(${mousePosition.x * 0.3}px, ${mousePosition.y * 0.3}px)`
+          }} 
+        />
+        
+        <div style={styles.particlesContainer}>
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
               style={{
-                fontSize: "32px",
-                fontWeight: "700",
-                color: welcome.color,
-                letterSpacing: "0.5px",
+                ...styles.particle,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                width: `${3 + Math.random() * 6}px`,
+                height: `${3 + Math.random() * 6}px`,
+                animationDelay: `${i * 2}s`,
+                animationDuration: `${10 + Math.random() * 15}s`
               }}
-              animate={{
-                scale: detectedRole ? [1, 1.05, 1] : 1,
-              }}
-              transition={{ duration: 0.5 }}
-            >
-              {detectedRole ? (
-                <span>
-                  {getRoleIcon()} {welcome.subtitle}
-                </span>
-              ) : (
-                welcome.subtitle
-              )}
-            </motion.span>
-          </h2>
-          <motion.p 
-            style={{
-              textAlign: "center",
-              fontSize: "14px",
-              color: welcome.color,
-              marginTop: "-15px",
-              marginBottom: "25px",
-              fontStyle: "italic",
-              opacity: 0.9,
-            }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-          >
-            {welcome.greeting}
-          </motion.p>
-        </motion.div>
+            />
+          ))}
+        </div>
 
-        <form onSubmit={handleLogin}>
-          {/* Email Field */}
-          <motion.div variants={childVariants}>
-            <label style={labelStyle}>
-              <motion.span
-                animate={{ 
-                  x: focusedField === "email" ? 5 : 0,
-                  color: focusedField === "email" ? welcome.color : "rgba(255,255,255,0.8)"
-                }}
-              >
-                Email address
-              </motion.span>
-            </label>
-            <div style={inputWrapperStyle}>
-              <motion.input
-                type="email"
-                placeholder="your.name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => setFocusedField("email")}
-                onBlur={() => setFocusedField(null)}
-                required
-                style={inputStyle}
-                whileFocus={{ 
-                  scale: 1.02,
-                  backgroundColor: "rgba(255,255,255,0.25)",
-                  borderColor: welcome.color,
-                }}
-                animate={{
-                  borderColor: emailError ? "#ef4444" : focusedField === "email" ? welcome.color : "transparent",
-                }}
-              />
-              <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          style={{
+            ...styles.card,
+            transform: `perspective(1000px) rotateX(${mousePosition.y * 0.01}deg) rotateY(${mousePosition.x * 0.01}deg)`
+          }}
+        >
+          <div style={styles.cardInner} />
+
+          <motion.div 
+            style={styles.logoContainer}
+            whileHover={{ scale: 1.05 }}
+          >
+            <img src={logo} alt="ZUCA Logo" style={styles.logo} />
+            <div style={styles.logoUnderline} />
+          </motion.div>
+
+          <div style={styles.welcomeSection}>
+            <h2 style={styles.welcomeTitle}>
+              <span style={styles.welcomeSubtitle}>{currentWelcome.title}</span>
+              <span style={{ ...styles.welcomeMain, color: currentWelcome.color }}>
+                {detectedRole ? `${getRoleIcon()} ${currentWelcome.subtitle}` : currentWelcome.subtitle}
+              </span>
+            </h2>
+            <p style={{ ...styles.welcomeGreeting, color: currentWelcome.color }}>
+              {currentWelcome.greeting}
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} style={styles.form}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                <span style={{ color: focusedField === "email" ? currentWelcome.color : "#ffffff" }}>
+                  Email Address
+                </span>
+              </label>
+              <div style={styles.inputWrapper}>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  style={{
+                    ...styles.input,
+                    borderColor: emailError ? "#ef4444" : focusedField === "email" ? currentWelcome.color : "#ffffff"
+                  }}
+                />
                 {focusedField === "email" && (
-                  <motion.span
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    style={{
-                      ...fieldGlowStyle,
-                      background: `linear-gradient(135deg, ${welcome.color}, transparent)`,
-                    }}
+                  <div style={{ ...styles.inputGlow, background: `linear-gradient(135deg, ${currentWelcome.color}, transparent)` }} />
+                )}
+              </div>
+              <AnimatePresence>
+                {emailError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={styles.errorText}
                   >
-                    <span style={fieldGlowInnerStyle} />
-                  </motion.span>
+                    {emailError}
+                  </motion.p>
                 )}
               </AnimatePresence>
             </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                <span style={{ color: focusedField === "password" ? currentWelcome.color : "#ffffff" }}>
+                  Password
+                </span>
+              </label>
+              <div style={styles.inputWrapper}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  style={{
+                    ...styles.input,
+                    paddingRight: "45px",
+                    borderColor: focusedField === "password" ? currentWelcome.color : "#ffffff"
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+                {focusedField === "password" && (
+                  <div style={{ ...styles.inputGlow, background: `linear-gradient(135deg, ${currentWelcome.color}, transparent)` }} />
+                )}
+              </div>
+            </div>
+
+            <div style={styles.optionsRow}>
+              <label style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={styles.checkbox}
+                />
+                <span style={{ color: rememberMe ? currentWelcome.color : "#ffffff" }}>
+                  Keep me signed in for 30 days
+                </span>
+              </label>
+              <Link to="/forgot-password" style={styles.forgotLink}>
+                Forgot password?
+              </Link>
+            </div>
+
             <AnimatePresence>
-              {emailError && (
-                <motion.p
+              {loginError && (
+                <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  style={errorStyle}
+                  exit={{ opacity: 0 }}
+                  style={styles.loginError}
                 >
-                  {emailError}
-                </motion.p>
+                  {loginError}
+                </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
 
-          {/* Password Field */}
-          <motion.div variants={childVariants}>
-            <label style={labelStyle}>
-              <motion.span
-                animate={{ 
-                  x: focusedField === "password" ? 5 : 0,
-                  color: focusedField === "password" ? welcome.color : "rgba(255,255,255,0.8)"
-                }}
-              >
-                Password
-              </motion.span>
-            </label>
-            <div style={inputWrapperStyle}>
-              <motion.input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setFocusedField("password")}
-                onBlur={() => setFocusedField(null)}
-                required
-                style={{
-                  ...inputStyle,
-                  paddingRight: "45px",
-                }}
-                whileFocus={{ 
-                  scale: 1.02,
-                  backgroundColor: "rgba(255,255,255,0.25)",
-                  borderColor: welcome.color,
-                }}
-              />
-              <motion.span
-                onClick={() => setShowPassword(!showPassword)}
-                style={eyeStyle}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                {showPassword ? "👁️" : "👁️‍🗨️"}
-              </motion.span>
-              <AnimatePresence>
-                {focusedField === "password" && (
-                  <motion.span
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    style={{
-                      ...fieldGlowStyle,
-                      background: `linear-gradient(135deg, ${welcome.color}, transparent)`,
-                    }}
-                  >
-                    <span style={fieldGlowInnerStyle} />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-
-          {/* Remember Me Checkbox */}
-          <motion.div variants={childVariants} style={rememberMeContainerStyle}>
-            <label style={rememberMeLabelStyle}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={checkboxStyle}
-              />
-              <motion.span
-                animate={{ color: rememberMe ? welcome.color : "rgba(255,255,255,0.7)" }}
-                style={rememberMeTextStyle}
-              >
-                Keep me signed in for 30 days
-              </motion.span>
-            </label>
-          </motion.div>
-
-          {/* Forgot Password Link */}
-          <motion.div variants={childVariants} style={forgotContainerStyle}>
-            <Link to="/forgot-password" style={forgotLinkStyle}>
-              <motion.span whileHover={{ x: 3 }}>
-                Forgot your password? 
-              </motion.span>
-              <motion.span whileHover={{ opacity: 1, x: 3 }} initial={{ opacity: 0, x: -5 }}>
-                →
-              </motion.span>
-            </Link>
-          </motion.div>
-
-          {/* Login Error Message */}
-          <AnimatePresence>
-            {loginError && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                style={loginErrorStyle}
-              >
-                {loginError}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Login Button */}
-          <motion.div variants={childVariants}>
             <motion.button
               type="submit"
-              style={{
-                ...buttonStyle,
-                background: `linear-gradient(135deg, ${welcome.color}, ${adjustColor(welcome.color, -20)})`,
-                boxShadow: `0 10px 25px -5px ${welcome.color}80`,
-              }}
               disabled={loading}
-              variants={glowVariants}
-              initial="initial"
-              whileHover="hover"
+              style={{
+                ...styles.loginButton,
+                background: `linear-gradient(135deg, ${currentWelcome.color}, ${currentWelcome.color}dd)`,
+                boxShadow: `0 10px 25px -5px ${currentWelcome.color}80`
+              }}
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               {loading ? (
-                <motion.div style={loadingContainerStyle}>
-                  <motion.span
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    style={loadingSpinnerStyle}
-                  >
-                    ⟳
-                  </motion.span>
-                  <span style={loadingTextStyle}>
-                    {detectedRole ? `Welcoming ${detectedRole.replace('_', ' ')}...` : "Signing in..."}
-                  </span>
-                </motion.div>
+                <div style={styles.buttonLoading}>
+                  <span style={styles.buttonSpinner}>⟳</span>
+                  <span>{detectedRole ? "Welcoming..." : "Signing in..."}</span>
+                </div>
               ) : (
-                <motion.span
-                  animate={{ y: [0, -2, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  {detectedRole ? `Continue as ${detectedRole.replace('_', ' ')} →` : "Sign in →"}
-                </motion.span>
+                <span>{detectedRole ? `Continue as ${detectedRole.replace('_', ' ')}` : "Sign In"}</span>
               )}
             </motion.button>
-          </motion.div>
-        </form>
+          </form>
 
-        {/* Register Link */}
-        <motion.div variants={childVariants} style={registerContainerStyle}>
-          <span style={registerTextStyle}>New to our community?</span>
-          <Link to="/register">
-            <motion.button
-              style={secondaryButton}
-              whileHover={{ 
-                scale: 1.05,
-                backgroundColor: "rgba(49, 53, 235, 0.9)",
-                boxShadow: "0 10px 25px -5px rgba(49, 53, 235, 0.4)"
-              }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Create your account
-            </motion.button>
-          </Link>
+          <div style={styles.registerSection}>
+            <p style={styles.registerText}>New to ZUCA?</p>
+            <Link to="/register">
+              <motion.button
+                style={styles.registerButton}
+                whileHover={{ scale: 1.02, backgroundColor: "#3b82f6" }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Create Account
+              </motion.button>
+            </Link>
+          </div>
+
+          <div style={styles.faithText}>
+            "Where two or three gather in my name..." ✝
+          </div>
         </motion.div>
+      </div>
 
-        {/* Faith-inspired text */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          style={faithTextStyle}
-        >
-          "Where two or three gather in my name..." ✝
-        </motion.div>
-      </motion.div>
-
-      <style>
-        {`
-          @keyframes gradientFlow {
-            0% {background-position: 0% 50%;}
-            50% {background-position: 100% 50%;}
-            100% {background-position: 0% 50%;}
-          }
-          
-          input::placeholder {
-            color: rgba(255,255,255,0.3);
-            font-size: 13px;
-            font-style: italic;
-          }
-        `}
-      </style>
-    </motion.div>
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.3; }
+          50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+        }
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        input::placeholder {
+          color: #475569;
+        }
+      `}</style>
+    </div>
   );
 }
 
-// Helper function to darken colors for button gradient
-const adjustColor = (color, percent) => {
-  const hex = color.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  
-  const newR = Math.max(0, Math.min(255, r + percent));
-  const newG = Math.max(0, Math.min(255, g + percent));
-  const newB = Math.max(0, Math.min(255, b + percent));
-  
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+const styles = {
+  pageWrapper: {
+    minHeight: "100vh",
+    width: "100%",
+    overflow: "hidden",
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  },
+  loadingContainer: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #0f172a00 0%, #1e1b4b 100%)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "white"
+  },
+  loadingSpinner: {
+    width: "48px",
+    height: "48px",
+    border: "3px solid rgba(255,255,255,0.1)",
+    borderTopColor: "#3b82f6",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+    marginBottom: "16px"
+  },
+  loadingText: {
+    fontSize: "14px",
+    color: "#94a3b8"
+  },
+  container: {
+    position: "relative",
+    minHeight: "100vh",
+    backgroundImage: `url(${bg})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "10px"
+  },
+  backgroundOverlay: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(135deg, rgba(15, 23, 42, 0), rgba(30, 27, 75, 0))",
+    transition: "transform 0.1s ease-out"
+  },
+  particlesContainer: {
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    pointerEvents: "none"
+  },
+  particle: {
+    position: "absolute",
+    background: "rgba(59,130,246,0.2)",
+    borderRadius: "50%",
+    pointerEvents: "none",
+    animation: "float 8s ease-in-out infinite"
+  },
+  card: {
+    position: "relative",
+    zIndex: 10,
+    width: "100%",
+    maxWidth: "440px",
+    background: "rgba(15,23,42,0.7)",
+    backdropFilter: "blur(20px)",
+    borderRadius: "32px",
+    padding: "40px 32px",
+    border: "1px solid rgba(255,255,255,0.1)",
+    transition: "transform 0.1s ease-out"
+  },
+  cardInner: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "32px",
+    background: "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.1), transparent 70%)",
+    pointerEvents: "none"
+  },
+  logoContainer: {
+    textAlign: "center",
+    marginBottom: "32px",
+    cursor: "pointer"
+  },
+  logo: {
+    width: "80px",
+    height: "auto",
+    marginBottom: "12px",
+    filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))"
+  },
+  logoUnderline: {
+    width: "60px",
+    height: "2px",
+    background: "linear-gradient(90deg, transparent, #3b82f6, transparent)",
+    margin: "0 auto"
+  },
+  welcomeSection: {
+    textAlign: "center",
+    marginBottom: "32px"
+  },
+  welcomeTitle: {
+    margin: 0,
+    fontWeight: 600
+  },
+  welcomeSubtitle: {
+    fontSize: "13px",
+    fontWeight: 500,
+    color: "#64748b",
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+    display: "block",
+    marginBottom: "8px"
+  },
+  welcomeMain: {
+    fontSize: "28px",
+    fontWeight: 700,
+    letterSpacing: "-0.5px",
+    display: "block"
+  },
+  welcomeGreeting: {
+    fontSize: "14px",
+    marginTop: "8px",
+    opacity: 0.9
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px"
+  },
+  inputGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px"
+  },
+  label: {
+    fontSize: "13px",
+    fontWeight: 500,
+    marginLeft: "4px"
+  },
+  inputWrapper: {
+    position: "relative"
+  },
+  input: {
+    width: "100%",
+    padding: "14px 16px",
+    backgroundColor: "rgba(30,41,59,0.6)",
+    border: "1px solid",
+    borderRadius: "16px",
+    color: "#f1f5f9",
+    fontSize: "14px",
+    outline: "none",
+    transition: "all 0.2s ease",
+    boxSizing: "border-box"
+  },
+  inputGlow: {
+    position: "absolute",
+    inset: "-2px",
+    borderRadius: "18px",
+    opacity: 0.3,
+    zIndex: -1
+  },
+  eyeButton: {
+    position: "absolute",
+    right: "14px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    opacity: 0.6,
+    padding: 0
+  },
+  errorText: {
+    color: "#ef4444",
+    fontSize: "12px",
+    marginLeft: "4px"
+  },
+  optionsRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: "13px"
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    cursor: "pointer"
+  },
+  checkbox: {
+    width: "16px",
+    height: "16px",
+    cursor: "pointer",
+    accentColor: "#3b82f6"
+  },
+  forgotLink: {
+    color: "#94a3b8",
+    textDecoration: "none",
+    transition: "color 0.2s"
+  },
+  loginError: {
+    backgroundColor: "rgba(239,68,68,0.1)",
+    border: "1px solid rgba(239,68,68,0.3)",
+    borderRadius: "12px",
+    padding: "12px",
+    textAlign: "center",
+    color: "#ef4444",
+    fontSize: "13px"
+  },
+  loginButton: {
+    width: "100%",
+    padding: "14px",
+    borderRadius: "40px",
+    border: "none",
+    color: "white",
+    fontWeight: 600,
+    fontSize: "15px",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    marginTop: "8px"
+  },
+  buttonLoading: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px"
+  },
+  buttonSpinner: {
+    display: "inline-block",
+    animation: "spin 1s linear infinite"
+  },
+  registerSection: {
+    textAlign: "center",
+    marginTop: "28px",
+    paddingTop: "20px",
+    borderTop: "1px solid rgba(255,255,255,0.08)"
+  },
+  registerText: {
+    fontSize: "13px",
+    color: "#64748b",
+    marginBottom: "12px"
+  },
+  registerButton: {
+    padding: "10px 32px",
+    backgroundColor: "rgba(59,130,246,0.2)",
+    border: "1px solid rgba(59,130,246,0.5)",
+    borderRadius: "40px",
+    color: "#f1f5f9",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 0.2s ease"
+  },
+  faithText: {
+    textAlign: "center",
+    fontSize: "11px",
+    color: "#475569",
+    marginTop: "28px",
+    fontStyle: "italic"
+  }
 };
 
-// ==================== Styles ====================
-
-const containerStyle = (bg) => ({
-  minHeight: "100vh",
-  backgroundImage: `url(${bg})`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  position: "relative",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  overflow: "hidden",
-});
-
-const overlayStyle = {
-  position: "absolute",
-  inset: 0,
-  background: "linear-gradient(-45deg, rgba(49,15,221,0.7), rgba(0,0,0,0.8), rgba(49,15,221,0.7))",
-  backgroundSize: "400% 400%",
-  animation: "gradientFlow 15s ease infinite",
-};
-
-const particleFieldStyle = {
-  position: "absolute",
-  inset: 0,
-  overflow: "hidden",
-  pointerEvents: "none",
-  zIndex: 1,
-};
-
-const particleStyle = {
-  position: "absolute",
-  borderRadius: "50%",
-  filter: "blur(2px)",
-  pointerEvents: "none",
-};
-
-const cardStyle = {
-  position: "relative",
-  zIndex: 10,
-  background: "rgba(20, 10, 20, 0.3)",
-  backdropFilter: "blur(16px)",
-  padding: "50px",
-  borderRadius: "32px",
-  width: "90%",
-  maxWidth: "420px",
-  color: "white",
-  boxShadow: "0 30px 60px -15px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1)",
-  border: "1px solid rgba(255,255,255,0.05)",
-  transition: "all 0.3s ease",
-  overflow: "hidden",
-};
-
-const cardInnerGlowStyle = {
-  position: "absolute",
-  top: "-50%",
-  left: "-50%",
-  width: "200%",
-  height: "200%",
-  background: "radial-gradient(circle at 50% 50%, rgba(0,198,255,0.1), transparent 70%)",
-  zIndex: -1,
-};
-
-const logoContainerStyle = {
-  textAlign: "center",
-  marginBottom: "25px",
-  position: "relative",
-};
-
-const logoStyle = {
-  width: "85px",
-  height: "auto",
-  filter: "drop-shadow(0 10px 15px rgba(0,0,0,0.3))",
-};
-
-const logoUnderlineStyle = {
-  height: "2px",
-  background: "linear-gradient(90deg, transparent, #00c6ff, transparent)",
-  margin: "10px auto 0",
-  borderRadius: "2px",
-};
-
-const welcomeStyle = {
-  textAlign: "center",
-  marginBottom: "30px",
-};
-
-const welcomeTextStyle = {
-  fontSize: "14px",
-  fontWeight: "400",
-  color: "rgba(255,255,255,0.6)",
-  letterSpacing: "1px",
-  textTransform: "uppercase",
-};
-
-const labelStyle = {
-  display: "block",
-  marginBottom: "8px",
-  fontSize: "13px",
-  fontWeight: "500",
-  transition: "all 0.3s",
-};
-
-const inputWrapperStyle = {
-  position: "relative",
-  marginBottom: "15px",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "15px 14px",
-  borderRadius: "16px",
-  border: "1px solid transparent",
-  outline: "none",
-  background: "rgba(225, 26, 26, 0.12)",
-  color: "white",
-  fontSize: "15px",
-  boxSizing: "border-box",
-  backdropFilter: "blur(5px)",
-  transition: "all 0.3s ease",
-  
-};
-
-const fieldGlowStyle = {
-  position: "absolute",
-  inset: "-2px",
-  borderRadius: "18px",
-  background: "linear-gradient(135deg, #00c6ff, transparent)",
-  opacity: 0.3,
-  zIndex: -1,
-};
-
-const fieldGlowInnerStyle = {
-  display: "block",
-  width: "100%",
-  height: "100%",
-  borderRadius: "16px",
-  background: "rgba(255,255,255,0.1)",
-};
-
-const eyeStyle = {
-  position: "absolute",
-  right: "14px",
-  top: "50%",
-  transform: "translateY(-50%)",
-  cursor: "pointer",
-  fontSize: "22px",
-  opacity: 0.7,
-  transition: "all 0.3s",
-  zIndex: 2,
-};
-
-// Remember Me Styles
-const rememberMeContainerStyle = {
-  marginBottom: "15px",
-  display: "flex",
-  alignItems: "center",
-};
-
-const rememberMeLabelStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  cursor: "pointer",
-};
-
-const checkboxStyle = {
-  width: "18px",
-  height: "18px",
-  cursor: "pointer",
-  accentColor: "#00c6ff",
-};
-
-const rememberMeTextStyle = {
-  fontSize: "13px",
-  color: "rgba(255,255,255,0.7)",
-  transition: "color 0.3s",
-};
-
-const forgotContainerStyle = {
-  textAlign: "right",
-  marginBottom: "20px",
-};
-
-const forgotLinkStyle = {
-  color: "rgba(255,255,255,0.7)",
-  textDecoration: "none",
-  fontSize: "13px",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "5px",
-  transition: "color 0.3s",
-  borderBottom: "1px solid transparent",
-};
-
-const errorStyle = {
-  color: "#ef4444",
-  fontSize: "12px",
-  marginTop: "-8px",
-  marginBottom: "15px",
-  paddingLeft: "5px",
-};
-
-const loginErrorStyle = {
-  background: "rgba(239,68,68,0.1)",
-  border: "1px solid rgba(239,68,68,0.3)",
-  borderRadius: "12px",
-  padding: "12px",
-  marginBottom: "20px",
-  color: "#ef4444",
-  fontSize: "13px",
-  textAlign: "center",
-  backdropFilter: "blur(5px)",
-};
-
-const buttonStyle = {
-  width: "100%",
-  padding: "16px",
-  borderRadius: "16px",
-  border: "none",
-  color: "white",
-  fontWeight: "600",
-  fontSize: "16px",
-  cursor: "pointer",
-  transition: "all 0.3s",
-  position: "relative",
-  overflow: "hidden",
-};
-
-const loadingContainerStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "10px",
-};
-
-const loadingSpinnerStyle = {
-  display: "inline-block",
-  fontSize: "20px",
-};
-
-const loadingTextStyle = {
-  fontSize: "15px",
-};
-
-const registerContainerStyle = {
-  textAlign: "center",
-  marginTop: "25px",
-};
-
-const registerTextStyle = {
-  display: "block",
-  fontSize: "14px",
-  color: "rgba(255,255,255,0.6)",
-  marginBottom: "10px",
-};
-
-const secondaryButton = {
-  padding: "12px 30px",
-  borderRadius: "40px",
-  border: "none",
-  background: "rgba(49, 53, 235, 0.6)",
-  color: "white",
-  fontSize: "15px",
-  fontWeight: "500",
-  cursor: "pointer",
-  backdropFilter: "blur(5px)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  transition: "all 0.3s",
-};
-
-const faithTextStyle = {
-  position: "absolute",
-  bottom: "15px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  fontSize: "10px",
-  color: "rgba(255,255,255,0.2)",
-  whiteSpace: "nowrap",
-  letterSpacing: "0.5px",
-};
+// Add hover styles for links
+const linkStyle = document.createElement('style');
+linkStyle.textContent = `
+  a:hover {
+    color: #60a5fa !important;
+  }
+  input:focus {
+    background-color: rgba(30,41,59,0.8) !important;
+  }
+  button {
+    font-family: inherit;
+  }
+`;
+document.head.appendChild(linkStyle);
 
 export default Login;

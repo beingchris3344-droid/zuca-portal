@@ -19,12 +19,12 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
   const [isListening, setIsListening] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const lastRequestTime = useRef(0);
   const fileInputRef = useRef(null);
   
-  // Use navigate from props or create our own
   const navigate = propNavigate || useNavigate();
   const [localFullPage, setLocalFullPage] = useState(false);
 
@@ -58,7 +58,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
       setMessages([{
         id: Date.now(),
         role: "assistant",
-        content: `Tumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "there"}**! I'm your **ZUCA AI Assistant**.\n\n### What I can do:\n\n| Command | What happens |\n|---------|--------------|\n| 📸 **Open Gallery** | Opens the media gallery |\n| 🎵 **Open Hymn Book** | Opens all hymns |\n| 📖 **Show lyrics for [song]** | Opens exact hymn page |\n| 💰 **What do I owe?** | Shows your pledges |\n| 💵 **I want to give 5000** | Creates a pledge |\n| 💬 **Tell everyone hello** | Sends to chat |\n| 🔔 **Read notifications** | Shows all unread |\n| ✅ **Mark all as read** | Clears notifications |\n| 👤 **Who am I?** | Your profile |\n| ⛪ **When is mass?** | Mass schedule |\n| 🏠 **What jumuia groups?** | List of groups |\n\n**Try saying "Open Gallery" or "Show lyrics for Amazing Grace"** 🙏`,
+        content: `Tumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "there"}**! I'm your **ZUCA AI Assistant**.\n\n### What I can do:\n\n| Command | What happens |\n|---------|--------------|\n| 📸 **Open Gallery** | Opens the media gallery |\n| 🎵 **Open Hymn Book** | Opens all hymns |\n| 📖 **Show lyrics for [song]** | Opens exact hymn page |\n| 💰 **What do I owe?** | Shows your pledges |\n| 💵 **I want to give 5000** | Creates a pledge |\n| 💬 **Tell everyone hello** | Sends to chat |\n| 🔔 **Read notifications** | Shows all unread |\n| ✅ **Mark all as read** | Clears notifications |\n| 👤 **Who am I?** | Your profile |\n| ⛪ **When is mass?** | Mass schedule |\n| 🏠 **What jumuia groups?** | List of groups |\n\n💡 **Now I understand natural language!** Just talk to me normally — no need to memorize commands! Try saying *\"Show me what's happening this week\"* or *\"I want to find a peaceful song\"* 🙏`,
         timestamp: new Date()
       }]);
     }
@@ -124,15 +124,8 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     if (loading) return;
     
     const now = Date.now();
-    if (now - lastRequestTime.current < 2000) {
-      const waitTime = Math.ceil((2000 - (now - lastRequestTime.current)) / 1000);
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        role: "assistant",
-        content: `Please wait ${waitTime} second(s) before sending another message. 🙏`,
-        timestamp: new Date()
-      }]);
-      return;
+    if (now - lastRequestTime.current < 1000) {
+      return; // Rate limit: 1 second between messages
     }
     
     const userMessage = input.trim();
@@ -150,25 +143,36 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.post(`${BASE_URL}/api/ai/assistant`, {
-        message: userMessage
+      
+      // ==========================================
+      // NEW: Call the Groq-powered DeepSeek-compatible endpoint
+      // ==========================================
+      const response = await axios.post(`${BASE_URL}/api/deepseek/chat`, {
+        message: userMessage,
+        conversationId: conversationId
       }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 30000
       });
       
-      const aiResponse = response.data.response;
+      // Save conversation ID for context
+      if (response.data.conversationId) {
+        setConversationId(response.data.conversationId);
+      }
       
-      // Handle navigation actions
-      if (response.data.action === "navigate" && response.data.path) {
+      // NEW: Response uses "reply" field instead of "response"
+      const aiResponse = response.data.reply || "I processed your request.";
+      
+      // NEW: Handle navigation action (action is an object now)
+      if (response.data.action && response.data.action.action === "navigate" && response.data.action.path) {
         setMessages(prev => [...prev, {
           id: Date.now() + 1,
           role: "assistant",
-          content: aiResponse,
+          content: response.data.action.message || aiResponse,
           timestamp: new Date()
         }]);
         setTimeout(() => {
-          window.location.href = response.data.path;
+          window.location.href = response.data.action.path;
         }, 500);
       } else {
         setMessages(prev => [...prev, {
@@ -190,9 +194,16 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     } finally {
       setLoading(false);
     }
-  }, [input, attachments, loading]);
+  }, [input, attachments, loading, conversationId]);
 
   const clearChat = () => {
+    // NEW: Clear server-side conversation
+    const token = localStorage.getItem("token");
+    axios.post(`${BASE_URL}/api/deepseek/clear-conversation`, {}, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    }).catch(() => {});
+    
+    setConversationId(null);
     setMessages([{
       id: Date.now(),
       role: "assistant",
@@ -225,60 +236,35 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     }
   };
 
-  // Get user avatar (profile image or initial)
   const getUserAvatar = () => {
-    if (user?.profileImage) {
-      return user.profileImage;
-    }
+    if (user?.profileImage) return user.profileImage;
     return null;
   };
 
-  // Get user initial for avatar fallback
   const getUserInitial = () => {
-    if (user?.fullName) {
-      return user.fullName.charAt(0).toUpperCase();
-    }
+    if (user?.fullName) return user.fullName.charAt(0).toUpperCase();
     return "U";
   };
 
-  // FIXED: Open full page function
-  const openFullPage = () => {
-    setLocalFullPage(true);
-  };
-
-  // FIXED: Close widget function
-  const handleClose = () => {
-    if (onClose) {
-      onClose();
-    }
-  };
-
-  // FIXED: Close full page and go back to widget
-  const closeFullPage = () => {
-    setLocalFullPage(false);
-  };
-
-  // FIXED: Handle back button (for when isFullPage prop is true)
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      setLocalFullPage(false);
-    }
-  };
+  const openFullPage = () => setLocalFullPage(true);
+  const handleClose = () => { if (onClose) onClose(); };
+  const closeFullPage = () => setLocalFullPage(false);
+  const handleBack = () => { if (onBack) onBack(); else setLocalFullPage(false); };
 
   const quickActions = [
-    { emoji: "📸", label: "Open Gallery", action: "Open Gallery" },
-    { emoji: "🎵", label: "Open Hymn Book", action: "Open Hymn Book" },
-    { emoji: "💰", label: "What do I owe?", action: "What do I owe?" },
-    { emoji: "💬", label: "Send to chat", action: "Tell everyone hello" },
-    { emoji: "🔔", label: "Read notifications", action: "Read notifications" },
-    { emoji: "👤", label: "Who am I?", action: "Who am I?" },
-    { emoji: "⛪", label: "Mass Schedule", action: "When is mass?" },
-    { emoji: "🏠", label: "Jumuia Groups", action: "What jumuia groups?" },
+    { emoji: "📸", label: "Open Gallery", action: "Take me to the gallery" },
+    { emoji: "🎵", label: "Open Hymns", action: "Show me the hymn book" },
+    { emoji: "💰", label: "My Pledges", action: "What do I owe?" },
+    { emoji: "👤", label: "My Profile", action: "Who am I?" },
+    { emoji: "⛪", label: "Mass Schedule", action: "When is the next mass?" },
+    { emoji: "🏠", label: "Jumuia Groups", action: "Show me all jumuia groups" },
+    { emoji: "📅", label: "Calendar", action: "Open the liturgical calendar" },
+    { emoji: "🔔", label: "Notifications", action: "Do I have any notifications?" },
   ];
 
-  // Full page mode (from props OR local state)
+  // ==========================================
+  // FULL PAGE MODE
+  // ==========================================
   if (isFullPage || localFullPage) {
     return (
       <div style={fullPageContainerStyle}>
@@ -290,7 +276,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
             <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
             <div>
               <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA AI</h2>
-              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Your Intelligent Assistant</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by Groq AI • Natural Language</p>
             </div>
             <span style={userBadgeStyle}>🙏 USER</span>
           </div>
@@ -335,7 +321,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
             value={input} 
             onChange={(e) => setInput(e.target.value)} 
             onKeyPress={handleKeyPress} 
-            placeholder="Ask me anything... Try 'Open Gallery' or 'Show lyrics for Amazing Grace'" 
+            placeholder="Talk to me naturally... Try 'Take me to hymns' or 'Find a peaceful communion song'" 
             style={fullPageTextareaStyle}
             rows={1}
           />
@@ -360,7 +346,9 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
     );
   }
 
-  // Widget mode
+  // ==========================================
+  // WIDGET MODE
+  // ==========================================
   return (
     <div style={widgetContainerStyle}>
       <div style={widgetHeaderStyle}>
@@ -368,7 +356,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
           <img src={logoImg} alt="ZUCA" style={widgetLogoStyle} />
           <div>
             <h3 style={widgetTitleStyle}>ZUCA AI Assistant</h3>
-            <p style={widgetStatusStyle}>● Online</p>
+            <p style={widgetStatusStyle}>● Online • Groq AI</p>
           </div>
         </div>
         <div style={widgetHeaderActionsStyle}>
@@ -438,9 +426,9 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
   );
 }
 
-// ==================== MESSAGE BUBBLE COMPONENT ====================
+// ==================== MESSAGE BUBBLE ====================
 const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userInitial, copiedId, setCopiedId }) => {
-  const copyToClipboard = async (text, id) => {
+  const handleCopy = async (text, id) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
@@ -473,20 +461,10 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userInitial, copie
       }}>
         {isUser ? (
           userAvatar ? (
-            <img 
-              src={userAvatar} 
-              alt="User" 
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            userInitial
-          )
+            <img src={userAvatar} alt="User" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : userInitial
         ) : (
-          <img 
-            src={logoImg} 
-            alt="ZUCA" 
-            style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }}
-          />
+          <img src={logoImg} alt="ZUCA" style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }} />
         )}
       </div>
       
@@ -524,7 +502,7 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userInitial, copie
         }}>
           <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           <button 
-            onClick={() => copyToClipboard(msg.content, msg.id)} 
+            onClick={() => handleCopy(msg.content, msg.id)} 
             style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}
           >
             {copiedId === msg.id ? <FiCheck size={isFullPage ? 12 : 10} /> : <FiCopy size={isFullPage ? 12 : 10} />}
@@ -543,25 +521,14 @@ const TypingIndicator = ({ isFullPage }) => (
       height: isFullPage ? "40px" : "36px", 
       borderRadius: "12px", 
       background: "linear-gradient(135deg, #ef4444, #dc2626)",
-      display: "flex", 
-      alignItems: "center", 
-      justifyContent: "center",
-      overflow: "hidden"
+      display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden"
     }}>
-      <img 
-        src={logoImg} 
-        alt="ZUCA" 
-        style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }}
-      />
+      <img src={logoImg} alt="ZUCA" style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }} />
     </div>
     <div style={{ 
       padding: isFullPage ? "12px 16px" : "10px 14px", 
-      borderRadius: "16px", 
-      background: "#f8fafc",
-      border: "1px solid #e2e8f0",
-      display: "flex", 
-      gap: "8px", 
-      alignItems: "center"
+      borderRadius: "16px", background: "#f8fafc", border: "1px solid #e2e8f0",
+      display: "flex", gap: "8px", alignItems: "center"
     }}>
       <div className="typing-dot" style={{ animationDelay: "0s" }}></div>
       <div className="typing-dot" style={{ animationDelay: "0.2s" }}></div>
@@ -590,365 +557,47 @@ const AttachmentPreviewComponent = ({ attachments, removeAttachment, isFullPage 
 
 // ==================== STYLES ====================
 
-// Full Page Styles
-const fullPageContainerStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "#f8fafc",
-  zIndex: 999999,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-};
+const fullPageContainerStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#f8fafc", zIndex: 999999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', -apple-system, sans-serif" };
+const fullPageHeaderStyle = { padding: "16px 24px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.03)" };
+const backButtonStyle = { padding: "8px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", color: "#475569", cursor: "pointer", fontSize: "13px", fontWeight: "500" };
+const fullPageTitleStyle = { display: "flex", alignItems: "center", gap: "12px" };
+const fullPageLogoStyle = { width: "44px", height: "44px", borderRadius: "12px", background: "#f8fafc", padding: "8px", objectFit: "contain" };
+const userBadgeStyle = { background: "#eff6ff", color: "#3b82f6", padding: "4px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", marginLeft: "12px" };
+const iconBtnStyle = { width: "38px", height: "38px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" };
+const fullPageMessagesStyle = { flex: 1, overflowY: "auto", padding: "24px" };
+const fullPageInputStyle = { padding: "16px 24px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "12px", alignItems: "flex-end", flexShrink: 0 };
+const fullPageActionBtn = (isListening) => ({ width: "44px", height: "44px", borderRadius: "22px", background: isListening ? "#fef2f2" : "#f8fafc", border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0", color: isListening ? "#ef4444" : "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
+const fullPageTextareaStyle = { flex: 1, padding: "12px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "24px", color: "#1e293b", fontSize: "14px", resize: "none", fontFamily: "inherit", minHeight: "48px", maxHeight: "120px", outline: "none" };
+const fullPageSendBtnStyle = { width: "44px", height: "44px", borderRadius: "22px", background: "#3b82f6", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const fullPageQuickActionsStyle = { padding: "12px 24px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 };
+const quickActionBtnStyle = { padding: "6px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "20px", color: "#475569", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" };
 
-const fullPageHeaderStyle = {
-  padding: "16px 24px",
-  background: "white",
-  borderBottom: "1px solid #e2e8f0",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexShrink: 0,
-  boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-};
-
-const backButtonStyle = {
-  padding: "8px 16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  color: "#475569",
-  cursor: "pointer",
-  fontSize: "13px",
-  fontWeight: "500",
-  transition: "all 0.2s",
-};
-
-const fullPageTitleStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const fullPageLogoStyle = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "12px",
-  background: "#f8fafc",
-  padding: "8px",
-  objectFit: "contain",
-};
-
-const userBadgeStyle = {
-  background: "#eff6ff",
-  color: "#3b82f6",
-  padding: "4px 12px",
-  borderRadius: "20px",
-  fontSize: "11px",
-  fontWeight: "600",
-  marginLeft: "12px",
-};
-
-const iconBtnStyle = {
-  width: "38px",
-  height: "38px",
-  borderRadius: "10px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "18px",
-  transition: "all 0.2s",
-};
-
-const fullPageMessagesStyle = {
-  flex: 1,
-  overflowY: "auto",
-  padding: "24px",
-};
-
-const fullPageInputStyle = {
-  padding: "16px 24px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "12px",
-  alignItems: "flex-end",
-  flexShrink: 0,
-};
-
-const fullPageActionBtn = (isListening) => ({
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  background: isListening ? "#fef2f2" : "#f8fafc",
-  border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0",
-  color: isListening ? "#ef4444" : "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "all 0.2s",
-});
-
-const fullPageTextareaStyle = {
-  flex: 1,
-  padding: "12px 16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "24px",
-  color: "#1e293b",
-  fontSize: "14px",
-  resize: "none",
-  fontFamily: "inherit",
-  minHeight: "48px",
-  maxHeight: "120px",
-  outline: "none",
-  transition: "all 0.2s",
-};
-
-const fullPageSendBtnStyle = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  background: "#3b82f6",
-  border: "none",
-  color: "white",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "all 0.2s",
-};
-
-const fullPageQuickActionsStyle = {
-  padding: "12px 24px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
-  flexShrink: 0,
-};
-
-const quickActionBtnStyle = {
-  padding: "6px 14px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  color: "#475569",
-  fontSize: "12px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  transition: "all 0.2s",
-};
-
-// Widget Styles
-const widgetContainerStyle = {
-  position: "fixed",
-  bottom: "20px",
-  right: "20px",
-  width: "400px",
-  height: "550px",
-  background: "white",
-  borderRadius: "20px",
-  boxShadow: "0 20px 40px -12px rgba(0,0,0,0.25)",
-  zIndex: 10000,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-  border: "1px solid #e2e8f0",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-};
-
-const widgetHeaderStyle = {
-  padding: "12px 16px",
-  background: "white",
-  borderBottom: "1px solid #e2e8f0",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexShrink: 0,
-};
-
-const widgetHeaderLeftStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-};
-
-const widgetLogoStyle = {
-  width: "32px",
-  height: "32px",
-  borderRadius: "10px",
-  background: "#f8fafc",
-  padding: "6px",
-  objectFit: "contain",
-};
-
-const widgetTitleStyle = {
-  margin: 0,
-  color: "#0f172a",
-  fontSize: "14px",
-  fontWeight: "600",
-};
-
-const widgetStatusStyle = {
-  margin: 0,
-  color: "#10b981",
-  fontSize: "10px",
-  fontWeight: "500",
-};
-
-const widgetHeaderActionsStyle = {
-  display: "flex",
-  gap: "6px",
-};
-
-const widgetIconBtnStyle = {
-  width: "28px",
-  height: "28px",
-  borderRadius: "8px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "12px",
-  transition: "all 0.2s",
-};
-
-const widgetMessagesStyle = {
-  flex: 1,
-  overflowY: "auto",
-  padding: "16px",
-  background: "#f8fafc",
-};
-
-const widgetInputStyle = {
-  padding: "12px 16px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "8px",
-  alignItems: "flex-end",
-  flexShrink: 0,
-};
-
-const widgetActionBtn = (isListening) => ({
-  width: "34px",
-  height: "34px",
-  borderRadius: "17px",
-  background: isListening ? "#fef2f2" : "#f8fafc",
-  border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0",
-  color: isListening ? "#ef4444" : "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-});
-
-const widgetTextareaStyle = {
-  flex: 1,
-  padding: "8px 12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  color: "#1e293b",
-  fontSize: "12px",
-  resize: "none",
-  fontFamily: "inherit",
-  minHeight: "36px",
-  maxHeight: "80px",
-  outline: "none",
-};
-
-const widgetSendBtnStyle = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "17px",
-  background: "#3b82f6",
-  border: "none",
-  color: "white",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const widgetQuickActionsStyle = {
-  padding: "8px 12px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "6px",
-  flexShrink: 0,
-};
-
-const widgetQuickBtnStyle = {
-  padding: "4px 10px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  color: "#475569",
-  fontSize: "10px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "4px",
-};
+const widgetContainerStyle = { position: "fixed", bottom: "20px", right: "20px", width: "400px", height: "550px", background: "white", borderRadius: "20px", boxShadow: "0 20px 40px -12px rgba(0,0,0,0.25)", zIndex: 10000, display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0", fontFamily: "'Inter', -apple-system, sans-serif" };
+const widgetHeaderStyle = { padding: "12px 16px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 };
+const widgetHeaderLeftStyle = { display: "flex", alignItems: "center", gap: "10px" };
+const widgetLogoStyle = { width: "32px", height: "32px", borderRadius: "10px", background: "#f8fafc", padding: "6px", objectFit: "contain" };
+const widgetTitleStyle = { margin: 0, color: "#0f172a", fontSize: "14px", fontWeight: "600" };
+const widgetStatusStyle = { margin: 0, color: "#10b981", fontSize: "10px", fontWeight: "500" };
+const widgetHeaderActionsStyle = { display: "flex", gap: "6px" };
+const widgetIconBtnStyle = { width: "28px", height: "28px", borderRadius: "8px", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" };
+const widgetMessagesStyle = { flex: 1, overflowY: "auto", padding: "16px", background: "#f8fafc" };
+const widgetInputStyle = { padding: "12px 16px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "8px", alignItems: "flex-end", flexShrink: 0 };
+const widgetActionBtn = (isListening) => ({ width: "34px", height: "34px", borderRadius: "17px", background: isListening ? "#fef2f2" : "#f8fafc", border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0", color: isListening ? "#ef4444" : "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
+const widgetTextareaStyle = { flex: 1, padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "20px", color: "#1e293b", fontSize: "12px", resize: "none", fontFamily: "inherit", minHeight: "36px", maxHeight: "80px", outline: "none" };
+const widgetSendBtnStyle = { width: "34px", height: "34px", borderRadius: "17px", background: "#3b82f6", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const widgetQuickActionsStyle = { padding: "8px 12px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", flexWrap: "wrap", gap: "6px", flexShrink: 0 };
+const widgetQuickBtnStyle = { padding: "4px 10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", color: "#475569", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
 
 // CSS Animation
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes typingWave {
-    0%, 60%, 100% {
-      transform: translateY(0);
-      opacity: 0.4;
-    }
-    30% {
-      transform: translateY(-8px);
-      opacity: 1;
-    }
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-8px); opacity: 1; }
   }
-  
-  .typing-dot {
-    width: 8px;
-    height: 8px;
-    background: #3b82f6;
-    border-radius: 50%;
-    animation: typingWave 1.4s infinite ease-in-out;
-  }
-  
-  button:hover {
-    transform: translateY(-1px);
-  }
-  
-  textarea:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-  }
-  
-  @media (max-width: 768px) {
-    .widget-container {
-      width: 95% !important;
-      right: 2.5% !important;
-      bottom: 10px !important;
-      left: 2.5% !important;
-    }
-  }
+  .typing-dot { width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; animation: typingWave 1.4s infinite ease-in-out; }
+  button:hover { transform: translateY(-1px); }
+  textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
 `;
 if (!document.querySelector("#ai-typing-animation")) {
   styleSheet.id = "ai-typing-animation";

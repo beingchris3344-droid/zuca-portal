@@ -1,5 +1,5 @@
 // frontend/src/components/AdminAIAssistant.jsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
@@ -19,19 +19,19 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
   const [isListening, setIsListening] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const lastRequestTime = useRef(0);
   const fileInputRef = useRef(null);
   
-  // Use navigate from props or create our own
   const navigate = propNavigate || useNavigate();
   const [localFullPage, setLocalFullPage] = useState(false);
 
   // Load chat history
   useEffect(() => {
     const savedHistory = localStorage.getItem('admin_ai_history');
-    if (savedHistory && !isFullPage) {
+    if (savedHistory && !isFullPage && !localFullPage) {
       try {
         const history = JSON.parse(savedHistory);
         if (history.length > 0) {
@@ -39,18 +39,18 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
         }
       } catch (e) {}
     }
-  }, [isFullPage]);
+  }, [isFullPage, localFullPage]);
 
   // Save chat history
   useEffect(() => {
-    if (!isFullPage && messages.length > 0) {
+    if (!isFullPage && !localFullPage && messages.length > 0) {
       const toSave = messages.slice(-100).map(msg => ({
         ...msg,
         timestamp: msg.timestamp.toISOString()
       }));
       localStorage.setItem('admin_ai_history', JSON.stringify(toSave));
     }
-  }, [messages, isFullPage]);
+  }, [messages, isFullPage, localFullPage]);
 
   // Welcome message
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
       setMessages([{
         id: Date.now(),
         role: "assistant",
-        content: `👑 **ZUCA Admin AI Assistant**\n\nTumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "Admin"}**! I'm your intelligent admin assistant with full management capabilities.\n\n### 🔧 Admin Commands:\n\n| Category | Commands |\n|----------|----------|\n| 👥 **Users** | "List all users", "Find user [name]", "Delete user [email]" |\n| 💰 **Campaigns** | "Create campaign 'Title' target 50000", "List campaigns" |\n| 📢 **Announcements** | "Create announcement: [message]", "List announcements" |\n| 📸 **Gallery** | "List media", "Delete media [title]" |\n| 📺 **YouTube** | "YouTube stats", "Channel analytics" |\n| 📊 **System** | "System stats", "Jumuia stats", "Admin help" |\n\n**Try: "List all users" or "Admin help"** 🙏`,
+        content: `👑 **ZUCA Admin AI Assistant**\n\nTumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "Admin"}**! I'm your intelligent admin assistant powered by Groq AI with full management capabilities.\n\n### 🔧 What I Can Do:\n\n| Category | Commands |\n|----------|----------|\n| 👥 **Users** | "List all users", "Find user [name]", "Delete user [email]", "Make [name] admin" |\n| 👑 **Executives** | "Show executive team", "Make [name] Secretary", "Remove [name]" |\n| 💰 **Campaigns** | "Create campaign 'Title' target 50000", "List campaigns" |\n| 📢 **Announcements** | "Create announcement: [message]", "List announcements" |\n| 📋 **Schedules** | Paste raw schedule text — I'll build it! |\n| 📸 **Gallery** | "List media", "Delete media [title]" |\n| 📺 **YouTube** | "YouTube stats", "Channel analytics" |\n| 📊 **System** | "System stats", "Platform overview", "System health" |\n\n💡 **Now I understand natural language!** Just talk to me normally — no need to memorize commands! Try *"Show me all users"* or *"Make Morris the Secretary"* 🙏`,
         timestamp: new Date()
       }]);
     }
@@ -95,14 +95,6 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
     setIsListening(false);
   };
 
-  const copyToClipboard = async (text, id) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch(e) {}
-  };
-
   const handleFileAttach = (e) => {
     const files = Array.from(e.target.files);
     const newAttachments = files.map(file => ({
@@ -119,21 +111,12 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0)) return;
     if (loading) return;
     
     const now = Date.now();
-    if (now - lastRequestTime.current < 2000) {
-      const waitTime = Math.ceil((2000 - (now - lastRequestTime.current)) / 1000);
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        role: "assistant",
-        content: `Please wait ${waitTime} second(s) before sending another message. 🙏`,
-        timestamp: new Date()
-      }]);
-      return;
-    }
+    if (now - lastRequestTime.current < 1000) return;
     
     const userMessage = input.trim();
     
@@ -150,24 +133,36 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
     
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.post(`${BASE_URL}/api/admin/ai/assistant`, {
-        message: userMessage
+      
+      // ==========================================
+      // NEW: Call the Groq-powered endpoint
+      // ==========================================
+      const response = await axios.post(`${BASE_URL}/api/deepseek/chat`, {
+        message: userMessage,
+        conversationId: conversationId
       }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 30000
       });
       
-      const aiResponse = response.data.response;
+      // Save conversation ID for context
+      if (response.data.conversationId) {
+        setConversationId(response.data.conversationId);
+      }
       
-      if (response.data.action === "navigate" && response.data.path) {
+      // NEW: Response uses "reply" field
+      const aiResponse = response.data.reply || "I processed your request.";
+      
+      // NEW: Handle navigation action
+      if (response.data.action && response.data.action.action === "navigate" && response.data.action.path) {
         setMessages(prev => [...prev, {
           id: Date.now() + 1,
           role: "assistant",
-          content: aiResponse,
+          content: response.data.action.message || aiResponse,
           timestamp: new Date()
         }]);
         setTimeout(() => {
-          window.location.href = response.data.path;
+          window.location.href = response.data.action.path;
         }, 500);
       } else {
         setMessages(prev => [...prev, {
@@ -189,9 +184,16 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
     } finally {
       setLoading(false);
     }
-  };
+  }, [input, attachments, loading, conversationId]);
 
   const clearChat = () => {
+    // Clear server conversation
+    const token = localStorage.getItem("token");
+    axios.post(`${BASE_URL}/api/deepseek/clear-conversation`, {}, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    }).catch(() => {});
+    
+    setConversationId(null);
     setMessages([{
       id: Date.now(),
       role: "assistant",
@@ -224,117 +226,118 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
     }
   };
 
-  const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  // FIXED: Direct navigation to full page
-  const openFullPage = () => {
-  setLocalFullPage(true);
-};
-
-// Add a function to go back to widget mode:
-const backToWidget = () => {
-  setLocalFullPage(false);
-};
-  const quickActions = [
-    { emoji: "👥", label: "List Users", action: "List all users" },
-    { emoji: "💰", label: "Campaigns", action: "List campaigns" },
-    { emoji: "📢", label: "Announcements", action: "List announcements" },
-    { emoji: "📸", label: "Gallery", action: "List media" },
-    { emoji: "📺", label: "YouTube", action: "YouTube stats" },
-    { emoji: "📊", label: "System Stats", action: "System stats" },
-    { emoji: "👑", label: "Help", action: "Admin help" },
-  ];
-
-  // Get user avatar (profile image or initial)
   const getUserAvatar = () => {
-    if (user?.profileImage) {
-      return user.profileImage;
-    }
+    if (user?.profileImage) return user.profileImage;
     return null;
   };
 
-  // Full page mode
- // Full page mode (from props OR local state)
-if (isFullPage || localFullPage) {
-  return (
-    <div style={fullPageContainerStyle}>
-      <div style={fullPageHeaderStyle}>
-        <button onClick={backToWidget} style={backButtonStyle}>
-          ← Back to Widget
-        </button>
-        <div style={fullPageTitleStyle}>
-          <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
-          <div>
-            <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA AI</h2>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Intelligent Admin Assistant</p>
-          </div>
-          <span style={adminBadgeStyle}>👑 ADMIN</span>
-        </div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button onClick={exportChat} style={iconBtnStyle} title="Export chat">📥</button>
-          <button onClick={clearChat} style={iconBtnStyle} title="Clear chat">🗑️</button>
-          <button onClick={() => setLocalFullPage(false)} style={iconBtnStyle}>✕</button>
-        </div>
-      </div>
-      
-      <div style={fullPageMessagesStyle}>
-        {messages.map((msg) => (
-          <MessageBubble 
-            key={msg.id} 
-            msg={msg} 
-            isUser={msg.role === "user"} 
-            isFullPage={true} 
-            userAvatar={getUserAvatar()}
-            userName={user?.fullName}
-          />
-        ))}
-        {loading && <TypingIndicator isFullPage={true} />}
-        <div ref={messagesEndRef} />
-      </div>
+  const getUserInitial = () => {
+    if (user?.fullName) return user.fullName.charAt(0).toUpperCase();
+    return "A";
+  };
 
-      <AttachmentPreviewComponent attachments={attachments} removeAttachment={removeAttachment} isFullPage={true} />
-      
-      <div style={fullPageInputStyle}>
-        <input type="file" ref={fileInputRef} onChange={handleFileAttach} multiple style={{ display: "none" }} />
-        <button onClick={() => fileInputRef.current?.click()} style={fullPageActionBtn(false)} title="Attach file">
-          <FiPaperclip size={18} />
-        </button>
-        <button 
-          onClick={isListening ? stopVoiceInput : startVoiceInput} 
-          style={fullPageActionBtn(isListening)}
-        >
-          {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
-        </button>
-        <textarea 
-          value={input} 
-          onChange={(e) => setInput(e.target.value)} 
-          onKeyPress={handleKeyPress} 
-          placeholder="Type a command... e.g., 'List all users' or 'Create announcement...'" 
-          style={fullPageTextareaStyle}
-          rows={1}
-        />
-        <button 
-          onClick={sendMessage} 
-          disabled={loading || (!input.trim() && attachments.length === 0)} 
-          style={fullPageSendBtnStyle}
-        >
-          <FiSend size={18} />
-        </button>
-      </div>
-      
-      <div style={fullPageQuickActionsStyle}>
-        {quickActions.map((action, idx) => (
-          <button key={idx} onClick={() => setInput(action.action)} style={quickActionBtnStyle}>
-            <span style={{ fontSize: "14px" }}>{action.emoji}</span>
-            <span>{action.label}</span>
+  const openFullPage = () => setLocalFullPage(true);
+  const backToWidget = () => setLocalFullPage(false);
+  const handleClose = () => { if (onClose) onClose(); };
+
+  const quickActions = [
+    { emoji: "👥", label: "List Users", action: "List all users" },
+    { emoji: "👑", label: "Executives", action: "Show the executive team" },
+    { emoji: "💰", label: "Campaigns", action: "List campaigns" },
+    { emoji: "📢", label: "Announce", action: "Create announcement: Mass today at 4pm in the chapel" },
+    { emoji: "📊", label: "System Stats", action: "Show platform overview" },
+    { emoji: "🏠", label: "Jumuia Stats", action: "Show me all jumuia groups" },
+    { emoji: "📋", label: "Schedules", action: "List schedules" },
+    { emoji: "🖥️", label: "Health", action: "Check system health" },
+  ];
+
+  // ==========================================
+  // FULL PAGE MODE
+  // ==========================================
+  if (isFullPage || localFullPage) {
+    return (
+      <div style={fullPageContainerStyle}>
+        <div style={fullPageHeaderStyle}>
+          <button onClick={backToWidget} style={backButtonStyle}>
+            ← Back to Widget
           </button>
-        ))}
-      </div>
-    </div>
-  );
-}
+          <div style={fullPageTitleStyle}>
+            <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
+            <div>
+              <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA Admin AI</h2>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by Groq AI • Natural Language</p>
+            </div>
+            <span style={adminBadgeStyle}>👑 ADMIN</span>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={exportChat} style={iconBtnStyle} title="Export chat">📥</button>
+            <button onClick={clearChat} style={iconBtnStyle} title="Clear chat">🗑️</button>
+            <button onClick={handleClose} style={iconBtnStyle} title="Close">✕</button>
+          </div>
+        </div>
+        
+        <div style={fullPageMessagesStyle}>
+          {messages.map((msg) => (
+            <MessageBubble 
+              key={msg.id} 
+              msg={msg} 
+              isUser={msg.role === "user"} 
+              isFullPage={true} 
+              userAvatar={getUserAvatar()}
+              userName={user?.fullName}
+              copiedId={copiedId}
+              setCopiedId={setCopiedId}
+            />
+          ))}
+          {loading && <TypingIndicator isFullPage={true} />}
+          <div ref={messagesEndRef} />
+        </div>
 
-  // Widget mode
+        <AttachmentPreviewComponent attachments={attachments} removeAttachment={removeAttachment} isFullPage={true} />
+        
+        <div style={fullPageInputStyle}>
+          <input type="file" ref={fileInputRef} onChange={handleFileAttach} multiple style={{ display: "none" }} />
+          <button onClick={() => fileInputRef.current?.click()} style={fullPageActionBtn(false)} title="Attach file">
+            <FiPaperclip size={18} />
+          </button>
+          <button 
+            onClick={isListening ? stopVoiceInput : startVoiceInput} 
+            style={fullPageActionBtn(isListening)}
+          >
+            {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
+          </button>
+          <textarea 
+            value={input} 
+            onChange={(e) => setInput(e.target.value)} 
+            onKeyPress={handleKeyPress} 
+            placeholder="Talk naturally... Try 'Show me all users' or 'Make Morris the Secretary'" 
+            style={fullPageTextareaStyle}
+            rows={1}
+          />
+          <button 
+            onClick={sendMessage} 
+            disabled={loading || (!input.trim() && attachments.length === 0)} 
+            style={fullPageSendBtnStyle}
+          >
+            <FiSend size={18} />
+          </button>
+        </div>
+        
+        <div style={fullPageQuickActionsStyle}>
+          {quickActions.map((action, idx) => (
+            <button key={idx} onClick={() => setInput(action.action)} style={quickActionBtnStyle}>
+              <span style={{ fontSize: "14px" }}>{action.emoji}</span>
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // WIDGET MODE
+  // ==========================================
   return (
     <div style={widgetContainerStyle}>
       <div style={widgetHeaderStyle}>
@@ -342,7 +345,7 @@ if (isFullPage || localFullPage) {
           <img src={logoImg} alt="ZUCA" style={widgetLogoStyle} />
           <div>
             <h3 style={widgetTitleStyle}>ZUCA Admin AI</h3>
-            <p style={widgetStatusStyle}>👑 Admin Mode</p>
+            <p style={widgetStatusStyle}>👑 Admin Mode • Groq AI</p>
           </div>
         </div>
         <div style={widgetHeaderActionsStyle}>
@@ -355,7 +358,7 @@ if (isFullPage || localFullPage) {
           <button onClick={clearChat} style={widgetIconBtnStyle} title="Clear">
             <FiTrash size={12} />
           </button>
-          <button onClick={onClose} style={widgetIconBtnStyle} title="Close">
+          <button onClick={handleClose} style={widgetIconBtnStyle} title="Close">
             <FiX size={12} />
           </button>
         </div>
@@ -370,6 +373,8 @@ if (isFullPage || localFullPage) {
             isFullPage={false} 
             userAvatar={getUserAvatar()}
             userName={user?.fullName}
+            copiedId={copiedId}
+            setCopiedId={setCopiedId}
           />
         ))}
         {loading && <TypingIndicator isFullPage={false} />}
@@ -410,12 +415,18 @@ if (isFullPage || localFullPage) {
   );
 }
 
-// ==================== MESSAGE BUBBLE COMPONENT ====================
-const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName }) => {
+// ==================== MESSAGE BUBBLE ====================
+const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName, copiedId, setCopiedId }) => {
+  const handleCopy = async (text, id) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch(e) {}
+  };
+
   const getInitials = () => {
-    if (userName) {
-      return userName.charAt(0).toUpperCase();
-    }
+    if (userName) return userName.charAt(0).toUpperCase();
     return "A";
   };
 
@@ -433,7 +444,7 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName }) => {
         borderRadius: "12px", 
         background: isUser 
           ? "linear-gradient(135deg, #3b82f6, #2563eb)" 
-          : "linear-gradient(135deg, #ef4444, #dc2626)",
+          : "linear-gradient(135deg, #dc2626, #991b1b)",
         display: "flex", 
         alignItems: "center", 
         justifyContent: "center", 
@@ -444,20 +455,10 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName }) => {
       }}>
         {isUser ? (
           userAvatar ? (
-            <img 
-              src={userAvatar} 
-              alt="User" 
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            getInitials()
-          )
+            <img src={userAvatar} alt="Admin" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : getInitials()
         ) : (
-          <img 
-            src={logoImg} 
-            alt="ZUCA" 
-            style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }}
-          />
+          <img src={logoImg} alt="ZUCA" style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }} />
         )}
       </div>
       
@@ -465,21 +466,21 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName }) => {
         maxWidth: isFullPage ? "70%" : "75%", 
         padding: isFullPage ? "12px 16px" : "10px 14px", 
         borderRadius: "16px", 
-        background: isUser ? "#eff6ff" : "#f8fafc", 
+        background: isUser ? "#eff6ff" : "#fef2f2", 
         color: "#1e293b", 
         fontSize: isFullPage ? "14px" : "13px", 
         lineHeight: "1.5", 
-        border: "1px solid #e2e8f0"
+        border: isUser ? "1px solid #bfdbfe" : "1px solid #fecaca"
       }}>
         {isUser ? (
           <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
         ) : (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6" }} />,
+            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: "#dc2626" }} />,
             table: ({node, ...props}) => <table {...props} style={{ borderCollapse: "collapse", width: "100%", margin: "8px 0" }} />,
-            th: ({node, ...props}) => <th {...props} style={{ border: "1px solid #e2e8f0", padding: "6px", textAlign: "left", background: "#f1f5f9" }} />,
-            td: ({node, ...props}) => <td {...props} style={{ border: "1px solid #e2e8f0", padding: "6px" }} />,
-            code: ({node, ...props}) => <code {...props} style={{ background: "#f1f5f9", padding: "2px 4px", borderRadius: "4px" }} />
+            th: ({node, ...props}) => <th {...props} style={{ border: "1px solid #fecaca", padding: "6px", textAlign: "left", background: "#fef2f2" }} />,
+            td: ({node, ...props}) => <td {...props} style={{ border: "1px solid #fecaca", padding: "6px" }} />,
+            code: ({node, ...props}) => <code {...props} style={{ background: "#fef2f2", padding: "2px 4px", borderRadius: "4px" }} />
           }}>
             {msg.content}
           </ReactMarkdown>
@@ -495,12 +496,10 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userName }) => {
         }}>
           <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           <button 
-            onClick={() => {
-              navigator.clipboard.writeText(msg.content);
-            }} 
+            onClick={() => handleCopy(msg.content, msg.id)} 
             style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}
           >
-            <FiCopy size={isFullPage ? 12 : 10} />
+            {copiedId === msg.id ? <FiCheck size={isFullPage ? 12 : 10} /> : <FiCopy size={isFullPage ? 12 : 10} />}
           </button>
         </div>
       </div>
@@ -515,31 +514,20 @@ const TypingIndicator = ({ isFullPage }) => (
       width: isFullPage ? "40px" : "36px", 
       height: isFullPage ? "40px" : "36px", 
       borderRadius: "12px", 
-      background: "linear-gradient(135deg, #ef4444, #dc2626)",
-      display: "flex", 
-      alignItems: "center", 
-      justifyContent: "center",
-      overflow: "hidden"
+      background: "linear-gradient(135deg, #dc2626, #991b1b)",
+      display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden"
     }}>
-      <img 
-        src={logoImg} 
-        alt="ZUCA" 
-        style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }}
-      />
+      <img src={logoImg} alt="ZUCA" style={{ width: "100%", height: "100%", objectFit: "cover", padding: isFullPage ? "8px" : "6px" }} />
     </div>
     <div style={{ 
       padding: isFullPage ? "12px 16px" : "10px 14px", 
-      borderRadius: "16px", 
-      background: "#f8fafc",
-      border: "1px solid #e2e8f0",
-      display: "flex", 
-      gap: "8px", 
-      alignItems: "center"
+      borderRadius: "16px", background: "#fef2f2", border: "1px solid #fecaca",
+      display: "flex", gap: "8px", alignItems: "center"
     }}>
-      <div className="typing-dot" style={{ animationDelay: "0s" }}></div>
-      <div className="typing-dot" style={{ animationDelay: "0.2s" }}></div>
-      <div className="typing-dot" style={{ animationDelay: "0.4s" }}></div>
-      <span style={{ fontSize: isFullPage ? "13px" : "11px", color: "#64748b", marginLeft: "4px" }}>
+      <div className="typing-dot" style={{ animationDelay: "0s", background: "#dc2626" }}></div>
+      <div className="typing-dot" style={{ animationDelay: "0.2s", background: "#dc2626" }}></div>
+      <div className="typing-dot" style={{ animationDelay: "0.4s", background: "#dc2626" }}></div>
+      <span style={{ fontSize: isFullPage ? "13px" : "11px", color: "#991b1b", marginLeft: "4px" }}>
         Admin AI is thinking...
       </span>
     </div>
@@ -563,368 +551,49 @@ const AttachmentPreviewComponent = ({ attachments, removeAttachment, isFullPage 
 
 // ==================== STYLES ====================
 
-// Full Page Styles
-const fullPageContainerStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "#f8fafc",
-  zIndex: 999999,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-};
+const fullPageContainerStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#f8fafc", zIndex: 999999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', -apple-system, sans-serif" };
+const fullPageHeaderStyle = { padding: "16px 24px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.03)" };
+const backButtonStyle = { padding: "8px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", color: "#475569", cursor: "pointer", fontSize: "13px", fontWeight: "500" };
+const fullPageTitleStyle = { display: "flex", alignItems: "center", gap: "12px" };
+const fullPageLogoStyle = { width: "44px", height: "44px", borderRadius: "12px", background: "#f8fafc", padding: "8px", objectFit: "contain" };
+const adminBadgeStyle = { background: "#fef2f2", color: "#dc2626", padding: "4px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", marginLeft: "12px" };
+const iconBtnStyle = { width: "38px", height: "38px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" };
+const fullPageMessagesStyle = { flex: 1, overflowY: "auto", padding: "24px" };
+const fullPageInputStyle = { padding: "16px 24px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "12px", alignItems: "flex-end", flexShrink: 0 };
+const fullPageActionBtn = (isListening) => ({ width: "44px", height: "44px", borderRadius: "22px", background: isListening ? "#fef2f2" : "#f8fafc", border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0", color: isListening ? "#ef4444" : "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
+const fullPageTextareaStyle = { flex: 1, padding: "12px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "24px", color: "#1e293b", fontSize: "14px", resize: "none", fontFamily: "inherit", minHeight: "48px", maxHeight: "120px", outline: "none" };
+const fullPageSendBtnStyle = { width: "44px", height: "44px", borderRadius: "22px", background: "#dc2626", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const fullPageQuickActionsStyle = { padding: "12px 24px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 };
+const quickActionBtnStyle = { padding: "6px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "20px", color: "#475569", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" };
 
-const fullPageHeaderStyle = {
-  padding: "16px 24px",
-  background: "white",
-  borderBottom: "1px solid #e2e8f0",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexShrink: 0,
-  boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-};
-
-const backButtonStyle = {
-  padding: "8px 16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  color: "#475569",
-  cursor: "pointer",
-  fontSize: "13px",
-  fontWeight: "500",
-  transition: "all 0.2s",
-};
-
-const fullPageTitleStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const fullPageLogoStyle = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "12px",
-  background: "#f8fafc",
-  padding: "8px",
-  objectFit: "contain",
-};
-
-const adminBadgeStyle = {
-  background: "#fef2f2",
-  color: "#dc2626",
-  padding: "4px 12px",
-  borderRadius: "20px",
-  fontSize: "11px",
-  fontWeight: "600",
-  marginLeft: "12px",
-};
-
-const iconBtnStyle = {
-  width: "38px",
-  height: "38px",
-  borderRadius: "10px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "18px",
-  transition: "all 0.2s",
-};
-
-const fullPageMessagesStyle = {
-  flex: 1,
-  overflowY: "auto",
-  padding: "24px",
-};
-
-const fullPageInputStyle = {
-  padding: "16px 24px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "12px",
-  alignItems: "flex-end",
-  flexShrink: 0,
-};
-
-const fullPageActionBtn = (isListening) => ({
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  background: isListening ? "#fef2f2" : "#f8fafc",
-  border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0",
-  color: isListening ? "#ef4444" : "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "all 0.2s",
-});
-
-const fullPageTextareaStyle = {
-  flex: 1,
-  padding: "12px 16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "24px",
-  color: "#1e293b",
-  fontSize: "14px",
-  resize: "none",
-  fontFamily: "inherit",
-  minHeight: "48px",
-  maxHeight: "120px",
-  outline: "none",
-  transition: "all 0.2s",
-};
-
-const fullPageSendBtnStyle = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "22px",
-  background: "#3b82f6",
-  border: "none",
-  color: "white",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "all 0.2s",
-};
-
-const fullPageQuickActionsStyle = {
-  padding: "12px 24px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
-  flexShrink: 0,
-};
-
-const quickActionBtnStyle = {
-  padding: "6px 14px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  color: "#475569",
-  fontSize: "12px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  transition: "all 0.2s",
-};
-
-// Widget Styles
-const widgetContainerStyle = {
-  position: "fixed",
-  bottom: "20px",
-  right: "20px",
-  width: "400px",
-  height: "550px",
-  background: "white",
-  borderRadius: "20px",
-  boxShadow: "0 20px 40px -12px rgba(0,0,0,0.25)",
-  zIndex: 10000,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-  border: "1px solid #e2e8f0",
-  fontFamily: "'Inter', -apple-system, sans-serif",
-};
-
-const widgetHeaderStyle = {
-  padding: "12px 16px",
-  background: "white",
-  borderBottom: "1px solid #e2e8f0",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexShrink: 0,
-};
-
-const widgetHeaderLeftStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-};
-
-const widgetLogoStyle = {
-  width: "32px",
-  height: "32px",
-  borderRadius: "10px",
-  background: "#f8fafc",
-  padding: "6px",
-  objectFit: "contain",
-};
-
-const widgetTitleStyle = {
-  margin: 0,
-  color: "#0f172a",
-  fontSize: "14px",
-  fontWeight: "600",
-};
-
-const widgetStatusStyle = {
-  margin: 0,
-  color: "#dc2626",
-  fontSize: "10px",
-  fontWeight: "500",
-};
-
-const widgetHeaderActionsStyle = {
-  display: "flex",
-  gap: "6px",
-};
-
-const widgetIconBtnStyle = {
-  width: "28px",
-  height: "28px",
-  borderRadius: "8px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "12px",
-  transition: "all 0.2s",
-};
-
-const widgetMessagesStyle = {
-  flex: 1,
-  overflowY: "auto",
-  padding: "16px",
-  background: "#f8fafc",
-};
-
-const widgetInputStyle = {
-  padding: "12px 16px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  gap: "8px",
-  alignItems: "flex-end",
-  flexShrink: 0,
-};
-
-const widgetActionBtn = (isListening) => ({
-  width: "34px",
-  height: "34px",
-  borderRadius: "17px",
-  background: isListening ? "#fef2f2" : "#f8fafc",
-  border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0",
-  color: isListening ? "#ef4444" : "#64748b",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-});
-
-const widgetTextareaStyle = {
-  flex: 1,
-  padding: "8px 12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "20px",
-  color: "#1e293b",
-  fontSize: "12px",
-  resize: "none",
-  fontFamily: "inherit",
-  minHeight: "36px",
-  maxHeight: "80px",
-  outline: "none",
-};
-
-const widgetSendBtnStyle = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "17px",
-  background: "#3b82f6",
-  border: "none",
-  color: "white",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const widgetQuickActionsStyle = {
-  padding: "8px 12px",
-  borderTop: "1px solid #e2e8f0",
-  background: "white",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "6px",
-  flexShrink: 0,
-};
-
-const widgetQuickBtnStyle = {
-  padding: "4px 10px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  color: "#475569",
-  fontSize: "10px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "4px",
-};
+const widgetContainerStyle = { position: "fixed", bottom: "20px", right: "20px", width: "400px", height: "550px", background: "white", borderRadius: "20px", boxShadow: "0 20px 40px -12px rgba(0,0,0,0.25)", zIndex: 10000, display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0", fontFamily: "'Inter', -apple-system, sans-serif" };
+const widgetHeaderStyle = { padding: "12px 16px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 };
+const widgetHeaderLeftStyle = { display: "flex", alignItems: "center", gap: "10px" };
+const widgetLogoStyle = { width: "32px", height: "32px", borderRadius: "10px", background: "#f8fafc", padding: "6px", objectFit: "contain" };
+const widgetTitleStyle = { margin: 0, color: "#0f172a", fontSize: "14px", fontWeight: "600" };
+const widgetStatusStyle = { margin: 0, color: "#dc2626", fontSize: "10px", fontWeight: "500" };
+const widgetHeaderActionsStyle = { display: "flex", gap: "6px" };
+const widgetIconBtnStyle = { width: "28px", height: "28px", borderRadius: "8px", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" };
+const widgetMessagesStyle = { flex: 1, overflowY: "auto", padding: "16px", background: "#f8fafc" };
+const widgetInputStyle = { padding: "12px 16px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "8px", alignItems: "flex-end", flexShrink: 0 };
+const widgetActionBtn = (isListening) => ({ width: "34px", height: "34px", borderRadius: "17px", background: isListening ? "#fef2f2" : "#f8fafc", border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0", color: isListening ? "#ef4444" : "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
+const widgetTextareaStyle = { flex: 1, padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "20px", color: "#1e293b", fontSize: "12px", resize: "none", fontFamily: "inherit", minHeight: "36px", maxHeight: "80px", outline: "none" };
+const widgetSendBtnStyle = { width: "34px", height: "34px", borderRadius: "17px", background: "#dc2626", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const widgetQuickActionsStyle = { padding: "8px 12px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", flexWrap: "wrap", gap: "6px", flexShrink: 0 };
+const widgetQuickBtnStyle = { padding: "4px 10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", color: "#475569", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
 
 // CSS Animation
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes typingWave {
-    0%, 60%, 100% {
-      transform: translateY(0);
-      opacity: 0.4;
-    }
-    30% {
-      transform: translateY(-8px);
-      opacity: 1;
-    }
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-8px); opacity: 1; }
   }
-  
-  .typing-dot {
-    width: 8px;
-    height: 8px;
-    background: #3b82f6;
-    border-radius: 50%;
-    animation: typingWave 1.4s infinite ease-in-out;
-  }
-  
-  button:hover {
-    transform: translateY(-1px);
-  }
-  
-  textarea:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-  }
-  
-  @media (max-width: 768px) {
-    .widget-container {
-      width: 95% !important;
-
-      right: 2.5% !important;
-      bottom: 10px !important;
-      left: 2.5% !important;
-    }
-  }
+  .typing-dot { width: 8px; height: 8px; background: #dc2626; border-radius: 50%; animation: typingWave 1.4s infinite ease-in-out; }
+  button:hover { transform: translateY(-1px); }
+  textarea:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
 `;
-if (!document.querySelector("#ai-typing-animation")) {
-  styleSheet.id = "ai-typing-animation";
+if (!document.querySelector("#admin-ai-typing-animation")) {
+  styleSheet.id = "admin-ai-typing-animation";
   document.head.appendChild(styleSheet);
 }

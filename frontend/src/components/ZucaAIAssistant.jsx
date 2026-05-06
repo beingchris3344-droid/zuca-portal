@@ -278,7 +278,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
               <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA AI</h2>
               <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by CHRISWEBSYS</p>
             </div>
-            <span style={userBadgeStyle}>🙏 USER</span>
+            <span style={userBadgeStyle}>🙏 </span>
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
             <button onClick={exportChat} style={iconBtnStyle} title="Export chat">📥</button>
@@ -558,7 +558,7 @@ const AttachmentPreviewComponent = ({ attachments, removeAttachment, isFullPage 
 // ==================== STYLES ====================
 
 const fullPageContainerStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#f8fafc", zIndex: 999999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', -apple-system, sans-serif" };
-const fullPageHeaderStyle = { padding: "16px 24px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.03)" };
+const fullPageHeaderStyle = { padding: "0px 0px", background: "white", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.03)" };
 const backButtonStyle = { padding: "8px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", color: "#475569", cursor: "pointer", fontSize: "13px", fontWeight: "500" };
 const fullPageTitleStyle = { display: "flex", alignItems: "center", gap: "12px" };
 const fullPageLogoStyle = { width: "44px", height: "44px", borderRadius: "12px", background: "#f8fafc", padding: "8px", objectFit: "contain" };

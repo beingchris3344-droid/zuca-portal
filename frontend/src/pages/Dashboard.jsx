@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import bg from "../assets/2.jpg";
+
 import axios from "axios";
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
@@ -980,6 +982,7 @@ const fetchFeaturedGallery = async () => {
 
         body {
           background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
         }
 
@@ -1062,6 +1065,7 @@ const fetchFeaturedGallery = async () => {
         /* PROFILE CARD */
         .profile-card {
           background: white;
+          
           border-radius: 24px;
           padding: 20px;
           margin-bottom: 20px;

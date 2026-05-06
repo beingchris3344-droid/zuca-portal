@@ -162,6 +162,9 @@ Pages: hymns, gallery, chat, dashboard, mass-programs, contributions, liturgical
 
 **Liturgy:** [ACTION:get_liturgical_calendar]{"year":2026,"month":5}[/ACTION]
 
+"Open calendar" → [ACTION:navigate_to_page]{"page":"liturgical-calendar"}[/ACTION]
+"Show May readings" → [ACTION:get_liturgical_calendar]{"year":2026,"month":5}[/ACTION]
+
 ## GENERAL RULES
 1. ONE action per response maximum
 2. Respond in user's language (English, Kiswahili, Sheng)

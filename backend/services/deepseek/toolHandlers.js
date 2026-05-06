@@ -3453,6 +3453,30 @@ case "check_if_live": {
         return { success: true, message: `Deleted all ${allCampaigns.length} campaigns and pledges.` };
       }
 
+
+      case "get_tomorrows_readings": {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const nextDay = new Date(tomorrow);
+  nextDay.setDate(nextDay.getDate() + 1);
+  
+  const reading = await prisma.liturgicalDay.findFirst({
+    where: { date: { gte: tomorrow, lt: nextDay } }
+  });
+  
+  if (!reading) return { message: "No readings found for tomorrow." };
+  
+  return {
+    date: reading.date,
+    celebration: reading.celebration,
+    season: reading.season,
+    seasonName: reading.seasonName,
+    color: reading.liturgicalColor,
+    readings: reading.readings
+  };
+}
+
       default:
         return { error: `Unknown tool: ${toolName}` };
     }

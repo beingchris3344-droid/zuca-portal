@@ -269,12 +269,84 @@ function formatActionResult(actionResult) {
     return reply;
   }
 
+
+   // Liturgical Calendar
+  if (actionResult.days) {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    let reply = `**📅 Liturgical Calendar — ${monthNames[actionResult.month - 1]} ${actionResult.year}**\n\n`;
+    
+    // Group by week
+    let currentWeek = "";
+    actionResult.days.forEach(d => {
+      const date = new Date(d.date);
+      const dayName = date.toLocaleDateString('en-KE', { weekday: 'short' });
+      const dayNum = date.getDate();
+      
+      // Highlight Sundays and special feasts
+      const isSunday = dayName === "Sun" || d.celebration?.includes("Sunday");
+      const isSpecial = d.celebration?.includes("Pentecost") || d.celebration?.includes("Ascension") || d.celebration?.includes("Trinity");
+      
+      const prefix = isSpecial ? "🔥 " : isSunday ? "✝️ " : "• ";
+      reply += `${prefix}**${dayName} ${dayNum}** — ${d.celebration} (${d.color})\n`;
+    });
+    
+    return reply;
+  }
+
+
+    // Today's/Tomorrow's Readings
+  if (actionResult.date && (actionResult.readings || actionResult.celebration)) {
+    const date = new Date(actionResult.date);
+    const dayName = date.toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    
+    let reply = `**📖 Readings for ${dayName}**\n\n`;
+    reply += `**${actionResult.celebration}**\n`;
+    reply += `🟡 Season: ${actionResult.seasonName} | 🎨 Color: ${actionResult.color}\n\n`;
+    
+    if (actionResult.readings) {
+      const r = actionResult.readings;
+      
+      if (r.firstReading?.citation) {
+        const text = (r.firstReading.text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 300);
+        reply += `**First Reading:** *${r.firstReading.citation}*\n${text}\n\n`;
+      }
+      
+      if (r.responsorialPsalm?.citation) {
+        const text = (r.responsorialPsalm.text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 300);
+        reply += `**Psalm:** *${r.responsorialPsalm.citation}*\n${text}\n\n`;
+      }
+      
+      if (r.secondReading?.citation) {
+        const text = (r.secondReading.text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 300);
+        reply += `**Second Reading:** *${r.secondReading.citation}*\n${text}\n\n`;
+      }
+      
+      if (r.gospel?.citation) {
+  const text = (r.gospel.text || '')
+    .replace(/<[^>]+>/g, '')           // Remove ALL HTML tags
+    .replace(/&[^;]+;/g, '')           // Remove HTML entities
+    .replace(/john\/\d+\?\d+\s*"/gi, '') // Remove "john/10?27 ">"
+    .replace(/R\.\s*Alleluia[^.]*\./gi, '') // Remove Alleluia responses
+    .replace(/En Español.*$/gi, '')     // Remove footer
+    .replace(/View Calendar.*$/gi, '')  // Remove footer
+    .replace(/Get Daily Readings.*$/gi, '') // Remove footer
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .substring(0, 500);
+  reply += `**✝️ Gospel:** *${r.gospel.citation}*\n${text}\n`;
+}
+    }
+    
+    return reply;
+  }
+
+
   // Fallback: return JSON
   return JSON.stringify(actionResult, null, 2);
 }
 
-
-
+ 
 
 /**
  * POST /api/deepseek/chat

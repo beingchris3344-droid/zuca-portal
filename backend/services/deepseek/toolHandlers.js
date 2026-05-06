@@ -3389,6 +3389,70 @@ case "check_if_live": {
     return { error: "Failed to check live status." };
   }
 }
+
+      case "approve_user_pledge":
+      case "approve_user":
+      case "approve_individual":
+      case "approve_member": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "treasurer")) {
+          return { error: "Only admins and treasurers can approve pledges." };
+        }
+
+        const target = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { fullName: { contains: args.userIdentifier || "", mode: "insensitive" } },
+              { email: { contains: args.userIdentifier || "", mode: "insensitive" } },
+              { membership_number: { contains: args.userIdentifier || "", mode: "insensitive" } }
+            ]
+          }
+        });
+
+        if (!target) return { error: "User not found. Please specify their name, email, or membership number." };
+
+        const pendingPledges = await prisma.pledge.findMany({
+          where: { userId: target.id, OR: [{ pendingAmount: { gt: 0 } }, { status: "PENDING" }] },
+          include: { contributionType: true }
+        });
+
+        if (pendingPledges.length === 0) return { message: `${target.fullName} has no pending pledges.` };
+
+        let count = 0;
+        for (const pledge of pendingPledges) {
+          const newAmountPaid = (pledge.amountPaid || 0) + (pledge.pendingAmount || 0);
+          const newStatus = newAmountPaid >= (pledge.contributionType?.amountRequired || 0) ? "COMPLETED" : "APPROVED";
+          
+          await prisma.pledge.update({
+            where: { id: pledge.id },
+            data: { amountPaid: newAmountPaid, pendingAmount: 0, status: newStatus, approvedById: currentUser.userId, approvedAt: new Date() }
+          });
+          count++;
+        }
+
+        return { success: true, message: `✅ Approved ${count} pledges for ${target.fullName}.` };
+      }
+
+            case "delete_all_campaigns":
+      case "delete_all_campgains":
+      case "delete_all_data":
+      case "delete_everything": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || user.role !== "admin") {
+          return { error: "Only admins can delete all data." };
+        }
+
+        const allCampaigns = await prisma.contributionType.findMany();
+        if (allCampaigns.length === 0) return { message: "No campaigns to delete." };
+
+        for (const c of allCampaigns) {
+          await prisma.pledge.deleteMany({ where: { contributionTypeId: c.id } });
+          await prisma.contributionType.delete({ where: { id: c.id } });
+        }
+
+        return { success: true, message: `Deleted all ${allCampaigns.length} campaigns and pledges.` };
+      }
+
       default:
         return { error: `Unknown tool: ${toolName}` };
     }

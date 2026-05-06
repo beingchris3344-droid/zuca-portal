@@ -9,6 +9,7 @@ const { chatWithGroq } = require("../services/deepseek/deepseekClient");
 const { executeToolCall } = require("../services/deepseek/toolHandlers");
 
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
+const { sendPersonalizedEmail } = require("../services/mailer");
 
 // Conversation store (in-memory — resets on server restart)
 const conversations = new Map();
@@ -272,6 +273,9 @@ function formatActionResult(actionResult) {
   return JSON.stringify(actionResult, null, 2);
 }
 
+
+
+
 /**
  * POST /api/deepseek/chat
  */
@@ -330,6 +334,37 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
       const formattedResult = formatActionResult(actionResult);
       if (formattedResult) {
         finalReply = formattedResult;
+      }
+    }
+
+        // Send email/push for successful actions that create/approve things
+    if (actionResult && actionResult.success && req.user?.userId) {
+      const actionName = aiResponse.action.name;
+      const args = aiResponse.action.arguments || {};
+      
+      // Map of actions that should trigger emails
+      const shouldNotify = [
+        "create_campaign", "create_announcement", "assign_executive",
+        "approve_all_pledges", "approve_user_pledge", "approve_pledge",
+        "send_bulk_email", "send_email", "post_announcement", "broadcast"
+      ].includes(actionName);
+
+      if (shouldNotify) {
+        try {
+          const adminUser = await prisma.user.findUnique({ where: { id: req.user.userId } });
+          if (adminUser?.email) {
+            await sendPersonalizedEmail(
+              adminUser,
+              actionName,
+              actionResult.message || "Action completed",
+              actionResult.message || "Action processed successfully",
+              {}
+            );
+            console.log(`📧 Email sent to ${adminUser.email} for ${actionName}`);
+          }
+        } catch (emailErr) {
+          console.error("Email failed:", emailErr.message);
+        }
       }
     }
 

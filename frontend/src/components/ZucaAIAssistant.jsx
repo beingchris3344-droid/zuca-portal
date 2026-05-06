@@ -276,7 +276,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
             <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
             <div>
               <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA AI</h2>
-              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered CHRISWEBSYS • Natural Language</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by CHRISWEBSYS</p>
             </div>
             <span style={userBadgeStyle}>🙏 USER</span>
           </div>

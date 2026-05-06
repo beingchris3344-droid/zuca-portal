@@ -1,14 +1,59 @@
 // frontend/src/pages/Register.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import bg from "../assets/background4.webp";
+// Slideshow images (same as Landing2.jsx)
+import slide1 from "../assets/background2.webp";
+import slide2 from "../assets/2.jpg";
+import slide3 from "../assets/3.jpg";
+import slide4 from "../assets/4.jpg";
+import slide5 from "../assets/5.jpg";
+import slide6 from "../assets/6.jpg";
+import slide7 from "../assets/7.jpg";
+import slide8 from "../assets/8.jpg";
+import slide9 from "../assets/9.jpg";
+import slide10 from "../assets/10.jpg";
+import slide11 from "../assets/11.jpg";
+import slide12 from "../assets/12.jpg";
 import logo from "../assets/zuca-logo.png";
+
 import BASE_URL from "../api";
 import WelcomeModal from "../components/WelcomeModal";
 
 function Register() {
   const navigate = useNavigate();
+
+  // Slideshow state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const slideIntervalRef = useRef(null);
+
+  const slides = [
+    { id: 1, image: slide1 },
+    { id: 2, image: slide2 },
+    { id: 3, image: slide3 },
+    { id: 4, image: slide4 },
+    { id: 5, image: slide5 },
+    { id: 6, image: slide6 },
+    { id: 7, image: slide7 },
+    { id: 8, image: slide8 },
+    { id: 9, image: slide9 },
+    { id: 10, image: slide10 },
+    { id: 11, image: slide11 },
+    { id: 12, image: slide12 },
+  ];
+
+  // Auto-play slideshow
+  useEffect(() => {
+    if (isPlaying) {
+      slideIntervalRef.current = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }, 5000);
+    }
+    return () => {
+      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
+    };
+  }, [isPlaying, slides.length]);
 
   // Registration form states
   const [fullName, setFullName] = useState("");
@@ -341,6 +386,23 @@ function Register() {
   return (
     <>
       <div style={styles.pageWrapper}>
+        {/* Slideshow Background */}
+        <div className="register-slideshow-container">
+          {slides.map((slide, index) => (
+            <div
+              key={slide.id}
+              className={`register-slide ${index === currentSlide ? 'active' : ''}`}
+            >
+              <img
+                src={slide.image}
+                alt="background"
+                className="register-slide-image"
+                loading="lazy"
+              />
+            </div>
+          ))}
+        </div>
+
         <div style={styles.container}>
           <div style={styles.backgroundOverlay} />
           
@@ -411,7 +473,7 @@ function Register() {
                   )}
                 </div>
                 <div style={styles.hintText}>
-                  <span>⚠️ All letters will be automatically capitalized</span>
+                  <span>⚠️ Kindly use your official names above</span>
                 </div>
               </motion.div>
 
@@ -425,7 +487,7 @@ function Register() {
                 <div style={styles.inputWrapper}>
                   <input
                     type="email"
-                    placeholder="use your offical email for verficaton"
+                    placeholder="use your official email for verification"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setFocusedField("email")}
@@ -738,6 +800,38 @@ function Register() {
         input::placeholder {
           color: #ffffff69;
         }
+
+        /* Slideshow styles */
+        .register-slideshow-container {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 0;
+          overflow: hidden;
+        }
+        .register-slide {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0;
+          transition: opacity 1s ease-in-out;
+        }
+        .register-slide.active {
+          opacity: 1;
+          z-index: 1;
+        }
+        .register-slide-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+        }
+        
+        }
       `}</style>
     </>
   );
@@ -748,29 +842,30 @@ const styles = {
     minHeight: "100vh",
     width: "100%",
     overflow: "hidden",
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    position: "relative"
   },
   container: {
     position: "relative",
     minHeight: "100vh",
-    backgroundImage: `url(${bg})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    padding: "20px"
+    padding: "20px",
+    zIndex: 2
   },
   backgroundOverlay: {
     position: "absolute",
     inset: 0,
-    background: "linear-gradient(135deg, rgba(15, 23, 42, 0), rgba(30, 27, 75, 0))",
+    background: "linear-gradient(135deg, rgba(26, 40, 71, 0), rgba(30, 27, 75, 0.8))",
+    zIndex: 1
   },
   particlesContainer: {
     position: "absolute",
     inset: 0,
     overflow: "hidden",
-    pointerEvents: "none"
+    pointerEvents: "none",
+    zIndex: 1
   },
   particle: {
     position: "absolute",
@@ -779,23 +874,24 @@ const styles = {
     pointerEvents: "none",
     animation: "float 10s ease-in-out infinite"
   },
- card: {
-  position: "relative",
-  zIndex: 10,
-  width: "100%",
-  maxWidth: "440px",
-  background: "rgba(15,23,42,0.7)",
-  backdropFilter: "blur(20px)",
-  borderRadius: "32px",
-  padding: "0px 28px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
-},
+  card: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    maxWidth: "440px",
+    background: "rgba(15, 23, 42, 0.62)",
+    backdropFilter: "blur(5px)",
+    borderRadius: "32px",
+    padding: "0px 28px",
+    marginBottom: "30px",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
+  },
   cardInner: {
     position: "absolute",
     inset: 0,
     borderRadius: "32px",
-    background: "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.08), transparent 70%)",
+    background: "radial-gradient(circle at 50% 0%, rgba(59, 131, 246, 0.06), transparent 70%)",
     pointerEvents: "none"
   },
   logoContainer: {
@@ -961,8 +1057,8 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "rgba(0,0,0,0.95)",
-    backdropFilter: "blur(8px)",
+    background: "rgba(17, 17, 17, 0.18)",
+    backdropFilter: "blur(10px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -999,7 +1095,7 @@ const styles = {
     lineHeight: 1.5
   },
   modalEmail: {
-    color: "#3b82f6",
+    color: "#00fa36",
     fontSize: "15px"
   },
   codeContainer: {
@@ -1036,7 +1132,7 @@ const styles = {
     padding: "14px",
     borderRadius: "40px",
     border: "none",
-    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+    background: "linear-gradient(135deg, #3bf683, #2563eb)",
     color: "white",
     fontWeight: 600,
     fontSize: "15px",
@@ -1057,7 +1153,7 @@ const styles = {
   resendButton: {
     background: "none",
     border: "none",
-    color: "#3b82f6",
+    color: "#f63b3b",
     cursor: "pointer",
     fontSize: "14px",
     textDecoration: "underline"

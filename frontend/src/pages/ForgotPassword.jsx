@@ -1,7 +1,19 @@
 // frontend/src/pages/ForgotPassword.jsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import bg from "../assets/background4.webp";
+// Slideshow images (same as Landing2.jsx, Register.jsx, Login.jsx)
+import slide1 from "../assets/background2.webp";
+import slide2 from "../assets/2.jpg";
+import slide3 from "../assets/3.jpg";
+import slide4 from "../assets/4.jpg";
+import slide5 from "../assets/5.jpg";
+import slide6 from "../assets/6.jpg";
+import slide7 from "../assets/7.jpg";
+import slide8 from "../assets/8.jpg";
+import slide9 from "../assets/9.jpg";
+import slide10 from "../assets/10.jpg";
+import slide11 from "../assets/11.jpg";
+import slide12 from "../assets/12.jpg";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
 
@@ -11,6 +23,38 @@ function ForgotPassword() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
+
+  // Slideshow state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const slideIntervalRef = useRef(null);
+
+  const slides = [
+    { id: 1, image: slide1 },
+    { id: 2, image: slide2 },
+    { id: 3, image: slide3 },
+    { id: 4, image: slide4 },
+    { id: 5, image: slide5 },
+    { id: 6, image: slide6 },
+    { id: 7, image: slide7 },
+    { id: 8, image: slide8 },
+    { id: 9, image: slide9 },
+    { id: 10, image: slide10 },
+    { id: 11, image: slide11 },
+    { id: 12, image: slide12 },
+  ];
+
+  // Auto-play slideshow
+  useEffect(() => {
+    if (isPlaying) {
+      slideIntervalRef.current = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }, 5000);
+    }
+    return () => {
+      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
+    };
+  }, [isPlaying, slides.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,30 +97,28 @@ function ForgotPassword() {
   const styles = {
     page: {
       minHeight: "100vh",
-      backgroundImage: `url(${bg})`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       position: "relative",
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
       padding: "10px",
+      overflow: "hidden",
     },
     overlay: {
       position: "absolute",
       inset: 0,
-      background: "linear-gradient(135deg, rgba(49,15,221,0.85) 0%, rgba(0,0,0,0.9) 100%)",
-      zIndex: 0,
+      background: "linear-gradient(135deg, rgba(15, 104, 221, 0.27) 0%, rgba(0,0,0,0.9) 100%)",
+      zIndex: 1,
     },
     card: {
       position: "relative",
-      zIndex: 1,
-      backdropFilter: "blur(10px)",
-      background: "rgba(255, 255, 255, 0.1)",
-      padding: "25px 20px",
+      zIndex: 2,
+      backdropFilter: "blur(5px)",
+      background: "rgba(23, 32, 19, 0.42)",
+      padding: "35px 40px",
       borderRadius: "24px",
-      width: "100%",
+      width: "90%",
       maxWidth: "420px",
       color: "white",
       boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
@@ -204,11 +246,62 @@ function ForgotPassword() {
       border-color: #54dd0f !important;
       box-shadow: 0 0 0 3px rgba(84, 221, 15, 0.25) !important;
     }
+    /* Slideshow styles */
+    .forgot-slideshow-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .forgot-slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    }
+    .forgot-slide.active {
+      opacity: 1;
+      z-index: 1;
+    }
+    .forgot-slide-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+    
+      .forgot-slideshow-container {
+        background-color: #0a0a1e;
+      }
+    }
   `;
   document.head.appendChild(styleTag);
 
   return (
     <div style={styles.page}>
+      {/* Slideshow Background */}
+      <div className="forgot-slideshow-container">
+        {slides.map((slide, index) => (
+          <div
+            key={slide.id}
+            className={`forgot-slide ${index === currentSlide ? 'active' : ''}`}
+          >
+            <img
+              src={slide.image}
+              alt="background"
+              className="forgot-slide-image"
+              loading="lazy"
+            />
+          </div>
+        ))}
+      </div>
+
       <div style={styles.overlay} />
       <div style={styles.card}>
         <div style={styles.logoContainer}>
@@ -229,7 +322,7 @@ function ForgotPassword() {
             <label style={styles.label}>Email Address</label>
             <input
               type="email"
-              placeholder="you@example.com"
+              placeholder="Registered email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}

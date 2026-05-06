@@ -21,11 +21,27 @@ import {
   FaSignInAlt,
   FaBars,
   FaTimes,
-  FaChevronDown
+  FaChevronDown,
+  FaChevronLeft,
+  FaChevronRight,
+  FaPause,
+  FaPlay
 } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background2.webp";
+// Slideshow images 
+import slide1 from "../assets/background2.webp";
+import slide2 from "../assets/2.jpg"; 
+import slide3 from "../assets/3.jpg"; 
+import slide4 from "../assets/4.jpg"; 
+import slide5 from "../assets/5.jpg"; 
+import slide6 from "../assets/6.jpg";
+import slide7 from "../assets/7.jpg";
+import slide8 from "../assets/8.jpg";
+import slide9 from "../assets/9.jpg";
+import slide10 from "../assets/10.jpg";
+import slide11 from "../assets/11.jpg";
+import slide12 from "../assets/12.jpg";
 import NotificationPrompt from '../components/NotificationPrompt';
 
 function Landing2() {
@@ -36,11 +52,83 @@ function Landing2() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [touchStart, setTouchStart] = useState(null);
   const heroRef = useRef(null);
   const aboutRef = useRef(null);
   const massRef = useRef(null);
   const connectRef = useRef(null);
   const contactRef = useRef(null);
+  const slideIntervalRef = useRef(null);
+  const slideshowRef = useRef(null);
+
+  // Slideshow images array
+  const slides = [
+    { id: 1, image: slide1, title: "Welcome to ZUCA", description: "Faith & Fellowship" },
+    { id: 2, image: slide2, title: "Community Prayer", description: "Join us in worship" },
+    { id: 3, image: slide3, title: "Youth in Action", description: "Building a stronger faith community" },
+    { id: 4, image: slide4, title: "Mass & Celebrations", description: "Come together in faith" },
+    { id: 5, image: slide5, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 6, image: slide6, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 7, image: slide7, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 8, image: slide8, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 9, image: slide9, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 10, image: slide10, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 11, image: slide11, title: "Zetech Catholic Action", description: "Growing in faith and service" },
+    { id: 12, image: slide12, title: "Zetech Catholic Action", description: "Growing in faith and service" }    
+
+  ];
+
+  // Slideshow navigation functions
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const goToSlide = (index) => {
+    setCurrentSlide(index);
+  };
+
+  const togglePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStart === null) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStart - touchEnd;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        nextSlide();
+      } else {
+        prevSlide();
+      }
+    }
+    setTouchStart(null);
+  };
+
+  // Auto-play slideshow
+  useEffect(() => {
+    if (isPlaying) {
+      slideIntervalRef.current = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }, 5000);
+    }
+    return () => {
+      if (slideIntervalRef.current) {
+        clearInterval(slideIntervalRef.current);
+      }
+    };
+  }, [isPlaying, slides.length]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -191,7 +279,7 @@ function Landing2() {
       {/* Navigation */}
       <nav className={`navbar ${scrollY > 50 ? 'navbar-scrolled' : ''}`}>
         <div className="nav-container">
-          <div className="logo-container">
+          <div className="logo-container" onClick={() => scrollToSection('home')} style={{ cursor: 'pointer' }}>
             <img src={logo} alt="ZUCA Logo" className="logo-img" />
             <span className="logo-text">ZUCA</span>
           </div>
@@ -219,25 +307,66 @@ function Landing2() {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero Section with Slideshow */}
       <section id="home" ref={heroRef} className="hero-section">
-        <div className="hero-overlay"></div>
+        {/* Slideshow Background */}
+        <div 
+          className="slideshow-container"
+          ref={slideshowRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {slides.map((slide, index) => (
+            <div 
+              key={slide.id}
+              className={`slide ${index === currentSlide ? 'active' : ''}`}
+              style={{ backgroundImage: `url(${slide.image})` }}
+            >
+              <div className="slide-overlay"></div>
+            </div>
+          ))}
+          
+          {/* Slideshow Navigation Arrows */}
+          <button className="slideshow-nav slideshow-nav-prev" onClick={prevSlide}>
+            <FaChevronLeft />
+          </button>
+          <button className="slideshow-nav slideshow-nav-next" onClick={nextSlide}>
+            <FaChevronRight />
+          </button>
+          
+          {/* Slideshow Dots */}
+          <div className="slideshow-dots">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                className={`dot ${index === currentSlide ? 'active' : ''}`}
+                onClick={() => goToSlide(index)}
+              />
+            ))}
+          </div>
+          
+          {/* Play/Pause Button */}
+          <button className="slideshow-play-pause" onClick={togglePlayPause}>
+            {isPlaying ? <FaPause /> : <FaPlay />}
+          </button>
+        </div>
+
         <div className="hero-container">
           {/* Action Buttons Row - Independently arranged */}
           <div className="action-buttons-row">
             {showInstallButton && (
               <button onClick={handleInstallClick} className="action-btn action-btn-install">
-                <FaDownload /> Install App
+                <FaDownload /> Install Our App
               </button>
             )}
             <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
-              📷 Gallery
+              📷 Our Gallery
             </button>
             <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
-              📅liturgical Calendar
+              📅 Liturgical Calendar
             </button>
             <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
-              <FaUserPlus />📚 User Manual
+              <FaUserPlus /> 📚 Our User's Manual
             </button>
           </div>
 
@@ -250,13 +379,14 @@ function Landing2() {
             <div className="welcome-subtitle">CATHOLIC ACTION</div>
             <div className="zuca-name">(Z.U.C.A)</div>
             <p className="welcome-text">
-              Welcome to the Zetech University Catholic Action Portal. Here you can view announcements, 
-              explore mass schedules and other relevant programs, and connect with members — all in one powerful platform.
+              Welcome to the Zetech University Catholic Action official Portal. All in one place where you can view announcements, 
+              explore mass schedules and other relevant programs, and also connect with other members — all in one powerful platform.
             </p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
                 <FaUserPlus /> REGISTER
               </button>
+              <p>OR</p>
               <button onClick={() => navigate("/login")} className="btn-secondary">
                 <FaSignInAlt /> MEMBER LOGIN
               </button>
@@ -370,20 +500,24 @@ function Landing2() {
 
           <div className="about-content">
             <p className="about-text">
-              <strong>St.Kizito ZUCA</strong> was formed in <strong>October 2018</strong> by a group of Catholic students who met at school and decided to recite the Holy Rosary in the evenings. As Madam Veronica was passing by, she noticed them and helped formalize it as a group. They continued with this practice until July, when it was officially launched as a club at Zetech.
-            </p>
+             <strong>St. Kizito ZUCA</strong> was established in <strong>October 2018</strong> by a 
+group of Catholic students who met at school and decided to recite the Holy Rosary in the evenings. When Madam 
+Veronica happened to pass by, she noticed them and helped formalize the initiative into a structured group. The students continued with their practice until July, when the group was officially launched as a club at Zetech University.
+</p>
 
-            <p className="about-text">
-              Our matron was Madam Veronica and our patron was Mr. Martin Butita. The chair was <strong>Magige Brian</strong>, the vice moderator was <strong>Shiru</strong>, <strong>Nick</strong> was the secretary, and <strong>Petronila</strong> was the organizing secretary. 
-            </p>
+<p className="about-text">
+Madam Veronica became the group's matron, and Mr. Martin Butita became the patron. The first leadership team was composed of <strong>Magige Brian</strong> as chairperson, <strong>Shiru</strong> as vice moderator, <strong>Nick</strong> as secretary, and <strong>Petronila</strong> as organizing secretary.
+</p>
 
-            <p className="about-text">
-              The second chair was <strong>Collins Nalwa</strong> and his vice was <strong>Daisy Chepngetich</strong>. I was the third chair and my vice was <strong>Josephine Owuor</strong>. Josephine later took over as chair for about two months, with <strong>Cheru</strong> as her vice. After further consultations and a challenging term of leadership, their roles were exchanged: <strong>Cheru</strong> became the chair and <strong>Josephine</strong> became the vice. Shortly after, <strong>Josephine</strong> stepped down as vice chair and <strong>Phelister</strong> took over the position.
-            </p>
+<p className="about-text">
+The second chairperson was <strong>Collins Nalwa</strong>, with <strong>Daisy Chepngetich</strong> serving as his vice. Thereafter, <strong>Faustine</strong> assumed the role of chairperson, with <strong>Josephine Owuor</strong> as vice. Josephine later took over as chairperson for a period of about two months, during which <strong>Cheru</strong> served as her vice. Following further consultations and a challenging term of leadership, their roles were exchanged: <strong>Cheru</strong> became chairperson, and <strong>Josephine</strong> became vice. Shortly afterward, <strong>Josephine</strong> stepped down from the vice chair position, and <strong>Phelister</strong> took over the role.
+</p>
 
-            <p className="about-text">
-              After their leadership, <strong>Raphael Kamura</strong> was made chair and his assistant was <strong>Brighet</strong>. Due to commitments, <strong>Raphael</strong> stepped down and <strong>Sylvester</strong> was appointed chair while <strong>Brighet</strong> remained the assistant chair. After that, <strong>Brighet</strong> stepped down upon completing her studies and <strong>Cecilia</strong> was appointed as the vice moderator. And now, <strong>Tonny</strong> the current chairperson.
-            </p>
+<p className="about-text">
+After their tenure, <strong>Raphael Kamura</strong> was appointed chairperson, with <strong>Brighet</strong> as his assistant. Due to other commitments, <strong>Raphael</strong> stepped down, leading to the appointment of <strong>Sylvester</strong> as chairperson 
+while <strong>Brighet</strong> remained as assistant chairperson. Subsequently, <strong>Brighet</strong> stepped down upon 
+completing her studies, and <strong>Cecilia</strong> was appointed as vice moderator. Currently, <strong>Tonny</strong> serves as the chairperson and to day <strong>ZUCA</strong> is still growing.
+</p>
 
             <div className="activities-grid">
               <div className="activity-item">
@@ -418,15 +552,17 @@ function Landing2() {
           <div className="contact-grid">
             <div className="contact-item">
               <FaMapMarkerAlt className="contact-icon" />
-              <span>Zetech C/A, Ruiru</span>
+              <span>Zetech University , Ruiru</span>
             </div>
             <div className="contact-item">
               <FaEnvelope className="contact-icon" />
               <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zucaportal2025@gmail.com</a>
             </div>
             <div className="contact-item">
-              <FaPhone className="contact-icon" />
-              <span>zuca406@gmail.com</span>
+              <FaEnvelope className="contact-icon" />
+                            <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zuca406@gmail.com</a>
+
+              <span></span>
             </div>
           </div>
         </div>
@@ -459,14 +595,15 @@ function Landing2() {
           )}
 
           <div className="footer-credit">
-            <span>Built with</span>
-            <FaHeart className="credit-heart" />
-            <span>by</span>
-            <span className="credit-name">@CHRISTECH WEBSYS</span>
+            <span></span>
+            
+            <span></span>
+            <span className="credit-name"></span>
           </div>
 
           <div className="footer-copyright">
             <p>© {new Date().getFullYear()} Zetech Catholic Action Portal</p>
+            <p>Built by @CHRISTECH WEBSYS</p>
           </div>
         </div>
       </footer>
@@ -661,28 +798,151 @@ function Landing2() {
           background: rgba(255, 255, 255, 0.1);
         }
 
-        /* Hero Section */
+        /* Hero Section with Slideshow */
         .hero-section {
           min-height: 100vh;
-          background-image: url(${bg});
-          background-size: cover;
-          background-position: center;
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 100px 20px 60px;
+          overflow: hidden;
         }
 
-        .hero-overlay {
+        .slideshow-container {
           position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(10, 10, 30, 0.85), rgba(10, 177, 29, 0.2));
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+
+        .slide {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          opacity: 0;
+          transition: opacity 1s ease-in-out;
+          z-index: 1;
+        }
+
+        .slide.active {
+          opacity: 1;
+          z-index: 2;
+        }
+
+        .slide-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(10, 10, 30, 0.23), rgba(10, 177, 29, 0.2));
+          z-index: 1;
+        }
+
+        /* Slideshow Navigation Arrows */
+        .slideshow-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.03);
+          backdrop-filter: blur(1px);
+          border: none;
+          color: white;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 20;
+          transition: all 0.3s ease;
+          font-size: 20px;
+        }
+
+        .slideshow-nav:hover {
+          background: rgba(0, 198, 255, 0.8);
+          transform: translateY(-50%) scale(1.05);
+        }
+
+        .slideshow-nav-prev {
+          left: 20px;
+        }
+
+        .slideshow-nav-next {
+          right: 20px;
+        }
+
+        /* Slideshow Dots */
+        .slideshow-dots {
+          position: absolute;
+          bottom: 20px;
+          left: 0;
+          right: 0;
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          z-index: 20;
+          flex-wrap: wrap;
+          padding: 0 16px;
+        }
+
+        .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.5);
+          border: none;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          padding: 0;
+        }
+
+        .dot.active {
+          background: #00c6ff;
+          width: 24px;
+          border-radius: 10px;
+        }
+
+        /* Play/Pause Button */
+        .slideshow-play-pause {
+          position: absolute;
+          bottom: 20px;
+          right: 20px;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          border: none;
+          color: white;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 20;
+          transition: all 0.3s ease;
+          font-size: 14px;
+        }
+
+        .slideshow-play-pause:hover {
+          background: rgba(0, 198, 255, 0.8);
+          transform: scale(1.05);
         }
 
         .hero-container {
           position: relative;
-          z-index: 2;
+          z-index: 10;
           max-width: 900px;
           width: 100%;
           text-align: center;
@@ -1298,6 +1558,28 @@ function Landing2() {
             width: 100%;
             justify-content: center;
           }
+
+          .slideshow-nav {
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
+          }
+
+          .slideshow-nav-prev {
+            left: 10px;
+          }
+
+          .slideshow-nav-next {
+            right: 10px;
+          }
+
+          .slideshow-play-pause {
+            width: 36px;
+            height: 36px;
+            font-size: 12px;
+            bottom: 15px;
+            right: 15px;
+          }
         }
 
         @media (max-width: 480px) {
@@ -1323,6 +1605,21 @@ function Landing2() {
 
           .mass-info-text {
             text-align: center;
+          }
+
+          .slideshow-nav {
+            width: 30px;
+            height: 30px;
+            font-size: 14px;
+          }
+
+          .dot {
+            width: 8px;
+            height: 8px;
+          }
+
+          .dot.active {
+            width: 20px;
           }
         }
       `}</style>

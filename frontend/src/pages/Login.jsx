@@ -1,7 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import bg from "../assets/background3.webp";
+// Slideshow images (same as Landing2.jsx and Register.jsx)
+import slide1 from "../assets/background2.webp";
+import slide2 from "../assets/2.jpg";
+import slide3 from "../assets/3.jpg";
+import slide4 from "../assets/4.jpg";
+import slide5 from "../assets/5.jpg";
+import slide6 from "../assets/6.jpg";
+import slide7 from "../assets/7.jpg";
+import slide8 from "../assets/8.jpg";
+import slide9 from "../assets/9.jpg";
+import slide10 from "../assets/10.jpg";
+import slide11 from "../assets/11.jpg";
+import slide12 from "../assets/12.jpg";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
 
@@ -20,6 +32,38 @@ function Login() {
   const [isCheckingAutoLogin, setIsCheckingAutoLogin] = useState(true);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const navigate = useNavigate();
+
+  // Slideshow state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const slideIntervalRef = useRef(null);
+
+  const slides = [
+    { id: 1, image: slide1 },
+    { id: 2, image: slide2 },
+    { id: 3, image: slide3 },
+    { id: 4, image: slide4 },
+    { id: 5, image: slide5 },
+    { id: 6, image: slide6 },
+    { id: 7, image: slide7 },
+    { id: 8, image: slide8 },
+    { id: 9, image: slide9 },
+    { id: 10, image: slide10 },
+    { id: 11, image: slide11 },
+    { id: 12, image: slide12 },
+  ];
+
+  // Auto-play slideshow
+  useEffect(() => {
+    if (isPlaying) {
+      slideIntervalRef.current = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }, 5000);
+    }
+    return () => {
+      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
+    };
+  }, [isPlaying, slides.length]);
 
   // Track mouse for subtle parallax
   useEffect(() => {
@@ -435,6 +479,23 @@ function Login() {
 
   return (
     <div style={styles.pageWrapper}>
+      {/* Slideshow Background */}
+      <div className="login-slideshow-container">
+        {slides.map((slide, index) => (
+          <div
+            key={slide.id}
+            className={`login-slide ${index === currentSlide ? 'active' : ''}`}
+          >
+            <img
+              src={slide.image}
+              alt="background"
+              className="login-slide-image"
+              loading="lazy"
+            />
+          </div>
+        ))}
+      </div>
+
       <div style={styles.container}>
         <div 
           style={{
@@ -501,7 +562,7 @@ function Login() {
               <div style={styles.inputWrapper}>
                 <input
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder="Your Registered email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onFocus={() => setFocusedField("email")}
@@ -577,7 +638,7 @@ function Login() {
                 </span>
               </label>
               <Link to="/forgot-password" style={styles.forgotLink}>
-                Forgot password?
+                                    <p>Forgot password?</p> 
               </Link>
             </div>
 
@@ -654,6 +715,41 @@ function Login() {
         input::placeholder {
           color: #475569;
         }
+
+        /* Slideshow styles */
+        .login-slideshow-container {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 0;
+          overflow: hidden;
+        }
+        .login-slide {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0;
+          transition: opacity 1s ease-in-out;
+        }
+        .login-slide.active {
+          opacity: 1;
+          z-index: 1;
+        }
+        .login-slide-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+        }
+       
+          .login-slideshow-container {
+            background-color: #0a0a1e;
+          }
+        }
       `}</style>
     </div>
   );
@@ -664,7 +760,8 @@ const styles = {
     minHeight: "100vh",
     width: "100%",
     overflow: "hidden",
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    position: "relative"
   },
   loadingContainer: {
     minHeight: "100vh",
@@ -691,25 +788,25 @@ const styles = {
   container: {
     position: "relative",
     minHeight: "100vh",
-    backgroundImage: `url(${bg})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    padding: "10px"
+    padding: "10px",
+    zIndex: 2
   },
   backgroundOverlay: {
     position: "absolute",
     inset: 0,
-    background: "linear-gradient(135deg, rgba(15, 23, 42, 0), rgba(30, 27, 75, 0))",
-    transition: "transform 0.1s ease-out"
+    background: "linear-gradient(135deg, rgba(15, 23, 42, 0), rgba(30, 27, 75, 0.51))",
+    transition: "transform 0.1s ease-out",
+    zIndex: 1
   },
   particlesContainer: {
     position: "absolute",
     inset: 0,
     overflow: "hidden",
-    pointerEvents: "none"
+    pointerEvents: "none",
+    zIndex: 1
   },
   particle: {
     position: "absolute",
@@ -720,13 +817,13 @@ const styles = {
   },
   card: {
     position: "relative",
-    zIndex: 10,
-    width: "100%",
+    zIndex: 2,
+    width: "90%",
     maxWidth: "440px",
-    background: "rgba(15,23,42,0.7)",
-    backdropFilter: "blur(20px)",
+    background: "rgba(15, 23, 42, 0.65)",
+    backdropFilter: "blur(8px)",
     borderRadius: "32px",
-    padding: "40px 32px",
+    padding: "20px 32px",
     border: "1px solid rgba(255,255,255,0.1)",
     transition: "transform 0.1s ease-out"
   },
@@ -855,7 +952,8 @@ const styles = {
     accentColor: "#3b82f6"
   },
   forgotLink: {
-    color: "#94a3b8",
+    color: "#ff0000",
+    fontSize: "12px",
     textDecoration: "none",
     transition: "color 0.2s"
   },

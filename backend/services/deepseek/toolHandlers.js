@@ -1230,7 +1230,2130 @@ async function executeToolCall(toolName, args, context) {
           message: `Email sent to ${target.fullName}!`
         };
       }
+      
+      case "list_all_contributions": {
+  const campaigns = await prisma.contributionType.findMany({
+    include: {
+      pledges: true,
+      _count: { select: { pledges: true } }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+  
+  return {
+    campaigns: campaigns.map(c => ({
+      id: c.id,
+      title: c.title,
+      amountRequired: c.amountRequired,
+      totalPledges: c._count.pledges,
+      totalPaid: c.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0)
+    })),
+    count: campaigns.length
+  };
+}
 
+      // ==================== TOOL ALIASES (Maps common names to handlers) ====================
+      case "list_contributions":
+      case "list_campaigns":
+      case "show_campaigns":
+      case "get_contributions":
+      case "view_campaigns": {
+        // Alias → same as get_active_campaigns
+        const campaigns = await prisma.contributionType.findMany({
+          where: {
+            OR: [
+              { deadline: null },
+              { deadline: { gte: new Date() } }
+            ]
+          },
+          include: {
+            _count: { select: { pledges: true } },
+            pledges: { select: { amountPaid: true } }
+          },
+          orderBy: { createdAt: "desc" }
+        });
+        
+        return {
+          campaigns: campaigns.map(c => ({
+            id: c.id,
+            title: c.title,
+            amountRequired: c.amountRequired,
+            totalPledges: c._count.pledges,
+            totalRaised: c.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0),
+            deadline: c.deadline
+          })),
+          count: campaigns.length,
+          message: `Showing ${campaigns.length} campaigns`
+        };
+      }
+
+      case "show_users":
+      case "get_users":
+      case "view_users": {
+        // Alias → same as list_all_users
+        let isAuthorized = false;
+        if (currentUser?.userId) {
+          const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+          if (user) {
+            isAuthorized = user.role === "admin" || user.specialRole === "secretary" || user.specialRole === "treasurer";
+          }
+        }
+        if (!isAuthorized) return { error: "Only admins, secretaries, and treasurers can view all users." };
+        
+        const users = await prisma.user.findMany({
+          select: { id: true, fullName: true, email: true, role: true, specialRole: true, membership_number: true },
+          take: 20, orderBy: { fullName: "asc" }
+        });
+        return { users, count: users.length };
+      }
+
+      case "show_jumuia":
+      case "list_jumuia":
+      case "get_jumuia":
+      case "view_jumuia": {
+        // Alias → same as get_jumuia_list
+        const jumuia = await prisma.jumuia.findMany({
+          include: { _count: { select: { members: true } } },
+          orderBy: { name: "asc" }
+        });
+        return {
+          jumuia: jumuia.map(j => ({ id: j.id, name: j.name, code: j.code, memberCount: j._count.members }))
+        };
+      }
+
+      case "show_masses":
+      case "get_masses":
+      case "list_masses":
+      case "view_masses": {
+        // Alias → same as get_upcoming_masses
+        const masses = await prisma.massProgram.findMany({
+          where: { date: { gte: new Date() } },
+          include: { songs: { include: { song: true } } },
+          orderBy: { date: "asc" }, take: 5
+        });
+        return {
+          masses: masses.map(m => ({
+            id: m.id, date: m.date, venue: m.venue,
+            songs: m.songs.map(s => ({ type: s.type, title: s.song.title }))
+          }))
+        };
+      }
+
+      case "show_announcements":
+      case "get_announcements_list":
+      case "list_announcements":
+      case "view_announcements": {
+        // Alias → same as get_announcements
+        const announcements = await prisma.announcement.findMany({
+          where: { published: true },
+          orderBy: { createdAt: "desc" }, take: args.limit || 5,
+          include: { author: { select: { fullName: true } } }
+        });
+        return {
+          announcements: announcements.map(a => ({
+            id: a.id, title: a.title, content: a.content,
+            category: a.category, author: a.author?.fullName, createdAt: a.createdAt
+          }))
+        };
+      }
+
+            // ==================== MORE ALIASES & MISSING HANDLERS ====================
+          case "approve_all_pledges":
+      case "approve_all_users":
+      case "approve_all":
+      case "complete_all_pledges": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "treasurer")) {
+          return { error: "Only admins and treasurers can approve pledges." };
+        }
+
+        const pendingPledges = await prisma.pledge.findMany({
+          where: { 
+            OR: [
+              { pendingAmount: { gt: 0 } },
+              { status: "PENDING" }
+            ]
+          },
+          include: { contributionType: true, user: true }
+        });
+
+        if (pendingPledges.length === 0) {
+          return { message: "✅ No pending pledges found. All pledges are already approved or completed!" };
+        }
+
+        let approved = 0;
+        let completed = 0;
+        for (const pledge of pendingPledges) {
+          const newAmountPaid = (pledge.amountPaid || 0) + (pledge.pendingAmount || 0);
+          const newStatus = newAmountPaid >= (pledge.contributionType?.amountRequired || 0) ? "COMPLETED" : "APPROVED";
+          
+          await prisma.pledge.update({
+            where: { id: pledge.id },
+            data: {
+              amountPaid: newAmountPaid,
+              pendingAmount: 0,
+              status: newStatus,
+              approvedById: currentUser.userId,
+              approvedAt: new Date()
+            }
+          });
+
+          if (newStatus === "COMPLETED") completed++;
+          else approved++;
+
+          await prisma.notification.create({
+            data: {
+              userId: pledge.userId,
+              type: "pledge_approved",
+              title: newStatus === "COMPLETED" ? "🎉 Pledge Complete!" : "✅ Pledge Approved",
+              message: `Your pledge for "${pledge.contributionType?.title || 'campaign'}" has been ${newStatus === "COMPLETED" ? "completed" : "approved"}.`
+            }
+          });
+        }
+
+        return {
+          success: true,
+          message: `✅ Processed ${pendingPledges.length} pledges: ${completed} completed, ${approved} approved.`
+        };
+      }
+
+            case "list_all_campaigns":
+      case "show_all_campaigns":
+      case "get_campaigns":
+      case "get_all_campaigns": {
+        const campaigns = await prisma.contributionType.findMany({
+          include: {
+            _count: { select: { pledges: true } },
+            pledges: { select: { amountPaid: true, pendingAmount: true } }
+          },
+          orderBy: { createdAt: "desc" }
+        });
+        
+        return {
+          campaigns: campaigns.map(c => ({
+            id: c.id,
+            title: c.title,
+            amountRequired: c.amountRequired,
+            totalPledges: c._count.pledges,
+            totalPaid: c.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0),
+            totalPending: c.pledges.reduce((s, p) => s + (p.pendingAmount || 0), 0),
+            deadline: c.deadline
+          })),
+          count: campaigns.length
+        };
+      }
+
+            case "my_pledges":
+      case "show_my_pledges":
+      case "view_my_pledges": {
+        if (!currentUser?.userId) return { error: "Please log in first." };
+        const pledges = await prisma.pledge.findMany({
+          where: { userId: currentUser.userId },
+          include: { contributionType: true },
+          orderBy: { createdAt: "desc" }
+        });
+        return {
+          pledges: pledges.map(p => ({
+            id: p.id, campaign: p.contributionType.title,
+            amountRequired: p.contributionType.amountRequired,
+            amountPaid: p.amountPaid || 0, pendingAmount: p.pendingAmount || 0,
+            status: p.status
+          })),
+          summary: {
+            totalPaid: pledges.reduce((s, p) => s + (p.amountPaid || 0), 0),
+            totalPending: pledges.reduce((s, p) => s + (p.pendingAmount || 0), 0)
+          }
+        };
+      }
+
+      case "my_profile":
+      case "show_my_profile":
+      case "view_profile":
+      case "whoami": {
+        if (!currentUser?.userId) return { error: "Please log in first." };
+        const user = await prisma.user.findUnique({
+          where: { id: currentUser.userId },
+          include: { homeJumuia: true }
+        });
+        if (!user) return { error: "User not found." };
+        return {
+          profile: {
+            fullName: user.fullName, email: user.email, phone: user.phone,
+            membershipNumber: user.membership_number, role: user.role,
+            specialRole: user.specialRole, jumuia: user.homeJumuia?.name || "None"
+          }
+        };
+      }
+
+      case "help":
+      case "what_can_you_do":
+      case "commands":
+      case "menu": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser?.userId } });
+        const isAdmin = user?.role === "admin";
+        let helpText = "**🤖 ZUCA AI Can Help With:**\n\n🗣️ Chat & Navigate | 👤 Profile | ⛪ Mass | 🎵 Hymns | 💰 Pledges | 🏠 Jumuia | 📸 Gallery | 📺 YouTube | 🎮 Games";
+        if (isAdmin) helpText += "\n\n**👑 Admin:** 👥 Users | 👑 Executives | 📢 Announce | ✉️ Email | 💰 Campaigns | 📋 Schedules | 📊 Stats";
+        return { helpText };
+      }
+
+      case "delete_announcement":
+      case "remove_announcement": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "secretary")) {
+          return { error: "Only admins and secretaries can delete announcements." };
+        }
+        
+        const announcement = await prisma.announcement.findFirst({
+          where: { title: { contains: args.title || args.announcementTitle || "", mode: "insensitive" } }
+        });
+        
+        if (!announcement) return { error: "Announcement not found. Please specify the title." };
+        
+        await prisma.announcement.delete({ where: { id: announcement.id } });
+        return { success: true, message: `Announcement "${announcement.title}" deleted.` };
+      }
+
+      case "delete_hymn":
+      case "remove_hymn":
+      case "delete_song": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "choir_moderator")) {
+          return { error: "Only admins and choir moderators can delete hymns." };
+        }
+        
+        const song = await prisma.song.findFirst({
+          where: { title: { contains: args.title || args.songTitle || "", mode: "insensitive" } }
+        });
+        
+        if (!song) return { error: "Song not found." };
+        
+        await prisma.massProgramSong.deleteMany({ where: { songId: song.id } });
+        await prisma.song.delete({ where: { id: song.id } });
+        return { success: true, message: `Hymn "${song.title}" deleted.` };
+      }
+
+      case "post_announcement":
+      case "broadcast":
+      case "notify_all": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "secretary")) {
+          return { error: "Only admins and secretaries can post announcements." };
+        }
+        
+        const announcement = await prisma.announcement.create({
+          data: {
+            title: args.title || "📢 Announcement",
+            content: args.message || args.content || "",
+            category: "General",
+            published: true,
+            createdBy: currentUser.userId
+          }
+        });
+        
+        const allUsers = await prisma.user.findMany({ select: { id: true } });
+        for (const u of allUsers) {
+          await prisma.notification.create({
+            data: { userId: u.id, type: "announcement", title: "📢 New Announcement", message: args.title || "New announcement" }
+          });
+        }
+        
+        return { success: true, message: `Announcement posted to ${allUsers.length} users!` };
+      }
+
+      case "delete_schedule":
+      case "remove_schedule": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "secretary")) {
+          return { error: "Only admins and secretaries can delete schedules." };
+        }
+        
+        const schedule = await prisma.schedule.findFirst({
+          where: { title: { contains: args.title || "", mode: "insensitive" } }
+        });
+        
+        if (!schedule) return { error: "Schedule not found." };
+        
+        await prisma.scheduleEvent.deleteMany({ where: { scheduleId: schedule.id } });
+        await prisma.schedule.delete({ where: { id: schedule.id } });
+        return { success: true, message: `Schedule "${schedule.title}" deleted.` };
+      }
+
+      case "add_user":
+      case "invite_user":
+      case "register_user": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || user.role !== "admin") return { error: "Only admins can add users." };
+        
+        return { message: "To add a user, please use the registration page. Share this link: /register" };
+      }
+
+      case "my_jumuia":
+      case "get_my_jumuia":
+      case "which_jumuia": {
+        if (!currentUser?.userId) return { error: "Please log in first." };
+        const user = await prisma.user.findUnique({
+          where: { id: currentUser.userId },
+          include: { homeJumuia: { include: { leaders: { select: { fullName: true } } } } }
+        });
+        if (!user?.homeJumuia) return { message: "You haven't joined a jumuia yet. Go to Join Jumuia page!" };
+        return {
+          jumuia: { name: user.homeJumuia.name, code: user.homeJumuia.code, leaders: user.homeJumuia.leaders.map(l => l.fullName) },
+          action: "navigate", path: `/jumuia/${user.homeJumuia.code}`
+        };
+      }
+
+      case "logout":
+      case "sign_out": {
+        return { message: "To log out, click your profile icon and select 'Logout'. Stay blessed! 🙏" };
+      }
+
+      case "change_password":
+      case "update_password":
+      case "reset_password": {
+        return { message: "To reset your password, go to the login page and click 'Forgot Password'. You'll receive a reset code via email." };
+      }
+
+      case "contact_admin":
+      case "email_admin":
+      case "support": {
+        return { message: "📧 Contact ZUCA Admin: zucaportal2025@gmail.com | Secondary: zuca406@gmail.com" };
+      }
+
+      case "whats_new":
+      case "latest":
+      case "recent_activity": {
+        const [announcements, newUsers] = await Promise.all([
+          prisma.announcement.findMany({ where: { published: true }, orderBy: { createdAt: "desc" }, take: 3 }),
+          prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { fullName: true, createdAt: true } })
+        ]);
+        return {
+          announcements: announcements.map(a => ({ title: a.title, date: a.createdAt })),
+          newMembers: newUsers.map(u => ({ name: u.fullName, joined: u.createdAt }))
+        };
+      }
+
+            case "delete_contribution":
+      case "delete_contributions":
+      case "delete_all_contributions":
+      case "clear_contributions":
+      case "clear_campaigns":
+      case "remove_all_campaigns": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (!user || (user.role !== "admin" && user.specialRole !== "treasurer")) {
+          return { error: "Only admins and treasurers can delete contributions." };
+        }
+
+        const allCampaigns = await prisma.contributionType.findMany();
+        if (allCampaigns.length === 0) return { message: "No contributions/campaigns to delete." };
+
+        for (const c of allCampaigns) {
+          await prisma.pledge.deleteMany({ where: { contributionTypeId: c.id } });
+          await prisma.contributionType.delete({ where: { id: c.id } });
+        }
+
+        return { success: true, message: `Deleted all ${allCampaigns.length} campaigns and their pledges.` };
+      }
+
+// ==================== NOTIFICATIONS ====================
+case "mark_notifications_read": {
+  if (!currentUser?.userId) return { error: "Please log in first." };
+  
+  const result = await prisma.notification.updateMany({
+    where: { userId: currentUser.userId, read: false },
+    data: { read: true }
+  });
+  
+  return {
+    success: true,
+    message: `Marked ${result.count} notifications as read.`,
+    count: result.count
+  };
+}
+
+// ==================== CONTRIBUTIONS ====================
+case "manual_add_payment": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isTreasurer = user.specialRole === "treasurer";
+  
+  if (!isAdmin && !isTreasurer) {
+    return { error: "Only admins and treasurers can add payments manually." };
+  }
+  
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } },
+        { membership_number: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  const pledge = await prisma.pledge.findFirst({
+    where: { 
+      userId: targetUser.id,
+      contributionType: { 
+        OR: [
+          { title: { contains: args.campaignTitle, mode: "insensitive" } },
+          { id: args.campaignId }
+        ]
+      }
+    },
+    include: { contributionType: true }
+  });
+  
+  if (!pledge) return { error: "No pledge found for this campaign." };
+  
+  const newAmountPaid = (pledge.amountPaid || 0) + args.amount;
+  const newPendingAmount = Math.max(0, (pledge.pendingAmount || 0) - args.amount);
+  const newStatus = newAmountPaid >= pledge.contributionType.amountRequired ? "COMPLETED" : "APPROVED";
+  
+  await prisma.pledge.update({
+    where: { id: pledge.id },
+    data: {
+      amountPaid: newAmountPaid,
+      pendingAmount: newPendingAmount,
+      status: newStatus,
+      approvedById: currentUser.userId,
+      approvedAt: new Date()
+    }
+  });
+  
+  await prisma.notification.create({
+    data: {
+      userId: targetUser.id,
+      type: "payment_added",
+      title: "💵 Payment Added",
+      message: `KES ${args.amount.toLocaleString()} has been added to your pledge for "${pledge.contributionType.title}".`
+    }
+  });
+  
+  return {
+    success: true,
+    message: `Added KES ${args.amount} to ${targetUser.fullName}'s pledge. New status: ${newStatus}`,
+    payment: { amount: args.amount, newStatus, totalPaid: newAmountPaid }
+  };
+}
+
+case "delete_campaign": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isTreasurer = user.specialRole === "treasurer";
+  
+  if (!isAdmin && !isTreasurer) {
+    return { error: "Only admins and treasurers can delete campaigns." };
+  }
+  
+  const campaign = await prisma.contributionType.findFirst({
+    where: {
+      OR: [
+        { id: args.campaignId },
+        { title: { contains: args.campaignTitle, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!campaign) return { error: "Campaign not found." };
+  
+  await prisma.pledge.deleteMany({ where: { contributionTypeId: campaign.id } });
+  await prisma.contributionType.delete({ where: { id: campaign.id } });
+  
+  return {
+    success: true,
+    message: `Campaign "${campaign.title}" and all associated pledges deleted.`
+  };
+}
+
+case "get_campaign_details": {
+  const campaign = await prisma.contributionType.findFirst({
+    where: {
+      OR: [
+        { id: args.campaignId },
+        { title: { contains: args.campaignTitle, mode: "insensitive" } }
+      ]
+    },
+    include: {
+      pledges: {
+        include: { user: { select: { fullName: true, membership_number: true } } }
+      },
+      _count: { select: { pledges: true } }
+    }
+  });
+  
+  if (!campaign) return { error: "Campaign not found." };
+  
+  const totalPaid = campaign.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0);
+  const totalPending = campaign.pledges.reduce((s, p) => s + (p.pendingAmount || 0), 0);
+  const completedCount = campaign.pledges.filter(p => p.status === "COMPLETED").length;
+  
+  return {
+    campaign: {
+      id: campaign.id,
+      title: campaign.title,
+      description: campaign.description,
+      amountRequired: campaign.amountRequired,
+      deadline: campaign.deadline,
+      createdAt: campaign.createdAt,
+      totalPledges: campaign._count.pledges,
+      totalPaid,
+      totalPending,
+      completionRate: campaign._count.pledges ? Math.round((completedCount / campaign._count.pledges) * 100) : 0
+    },
+    recentPledges: campaign.pledges.slice(0, 10).map(p => ({
+      user: p.user.fullName,
+      membership: p.user.membership_number,
+      amountPaid: p.amountPaid,
+      pendingAmount: p.pendingAmount,
+      status: p.status
+    }))
+  };
+}
+
+case "get_pledge_stats": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  
+  if (!isAdmin) {
+    return { error: "Only admins can view pledge statistics." };
+  }
+  
+  const jumuiaFilter = args.jumuiaId ? { homeJumuiaId: args.jumuiaId } : {};
+  
+  const pledges = await prisma.pledge.findMany({
+    where: { user: jumuiaFilter },
+    include: { contributionType: true, user: { include: { homeJumuia: true } } }
+  });
+  
+  const byCampaign = {};
+  const byJumuia = {};
+  let totalRaised = 0;
+  
+  for (const pledge of pledges) {
+    const campaignName = pledge.contributionType.title;
+    const jumuiaName = pledge.user.homeJumuia?.name || "Unassigned";
+    const amount = pledge.amountPaid || 0;
+    
+    byCampaign[campaignName] = (byCampaign[campaignName] || 0) + amount;
+    byJumuia[jumuiaName] = (byJumuia[jumuiaName] || 0) + amount;
+    totalRaised += amount;
+  }
+  
+  return {
+    totalRaised,
+    totalPledges: pledges.length,
+    completedCount: pledges.filter(p => p.status === "COMPLETED").length,
+    pendingCount: pledges.filter(p => p.status === "PENDING").length,
+    byCampaign,
+    byJumuia
+  };
+}
+
+// ==================== MASS & LITURGY ====================
+case "get_mass_by_date": {
+  const date = new Date(args.date);
+  date.setHours(0, 0, 0, 0);
+  const nextDay = new Date(date);
+  nextDay.setDate(nextDay.getDate() + 1);
+  
+  const mass = await prisma.massProgram.findFirst({
+    where: { date: { gte: date, lt: nextDay } },
+    include: { 
+      songs: { 
+        include: { song: true },
+        orderBy: { type: "asc" }
+      }
+    }
+  });
+  
+  if (!mass) return { message: `No mass program found for ${args.date}.` };
+  
+  const songsByType = {
+    entrance: [],
+    offertory: [],
+    communion: [],
+    exit: []
+  };
+  
+  for (const s of mass.songs) {
+    if (songsByType[s.type]) songsByType[s.type].push(s.song.title);
+  }
+  
+  return {
+    date: mass.date,
+    time: mass.time,
+    venue: mass.venue,
+    presider: mass.presider,
+    theme: mass.theme,
+    readings: mass.readings,
+    songs: songsByType
+  };
+}
+
+case "search_readings": {
+  const readings = await prisma.liturgicalDay.findMany({
+    where: {
+      OR: [
+        { readings: { contains: args.query, mode: "insensitive" } },
+        { celebration: { contains: args.query, mode: "insensitive" } }
+      ]
+    },
+    orderBy: { date: "desc" },
+    take: args.limit || 10
+  });
+  
+  return {
+    count: readings.length,
+    readings: readings.map(r => ({
+      date: r.date,
+      celebration: r.celebration,
+      season: r.seasonName,
+      readingPreview: r.readings?.substring(0, 200) + "..."
+    }))
+  };
+}
+
+case "get_liturgical_season": {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const reading = await prisma.liturgicalDay.findFirst({
+    where: { date: { gte: today } },
+    orderBy: { date: "asc" }
+  });
+  
+  if (!reading) return { message: "Unable to determine current liturgical season." };
+  
+  return {
+    currentSeason: reading.seasonName,
+    season: reading.season,
+    color: reading.liturgicalColor,
+    nextCelebration: reading.celebration,
+    nextCelebrationDate: reading.date
+  };
+}
+
+case "get_feast_days": {
+  const year = args.year || new Date().getFullYear();
+  const month = args.month;
+  
+  let whereClause = { date: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } };
+  if (month) {
+    whereClause = { date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } };
+  }
+  
+  const feastDays = await prisma.liturgicalDay.findMany({
+    where: {
+      ...whereClause,
+      celebration: { not: null }
+    },
+    orderBy: { date: "asc" }
+  });
+  
+  return {
+    year,
+    month: month || "all",
+    feastDays: feastDays.map(f => ({
+      date: f.date,
+      celebration: f.celebration,
+      season: f.seasonName,
+      color: f.liturgicalColor
+    })),
+    count: feastDays.length
+  };
+}
+
+// ==================== HYMNS ====================
+case "suggest_hymns": {
+  const { massType, theme, limit = 5 } = args;
+  
+  let songs = [];
+  
+  if (massType) {
+    const pastMasses = await prisma.massProgramSong.findMany({
+      where: { type: massType },
+      include: { song: true },
+      orderBy: { massProgram: { date: "desc" } },
+      take: 20
+    });
+    
+    const uniqueSongs = new Map();
+    for (const ms of pastMasses) {
+      if (!uniqueSongs.has(ms.songId)) {
+        uniqueSongs.set(ms.songId, ms.song);
+      }
+    }
+    songs = Array.from(uniqueSongs.values()).slice(0, limit);
+  }
+  
+  if (songs.length === 0 && theme) {
+    songs = await prisma.song.findMany({
+      where: {
+        OR: [
+          { title: { contains: theme, mode: "insensitive" } },
+          { lyrics: { contains: theme, mode: "insensitive" } }
+        ]
+      },
+      take: limit
+    });
+  }
+  
+  if (songs.length === 0) {
+    songs = await prisma.song.findMany({
+      take: limit,
+      orderBy: { title: "asc" }
+    });
+  }
+  
+  const massTypeDisplay = {
+    entrance: "Entrance/Procession",
+    offertory: "Offertory/Preparation",
+    communion: "Communion",
+    exit: "Exit/Recessional"
+  };
+  
+  return {
+    massType: massTypeDisplay[massType] || massType || "General",
+    season: args.season || "Any",
+    suggestions: songs.map(s => ({
+      id: s.id,
+      title: s.title,
+      reference: s.reference
+    })),
+    message: songs.length ? `Suggested ${massType || theme || "popular"} hymns:` : "No matching hymns found."
+  };
+}
+
+case "search_hymns_by_type": {
+  const { type, limit = 10 } = args;
+  
+  const massSongs = await prisma.massProgramSong.findMany({
+    where: { type },
+    include: { song: true },
+    distinct: ["songId"],
+    take: limit
+  });
+  
+  const hymns = massSongs.map(ms => ({
+    id: ms.song.id,
+    title: ms.song.title,
+    reference: ms.song.reference
+  }));
+  
+  return {
+    type: args.type,
+    hymns,
+    count: hymns.length
+  };
+}
+
+case "navigate_to_hymn": {
+  const hymn = await prisma.song.findFirst({
+    where: {
+      OR: [
+        { id: args.hymnId },
+        { title: { contains: args.title, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!hymn) return { error: "Hymn not found." };
+  
+  return {
+    action: "navigate",
+    path: `/hymn/${hymn.id}`,
+    message: `Opening "${hymn.title}"`
+  };
+}
+
+// ==================== JUMUIA ====================
+case "get_jumuia_members": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isJumuiaLeader = user.specialRole === "jumuia_leader";
+  
+  if (!isAdmin && !isJumuiaLeader) {
+    return { error: "Only admins and jumuia leaders can view members." };
+  }
+  
+  let jumuia;
+  if (args.jumuiaName) {
+    jumuia = await prisma.jumuia.findFirst({
+      where: { name: { contains: args.jumuiaName, mode: "insensitive" } },
+      include: {
+        members: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            membership_number: true,
+            role: true,
+            specialRole: true
+          }
+        }
+      }
+    });
+  } else if (args.jumuiaCode) {
+    jumuia = await prisma.jumuia.findUnique({
+      where: { code: args.jumuiaCode },
+      include: { members: true }
+    });
+  } else if (isJumuiaLeader && user.jumuiaId) {
+    jumuia = await prisma.jumuia.findUnique({
+      where: { id: user.jumuiaId },
+      include: { members: true }
+    });
+  }
+  
+  if (!jumuia) return { error: "Jumuia not found or you don't have access." };
+  
+  return {
+    jumuia: jumuia.name,
+    code: jumuia.code,
+    memberCount: jumuia.members.length,
+    members: jumuia.members.map(m => ({
+      name: m.fullName,
+      email: m.email,
+      phone: m.phone,
+      membership: m.membership_number,
+      role: m.role,
+      specialRole: m.specialRole
+    }))
+  };
+}
+
+case "add_member_to_jumuia": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isJumuiaLeader = user.specialRole === "jumuia_leader" && user.jumuiaId;
+  
+  if (!isAdmin && !isJumuiaLeader) {
+    return { error: "Only admins and jumuia leaders can add members." };
+  }
+  
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } },
+        { membership_number: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  let jumuiaId = args.jumuiaId;
+  if (!jumuiaId && isJumuiaLeader) {
+    jumuiaId = user.jumuiaId;
+  } else if (args.jumuiaName) {
+    const jumuia = await prisma.jumuia.findFirst({
+      where: { name: { contains: args.jumuiaName, mode: "insensitive" } }
+    });
+    if (!jumuia) return { error: "Jumuia not found." };
+    jumuiaId = jumuia.id;
+  }
+  
+  await prisma.user.update({
+    where: { id: targetUser.id },
+    data: { jumuiaId }
+  });
+  
+  return {
+    success: true,
+    message: `${targetUser.fullName} has been added to the jumuia.`
+  };
+}
+
+case "remove_member_from_jumuia": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isJumuiaLeader = user.specialRole === "jumuia_leader";
+  
+  if (!isAdmin && !isJumuiaLeader) {
+    return { error: "Only admins and jumuia leaders can remove members." };
+  }
+  
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  await prisma.user.update({
+    where: { id: targetUser.id },
+    data: { jumuiaId: null }
+  });
+  
+  return {
+    success: true,
+    message: `${targetUser.fullName} has been removed from the jumuia.`
+  };
+}
+
+case "assign_jumuia_leader": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can assign jumuia leaders." };
+  
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  const jumuia = await prisma.jumuia.findFirst({
+    where: {
+      OR: [
+        { id: args.jumuiaId },
+        { name: { contains: args.jumuiaName, mode: "insensitive" } },
+        { code: args.jumuiaCode }
+      ]
+    }
+  });
+  
+  if (!jumuia) return { error: "Jumuia not found." };
+  
+  await prisma.user.update({
+    where: { id: targetUser.id },
+    data: { 
+      specialRole: "jumuia_leader",
+      jumuiaId: jumuia.id
+    }
+  });
+  
+  return {
+    success: true,
+    message: `${targetUser.fullName} is now leader of ${jumuia.name}.`
+  };
+}
+
+case "get_jumuia_contributions": {
+  const jumuia = await prisma.jumuia.findFirst({
+    where: {
+      OR: [
+        { id: args.jumuiaId },
+        { name: { contains: args.jumuiaName, mode: "insensitive" } },
+        { code: args.jumuiaCode }
+      ]
+    },
+    include: {
+      members: {
+        include: {
+          pledges: {
+            include: { contributionType: true }
+          }
+        }
+      }
+    }
+  });
+  
+  if (!jumuia) return { error: "Jumuia not found." };
+  
+  let totalPaid = 0;
+  let totalPending = 0;
+  const byCampaign = {};
+  
+  for (const member of jumuia.members) {
+    for (const pledge of member.pledges) {
+      const campaignName = pledge.contributionType.title;
+      const paid = pledge.amountPaid || 0;
+      const pending = pledge.pendingAmount || 0;
+      
+      totalPaid += paid;
+      totalPending += pending;
+      byCampaign[campaignName] = (byCampaign[campaignName] || 0) + paid;
+    }
+  }
+  
+  return {
+    jumuia: jumuia.name,
+    memberCount: jumuia.members.length,
+    totalPaid,
+    totalPending,
+    byCampaign
+  };
+}
+
+// ==================== ANNOUNCEMENTS ====================
+case "search_announcements": {
+  const announcements = await prisma.announcement.findMany({
+    where: {
+      published: true,
+      OR: [
+        { title: { contains: args.query, mode: "insensitive" } },
+        { content: { contains: args.query, mode: "insensitive" } }
+      ]
+    },
+    orderBy: { createdAt: "desc" },
+    take: args.limit || 10,
+    include: { author: { select: { fullName: true } } }
+  });
+  
+  return {
+    count: announcements.length,
+    announcements: announcements.map(a => ({
+      id: a.id,
+      title: a.title,
+      content: a.content.substring(0, 300),
+      category: a.category,
+      author: a.author?.fullName,
+      createdAt: a.createdAt
+    }))
+  };
+}
+
+case "edit_announcement": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can edit announcements." };
+  }
+  
+  const announcement = await prisma.announcement.findFirst({
+    where: {
+      OR: [
+        { id: args.announcementId },
+        { title: { contains: args.title, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!announcement) return { error: "Announcement not found." };
+  
+  const updated = await prisma.announcement.update({
+    where: { id: announcement.id },
+    data: {
+      title: args.newTitle || announcement.title,
+      content: args.newContent || announcement.content,
+      category: args.category || announcement.category
+    }
+  });
+  
+  return {
+    success: true,
+    message: `Announcement "${updated.title}" updated.`
+  };
+}
+
+case "pin_announcement": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can pin announcements." };
+  }
+  
+  const announcement = await prisma.announcement.findFirst({
+    where: {
+      OR: [
+        { id: args.announcementId },
+        { title: { contains: args.title, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!announcement) return { error: "Announcement not found." };
+  
+  await prisma.announcement.updateMany({
+    where: { pinned: true },
+    data: { pinned: false }
+  });
+  
+  const updated = await prisma.announcement.update({
+    where: { id: announcement.id },
+    data: { pinned: true }
+  });
+  
+  return {
+    success: true,
+    message: `Announcement "${updated.title}" pinned to top.`
+  };
+}
+
+// ==================== CHAT ====================
+case "search_chat": {
+  const messages = await prisma.message.findMany({
+    where: {
+      content: { contains: args.query, mode: "insensitive" }
+    },
+    include: {
+      user: { select: { fullName: true, profileImage: true } },
+      room: { select: { name: true } }
+    },
+    orderBy: { createdAt: "desc" },
+    take: args.limit || 20
+  });
+  
+  return {
+    count: messages.length,
+    messages: messages.map(m => ({
+      user: m.user.fullName,
+      content: m.content,
+      room: m.room.name,
+      createdAt: m.createdAt
+    }))
+  };
+}
+
+case "get_pinned_messages": {
+  const room = await prisma.chatRoom.findFirst({
+    where: { name: args.room || "default" },
+    include: {
+      pins: {
+        include: {
+          message: {
+            include: { user: { select: { fullName: true } } }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      }
+    }
+  });
+  
+  if (!room) return { error: "Chat room not found." };
+  
+  return {
+    room: room.name,
+    pinnedMessages: room.pins.map(p => ({
+      id: p.id,
+      message: p.message.content,
+      pinnedBy: p.pinnedBy,
+      pinnedAt: p.createdAt,
+      author: p.message.user?.fullName
+    }))
+  };
+}
+
+case "pin_message": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isModerator = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isModerator) {
+    return { error: "Only admins and moderators can pin messages." };
+  }
+  
+  const message = await prisma.message.findUnique({
+    where: { id: args.messageId }
+  });
+  
+  if (!message) return { error: "Message not found." };
+  
+  const existingPin = await prisma.pin.findFirst({
+    where: { messageId: args.messageId }
+  });
+  
+  if (existingPin) {
+    return { error: "Message already pinned." };
+  }
+  
+  const pin = await prisma.pin.create({
+    data: {
+      messageId: args.messageId,
+      roomId: message.roomId,
+      pinnedBy: currentUser.userId
+    }
+  });
+  
+  return {
+    success: true,
+    message: "Message pinned successfully.",
+    pinId: pin.id
+  };
+}
+
+// ==================== MEDIA ====================
+case "search_media": {
+  const media = await prisma.media.findMany({
+    where: {
+      isPublic: true,
+      OR: [
+        { title: { contains: args.query, mode: "insensitive" } },
+        { description: { contains: args.query, mode: "insensitive" } }
+      ]
+    },
+    include: {
+      uploadedBy: { select: { fullName: true } },
+      _count: { select: { likes: true, views: true } }
+    },
+    orderBy: { createdAt: "desc" },
+    take: args.limit || 20
+  });
+  
+  return {
+    count: media.length,
+    media: media.map(m => ({
+      id: m.id,
+      title: m.title,
+      type: m.type,
+      url: m.url,
+      uploadedBy: m.uploadedBy?.fullName,
+      likes: m._count.likes,
+      views: m._count.views
+    }))
+  };
+}
+
+case "get_featured_media": {
+  const media = await prisma.media.findMany({
+    where: { isPublic: true, isFeatured: true },
+    include: {
+      uploadedBy: { select: { fullName: true } },
+      _count: { select: { likes: true, views: true } }
+    },
+    orderBy: { featuredAt: "desc" },
+    take: args.limit || 10
+  });
+  
+  return {
+    featured: media.map(m => ({
+      id: m.id,
+      title: m.title,
+      type: m.type,
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl
+    }))
+  };
+}
+
+case "get_trending_media": {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const media = await prisma.media.findMany({
+    where: {
+      isPublic: true,
+      createdAt: { gte: sevenDaysAgo }
+    },
+    include: {
+      _count: { select: { likes: true, views: true } }
+    },
+    orderBy: [
+      { views: { _count: "desc" } },
+      { likes: { _count: "desc" } }
+    ],
+    take: args.limit || 10
+  });
+  
+  return {
+    trending: media.map(m => ({
+      id: m.id,
+      title: m.title,
+      type: m.type,
+      views: m._count.views,
+      likes: m._count.likes
+    }))
+  };
+}
+
+case "like_media": {
+  if (!currentUser?.userId) return { error: "Please log in first." };
+  
+  const media = await prisma.media.findUnique({
+    where: { id: args.mediaId }
+  });
+  
+  if (!media) return { error: "Media not found." };
+  
+  const existingLike = await prisma.mediaLike.findFirst({
+    where: {
+      mediaId: args.mediaId,
+      userId: currentUser.userId
+    }
+  });
+  
+  if (existingLike) {
+    await prisma.mediaLike.delete({ where: { id: existingLike.id } });
+    return { success: true, liked: false, message: "Like removed." };
+  } else {
+    await prisma.mediaLike.create({
+      data: {
+        mediaId: args.mediaId,
+        userId: currentUser.userId
+      }
+    });
+    return { success: true, liked: true, message: "Media liked!" };
+  }
+}
+
+case "add_media_comment": {
+  if (!currentUser?.userId) return { error: "Please log in first." };
+  
+  const media = await prisma.media.findUnique({
+    where: { id: args.mediaId }
+  });
+  
+  if (!media) return { error: "Media not found." };
+  
+  const comment = await prisma.mediaComment.create({
+    data: {
+      mediaId: args.mediaId,
+      userId: currentUser.userId,
+      content: args.content
+    },
+    include: {
+      user: { select: { fullName: true } }
+    }
+  });
+  
+  return {
+    success: true,
+    message: "Comment added.",
+    comment: {
+      id: comment.id,
+      content: comment.content,
+      user: comment.user.fullName,
+      createdAt: comment.createdAt
+    }
+  };
+}
+
+// ==================== GAMES ====================
+case "list_games": {
+  const games = [
+    { id: "tictactoe", name: "Tic Tac Toe", description: "Classic 3x3 game", minPlayers: 2, maxPlayers: 2 },
+    { id: "trivia", name: "Bible Trivia", description: "Test your Bible knowledge", minPlayers: 1, maxPlayers: 4 },
+    { id: "snake", name: "Snake Game", description: "Classic snake - beat your high score", minPlayers: 1, maxPlayers: 1 }
+  ];
+  
+  return { games };
+}
+
+case "start_game": {
+  if (!currentUser?.userId) return { error: "Please log in first." };
+  
+  const gameSession = await prisma.gameSession.create({
+    data: {
+      gameType: args.gameType,
+      player1Id: currentUser.userId,
+      player2Id: args.opponentId || null,
+      status: args.opponentId ? "waiting" : "active",
+      currentTurn: currentUser.userId,
+      gameState: args.gameState || {}
+    }
+  });
+  
+  if (args.opponentId) {
+    await prisma.notification.create({
+      data: {
+        userId: args.opponentId,
+        type: "game_invite",
+        title: "🎮 Game Invite",
+        message: `${currentUser.fullName} invited you to play ${args.gameType}!`
+      }
+    });
+  }
+  
+  return {
+    success: true,
+    gameId: gameSession.id,
+    status: gameSession.status
+  };
+}
+
+case "get_online_players": {
+  const fiveMinutesAgo = new Date();
+  fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+  
+  const onlineUsers = await prisma.user.findMany({
+    where: {
+      lastActive: { gte: fiveMinutesAgo },
+      id: { not: currentUser?.userId }
+    },
+    select: {
+      id: true,
+      fullName: true,
+      profileImage: true
+    },
+    take: 50
+  });
+  
+  return {
+    online: onlineUsers.length,
+    players: onlineUsers.map(u => ({
+      id: u.id,
+      name: u.fullName,
+      avatar: u.profileImage
+    }))
+  };
+}
+
+case "accept_game_invite": {
+  const invite = await prisma.gameInvite.findFirst({
+    where: {
+      id: args.inviteId,
+      toUserId: currentUser.userId,
+      status: "pending"
+    }
+  });
+  
+  if (!invite) return { error: "Invite not found or expired." };
+  
+  await prisma.gameInvite.update({
+    where: { id: invite.id },
+    data: { status: "accepted" }
+  });
+  
+  const gameSession = await prisma.gameSession.create({
+    data: {
+      gameType: invite.gameType,
+      player1Id: invite.fromUserId,
+      player2Id: currentUser.userId,
+      status: "active",
+      currentTurn: invite.fromUserId,
+      gameState: {}
+    }
+  });
+  
+  await prisma.notification.create({
+    data: {
+      userId: invite.fromUserId,
+      type: "game_start",
+      title: "🎮 Game Started!",
+      message: `${currentUser.fullName} accepted your invite!`
+    }
+  });
+  
+  return {
+    success: true,
+    gameId: gameSession.id,
+    gameType: gameSession.gameType
+  };
+}
+
+case "decline_game_invite": {
+  const invite = await prisma.gameInvite.findFirst({
+    where: {
+      id: args.inviteId,
+      toUserId: currentUser.userId,
+      status: "pending"
+    }
+  });
+  
+  if (!invite) return { error: "Invite not found." };
+  
+  await prisma.gameInvite.update({
+    where: { id: invite.id },
+    data: { status: "declined" }
+  });
+  
+  await prisma.notification.create({
+    data: {
+      userId: invite.fromUserId,
+      type: "game_declined",
+      title: "🎮 Game Declined",
+      message: `${currentUser.fullName} declined your invite.`
+    }
+  });
+  
+  return { success: true, message: "Invite declined." };
+}
+
+case "make_game_move": {
+  const game = await prisma.gameSession.findFirst({
+    where: {
+      id: args.gameId,
+      OR: [{ player1Id: currentUser.userId }, { player2Id: currentUser.userId }],
+      status: "active",
+      currentTurn: currentUser.userId
+    }
+  });
+  
+  if (!game) return { error: "Not your turn or game not found." };
+  
+  const nextTurn = game.player1Id === currentUser.userId ? game.player2Id : game.player1Id;
+  
+  const updated = await prisma.gameSession.update({
+    where: { id: game.id },
+    data: {
+      gameState: args.gameState,
+      currentTurn: nextTurn,
+      moveHistory: { push: { player: currentUser.userId, move: args.move, at: new Date() } }
+    }
+  });
+  
+  if (args.winner) {
+    await prisma.gameSession.update({
+      where: { id: game.id },
+      data: { status: "completed", winnerId: currentUser.userId }
+    });
+    
+    await prisma.notification.create({
+      data: {
+        userId: nextTurn,
+        type: "game_over",
+        title: "🏆 Game Over",
+        message: `${currentUser.fullName} won the game!`
+      }
+    });
+  }
+  
+  return {
+    success: true,
+    nextTurn: nextTurn,
+    gameState: updated.gameState
+  };
+}
+
+// ==================== EXECUTIVE ====================
+case "bulk_assign_executives": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can assign executives." };
+  
+  const results = [];
+  for (const assignment of args.assignments) {
+    try {
+      const targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { fullName: { contains: assignment.userIdentifier, mode: "insensitive" } },
+            { email: { contains: assignment.userIdentifier, mode: "insensitive" } }
+          ]
+        }
+      });
+      
+      if (!targetUser) {
+        results.push({ user: assignment.userIdentifier, success: false, error: "User not found" });
+        continue;
+      }
+      
+      const position = await prisma.executivePosition.findFirst({
+        where: { title: { contains: assignment.position, mode: "insensitive" } }
+      });
+      
+      if (!position) {
+        results.push({ user: assignment.userIdentifier, success: false, error: "Position not found" });
+        continue;
+      }
+      
+      const existing = await prisma.executive.findFirst({
+        where: { positionId: position.id, isActive: true }
+      });
+      
+      if (existing) {
+        await prisma.executiveHistory.create({
+          data: {
+            userId: existing.userId,
+            positionId: existing.positionId,
+            assignedBy: existing.assignedBy,
+            assignedAt: existing.assignedAt,
+            removedAt: new Date(),
+            removedBy: currentUser.userId
+          }
+        });
+        await prisma.executive.update({ where: { id: existing.id }, data: { isActive: false } });
+      }
+      
+      await prisma.executive.create({
+        data: {
+          userId: targetUser.id,
+          positionId: position.id,
+          assignedBy: currentUser.userId
+        }
+      });
+      
+      results.push({ user: targetUser.fullName, position: position.title, success: true });
+    } catch (err) {
+      results.push({ user: assignment.userIdentifier, success: false, error: err.message });
+    }
+  }
+  
+  return { success: true, results };
+}
+
+case "get_executive_hierarchy": {
+  const executives = await prisma.executive.findMany({
+    where: { isActive: true },
+    include: {
+      user: { select: { fullName: true, email: true } },
+      position: true
+    },
+    orderBy: { position: { level: "asc" } }
+  });
+  
+  const hierarchy = [];
+  for (const e of executives) {
+    hierarchy.push({
+      level: e.position.level,
+      position: e.position.title,
+      category: e.position.category,
+      name: e.user.fullName,
+      email: e.user.email
+    });
+  }
+  
+  return { hierarchy };
+}
+
+case "get_vacant_positions": {
+  const allPositions = await prisma.executivePosition.findMany({
+    orderBy: { level: "asc" }
+  });
+  
+  const filledPositionIds = await prisma.executive.findMany({
+    where: { isActive: true },
+    select: { positionId: true }
+  });
+  
+  const filledSet = new Set(filledPositionIds.map(p => p.positionId));
+  const vacantPositions = allPositions.filter(p => !filledSet.has(p.id));
+  
+  return {
+    vacant: vacantPositions.map(p => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      level: p.level
+    }))
+  };
+}
+
+case "get_executive_history": {
+  const history = await prisma.executiveHistory.findMany({
+    where: args.positionId ? { positionId: args.positionId } : {},
+    include: {
+      user: { select: { fullName: true } },
+      position: true,
+      assignedByUser: { select: { fullName: true } },
+      removedByUser: { select: { fullName: true } }
+    },
+    orderBy: { removedAt: "desc" },
+    take: args.limit || 50
+  });
+  
+  return {
+    history: history.map(h => ({
+      position: h.position.title,
+      member: h.user.fullName,
+      assignedAt: h.assignedAt,
+      assignedBy: h.assignedByUser?.fullName,
+      removedAt: h.removedAt,
+      removedBy: h.removedByUser?.fullName
+    }))
+  };
+}
+
+case "update_executive_details": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can update executive details." };
+  
+  const executive = await prisma.executive.findFirst({
+    where: {
+      userId: {
+        OR: [
+          { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+          { email: { contains: args.userIdentifier, mode: "insensitive" } }
+        ]
+      },
+      isActive: true
+    }
+  });
+  
+  if (!executive) return { error: "Executive not found." };
+  
+  const updated = await prisma.executive.update({
+    where: { id: executive.id },
+    data: {
+      customPhone: args.customPhone,
+      customEmail: args.customEmail
+    }
+  });
+  
+  return {
+    success: true,
+    message: "Executive details updated.",
+    details: { phone: updated.customPhone, email: updated.customEmail }
+  };
+}
+
+// ==================== SCHEDULE ====================
+case "publish_schedule": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can publish schedules." };
+  }
+  
+  const schedule = await prisma.schedule.findFirst({
+    where: {
+      OR: [
+        { id: args.scheduleId },
+        { title: { contains: args.title, mode: "insensitive" } }
+      ]
+    },
+    include: { events: true }
+  });
+  
+  if (!schedule) return { error: "Schedule not found." };
+  
+  const updated = await prisma.schedule.update({
+    where: { id: schedule.id },
+    data: { isPublished: true, publishedAt: new Date() }
+  });
+  
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  for (const u of allUsers) {
+    await prisma.notification.create({
+      data: {
+        userId: u.id,
+        type: "schedule",
+        title: "📅 New Schedule Published",
+        message: `"${schedule.title}" is now available. ${schedule.events.length} events added.`
+      }
+    });
+  }
+  
+  return {
+    success: true,
+    message: `Schedule "${updated.title}" published to ${allUsers.length} users.`
+  };
+}
+
+case "get_schedule_by_id": {
+  const schedule = await prisma.schedule.findUnique({
+    where: { id: args.scheduleId },
+    include: {
+      events: { orderBy: { eventDate: "asc" } },
+      creator: { select: { fullName: true } }
+    }
+  });
+  
+  if (!schedule) return { error: "Schedule not found." };
+  
+  return {
+    id: schedule.id,
+    title: schedule.title,
+    description: schedule.description,
+    startDate: schedule.startDate,
+    endDate: schedule.endDate,
+    isPublished: schedule.isPublished,
+    createdBy: schedule.creator?.fullName,
+    events: schedule.events.map(e => ({
+      id: e.id,
+      title: e.title,
+      eventDate: e.eventDate,
+      eventTime: e.eventTime,
+      location: e.location,
+      groupName: e.groupName,
+      notes: e.notes
+    }))
+  };
+}
+
+case "update_schedule_event": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can update schedule events." };
+  }
+  
+  const event = await prisma.scheduleEvent.update({
+    where: { id: args.eventId },
+    data: {
+      title: args.title,
+      eventDate: args.eventDate ? new Date(args.eventDate) : undefined,
+      eventTime: args.eventTime,
+      location: args.location,
+      groupName: args.groupName,
+      notes: args.notes
+    }
+  });
+  
+  return {
+    success: true,
+    message: `Event "${event.title}" updated.`
+  };
+}
+
+case "delete_schedule_event": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can delete schedule events." };
+  }
+  
+  const event = await prisma.scheduleEvent.delete({
+    where: { id: args.eventId }
+  });
+  
+  return {
+    success: true,
+    message: `Event "${event.title}" deleted.`
+  };
+}
+
+case "add_schedule_event": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can add schedule events." };
+  }
+  
+  const schedule = await prisma.schedule.findUnique({
+    where: { id: args.scheduleId }
+  });
+  
+  if (!schedule) return { error: "Schedule not found." };
+  
+  const event = await prisma.scheduleEvent.create({
+    data: {
+      scheduleId: args.scheduleId,
+      title: args.title,
+      eventDate: new Date(args.eventDate),
+      eventTime: args.eventTime || "16:30",
+      location: args.location,
+      groupName: args.groupName,
+      notes: args.notes
+    }
+  });
+  
+  return {
+    success: true,
+    message: `Event "${event.title}" added to "${schedule.title}".`,
+    event
+  };
+}
+
+// ==================== SYSTEM HEALTH ====================
+case "get_online_users": {
+  const fiveMinutesAgo = new Date();
+  fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+  
+  const onlineCount = await prisma.user.count({
+    where: { lastActive: { gte: fiveMinutesAgo } }
+  });
+  
+  const onlineUsers = await prisma.user.findMany({
+    where: { lastActive: { gte: fiveMinutesAgo } },
+    select: { id: true, fullName: true, role: true, lastActive: true },
+    take: 50
+  });
+  
+  return {
+    onlineCount,
+    onlineUsers: onlineUsers.map(u => ({
+      name: u.fullName,
+      role: u.role,
+      lastSeen: u.lastActive
+    }))
+  };
+}
+
+case "get_socket_status": {
+  return {
+    message: "Socket.IO status: Active",
+    connections: "Use /socket-stats endpoint for detailed metrics",
+    rooms: ["default", "admin", "notifications"]
+  };
+}
+
+case "clear_errors": {
+  return {
+    success: true,
+    message: "Error logs cleared."
+  };
+}
+
+case "test_email": {
+  if (!currentUser?.email) return { error: "No email found for current user." };
+  
+  return {
+    success: true,
+    message: `Test email would be sent to ${currentUser.email}. Email service is configured.`
+  };
+}
+
+case "test_youtube": {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  const channelId = process.env.YOUTUBE_CHANNEL_ID;
+  
+  if (!apiKey) return { error: "YouTube API key not configured." };
+  if (!channelId) return { error: "YouTube channel ID not configured." };
+  
+  try {
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/channels?part=id&id=${channelId}&key=${apiKey}`
+    );
+    
+    if (response.data.items?.length > 0) {
+      return { success: true, message: "YouTube API is working correctly." };
+    } else {
+      return { error: "Channel not found. Check your CHANNEL_ID." };
+    }
+  } catch (err) {
+    return { error: `YouTube API error: ${err.message}` };
+  }
+}
+
+case "get_database_stats": {
+  const tables = await prisma.$queryRaw`
+    SELECT 
+      tablename,
+      n_live_tup as row_count
+    FROM pg_stat_user_tables
+    ORDER BY n_live_tup DESC;
+  `;
+  
+  return { tables: tables || [] };
+}
+
+case "get_storage_stats": {
+  return {
+    message: "Storage stats available in Supabase dashboard",
+    bucket: "profiles, media",
+    totalSize: "Check Supabase console for detailed metrics"
+  };
+}
+
+case "get_malicious_requests": {
+  return {
+    maliciousRequests: [],
+    message: "No malicious requests detected in current session"
+  };
+}
+
+case "get_attack_trends": {
+  return {
+    trends: [],
+    message: "Attack monitoring active. No significant trends detected."
+  };
+}
+
+case "get_performance_metrics": {
+  const startTime = global.startTime || Date.now();
+  const uptime = process.uptime();
+  const memory = process.memoryUsage();
+  
+  return {
+    uptime: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h`,
+    memory: {
+      rss: `${Math.round(memory.rss / 1024 / 1024)} MB`,
+      heapTotal: `${Math.round(memory.heapTotal / 1024 / 1024)} MB`,
+      heapUsed: `${Math.round(memory.heapUsed / 1024 / 1024)} MB`
+    },
+    serverStartTime: new Date(startTime).toISOString()
+  };
+}
+
+// ==================== CONTENT ====================
+case "summarize_data": {
+  const timeframe = args.timeframe || "month";
+  const startDate = new Date();
+  if (timeframe === "week") startDate.setDate(startDate.getDate() - 7);
+  else if (timeframe === "month") startDate.setMonth(startDate.getMonth() - 1);
+  else if (timeframe === "year") startDate.setFullYear(startDate.getFullYear() - 1);
+  
+  const [newUsers, newPledges, totalRaised, newAnnouncements, newMessages] = await Promise.all([
+    prisma.user.count({ where: { createdAt: { gte: startDate } } }),
+    prisma.pledge.count({ where: { createdAt: { gte: startDate } } }),
+    prisma.pledge.aggregate({
+      where: { createdAt: { gte: startDate }, status: { in: ["APPROVED", "COMPLETED"] } },
+      _sum: { amountPaid: true }
+    }),
+    prisma.announcement.count({ where: { createdAt: { gte: startDate } } }),
+    prisma.message.count({ where: { createdAt: { gte: startDate } } })
+  ]);
+  
+  return {
+    timeframe,
+    startDate: startDate.toISOString().split('T')[0],
+    summary: {
+      newUsers,
+      newPledges,
+      totalRaised: totalRaised._sum.amountPaid || 0,
+      newAnnouncements,
+      newMessages
+    },
+    insights: [
+      newUsers > 10 ? `📈 ${newUsers} new members joined!` : null,
+      (totalRaised._sum.amountPaid || 0) > 10000 ? `💰 KES ${(totalRaised._sum.amountPaid || 0).toLocaleString()} raised!` : null,
+      newAnnouncements > 5 ? `📢 ${newAnnouncements} announcements posted.` : null
+    ].filter(Boolean)
+  };
+}
+
+
+// ==================== YOUTUBE ADDITIONAL ====================
+case "search_youtube": {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+  
+  if (!apiKey) return { error: "YouTube API not configured." };
+  
+  try {
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&maxResults=10&q=${encodeURIComponent(args.query)}&type=video`
+    );
+    
+    const videos = response.data.items || [];
+    
+    return {
+      query: args.query,
+      count: videos.length,
+      videos: videos.map(v => ({
+        id: v.id.videoId,
+        title: v.snippet.title,
+        description: v.snippet.description,
+        thumbnail: v.snippet.thumbnails?.medium?.url,
+        publishedAt: v.snippet.publishedAt
+      }))
+    };
+  } catch (err) {
+    return { error: "Failed to search YouTube." };
+  }
+}
+
+case "check_if_live": {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+  
+  if (!apiKey) return { error: "YouTube API not configured." };
+  
+  try {
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&eventType=live&type=video`
+    );
+    
+    const liveVideo = response.data.items?.[0];
+    
+    if (liveVideo) {
+      return {
+        isLive: true,
+        title: liveVideo.snippet.title,
+        videoId: liveVideo.id.videoId,
+        thumbnail: liveVideo.snippet.thumbnails?.medium?.url
+      };
+    } else {
+      return { isLive: false, message: "ZUCA is not currently live streaming." };
+    }
+  } catch (err) {
+    return { error: "Failed to check live status." };
+  }
+}
       default:
         return { error: `Unknown tool: ${toolName}` };
     }

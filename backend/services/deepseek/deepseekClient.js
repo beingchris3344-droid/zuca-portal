@@ -5,11 +5,13 @@ const groq = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
   apiKey: process.env.GROQ_API_KEY,
 });
-
 function parseActionFromText(text) {
   if (!text) return { content: text, action: null };
-  const actionRegex = /\[ACTION:(\w+)\]\s*(\{.*?\})\s*\[\/ACTION\]/gi;
-  const match = actionRegex.exec(text);
+  
+  // Try [ACTION:name]{"key":"value"}[/ACTION]
+  let actionRegex = /\[ACTION:(\w+)\]\s*(\{.*?\})\s*\[\/ACTION\]/gi;
+  let match = actionRegex.exec(text);
+  
   if (match) {
     try {
       const args = JSON.parse(match[2]);
@@ -17,9 +19,27 @@ function parseActionFromText(text) {
       return { content: cleanedText || null, action: { name: match[1], arguments: args } };
     } catch (e) {}
   }
+  
+  // Try [ACTION:name][/ACTION] (no args)
+  actionRegex = /\[ACTION:(\w+)\]\s*\[\/ACTION\]/gi;
+  match = actionRegex.exec(text);
+  if (match) {
+    const cleanedText = text.replace(actionRegex, '').trim();
+    console.log("🔍 PARSED ACTION (no args):", match[1]);
+    return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
+  }
+
+  // ADD THIS: Try [CATEGORY:name][/CATEGORY] (AI sometimes uses CATEGORY instead of ACTION)
+  actionRegex = /\[CATEGORY:(\w+)\]\s*\[\/CATEGORY\]/gi;
+  match = actionRegex.exec(text);
+  if (match) {
+    const cleanedText = text.replace(actionRegex, '').trim();
+    console.log("🔍 PARSED CATEGORY AS ACTION:", match[1]);
+    return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
+  }
+  
   return { content: text, action: null };
 }
-
 function buildSystemPrompt(userContext) {
   const { user, stats, currentTime } = userContext || {};
   return `You are ZUCA AI for Zetech University Catholic Action. You help with everything on the platform. Be warm, pastoral, and respond in the user's language.
@@ -138,6 +158,11 @@ Pages: hymns, gallery, chat, dashboard, mass-programs, contributions, liturgical
 
 ## ⚠️ CRITICAL RULES - READ CAREFULLY ⚠️
 
+**YOUR ONLY JOB: When asked to DO something, output ONLY the [ACTION] tag. NOTHING else.**
+- "Show jumuia groups" → MUST output: [ACTION:get_jumuia_list][/ACTION]
+- "List all users" → MUST output: [ACTION:list_all_users][/ACTION]
+- NEVER answer from memory when an action exists for the request.
+
 **FOR ACTIONS (list, find, create, navigate, search, delete, assign, remove, send):**
 - Output ONLY the [ACTION] tag. Nothing else. No text before or after.
 - Example: User says "List all users" → Reply: [ACTION:list_all_users][/ACTION]
@@ -168,14 +193,19 @@ Pages: hymns, gallery, chat, dashboard, mass-programs, contributions, liturgical
 async function chatWithGroq(messages, userContext) {
   const systemPrompt = buildSystemPrompt(userContext);
   const completion = await groq.chat.completions.create({
-model: "llama-3.1-8b-instant",  // Faster, lower token usage   
- messages: [{ role: "system", content: systemPrompt }, ...messages],
+    model: "llama-3.1-8b-instant",
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
     temperature: 0.7,
     max_tokens: 2000,
   });
   const message = completion.choices[0].message;
+  
+  console.log("📤 RAW AI RESPONSE:", message.content?.substring(0, 100));
+  
   if (message.content) {
-    return parseActionFromText(message.content);
+    const parsed = parseActionFromText(message.content);
+    console.log("🔍 PARSED:", { hasAction: !!parsed.action, actionName: parsed.action?.name, contentPreview: parsed.content?.substring(0, 50) });
+    return parsed;
   }
   return { content: message.content, action: null };
 }

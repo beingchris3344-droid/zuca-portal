@@ -28,6 +28,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 // ================== RESET ATTEMPTS ==================
 const resetAttempts = new Map();
 
+const { sendEventReminders, sendCampaignReminders, checkNoAnnouncements } = require("./services/cronJobs");
+
 // ================== EMAIL ==================
 const { sendPasswordResetEmail, sendPersonalizedEmail, sendWelcomeEmail, sendVerificationEmail } = require("./services/mailer");
 // ================== NOTIFICATIONS ==================
@@ -287,6 +289,66 @@ io.on("connection", (socket) => {
   });
 });
 
+
+
+// ==================== HEALTH CHECK FOR UPTIME MONITORING ====================
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: '1.0.0'
+  });
+});
+
+// Actual cron job endpoints (will be triggered by cron-job.org)
+app.post('/api/cron/event-reminders', async (req, res) => {
+  try {
+    // Verify secret key to prevent abuse
+    const secretKey = req.headers['x-cron-secret'];
+    if (secretKey !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    await sendEventReminders();
+    res.json({ success: true, message: 'Event reminders sent' });
+  } catch (error) {
+    console.error('Event reminder cron failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cron/campaign-reminders', async (req, res) => {
+  try {
+    const secretKey = req.headers['x-cron-secret'];
+    if (secretKey !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    await sendCampaignReminders();
+    res.json({ success: true, message: 'Campaign reminders sent' });
+  } catch (error) {
+    console.error('Campaign reminder cron failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cron/no-announcements-alert', async (req, res) => {
+  try {
+    const secretKey = req.headers['x-cron-secret'];
+    if (secretKey !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    await checkNoAnnouncements();
+    res.json({ success: true, message: 'Announcement check completed' });
+  } catch (error) {
+    console.error('Announcement check failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ================== PUBLIC TEST ENDPOINT ==================
 app.get("/api/public/test-gemini", async (req, res) => {
   if (!geminiModel) {
@@ -304,6 +366,66 @@ app.get("/api/public/test-gemini", async (req, res) => {
   } catch (err) {
     res.json({ success: false, error: err.message });
   }
+});
+
+
+// ==================== CRON JOB ENDPOINT ====================
+// This endpoint is called by cron-job.org every hour
+app.post("/api/cron/check", async (req, res) => {
+  try {
+    // Verify secret key for security
+    const secretKey = req.headers["x-cron-secret"];
+    if (secretKey !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: "Unauthorized - Invalid secret key" });
+    }
+    
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday
+    
+    console.log(`🕐 Cron check at ${now.toISOString()} - Hour: ${hour}, Minute: ${minute}, Day: ${day}`);
+    
+    const executed = [];
+    
+    // 1. Event reminders - Daily at 8:00 AM (give 5 minute window)
+    if (hour === 8 && minute < 5) {
+      await sendEventReminders();
+      executed.push("event_reminders");
+    }
+    
+    // 2. Campaign reminders - Daily at 8:30 AM (give 5 minute window)
+    if (hour === 8 && minute >= 30 && minute < 35) {
+      await sendCampaignReminders();
+      executed.push("campaign_reminders");
+    }
+    
+    // 3. No announcements alert - Monday at 9:00 AM
+    if (day === 1 && hour === 9 && minute < 5) {
+      await checkNoAnnouncements();
+      executed.push("announcement_check");
+    }
+    
+    res.json({
+      success: true,
+      time: now.toISOString(),
+      executed: executed.length > 0 ? executed : ["No reminders scheduled at this time"],
+      next_check: "Next cron ping in ~60 minutes"
+    });
+    
+  } catch (error) {
+    console.error("❌ Cron check failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== HEALTH CHECK ENDPOINT ====================
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 

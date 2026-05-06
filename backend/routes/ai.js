@@ -49,11 +49,7 @@ function authenticateAI(req, res, next) {
  */
 async function buildUserContext(userId) {
   if (!userId) {
-    return {
-      user: null,
-      stats: {},
-      currentTime: new Date().toISOString()
-    };
+    return { user: null, stats: {}, currentTime: new Date().toISOString() };
   }
 
   try {
@@ -81,10 +77,7 @@ async function buildUserContext(userId) {
         email: user.email,
         phone: user.phone
       },
-      stats: {
-        unreadNotifications: unreadCount,
-        activePledges
-      },
+      stats: { unreadNotifications: unreadCount, activePledges },
       currentTime: new Date().toISOString()
     };
   } catch (error) {
@@ -94,9 +87,160 @@ async function buildUserContext(userId) {
 }
 
 /**
+ * Format action result into a readable reply
+ */
+function formatActionResult(actionResult) {
+  if (!actionResult) return null;
+
+  // Error
+  if (actionResult.error) {
+    return `❌ ${actionResult.error}`;
+  }
+
+  // User list
+  if (actionResult.users) {
+    let reply = `**👥 Users (${actionResult.count}):**\n\n`;
+    actionResult.users.forEach((u, i) => {
+      reply += `**${i + 1}. ${u.fullName}** — ${u.email}\n   Role: ${u.role}${u.specialRole ? ` (${u.specialRole})` : ''} | ID: ${u.membership_number || 'N/A'}\n\n`;
+    });
+    return reply;
+  }
+
+  // Single user
+  if (actionResult.user) {
+    const u = actionResult.user;
+    return `**👤 User Found:**\n\n📛 **Name:** ${u.fullName}\n📧 **Email:** ${u.email}\n📱 **Phone:** ${u.phone || 'N/A'}\n🆔 **Membership:** ${u.membership || 'N/A'}\n👔 **Role:** ${u.role}${u.specialRole ? ` (${u.specialRole})` : ''}\n🏠 **Jumuia:** ${u.jumuia || 'None'}\n💰 **Total Paid:** KES ${(u.totalPaid || 0).toLocaleString()}`;
+  }
+
+  // Jumuia list
+  if (actionResult.jumuia) {
+    let reply = `**🏠 Jumuia Groups:**\n\n`;
+    actionResult.jumuia.forEach(j => {
+      reply += `• **${j.name}** (${j.code}) — ${j.memberCount} members\n`;
+    });
+    return reply;
+  }
+
+  // Profile
+  if (actionResult.profile) {
+    const p = actionResult.profile;
+    return `**👤 Your Profile:**\n\n📛 **Name:** ${p.fullName}\n📧 **Email:** ${p.email}\n📱 **Phone:** ${p.phone}\n🆔 **Membership:** ${p.membershipNumber || 'N/A'}\n👔 **Role:** ${p.role}${p.specialRole ? ` (${p.specialRole})` : ''}\n🏠 **Jumuia:** ${p.jumuia}\n💰 **Total Paid:** KES ${(actionResult.contributions?.totalPaid || 0).toLocaleString()}\n⏳ **Pending:** KES ${(actionResult.contributions?.totalPending || 0).toLocaleString()}`;
+  }
+
+  // Pledges
+  if (actionResult.pledges) {
+    let reply = `**💰 Your Pledges:**\n\n`;
+    actionResult.pledges.forEach(p => {
+      reply += `• **${p.campaign}** — Paid: KES ${p.amountPaid.toLocaleString()} | Pending: KES ${p.pendingAmount.toLocaleString()} | Status: ${p.status}\n`;
+    });
+    reply += `\n**Total Paid:** KES ${actionResult.summary?.totalPaid?.toLocaleString() || 0}\n**Total Pending:** KES ${actionResult.summary?.totalPending?.toLocaleString() || 0}`;
+    return reply;
+  }
+
+  // Masses
+  if (actionResult.masses) {
+    let reply = `**⛪ Upcoming Masses:**\n\n`;
+    actionResult.masses.forEach(m => {
+      reply += `• **${new Date(m.date).toLocaleDateString()}** — ${m.venue}\n`;
+      if (m.songs?.length) reply += `  Songs: ${m.songs.map(s => s.title).join(', ')}\n`;
+    });
+    return reply;
+  }
+
+  // Hymns
+  if (actionResult.hymns) {
+    let reply = `**🎵 Hymns Found (${actionResult.count}):**\n\n`;
+    actionResult.hymns.forEach(h => {
+      reply += `• **${h.title}** ${h.reference ? `(${h.reference})` : ''}\n`;
+    });
+    return reply;
+  }
+
+  // Hymn lyrics (navigate)
+  if (actionResult.action === "navigate" && actionResult.path?.startsWith("/hymn/")) {
+    return `🎵 **${actionResult.title}**\n\n${actionResult.lyrics?.substring(0, 500) || 'Loading lyrics...'}\n\n📖 *Opening full hymn...*`;
+  }
+
+  // Announcements
+  if (actionResult.announcements) {
+    let reply = `**📢 Announcements:**\n\n`;
+    actionResult.announcements.forEach(a => {
+      reply += `• **${a.title}** (${a.category}) — ${new Date(a.createdAt).toLocaleDateString()}\n  ${a.content?.substring(0, 100)}...\n\n`;
+    });
+    return reply;
+  }
+
+  // Executive team
+  if (actionResult.executives) {
+    let reply = `**👑 Executive Team (${actionResult.total}):**\n\n`;
+    Object.entries(actionResult.executives).forEach(([category, members]) => {
+      reply += `**${category.toUpperCase()}:**\n`;
+      members.forEach(m => {
+        reply += `• ${m.name} — ${m.position}\n`;
+      });
+      reply += `\n`;
+    });
+    return reply;
+  }
+
+  // Campaigns
+  if (actionResult.campaigns) {
+    let reply = `**💰 Active Campaigns:**\n\n`;
+    actionResult.campaigns.forEach(c => {
+      reply += `• **${c.title}** — Target: KES ${c.amountRequired?.toLocaleString()} | Pledges: ${c.totalPledges}\n`;
+    });
+    return reply;
+  }
+
+  // System stats
+  if (actionResult.stats) {
+    const s = actionResult.stats;
+    return `**📊 Platform Overview:**\n\n👥 Users: ${s.users}\n📢 Announcements: ${s.announcements}\n💰 Campaigns: ${s.campaigns}\n💬 Messages: ${s.messages}\n📸 Media: ${s.media}\n🎵 Hymns: ${s.hymns}\n🏠 Jumuia: ${s.jumuia}\n💵 Total Raised: KES ${(s.totalRaised || 0).toLocaleString()}`;
+  }
+
+  // Notifications
+  if (actionResult.notifications) {
+    let reply = `**🔔 Notifications (${actionResult.unreadCount} unread):**\n\n`;
+    actionResult.notifications.forEach(n => {
+      reply += `• **${n.title}** — ${n.message}\n  ${new Date(n.createdAt).toLocaleString()}\n\n`;
+    });
+    return reply;
+  }
+
+  // Schedule list
+  if (actionResult.schedules) {
+    let reply = `**📋 Schedules:**\n\n`;
+    actionResult.schedules.forEach(s => {
+      reply += `• **${s.title}** — ${s.eventCount} events — ${s.isPublished ? '✅ Published' : '📝 Draft'}\n`;
+    });
+    return reply;
+  }
+
+  // Help text
+  if (actionResult.helpText) {
+    return actionResult.helpText;
+  }
+
+  // Simple success message
+  if (actionResult.success && actionResult.message) {
+    return `✅ ${actionResult.message}`;
+  }
+
+  // Web search results
+  if (actionResult.results) {
+    let reply = `**🌐 Search Results for "${actionResult.query}":**\n\n`;
+    actionResult.results.forEach((r, i) => {
+      reply += `**${i + 1}. ${r.title}**\n${r.snippet}\n🔗 ${r.url}\n\n`;
+    });
+    return reply;
+  }
+
+  // Fallback: return JSON
+  return JSON.stringify(actionResult, null, 2);
+}
+
+/**
  * POST /api/deepseek/chat
- *
- * Main AI chat endpoint.
  */
 router.post("/deepseek/chat", authenticateAI, async (req, res) => {
   try {
@@ -109,28 +253,17 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
 
     console.log(`🤖 AI: "${message.substring(0, 80)}${message.length > 80 ? '...' : ''}" | User: ${userId || 'guest'}`);
 
-    // Get or create conversation history
     const convId = conversationId || userId || "guest";
     if (!conversations.has(convId)) {
-      conversations.set(convId, {
-        messages: [],
-        lastActive: Date.now()
-      });
+      conversations.set(convId, { messages: [], lastActive: Date.now() });
     }
 
     const conversation = conversations.get(convId);
     conversation.lastActive = Date.now();
 
-    // Build user context
     const userContext = await buildUserContext(userId);
 
-    // Add user message to history
-    conversation.messages.push({
-      role: "user",
-      content: message
-    });
-
-    // Keep only last 20 messages for context
+    conversation.messages.push({ role: "user", content: message });
     if (conversation.messages.length > 20) {
       conversation.messages = conversation.messages.slice(-20);
     }
@@ -140,6 +273,8 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
 
     // Execute action if AI requested one
     let actionResult = null;
+    let finalReply = aiResponse.content || "";
+
     if (aiResponse.action && aiResponse.action.name) {
       console.log(`🔧 Executing: ${aiResponse.action.name}`, aiResponse.action.arguments || {});
 
@@ -152,35 +287,35 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
             req
           }
         );
-        console.log(`✅ Result: ${JSON.stringify(actionResult).substring(0, 150)}`);
+        console.log(`✅ Result: ${JSON.stringify(actionResult).substring(0, 200)}`);
       } catch (err) {
         console.error(`❌ Action failed: ${aiResponse.action.name}`, err.message);
         actionResult = { error: err.message };
       }
+
+      // Format the result
+      const formattedResult = formatActionResult(actionResult);
+      if (formattedResult) {
+        finalReply = formattedResult;
+      }
     }
 
-    // Add AI response to history
-    if (aiResponse.content) {
-      conversation.messages.push({
-        role: "assistant",
-        content: aiResponse.content
-      });
-    }
-
-    // Build navigation action if applicable
+    // Build navigation action
     let navigationAction = null;
     if (actionResult && actionResult.action === "navigate" && actionResult.path) {
       navigationAction = {
         action: "navigate",
         path: actionResult.path,
-        message: actionResult.message || aiResponse.content
+        message: actionResult.message || finalReply
       };
     }
 
-    // Return response
+    // Add to conversation history
+    conversation.messages.push({ role: "assistant", content: finalReply });
+
     res.json({
       success: true,
-      reply: aiResponse.content || "I've processed your request.",
+      reply: finalReply,
       action: navigationAction,
       conversationId: convId
     });
@@ -190,14 +325,13 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "AI service temporarily unavailable.",
-      reply: "Tumsifu Yesu Kristu! 🙏 I'm having trouble processing your request right now. Please try again in a moment."
+      reply: "Tumsifu Yesu Kristu! 🙏 I'm having trouble. Please try again."
     });
   }
 });
 
 /**
  * POST /api/deepseek/clear-conversation
- * Clear conversation history
  */
 router.post("/deepseek/clear-conversation", authenticateAI, async (req, res) => {
   const userId = req.user?.userId || "guest";
@@ -207,7 +341,6 @@ router.post("/deepseek/clear-conversation", authenticateAI, async (req, res) => 
 
 /**
  * GET /api/deepseek/health
- * Check if AI is working
  */
 router.get("/deepseek/health", async (req, res) => {
   try {

@@ -629,6 +629,19 @@ const tools = [
     }
   }
 
+  {
+  type: "function",
+  function: {
+    name: "list_all_contributions",
+    description: "List all contributions/campaigns with their progress",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+}
+
 ];
 
 module.exports = tools;

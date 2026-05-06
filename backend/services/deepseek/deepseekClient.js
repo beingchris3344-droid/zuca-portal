@@ -181,6 +181,9 @@ Pages: hymns, gallery, chat, dashboard, mass-programs, contributions, liturgical
 
 ## ⚠️ CRITICAL RULES ⚠️
 
+**🚨 FOR ANY QUESTION ABOUT MASS, SCHEDULE, OR EVENTS — OUTPUT ONLY: [ACTION:get_upcoming_masses][/ACTION] — DO NOT ANSWER FROM MEMORY.**
+
+
 **THE FORMAT IS ALWAYS: [ACTION:name][/ACTION] or [ACTION:name]{"key":"value"}[/ACTION]**
 **NEVER use [METHOD], [COMMAND], [FUNCTION], [CATEGORY], or any other tag. ONLY [ACTION].**
 

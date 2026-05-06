@@ -265,7 +265,7 @@ export default function AdminAIAssistant({ user, onClose, isOpen, isFullPage, on
             <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />
             <div>
               <h2 style={{ margin: 0, color: "#0f172a", fontSize: "20px" }}>ZUCA Admin AI</h2>
-              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by Groq AI • Natural Language</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Powered by CHRISWEBSYS</p>
             </div>
             <span style={adminBadgeStyle}>👑 ADMIN</span>
           </div>

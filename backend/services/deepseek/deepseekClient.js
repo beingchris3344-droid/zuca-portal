@@ -37,6 +37,25 @@ function parseActionFromText(text) {
     console.log("🔍 PARSED CATEGORY AS ACTION:", match[1]);
     return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
   }
+
+    // Try [METHOD:name][/METHOD] (AI sometimes uses METHOD instead of ACTION)
+  actionRegex = /\[METHOD:(\w+)\]\s*(\{.*?\})\s*\[\/METHOD\]/gi;
+  match = actionRegex.exec(text);
+  if (match) {
+    try {
+      const args = JSON.parse(match[2]);
+      const cleanedText = text.replace(actionRegex, '').trim();
+      return { content: cleanedText || null, action: { name: match[1], arguments: args } };
+    } catch (e) {}
+  }
+  
+  // Try [METHOD:name][/METHOD] (no args)
+  actionRegex = /\[METHOD:(\w+)\]\s*\[\/METHOD\]/gi;
+  match = actionRegex.exec(text);
+  if (match) {
+    const cleanedText = text.replace(actionRegex, '').trim();
+    return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
+  }
   
   return { content: text, action: null };
 }
@@ -157,6 +176,36 @@ Pages: hymns, gallery, chat, dashboard, mass-programs, contributions, liturgical
 [ACTION:show_help][/ACTION]
 
 ## ⚠️ CRITICAL RULES - READ CAREFULLY ⚠️
+
+## ⚠️ CRITICAL RULES ⚠️
+
+## ⚠️ CRITICAL RULES ⚠️
+
+**THE FORMAT IS ALWAYS: [ACTION:name][/ACTION] or [ACTION:name]{"key":"value"}[/ACTION]**
+**NEVER use [METHOD], [COMMAND], [FUNCTION], [CATEGORY], or any other tag. ONLY [ACTION].**
+
+**FOR ANY QUESTION ABOUT DATA — YOU MUST USE AN ACTION. NEVER ANSWER FROM MEMORY.**
+...
+
+**FOR ANY QUESTION ABOUT DATA — YOU MUST USE AN ACTION. NEVER ANSWER FROM MEMORY.**
+
+- Mass times? → [ACTION:get_upcoming_masses][/ACTION]
+- Events? → [ACTION:get_upcoming_masses][/ACTION]
+- "Which is sooner?" → [ACTION:get_upcoming_masses][/ACTION]
+- Users? → [ACTION:list_all_users][/ACTION]
+- Pledges? → [ACTION:get_my_pledges][/ACTION]
+- Profile? → [ACTION:get_my_profile][/ACTION]
+- Campaigns? → [ACTION:get_active_campaigns][/ACTION]
+
+**YOU DO NOT KNOW ANY DATA. ONLY THE DATABASE KNOWS.**
+**NEVER make up dates, names, times, or events.**
+**When in doubt, CALL THE ACTION.**
+
+**FOR MASSES & EVENTS:**
+- "When is the next mass?" → MUST call [ACTION:get_upcoming_masses][/ACTION]
+- "Show me mass schedule" → MUST call [ACTION:get_upcoming_masses][/ACTION]  
+- "What events are coming up?" → MUST call [ACTION:get_upcoming_masses][/ACTION]
+- NEVER guess mass times. ONLY the database knows the real schedule.
 
 **YOUR ONLY JOB: When asked to DO something, output ONLY the [ACTION] tag. NOTHING else.**
 - "Show jumuia groups" → MUST output: [ACTION:get_jumuia_list][/ACTION]

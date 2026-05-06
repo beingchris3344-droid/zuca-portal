@@ -338,21 +338,56 @@ async function executeToolCall(toolName, args, context) {
       }
 
       // ==================== MASS & LITURGY ====================
-      case "get_upcoming_masses": {
-        const masses = await prisma.massProgram.findMany({
-          where: { date: { gte: new Date() } },
+            // ==================== MASS & LITURGY ====================
+      case "get_upcoming_masses":
+      case "show_masses":
+      case "get_masses":
+      case "list_masses":
+      case "view_masses":
+      case "next_mass":
+      case "mass_times": {
+        const now = new Date();
+        const limit = args.limit || 5;
+
+        // Get Mass Programs
+        const massPrograms = await prisma.massProgram.findMany({
+          where: { date: { gte: now } },
           include: { songs: { include: { song: true } } },
           orderBy: { date: "asc" },
-          take: args.limit || 5
+          take: limit
         });
-        
+
+        // Get Schedule Events (semester schedule)
+        const scheduleEvents = await prisma.scheduleEvent.findMany({
+          where: {
+            eventDate: { gte: now },
+            schedule: { isPublished: true }
+          },
+          include: { schedule: { select: { title: true } } },
+          orderBy: { eventDate: "asc" },
+          take: limit
+        });
+
         return {
-          masses: masses.map(m => ({
-            id: m.id,
+          massPrograms: massPrograms.map(m => ({
+            type: "mass",
             date: m.date,
             venue: m.venue,
-            songs: m.songs.map(s => ({ type: s.type, title: s.song.title }))
-          }))
+            songs: m.songs?.map(s => s.song?.title) || []
+          })),
+          scheduleEvents: scheduleEvents.map(e => ({
+            type: "event",
+            title: e.title,
+            date: e.eventDate,
+            time: e.eventTime || "TBD",
+            location: e.location || "TBD",
+            schedule: e.schedule?.title
+          })),
+          nextEvent: scheduleEvents[0] ? {
+            title: scheduleEvents[0].title,
+            date: scheduleEvents[0].eventDate,
+            time: scheduleEvents[0].eventTime
+          } : null
         };
       }
 

@@ -138,12 +138,45 @@ function formatActionResult(actionResult) {
   }
 
   // Masses
-  if (actionResult.masses) {
-    let reply = `**⛪ Upcoming Masses:**\n\n`;
-    actionResult.masses.forEach(m => {
-      reply += `• **${new Date(m.date).toLocaleDateString()}** — ${m.venue}\n`;
-      if (m.songs?.length) reply += `  Songs: ${m.songs.map(s => s.title).join(', ')}\n`;
-    });
+   // Masses & Events (from both MassProgram and ScheduleEvent)
+  if (actionResult.massPrograms !== undefined || actionResult.scheduleEvents !== undefined) {
+    let reply = `**⛪ Upcoming Masses & Events:**\n\n`;
+    
+    // Show next event prominently
+    if (actionResult.nextEvent) {
+      const nextDate = new Date(actionResult.nextEvent.date);
+      const dayName = nextDate.toLocaleDateString('en-KE', { weekday: 'long' });
+      const dateStr = nextDate.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' });
+      reply += `### 🔜 Next: **${actionResult.nextEvent.title}**\n`;
+      reply += `📅 **${dayName}, ${dateStr}** at **${actionResult.nextEvent.time}**\n\n`;
+    }
+    
+    // Schedule Events
+    if (actionResult.scheduleEvents?.length > 0) {
+      reply += `**📅 From Semester Schedule:**\n`;
+      actionResult.scheduleEvents.forEach((e, i) => {
+        const date = new Date(e.date);
+        const dayName = date.toLocaleDateString('en-KE', { weekday: 'short' });
+        const dateStr = date.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+        reply += `${i + 1}. **${e.title}** — ${dayName} ${dateStr} at ${e.time} 📍 ${e.location}\n`;
+      });
+      reply += `\n`;
+    }
+    
+    // Mass Programs
+    if (actionResult.massPrograms?.length > 0) {
+      reply += `**📋 Mass Programs:**\n`;
+      actionResult.massPrograms.forEach((m, i) => {
+        const date = new Date(m.date);
+        reply += `${i + 1}. ${date.toLocaleDateString('en-KE', { weekday: 'long', month: 'long', day: 'numeric' })} — ${m.venue}\n`;
+        if (m.songs?.length) reply += `   🎵 ${m.songs.join(', ')}\n`;
+      });
+    }
+    
+    if (!actionResult.massPrograms?.length && !actionResult.scheduleEvents?.length) {
+      reply += `No upcoming masses or events found.`;
+    }
+    
     return reply;
   }
 

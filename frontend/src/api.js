@@ -11,7 +11,7 @@ if (hostname === "localhost") {
 } 
 else {
   // Production (deployed frontend) → backend URL
-  BASE_URL = "https://chris-laptop.tail96b26f.ts.net";
+  BASE_URL = "https://zuca-backend-iw9p.onrender.com";
 }
 
 // Create a public API instance (NO authentication)

@@ -107,14 +107,118 @@ app.options('*', cors());
 app.use(express.json({ limit: '2gb' }));
 app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
+
+
 // ================== MIDDLEWARE ==================
 app.use((req, res, next) => {
   console.log(req.method, req.path, req.body);
   next();
 });
 
+// ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
-// TEST ROUTE - PUT THIS RIGHT HERE
+// Proxy for Ora et Labora API (All prayers)
+app.get('/api/proxy/prayers', async (req, res) => {
+  try {
+    console.log('📡 Fetching prayers from Ora et Labora...');
+    const response = await fetch('https://oraetlabora.com.br/api/oracoes');
+    
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Fetched ${Object.keys(data).length} prayers`);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Prayer API error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch prayers', details: error.message });
+  }
+});
+
+// Proxy for single prayer by ID
+app.get('/api/proxy/prayer/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📡 Fetching prayer: ${id}`);
+    
+    const response = await fetch(`https://oraetlabora.com.br/api/oracoes/${id}`);
+    
+    if (!response.ok) {
+      throw new Error(`Prayer not found: ${id}`);
+    }
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Prayer detail error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch prayer', details: error.message });
+  }
+});
+
+// Proxy for Rosary mysteries (FIXED - using alternative API)
+app.get('/api/proxy/rosary', async (req, res) => {
+  try {
+    console.log('📡 Fetching Rosary mysteries...');
+    
+    // Alternative: Calculate mysteries based on day of week (no external API needed)
+    const day = new Date().getDay();
+    const mysteriesMap = {
+      0: { name: 'Glorious Mysteries', mysteries: ['The Resurrection', 'The Ascension', 'Descent of Holy Spirit', 'Assumption of Mary', 'Coronation of Mary'] },
+      1: { name: 'Joyful Mysteries', mysteries: ['The Annunciation', 'The Visitation', 'The Nativity', 'The Presentation', 'Finding in the Temple'] },
+      2: { name: 'Sorrowful Mysteries', mysteries: ['Agony in Garden', 'Scourging at Pillar', 'Crowning with Thorns', 'Carrying the Cross', 'The Crucifixion'] },
+      3: { name: 'Glorious Mysteries', mysteries: ['The Resurrection', 'The Ascension', 'Descent of Holy Spirit', 'Assumption of Mary', 'Coronation of Mary'] },
+      4: { name: 'Luminous Mysteries', mysteries: ['Baptism of Lord', 'Wedding at Cana', 'Proclamation of Kingdom', 'The Transfiguration', 'Institution of Eucharist'] },
+      5: { name: 'Sorrowful Mysteries', mysteries: ['Agony in Garden', 'Scourging at Pillar', 'Crowning with Thorns', 'Carrying the Cross', 'The Crucifixion'] },
+      6: { name: 'Joyful Mysteries', mysteries: ['The Annunciation', 'The Visitation', 'The Nativity', 'The Presentation', 'Finding in the Temple'] }
+    };
+    
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const mysteries = mysteriesMap[day];
+    
+    const result = {
+      title: `${mysteries.name} (${dayNames[day]})`,
+      mysteries: mysteries.mysteries,
+      day: dayNames[day],
+      dayNumber: day
+    };
+    
+    console.log(`✅ Returning ${mysteries.name} for ${dayNames[day]}`);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Rosary API error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch Rosary mysteries', details: error.message });
+  }
+});
+
+// Proxy for Daily prayers (Universalis)
+app.get('/api/proxy/daily-prayers', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    console.log(`📡 Fetching daily prayers for ${today}...`);
+    
+    const response = await fetch(`https://universalis.app/api/${today}/prayers.json`);
+    
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Daily prayers fetched');
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Daily prayers error:', error.message);
+    
+    // Return fallback data instead of error
+    res.json({
+      morning: "Lord, open my lips, and my mouth shall proclaim Your praise. Let us pray. Lord, grant me the grace to live this day in Your love and service. Amen.",
+      evening: "Lord, grant me a peaceful night and a restful sleep. Watch over me and keep me safe. Into Your hands I commend my spirit. Amen.",
+      reading: "Your word is a lamp to my feet and a light to my path. Guide me, Lord, in Your truth."
+    });
+  }
+});
+
+// TEST ROUTE 
 app.get("/api/test", (req, res) => {
   res.json({ message: "Server is working!", time: new Date().toISOString() });
 });
@@ -125,223 +229,9 @@ app.get("/api/game-test", authenticate, (req, res) => {
 });
 
 
-// Add these near your other routes in server.js
-// ==================== PRAYER ROUTES ====================
-const prayerCollection = require('@codexcommunion/prayer-collection');
 
-// GET /api/prayers/list - List all available prayers in English (Kenya)
-app.get("/api/prayers/list", (req, res) => {
-  try {
-    const prayerIds = [
-      'our-father', 'hail-mary', 'glory-be', 'sign-of-the-cross',
-      'apostles-creed', 'fatima-prayer', 'memorare', 'salve-regina',
-      'magnificat', 'morning-offering', 'jesus-prayer', 'te-deum',
-      'prayer-to-st-jude', 'holy-god', 'for-the-sake-of-his-sorrowful-passion',
-      'angelus', 'regina-caeli', 'act-of-contrition', 'act-of-faith',
-      'act-of-hope', 'act-of-love', 'st-michael-prayer', 'guardian-angel',
-      'evening-prayer', 'eternal-rest', 'prayer-for-the-dead',
-      'veni-creator-spiritus', 'come-holy-spirit', 'anima-christi'
-    ];
-    
-    const prayers = [];
-    for (const id of prayerIds) {
-      const text = prayerCollection.getPrayerText(id, 'en');
-      if (text && text !== "Text not available for this prayer/language combination.") {
-        prayers.push({ 
-          id, 
-          title: id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-          preview: text.substring(0, 100) + '...'
-        });
-      }
-    }
-    
-    res.json({ success: true, count: prayers.length, prayers });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// GET /api/prayers/:id - Get a single prayer in English (Kenya)
-app.get("/api/prayers/:id", (req, res) => {
-  try {
-    const { id } = req.params;
-    const text = prayerCollection.getPrayerText(id, 'en');
-    
-    if (!text || text === "Text not available for this prayer/language combination.") {
-      return res.status(404).json({ error: "Prayer not found" });
-    }
-    
-    const title = id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-    
-    res.json({ 
-      success: true, 
-      prayer: {
-        id,
-        title,
-        text,
-        language: "English (Kenya)"
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// GET /api/prayers/search/:keyword - Search prayers by keyword
-app.get("/api/prayers/search/:keyword", (req, res) => {
-  try {
-    const { keyword } = req.params;
-    const results = prayerCollection.searchPrayers(keyword);
-    
-    // Filter to only show English version
-    const englishResults = results.map(prayer => ({
-      id: prayer.metadata?.id,
-      title: prayer.metadata?.title,
-      description: prayer.metadata?.description,
-      text: prayer.translations?.en?.text || "Text not available"
-    })).filter(p => p.text && p.text !== "Text not available");
-    
-    res.json({ success: true, keyword, count: englishResults.length, results: englishResults });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/rosary - Complete Rosary in English (Kenya)
-app.get("/api/rosary", (req, res) => {
-  try {
-    const getText = (id) => prayerCollection.getPrayerText(id, 'en') || "";
-    
-    const rosary = {
-      title: "The Holy Rosary",
-      language: "English (Kenya)",
-      opening: {
-        signOfCross: "In the name of the Father, and of the Son, and of the Holy Spirit. Amen.",
-        apostlesCreed: getText('apostles-creed'),
-        ourFather: getText('our-father'),
-        hailMary: getText('hail-mary'),
-        gloryBe: getText('glory-be')
-      },
-      mysteries: {
-        joyful: {
-          name: "Joyful Mysteries",
-          days: ["Monday", "Saturday"],
-          decades: [
-            { mystery: "The Annunciation", fruit: "Humility" },
-            { mystery: "The Visitation", fruit: "Love of Neighbor" },
-            { mystery: "The Nativity", fruit: "Poverty" },
-            { mystery: "The Presentation", fruit: "Obedience" },
-            { mystery: "The Finding in the Temple", fruit: "Joy" }
-          ]
-        },
-        sorrowful: {
-          name: "Sorrowful Mysteries",
-          days: ["Tuesday", "Friday"],
-          decades: [
-            { mystery: "The Agony in the Garden", fruit: "Sorrow for Sin" },
-            { mystery: "The Scourging at the Pillar", fruit: "Purity" },
-            { mystery: "The Crowning with Thorns", fruit: "Courage" },
-            { mystery: "The Carrying of the Cross", fruit: "Patience" },
-            { mystery: "The Crucifixion", fruit: "Perseverance" }
-          ]
-        },
-        glorious: {
-          name: "Glorious Mysteries",
-          days: ["Wednesday", "Sunday"],
-          decades: [
-            { mystery: "The Resurrection", fruit: "Faith" },
-            { mystery: "The Ascension", fruit: "Hope" },
-            { mystery: "The Descent of the Holy Spirit", fruit: "Love" },
-            { mystery: "The Assumption", fruit: "Happy Death" },
-            { mystery: "The Coronation", fruit: "Trust in Mary" }
-          ]
-        },
-        luminous: {
-          name: "Luminous Mysteries",
-          days: ["Thursday"],
-          decades: [
-            { mystery: "The Baptism of Jesus", fruit: "Openness to Holy Spirit" },
-            { mystery: "The Wedding at Cana", fruit: "Trust in Mary" },
-            { mystery: "The Proclamation of the Kingdom", fruit: "Repentance" },
-            { mystery: "The Transfiguration", fruit: "Desire for Holiness" },
-            { mystery: "The Institution of the Eucharist", fruit: "Love of Eucharist" }
-          ]
-        }
-      },
-      decadePrayers: {
-        ourFather: getText('our-father'),
-        hailMary: getText('hail-mary'),
-        gloryBe: getText('glory-be'),
-        fatimaPrayer: getText('fatima-prayer') || "O my Jesus, forgive us our sins, save us from the fires of hell, lead all souls to Heaven, especially those most in need of Thy mercy."
-      },
-      closing: {
-        hailHolyQueen: getText('salve-regina'),
-        finalPrayer: "O God, whose only begotten Son, by His life, death, and resurrection, has purchased for us the rewards of eternal salvation, grant, we beseech Thee, that meditating on these mysteries of the most holy Rosary, we may imitate what they contain and obtain what they promise. Through Christ our Lord. Amen."
-      },
-      todayMystery: (() => {
-        const days = ['glorious', 'joyful', 'sorrowful', 'glorious', 'luminous', 'sorrowful', 'joyful'];
-        return days[new Date().getDay()];
-      })()
-    };
-    
-    res.json({ success: true, rosary });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/rosary/today - Get today's mysteries only
-app.get("/api/rosary/today", (req, res) => {
-  try {
-    const days = ['glorious', 'joyful', 'sorrowful', 'glorious', 'luminous', 'sorrowful', 'joyful'];
-    const todayIndex = new Date().getDay();
-    const todayMystery = days[todayIndex];
-    
-    const mysteryNames = {
-      joyful: ["The Annunciation", "The Visitation", "The Nativity", "The Presentation", "The Finding in the Temple"],
-      sorrowful: ["The Agony in the Garden", "The Scourging at the Pillar", "The Crowning with Thorns", "The Carrying of the Cross", "The Crucifixion"],
-      glorious: ["The Resurrection", "The Ascension", "The Descent of the Holy Spirit", "The Assumption", "The Coronation"],
-      luminous: ["The Baptism of Jesus", "The Wedding at Cana", "The Proclamation of the Kingdom", "The Transfiguration", "The Institution of the Eucharist"]
-    };
-    
-    const fruits = {
-      joyful: ["Humility", "Love of Neighbor", "Poverty", "Obedience", "Joy"],
-      sorrowful: ["Sorrow for Sin", "Purity", "Courage", "Patience", "Perseverance"],
-      glorious: ["Faith", "Hope", "Love", "Happy Death", "Trust in Mary"],
-      luminous: ["Openness to Holy Spirit", "Trust in Mary", "Repentance", "Desire for Holiness", "Love of Eucharist"]
-    };
-    
-    const decades = [];
-    for (let i = 0; i < 5; i++) {
-      decades.push({
-        mystery: mysteryNames[todayMystery][i],
-        fruit: fruits[todayMystery][i],
-        ourFather: true,
-        hailMarys: 10,
-        gloryBe: true
-      });
-    }
-    
-    res.json({
-      success: true,
-      today: todayMystery,
-      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][todayIndex],
-      decades
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/prayers/languages - Get supported languages
-app.get("/api/prayers/languages", (req, res) => {
-  try {
-    const languages = prayerCollection.getSupportedLanguages();
-    res.json({ success: true, languages });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ==================== ADD GAME ROUTES HERE ====================
 
@@ -5777,6 +5667,11 @@ app.delete("/api/announcements/:id", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
+
 
 // ================== MASS PROGRAM ROUTES ==================
 

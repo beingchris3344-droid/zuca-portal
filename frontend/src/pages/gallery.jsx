@@ -1,2430 +1,1739 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { api, publicApi } from '../api';
-import {
-  Heart, Eye, MessageCircle, X, Image as ImageIcon,
-  Video, FileText, User, Clock, Share2, Download, Music2,
-  Camera, TrendingUp, Award, Star, Zap, Users,
-  Grid3x3, LayoutGrid, Play, Pause, Volume2, Maximize2,
-  ThumbsUp, Bookmark, Share, Copy, Check, AlertCircle,
-  VolumeX, Send, ArrowLeft, Sparkles, Compass
-} from 'lucide-react';
-import { format, formatDistance } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
-import logo from '../assets/zuca-logo.png';
+// frontend/src/pages/gallery.jsx - COMPLETE FIXED VERSION
+import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate, useParams } from "react-router-dom";
+import { 
+  FiPlay, FiPause, FiMaximize2, FiMinimize2, FiVolume2, FiVolumeX,
+  FiHeart, FiMessageCircle, FiShare2, FiDownload, FiEye, FiClock,
+  FiUser, FiTag, FiCalendar, FiTrendingUp, FiStar, FiX, FiSearch,
+  FiGrid, FiList, FiChevronLeft, FiChevronRight, FiImage, FiVideo,
+  FiMusic, FiTrash2, FiSend, FiThumbsUp, FiRepeat, FiSkipBack, FiSkipForward,
+  FiRefreshCw, FiFilter, FiChevronDown, FiPlayCircle,
+  FiCopy, FiCheck, FiLoader
+} from "react-icons/fi";
+import { FaWhatsapp, FaFacebook, FaTwitter, FaHeart } from "react-icons/fa";
+import axios from "axios";
+import BASE_URL from "../api";
 
-// Lazy Image Component with spinner
-const LazyImage = ({ src, alt, className }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const containerRef = useRef(null);
+function Gallery() {
+  const navigate = useNavigate();
+  const { id: paramId } = useParams();
+  
+  // State
+  const [media, setMedia] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [featuredMedia, setFeaturedMedia] = useState([]);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 0 });
+  const [filters, setFilters] = useState({ category: "all", type: "all", sortBy: "latest", featured: false });
+  const [viewMode, setViewMode] = useState("grid");
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [userLiked, setUserLiked] = useState(false);
+  const [liveFeed, setLiveFeed] = useState([]);
+  const [showLiveFeed, setShowLiveFeed] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [playerLoading, setPlayerLoading] = useState(true);
+  const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const playerContainerRef = useRef(null);
+  
+  const token = localStorage.getItem("token");
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const isAuthenticated = !!token;
+  const currentYear = new Date().getFullYear();
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '100px', threshold: 0.01 }
-    );
+  // Format helpers
+  const formatNumber = (num) => {
+    if (!num) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  };
 
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Fetch public media
+  const fetchMedia = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+        category: filters.category !== "all" ? filters.category : undefined,
+        type: filters.type !== "all" ? filters.type : undefined,
+        sortBy: filters.sortBy,
+        featured: filters.featured
+      };
+      
+      const response = await axios.get(`${BASE_URL}/api/media/public`, { params });
+      
+      setMedia(response.data.media || []);
+      setPagination(prev => ({
+        ...prev,
+        total: response.data.pagination?.total || 0,
+        totalPages: response.data.pagination?.totalPages || 0
+      }));
+      
+      const uniqueCategories = [...new Set(response.data.media?.map(m => m.category).filter(Boolean))];
+      setCategories(uniqueCategories);
+      
+    } catch (err) {
+      console.error("Error fetching media:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
 
-    return () => observer.disconnect();
-  }, []);
+  const fetchFeaturedMedia = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/media/featured`, { params: { limit: 6 } });
+      setFeaturedMedia(response.data || []);
+    } catch (err) {
+      console.error("Error fetching featured media:", err);
+    }
+  };
 
-  return (
-    <div ref={containerRef} className="lazy-image-container">
-      {!isLoaded && isInView && (
-        <div className="image-loader">
-          <div className="loader-spinner"></div>
-        </div>
-      )}
-      {isInView && (
-        <img
-          src={src}
-          alt={alt}
-          className={`${className} ${isLoaded ? 'loaded' : 'hidden'}`}
-          onLoad={() => setIsLoaded(true)}
-          loading="lazy"
-        />
-      )}
-    </div>
-  );
+  const fetchMediaById = async (id) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/media/${id}`, { headers });
+      setSelectedMedia(response.data);
+      setPlayerLoading(false);
+      fetchComments(id);
+      if (isAuthenticated) checkUserLiked(id);
+    } catch (err) {
+      console.error("Error fetching media:", err);
+    }
+  };
+
+  const fetchComments = async (mediaId) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/media/${mediaId}/comments`);
+      setComments(response.data.comments || []);
+    } catch (err) {
+      console.error("Error fetching comments:", err);
+      setComments([]);
+    }
+  };
+
+  const checkUserLiked = async (mediaId) => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await axios.get(`${BASE_URL}/api/media/${mediaId}/liked`, { headers });
+      setUserLiked(response.data.liked);
+    } catch (err) {
+      console.error("Error checking like status:", err);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    
+    try {
+      const response = await axios.post(`${BASE_URL}/api/media/${selectedMedia.id}/like`, {}, { headers });
+      setUserLiked(response.data.liked);
+      
+      setSelectedMedia(prev => ({
+        ...prev,
+        _count: { ...prev._count, likes: (prev._count?.likes || 0) + (response.data.liked ? 1 : -1) }
+      }));
+      
+    } catch (err) {
+      console.error("Error liking media:", err);
+    }
+  };
+
+  const toggleImageFullscreen = () => {
+  setIsImageFullscreen(!isImageFullscreen);
 };
 
-// Adaptive Media Player Component - Smooth playback, no buffering
-const AdaptiveMediaPlayer = ({ src, thumbnailUrl, title, type = 'video', autoPlay = false }) => {
-  const mediaRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isReady, setIsReady] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
-
-  useEffect(() => {
-    if (mediaRef.current && type === 'video') {
-      mediaRef.current.preload = 'auto';
-      mediaRef.current.load();
+ const handleAddComment = async () => {
+  if (!isAuthenticated) {
+    navigate("/login");
+    return;
+  }
+  if (!newComment.trim()) return;
+  
+  setCommentLoading(true);
+  
+  //  timeout
+  const timeoutId = setTimeout(() => {
+    if (commentLoading) {
+      setCommentLoading(false);
+      alert("Request timed out. Please try again.");
     }
-  }, [src]);
+  }, 10000);
+  
+  try {
+    const response = await axios.post(`${BASE_URL}/api/media/${selectedMedia.id}/comments`, 
+      { content: newComment }, 
+      { 
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (response.status === 201) {
+      setNewComment("");
+      await fetchComments(selectedMedia.id);
+      
+      setSelectedMedia(prev => ({
+        ...prev,
+        _count: { ...prev._count, comments: (prev._count?.comments || 0) + 1 }
+      }));
+    }
+  } catch (err) {
+    console.error("Error adding comment:", err.response?.data || err.message);
+    alert(err.response?.data?.error || "Failed to post comment");
+  } finally {
+    clearTimeout(timeoutId);
+    setCommentLoading(false);
+  }
+};
 
-  const handlePlayPause = () => {
-    if (isReady) {
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm("Delete this comment?")) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/media/comments/${commentId}`, { headers });
+      await fetchComments(selectedMedia.id);
+      
+      setSelectedMedia(prev => ({
+        ...prev,
+        _count: { ...prev._count, comments: Math.max(0, (prev._count?.comments || 0) - 1) }
+      }));
+      
+    } catch (err) {
+      console.error("Error deleting comment:", err);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    
+    try {
+      await axios.post(`${BASE_URL}/api/media/${selectedMedia.id}/download`, {}, { headers });
+      window.open(selectedMedia.url, '_blank');
+    } catch (err) {
+      console.error("Error tracking download:", err);
+    }
+  };
+
+  const handleShare = async (platform) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    
+    try {
+      await axios.post(`${BASE_URL}/api/media/${selectedMedia.id}/share`, { platform }, { headers });
+    } catch (err) {
+      console.error("Error tracking share:", err);
+    }
+    
+    const url = `${window.location.origin}/gallery/${selectedMedia.id}`;
+    const text = `Check out "${selectedMedia.title}" - Amazing content from ZUCA! 🙏`;
+    
+    switch(platform) {
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+        break;
+      default:
+        navigator.clipboard.writeText(url);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
+
+  const fetchLiveFeed = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/media/live-feed`, { params: { limit: 15 } });
+      setLiveFeed(response.data || []);
+    } catch (err) {
+      console.error("Error fetching live feed:", err);
+    }
+  };
+
+  // Player controls
+  const togglePlay = () => {
+    if (selectedMedia?.type === 'video' && videoRef.current) {
       if (isPlaying) {
-        mediaRef.current?.pause();
+        videoRef.current.pause();
       } else {
-        mediaRef.current?.play();
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
       }
       setIsPlaying(!isPlaying);
     }
   };
 
   const handleTimeUpdate = () => {
-    if (mediaRef.current) {
-      const current = mediaRef.current.currentTime;
-      const dur = mediaRef.current.duration;
-      if (dur && !isNaN(dur)) {
-        setProgress((current / dur) * 100);
-        setCurrentTime(current);
-        setDuration(dur);
-      }
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
     }
   };
 
-  const handleCanPlayThrough = () => {
-    setIsReady(true);
-  };
-
-  const formatTime = (seconds) => {
-    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  if (type === 'audio') {
-    return (
-      <div className="audio-player-card">
-        <div className="audio-artwork">
-          {thumbnailUrl ? (
-            <img src={thumbnailUrl} alt={title} />
-          ) : (
-            <Music2 size={48} />
-          )}
-        </div>
-        <div className="audio-info">
-          <h4>{title || 'Audio Track'}</h4>
-          <div className="audio-controls">
-            <button onClick={handlePlayPause} className="audio-play-btn">
-              {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-            </button>
-            <div className="audio-progress">
-              <div className="progress-track">
-                <div className="progress-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <span className="audio-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
-            </div>
-            <button onClick={() => setIsMuted(!isMuted)} className="audio-volume-btn">
-              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            </button>
-          </div>
-        </div>
-        <audio
-          ref={mediaRef}
-          src={src}
-          preload="auto"
-          autoPlay={autoPlay}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleTimeUpdate}
-          onCanPlayThrough={handleCanPlayThrough}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div 
-      className="video-player-card"
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      {!isPlaying && thumbnailUrl && (
-        <div className="video-thumbnail" onClick={handlePlayPause}>
-          <img src={thumbnailUrl} alt={title} />
-          <div className="play-overlay">
-            <div className="play-button-circle">
-              <Play size={40} fill="white" />
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <video
-        ref={mediaRef}
-        src={src}
-        autoPlay={autoPlay}
-        playsInline
-        preload="auto"
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleTimeUpdate}
-        onCanPlayThrough={handleCanPlayThrough}
-        className="video-element"
-        controls={isPlaying}
-      />
-    </div>
-  );
-};
-
-export default function GalleryPage() {
-  const [media, setMedia] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStage, setLoadingStage] = useState(0);
-  const [showContent, setShowContent] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState(null);
-  const [comment, setComment] = useState('');
-  const [commentLoading, setCommentLoading] = useState(false);
-  const [filters, setFilters] = useState({ category: 'all', mediaType: 'all', sortBy: 'latest' });
-  const [user, setUser] = useState(null);
-  const [likedMedia, setLikedMedia] = useState({});
-  const [savedMedia, setSavedMedia] = useState({});
-  const [viewMode, setViewMode] = useState('grid');
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [trendingMedia, setTrendingMedia] = useState([]);
-  const [comments, setComments] = useState([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsPagination, setCommentsPagination] = useState({ page: 1, totalPages: 1, total: 0 });
-  
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (loading) {
-      const stages = [
-        { progress: 15, message: "Waking up the gallery...", icon: "✨", description: "Starting the visual journey" },
-        { progress: 30, message: "Gathering memories...", icon: "📸", description: "Collecting precious moments" },
-        { progress: 45, message: "Polishing moments...", icon: "✨", description: "Enhancing every detail" },
-        { progress: 60, message: "Almost there...", icon: "🎨", description: "Adding the final touches" },
-        { progress: 75, message: "Adding finishing touches...", icon: "🌟", description: "Making it perfect" },
-        { progress: 90, message: "Preparing your experience...", icon: "🎭", description: "Almost ready to reveal" },
-        { progress: 100, message: "Welcome to the gallery!", icon: "🎉", description: "Your memories await" }
-      ];
-      
-      let currentStage = 0;
-      const stageInterval = setInterval(() => {
-        if (currentStage < stages.length - 1) {
-          currentStage++;
-          setLoadingStage(currentStage);
-          setLoadingProgress(stages[currentStage].progress);
-        }
-      }, 800);
-      
-      return () => clearInterval(stageInterval);
-    }
-  }, [loading]);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      api.get('/api/me')
-        .then(res => setUser(res.data))
-        .catch(() => {});
-    }
-    fetchMedia();
-    fetchTrending();
-  }, [filters]);
-
-  const fetchMedia = async () => {
-    setLoading(true);
-    setLoadingProgress(0);
-    setLoadingStage(0);
-    setShowContent(false);
-    
-    try {
-      const params = new URLSearchParams({
-        category: filters.category,
-        sortBy: filters.sortBy,
-        limit: 30
-      });
-      const res = await publicApi.get(`/api/media/public?${params}`);
-      let fetchedMedia = res.data.media || [];
-      
-      if (filters.mediaType !== 'all') {
-        fetchedMedia = fetchedMedia.filter(item => item.type === filters.mediaType);
-      }
-      
-      setMedia(fetchedMedia);
-      
-      setTimeout(() => {
-        setLoadingProgress(100);
-        setTimeout(() => {
-          setShowContent(true);
-          setTimeout(() => {
-            setLoading(false);
-          }, 500);
-        }, 300);
-      }, 500);
-    } catch (error) {
-      console.error('Error fetching media:', error);
-      setLoading(false);
-      setShowContent(true);
+  const handleLoadedMetadata = () => {
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      setDuration(videoRef.current.duration);
+      setPlayerLoading(false);
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      setDuration(audioRef.current.duration);
+      setPlayerLoading(false);
     }
   };
 
-  const fetchTrending = async () => {
-    try {
-      const res = await publicApi.get('/api/media/trending?limit=6');
-      setTrendingMedia(res.data || []);
-    } catch (error) {
-      console.error('Error fetching trending:', error);
+  const handleSeek = (e) => {
+    const newTime = parseFloat(e.target.value);
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
     }
   };
 
-  const fetchComments = async (mediaId, page = 1) => {
-    setCommentsLoading(true);
-    try {
-      const res = await publicApi.get(`/api/media/${mediaId}/comments?page=${page}&limit=20`);
-      if (page === 1) {
-        setComments(res.data.comments);
-      } else {
-        setComments(prev => [...prev, ...res.data.comments]);
-      }
-      setCommentsPagination({
-        page: res.data.pagination.page,
-        totalPages: res.data.pagination.totalPages,
-        total: res.data.pagination.total
-      });
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-    } finally {
-      setCommentsLoading(false);
+  const toggleMute = () => {
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+      setVolume(isMuted ? 1 : 0);
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+      setVolume(isMuted ? 1 : 0);
     }
   };
 
-  const handleSelectMedia = async (media) => {
-    setSelectedMedia(media);
-    setComments([]);
-    await fetchComments(media.id);
-  };
-
-  const handleLike = async (mediaId) => {
-    if (!user) {
-      alert('Please login to like');
-      return;
-    }
-    
-    const wasLiked = likedMedia[mediaId];
-    const currentLikes = media.find(m => m.id === mediaId)?._count?.likes || 0;
-    
-    setLikedMedia(prev => ({ ...prev, [mediaId]: !wasLiked }));
-    setMedia(prev => prev.map(m => 
-      m.id === mediaId 
-        ? { ...m, _count: { ...m._count, likes: wasLiked ? currentLikes - 1 : currentLikes + 1 } }
-        : m
-    ));
-    if (selectedMedia?.id === mediaId) {
-      setSelectedMedia(prev => ({
-        ...prev,
-        _count: { ...prev._count, likes: wasLiked ? (prev._count?.likes || 0) - 1 : (prev._count?.likes || 0) + 1 }
-      }));
-    }
-    
-    const likeBtn = document.getElementById(`like-${mediaId}`);
-    if (likeBtn) {
-      likeBtn.classList.add('animate-like');
-      setTimeout(() => likeBtn.classList.remove('animate-like'), 300);
-    }
-    
-    try {
-      const res = await api.post(`/api/media/${mediaId}/like`);
-      const data = res.data;
-      
-      if (data.liked !== !wasLiked) {
-        setLikedMedia(prev => ({ ...prev, [mediaId]: data.liked }));
-        setMedia(prev => prev.map(m => 
-          m.id === mediaId 
-            ? { ...m, _count: { ...m._count, likes: data.liked ? currentLikes + 1 : currentLikes - 1 } }
-            : m
-        ));
-      }
-    } catch (error) {
-      console.error('Error liking:', error);
-      setLikedMedia(prev => ({ ...prev, [mediaId]: wasLiked }));
-      setMedia(prev => prev.map(m => 
-        m.id === mediaId 
-          ? { ...m, _count: { ...m._count, likes: wasLiked ? currentLikes + 1 : currentLikes - 1 } }
-          : m
-      ));
-      if (selectedMedia?.id === mediaId) {
-        setSelectedMedia(prev => ({
-          ...prev,
-          _count: { ...prev._count, likes: wasLiked ? (prev._count?.likes || 0) + 1 : (prev._count?.likes || 0) - 1 }
-        }));
-      }
-      alert('Failed to like. Please try again.');
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      videoRef.current.volume = newVolume;
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      audioRef.current.volume = newVolume;
     }
   };
 
-  const handleSave = (mediaId) => {
-    if (!user) {
-      alert('Please login to save');
-      return;
-    }
-    setSavedMedia(prev => ({ ...prev, [mediaId]: !prev[mediaId] }));
-  };
-
-  // OPTIMISTIC COMMENT POSTING - Instant with loading indicator
-  const handleComment = async () => {
-    if (!comment.trim() || !selectedMedia || commentLoading) return;
-    
-    const commentText = comment.trim();
-    const tempId = `temp-${Date.now()}`;
-    
-    const tempComment = {
-      id: tempId,
-      content: commentText,
-      createdAt: new Date().toISOString(),
-      user: user || { fullName: 'You', profileImage: null },
-      isTemp: true
-    };
-    
-    // Optimistic update - add comment instantly
-    setComments(prev => [tempComment, ...prev]);
-    setCommentsPagination(prev => ({ ...prev, total: prev.total + 1 }));
-    setComment('');
-    setCommentLoading(true);
-    
-    // Update comment count
-    setMedia(prev => prev.map(m => 
-      m.id === selectedMedia.id 
-        ? { ...m, _count: { ...m._count, comments: (m._count?.comments || 0) + 1 } }
-        : m
-    ));
-    setSelectedMedia(prev => ({
-      ...prev,
-      _count: { ...prev._count, comments: (prev._count?.comments || 0) + 1 }
-    }));
-    
-    try {
-      const res = await api.post(`/api/media/${selectedMedia.id}/comments`, { content: commentText });
-      const newComment = res.data;
-      setComments(prev => prev.map(c => c.id === tempId ? newComment : c));
-    } catch (error) {
-      console.error('Error commenting:', error);
-      setComments(prev => prev.filter(c => c.id !== tempId));
-      setCommentsPagination(prev => ({ ...prev, total: prev.total - 1 }));
-      setMedia(prev => prev.map(m => 
-        m.id === selectedMedia.id 
-          ? { ...m, _count: { ...m._count, comments: (m._count?.comments || 0) - 1 } }
-          : m
-      ));
-      setSelectedMedia(prev => ({
-        ...prev,
-        _count: { ...prev._count, comments: (prev._count?.comments || 0) - 1 }
-      }));
-      alert('Failed to post comment. Please try again.');
-    } finally {
-      setCommentLoading(false);
+  const toggleLoop = () => {
+    setIsLooping(!isLooping);
+    if (selectedMedia?.type === 'video' && videoRef.current) {
+      videoRef.current.loop = !isLooping;
+    } else if (selectedMedia?.type === 'audio' && audioRef.current) {
+      audioRef.current.loop = !isLooping;
     }
   };
 
-  const handleShare = async (media) => {
-    const shareUrl = `${window.location.origin}/gallery?media=${media.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: media.title, url: shareUrl });
-      } catch (err) {}
+  const toggleFullscreen = () => {
+    if (!playerContainerRef.current) return;
+    if (!isFullscreen) {
+      playerContainerRef.current.requestFullscreen();
+      setIsFullscreen(true);
     } else {
-      setShowShareModal(true);
+      document.exitFullscreen();
+      setIsFullscreen(false);
     }
   };
 
-  const handleDownload = async (media) => {
-    try {
-      const link = document.createElement('a');
-      link.href = media.url;
-      link.download = media.title;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Download error:', error);
+  const playNext = () => {
+    if (currentIndex + 1 < media.length) {
+      const nextMedia = media[currentIndex + 1];
+      setSelectedMedia(nextMedia);
+      setCurrentIndex(currentIndex + 1);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setPlayerLoading(true);
+      fetchComments(nextMedia.id);
+      if (isAuthenticated) checkUserLiked(nextMedia.id);
+      window.history.pushState({}, '', `/gallery/${nextMedia.id}`);
     }
   };
 
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {}
-  };
-
-  const goBack = () => navigate('/dashboard');
-
-  const getMediaIcon = (type) => {
-    switch(type) {
-      case 'video': return <Video size={28} />;
-      case 'audio': return <Music2 size={28} />;
-      case 'document': return <FileText size={28} />;
-      default: return <ImageIcon size={28} />;
+  const playPrevious = () => {
+    if (currentIndex - 1 >= 0) {
+      const prevMedia = media[currentIndex - 1];
+      setSelectedMedia(prevMedia);
+      setCurrentIndex(currentIndex - 1);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setPlayerLoading(true);
+      fetchComments(prevMedia.id);
+      if (isAuthenticated) checkUserLiked(prevMedia.id);
+      window.history.pushState({}, '', `/gallery/${prevMedia.id}`);
     }
   };
 
-  const formatDate = (date) => format(new Date(date), 'MMM d, yyyy');
-  const timeAgo = (date) => formatDistance(new Date(date), new Date(), { addSuffix: true });
+  const selectMedia = (mediaItem, index) => {
+    setSelectedMedia(mediaItem);
+    setCurrentIndex(index);
+    setPlayerLoading(true);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    fetchComments(mediaItem.id);
+    if (isAuthenticated) checkUserLiked(mediaItem.id);
+    window.history.pushState({}, '', `/gallery/${mediaItem.id}`);
+  };
 
-  const mediaTypeFilters = [
-    { id: 'all', name: 'All', icon: Camera },
-    { id: 'image', name: 'Images', icon: ImageIcon },
-    { id: 'video', name: 'Videos', icon: Video },
-    { id: 'audio', name: 'Audio', icon: Music2 }
-  ];
+  const changePage = (newPage) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-  const categories = [
-    { id: 'all', name: 'All', icon: Camera },
-    { id: 'mass', name: 'Holy Mass', icon: Award },
-    { id: 'fellowship', name: 'Fellowship', icon: Users },
-    { id: 'outreach', name: 'Outreach', icon: Heart },
-    { id: 'events', name: 'Events', icon: Star },
-    { id: 'retreat', name: 'Retreats', icon: Zap }
-  ];
+  const changeFilter = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
 
-  const stages = [
-    { progress: 15, message: "Waking up the gallery...", icon: "✨", description: "Starting the visual journey" },
-    { progress: 30, message: "Gathering memories...", icon: "📸", description: "Collecting precious moments" },
-    { progress: 45, message: "Polishing moments...", icon: "✨", description: "Enhancing every detail" },
-    { progress: 60, message: "Almost there...", icon: "🎨", description: "Adding the final touches" },
-    { progress: 75, message: "Adding finishing touches...", icon: "🌟", description: "Making it perfect" },
-    { progress: 90, message: "Preparing your experience...", icon: "🎭", description: "Almost ready to reveal" },
-    { progress: 100, message: "Welcome to the gallery!", icon: "🎉", description: "Your memories await" }
-  ];
+  const refreshData = () => {
+    setRefreshing(true);
+    fetchMedia();
+    fetchFeaturedMedia();
+    fetchLiveFeed();
+  };
 
-  const currentStage = stages[loadingStage] || stages[0];
+  useEffect(() => {
+    fetchMedia();
+    fetchFeaturedMedia();
+    fetchLiveFeed();
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="premium-loading-screen">
-        <div className="loading-gradient-bg">
-          <div className="gradient-orb orb-1"></div>
-          <div className="gradient-orb orb-2"></div>
-          <div className="gradient-orb orb-3"></div>
-          <div className="gradient-orb orb-4"></div>
-        </div>
+  useEffect(() => {
+    fetchMedia();
+  }, [pagination.page, filters.category, filters.type, filters.sortBy, filters.featured]);
 
-        <div className="loading-glass-container">
-          <div className="loading-content-wrapper">
-            <div className="loading-logo-section">
-              <div className="logo-animation">
-                <div className="logo-ring ring-1"></div>
-                <div className="logo-ring ring-2"></div>
-                <div className="logo-ring ring-3"></div>
-                <div className="logo-icon-container">
-                  <Camera className="logo-camera" size={56} />
-                  <div className="logo-sparkle">
-                    <Sparkles size={24} />
-                  </div>
-                </div>
-              </div>
-            </div>
+  useEffect(() => {
+    if (paramId) {
+      fetchMediaById(paramId);
+    }
+  }, [paramId]);
 
-            <div className="loading-text-section">
-              <div className="loading-stage-icon">
-                <span className="stage-icon">{currentStage.icon}</span>
-              </div>
-              <h2 className="loading-main-message">
-                {currentStage.message}
-              </h2>
-              <p className="loading-description">
-                {currentStage.description}
-              </p>
-            </div>
+  useEffect(() => {
+    if (showLiveFeed) {
+      const interval = setInterval(fetchLiveFeed, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [showLiveFeed]);
 
-            <div className="loading-progress-section">
-              <div className="progress-label">
-                <span className="progress-text">Loading gallery</span>
-                <span className="progress-percentage">{Math.min(Math.floor(loadingProgress), 100)}%</span>
-              </div>
-              <div className="glass-progress-bar">
-                <div 
-                  className="glass-progress-fill"
-                  style={{ width: `${Math.min(loadingProgress, 100)}%` }}
-                >
-                  <div className="progress-glow"></div>
-                </div>
-              </div>
-            </div>
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
-            <div className="loading-particles">
-              {[...Array(12)].map((_, i) => (
-                <div 
-                  key={i}
-                  className="particle"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    animationDuration: `${2 + Math.random() * 3}s`
-                  }}
-                />
-              ))}
-            </div>
-
-            <div className="loading-quote">
-              <div className="quote-content">
-                <Compass size={16} />
-                <span>Every picture tells a story</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <style>{`
-          .premium-loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            background: #f8fafc;
-          }
-
-          .loading-gradient-bg {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-          }
-
-          .gradient-orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(80px);
-            animation: floatOrb 20s ease-in-out infinite;
-          }
-
-          .orb-1 {
-            width: 500px;
-            height: 500px;
-            top: -200px;
-            right: -200px;
-            background: radial-gradient(circle, rgba(59,130,246,0.15), rgba(99,102,241,0.05));
-          }
-
-          .orb-2 {
-            width: 400px;
-            height: 400px;
-            bottom: -150px;
-            left: -150px;
-            background: radial-gradient(circle, rgba(139,92,246,0.15), rgba(59,130,246,0.05));
-            animation-delay: -5s;
-          }
-
-          .orb-3 {
-            width: 600px;
-            height: 600px;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: radial-gradient(circle, rgba(6,182,212,0.1), rgba(59,130,246,0.03));
-            animation-delay: -10s;
-          }
-
-          .orb-4 {
-            width: 350px;
-            height: 350px;
-            top: 20%;
-            right: 20%;
-            background: radial-gradient(circle, rgba(245,158,11,0.1), rgba(139,92,246,0.05));
-            animation-delay: -15s;
-          }
-
-          @keyframes floatOrb {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(50px, -50px) scale(1.1); }
-            66% { transform: translate(-30px, 30px) scale(0.9); }
-          }
-
-          .loading-glass-container {
-            position: relative;
-            z-index: 10;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 48px;
-            border: 1px solid rgba(203, 213, 225, 0.3);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-            animation: containerGlow 2s ease-in-out infinite;
-          }
-
-          @keyframes containerGlow {
-            0%, 100% {
-              box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-              border-color: rgba(203, 213, 225, 0.3);
-            }
-            50% {
-              box-shadow: 0 25px 50px -12px rgba(59, 130, 246, 0.2);
-              border-color: rgba(59, 130, 246, 0.3);
-            }
-          }
-
-          .loading-content-wrapper {
-            padding: 60px 80px;
-            text-align: center;
-            min-width: 500px;
-          }
-
-          .loading-logo-section {
-            margin-bottom: 40px;
-          }
-
-          .logo-animation {
-            position: relative;
-            width: 120px;
-            height: 120px;
-            margin: 0 auto;
-          }
-
-          .logo-ring {
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            border: 2px solid transparent;
-            animation: ringPulse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-          }
-
-          .ring-1 {
-            border-top-color: #3b82f6;
-            border-right-color: #3b82f6;
-          }
-
-          .ring-2 {
-            border-bottom-color: #8b5cf6;
-            border-left-color: #8b5cf6;
-            animation-delay: 0.3s;
-            width: 90%;
-            height: 90%;
-            top: 5%;
-            left: 5%;
-          }
-
-          .ring-3 {
-            border-top-color: #06b6d4;
-            border-right-color: #06b6d4;
-            animation-delay: 0.6s;
-            width: 70%;
-            height: 70%;
-            top: 15%;
-            left: 15%;
-          }
-
-          @keyframes ringPulse {
-            0% {
-              transform: scale(0.8);
-              opacity: 0;
-            }
-            50% {
-              transform: scale(1);
-              opacity: 1;
-            }
-            100% {
-              transform: scale(1.2);
-              opacity: 0;
-            }
-          }
-
-          .animate-like {
-            animation: likeAnimation 0.3s ease;
-          }
-
-          @keyframes likeAnimation {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.3); }
-            100% { transform: scale(1); }
-          } 
-
-          .logo-icon-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-
-          .logo-camera {
-            color: #3b82f6;
-            filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.3));
-            animation: cameraPulse 2s ease-in-out infinite;
-          }
-
-          .logo-sparkle {
-            position: absolute;
-            top: -10px;
-            right: -10px;
-            animation: sparkleRotate 3s linear infinite;
-          }
-
-          @keyframes cameraPulse {
-            0%, 100% {
-              transform: scale(1);
-              filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.3));
-            }
-            50% {
-              transform: scale(1.05);
-              filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.5));
-            }
-          }
-
-          @keyframes sparkleRotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-
-          .loading-text-section {
-            margin-bottom: 40px;
-          }
-
-          .loading-stage-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-            animation: bounceIcon 1s ease-in-out infinite;
-          }
-
-          @keyframes bounceIcon {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-          }
-
-          .loading-main-message {
-            font-size: 28px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #1e293b, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 12px;
-            animation: gradientShift 3s ease infinite;
-          }
-
-          @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-
-          .loading-description {
-            color: #64748b;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-          }
-
-          .loading-progress-section {
-            margin-bottom: 40px;
-          }
-
-          .progress-label {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            font-size: 13px;
-            color: #64748b;
-          }
-
-          .progress-text {
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-
-          .progress-percentage {
-            font-weight: 600;
-            color: #3b82f6;
-          }
-
-          .glass-progress-bar {
-            height: 6px;
-            background: #e2e8f0;
-            border-radius: 10px;
-            overflow: hidden;
-          }
-
-          .glass-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
-            border-radius: 10px;
-            position: relative;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-          }
-
-          .progress-glow {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-            animation: shimmer 1.5s infinite;
-          }
-
-          @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-          }
-
-          .loading-particles {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            overflow: hidden;
-          }
-
-          .particle {
-            position: absolute;
-            bottom: -10px;
-            width: 2px;
-            height: 10px;
-            background: linear-gradient(to top, #3b82f6, transparent);
-            border-radius: 2px;
-            animation: particleFloat linear infinite;
-            opacity: 0;
-          }
-
-          @keyframes particleFloat {
-            0% {
-              transform: translateY(0) rotate(0deg);
-              opacity: 0;
-            }
-            10% {
-              opacity: 0.5;
-            }
-            90% {
-              opacity: 0.5;
-            }
-            100% {
-              transform: translateY(-100vh) rotate(360deg);
-              opacity: 0;
-            }
-          }
-
-          .loading-quote {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #e2e8f0;
-          }
-
-          .quote-content {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: #94a3b8;
-            font-size: 12px;
-            letter-spacing: 0.5px;
-          }
-
-          @media (max-width: 768px) {
-            .loading-content-wrapper {
-              padding: 40px 30px;
-              min-width: auto;
-              width: 90%;
-            }
-            .logo-animation {
-              width: 80px;
-              height: 80px;
-            }
-            .logo-camera {
-              width: 40px;
-              height: 40px;
-            }
-            .loading-main-message {
-              font-size: 20px;
-            }
-            .loading-stage-icon {
-              font-size: 36px;
-            }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
+ if (loading && media.length === 0) {
   return (
-    <div className={`gallery-container ${showContent ? 'content-fade-in' : ''}`}>
+    <div className="gallery-page">
       <div className="gallery-content">
-        {/* Header with ZUCA Logo */}
-        <div className="gallery-header">
-          <div className="header-left">
-            <button className="back-btn" onClick={goBack}>
-              <ArrowLeft size={20} />
-            </button>
-            <div className="logo-area">
-              <img src={logo} alt="ZUCA Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-            </div>
-            <div>
-              <h1>ZUCA Media Gallery</h1>
-              <p>{media.length} memories • {trendingMedia.length} trending</p>
-            </div>
-          </div>
-          <div className="header-right">
-            <div className="view-toggle">
-              <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>
-                <LayoutGrid size={18} />
-              </button>
-              <button className={`view-btn ${viewMode === 'compact' ? 'active' : ''}`} onClick={() => setViewMode('compact')}>
-                <Grid3x3 size={18} />
-              </button>
+        {/* Hero Skeleton */}
+        <div className="gallery-hero-skeleton">
+          <div className="hero-skeleton-content">
+            <div className="skeleton-title-large shimmer"></div>
+            <div className="skeleton-text shimmer"></div>
+            <div className="skeleton-stats">
+              <div className="skeleton-stat shimmer"></div>
+              <div className="skeleton-stat shimmer"></div>
+              <div className="skeleton-stat shimmer"></div>
             </div>
           </div>
         </div>
 
-        {/* Trending Section */}
-        {trendingMedia.length > 0 && (
-          <div className="trending-section">
-            <div className="trending-header">
-              <TrendingUp size={20} />
-              <h2>Trending Now</h2>
-              <span className="trending-badge">🔥 Hot</span>
-            </div>
-            <div className="trending-scroll">
-              {trendingMedia.map((item) => (
-                <div key={item.id} className="trending-card" onClick={() => handleSelectMedia(item)}>
-                  <div className="trending-image">
-                    {item.type === 'image' ? (
-                      <LazyImage src={item.url} alt={item.title} />
-                    ) : (
-                      <div className="trending-placeholder">{getMediaIcon(item.type)}</div>
-                    )}
-                    <div className="trending-overlay">
-                      <Play size={24} />
-                    </div>
-                  </div>
-                  <div className="trending-info">
-                    <h4>{item.title}</h4>
-                    <div className="trending-stats">
-                      <span><Eye size={12} /> {item._count?.views || 0}</span>
-                      <span><Heart size={12} /> {item._count?.likes || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Featured Section Skeleton */}
+        <div className="featured-section">
+          <div className="section-header">
+            <div className="skeleton-heading shimmer"></div>
+            <div className="skeleton-badge shimmer"></div>
           </div>
-        )}
-
-        {/* Filters Bar */}
-        <div className="filters-bar">
-          <div className="filter-group">
-            <span className="filter-label">Media Type:</span>
-            <div className="categories">
-              {mediaTypeFilters.map(filter => {
-                const Icon = filter.icon;
-                return (
-                  <button 
-                    key={filter.id} 
-                    onClick={() => setFilters({ ...filters, mediaType: filter.id })} 
-                    className={`category-btn ${filters.mediaType === filter.id ? 'active' : ''}`}
-                  >
-                    <Icon size={16} />
-                    <span>{filter.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          
-          <div className="filter-group">
-            <span className="filter-label">Category:</span>
-            <div className="categories">
-              {categories.map(cat => {
-                const Icon = cat.icon;
-                return (
-                  <button 
-                    key={cat.id} 
-                    onClick={() => setFilters({ ...filters, category: cat.id })} 
-                    className={`category-btn ${filters.category === cat.id ? 'active' : ''}`}
-                  >
-                    <Icon size={16} />
-                    <span>{cat.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          
-          <select 
-            value={filters.sortBy} 
-            onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })} 
-            className="sort-select"
-          >
-            <option value="latest">Latest First</option>
-            <option value="popular">Most Liked</option>
-            <option value="mostViewed">Most Viewed</option>
-          </select>
-        </div>
-
-        {/* Media Grid */}
-        <div className={`media-grid ${viewMode}`}>
-          {media.map((item, index) => (
-            <div 
-              key={item.id} 
-              className="media-card" 
-              onClick={() => handleSelectMedia(item)}
-              style={{ animationDelay: `${index * 0.03}s` }}
-            >
-              <div className="card-image-wrapper">
-                {item.type === 'image' ? (
-                  <LazyImage src={item.url} alt={item.title} className="card-image" />
-                ) : item.type === 'video' ? (
-                  <div className="video-preview">
-                    {item.thumbnailUrl ? (
-                      <LazyImage src={item.thumbnailUrl} alt={item.title} className="card-image" />
-                    ) : (
-                      <div className="media-placeholder">{getMediaIcon(item.type)}</div>
-                    )}
-                    <div className="play-indicator"><Play size={24} /></div>
-                  </div>
-                ) : item.type === 'audio' ? (
-                  <div className="audio-preview">
-                    {item.thumbnailUrl ? (
-                      <LazyImage src={item.thumbnailUrl} alt={item.title} className="card-image" />
-                    ) : (
-                      <div className="media-placeholder">{getMediaIcon(item.type)}</div>
-                    )}
-                    <div className="play-indicator"><Play size={24} /></div>
-                  </div>
-                ) : (
-                  <div className="media-placeholder">{getMediaIcon(item.type)}</div>
-                )}
-                
-                {item.isFeatured && (
-                  <div className="featured-badge">
-                    <Star size={10} /> Featured
-                  </div>
-                )}
-                <button 
-                  className={`save-btn ${savedMedia[item.id] ? 'saved' : ''}`} 
-                  onClick={(e) => { e.stopPropagation(); handleSave(item.id); }}
-                >
-                  <Bookmark size={12} />
-                </button>
-              </div>
-              
-              <div className="card-info">
-                <h3 className="card-title">{item.title}</h3>
-                <div className="card-stats">
-                  <button 
-                    id={`like-${item.id}`}
-                    className={`stat-btn ${likedMedia[item.id] ? 'liked' : ''}`} 
-                    onClick={(e) => { e.stopPropagation(); handleLike(item.id); }}
-                  >
-                    <Heart size={12} /> {item._count?.likes || 0}
-                  </button>
-                  <div className="stat"><Eye size={12} /> {item._count?.views || 0}</div>
-                  <div className="stat"><MessageCircle size={12} /> {item._count?.comments || 0}</div>
+          <div className="featured-grid">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="skeleton-featured-card">
+                <div className="skeleton-featured-thumb shimmer"></div>
+                <div className="skeleton-featured-info">
+                  <div className="skeleton-featured-title shimmer"></div>
+                  <div className="skeleton-featured-stats shimmer"></div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {media.length === 0 && (
-          <div className="empty-state">
-            <Camera size={64} />
-            <h3>No media yet</h3>
-            <p>Be the first to share memories from our community</p>
+        {/* Main Gallery Skeleton */}
+        <div className="main-gallery">
+          <div className="gallery-header">
+            <div className="header-left">
+              <div className="skeleton-heading shimmer"></div>
+              <div className="skeleton-text-small shimmer"></div>
+            </div>
+            <div className="header-actions">
+              <div className="skeleton-btn shimmer"></div>
+              <div className="skeleton-btn shimmer"></div>
+              <div className="skeleton-btn shimmer"></div>
+            </div>
           </div>
-        )}
+
+          <div className="media-grid">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} className="skeleton-media-card">
+                <div className="skeleton-media-thumb shimmer"></div>
+                <div className="skeleton-media-info">
+                  <div className="skeleton-media-title shimmer"></div>
+                  <div className="skeleton-media-stats shimmer"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-
-      {/* Media Modal */}
-      {selectedMedia && (
-        <div className="media-modal" onClick={() => setSelectedMedia(null)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <button className="modal-close" onClick={() => setSelectedMedia(null)}>
-                <X size={24} />
-              </button>
-              <h2>{selectedMedia.title}</h2>
-              <div className="modal-actions">
-                <button onClick={() => handleSave(selectedMedia.id)}><Bookmark size={20} className={savedMedia[selectedMedia.id] ? 'saved' : ''} /></button>
-                <button onClick={() => handleShare(selectedMedia)}><Share2 size={20} /></button>
-                <button onClick={() => handleDownload(selectedMedia)}><Download size={20} /></button>
-              </div>
-            </div>
-            
-            <div className="modal-body">
-              <div className="modal-media-wrapper">
-                {selectedMedia.type === 'image' ? (
-                  <div className="image-container">
-                    <img src={selectedMedia.url} alt={selectedMedia.title} />
-                  </div>
-                ) : (
-                  <AdaptiveMediaPlayer 
-                    src={selectedMedia.url} 
-                    thumbnailUrl={selectedMedia.thumbnailUrl}
-                    title={selectedMedia.title}
-                    type={selectedMedia.type}
-                    autoPlay={true}
-                  />
-                )}
-              </div>
-              
-              <div className="modal-info">
-                {selectedMedia.description && (
-                  <p className="modal-description">{selectedMedia.description}</p>
-                )}
-                
-                <div className="modal-stats">
-                  <button 
-                    id={`like-${selectedMedia.id}`}
-                    className={`stat-large ${likedMedia[selectedMedia.id] ? 'liked' : ''}`} 
-                    onClick={() => handleLike(selectedMedia.id)}
-                  >
-                    <ThumbsUp size={18} /> {selectedMedia._count?.likes || 0} Likes
-                  </button>
-                  <div className="stat-large"><Eye size={18} /> {selectedMedia._count?.views || 0} Views</div>
-                  <div className="stat-large"><MessageCircle size={18} /> {selectedMedia._count?.comments || 0} Comments</div>
-                </div>
-                
-                <div className="modal-meta">
-                  <span>📅 {formatDate(selectedMedia.createdAt)}</span>
-                  <span>👤 {selectedMedia.uploadedBy?.fullName || 'Anonymous'}</span>
-                </div>
-                
-                <div className="comments-section">
-                  <h3><MessageCircle size={18} /> Comments ({commentsPagination.total})</h3>
-                  
-                  {user ? (
-                    <div className="comment-input">
-                      <input 
-                        type="text" 
-                        value={comment} 
-                        onChange={(e) => setComment(e.target.value)} 
-                        placeholder={commentLoading ? "Posting comment..." : "Add a comment..."}
-                        onKeyPress={(e) => e.key === 'Enter' && !commentLoading && handleComment()} 
-                        disabled={commentLoading}
-                      />
-                      <button onClick={handleComment} disabled={!comment.trim() || commentLoading}>
-                        {commentLoading ? (
-                          <>
-                            <div className="btn-spinner-small"></div>
-                            Posting...
-                          </>
-                        ) : (
-                          <>
-                            <Send size={14} /> Post
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="login-prompt">Please <a href="/login">login</a> to comment</div>
-                  )}
-                  
-                  <div className="comments-list">
-                    {comments.map((c) => (
-                      <div key={c.id} className="comment-item">
-                        <div className="comment-avatar">
-                          <div className="avatar-placeholder">{c.user?.fullName?.charAt(0) || 'A'}</div>
-                        </div>
-                        <div className="comment-content">
-                          <div className="comment-header">
-                            <span className="comment-author">{c.user?.fullName || 'Anonymous'}</span>
-                            <span className="comment-date">{timeAgo(c.createdAt)}</span>
-                          </div>
-                          <p>{c.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Share Modal */}
-      {showShareModal && (
-        <div className="share-modal" onClick={() => setShowShareModal(false)}>
-          <div className="share-modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Share this media</h3>
-            <div className="share-url">
-              <input type="text" value={`${window.location.origin}/gallery?media=${selectedMedia?.id}`} readOnly />
-              <button onClick={() => copyToClipboard(`${window.location.origin}/gallery?media=${selectedMedia?.id}`)}>
-                {copied ? <Check size={18} /> : <Copy size={18} />} {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
+        /* Skeleton Loading Styles */
+        .shimmer {
+          background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
         }
 
-        .gallery-container {
-          min-height: 100vh;
-          background: #f8fafc;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
 
-        .content-fade-in {
-          animation: contentFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes contentFadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .gallery-content {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 24px;
-        }
-
-        .gallery-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 28px;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .back-btn {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: #64748b;
-        }
-
-        .back-btn:hover {
-          background: #f1f5f9;
-          transform: translateX(-2px);
-        }
-
-        .logo-area {
-          width: 48px;
-          height: 48px;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .header-left h1 {
-          font-size: 24px;
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 4px;
-        }
-
-        .header-left p {
-          font-size: 13px;
-          color: #64748b;
-        }
-
-        .view-toggle {
-          display: flex;
-          gap: 8px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          padding: 4px;
-        }
-
-        .view-btn {
-          padding: 8px 12px;
-          border-radius: 8px;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          color: #94a3b8;
-          transition: all 0.2s;
-        }
-
-        .view-btn.active {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .trending-section {
-          background: white;
-          border-radius: 20px;
-          padding: 20px;
-          margin-bottom: 28px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .trending-header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-
-        .trending-header h2 {
-          font-size: 18px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .trending-badge {
-          padding: 2px 8px;
-          background: #fef3c7;
-          border-radius: 12px;
-          color: #d97706;
-          font-size: 11px;
-          font-weight: 600;
-        }
-
-        .trending-scroll {
-          display: flex;
-          gap: 16px;
-          overflow-x: auto;
-          padding-bottom: 8px;
-        }
-
-        .trending-scroll::-webkit-scrollbar {
-          height: 6px;
-        }
-
-        .trending-scroll::-webkit-scrollbar-track {
-          background: #f1f5f9;
-          border-radius: 10px;
-        }
-
-        .trending-scroll::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-
-        .trending-card {
-          min-width: 180px;
-          background: #f8fafc;
-          border-radius: 12px;
-          overflow: hidden;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: 1px solid #e2e8f0;
-        }
-
-        .trending-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-        }
-
-        .trending-image {
-          position: relative;
-          aspect-ratio: 16/9;
-          background: #e2e8f0;
-        }
-
-        .trending-image img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .trending-placeholder {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #94a3b8;
-        }
-
-        .trending-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity 0.2s;
-        }
-
-        .trending-card:hover .trending-overlay {
-          opacity: 1;
-        }
-
-        .trending-info {
-          padding: 10px;
-        }
-
-        .trending-info h4 {
-          font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 4px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .trending-stats {
-          display: flex;
-          gap: 12px;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .trending-stats span {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .filters-bar {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          margin-bottom: 28px;
-        }
-
-        .filter-group {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-
-        .filter-label {
-          font-size: 13px;
-          font-weight: 600;
-          color: #475569;
-        }
-
-        .categories {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .category-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 16px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 30px;
-          color: #475569;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .category-btn:hover {
-          background: #f1f5f9;
-        }
-
-        .category-btn.active {
-          background: #3b82f6;
-          border-color: #3b82f6;
-          color: white;
-        }
-
-        .sort-select {
-          align-self: flex-end;
-          padding: 6px 14px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 30px;
-          color: #1e293b;
-          font-size: 13px;
-          cursor: pointer;
-        }
-
-        .media-grid {
-          display: grid;
-          gap: 20px;
-        }
-
-        .media-grid.grid {
-          grid-template-columns: repeat(4, 1fr);
-        }
-
-        .media-grid.compact {
-          grid-template-columns: repeat(5, 1fr);
-        }
-
-        @media (max-width: 1200px) {
-          .media-grid.grid { grid-template-columns: repeat(3, 1fr); }
-          .media-grid.compact { grid-template-columns: repeat(4, 1fr); }
-        }
-
-        @media (max-width: 900px) {
-          .media-grid.grid { grid-template-columns: repeat(2, 1fr); }
-          .media-grid.compact { grid-template-columns: repeat(3, 1fr); }
-        }
-
-        @media (max-width: 600px) {
-          .media-grid.grid, .media-grid.compact { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        .media-card {
-          background: white;
-          border-radius: 12px;
-          overflow: hidden;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          border: 1px solid #e2e8f0;
-          animation: fadeInUp 0.4s ease forwards;
-          opacity: 0;
-        }
-
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(15px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .media-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-          border-color: #cbd5e1;
-        }
-
-        .card-image-wrapper {
-          position: relative;
-          aspect-ratio: 1/1;
-          background: #f1f5f9;
-          overflow: hidden;
-        }
-
-        .card-image {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transition: transform 0.3s ease;
-        }
-
-        .media-card:hover .card-image {
-          transform: scale(1.05);
-        }
-
-        .video-preview, .audio-preview {
-          position: relative;
-          width: 100%;
-          height: 100%;
-        }
-
-        .media-placeholder {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, #e2e8f0, #f1f5f9);
-          color: #94a3b8;
-        }
-
-        .play-indicator {
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity 0.2s;
-        }
-
-        .video-preview:hover .play-indicator,
-        .audio-preview:hover .play-indicator {
-          opacity: 1;
-        }
-
-        .featured-badge {
-          position: absolute;
-          top: 8px;
-          left: 8px;
-          padding: 3px 8px;
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          border-radius: 16px;
-          color: white;
-          font-size: 9px;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .save-btn {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          width: 28px;
-          height: 28px;
-          background: rgba(0,0,0,0.5);
-          border: none;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          color: white;
-          transition: all 0.2s;
-          backdrop-filter: blur(4px);
-        }
-
-        .save-btn:hover {
-          transform: scale(1.05);
-        }
-
-        .save-btn.saved {
-          color: #f59e0b;
-        }
-
-        .card-info {
-          padding: 10px;
-        }
-
-        .card-title {
-          font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 6px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .card-stats {
-          display: flex;
-          gap: 12px;
-        }
-
-        .stat-btn, .stat {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 10px;
-          color: #64748b;
-          background: none;
-          border: none;
-          cursor: pointer;
-        }
-
-        .stat-btn.liked {
-          color: #ef4444;
-        }
-
-        .lazy-image-container {
-          position: relative;
-          width: 100%;
-          height: 100%;
-        }
-
-        .image-loader {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f1f5f9;
-        }
-
-        .loader-spinner {
-          width: 24px;
-          height: 24px;
-          border: 2px solid #e2e8f0;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        img.hidden {
-          opacity: 0;
-        }
-
-        img.loaded {
-          opacity: 1;
-          transition: opacity 0.3s ease;
-        }
-
-        .btn-spinner-small {
-          width: 14px;
-          height: 14px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-          margin-right: 6px;
-        }
-
-        .empty-state {
+        .gallery-hero-skeleton {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+          padding: 80px 40px 120px;
           text-align: center;
-          padding: 60px 20px;
-          background: white;
+        }
+
+        .hero-skeleton-content {
+          max-width: 600px;
+          margin: 0 auto;
+        }
+
+        .skeleton-title-large {
+          width: 300px;
+          height: 48px;
+          margin: 0 auto 16px;
+          border-radius: 12px;
+        }
+
+        .skeleton-text {
+          width: 400px;
+          height: 24px;
+          margin: 0 auto 32px;
+          border-radius: 8px;
+        }
+
+        .skeleton-stats {
+          display: flex;
+          justify-content: center;
+          gap: 32px;
+        }
+
+        .skeleton-stat {
+          width: 100px;
+          height: 20px;
+          border-radius: 8px;
+        }
+
+        .skeleton-heading {
+          width: 200px;
+          height: 32px;
+          border-radius: 8px;
+        }
+
+        .skeleton-badge {
+          width: 80px;
+          height: 30px;
           border-radius: 20px;
-          border: 1px solid #e2e8f0;
         }
 
-        .empty-state svg {
-          color: #cbd5e1;
-          margin-bottom: 16px;
+        .skeleton-btn {
+          width: 80px;
+          height: 38px;
+          border-radius: 10px;
         }
 
-        .empty-state h3 {
-          font-size: 18px;
-          color: #1e293b;
+        .skeleton-text-small {
+          width: 150px;
+          height: 16px;
+          border-radius: 6px;
+          margin-top: 8px;
+        }
+
+        .skeleton-featured-card {
+          border-radius: 16px;
+          overflow: hidden;
+          background: white;
+        }
+
+        .skeleton-featured-thumb {
+          aspect-ratio: 16/9;
+          width: 100%;
+        }
+
+        .skeleton-featured-info {
+          padding: 16px;
+        }
+
+        .skeleton-featured-title {
+          width: 80%;
+          height: 20px;
+          border-radius: 6px;
           margin-bottom: 8px;
         }
 
-        .empty-state p {
-          color: #64748b;
-        }
-
-        .media-modal {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.85);
-          z-index: 1000;
-          display: flex;
-          margin-top: -0px;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-
-        .modal-container {
-          width: 90vw;
-          max-width: 1200px;
-          height: 85vh;
-          background: white;
-          border-radius: 20px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .modal-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 14px 20px;
-          border-bottom: 1px solid #e2e8f0;
-          flex-shrink: 0;
-        }
-
-        .modal-close {
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          background: #f1f5f9;
-          border: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          color: #64748b;
-          transition: all 0.2s;
-        }
-
-        .modal-close:hover {
-          background: #e2e8f0;
-          transform: rotate(90deg);
-        }
-
-        .modal-header h2 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          flex: 1;
-          margin: 0 16px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .modal-actions {
-          display: flex;
-          gap: 12px;
-        }
-
-        .modal-actions button {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: #64748b;
-          transition: all 0.2s;
-          padding: 4px;
+        .skeleton-featured-stats {
+          width: 60%;
+          height: 16px;
           border-radius: 6px;
         }
 
-        .modal-actions button:hover {
-          color: #3b82f6;
-          background: #f1f5f9;
-        }
-
-        .modal-body {
-          display: flex;
-          flex-direction: row;
-          flex: 1;
-          overflow: hidden;
-          min-height: 0;
-        }
-
-        .modal-media-wrapper {
-          flex: 2;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #000000;
-          padding: 0;
-          overflow: hidden;
-          min-width: 0;
-        }
-
-        .image-container {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .image-container img {
-          max-width: 100%;
-          max-height: 100%;
-          width: auto;
-          height: auto;
-          object-fit: contain;
-          display: block;
-        }
-
-        .video-player-card {
-          width: 100%;
-          height: 100%;
-          background: #000000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .video-thumbnail {
-          position: relative;
-          cursor: pointer;
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .video-thumbnail img {
-          max-width: 100%;
-          max-height: 100%;
-          width: auto;
-          height: auto;
-          object-fit: contain;
-        }
-
-        .play-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          transition: all 0.2s;
-        }
-
-        .play-overlay:hover {
-          background: rgba(0,0,0,0.5);
-        }
-
-        .play-button-circle {
-          width: 80px;
-          height: 80px;
-          background: rgba(59, 130, 246, 0.9);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s ease;
-          backdrop-filter: blur(4px);
-        }
-
-        .play-button-circle:hover {
-          transform: scale(1.1);
-          background: #3b82f6;
-        }
-
-        .video-element {
-          max-width: 100%;
-          max-height: 100%;
-          width: auto;
-          height: auto;
-          object-fit: contain;
-        }
-
-        .audio-player-card {
-          width: 100%;
-          max-width: 450px;
-          margin: 0 auto;
-          background: #f8fafc;
-          border-radius: 16px;
-          padding: 24px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .audio-artwork {
-          width: 150px;
-          height: 150px;
-          border-radius: 16px;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .audio-artwork img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          border-radius: 16px;
-        }
-
-        .audio-info {
-          width: 100%;
-          text-align: center;
-        }
-
-        .audio-info h4 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 16px;
-        }
-
-        .audio-controls {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-
-        .audio-play-btn {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: #3b82f6;
-          border: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          color: white;
-          transition: all 0.2s;
-        }
-
-        .audio-play-btn:hover {
-          transform: scale(1.05);
-          background: #2563eb;
-        }
-
-        .audio-progress {
-          flex: 1;
-          min-width: 180px;
-        }
-
-        .progress-track {
-          height: 4px;
-          background: #e2e8f0;
-          border-radius: 2px;
-          cursor: pointer;
-          margin-bottom: 6px;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: #3b82f6;
-          border-radius: 2px;
-          width: 0%;
-          transition: width 0.1s linear;
-        }
-
-        .audio-time {
-          font-size: 11px;
-          color: #64748b;
-          font-family: monospace;
-        }
-
-        .audio-volume-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: #64748b;
-          padding: 8px;
-          border-radius: 50%;
-          transition: all 0.2s;
-        }
-
-        .audio-volume-btn:hover {
-          background: #e2e8f0;
-        }
-
-        .modal-info {
-          width: 340px;
-          padding: 20px;
-          overflow-y: auto;
-          border-left: 1px solid #e2e8f0;
-          flex-shrink: 0;
+        .skeleton-media-card {
           background: white;
-        }
-
-        .modal-description {
-          color: #475569;
-          font-size: 13px;
-          line-height: 1.5;
-          margin-bottom: 16px;
-        }
-
-        .modal-stats {
-          display: flex;
-          gap: 20px;
-          padding: 12px 0;
-          border-top: 1px solid #e2e8f0;
-          border-bottom: 1px solid #e2e8f0;
-          margin-bottom: 16px;
-        }
-
-        .stat-large {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          color: #475569;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 4px 8px;
-          border-radius: 8px;
-          transition: all 0.2s;
-        }
-
-        .stat-large:hover {
-          background: #f1f5f9;
-        }
-
-        .stat-large.liked {
-          color: #ef4444;
-        }
-
-        .modal-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          font-size: 11px;
-          color: #64748b;
-          margin-bottom: 20px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .comments-section h3 {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 12px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .comment-input {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-
-        .comment-input input {
-          flex: 1;
-          padding: 8px 14px;
+          border-radius: 16px;
+          overflow: hidden;
           border: 1px solid #e2e8f0;
-          border-radius: 24px;
-          outline: none;
-          font-size: 12px;
-          transition: border-color 0.2s;
         }
 
-        .comment-input input:focus {
-          border-color: #3b82f6;
+        .skeleton-media-thumb {
+          aspect-ratio: 16/9;
+          width: 100%;
         }
 
-        .comment-input input:disabled {
-          background: #f8fafc;
-          cursor: not-allowed;
-        }
-
-        .comment-input button {
-          padding: 6px 16px;
-          background: #3b82f6;
-          border: none;
-          border-radius: 24px;
-          color: white;
-          font-size: 12px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          transition: all 0.2s;
-        }
-
-        .comment-input button:hover:not(:disabled) {
-          background: #2563eb;
-        }
-
-        .comment-input button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .login-prompt {
-          text-align: center;
+        .skeleton-media-info {
           padding: 12px;
-          background: #f8fafc;
-          border-radius: 12px;
-          margin-bottom: 16px;
-          font-size: 12px;
-          color: #64748b;
         }
 
-        .login-prompt a {
-          color: #3b82f6;
-          text-decoration: none;
+        .skeleton-media-title {
+          width: 85%;
+          height: 18px;
+          border-radius: 6px;
+          margin-bottom: 8px;
         }
 
-        .comments-list {
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .comment-item {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 14px;
-          padding: 8px;
-          border-radius: 12px;
-          transition: background 0.2s;
-        }
-
-        .comment-item:hover {
-          background: #f8fafc;
-        }
-
-        .comment-avatar {
-          width: 32px;
-          height: 32px;
-          flex-shrink: 0;
-        }
-
-        .avatar-placeholder {
-          width: 32px;
-          height: 32px;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .comment-content {
-          flex: 1;
-        }
-
-        .comment-header {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 4px;
-          flex-wrap: wrap;
-          gap: 4px;
-        }
-
-        .comment-author {
-          font-size: 12px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .comment-date {
-          font-size: 10px;
-          color: #94a3b8;
-        }
-
-        .comment-content p {
-          font-size: 12px;
-          color: #475569;
-          line-height: 1.4;
-        }
-
-        .share-modal {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 1100;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .share-modal-content {
-          background: white;
-          border-radius: 16px;
-          padding: 20px;
-          width: 360px;
-          max-width: 90%;
-        }
-
-        .share-modal-content h3 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 16px;
-        }
-
-        .share-url {
-          display: flex;
-          gap: 10px;
-        }
-
-        .share-url input {
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 11px;
-        }
-
-        .share-url button {
-          padding: 8px 14px;
-          background: #3b82f6;
-          border: none;
-          border-radius: 8px;
-          color: white;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
+        .skeleton-media-stats {
+          width: 50%;
+          height: 14px;
+          border-radius: 6px;
         }
 
         @media (max-width: 768px) {
-          .media-modal {
-            padding: 0;
-             padding-top: 50px;
-          }
-          
-          .modal-container {
-            width: 100vw;
-            height: 100vh;
-            border-radius: 0;
-          }
-          
-          .modal-body {
-            flex-direction: column;
-          }
-          
-          .modal-media-wrapper {
-            flex: 1;
-            max-height: 55vh;
-          }
-          
-          .modal-info {
-            width: 100%;
-            max-height: 45vh;
-            border-left: none;
-            border-top: 1px solid #e2e8f0;
-          }
-          
-          .image-container img {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-          }
-          
-          .video-element {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-          }
-          
-          .audio-player-card {
-            padding: 16px;
-          }
-          
-          .audio-artwork {
-            width: 100px;
-            height: 100px;
-          }
-          
-          .audio-progress {
-            min-width: 120px;
-          }
-          
-          .gallery-content {
-            padding: 16px;
-          }
-          
-          .filter-group {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .sort-select {
-            align-self: stretch;
-          }
+          .gallery-hero-skeleton { padding: 60px 20px 80px; }
+          .skeleton-title-large { width: 220px; height: 36px; }
+          .skeleton-text { width: 280px; height: 18px; }
+          .skeleton-stat { width: 70px; height: 16px; }
         }
       `}</style>
     </div>
   );
 }
+
+  return (
+    <div className="gallery-page">
+      <div className="gallery-content">
+        {/* Hero Section */}
+        <div className="gallery-hero">
+           <button className="back-button" onClick={() => navigate(-1)}>
+    <FiChevronLeft size={24} /> Back
+  </button>
+          <div className="hero-overlay"></div>
+          <div className="hero-content">
+            <h1>ZUCA Media Gallery</h1>
+            <p>Experience inspiring moments, teachings, and worship from our community</p>
+            <div className="hero-stats">
+              <span><FiImage /> {formatNumber(pagination.total)} Media Items</span>
+              <span><FiEye /> Community Shared</span>
+              <span><FiHeart /> Blessed Moments</span>
+            </div>
+          </div>
+          <div className="hero-wave">
+            <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+              <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" fill="white"></path>
+            </svg>
+          </div>
+        </div>
+
+        {/* Featured Section */}
+        {featuredMedia.length > 0 && (
+          <div className="featured-section">
+            <div className="section-header">
+              <h2><FiStar /> Featured Media</h2>
+              <span className="section-badge">⭐ Staff Picks</span>
+            </div>
+            <div className="featured-grid">
+              {featuredMedia.slice(0, 6).map((item, index) => (
+                <div key={item.id} className="featured-card" onClick={() => selectMedia(item, media.findIndex(m => m.id === item.id))}>
+                  <div className="featured-thumbnail">
+                    {item.type === 'image' ? (
+                      <img src={item.thumbnailUrl || item.url} alt={item.title} loading="lazy" />
+                    ) : item.type === 'video' ? (
+                      <video src={item.url} muted />
+                    ) : (
+                      <div className="featured-placeholder"><FiMusic size={48} /></div>
+                    )}
+                    <div className="featured-overlay">
+                      <FiPlayCircle size={48} />
+                      <span>Play Now</span>
+                    </div>
+                  </div>
+                  <div className="featured-info">
+                    <h3>{item.title}</h3>
+                    <div className="featured-stats">
+                      <span><FiEye /> {formatNumber(item._count?.views)}</span>
+                      <span><FiHeart /> {formatNumber(item._count?.likes)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Main Gallery Section */}
+        <div className="main-gallery">
+          <div className="gallery-header">
+            <div className="header-left">
+              <h2>Media Gallery</h2>
+              <p>Browse all {pagination.total} media items</p>
+            </div>
+            <div className="header-actions">
+              <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
+                <FiRefreshCw className={refreshing ? 'spinning' : ''} />
+              </button>
+              <button className="live-feed-btn" onClick={() => setShowLiveFeed(!showLiveFeed)}>
+                <FiTrendingUp /> Live Feed
+              </button>
+              <button className="filter-toggle" onClick={() => setShowFilters(!showFilters)}>
+                <FiFilter /> Filters <FiChevronDown className={showFilters ? 'rotated' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Filters Panel */}
+          <AnimatePresence>
+            {showFilters && (
+              <div className="filters-panel">
+                <div className="filters-grid">
+                  <div className="filter-group">
+                    <label><FiImage /> Media Type</label>
+                    <div className="filter-buttons">
+                      <button className={filters.type === 'all' ? 'active' : ''} onClick={() => changeFilter('type', 'all')}>All</button>
+                      <button className={filters.type === 'image' ? 'active' : ''} onClick={() => changeFilter('type', 'image')}>Photos</button>
+                      <button className={filters.type === 'video' ? 'active' : ''} onClick={() => changeFilter('type', 'video')}>Videos</button>
+                      <button className={filters.type === 'audio' ? 'active' : ''} onClick={() => changeFilter('type', 'audio')}>Audio</button>
+                    </div>
+                  </div>
+                  <div className="filter-group">
+                    <label><FiTag /> Category</label>
+                    <div className="filter-buttons">
+                      <button className={filters.category === 'all' ? 'active' : ''} onClick={() => changeFilter('category', 'all')}>All</button>
+                      {categories.map(cat => (
+                        <button key={cat} className={filters.category === cat ? 'active' : ''} onClick={() => changeFilter('category', cat)}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="filter-group">
+                    <label><FiTrendingUp /> Sort By</label>
+                    <div className="filter-buttons">
+                      <button className={filters.sortBy === 'latest' ? 'active' : ''} onClick={() => changeFilter('sortBy', 'latest')}>Latest</button>
+                      <button className={filters.sortBy === 'popular' ? 'active' : ''} onClick={() => changeFilter('sortBy', 'popular')}>Most Liked</button>
+                      <button className={filters.sortBy === 'mostViewed' ? 'active' : ''} onClick={() => changeFilter('sortBy', 'mostViewed')}>Most Viewed</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* View Toggle */}
+          <div className="view-controls">
+            <div className="view-toggle">
+              <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}><FiGrid /></button>
+              <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}><FiList /></button>
+            </div>
+            <div className="view-info">Showing {media.length} of {pagination.total} items</div>
+          </div>
+
+          {/* Media Grid */}
+          <div className={`media-container ${viewMode}`}>
+            {media.length === 0 ? (
+              <div className="empty-state">
+                <FiImage size={64} />
+                <h3>No media found</h3>
+                <button onClick={() => setFilters({ category: "all", type: "all", sortBy: "latest", featured: false })}>Clear Filters</button>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="media-grid">
+                {media.map((item, index) => (
+                  <div key={item.id} className={`media-card ${selectedMedia?.id === item.id ? 'active' : ''}`} onClick={() => selectMedia(item, index)}>
+                    <div className="media-thumbnail">
+                      {item.type === 'image' ? (
+                        <img src={item.thumbnailUrl || item.url} alt={item.title} loading="lazy" />
+                      ) : item.type === 'video' ? (
+                        <video src={item.url} muted />
+                      ) : (
+                        <div className="media-placeholder"><FiMusic size={32} /></div>
+                      )}
+                      {item.type === 'video' && <div className="video-badge"><FiPlay /></div>}
+                      {item.type === 'audio' && <div className="audio-badge"><FiMusic /></div>}
+                      {item.isFeatured && <div className="featured-badge"><FiStar /></div>}
+                      <div className="media-hover-overlay"><FiPlayCircle size={32} /><span>Click to Play</span></div>
+                    </div>
+                    <div className="media-info">
+                      <h4 className="media-title">{item.title}</h4>
+                      <div className="media-stats">
+                        <span><FiEye /> {formatNumber(item._count?.views)}</span>
+                        <span><FiHeart /> {formatNumber(item._count?.likes)}</span>
+                        <span><FiMessageCircle /> {formatNumber(item._count?.comments)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="media-list">
+                <table className="media-table">
+                  <thead><tr><th>Type</th><th>Title</th><th>Views</th><th>Likes</th><th>Date</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {media.map((item, idx) => (
+                      <tr key={item.id} onClick={() => selectMedia(item, idx)}>
+                        <td>{item.type === 'image' ? <FiImage /> : item.type === 'video' ? <FiVideo /> : <FiMusic />}</td>
+                        <td>{item.title}</td>
+                        <td>{formatNumber(item._count?.views)}</td>
+                        <td>{formatNumber(item._count?.likes)}</td>
+                        <td>{formatRelativeTime(item.createdAt)}</td>
+                        <td><button onClick={(e) => { e.stopPropagation(); selectMedia(item, idx); }}><FiPlay /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="pagination">
+              <button onClick={() => changePage(pagination.page - 1)} disabled={pagination.page === 1}><FiChevronLeft /> Previous</button>
+              <span>Page {pagination.page} of {pagination.totalPages}</span>
+              <button onClick={() => changePage(pagination.page + 1)} disabled={pagination.page === pagination.totalPages}>Next <FiChevronRight /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Live Feed Sidebar */}
+        <AnimatePresence>
+          {showLiveFeed && (
+            <div className="live-feed-sidebar">
+              <div className="live-feed-header"><h3><FiTrendingUp /> Live Activity</h3><button onClick={() => setShowLiveFeed(false)}><FiX /></button></div>
+              <div className="live-feed-content">
+                {liveFeed.map((activity) => (
+                  <div key={activity.id} className="feed-item">
+                    <div className="feed-icon">{activity.icon}</div>
+                    <div className="feed-details">
+                      <div className="feed-user"><strong>{activity.userName}</strong><span>{activity.timeAgo}</span></div>
+                      <div className="feed-action">{activity.action} "{activity.mediaTitle?.substring(0, 40)}"</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Media Player Modal - FULL SCREEN */}
+        <AnimatePresence>
+          {selectedMedia && (
+            <div className="player-modal-overlay" onClick={() => setSelectedMedia(null)}>
+              <div className="player-modal" onClick={e => e.stopPropagation()}>
+                <div className="player-modal-header">
+                  <h3>{selectedMedia.title}</h3>
+                  <button onClick={() => setSelectedMedia(null)}><FiX /></button>
+                </div>
+                
+                <div className="player-modal-body">
+                  <div className="player-wrapper" ref={playerContainerRef}>
+                    
+                  
+{selectedMedia.type === 'image' && (
+  <>
+    <div 
+      className={`image-fullscreen-overlay ${isImageFullscreen ? 'active' : ''}`}
+      onClick={toggleImageFullscreen}
+    />
+    <div className="image-player-container">
+      <img 
+        src={selectedMedia.url} 
+        alt={selectedMedia.title} 
+        className={`player-image ${isImageFullscreen ? 'fullscreen-image' : ''}`}
+        onClick={isImageFullscreen ? toggleImageFullscreen : undefined}
+      />
+      <button 
+        onClick={toggleImageFullscreen} 
+        className="fullscreen-toggle-btn"
+        title={isImageFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+      >
+        {isImageFullscreen ? <FiMinimize2 size={20} /> : <FiMaximize2 size={20} />}
+      </button>
+    </div>
+  </>
+)}             
+                    {selectedMedia.type === 'video' && (
+                      <>
+                        <video ref={videoRef} src={selectedMedia.url} className="player-video" onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={() => setIsPlaying(false)} />
+                        <div className="player-controls">
+                          <button onClick={playPrevious} className="control-btn" disabled={currentIndex <= 0}><FiSkipBack size={20} /></button>
+                          <button onClick={togglePlay} className="control-btn play-btn">{isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}</button>
+                          <button onClick={playNext} className="control-btn" disabled={currentIndex >= media.length - 1}><FiSkipForward size={20} /></button>
+                          <div className="progress-container">
+                            <span className="time-current">{formatTime(currentTime)}</span>
+                            <input type="range" min="0" max={duration || 100} value={currentTime} onChange={handleSeek} className="progress-slider" />
+                            <span className="time-duration">{formatTime(duration)}</span>
+                          </div>
+                          <button onClick={toggleLoop} className={`control-btn ${isLooping ? 'active' : ''}`}><FiRepeat size={18} /></button>
+                          <div className="volume-control">
+                            <button onClick={toggleMute} className="control-btn">{isMuted ? <FiVolumeX size={18} /> : <FiVolume2 size={18} />}</button>
+                            <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="volume-slider" />
+                          </div>
+                          <button onClick={toggleFullscreen} className="control-btn">{isFullscreen ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}</button>
+                        </div>
+                      </>
+                    )}
+                    
+                    {selectedMedia.type === 'audio' && (
+                      <div className="audio-player-modal">
+                        <div className="audio-artwork"><FiMusic size={80} /></div>
+                        <audio ref={audioRef} src={selectedMedia.url} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={() => setIsPlaying(false)} />
+                        <div className="audio-controls-modal">
+                          <button onClick={playPrevious} className="control-btn" disabled={currentIndex <= 0}><FiSkipBack size={24} /></button>
+                          <button onClick={togglePlay} className="control-btn play-btn">{isPlaying ? <FiPause size={32} /> : <FiPlay size={32} />}</button>
+                          <button onClick={playNext} className="control-btn" disabled={currentIndex >= media.length - 1}><FiSkipForward size={24} /></button>
+                          <div className="progress-container">
+                            <span className="time-current">{formatTime(currentTime)}</span>
+                            <input type="range" min="0" max={duration || 100} value={currentTime} onChange={handleSeek} className="progress-slider" />
+                            <span className="time-duration">{formatTime(duration)}</span>
+                          </div>
+                          <button onClick={toggleLoop} className={`control-btn ${isLooping ? 'active' : ''}`}><FiRepeat size={20} /></button>
+                          <div className="volume-control">
+                            <button onClick={toggleMute} className="control-btn">{isMuted ? <FiVolumeX size={20} /> : <FiVolume2 size={20} />}</button>
+                            <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="volume-slider" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="player-info-section">
+                    <div className="player-stats-grid">
+                      <div className="stat-item"><FiEye /><span>{formatNumber(selectedMedia._count?.views)}</span><small>Views</small></div>
+                      <div className="stat-item clickable" onClick={handleLike}>{userLiked ? <FaHeart color="#ef4444" /> : <FiHeart />}<span>{formatNumber(selectedMedia._count?.likes)}</span><small>{userLiked ? 'Liked' : 'Like'}</small></div>
+                      <div className="stat-item"><FiMessageCircle /><span>{formatNumber(selectedMedia._count?.comments)}</span><small>Comments</small></div>
+                      <div className="stat-item clickable" onClick={handleDownload}><FiDownload /><span>{formatNumber(selectedMedia._count?.downloads)}</span><small>Download</small></div>
+                      <div className="stat-item clickable" onClick={() => setShowShareModal(true)}><FiShare2 /><span>{formatNumber(selectedMedia._count?.shares)}</span><small>Share</small></div>
+                    </div>
+
+                    <div className="player-description"><h4>Description</h4><p>{selectedMedia.description || "No description available."}</p></div>
+
+                    <div className="player-details">
+                      <div className="detail-row"><FiUser /> <strong>Uploaded by:</strong> {selectedMedia.uploadedBy?.fullName || 'Admin'}</div>
+                      <div className="detail-row"><FiCalendar /> <strong>Uploaded:</strong> {formatRelativeTime(selectedMedia.createdAt)}</div>
+                      {selectedMedia.category && <div className="detail-row"><FiTag /> <strong>Category:</strong> {selectedMedia.category}</div>}
+                    </div>
+
+                    <div className="comments-section">
+                      <h4><FiMessageCircle /> Comments ({selectedMedia._count?.comments || 0})</h4>
+                      <div className="comments-list">
+                        {comments.length === 0 ? <div className="no-comments">No comments yet. Be the first!</div> : comments.map(comment => (
+                          <div key={comment.id} className="comment-item">
+                            <div className="comment-avatar">{comment.user?.fullName?.charAt(0) || 'U'}</div>
+                            <div className="comment-content">
+                              <div className="comment-header"><strong>{comment.user?.fullName || 'Anonymous'}</strong><span>{formatRelativeTime(comment.createdAt)}</span></div>
+                              <p>{comment.content}</p>
+                            </div>
+                            {(comment.userId === localStorage.getItem("userId") || selectedMedia.uploadedBy?.id === localStorage.getItem("userId")) && (
+                              <button className="delete-comment" onClick={() => handleDeleteComment(comment.id)}><FiTrash2 /></button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {isAuthenticated ? (
+                        <div className="comment-input">
+                          <input type="text" placeholder="Write a comment..." value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddComment()} />
+                          <button onClick={handleAddComment} disabled={commentLoading}>{commentLoading ? <FiLoader className="spinning" /> : <FiSend />} Send</button>
+                        </div>
+                      ) : (
+                        <div className="login-to-comment"><button onClick={() => navigate("/login")}>Login to Comment</button></div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Share Modal */}
+        <AnimatePresence>
+          {showShareModal && selectedMedia && (
+            <div className="modal-overlay" onClick={() => setShowShareModal(false)}>
+              <div className="share-modal" onClick={e => e.stopPropagation()}>
+                <div className="share-modal-header"><h3><FiShare2 /> Share</h3><button onClick={() => setShowShareModal(false)}><FiX /></button></div>
+                <div className="share-modal-body">
+                  <div className="share-buttons">
+                    <button className="share-whatsapp" onClick={() => handleShare('whatsapp')}><FaWhatsapp size={24} /> WhatsApp</button>
+                    <button className="share-facebook" onClick={() => handleShare('facebook')}><FaFacebook size={24} /> Facebook</button>
+                    <button className="share-twitter" onClick={() => handleShare('twitter')}><FaTwitter size={24} /> Twitter</button>
+                    <button className="share-copy" onClick={() => handleShare('copy')}>{copySuccess ? <FiCheck size={24} /> : <FiCopy size={24} />}{copySuccess ? 'Copied!' : 'Copy Link'}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Footer */}
+        <div className="gallery-footer"><p>© {currentYear} ZUCA Portal | Gallery | Sharing God's Love Through Media 🙏</p></div>
+      </div>
+
+      <style>{`
+        .gallery-page { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
+        .gallery-hero { position: relative; background: linear-gradient(135deg, #0f172a, #1e293b); padding: 80px 40px 120px; text-align: center; overflow: hidden; }
+        .hero-content { position: relative; z-index: 2; }
+        .gallery-hero h1 { font-size: 48px; font-weight: 700; color: white; margin-bottom: 16px; background: linear-gradient(135deg, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .gallery-hero p { font-size: 18px; color: #cbd5e1; margin-bottom: 32px; }
+        .hero-stats { display: flex; justify-content: center; gap: 32px; }
+        .hero-stats span { display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 14px; }
+        .hero-wave { position: absolute; bottom: 0; left: 0; right: 0; line-height: 0; }
+        .hero-wave svg { width: 100%; height: 60px; fill: white; }
+        
+        .featured-section { max-width: 1400px; margin: -40px auto 48px; padding: 0 24px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .section-header h2 { font-size: 24px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .section-badge { background: linear-gradient(135deg, #f59e0b, #ef4444); padding: 6px 12px; border-radius: 20px; color: white; font-size: 12px; }
+        .featured-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .featured-card { position: relative; border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform 0.3s; }
+        .featured-card:hover { transform: translateY(-5px); }
+        .featured-thumbnail { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #1e293b; }
+        .featured-thumbnail img, .featured-thumbnail video { width: 100%; height: 100%; object-fit: cover; }
+        .featured-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; opacity: 0; transition: opacity 0.3s; color: white; }
+        .featured-card:hover .featured-overlay { opacity: 1; }
+        .featured-info { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 16px; color: white; }
+        .featured-info h3 { font-size: 14px; margin-bottom: 8px; }
+        .featured-stats { display: flex; gap: 16px; font-size: 12px; }
+        
+        .main-gallery { max-width: 1400px; margin: 0 auto; padding: 0 24px 48px; }
+        .gallery-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .header-left h2 { font-size: 28px; margin-bottom: 4px; }
+        .header-left p { color: #64748b; font-size: 14px; }
+        .header-actions { display: flex; gap: 12px; }
+        .refresh-btn, .live-feed-btn, .filter-toggle { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+        .spinning { animation: spin 1s linear infinite; }
+        .rotated { transform: rotate(180deg); }
+        
+        .filters-panel { background: white; border-radius: 16px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0; }
+        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .filter-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 8px; color: #64748b; }
+        .filter-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+        .filter-buttons button { padding: 6px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 12px; cursor: pointer; }
+        .filter-buttons button.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+        
+        .view-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .view-toggle { display: flex; gap: 4px; background: #f1f5f9; border-radius: 10px; padding: 3px; }
+        .view-toggle button { padding: 6px 10px; background: transparent; border: none; border-radius: 8px; cursor: pointer; }
+        .view-toggle button.active { background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        
+        .media-container.grid .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+        .media-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; transition: all 0.3s; cursor: pointer; }
+        .media-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .media-card.active { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+        .media-thumbnail { position: relative; aspect-ratio: 16/9; background: #1e293b; overflow: hidden; }
+        .media-thumbnail img, .media-thumbnail video { width: 100%; height: 100%; object-fit: cover; }
+        .media-hover-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; opacity: 0; transition: opacity 0.3s; color: white; }
+        .media-card:hover .media-hover-overlay { opacity: 1; }
+        .video-badge, .audio-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); border-radius: 20px; padding: 4px 8px; color: white; font-size: 10px; }
+        .featured-badge { position: absolute; top: 8px; right: 8px; background: #f59e0b; border-radius: 20px; padding: 4px 8px; font-size: 10px; color: white; }
+        .media-info { padding: 12px; }
+        .media-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .media-stats { display: flex; gap: 12px; font-size: 11px; color: #64748b; }
+        .media-stats span { display: flex; align-items: center; gap: 4px; }
+        
+        .live-feed-sidebar { position: fixed; top: 0; right: 0; width: 380px; height: 100vh; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column; }
+        .live-feed-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #e2e8f0; }
+        .live-feed-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .feed-item { display: flex; gap: 12px; padding: 12px; border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+        .feed-item:hover { background: #f8fafc; }
+        .feed-icon { font-size: 24px; }
+        .feed-details { flex: 1; }
+        .feed-user { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+        .feed-action { font-size: 13px; color: #475569; }
+        
+        /* Player Modal - FULL SCREEN LIGHT THEME */
+.player-modal-overlay { 
+  position: fixed; 
+  inset: 0; 
+  background: rgba(228, 42, 42, 0); 
+  backdrop-filter: blur(6px);
+  z-index: 2000; 
+  display: flex; 
+  align-items: center;  justify-content: center; 
+}
+.player-modal {   
+  background: #ffffff00; 
+  width: 100vw; 
+  height: 100vh; 
+  overflow-y: auto; 
+}
+.player-modal-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 20px 30px; 
+  background: linear-gradient(135deg, #0f172a, #1e293b); 
+  border-bottom: 1px solid #e2e8f0; 
+  position: sticky; 
+  top: 0; 
+  z-index: 10; 
+}
+.player-modal-header h3 { 
+  color: white; 
+  font-size: 20px; 
+  margin: 0; 
+}
+.player-modal-header button { 
+  background: rgba(255,255,255,0.2); 
+  border: none; 
+  border-radius: 50%; 
+  width: 40px; 
+  height: 40px; 
+  color: white; 
+  cursor: pointer; 
+}
+.player-modal-body { 
+  display: grid; 
+  grid-template-columns: 1.5fr 1fr; 
+  gap: 10px; 
+  padding: 0px; 
+  height: calc(100vh - 80px); 
+  overflow-y: auto; 
+  background: #ffffff00;
+}
+.player-wrapper { 
+  background: #885757b6; 
+  border-radius: 20px; 
+  overflow: hidden; 
+  position: relative; 
+  height: 500px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  border: 1px solid #e2e8f0;
+}
+.player-video, .player-image { 
+  width: 100%; 
+  
+  height: 100%; 
+  object-fit: contain; 
+  background: #000;
+}
+.player-controls { 
+  position: absolute; 
+  margin-bottom: -20px; 
+  left: 20px;
+  right: 20px;
+  background: linear-gradient(transparent, rgb(23, 27, 25)); 
+  padding: 15px 20px; 
+  display: flex; 
+  flex-wrap: wrap;  /* THIS ALLOWS WRAPPING TO MULTIPLE ROWS */
+  align-items: center; 
+  justify-content: center;  /* Centers items when wrapped */
+  gap: 12px; 
+  border-radius: 20px; 
+  backdrop-filter: blur(0px);
+}
+
+/* For mobile screens - adjust padding and gap */
+@media (max-width: 768px) {
+  .player-controls {
+    padding: 12px 15px;
+    gap: 8px;
+    border-radius: 16px;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+  }
+  
+  /* Make buttons slightly smaller on mobile */
+  .player-controls .control-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .player-controls .control-btn.play-btn {
+    width: 48px;
+    height: 48px;
+  }
+  
+  /* Progress bar takes full width on new row */
+  .player-controls .progress-container {
+    order: 1;
+    width: 100%;
+    margin-top: 5px;
+  }
+  
+  /* Volume control moves to new row */
+  .player-controls .volume-control {
+    order: 2;
+  }
+}
+
+/* For very small phones */
+@media (max-width: 480px) {
+  .player-controls {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  
+  .player-controls .control-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .player-controls .control-btn.play-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+.control-btn { 
+  background: rgba(255,255,255,0.2); 
+  border: none; 
+  border-radius: 50%; 
+  width: 44px; 
+  height: 44px; 
+  color: white; 
+  cursor: pointer; 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: all 0.2s; 
+}
+.control-btn:hover:not(:disabled) { 
+  background: rgba(255,255,255,0.35); 
+  transform: scale(1.05); 
+}
+.control-btn:disabled { 
+  opacity: 0.4; 
+  cursor: not-allowed; 
+}
+.control-btn.play-btn { 
+  background: #3b82f6; 
+  width: 52px; 
+  height: 52px; 
+}
+.progress-container { 
+  flex: 1; 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+}
+.progress-slider { 
+  flex: 1; 
+  height: 5px; 
+  -webkit-appearance: none; 
+  background: rgba(255,255,255,0.3); 
+  border-radius: 3px; 
+}
+.progress-slider::-webkit-slider-thumb { 
+  -webkit-appearance: none; 
+  width: 14px; 
+  height: 14px; 
+  border-radius: 50%; 
+  background: #3b82f6; 
+  cursor: pointer; 
+  border: 2px solid white; 
+}
+.time-current, .time-duration { 
+  color: white; 
+  font-size: 13px; 
+}
+.volume-control { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+}
+.volume-slider { 
+  width: 70px; 
+  height: 5px; 
+  -webkit-appearance: none; 
+  background: rgba(255,255,255,0.3); 
+  border-radius: 3px; 
+}
+
+/* Audio player - Light Theme */
+.audio-player-modal { 
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0); 
+  border-radius: 20px; 
+  padding: 60px; 
+  text-align: center; 
+  height: 500px; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  border: 1px solid #e2e8f0;
+}
+.audio-artwork { 
+  width: 180px; 
+  height: 180px; 
+  margin: 0 auto 25px; 
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6); 
+  border-radius: 100px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  color: white; 
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+}
+.audio-controls-modal { 
+  display: flex; 
+  align-items: center; 
+  gap: 20px; 
+  justify-content: center; 
+  margin-top: 30px; 
+}
+
+/* Player info section - Right side LIGHT THEME */
+.player-info-section { 
+  background: white; 
+  border-radius: 20px; 
+  padding: 24px; 
+  border: 1px solid #e2e8f0;
+  height: 500px; 
+  overflow-y: auto; 
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.player-info-section h4, .player-info-section h3 { 
+  color: #1e293b !important; 
+}
+.player-stats-grid { 
+  display: grid; 
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 12px; 
+  margin-bottom: 24px; 
+  padding-bottom: 20px; 
+  border-bottom: 1px solid #e2e8f0; 
+}
+.stat-item { 
+  text-align: center; 
+  cursor: pointer; 
+  transition: transform 0.2s; 
+  padding: 8px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.stat-item:hover { 
+  transform: scale(1.05); 
+  background: #eff6ff;
+}
+.stat-item svg { 
+  font-size: 22px; 
+  margin-bottom: 6px; 
+  color: #000000f1; 
+}
+.stat-item span { 
+  display: block; 
+  font-weight: 700; 
+  font-size: 16px; 
+  color: #1e293b !important; 
+}
+.stat-item small { 
+  font-size: 10px; 
+  color: #64748b !important; 
+}
+.player-description { 
+  margin-bottom: 24px; 
+}
+.player-description h4 {
+  color: #1e293b !important;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.player-description p { 
+  color: #475569 !important; 
+  line-height: 1.6; 
+  font-size: 13px; 
+}
+.player-details { 
+  margin-bottom: 24px; 
+  background: #f8fafc; 
+  padding: 16px; 
+  border-radius: 12px; 
+}
+.detail-row { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+  font-size: 13px; 
+  margin-bottom: 10px; 
+  color: #475569 !important; 
+}
+.detail-row strong { 
+  color: #1e293b !important; 
+  font-weight: 600;
+}
+.detail-row svg {
+  color: #3b82f6;
+}
+
+
+/* Image Fullscreen Styles */
+.image-player-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border-radius: 20px;
+}
+
+.player-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+/* Fullscreen image */
+.player-image.fullscreen-image {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: auto;
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  z-index: 10001;
+  cursor: zoom-out;
+}
+
+/* Dark overlay background when fullscreen */
+.image-fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0);
+  z-index: 10000;
+  transition: background 0.3s ease;
+  pointer-events: none;
+}
+
+.image-fullscreen-overlay.active {
+  background: rgba(0, 0, 0, 0.95);
+  pointer-events: auto;
+}
+
+/* Fullscreen toggle button */
+.fullscreen-toggle-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+}
+
+.fullscreen-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.84);
+  transform: scale(1.05);
+}
+
+/* When image is fullscreen, move button to bottom right of screen */
+.player-image.fullscreen-image ~ .fullscreen-toggle-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 10002;
+  background: rgb(0, 0, 0);
+}
+
+/* Close fullscreen when clicking outside */
+.image-fullscreen-overlay.active + .image-player-container .player-image.fullscreen-image {
+  cursor: zoom-out;
+}
+
+/* Comments Section - LIGHT THEME */
+.comments-section { 
+  margin-top: 20px; 
+}
+.comments-section h4 { 
+  color: #1e293b !important; 
+  margin-bottom: 15px; 
+  font-size: 15px;
+  font-weight: 600;
+}
+.comments-list { 
+  max-height: 280px; 
+  overflow-y: auto; 
+}
+.comment-item { 
+  background: #f8fafc; 
+  border-radius: 12px; 
+  margin-bottom: 12px; 
+  padding: 12px; 
+  display: flex; 
+  gap: 12px; 
+  position: relative; 
+  border: 1px solid #e2e8f0;
+}
+.comment-avatar { 
+  width: 32px; 
+  height: 32px; 
+  border-radius: 50%; 
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6); 
+  color: white; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-weight: 600; 
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.comment-content { 
+  flex: 1; 
+}
+.comment-header { 
+  display: flex; 
+  justify-content: space-between; 
+  margin-bottom: 4px; 
+  font-size: 12px; 
+}
+.comment-header strong { 
+  color: #1e293b !important; 
+}
+.comment-header span { 
+  color: #64748b !important; 
+  font-size: 10px; 
+}
+.comment-content p { 
+  color: #334155 !important; 
+  font-size: 13px; 
+  margin: 0; 
+}
+.delete-comment { 
+  position: absolute; 
+  right: 12px; 
+  top: 12px; 
+  background: none; 
+  border: none; 
+  cursor: pointer; 
+  color: #94a3b8; 
+  opacity: 0; 
+  transition: opacity 0.2s;
+}
+.delete-comment:hover {
+  color: #ef4444;
+}
+.comment-item:hover .delete-comment { 
+  opacity: 1; 
+}
+.no-comments { 
+  text-align: center; 
+  padding: 30px; 
+  color: #64748b !important; 
+}
+
+/* Comment Input - LIGHT THEME */
+.comment-input { 
+  display: flex; 
+  gap: 10px; 
+  padding-top: 16px; 
+  border-top: 1px solid #e2e8f0; 
+  margin-top: 16px; 
+}
+.comment-input input { 
+  flex: 1; 
+  padding: 10px 16px; 
+  border: 1px solid #e2e8f0; 
+  border-radius: 30px; 
+  font-size: 13px; 
+  background: white; 
+  color: #1e293b; 
+  outline: none; 
+}
+.comment-input input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+}
+.comment-input input::placeholder { 
+  color: #94a3b8; 
+}
+.comment-input button { 
+  padding: 8px 20px; 
+  background: #3b82f6; 
+  border: none; 
+  border-radius: 30px; 
+  color: white; 
+  cursor: pointer; 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  font-size: 13px; 
+  transition: background 0.2s;
+}
+.comment-input button:hover {
+  background: #2563eb;
+}
+.login-to-comment { 
+  padding-top: 16px; 
+  text-align: center; 
+}
+.login-to-comment button { 
+  padding: 8px 20px; 
+  background: #3b82f6; 
+  border: none; 
+  border-radius: 30px; 
+  color: white; 
+  cursor: pointer; 
+  transition: background 0.2s;
+}
+.login-to-comment button:hover {
+  background: #2563eb;
+}
+        .share-modal { background: white; border-radius: 20px; width: 90%; max-width: 450px; }
+        .share-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+        .share-buttons { display: grid; gap: 12px; padding: 20px; }
+        .share-buttons button { padding: 12px; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 12px; cursor: pointer; font-weight: 500; }
+        .share-whatsapp { background: #25D366; color: white; }
+        .share-facebook { background: #1877F2; color: white; }
+        .share-twitter { background: #1DA1F2; color: white; }
+        .share-copy { background: #64748b; color: white; }
+        
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 32px; }
+        .pagination button { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; }
+        .gallery-footer { text-align: center; padding: 24px; border-top: 1px solid #e2e8f0; background: white; margin-top: 48px; }
+        .empty-state { text-align: center; padding: 60px; background: white; border-radius: 20px; }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @media (max-width: 1024px) { .featured-grid { grid-template-columns: repeat(2, 1fr); } .player-modal-body { grid-template-columns: 1fr; } .player-wrapper, .audio-player-modal { height: 400px; } .player-info-section { height: auto; } }
+        @media (max-width: 768px) { .gallery-hero h1 { font-size: 32px; } .featured-grid { grid-template-columns: 1fr; } .media-container.grid .media-grid { grid-template-columns: 1fr; } .live-feed-sidebar { width: 100%; } .player-stats-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .back-button {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 24px;
+  border-radius: 40px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(-5px);
+}
+
+@media (max-width: 768px) {
+  .back-button {
+    top: 20px;
+    left: 20px;
+    padding: 6px 16px;
+    font-size: 12px;
+  }
+}
+      `}</style>
+    </div>
+  );
+}
+
+export default Gallery;

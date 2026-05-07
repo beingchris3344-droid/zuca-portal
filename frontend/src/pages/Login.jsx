@@ -952,7 +952,7 @@ const styles = {
     accentColor: "#3b82f6"
   },
   forgotLink: {
-    color: "#ff0000",
+    color: "#00ff15",
     fontSize: "12px",
     textDecoration: "none",
     transition: "color 0.2s"

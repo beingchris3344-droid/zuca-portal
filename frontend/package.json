@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codexcommunion/prayer-collection": "^2.1.3",
     "@google/generative-ai": "^0.24.1",
+    "@material-symbols/svg-400": "^0.44.5",
     "axios": "^1.14.0",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",

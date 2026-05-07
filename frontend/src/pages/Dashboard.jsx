@@ -57,6 +57,44 @@ function Dashboard() {
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
+
+const fullName = user.fullName || '';
+const firstName = fullName.split(' ')[0];
+
+
+ 
+const getEventBadge = (type) => {
+  const badges = {
+    'mass': '⛪ Mass',
+    'meeting': '🤝 Meeting', 
+    'social': '🎉 Social',
+    'workshop': '🛠️ Workshop',
+    'training': '🏋️ Training',
+    'prayer': '🙏 Prayer',
+    'concert': '🎵 Concert',
+    'conference': '💼 Conference',
+    'retreat': '🧘 Retreat',
+    'default': '🙏 Mass'
+  };
+  return badges[type?.toLowerCase()] || badges.default;
+};
+
+
+          // Add these helper functions
+const getDay = (dateString) => {
+  return new Date(dateString).getDate();
+};
+
+const getMonth = (dateString) => {
+  return new Date(dateString).toLocaleString('default', { month: 'short' }).toUpperCase();
+};
+
+const isToday = (dateString) => {
+  const today = new Date();
+  const eventDate = new Date(dateString);
+  return today.toDateString() === eventDate.toDateString();
+};
+
   // ==================== REAL DATA FETCHING ====================
 
   // Fetch announcements
@@ -158,17 +196,36 @@ function Dashboard() {
  // Fetch 3 random non-featured media for dashboard
 const fetchFeaturedGallery = async () => {
   try {
-    const res = await axios.get(`${BASE_URL}/api/media/public?limit=5`);
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`${BASE_URL}/api/media/public?limit=5`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Filter out featured items and get 3 random ones
-    const nonFeatured = res.data.media.filter(item => !item.isFeatured);
-    const shuffled = [...nonFeatured].sort(() => 0.5 - Math.random());
-    const random3 = shuffled.slice(0, 3);
+    console.log("Gallery API response:", res.data);
     
-    setFeaturedGallery(random3);
-    setGalleryItems(random3.length);
+    const allMedia = res.data.media || [];
+    
+    console.log("All media items:", allMedia.length);
+    
+    const imagesOnly = allMedia.filter(item => 
+      item.type === 'image' || 
+      item.mediaType === 'image' ||
+      (item.mimeType && item.mimeType.startsWith('image/'))
+    );
+    
+    console.log("Images only:", imagesOnly.length);
+    
+    const galleryToShow = imagesOnly.slice(0, 3);
+    
+    setFeaturedGallery(galleryToShow);
+    setGalleryItems(galleryToShow.length);
+    
+    console.log("Set featured gallery:", galleryToShow.length, "items");
+    
   } catch (error) {
     console.error("Error fetching gallery:", error);
+    setFeaturedGallery([]);
+    setGalleryItems(0);
   }
 };
   // Fetch recent hymns
@@ -260,7 +317,7 @@ const fetchFeaturedGallery = async () => {
   const fetchUpcomingSchedules = async () => {
   try {
     const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=5`, {
+    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
@@ -269,6 +326,9 @@ const fetchFeaturedGallery = async () => {
     console.error("Error fetching upcoming events:", error);
   }
 };
+
+
+
 
   // Fetch today's liturgical reading
   const fetchTodaysReading = async () => {
@@ -382,6 +442,10 @@ const fetchFeaturedGallery = async () => {
         setUser(userRes.data);
         setProfileImage(userRes.data.profileImage);
         localStorage.setItem("user", JSON.stringify(userRes.data));
+
+
+
+
 
                // Check if user is admin or treasurer
         const isAdmin = storedUser.role === "admin";
@@ -582,228 +646,644 @@ const fetchFeaturedGallery = async () => {
           </div>
 
 
-          {/* TODAY'S LITURGICAL READING */}
-          {todaysReading && (
-            <div className="section-card full-width reading-card">
-              <div className="section-header">
-                <h3>🙏 TODAY'S LITURGICAL READING</h3>
+       {/* TODAY'S LITURGICAL READING - PREMIUM DESIGN */}
+{todaysReading && (
+  <div className="section-card reading-premium-card">
+    <div className="reading-premium-header">
+      <div className="reading-header-icon">
+        <span className="reading-icon">📖</span>
+      </div>
+      <div className="reading-header-content">
+        <h3 className="reading-premium-title">Today's Liturgical Reading</h3>
+        <p className="reading-premium-subtitle">Daily Word of God</p>
+      </div>
+      <div className="reading-date-badge">
+        {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+      </div>
+    </div>
+
+    <div className="reading-premium-body">
+      <div className="reading-celebration">
+        <span className="celebration-icon">🙏</span>
+        <span className="celebration-text">{todaysReading.celebration || "Daily Reading"}</span>
+      </div>
+
+      <div className="readings-container">
+        {todaysReading.readings?.firstReading && (
+          <div className="reading-verse-card">
+            <div className="verse-header">
+              <span className="verse-icon">📜</span>
+              <span className="verse-title">First Reading</span>
+            </div>
+            <div className="verse-citation">{todaysReading.readings.firstReading.citation}</div>
+            <p className="verse-preview">
+              {todaysReading.readings.firstReading.text?.substring(0, 80)}...
+            </p>
+          </div>
+        )}
+
+        {todaysReading.readings?.psalm && (
+          <div className="reading-verse-card psalm-card">
+            <div className="verse-header">
+              <span className="verse-icon">🎵</span>
+              <span className="verse-title">Responsorial Psalm</span>
+            </div>
+            <div className="verse-citation">{todaysReading.readings.psalm.citation}</div>
+          </div>
+        )}
+
+        {todaysReading.readings?.secondReading && (
+          <div className="reading-verse-card">
+            <div className="verse-header">
+              <span className="verse-icon">📜</span>
+              <span className="verse-title">Second Reading</span>
+            </div>
+            <div className="verse-citation">{todaysReading.readings.secondReading.citation}</div>
+          </div>
+        )}
+
+        {todaysReading.readings?.gospel && (
+          <div className="reading-verse-card gospel-card">
+            <div className="verse-header">
+              <span className="verse-icon">✝️</span>
+              <span className="verse-title">Holy Gospel</span>
+            </div>
+            <div className="verse-citation">{todaysReading.readings.gospel.citation}</div>
+            <p className="verse-preview">
+              {todaysReading.readings.gospel.text?.substring(0, 100)}...
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="reading-premium-footer">
+        <button className="reading-full-btn" onClick={() => navigate(`/liturgical-calendar`)}>
+          <span>Read Full Readings</span>
+          <FiArrowRight className="btn-arrow-icon" />
+        </button>
+        <div className="reading-footer-note">
+          <span>📅 Liturgical Year {new Date().getFullYear()}</span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+            {/* MY JUMUIA - DASHBOARD CARD */}
+{jumuiaInfo && (
+  <div className="section-card jumuia-dashboard-card">
+    <div className="section-header">
+      <div className="header-icon-small">
+        <span>🏠</span>
+      </div>
+      <h3>My Jumuia</h3>
+      <div className="jumuia-status-badge-small">
+        <span className="status-dot"></span>
+        Active
+      </div>
+    </div>
+
+    <div className="jumuia-dashboard-content">
+      <div className="jumuia-name-dashboard">
+        {jumuiaInfo.name}
+      </div>
+      
+      <div className="jumuia-quick-info">
+        <div className="quick-info-item">
+          <span className="info-emoji">👤</span>
+          <div className="info-text">
+            <span className="info-label">Leader</span>
+            <span className="info-value">{jumuiaInfo.leaderName?.split(' ')[0] || "TBA"}</span>
+          </div>
+        </div>
+        
+        <div className="quick-info-item">
+          <span className="info-emoji">👥</span>
+          <div className="info-text">
+            <span className="info-label">Members</span>
+            <span className="info-value">{jumuiaInfo.memberCount || 0}</span>
+          </div>
+        </div>
+        
+        {jumuiaInfo.nextMeeting && (
+          <div className="quick-info-item meeting-highlight">
+            <span className="info-emoji">📅</span>
+            <div className="info-text">
+              <span className="info-label">Next Meeting</span>
+              <span className="info-value meeting-date">
+                {new Date(jumuiaInfo.nextMeeting).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button 
+ 
+  className="jumuia-chat-btn-dashboard"
+  onClick={() => navigate("/jumuia-contributions")}
+>
+  💰 View Jumuia Contributions →
+</button>
+    </div>
+  </div>
+)}
+
+          {/* UPCOMING SCHEDULED EVENTS - PREMIUM DESIGN */}
+<div className="section-card schedules-section">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-calendar">📅</div>
+      <div>
+        <h3>UPCOMING ZUCA SCHEDULED EVENTS</h3>
+        <p className="header-subtitle">ZUCA indoor and out door activities</p>
+      </div>
+    </div>
+    {upcomingSchedules.length > 0 && (
+      <div className="total-badge schedule-badge">
+        {upcomingSchedules.length} {upcomingSchedules.length === 1 ? 'Event' : 'Events'}
+      </div>
+    )}
+  </div>
+
+  <div className="events-timeline">
+    {upcomingSchedules.length === 0 ? (
+      <div className="empty-state-calendar">
+        <div className="calendar-icon">🗓️</div>
+        <p>No upcoming events</p>
+        <span>Check back soon for new schedules</span>
+      </div>
+    ) : (
+      upcomingSchedules.slice(0, 2).map((event, index) => (
+        <div key={event.id} className="event-card-premium">
+          {/* Timeline connector */}
+          {index !== upcomingSchedules.length - 1 && (
+            <div className="timeline-connector-dash"></div>
+          )}
+          
+          {/* Date section */}
+          <div className="event-date-premium">
+            <div className="date-card">
+              <div className="date-day-number">
+                {new Date(event.eventDate).getDate()}
               </div>
-              <div className="reading-content">
-                <div className="reading-title">📖 {todaysReading.celebration || "Daily Reading"}</div>
-                {todaysReading.readings?.firstReading && (
-                  <div className="reading-item">First Reading: {todaysReading.readings.firstReading.citation}</div>
-                )}
-                {todaysReading.readings?.gospel && (
-                  <div className="reading-item">Gospel: {todaysReading.readings.gospel.citation}</div>
-                )}
-                <button className="reading-btn" onClick={() => navigate(`/liturgical-calendar`)}>
-                  Read Full Readings →
-                </button>
+              <div className="date-month-year">
+                {new Date(event.eventDate).toLocaleString('default', { month: 'short' }).toUpperCase()}
+                <span className="date-year">
+                  {new Date(event.eventDate).getFullYear()}
+                </span>
               </div>
             </div>
-          )}
+            {isToday(event.eventDate) && (
+              <div className="today-flare">TODAY</div>
+            )}
+          </div>
 
+          {/* Event content */}
+          <div className="event-content-premium">
+            <div className="event-header-premium">
+              <h4 className="event-title-premium">{event.title}</h4>
+              <div className="event-type-badge">
+                {getEventBadge(event.type)}
+              </div>
+            </div>
 
-             {/* MY JUMUIA */}
-              {jumuiaInfo && (
-                <div className="section-card">
-                  <div className="section-header">
-                    <h3>🏠 MY JUMUIA</h3>
-                  </div>
-                  <div className="jumuia-content">
-                    <div className="jumuia-name">👥 {jumuiaInfo.name}</div>
-                    <div className="jumuia-detail">Leader: {jumuiaInfo.leaderName}</div>
-                    <div className="jumuia-detail">Members: {jumuiaInfo.memberCount}</div>
-                    {jumuiaInfo.nextMeeting && <div className="jumuia-detail">Next Meeting: {jumuiaInfo.nextMeeting}</div>}
-                    <button className="jumuia-chat-btn" onClick={() => navigate(`/jumuia/${jumuiaInfo.id}/chat`)}>
-                      💬 Join Chat →
-                    </button>
-                  </div>
+            <div className="event-details-premium">
+              <div className="detail-chip">
+                <span className="chip-icon">🕐</span>
+                <span>{event.eventTime || "Time TBA"}</span>
+              </div>
+              <div className="detail-chip">
+                <span className="chip-icon">📍</span>
+                <span>{event.location || "Venue TBD"}</span>
+              </div>
+              {event.duration && (
+                <div className="detail-chip">
+                  <span className="chip-icon">⏱️</span>
+                  <span>{event.duration}</span>
                 </div>
               )}
-
-
-              {/* UPCOMING SCHEDULED EVENTS */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>📅 UPCOMING ZUCA SCHEDULED EVENTS</h3>
             </div>
-            <div className="events-list">
-              {upcomingSchedules.length === 0 ? (
-                <div className="empty-state">No upcoming events</div>
-              ) : (
-                upcomingSchedules.map(event => (
-                  <div key={event.id} className="event-item">
-                    • {event.title} - {formatMassDate(event.eventDate)}, {event.eventTime || "TBA"}
-                  </div>
-                ))
-              )}
+
+            {event.description && (
+              <p className="event-description-premium">
+                {event.description.length > 100 
+                  ? `${event.description.substring(0, 100)}...` 
+                  : event.description}
+              </p>
+            )}
+
+            <div className="event-footer-premium">
+              <div className="event-organizer">
+                <span className="organizer-icon">👥</span>
+                <span>{event.organizer || "ZUCA Community"}</span>
+              </div>
+              <button 
+                className="event-details-btn"
+                onClick={() => navigate(`/schedule/${event.id}`)}
+              >
+                View Details
+                <FiChevronRight size={16} />
+              </button>
             </div>
-            <button className="view-all" onClick={() => navigate("/schedules")}>View All Schedules →</button>
           </div>
 
-
-
-          {/* FINANCIAL STATS ROW */}
-          <div className="stats-row">
-            <div className="stat-card" onClick={() => navigate("/contributions")}>
-              <div className="stat-icon">💰</div>
-              <div className="stat-info">
-                <span className="stat-value">KES {totalPledged.toLocaleString()}</span>
-                <span className="stat-label">Total Pledged</span>
-              </div>
-            </div>
-            <div className="stat-card" onClick={() => navigate("/contributions")}>
-              <div className="stat-icon">✅</div>
-              <div className="stat-info">
-                <span className="stat-value">KES {totalPaid.toLocaleString()}</span>
-                <span className="stat-label">Total Paid</span>
-              </div>
-            </div>
-            <div className="stat-card" onClick={() => navigate("/contributions")}>
-              <div className="stat-icon">⏳</div>
-              <div className="stat-info">
-                <span className="stat-value">KES {totalPending.toLocaleString()}</span>
-                <span className="stat-label">Total Pending</span>
-              </div>
-            </div>
-            <div className="stat-card" onClick={() => navigate("/contributions")}>
-              <div className="stat-icon">📊</div>
-              <div className="stat-info">
-                <span className="stat-value">{activeCampaigns}</span>
-                <span className="stat-label">Active Campaigns</span>
-              </div>
-            </div>
+          {/* Status indicator */}
+          <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
+            {isToday(event.eventDate) ? '🔥 Live' : '📌 Scheduled'}
           </div>
+        </div>
+      ))
+    )}
+  </div>
+
+  <button className="view-all-schedules" onClick={() => navigate("/schedules")}>
+    <span>Browse All Events</span>
+    <FiArrowRight className="button-arrow-icon" />
+  </button>
+</div>
+
+
+{/* FINANCIAL STATS ROW - PREMIUM DESIGN */}
+<div className="financial-stats-grid">
+  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
+    <div className="financial-stat-icon pledged-icon">
+      <span>💰</span>
+    </div>
+    <div className="financial-stat-content">
+      <span className="financial-stat-value">KES {totalPledged.toLocaleString()}</span>
+      <span className="financial-stat-label">Total Pledged</span>
+    </div>
+    <div className="financial-stat-trend positive">
+      <span>↑</span>
+    </div>
+  </div>
+
+  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
+    <div className="financial-stat-icon paid-icon">
+      <span>✅</span>
+    </div>
+    <div className="financial-stat-content">
+      <span className="financial-stat-value">KES {totalPaid.toLocaleString()}</span>
+      <span className="financial-stat-label">Total Paid</span>
+    </div>
+    <div className="financial-stat-trend success">
+      <span>✓</span>
+    </div>
+  </div>
+
+  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
+    <div className="financial-stat-icon pending-icon">
+      <span>⏳</span>
+    </div>
+    <div className="financial-stat-content">
+      <span className="financial-stat-value">KES {totalPending.toLocaleString()}</span>
+      <span className="financial-stat-label">Total Pending</span>
+    </div>
+    <div className="financial-stat-trend warning">
+      <span>⏰</span>
+    </div>
+  </div>
+
+  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
+    <div className="financial-stat-icon campaigns-icon">
+      <span>📊</span>
+    </div>
+    <div className="financial-stat-content">
+      <span className="financial-stat-value">{activeCampaigns}</span>
+      <span className="financial-stat-label">Active Campaigns</span>
+    </div>
+    <div className="financial-stat-trend info">
+      <span>📈</span>
+    </div>
+  </div>
+</div>
 
           {/* TWO COLUMN LAYOUT */}
           <div className="two-columns">
             {/* LEFT COLUMN */}
             <div className="left-column">
-              {/* RECENT ANNOUNCEMENTS */}
-              <div className="section-card">
-                <div className="section-header">
-                  <h3>📢 RECENT ANNOUNCEMENTS</h3>
-                </div>
-                <div className="announcements-list">
-                  {announcements.length === 0 ? (
-                    <div className="empty-state">No announcements yet</div>
-                  ) : (
-                    announcements.map(ann => (
-                      <div key={ann.id} className="announcement-item" onClick={() => navigate("/announcements")}>
-                        <div className="announcement-icon">📢</div>
-                        <div className="announcement-content">
-                          <div className="announcement-title">{ann.title}</div>
-                          <div className="announcement-message">{ann.content?.substring(0, 60)}...</div>
-                          <div className="announcement-time">{formatRelativeTime(ann.createdAt)}</div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <button className="view-all" onClick={() => navigate("/announcements")}>View All →</button>
-              </div>
+             {/* RECENT ANNOUNCEMENTS */}
+<div className="section-card announcements-premium">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-announcement">📢</div>
+      <div>
+        <h3>RECENT ANNOUNCEMENTS</h3>
+        <p className="header-subtitle">Latest updates from ZUCA</p>
+      </div>
+    </div>
+    {announcements.length > 0 && (
+      <div className="total-badge">
+        {announcements.length} New
+      </div>
+    )}
+  </div>
 
-              {/* MY ACTIVE PLEDGES */}
-              <div className="section-card">
-                <div className="section-header">
-                  <h3>💳 MY ACTIVE PLEDGES</h3>
-                </div>
-                <div className="pledges-list">
-                  {activePledges.length === 0 ? (
-                    <div className="empty-state">No active pledges</div>
-                  ) : (
-                    activePledges.map(pledge => {
-                      const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
-                      return (
-                        <div key={pledge.id} className="pledge-item" onClick={() => navigate("/contributions")}>
-                          <div className="pledge-title">{pledge.title}</div>
-                          <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: `${progress}%` }}></div>
-                          </div>
-                          <div className="pledge-stats">
-                            <span>{progress.toFixed(0)}%</span>
-                            <span>KES {pledge.amountPaid.toLocaleString()}/{pledge.amountRequired.toLocaleString()}</span>
-                          </div>
-                          <div className="pledge-pending">Pending: KES {(pledge.pendingAmount || 0).toLocaleString()}</div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                <button className="view-all" onClick={() => navigate("/contributions")}>Make a Pledge →</button>
+  <div className="announcements-premium-list">
+    {announcements.length === 0 ? (
+      <div className="empty-state-announcement">
+        <div className="empty-announcement-icon">📭</div>
+        <p>No announcements yet</p>
+        <span>Check back later for updates</span>
+      </div>
+    ) : (
+      announcements.map((ann, index) => (
+        <motion.div
+          key={ann.id}
+          className="announcement-premium-item"
+          onClick={() => navigate("/announcements")}
+          whileHover={{ x: 5 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="announcement-premium-number">{index + 1}</div>
+          <div className="announcement-premium-content">
+            <div className="announcement-premium-header">
+              <div className="announcement-premium-title">{ann.title}</div>
+              <div className="announcement-premium-time">
+                {formatRelativeTime(ann.createdAt)}
               </div>
+            </div>
+            <div className="announcement-premium-message">
+              {ann.content?.substring(0, 80)}...
+            </div>
+          </div>
+          <div className="announcement-premium-arrow">
+            <FiChevronRight size={18} />
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
 
-              {/* RECENT HYMNS */}
-              <div className="section-card">
-                <div className="section-header">
-                  <h3>🎵 RECENT HYMNS</h3>
-                </div>
-                <div className="hymns-list">
-                  {recentHymns.length === 0 ? (
-                    <div className="empty-state">No hymns available</div>
-                  ) : (
-                    recentHymns.map(hymn => (
-                      <div key={hymn.id} className="hymn-item" onClick={() => navigate(`/hymn/${hymn.id}`)}>
-                        <span className="hymn-bullet">•</span>
-                        <span className="hymn-title">{hymn.title}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <button className="view-all" onClick={() => navigate("/hymns")}>Open Hymn Book →</button>
+  <button className="view-all-premium" onClick={() => navigate("/announcements")}>
+    <span>View All Announcements</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
+
+              {/* MY ACTIVE PLEDGES - COMPACT */}
+<div className="section-card pledges-compact">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-small-pledge">💳</div>
+      <h3>MY ACTIVE PLEDGES</h3>
+    </div>
+    {activePledges.length > 0 && (
+      <div className="pledge-count-badge">{activePledges.length}</div>
+    )}
+  </div>
+
+  <div className="pledges-compact-list">
+    {activePledges.length === 0 ? (
+      <div className="empty-state-compact-pledge">
+        <span>💰</span>
+        <p>No active pledges</p>
+      </div>
+    ) : (
+      activePledges.map(pledge => {
+        const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
+        return (
+          <div key={pledge.id} className="pledge-compact-item" onClick={() => navigate("/contributions")}>
+            <div className="pledge-compact-header">
+              <div className="pledge-compact-title">{pledge.title}</div>
+              <div className="pledge-compact-percent">{progress.toFixed(0)}%</div>
+            </div>
+            <div className="progress-bar-compact">
+              <div className="progress-fill-compact" style={{ width: `${progress}%` }}></div>
+            </div>
+            <div className="pledge-compact-footer">
+              <span>KES {pledge.amountPaid.toLocaleString()} / {pledge.amountRequired.toLocaleString()}</span>
+              {pledge.pendingAmount > 0 && (
+                <span className="pledge-pending-compact">Pending: KES {pledge.pendingAmount.toLocaleString()}</span>
+              )}
+            </div>
+          </div>
+        );
+      })
+    )}
+  </div>
+
+  <button className="view-all-compact-pledge" onClick={() => navigate("/contributions")}>
+    Make a Pledge →
+  </button>
+</div>
+            {/* RECENT HYMNS */}
+<div className="section-card hymns-section">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-music">🎵</div>
+      <div>
+        <h3>RECENT HYMNS</h3>
+        <p className="header-subtitle">Zion's sacred melodies</p>
+      </div>
+    </div>
+    {recentHymns.length > 0 && (
+      <div className="total-badge">{recentHymns.length} hymns</div>
+    )}
+  </div>
+
+  <div className="hymns-list">
+    {recentHymns.length === 0 ? (
+      <div className="empty-state-music">
+        <div className="music-note">🎶</div>
+        <p>No hymns available</p>
+        <span>Check back soon for new songs</span>
+      </div>
+    ) : (
+      recentHymns.map((hymn, index) => (
+        <motion.div
+          key={hymn.id}
+          className="hymn-item"
+          onClick={() => navigate(`/hymn/${hymn.id}`)}
+          whileHover={{ x: 5 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="hymn-number">{index + 1}</div>
+          <div className="hymn-content">
+            <div className="hymn-title-wrapper">
+              <span className="hymn-title">{hymn.title}</span>
+              {hymn.category && (
+                <span className="hymn-category">{hymn.category}</span>
+              )}
+            </div>
+            {hymn.verses && (
+              <div className="hymn-preview">
+                {hymn.verses.split('\n')[0]?.substring(0, 60)}...
               </div>
+            )}
+            <div className="hymn-meta">
+              {hymn.createdAt && (
+                <span className="hymn-date">
+                  📅 {formatRelativeTime(hymn.createdAt)}
+                </span>
+              )}
+              {hymn.numVerses && (
+                <span className="hymn-verses">
+                  📖 {hymn.numVerses} verses
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="hymn-arrow">
+            <FiChevronRight size={20} />
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="view-all-music" onClick={() => navigate("/hymns")}>
+    <span>Browse Full Hymn Book</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
             </div>
 
             {/* RIGHT COLUMN */}
             <div className="right-column">
-              {/* UPCOMING MASS PROGRAMS */}
-              <div className="section-card">
-                <div className="section-header">
-                  <h3>⛪ UPCOMING MASS PROGRAMS</h3>
-                </div>
-                <div className="programs-list">
-                  {massPrograms.length === 0 ? (
-                    <div className="empty-state">No upcoming mass programs</div>
-                  ) : (
-                    massPrograms.map(prog => (
-                      <div key={prog.id} className="program-item" onClick={() => navigate("/mass-programs")}>
-                        <div className="program-date">📅 {formatMassDate(prog.date)}</div>
-                        <div className="program-venue">📍 {prog.venue}</div>
-                        <div className="program-time">🕐 {prog.time || "10:00 AM"}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <button className="view-all" onClick={() => navigate("/mass-programs")}>View Full Calendar →</button>
-              </div>
+             {/* UPCOMING MASS PROGRAMS */}
+<div className="section-card mass-premium">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-mass">⛪</div>
+      <div>
+        <h3>UPCOMING MASS PROGRAMS</h3>
+        <p className="header-subtitle">Worship schedule & services</p>
+      </div>
+    </div>
+    {massPrograms.length > 0 && (
+      <div className="total-badge">
+        {massPrograms.length} Upcoming
+      </div>
+    )}
+  </div>
+
+  <div className="mass-premium-list">
+    {massPrograms.length === 0 ? (
+      <div className="empty-state-mass">
+        <div className="empty-mass-icon">⛪</div>
+        <p>No upcoming mass programs {firstName} </p>
+        <span>We'll notify you;</span>
+      </div>
+    ) : (
+      massPrograms.map((prog, index) => (
+        <div 
+          key={prog.id} 
+          className="mass-premium-item"
+          onClick={() => navigate("/mass-programs")}
+        >
+          <div className="mass-premium-date">
+            <div className="mass-date-day">
+              {new Date(prog.date).getDate()}
+            </div>
+            <div className="mass-date-month">
+              {new Date(prog.date).toLocaleString('default', { month: 'short' }).toUpperCase()}
+            </div>
+          </div>
+          
+          <div className="mass-premium-content">
+            <div className="mass-premium-venue">{prog.venue}</div>
+            <div className="mass-premium-details">
+              <span className="mass-time">🕐 {prog.time || "10:00 AM"}</span>
+              {prog.presider && (
+                <span className="mass-presider">🙏 {prog.presider}</span>
+              )}
+            </div>
+          </div>
+          
+          <div className="mass-premium-arrow">
+            <FiChevronRight size={18} />
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+
+  <button className="view-all-premium" onClick={() => navigate("/mass-programs")}>
+    <span>View Full program</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
 
            
-              {/* FEATURED GALLERY */}
-              <div className="section-card">
-                <div className="section-header">
-                  <h3>📸 FEATURED GALLERY</h3>
-                </div>
-                <div className="gallery-grid">
-                  {featuredGallery.length === 0 ? (
-                    <div className="empty-state">No gallery items</div>
-                  ) : (
-                    featuredGallery.map((item, idx) => (
-                      <div key={item.id} className="gallery-item" onClick={() => navigate("/gallery")}>
-                        {item.thumbnailUrl ? (
-                          <img src={item.thumbnailUrl} alt={item.title} />
-                        ) : (
-                          <div className="gallery-placeholder">📷</div>
-                        )}
-                        <div className="gallery-label">
-                          {idx === 0 ? "zuca" : idx === 1 ? "zuca" : "zuca"}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <button className="view-all" onClick={() => navigate("/gallery")}>View Full Gallery →</button>
+   {/* FEATURED GALLERY */}
+<div className="section-card gallery-premium">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-gallery">📸</div>
+      <div>
+        <h3>FEATURED GALLERY</h3>
+        <p className="header-subtitle">Moments from our community</p>
+      </div>
+    </div>
+    {featuredGallery.length > 0 && (
+      <div className="total-badge">
+        {featuredGallery.length} photos
+      </div>
+    )}
+  </div>
+
+  <div className="gallery-premium-grid">
+    {featuredGallery.length === 0 ? (
+      <div className="empty-state-gallery">
+        <div className="empty-gallery-icon">📷</div>
+        <p>No gallery items</p>
+        <span>Check back soon for photos</span>
+      </div>
+    ) : (
+      featuredGallery.map((item, idx) => (
+        <motion.div
+          key={item.id}
+          className="gallery-premium-item"
+          onClick={() => navigate(`/gallery/${item.id}`)}
+          whileHover={{ y: -4 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="gallery-premium-image">
+            {item.url || item.thumbnailUrl ? (
+              <img 
+                src={item.thumbnailUrl || item.url} 
+                alt={item.title || "Gallery image"}
+                loading="lazy"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='20' rx='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='2.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-4-3 3-4-4-5 5'%3E%3C/path%3E%3C/svg%3E";
+                }}
+              />
+            ) : (
+              <div className="gallery-premium-placeholder">📷</div>
+            )}
+            <div className="gallery-premium-overlay">
+              <span className="overlay-icon">🔍</span>
+              <span className="overlay-text">View</span>
+            </div>
+          </div>
+          <div className="gallery-premium-info">
+            <div className="gallery-premium-title">
+              {item.title?.substring(0, 25) || "ZUCA Memory"}
+            </div>
+            {item.createdAt && (
+              <div className="gallery-premium-date">
+                {new Date(item.createdAt).toLocaleDateString()}
               </div>
+            )}
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="view-all-premium" onClick={() => navigate("/gallery")}>
+    <span>View Full Gallery</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
             </div>
           </div>
 
@@ -867,28 +1347,92 @@ const fetchFeaturedGallery = async () => {
           
 
           {/* EXECUTIVE TEAM QUICK ACCESS */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>👔 EXECUTIVE TEAM QUICK ACCESS</h3>
-            </div>
-            <div className="executive-grid">
-              {executiveTeam.map(exec => (
-                <div key={exec.id} className="executive-item" onClick={() => navigate("/executive")}>
-                  <div className="executive-icon">
-                    {exec.position?.title === "Chairperson" && "👑"}
-                    {exec.position?.title === "Secretary" && "📝"}
-                    {exec.position?.title === "Treasurer" && "💰"}
-                    {exec.position?.title === "Choir Moderator" && "🎵"}
-                    {exec.position?.title === "Media Moderator" && "📸"}
-                    {!exec.position?.title && "👤"}
-                  </div>
-                  <div className="executive-name">{exec.position?.title || exec.name}</div>
-                </div>
-              ))}
-              {executiveTeam.length === 0 && <div className="empty-state">No executive team assigned</div>}
-            </div>
-            <button className="view-all" onClick={() => navigate("/executive")}>View Full Executive Team →</button>
+<div className="section-card executive-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-executive">👔</div>
+      <div>
+        <h3>EXECUTIVE TEAM</h3>
+        <p className="header-subtitle">ZUCA Leadership & Administration</p>
+      </div>
+    </div>
+    {executiveTeam.length > 0 && (
+      <div className="total-badge">
+        {executiveTeam.length} Members
+      </div>
+    )}
+  </div>
+
+  <div className="executive-premium-grid">
+    {executiveTeam.length === 0 ? (
+      <div className="empty-state-executive">
+        <div className="empty-executive-icon">👔</div>
+        <p>No executive team assigned</p>
+        <span>Leadership team coming soon</span>
+      </div>
+    ) : (
+      executiveTeam.map((exec, index) => (
+        <motion.div
+          key={exec.id}
+          className="executive-premium-card"
+          onClick={() => navigate("/executive")}
+          whileHover={{ y: -4 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="executive-premium-avatar">
+            {exec.profileImage ? (
+              <img src={exec.profileImage} alt={exec.name} />
+            ) : (
+              <div className="executive-avatar-placeholder">
+                {exec.position?.title === "Chairperson" && "👑"}
+                {exec.position?.title === "Secretary" && "📝"}
+                {exec.position?.title === "Treasurer" && "💰"}
+                {exec.position?.title === "Choir Moderator" && "🎵"}
+                {exec.position?.title === "Media Moderator" && "📸"}
+                {!exec.position?.title && "👤"}
+              </div>
+            )}
           </div>
+          <div className="executive-premium-info">
+            <div className="executive-premium-name">
+              {exec.name?.split(' ')[0] || "Leader"}
+            </div>
+            <div className="executive-premium-role">
+              {exec.position?.title || "Executive Member"}
+            </div>
+          </div>
+          <div className="executive-premium-contact">
+            {exec.phone && (
+              <a 
+                href={`tel:${exec.phone}`} 
+                className="executive-call-btn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                📞
+              </a>
+            )}
+            {exec.whatsappLink && (
+              <a 
+                href={exec.whatsappLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="executive-wa-btn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                💬
+              </a>
+            )}
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="view-all-premium" onClick={() => navigate("/executive")}>
+    <span>View Full Executive Team</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
 
           {/* RECENT CHAT ACTIVITY */}
           <div className="section-card full-width">
@@ -1085,7 +1629,7 @@ const fetchFeaturedGallery = async () => {
           height: 80px;
           border-radius: 50%;
           overflow: hidden;
-          border: 3px solid #ff0062;
+          border: 3px solid #5eff00;
           cursor: pointer;
         }
 
@@ -1282,30 +1826,317 @@ const fetchFeaturedGallery = async () => {
           }
         }
 
-        /* SECTION CARDS */
-        .section-card {
-          background: white;
-          border-radius: 20px;
-          padding: 16px;
-          margin-bottom: 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
+      /* ============================================
+   MAIN CARD
+   ============================================ */
 
-        .full-width {
-          width: 100%;
-        }
 
-        .section-header {
-          margin-bottom: 12px;
-          border-left: 3px solid #3b82f6;
-          padding-left: 10px;
-        }
+.section-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
 
-        .section-header h3 {
-          font-size: 15px;
-          color: #1e293b;
-        }
+.full-width {
+  width: 100%;
+}
 
+/* ============================================
+   SECTION HEADER
+   ============================================ */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f5f5f5;
+}
+
+.section-header h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #1a1a1a, #333);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.event-counter {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ============================================
+   EVENTS LIST
+   ============================================ */
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-bottom: 1.75rem;
+  max-height: 450px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+/* Custom scrollbar */
+.events-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.events-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.events-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 10px;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: linear-gradient(135deg, #faf9ff, #f5f3ff);
+  border-radius: 20px;
+  border: 1px dashed #e0e0e0;
+}
+
+.empty-emoji {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+}
+
+.empty-state p {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state span {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+/* ============================================
+   EVENT ITEM - MODERN DESIGN
+   ============================================ */
+.event-item {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.25s ease;
+  border: 1px solid #f0f0f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.event-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  transform: scaleY(0);
+  transition: transform 0.25s ease;
+}
+
+.event-item:hover {
+  transform: translateX(4px);
+  border-color: #e8e8ff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+}
+
+.event-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Date Box */
+.event-date-box {
+  min-width: 60px;
+  text-align: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 0.5rem;
+  border-radius: 14px;
+  color: white;
+  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.2);
+}
+
+.event-day {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.event-month {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Event Info */
+.event-info {
+  flex: 1;
+}
+
+.event-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 0.35rem;
+  letter-spacing: -0.2px;
+}
+
+.event-time-info {
+  font-size: 0.75rem;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.time-icon {
+  font-size: 0.7rem;
+}
+
+.time-separator {
+  color: #ddd;
+}
+
+/* Event Badge */
+.event-badge {
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid #dcfce7;
+}
+
+.event-badge:contains("Today") {
+  background: #fef3c7;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+/* ============================================
+   VIEW ALL BUTTON
+   ============================================ */
+.view-all {
+  width: 100%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.view-all::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.view-all:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+}
+
+.view-all:hover::before {
+  left: 100%;
+}
+
+.view-all:active {
+  transform: translateY(0px);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 640px) {
+  .section-card {
+    padding: 1.25rem;
+  }
+  
+  .section-header h3 {
+    font-size: 1rem;
+  }
+  
+  .event-item {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .event-date-box {
+    min-width: 50px;
+  }
+  
+  .event-day {
+    font-size: 1.2rem;
+  }
+  
+  .event-title {
+    font-size: 0.85rem;
+  }
+  
+  .event-time-info {
+    font-size: 0.7rem;
+  }
+  
+  .event-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+  }
+  
+  .view-all {
+    padding: 0.7rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ============================================
+   FIX FOR "TODAY" BADGE (using CSS attr)
+   ============================================ */
+.event-badge[data-status="today"] {
+  background: #fef3c7;
+  color: #d97706;
+  border-color: #fde68a;
+}
         /* ANNOUNCEMENTS */
         .announcements-list, .pledges-list, .hymns-list, .programs-list {
           display: flex;
@@ -1412,51 +2243,66 @@ const fetchFeaturedGallery = async () => {
           margin-bottom: 2px;
         }
 
-        /* GALLERY */
-        .gallery-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-          margin-bottom: 12px;
-        }
+       /* GALLERY GRID */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
 
-        .gallery-item {
-          aspect-ratio: 1;
-          background: #f1f5f9;
-          border-radius: 12px;
-          overflow: hidden;
-          cursor: pointer;
-          position: relative;
-        }
+.gallery-item {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
 
-        .gallery-item img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+.gallery-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+}
 
-        .gallery-placeholder {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 32px;
-          color: #94a3b8;
-        }
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
 
-        .gallery-label {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: rgba(0,0,0,0.6);
-          color: white;
-          font-size: 9px;
-          padding: 3px;
-          text-align: center;
-        }
+.gallery-item:hover img {
+  transform: scale(1.05);
+}
 
+.gallery-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: #94a3b8;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+.gallery-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  color: white;
+  font-size: 11px;
+  padding: 8px 6px 4px;
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  backdrop-filter: blur(4px);
+}
         /* JUMUIA */
         .jumuia-content {
           text-align: center;
@@ -1695,7 +2541,7 @@ const fetchFeaturedGallery = async () => {
 
         /* BUTTONS */
         .view-all {
-          margin-top: 12px;
+          margin-top: 2px;
           width: 100%;
           padding: 10px;
           background: #f1f5f9;
@@ -1743,6 +2589,2486 @@ const fetchFeaturedGallery = async () => {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+
+        /* ============================================
+   ENHANCED HYMNS SECTION
+   ============================================ */
+
+.hymns-section {
+  background: linear-gradient(135deg, #ffffff 0%, #fef9f0 100%);
+  border-left: 4px solid #f59e0b;
+   border-radius: 30px;
+margin-top: 20px;
+}
+
+.header-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon-music {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  padding: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.header-subtitle {
+  font-size: 0.7rem;
+  color: #f59e0b;
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.total-badge {
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+  color: #d97706;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid #fde68a;
+}
+
+/* Empty State Music */
+.empty-state-music {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #fef9f0, #fffbeb);
+  border-radius: 20px;
+  border: 2px dashed #fde68a;
+}
+
+.music-note {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-music p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #92400e;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-music span {
+  font-size: 0.75rem;
+  color: #b45309;
+}
+
+/* Hymns List */
+.hymns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.hymns-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.hymns-list::-webkit-scrollbar-track {
+  background: #fef3c7;
+  border-radius: 10px;
+}
+
+.hymns-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  border-radius: 10px;
+}
+
+/* Hymn Item */
+.hymn-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #fef3c7;
+  position: relative;
+  overflow: hidden;
+}
+
+.hymn-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.hymn-item:hover {
+  transform: translateX(4px);
+  border-color: #fde68a;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+  background: #fffbeb;
+}
+
+.hymn-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Hymn Number */
+.hymn-number {
+  min-width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+  color: #d97706;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  border: 1px solid #fde68a;
+}
+
+.hymn-item:hover .hymn-number {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: white;
+  border-color: transparent;
+}
+
+/* Hymn Content */
+.hymn-content {
+  flex: 1;
+}
+
+.hymn-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.hymn-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.2px;
+}
+
+.hymn-category {
+  font-size: 0.65rem;
+  background: #fef3c7;
+  color: #d97706;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.hymn-preview {
+  font-size: 0.7rem;
+  color: #666;
+  margin-bottom: 0.35rem;
+  font-style: italic;
+}
+
+.hymn-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.hymn-date, .hymn-verses {
+  font-size: 0.65rem;
+  color: #999;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+/* Hymn Arrow */
+.hymn-arrow {
+  color: #d97706;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: all 0.3s ease;
+}
+
+.hymn-item:hover .hymn-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* View All Music Button */
+.view-all-music {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.view-all-music::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.view-all-music:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+}
+
+.view-all-music:hover::before {
+  left: 100%;
+}
+
+.view-all-music:active {
+  transform: translateY(0px);
+}
+
+.button-icon {
+  transition: transform 0.3s ease;
+}
+
+.view-all-music:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .hymn-item {
+    padding: 0.75rem;
+  }
+  
+  .hymn-number {
+    min-width: 30px;
+    height: 30px;
+    font-size: 0.75rem;
+  }
+  
+  .hymn-title {
+    font-size: 0.85rem;
+  }
+  
+  .hymn-preview {
+    font-size: 0.65rem;
+  }
+  
+  .hymn-meta {
+    font-size: 0.6rem;
+  }
+  
+  .header-icon-music {
+    font-size: 1.5rem;
+    padding: 0.4rem;
+  }
+  
+  .section-header h3 {
+    font-size: 0.95rem;
+  }
+}
+
+/* ============================================
+   PREMIUM SCHEDULES SECTION
+   ============================================ */
+
+.schedules-section {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  border-left: 4px solid #3b82f6;
+  position: relative;
+    border-radius: 30px;
+margin-top: 20px;
+padding: 0.1rem  1rem;
+  overflow: hidden;
+}
+
+.schedules-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 80%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(59,130,246,0.03) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.header-icon-calendar {
+  font-size: 1rem;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  padding: 0.3rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.schedule-badge {
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+/* Empty State Calendar */
+.empty-state-calendar {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-radius: 24px;
+  border: 2px dashed #7dd3fc;
+}
+
+.calendar-icon {
+  font-size: 3.5rem;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-calendar p {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-calendar span {
+  font-size: 0.8rem;
+  color: #0284c7;
+}
+
+/* Events Timeline */
+.events-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  position: relative;
+}
+
+.events-timeline::-webkit-scrollbar {
+  width: 6px;
+}
+
+.events-timeline::-webkit-scrollbar-track {
+  background: #e0f2fe;
+  border-radius: 10px;
+}
+
+.events-timeline::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  border-radius: 10px;
+}
+
+/* Premium Event Card */
+.event-card-premium {
+  background: white;
+  border-radius: 20px;
+  padding: 1.2rem;
+  display: flex;
+  gap: 1.25rem;
+  position: relative;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.event-card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 30px -12px rgba(59, 130, 246, 0.15);
+  border-color: #bfdbfe;
+}
+
+/* Timeline Connector */
+.timeline-connector-dash {
+  position: absolute;
+  left: 55px;
+  top: 100%;
+  width: 2px;
+  height: 1.5rem;
+  background: linear-gradient(to bottom, #3b82f6, transparent);
+  z-index: 0;
+}
+
+/* Date Section */
+.event-date-premium {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 80px;
+}
+
+.date-card {
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  border-radius: 18px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  color: white;
+  box-shadow: 0 6px 14px rgba(59, 130, 246, 0.25);
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.event-card-premium:hover .date-card {
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.35);
+}
+
+.date-day-number {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.date-month-year {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.date-year {
+  font-size: 0.6rem;
+  opacity: 0.8;
+}
+
+.today-flare {
+  background: #ef4444;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  animation: pulse 2s infinite;
+}
+
+/* Event Content */
+.event-content-premium {
+  flex: 1;
+}
+
+.event-header-premium {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.event-title-premium {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.event-type-badge {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+/* Event Details Chips */
+.event-details-premium {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.detail-chip {
+  background: #f8fafc;
+  padding: 0.25rem 0.6rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid #e2e8f0;
+}
+
+.chip-icon {
+  font-size: 0.65rem;
+}
+
+.event-description-premium {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+/* Event Footer */
+.event-footer-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.event-organizer {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.organizer-icon {
+  font-size: 0.7rem;
+}
+
+.event-details-btn {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  transition: all 0.2s ease;
+  padding: 0.25rem 0.5rem;
+  border-radius: 20px;
+}
+
+.event-details-btn:hover {
+  background: #eff6ff;
+  gap: 0.4rem;
+}
+
+/* Status Indicator */
+.event-status-indicator {
+  font-size: 0.65rem;
+  font-weight: 700;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  padding: 0.5rem 0.25rem;
+  border-radius: 30px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.status-today {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.status-upcoming {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+/* View All Button */
+.view-all-schedules {
+  width: 100%;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.view-all-schedules::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.view-all-schedules:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+}
+
+.view-all-schedules:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.view-all-schedules:active {
+  transform: translateY(0px);
+}
+
+.button-arrow-icon {
+  transition: transform 0.3s ease;
+}
+
+.view-all-schedules:hover .button-arrow-icon {
+  transform: translateX(6px);
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* Helper function for event badges */
+.event-type-badge {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+/* Different colors for different event types */
+.event-card-premium[data-type="mass"] .event-type-badge {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.event-card-premium[data-type="meeting"] .event-type-badge {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.event-card-premium[data-type="social"] .event-type-badge {
+  background: #fce7f3;
+  color: #db2777;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .event-card-premium {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .event-date-premium {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-width: auto;
+  }
+  
+  .date-card {
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  .date-day-number {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+  }
+  
+  .date-month-year {
+    flex-direction: row;
+    gap: 0.25rem;
+    align-items: baseline;
+  }
+  
+  .timeline-connector-dash {
+    display: none;
+  }
+  
+  .event-status-indicator {
+    writing-mode: horizontal-tb;
+    padding: 0.25rem 0.5rem;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+  
+  .event-header-premium {
+    padding-right: 70px;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 1024px) {
+  .event-title-premium {
+    font-size: 1.1rem;
+  }
+  
+  .detail-chip {
+    font-size: 0.75rem;
+  }
+  
+  .event-description-premium {
+    font-size: 0.8rem;
+  }
+}
+
+/* ============================================
+   PREMIUM EXECUTIVE TEAM SECTION
+   ============================================ */
+
+.executive-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #fefce8 100%);
+  margin-bottom: 30px;
+  border-radius: 35px;
+  border-left: 4px solid #eab308;
+}
+
+.header-icon-executive {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  padding: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.2);
+}
+
+/* Empty State */
+.empty-state-executive {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #fefce8, #fef9c3);
+  border-radius: 20px;
+  border: 2px dashed #fde047;
+}
+
+.empty-executive-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-executive p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #854d0e;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-executive span {
+  font-size: 0.75rem;
+  color: #ca8a04;
+}
+
+/* Executive Grid */
+.executive-premium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .executive-premium-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .executive-premium-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+/* Executive Card */
+.executive-premium-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #fef3c7;
+  position: relative;
+  overflow: hidden;
+}
+
+.executive-premium-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #eab308, #ca8a04);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.executive-premium-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -12px rgba(234, 179, 8, 0.2);
+  border-color: #fde047;
+}
+
+.executive-premium-card:hover::before {
+  transform: scaleX(1);
+}
+
+/* Avatar */
+.executive-premium-avatar {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 0.75rem;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fefce8, #fef9c3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #eab308;
+  transition: all 0.3s ease;
+}
+
+.executive-premium-card:hover .executive-premium-avatar {
+  transform: scale(1.05);
+  border-color: #ca8a04;
+}
+
+.executive-premium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.executive-avatar-placeholder {
+  font-size: 2rem;
+}
+
+/* Info */
+.executive-premium-info {
+  margin-bottom: 0.5rem;
+}
+
+.executive-premium-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.2rem;
+}
+
+.executive-premium-role {
+  font-size: 0.65rem;
+  color: #ca8a04;
+  font-weight: 600;
+  background: #fefce8;
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+}
+
+/* Contact Buttons */
+.executive-premium-contact {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.executive-call-btn,
+.executive-wa-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.executive-call-btn {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.executive-wa-btn {
+  background: #dcfce7;
+  color: #25D366;
+}
+
+.executive-call-btn:hover,
+.executive-wa-btn:hover {
+  transform: scale(1.1);
+}
+
+/* View All Button */
+.view-all-premium {
+  width: 100%;
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.view-all-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.view-all-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(234, 179, 8, 0.3);
+}
+
+.view-all-premium:hover::before {
+  left: 100%;
+}
+
+.button-icon {
+  transition: transform 0.3s ease;
+}
+
+.view-all-premium:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* ============================================
+   JUMUIA DASHBOARD CARD - COMPACT
+   ============================================ */
+
+.jumuia-dashboard-card {
+  background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
+  border-left: 3px solid #8b5cf6;
+  padding: 1.25rem;
+  gap: 20px;
+  border-radius: 30px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.header-icon-small {
+  font-size: 1.3rem;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  padding: 0.3rem;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.header-icon-small span {
+  font-size: 0.9rem;
+}
+
+.section-header h3 {
+  font-size: 1rem;
+  margin: 0;
+  flex: 1;
+}
+
+.jumuia-status-badge-small {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #dcfce7;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Content */
+.jumuia-dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jumuia-name-dashboard {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e1b4b;
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f3e8ff;
+}
+
+/* Quick Info Grid */
+.jumuia-quick-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.quick-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #faf5ff;
+  padding: 0.5rem;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.quick-info-item:hover {
+  background: #f3e8ff;
+  transform: translateX(2px);
+}
+
+.info-emoji {
+  font-size: 1.1rem;
+}
+
+.info-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.info-label {
+  font-size: 0.6rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.info-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+
+.meeting-highlight {
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+  border-left: 2px solid #f59e0b;
+}
+
+.meeting-date {
+  color: #d97706;
+  font-size: 0.75rem;
+}
+
+/* Button */
+.jumuia-chat-btn-dashboard {
+  width: 100%;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0.25rem;
+}
+
+.jumuia-chat-btn-dashboard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .jumuia-quick-info {
+    grid-template-columns: 1fr;
+  }
+  
+  .jumuia-dashboard-card {
+    padding: 1rem;
+  }
+  
+  .jumuia-name-dashboard {
+    font-size: 0.9rem;
+  }
+  
+  .info-value {
+    font-size: 0.75rem;
+  }
+}
+
+/* ============================================
+   PREMIUM LITURGICAL READING CARD
+   ============================================ */
+
+.reading-premium-card {
+  background: linear-gradient(135deg, #fef7e0 0%, #fff9e6 100%);
+  border-left: 5px solid #d97706;
+  padding: 0;
+  border-radius: 30px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.reading-premium-header {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  padding: 0rem 0.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0rem;
+  flex-wrap: wrap;
+}
+
+.reading-header-icon {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reading-icon {
+  font-size: 1.8rem;
+}
+
+.reading-header-content {
+  flex: 1;
+}
+
+.reading-premium-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.reading-premium-subtitle {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0.2rem 0 0 0;
+}
+
+.reading-date-badge {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 0.3rem 0.8rem;
+  border-radius: 30px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  backdrop-filter: blur(4px);
+}
+
+.reading-premium-body {
+  padding: 1.5rem;
+}
+
+.reading-celebration {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  margin-bottom: 1.25rem;
+  border: 1px solid #fde68a;
+}
+
+.celebration-icon {
+  font-size: 1rem;
+}
+
+.celebration-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.readings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.reading-verse-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+  border: 1px solid #fef3c7;
+  position: relative;
+  overflow: hidden;
+}
+
+.reading-verse-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.reading-verse-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+}
+
+.reading-verse-card:hover::before {
+  transform: scaleY(1);
+}
+
+.verse-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.verse-icon {
+  font-size: 0.9rem;
+}
+
+.verse-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #d97706;
+}
+
+.verse-citation {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.verse-preview {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-style: italic;
+  line-height: 1.4;
+  margin-top: 0.25rem;
+}
+
+.gospel-card {
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+  border: 1px solid #fde68a;
+}
+
+.psalm-card {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #a7f3d0;
+}
+
+.psalm-card .verse-title {
+  color: #059669;
+}
+
+.reading-premium-footer {
+  margin-top: 1rem;
+}
+
+.reading-full-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.reading-full-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+}
+
+.btn-arrow-icon {
+  transition: transform 0.3s ease;
+  width: 18px;
+  height: 18px;
+}
+
+.reading-full-btn:hover .btn-arrow-icon {
+  transform: translateX(4px);
+}
+
+.reading-footer-note {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 0.65rem;
+  color: #b45309;
+  text-align: center;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .reading-premium-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .reading-header-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .reading-icon {
+    font-size: 1.4rem;
+  }
+  
+  .reading-premium-title {
+    font-size: 0.95rem;
+  }
+  
+  .reading-celebration {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .reading-verse-card {
+    padding: 0.75rem;
+  }
+  
+  .verse-citation {
+    font-size: 0.7rem;
+  }
+  
+  .verse-preview {
+    font-size: 0.65rem;
+  }
+}
+
+
+/* ============================================
+   PREMIUM FINANCIAL STATS GRID
+   ============================================ */
+
+.financial-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 40px;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .financial-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .financial-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Financial Stat Card */
+.financial-stat-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.financial-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.financial-stat-card:hover::before {
+  transform: scaleX(1);
+}
+
+.financial-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.15);
+}
+
+/* Individual card hover effects */
+.financial-stat-card:first-child::before {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+}
+.financial-stat-card:nth-child(2)::before {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+.financial-stat-card:nth-child(3)::before {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.financial-stat-card:nth-child(4)::before {
+  background: linear-gradient(90deg, #8b5cf6, #c084fc);
+}
+
+/* Icons */
+.financial-stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.financial-stat-card:hover .financial-stat-icon {
+  transform: scale(1.05);
+}
+
+.pledged-icon {
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+  color: #3b82f6;
+}
+
+.paid-icon {
+  background: linear-gradient(135deg, #d1fae5, #ecfdf5);
+  color: #10b981;
+}
+
+.pending-icon {
+  background: linear-gradient(135deg, #fed7aa, #fffbeb);
+  color: #f59e0b;
+}
+
+.campaigns-icon {
+  background: linear-gradient(135deg, #ede9fe, #f5f3ff);
+  color: #8b5cf6;
+}
+
+/* Content */
+.financial-stat-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.financial-stat-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.3px;
+}
+
+.financial-stat-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Trend Indicators */
+.financial-stat-trend {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.financial-stat-card:hover .financial-stat-trend {
+  opacity: 1;
+}
+
+.positive {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+
+.success {
+  background: #d1fae5;
+  color: #10b981;
+}
+
+.warning {
+  background: #fed7aa;
+  color: #f59e0b;
+}
+
+.info {
+  background: #ede9fe;
+  color: #8b5cf6;
+}
+
+/* ============================================
+   PREMIUM ANNOUNCEMENTS SECTION
+   ============================================ */
+
+.announcements-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+   border-radius: 40px;
+margin-top: 30px;
+  border-left: 4px solid #ef4444;
+}
+
+.header-icon-announcement {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  padding: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+/* Empty State */
+.empty-state-announcement {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-radius: 20px;
+  border: 2px dashed #fca5a5;
+}
+
+.empty-announcement-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-announcement p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #991b1b;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-announcement span {
+  font-size: 0.75rem;
+  color: #dc2626;
+}
+
+/* Announcements List */
+.announcements-premium-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.announcements-premium-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.announcements-premium-list::-webkit-scrollbar-track {
+  background: #fee2e2;
+  border-radius: 10px;
+}
+
+.announcements-premium-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-radius: 10px;
+}
+
+/* Announcement Item */
+.announcement-premium-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #fee2e2;
+  position: relative;
+  overflow: hidden;
+}
+
+.announcement-premium-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.announcement-premium-item:hover {
+  transform: translateX(4px);
+  border-color: #fecaca;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+  background: #fef2f2;
+}
+
+.announcement-premium-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Announcement Number */
+.announcement-premium-number {
+  min-width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  color: #dc2626;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  border: 1px solid #fecaca;
+}
+
+.announcement-premium-item:hover .announcement-premium-number {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border-color: transparent;
+}
+
+/* Announcement Content */
+.announcement-premium-content {
+  flex: 1;
+}
+
+.announcement-premium-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.announcement-premium-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.2px;
+}
+
+.announcement-premium-time {
+  font-size: 0.65rem;
+  color: #dc2626;
+  background: #fef2f2;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.announcement-premium-message {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Announcement Arrow */
+.announcement-premium-arrow {
+  color: #dc2626;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.3s ease;
+}
+
+.announcement-premium-item:hover .announcement-premium-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* View All Button */
+.view-all-premium {
+  width: 100%;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.view-all-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.view-all-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+}
+
+.view-all-premium:hover::before {
+  left: 100%;
+}
+
+.view-all-premium:active {
+  transform: translateY(0px);
+}
+
+.button-icon {
+  transition: transform 0.3s ease;
+}
+
+.view-all-premium:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .announcement-premium-item {
+    padding: 0.75rem;
+  }
+  
+  .announcement-premium-number {
+    min-width: 30px;
+    height: 30px;
+    font-size: 0.75rem;
+  }
+  
+  .announcement-premium-title {
+    font-size: 0.85rem;
+  }
+  
+  .announcement-premium-message {
+    font-size: 0.7rem;
+  }
+  
+  .header-icon-announcement {
+    font-size: 1.5rem;
+    padding: 0.4rem;
+  }
+  
+  .section-header h3 {
+    font-size: 0.95rem;
+  }
+}
+
+/* Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ============================================
+   COMPACT PLEDGES SECTION
+   ============================================ */
+
+.pledges-compact {
+  padding: 1rem !important;
+    border-left: 4px solid #10b981;
+    margin-top: 50px;
+    border-radius: 40px;
+
+}
+
+.header-icon-small-pledge {
+  font-size: 1.2rem;
+  background: linear-gradient(135deg, #10b981, #059669);
+  padding: 0.3rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.header-icon-small-pledge span {
+  font-size: 0.9rem;
+}
+
+.section-header .header-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-header .header-with-icon h3 {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.pledge-count-badge {
+  background: #10b981;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+}
+
+.pledges-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pledges-compact-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.pledges-compact-list::-webkit-scrollbar-track {
+  background: #dcfce7;
+  border-radius: 10px;
+}
+
+.pledges-compact-list::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 10px;
+}
+
+.empty-state-compact-pledge {
+  text-align: center;
+  padding: 1rem;
+  background: #f0fdf4;
+  border-radius: 12px;
+}
+
+.empty-state-compact-pledge span {
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.empty-state-compact-pledge p {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.pledge-compact-item {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+}
+
+.pledge-compact-item:hover {
+  background: #f1f5f9;
+  transform: translateX(2px);
+  border-color: #86efac;
+}
+
+.pledge-compact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.pledge-compact-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pledge-compact-percent {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.progress-bar-compact {
+  background: #e2e8f0;
+  border-radius: 20px;
+  height: 4px;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.progress-fill-compact {
+  background: linear-gradient(90deg, #10b981, #34d399);
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.3s ease;
+}
+
+.pledge-compact-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.6rem;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.pledge-compact-footer span:first-child {
+  color: #475569;
+  font-weight: 500;
+}
+
+.pledge-pending-compact {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.view-all-compact-pledge {
+  width: 100%;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #10b981;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-all-compact-pledge:hover {
+  background: #f0fdf4;
+  border-color: #10b981;
+}
+
+/* ============================================
+   PREMIUM GALLERY SECTION
+   ============================================ */
+
+.gallery-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+  border-radius: 35px;
+  border-left: 4px solid #8b5cf6;
+}
+
+.header-icon-gallery {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  padding: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+}
+
+/* Gallery Grid */
+.gallery-premium-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .gallery-premium-grid {
+    gap: 0.75rem;
+  }
+}
+
+/* Gallery Item */
+.gallery-premium-item {
+  cursor: pointer;
+  border-radius: 16px;
+  overflow: hidden;
+  background: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f0f0f0;
+}
+
+.gallery-premium-item:hover {
+  box-shadow: 0 12px 24px -12px rgba(139, 92, 246, 0.2);
+  border-color: #d8b4fe;
+}
+
+/* Gallery Image */
+.gallery-premium-image {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+}
+
+.gallery-premium-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.gallery-premium-item:hover .gallery-premium-image img {
+  transform: scale(1.08);
+}
+
+/* Overlay */
+.gallery-premium-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gallery-premium-item:hover .gallery-premium-overlay {
+  opacity: 1;
+}
+
+.overlay-icon {
+  font-size: 1.2rem;
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.3rem;
+  border-radius: 50%;
+}
+
+.overlay-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+/* Placeholder */
+.gallery-premium-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: #94a3b8;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+/* Gallery Info */
+.gallery-premium-info {
+  padding: 0.6rem;
+  text-align: center;
+}
+
+.gallery-premium-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-premium-date {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  margin-top: 0.2rem;
+}
+
+/* Empty State */
+.empty-state-gallery {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #faf5ff, #f3e8ff);
+  border-radius: 20px;
+  border: 2px dashed #d8b4fe;
+}
+
+.empty-gallery-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-gallery p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6d28d9;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-gallery span {
+  font-size: 0.75rem;
+  color: #a78bfa;
+}
+
+/* Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ============================================
+   PREMIUM MASS PROGRAMS SECTION
+   ============================================ */
+
+.mass-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border-radius: 35px;
+  border-left: 4px solid #3b82f6;
+  margin-bottom: 30px;
+}
+
+.header-icon-mass {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  padding: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+/* Empty State */
+.empty-state-mass {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-radius: 20px;
+  border: 2px dashed #93c5fd;
+}
+
+.empty-mass-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-mass p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-state-mass span {
+  font-size: 0.75rem;
+  color: #3b82f6;
+}
+
+/* Mass List */
+.mass-premium-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.mass-premium-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mass-premium-list::-webkit-scrollbar-track {
+  background: #dbeafe;
+  border-radius: 10px;
+}
+
+.mass-premium-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  border-radius: 10px;
+}
+
+/* Mass Item */
+.mass-premium-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #dbeafe;
+  position: relative;
+  overflow: hidden;
+}
+
+.mass-premium-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.mass-premium-item:hover {
+  transform: translateX(4px);
+  border-color: #bfdbfe;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+  background: #eff6ff;
+}
+
+.mass-premium-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Date Box */
+.mass-premium-date {
+  min-width: 60px;
+  text-align: center;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  padding: 0.5rem;
+  border-radius: 14px;
+  color: white;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
+}
+
+.mass-date-day {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mass-date-month {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Mass Content */
+.mass-premium-content {
+  flex: 1;
+}
+
+.mass-premium-venue {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.mass-premium-details {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mass-time, .mass-presider {
+  font-size: 0.7rem;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Arrow */
+.mass-premium-arrow {
+  color: #3b82f6;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.3s ease;
+}
+
+.mass-premium-item:hover .mass-premium-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* View All Button */
+.view-all-premium {
+  width: 100%;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.view-all-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.view-all-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+}
+
+.view-all-premium:hover::before {
+  left: 100%;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .mass-premium-item {
+    padding: 0.6rem;
+  }
+  
+  .mass-premium-date {
+    min-width: 50px;
+  }
+  
+  .mass-date-day {
+    font-size: 1.2rem;
+  }
+  
+  .mass-premium-venue {
+    font-size: 0.8rem;
+  }
+  
+  .mass-time, .mass-presider {
+    font-size: 0.65rem;
+  }
+  
+  .header-icon-mass {
+    font-size: 1.5rem;
+    padding: 0.4rem;
+  }
+}
       `}</style>
     </>
   );

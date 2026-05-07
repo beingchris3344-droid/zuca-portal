@@ -12,8 +12,10 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie } from "react-icons/fa";
-import { GiGamepad } from "react-icons/gi";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  } from "react-icons/fa";
+import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
+
+
 
 
 function Layout() {
@@ -102,14 +104,16 @@ function Layout() {
     { path: "/schedules", label: "Schedules", icon: "📅" },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
+        { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
+{ path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={20} /> },
+        { path: "/hymns", label: "Hymn Book", icon: "🎵" },
+
       { path: "/youtube", label: "ZUCA Y-Tube Hub", icon: <FaYoutube size={18} color="#ff0000" /> },
 
     { path: "/gallery", label: "Gallery", icon: "🖼️" },
     { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
     { path: "/announcements", label: "Announcements", icon: "📢" },
-    { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
     { path: "/contributions", label: "Contributions", icon: "💰" },
-    { path: "/hymns", label: "Hymn Book", icon: "🎵" },
     { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
     { path: "/chat", label: "Chat", icon: "💬" },
     { path: "/executive", label: "Executive Team", icon: "👔" },

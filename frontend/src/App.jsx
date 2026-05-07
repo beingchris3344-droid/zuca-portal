@@ -41,6 +41,7 @@ import UserManual from './pages/UserManual';
 import Games from "./pages/Games";
 import UserSchedules from "./pages/UserSchedules";
 import UserYoutubeHub from "./pages/UserYoutubeHub";
+import Prayer from "./pages/Prayer";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -388,6 +389,7 @@ function AppContent() {
         <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/prayer" element={<Prayer />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

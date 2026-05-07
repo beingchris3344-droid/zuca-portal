@@ -58,9 +58,6 @@ function Dashboard() {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
 
-const fullName = user.fullName || '';
-const firstName = fullName.split(' ')[0];
-
 
  
 const getEventBadge = (type) => {
@@ -567,6 +564,8 @@ const fetchFeaturedGallery = async () => {
 
   return (
     <>
+    
+
       <div className="dashboard">
         <div className="dashboard-content">
           {/* HEADER */}
@@ -1168,7 +1167,7 @@ const fetchFeaturedGallery = async () => {
     {massPrograms.length === 0 ? (
       <div className="empty-state-mass">
         <div className="empty-mass-icon">⛪</div>
-        <p>No upcoming mass programs {firstName} </p>
+        <p>No upcoming mass programs  </p>
         <span>We'll notify you;</span>
       </div>
     ) : (

@@ -124,6 +124,225 @@ app.get("/api/game-test", authenticate, (req, res) => {
   res.json({ message: "Game auth works!", userId: req.user.userId });
 });
 
+
+// Add these near your other routes in server.js
+// ==================== PRAYER ROUTES ====================
+const prayerCollection = require('@codexcommunion/prayer-collection');
+
+// GET /api/prayers/list - List all available prayers in English (Kenya)
+app.get("/api/prayers/list", (req, res) => {
+  try {
+    const prayerIds = [
+      'our-father', 'hail-mary', 'glory-be', 'sign-of-the-cross',
+      'apostles-creed', 'fatima-prayer', 'memorare', 'salve-regina',
+      'magnificat', 'morning-offering', 'jesus-prayer', 'te-deum',
+      'prayer-to-st-jude', 'holy-god', 'for-the-sake-of-his-sorrowful-passion',
+      'angelus', 'regina-caeli', 'act-of-contrition', 'act-of-faith',
+      'act-of-hope', 'act-of-love', 'st-michael-prayer', 'guardian-angel',
+      'evening-prayer', 'eternal-rest', 'prayer-for-the-dead',
+      'veni-creator-spiritus', 'come-holy-spirit', 'anima-christi'
+    ];
+    
+    const prayers = [];
+    for (const id of prayerIds) {
+      const text = prayerCollection.getPrayerText(id, 'en');
+      if (text && text !== "Text not available for this prayer/language combination.") {
+        prayers.push({ 
+          id, 
+          title: id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+          preview: text.substring(0, 100) + '...'
+        });
+      }
+    }
+    
+    res.json({ success: true, count: prayers.length, prayers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/prayers/:id - Get a single prayer in English (Kenya)
+app.get("/api/prayers/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const text = prayerCollection.getPrayerText(id, 'en');
+    
+    if (!text || text === "Text not available for this prayer/language combination.") {
+      return res.status(404).json({ error: "Prayer not found" });
+    }
+    
+    const title = id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    
+    res.json({ 
+      success: true, 
+      prayer: {
+        id,
+        title,
+        text,
+        language: "English (Kenya)"
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/prayers/search/:keyword - Search prayers by keyword
+app.get("/api/prayers/search/:keyword", (req, res) => {
+  try {
+    const { keyword } = req.params;
+    const results = prayerCollection.searchPrayers(keyword);
+    
+    // Filter to only show English version
+    const englishResults = results.map(prayer => ({
+      id: prayer.metadata?.id,
+      title: prayer.metadata?.title,
+      description: prayer.metadata?.description,
+      text: prayer.translations?.en?.text || "Text not available"
+    })).filter(p => p.text && p.text !== "Text not available");
+    
+    res.json({ success: true, keyword, count: englishResults.length, results: englishResults });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/rosary - Complete Rosary in English (Kenya)
+app.get("/api/rosary", (req, res) => {
+  try {
+    const getText = (id) => prayerCollection.getPrayerText(id, 'en') || "";
+    
+    const rosary = {
+      title: "The Holy Rosary",
+      language: "English (Kenya)",
+      opening: {
+        signOfCross: "In the name of the Father, and of the Son, and of the Holy Spirit. Amen.",
+        apostlesCreed: getText('apostles-creed'),
+        ourFather: getText('our-father'),
+        hailMary: getText('hail-mary'),
+        gloryBe: getText('glory-be')
+      },
+      mysteries: {
+        joyful: {
+          name: "Joyful Mysteries",
+          days: ["Monday", "Saturday"],
+          decades: [
+            { mystery: "The Annunciation", fruit: "Humility" },
+            { mystery: "The Visitation", fruit: "Love of Neighbor" },
+            { mystery: "The Nativity", fruit: "Poverty" },
+            { mystery: "The Presentation", fruit: "Obedience" },
+            { mystery: "The Finding in the Temple", fruit: "Joy" }
+          ]
+        },
+        sorrowful: {
+          name: "Sorrowful Mysteries",
+          days: ["Tuesday", "Friday"],
+          decades: [
+            { mystery: "The Agony in the Garden", fruit: "Sorrow for Sin" },
+            { mystery: "The Scourging at the Pillar", fruit: "Purity" },
+            { mystery: "The Crowning with Thorns", fruit: "Courage" },
+            { mystery: "The Carrying of the Cross", fruit: "Patience" },
+            { mystery: "The Crucifixion", fruit: "Perseverance" }
+          ]
+        },
+        glorious: {
+          name: "Glorious Mysteries",
+          days: ["Wednesday", "Sunday"],
+          decades: [
+            { mystery: "The Resurrection", fruit: "Faith" },
+            { mystery: "The Ascension", fruit: "Hope" },
+            { mystery: "The Descent of the Holy Spirit", fruit: "Love" },
+            { mystery: "The Assumption", fruit: "Happy Death" },
+            { mystery: "The Coronation", fruit: "Trust in Mary" }
+          ]
+        },
+        luminous: {
+          name: "Luminous Mysteries",
+          days: ["Thursday"],
+          decades: [
+            { mystery: "The Baptism of Jesus", fruit: "Openness to Holy Spirit" },
+            { mystery: "The Wedding at Cana", fruit: "Trust in Mary" },
+            { mystery: "The Proclamation of the Kingdom", fruit: "Repentance" },
+            { mystery: "The Transfiguration", fruit: "Desire for Holiness" },
+            { mystery: "The Institution of the Eucharist", fruit: "Love of Eucharist" }
+          ]
+        }
+      },
+      decadePrayers: {
+        ourFather: getText('our-father'),
+        hailMary: getText('hail-mary'),
+        gloryBe: getText('glory-be'),
+        fatimaPrayer: getText('fatima-prayer') || "O my Jesus, forgive us our sins, save us from the fires of hell, lead all souls to Heaven, especially those most in need of Thy mercy."
+      },
+      closing: {
+        hailHolyQueen: getText('salve-regina'),
+        finalPrayer: "O God, whose only begotten Son, by His life, death, and resurrection, has purchased for us the rewards of eternal salvation, grant, we beseech Thee, that meditating on these mysteries of the most holy Rosary, we may imitate what they contain and obtain what they promise. Through Christ our Lord. Amen."
+      },
+      todayMystery: (() => {
+        const days = ['glorious', 'joyful', 'sorrowful', 'glorious', 'luminous', 'sorrowful', 'joyful'];
+        return days[new Date().getDay()];
+      })()
+    };
+    
+    res.json({ success: true, rosary });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/rosary/today - Get today's mysteries only
+app.get("/api/rosary/today", (req, res) => {
+  try {
+    const days = ['glorious', 'joyful', 'sorrowful', 'glorious', 'luminous', 'sorrowful', 'joyful'];
+    const todayIndex = new Date().getDay();
+    const todayMystery = days[todayIndex];
+    
+    const mysteryNames = {
+      joyful: ["The Annunciation", "The Visitation", "The Nativity", "The Presentation", "The Finding in the Temple"],
+      sorrowful: ["The Agony in the Garden", "The Scourging at the Pillar", "The Crowning with Thorns", "The Carrying of the Cross", "The Crucifixion"],
+      glorious: ["The Resurrection", "The Ascension", "The Descent of the Holy Spirit", "The Assumption", "The Coronation"],
+      luminous: ["The Baptism of Jesus", "The Wedding at Cana", "The Proclamation of the Kingdom", "The Transfiguration", "The Institution of the Eucharist"]
+    };
+    
+    const fruits = {
+      joyful: ["Humility", "Love of Neighbor", "Poverty", "Obedience", "Joy"],
+      sorrowful: ["Sorrow for Sin", "Purity", "Courage", "Patience", "Perseverance"],
+      glorious: ["Faith", "Hope", "Love", "Happy Death", "Trust in Mary"],
+      luminous: ["Openness to Holy Spirit", "Trust in Mary", "Repentance", "Desire for Holiness", "Love of Eucharist"]
+    };
+    
+    const decades = [];
+    for (let i = 0; i < 5; i++) {
+      decades.push({
+        mystery: mysteryNames[todayMystery][i],
+        fruit: fruits[todayMystery][i],
+        ourFather: true,
+        hailMarys: 10,
+        gloryBe: true
+      });
+    }
+    
+    res.json({
+      success: true,
+      today: todayMystery,
+      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][todayIndex],
+      decades
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/prayers/languages - Get supported languages
+app.get("/api/prayers/languages", (req, res) => {
+  try {
+    const languages = prayerCollection.getSupportedLanguages();
+    res.json({ success: true, languages });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== ADD GAME ROUTES HERE ====================
 
 // Get all users for game invites
@@ -2507,22 +2726,24 @@ app.post("/api/media/:id/comments", authenticate, async (req, res) => {
       }
     });
    // Notify media owner
+// Notify media owner
 const media = await prisma.media.findUnique({ where: { id }, select: { uploadedById: true } });
 if (media && media.uploadedById !== userId) {
-  await createAndSendNotification({
+  const notification = await createAndSendNotification({
     userId: media.uploadedById,
     type: "media_comment",
     title: "💬 New Comment",
     message: `${comment.user.fullName} commented on your media`,
     data: { mediaId: id, commentId: comment.id }
   });
-      io.to(media.uploadedById).emit("new_notification", {
-        ...notification,
-        createdAt: notification.createdAt.toISOString()
-      });
-    }
-    
-    res.status(201).json(comment);
+  
+  io.to(media.uploadedById).emit("new_notification", {
+    ...notification,
+    createdAt: notification.createdAt.toISOString()
+  });
+}
+
+res.status(201).json(comment);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

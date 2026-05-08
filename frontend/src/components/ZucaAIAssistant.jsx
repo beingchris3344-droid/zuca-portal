@@ -450,7 +450,7 @@ const MessageBubble = ({ msg, isUser, isFullPage, userAvatar, userInitial, copie
         borderRadius: "12px", 
         background: isUser 
           ? "linear-gradient(135deg, #3b82f6, #2563eb)" 
-          : "linear-gradient(135deg, #ef4444, #dc2626)",
+          : "linear-gradient(135deg, #ef444400, #dc262600)",
         display: "flex", 
         alignItems: "center", 
         justifyContent: "center", 

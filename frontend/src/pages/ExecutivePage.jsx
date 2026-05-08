@@ -169,20 +169,6 @@ export default function ExecutivePage() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="executive-loader">
-        <div className="loader-spinner">
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <div className="ring"></div>
-          <Crown size={24} className="loader-crown" />
-        </div>
-        <h3>Executive Council</h3>
-        <p>Loading leadership structure</p>
-      </div>
-    );
-  }
 
   return (
     <div className="executive-page">

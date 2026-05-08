@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/public/site.webmanifest" />
+    <link rel="manifest" href="/site.webmanifest" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZucaPortal</title>
@@ -26,15 +26,25 @@
         box-sizing: border-box;
       }
 
+      html, body {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+
       body {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        overflow: visible; /* or just remove it entirely */;
       }
 
       /* Splash container - fullscreen with your background image */
       #splash {
         position: fixed;
-        inset: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -44,29 +54,29 @@
         font-family: 'Inter', sans-serif;
         text-align: center;
         z-index: 9999;
-        overflow: hidden;
       }
 
       /* Blurred overlay with gradient - creates depth */
       #splash::before {
         content: "";
         position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 100%);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         z-index: 1;
       }
 
       /* Animated floating particles */
       .particle {
         position: absolute;
-        background: rgba(255, 255, 255, 0.927);
+        background: rgba(255, 255, 255, 0.1);
         border-radius: 50%;
         pointer-events: none;
         z-index: 2;
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
       }
 
       .particle-1 {
@@ -74,7 +84,7 @@
         height: 300px;
         top: -150px;
         right: -100px;
-        background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,215,0,0.15) 0%, transparent 70%);
         animation: float 20s infinite ease-in-out;
       }
 
@@ -83,7 +93,7 @@
         height: 400px;
         bottom: -200px;
         left: -150px;
-        background: radial-gradient(circle, rgb(99, 134, 153) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%);
         animation: float 25s infinite ease-in-out reverse;
       }
 
@@ -92,7 +102,7 @@
         height: 200px;
         top: 20%;
         left: 10%;
-        background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
         animation: float 15s infinite ease-in-out;
       }
 
@@ -101,17 +111,20 @@
         height: 150px;
         bottom: 30%;
         right: 15%;
-        background: radial-gradient(circle, rgba(255,215,0,0.15) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,215,0,0.1) 0%, transparent 70%);
         animation: float 18s infinite ease-in-out reverse;
       }
 
       /* Animated mesh gradient overlay */
       .mesh-overlay {
         position: absolute;
-        inset: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background: 
-          radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
-          radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
+          radial-gradient(circle at 20% 50%, rgba(255,255,255,0.08) 0%, transparent 50%),
+          radial-gradient(circle at 80% 80%, rgba(255,255,255,0.08) 0%, transparent 50%),
           radial-gradient(circle at 30% 30%, rgba(255,215,0,0.05) 0%, transparent 50%),
           radial-gradient(circle at 70% 20%, rgba(0,255,208,0.05) 0%, transparent 50%);
         z-index: 2;
@@ -122,12 +135,12 @@
       .glass-card {
         position: relative;
         z-index: 10;
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.08);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border-radius: 32px;
         padding: 48px 64px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         animation: cardAppear 0.8s ease-out;
         max-width: 90%;
@@ -141,8 +154,11 @@
 
       .logo-glow {
         position: absolute;
-        inset: -20px;
-        background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 70%);
+        top: -20px;
+        left: -20px;
+        right: -20px;
+        bottom: -20px;
+        background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
         filter: blur(30px);
         opacity: 0.5;
         animation: pulseGlow 3s infinite ease-in-out;
@@ -153,7 +169,7 @@
         z-index: 12;
         width: 160px;
         height: auto;
-        filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0));
+        filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
         animation: logoFloat 4s infinite ease-in-out;
       }
 
@@ -162,6 +178,10 @@
         position: relative;
         z-index: 12;
         margin: 24px 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
       }
 
       #welcome {
@@ -170,11 +190,11 @@
         background: linear-gradient(135deg, #fff, #ffd700, #fff);
         background-size: 200% auto;
         -webkit-background-clip: text;
+        background-clip: text;
         -webkit-text-fill-color: transparent;
         animation: gradientText 3s linear infinite;
         letter-spacing: 1px;
         text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        white-space: nowrap;
         min-height: 50px;
       }
 
@@ -182,7 +202,7 @@
         display: inline-block;
         width: 4px;
         height: 40px;
-        background: #fff;
+        background: linear-gradient(135deg, #ffd700, #fff);
         margin-left: 8px;
         animation: blink 1s infinite;
         vertical-align: middle;
@@ -190,11 +210,11 @@
 
       /* Tagline */
       .tagline {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: 300;
-        letter-spacing: 4px;
+        letter-spacing: 3px;
         text-transform: uppercase;
-        color: rgba(255,255,255,0.9);
+        color: rgba(255,255,255,0.85);
         margin: 16px 0 8px;
         animation: fadeInUp 0.8s 0.3s both;
         text-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -202,7 +222,7 @@
 
       /* Loading bar */
       .loading-container {
-        width: 200px;
+        width: 250px;
         margin: 24px auto 0;
         position: relative;
         z-index: 12;
@@ -210,9 +230,9 @@
 
       .loading-bar {
         width: 100%;
-        height: 4px;
+        height: 3px;
         background: rgba(255,255,255,0.2);
-        border-radius: 2px;
+        border-radius: 3px;
         overflow: hidden;
       }
 
@@ -220,30 +240,31 @@
         width: 0%;
         height: 100%;
         background: linear-gradient(90deg, #ffd700, #00ffd0);
-        border-radius: 2px;
+        border-radius: 3px;
         animation: loading 2s ease-in-out forwards;
       }
 
       .loading-text {
-        font-size: 12px;
-        color: rgba(255,255,255,0.8);
+        font-size: 11px;
+        color: rgba(255,255,255,0.7);
         margin-top: 8px;
         letter-spacing: 2px;
+        text-transform: uppercase;
         text-shadow: 0 1px 2px rgba(0,0,0,0.3);
       }
 
-      /* Bottom credits with gradient */
+      /* Bottom credits */
       #credits {
         position: absolute;
         bottom: 30px;
         left: 0;
-        width: 100%;
+        right: 0;
         text-align: center;
         z-index: 12;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 400;
-        letter-spacing: 3px;
-        color: rgba(255,255,255,0.8);
+        letter-spacing: 2px;
+        color: rgba(255,255,255,0.7);
         text-transform: uppercase;
         animation: fadeInUp 0.8s 0.6s both;
         text-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -252,6 +273,7 @@
       #credits span {
         background: linear-gradient(135deg, #ffd700, #00ffd0);
         -webkit-background-clip: text;
+        background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 600;
         margin-left: 4px;
@@ -263,7 +285,7 @@
         background: rgba(255,255,255,0.03);
         border-radius: 50%;
         z-index: 5;
-        animation: shapeFloat 20s infinite linear;
+        pointer-events: none;
       }
 
       .shape-1 {
@@ -271,7 +293,7 @@
         height: 600px;
         top: -300px;
         right: -200px;
-        background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
         animation: rotateSlow 40s infinite linear;
       }
 
@@ -280,7 +302,7 @@
         height: 400px;
         bottom: -200px;
         left: -150px;
-        background: radial-gradient(circle, rgba(255,215,0,0.05) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,215,0,0.04) 0%, transparent 70%);
         animation: rotateSlow 30s infinite reverse;
       }
 
@@ -347,13 +369,6 @@
         to { transform: rotate(360deg); }
       }
 
-      @keyframes shapeFloat {
-        0% { transform: translate(0, 0) scale(1); }
-        33% { transform: translate(2%, 3%) scale(1.1); }
-        66% { transform: translate(-3%, -2%) scale(0.9); }
-        100% { transform: translate(0, 0) scale(1); }
-      }
-
       /* Responsive design */
       @media (max-width: 768px) {
         .glass-card {
@@ -373,12 +388,12 @@
         }
         
         .tagline {
-          font-size: 14px;
-          letter-spacing: 3px;
+          font-size: 12px;
+          letter-spacing: 2px;
         }
         
         #credits {
-          font-size: 12px;
+          font-size: 10px;
           bottom: 20px;
         }
       }
@@ -393,21 +408,22 @@
         }
         
         #welcome {
-          font-size: 24px;
+          font-size: 22px;
         }
         
         .cursor {
-          height: 26px;
+          height: 24px;
         }
         
         .tagline {
-          font-size: 12px;
-          letter-spacing: 2px;
+          font-size: 10px;
+          letter-spacing: 1.5px;
         }
         
         #credits {
-          font-size: 10px;
-          letter-spacing: 2px;
+          font-size: 8px;
+          letter-spacing: 1px;
+          bottom: 15px;
         }
       }
     </style>
@@ -444,7 +460,7 @@
         </div>
 
         <!-- Tagline -->
-        <div class="tagline">HARMONY IN VOICES UNITY IN PURPOSE </div>
+        <div class="tagline">HARMONY IN VOICES • UNITY IN PURPOSE</div>
 
         <!-- Loading animation -->
         <div class="loading-container">
@@ -501,7 +517,7 @@
 
           if (!isDeleting && charIndex === currentMessage.length) {
             isDeleting = true;
-            typingSpeed = 1000; // Pause at full message
+            typingSpeed = 1000;
           }
 
           if (isDeleting && charIndex === 0) {
@@ -516,19 +532,25 @@
         // Start typing effect
         setTimeout(typeEffect, 500);
 
-        // Fade out splash after exactly 2 seconds
+        // Fade out splash after 4 seconds
         window.addEventListener('load', () => {
           setTimeout(() => {
             splash.style.transition = 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
-            splash.style.opacity = 0;
-            splash.style.transform = 'scale(1.1)';
-            setTimeout(() => splash.remove(), 800);
-          }, 6000); // Exactly 2 seconds
+            splash.style.opacity = '0';
+            splash.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+              if (splash && splash.parentNode) {
+                splash.style.display = 'none';
+              }
+            }, 800);
+          }, 4000);
         });
 
       } else {
-        // Not a PWA: remove splash immediately in normal browser
-        if (splash) splash.remove();
+        // Not a PWA: remove splash immediately
+        if (splash) {
+          splash.style.display = 'none';
+        }
       }
     </script>
   </body>

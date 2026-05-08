@@ -604,6 +604,10 @@ const fetchFeaturedGallery = async () => {
       <div className="info-header">
         <h2>{user.fullName}</h2>
       </div>
+      {/* LINE ADDED BELOW NAME */}
+      <div className="name-divider">
+        <div className="divider-line"></div>
+      </div>
       <div className="membership-row">
         <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
       </div>
@@ -1609,7 +1613,7 @@ const fetchFeaturedGallery = async () => {
 
         /* PROFILE CARD */
         .profile-card {
-          background: white;
+          background: #e2e2e2;
           
           border-radius: 24px;
           padding: 20px;
@@ -1630,9 +1634,26 @@ const fetchFeaturedGallery = async () => {
           height: 80px;
           border-radius: 50%;
           overflow: hidden;
-          border: 3px solid #5eff00;
+          border: 4px solid #ffffff;
           cursor: pointer;
         }
+
+        /* Name divider line */
+.name-divider {
+  margin: 6px 0 8px 0;
+}
+
+.divider-line {
+  height: 2px;
+  background: linear-gradient(90deg, #000000, #33ff00, #000000);
+  border-radius: 2px;
+  width: 90%;
+  transition: width 0.3s ease;
+}
+
+.profile-card:hover .divider-line {
+  width: 100px;
+}
 
         .avatar-wrapper img {
           width: 100%;
@@ -1730,7 +1751,7 @@ const fetchFeaturedGallery = async () => {
           align-items: center;
           justify-content: space-around;
           padding: 12px 0;
-          border-top: 1px solid #e2e8f0;
+          border-top: 1px solid #000000 ;
           gap: 12px;
           flex-wrap: wrap;
         }
@@ -1764,7 +1785,7 @@ const fetchFeaturedGallery = async () => {
         .stat-divider {
           width: 1px;
           height: 30px;
-          background: #e2e8f0;
+          background: #000000;
         }
 
         .whatsapp-link {

@@ -58,7 +58,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
       setMessages([{
         id: Date.now(),
         role: "assistant",
-        content: `Tumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "there"}**! I'm your **ZUCA AI Assistant**.\n\n### What I can do:\n\n| Command | What happens |\n|---------|--------------|\n| 📸 **Open Gallery** | Opens the media gallery |\n| 🎵 **Open Hymn Book** | Opens all hymns |\n| 📖 **Show lyrics for [song]** | Opens exact hymn page |\n| 💰 **What do I owe?** | Shows your pledges |\n| 💵 **I want to give 5000** | Creates a pledge |\n| 💬 **Tell everyone hello** | Sends to chat |\n| 🔔 **Read notifications** | Shows all unread |\n| ✅ **Mark all as read** | Clears notifications |\n| 👤 **Who am I?** | Your profile |\n| ⛪ **When is mass?** | Mass schedule |\n| 🏠 **What jumuia groups?** | List of groups |\n\n💡 **Now I understand natural language!** Just talk to me normally — no need to memorize commands! Try saying *\"Show me what's happening this week\"* or *\"I want to find a peaceful song\"* 🙏`,
+        content: `Tumsifu Yesu Kristu! 🙏\n\nHello **${user?.fullName?.split(" ")[0] || "there"}**! I'm your **ZUCA AI Assistant**.\n\n### What I can do:\n\n| Command | What happens |\n|---------|--------------|\n| 📸 **Open Gallery** | Opens the media gallery |\n| 🎵 **Open Hymn Book** | Opens all hymns |\n| 📖 **Show lyrics for [song]** | Opens exact hymn page |\n| 💰 **What do I owe?** | Shows your pledges |\n| 💵 **I want to give 5000** | Creates a pledge |\n| 💬 **Tell everyone hello** | Sends to chat |\n| 🔔 **Read notifications** | Shows all unread |\n| ✅ **Mark all as read** | Clears notifications |\n| 👤 **Who am I?** | Your profile |\n| ⛪ **When is mass?** | Mass schedule |\n| 🏠 **What jumuia groups?** | List of groups |`,
         timestamp: new Date()
       }]);
     }
@@ -321,7 +321,7 @@ export default function ZucaAIAssistant({ user, onClose, isOpen, isFullPage, onB
             value={input} 
             onChange={(e) => setInput(e.target.value)} 
             onKeyPress={handleKeyPress} 
-            placeholder="Talk to me naturally... Try 'Take me to hymns' or 'Find a peaceful communion song'" 
+            placeholder="start.." 
             style={fullPageTextareaStyle}
             rows={1}
           />
@@ -564,7 +564,7 @@ const fullPageTitleStyle = { display: "flex", alignItems: "center", gap: "12px" 
 const fullPageLogoStyle = { width: "44px", height: "44px", borderRadius: "12px", background: "#f8fafc", padding: "8px", objectFit: "contain" };
 const userBadgeStyle = { background: "#eff6ff", color: "#3b82f6", padding: "4px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", marginLeft: "12px" };
 const iconBtnStyle = { width: "38px", height: "38px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" };
-const fullPageMessagesStyle = { flex: 1, overflowY: "auto", padding: "24px" };
+const fullPageMessagesStyle = { flex: 1, overflowY: "auto", padding: "4px" };
 const fullPageInputStyle = { padding: "16px 24px", borderTop: "1px solid #e2e8f0", background: "white", display: "flex", gap: "12px", alignItems: "flex-end", flexShrink: 0 };
 const fullPageActionBtn = (isListening) => ({ width: "44px", height: "44px", borderRadius: "22px", background: isListening ? "#fef2f2" : "#f8fafc", border: isListening ? "1px solid #ef4444" : "1px solid #e2e8f0", color: isListening ? "#ef4444" : "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" });
 const fullPageTextareaStyle = { flex: 1, padding: "12px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "24px", color: "#1e293b", fontSize: "14px", resize: "none", fontFamily: "inherit", minHeight: "48px", maxHeight: "120px", outline: "none" };

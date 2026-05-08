@@ -805,7 +805,6 @@ app.get("/api/admin/executive/available-positions", authenticate, requireAdmin, 
     res.status(500).json({ error: err.message });
   }
 });
-
 // 8. Assign user to position (Admin only)
 app.post("/api/admin/executive/assign", authenticate, requireAdmin, async (req, res) => {
   try {
@@ -827,9 +826,9 @@ app.post("/api/admin/executive/assign", authenticate, requireAdmin, async (req, 
       return res.status(404).json({ error: "Position not found" });
     }
 
-    // Check if position is already filled
+    // Check if position is already filled by someone else
     const existingAssignment = await prisma.executive.findFirst({
-      where: { positionId, isActive: true }
+      where: { positionId, isActive: true, userId: { not: userId } }
     });
 
     if (existingAssignment) {
@@ -850,64 +849,66 @@ app.post("/api/admin/executive/assign", authenticate, requireAdmin, async (req, 
       });
     }
 
-    // Check if user already has any executive position
-    const userExisting = await prisma.executive.findFirst({
-      where: { userId, isActive: true }
+    // ✅ CHECK if user already has this position (even if inactive)
+    const existingUserPosition = await prisma.executive.findFirst({
+      where: { userId, positionId }
     });
 
-    if (userExisting) {
-      return res.status(400).json({ 
-        error: "User already holds an executive position. Remove current position first." 
-      });
-    }
+    let assignment;
 
-    // Create new assignment
-    const assignment = await prisma.executive.create({
-      data: {
-        userId,
-        positionId,
-        assignedBy: req.user.userId,
-        customPhone: customPhone || null,
-        customEmail: customEmail || null
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            phone: true,
-            profileImage: true
-          }
+    if (existingUserPosition) {
+      // ✅ UPDATE existing record instead of creating new one
+      console.log(`🔄 User already had this position, reactivating...`);
+      assignment = await prisma.executive.update({
+        where: { id: existingUserPosition.id },
+        data: {
+          isActive: true,
+          assignedBy: req.user.userId,
+          assignedAt: new Date(),
+          customPhone: customPhone || null,
+          customEmail: customEmail || null,
+          updatedAt: new Date()
         },
-        position: true
-      }
-    });
-
-    // Update user's specialRole
-    let specialRole = null;
-    if (position.title === "Chairperson") specialRole = "chairperson";
-    else if (position.title === "Secretary") specialRole = "secretary";
-    else if (position.title === "Treasurer") specialRole = "treasurer";
-    else if (position.title === "Choir Moderator") specialRole = "choir_moderator";
-    else if (position.title === "Media Moderator") specialRole = "media_moderator";
-    
-    if (specialRole) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { specialRole }
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              profileImage: true
+            }
+          },
+          position: true
+        }
+      });
+    } else {
+      // ✅ Create NEW assignment
+      assignment = await prisma.executive.create({
+        data: {
+          userId,
+          positionId,
+          assignedBy: req.user.userId,
+          customPhone: customPhone || null,
+          customEmail: customEmail || null,
+          isActive: true
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              profileImage: true
+            }
+          },
+          position: true
+        }
       });
     }
 
-   // Create notification with push
-await createAndSendNotification({
-  userId: userId,
-  type: "executive_appointment",
-  title: "🎉 Executive Appointment",
-  message: `Congratulations! You have been appointed as ${position.title}. Thank you for serving ZUCA!`,
-  data: { position: position.title, type: "executive_appointment" }
-});
-
+    // Create formattedAssignment
     const formattedAssignment = {
       id: assignment.id,
       userId: assignment.userId,
@@ -924,11 +925,37 @@ await createAndSendNotification({
       assignedAt: assignment.assignedAt
     };
 
+    // Update user's specialRole
+    let specialRole = null;
+    if (position.title === "Chairperson") specialRole = "chairperson";
+    else if (position.title === "Secretary") specialRole = "secretary";
+    else if (position.title === "Treasurer") specialRole = "treasurer";
+    else if (position.title === "Choir Moderator") specialRole = "choir_moderator";
+    else if (position.title === "Media Moderator") specialRole = "media_moderator";
+    
+    if (specialRole) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { specialRole }
+      });
+    }
+
+    // Send response
     res.json({ 
       success: true, 
       message: `${targetUser.fullName} appointed as ${position.title}`,
       assignment: formattedAssignment 
     });
+
+    // Send notification in background
+    createAndSendNotification({
+      userId: userId,
+      type: "executive_appointment",
+      title: "🎉 Executive Appointment",
+      message: `Congratulations! You have been appointed as ${position.title}. Thank you for serving ZUCA!`,
+      data: { position: position.title, type: "executive_appointment" }
+    }).catch(err => console.error("Notification failed:", err.message));
+
   } catch (err) {
     console.error("❌ Assignment error:", err);
     res.status(500).json({ error: err.message });
@@ -990,6 +1017,13 @@ app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdm
       return res.status(404).json({ error: "Assignment not found" });
     }
 
+    // ✅ UPDATE to inactive instead of DELETE (preserve the record)
+    await prisma.executive.update({
+      where: { id: assignmentId },
+      data: { isActive: false }
+    });
+
+    // Also add to history
     await prisma.executiveHistory.create({
       data: {
         userId: assignment.userId,
@@ -1000,8 +1034,6 @@ app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdm
         removedBy: req.user.userId
       }
     });
-
-    await prisma.executive.delete({ where: { id: assignmentId } });
 
     // Clear user's specialRole if applicable
     const userOtherAssignments = await prisma.executive.findFirst({
@@ -1015,18 +1047,20 @@ app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdm
       });
     }
 
-await createAndSendNotification({
-  userId: assignment.userId,
-  type: "executive_removed",
-  title: "📋 Executive Role Updated",
-  message: `You have been removed from the position of ${assignment.position.title}. Thank you for your service!`,
-  data: { position: assignment.position.title, type: "executive_removed" }
-});
-
     res.json({ 
       success: true, 
       message: `${assignment.user.fullName} removed from ${assignment.position.title}` 
     });
+
+    // Send notification in background
+    createAndSendNotification({
+      userId: assignment.userId,
+      type: "executive_removed",
+      title: "📋 Executive Role Updated",
+      message: `You have been removed from the position of ${assignment.position.title}. Thank you for your service!`,
+      data: { position: assignment.position.title, type: "executive_removed" }
+    }).catch(err => console.error("Notification failed:", err.message));
+
   } catch (err) {
     console.error("❌ Remove error:", err);
     res.status(500).json({ error: err.message });
@@ -1119,6 +1153,109 @@ app.get("/api/admin/executive/stats", authenticate, requireAdmin, async (req, re
         recentHistory: [],
         recentAssignments: []
       }
+    });
+  }
+});
+
+
+
+// 3. Get executive history (PUBLIC - shows past leadership)
+app.get("/api/executive/history", async (req, res) => {
+  try {
+    console.log("📜 Executive history API called from:", req.ip);
+    
+    const history = await prisma.executiveHistory.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true
+          }
+        },
+        position: true
+      },
+      orderBy: [
+        { removedAt: 'desc' },
+        { assignedAt: 'desc' }
+      ],
+      take: 50 // Limit to last 50 history records
+    });
+
+    const formattedHistory = history.map(record => ({
+      id: record.id,
+      userId: record.user.id,
+      name: record.user.fullName,
+      role: record.position.title,
+      level: record.position.level,
+      category: record.position.category,
+      profileImage: record.user.profileImage,
+      assignedAt: record.assignedAt,
+      removedAt: record.removedAt,
+      termLength: record.removedAt ? 
+        `${Math.round((new Date(record.removedAt) - new Date(record.assignedAt)) / (1000 * 60 * 60 * 24))} days` : 
+        null
+    }));
+
+    // Optional: Group by year/term
+    const groupedByYear = formattedHistory.reduce((acc, record) => {
+      const year = new Date(record.assignedAt).getFullYear();
+      if (!acc[year]) acc[year] = [];
+      acc[year].push(record);
+      return acc;
+    }, {});
+
+    res.json({ 
+      success: true, 
+      history: formattedHistory,
+      groupedByYear,
+      total: formattedHistory.length
+    });
+  } catch (err) {
+    console.error("❌ Error fetching executive history:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+
+// 4. Get executive history for specific user (PUBLIC)
+app.get("/api/executive/history/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const userHistory = await prisma.executiveHistory.findMany({
+      where: { userId },
+      include: {
+        position: true
+      },
+      orderBy: { assignedAt: 'desc' }
+    });
+
+    const formattedHistory = userHistory.map(record => ({
+      role: record.position.title,
+      category: record.position.category,
+      assignedAt: record.assignedAt,
+      removedAt: record.removedAt,
+      termLength: record.removedAt ? 
+        `${Math.round((new Date(record.removedAt) - new Date(record.assignedAt)) / (1000 * 60 * 60 * 24))} days` : 
+        'Current position'
+    }));
+
+    res.json({ 
+      success: true, 
+      history: formattedHistory,
+      total: formattedHistory.length
+    });
+  } catch (err) {
+    console.error("❌ Error fetching user history:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
     });
   }
 });

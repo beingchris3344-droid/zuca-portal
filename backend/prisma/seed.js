@@ -13,7 +13,7 @@ async function main() {
 
   if (!existingAdmin) {
     // Create REAL admin user
-    const hashedPassword = await bcrypt.hash('Admin@123', 10);
+    const hashedPassword = await bcrypt.hash('Admin@zuca', 10);
     
     const admin = await prisma.user.create({
       data: {

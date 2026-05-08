@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-route
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import BASE_URL from "./api";
+import './index.css'
 
 // Import Notification Manager and Badge Manager
 import badgeManager from "./utils/badgeManager";

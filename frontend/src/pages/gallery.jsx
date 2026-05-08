@@ -715,12 +715,12 @@ const [imageLoading, setImageLoading] = useState({});
   </button>
           <div className="hero-overlay"></div>
           <div className="hero-content">
-            <h1>ZUCA Media Gallery</h1>
-            <p>Experience inspiring moments, teachings, and worship from our community</p>
+            <h1>Our Gallery</h1>
+            <p>zuca's emories over time , events, production,</p>
             <div className="hero-stats">
               <span><FiImage /> {formatNumber(pagination.total)} Media Items</span>
-              <span><FiEye /> Community Shared</span>
-              <span><FiHeart /> Blessed Moments</span>
+              <span><FiEye />photos ,videos and mp3 songs</span>
+              
             </div>
           </div>
           <div className="hero-wave">
@@ -1120,14 +1120,14 @@ const [imageLoading, setImageLoading] = useState({});
 
       <style>{`
         .gallery-page { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
-        .gallery-hero { position: relative; background: linear-gradient(135deg, #0f172a, #1e293b); padding: 80px 40px 120px; text-align: center; overflow: hidden; }
+        .gallery-hero { position: relative; background: linear-gradient(135deg, #0f172a, #1e293b); padding: 20px 4px 70px; text-align: center; overflow: hidden; }
         .hero-content { position: relative; z-index: 2; }
         .gallery-hero h1 { font-size: 48px; font-weight: 700; color: white; margin-bottom: 16px; background: linear-gradient(135deg, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .gallery-hero p { font-size: 18px; color: #cbd5e1; margin-bottom: 32px; }
+        .gallery-hero p { font-size: 15px; color: #cbd5e1; margin-bottom: 32px; }
         .hero-stats { display: flex; justify-content: center; gap: 32px; }
-        .hero-stats span { display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 14px; }
-        .hero-wave { position: absolute; bottom: 0; left: 0; right: 0; line-height: 0; }
-        .hero-wave svg { width: 100%; height: 60px; fill: white; }
+        .hero-stats span { display: flex; align-items: center; gap: 4px; color: #94a3b8; font-size: 14px; }
+        .hero-wave { position: absolute; bottom: 0;top: 3; left: 0; right: 0; line-height: 0; }
+        .hero-wave svg { width: 100%; height: 50px; fill: white; }
         
         .featured-section { max-width: 1400px; margin: -40px auto 48px; padding: 0 24px; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -1149,7 +1149,7 @@ const [imageLoading, setImageLoading] = useState({});
         .header-left h2 { font-size: 28px; margin-bottom: 4px; }
         .header-left p { color: #64748b; font-size: 14px; }
         .header-actions { display: flex; gap: 12px; }
-        .refresh-btn, .live-feed-btn, .filter-toggle { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+        .refresh-btn, .live-feed-btn, .filter-toggle { padding: 8px 16px; background: white; border: 2px solid #1e293b; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
         .spinning { animation: spin 1s linear infinite; }
         .rotated { transform: rotate(180deg); }
         

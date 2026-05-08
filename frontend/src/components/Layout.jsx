@@ -1,19 +1,21 @@
 // frontend/src/components/Layout.jsx
 import { Outlet, NavLink } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
 import Notifications from "./Notifications";
+import axios from "axios";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
 import FloatingInstallButton from "./FloatingInstallButton";
 import { 
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
-  FiAward, FiYoutube, FiMapPin, 
+  FiAward, FiYoutube, FiMapPin,
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  } from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo  } from "react-icons/fa";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
+
 
 
 
@@ -27,6 +29,34 @@ function Layout() {
   const scrollContainerRef = useRef(null);
   const userMenuRef = useRef(null);
   const sidebarRef = useRef(null);
+  const [jumuiaName, setJumuiaName] = useState("");
+const [isJumuiaLoading, setIsJumuiaLoading] = useState(true);
+
+// Fetch user details including jumuia name
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  const fetchUserDetails = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const userData = response.data;
+      if (userData.homeJumuia?.name) {
+        setJumuiaName(userData.homeJumuia.name);
+      }
+      // Optionally update the full user object if you want to keep it fresh
+      setUser(userData);
+    } catch (error) {
+      console.error("Failed to fetch user details", error);
+    } finally {
+      setIsJumuiaLoading(false);
+    }
+  };
+
+  fetchUserDetails();
+}, []); 
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -108,14 +138,19 @@ function Layout() {
 { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={20} /> },
         { path: "/hymns", label: "Hymn Book", icon: "🎵" },
 
-      { path: "/youtube", label: "ZUCA Y-Tube Hub", icon: <FaYoutube size={18} color="#ff0000" /> },
+      { path: "/youtube", label: "ZUCA'S YOUTUBE", icon: <FaYoutube size={18} color="#ff0000" /> },
 
-    { path: "/gallery", label: "Gallery", icon: "🖼️" },
-    { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
-    { path: "/announcements", label: "Announcements", icon: "📢" },
+{ 
+  path: "/gallery", 
+  label: "Gallery", 
+  icon: <span style={{ color: '#3b82f6' }}><FaImages size={20} /></span> 
+},    { path: "/announcements", label: "Announcements", icon: "📢" },
     { path: "/contributions", label: "Contributions", icon: "💰" },
-    { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
-    { path: "/chat", label: "Chat", icon: "💬" },
+    { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
+  {path: "/jumuia-contributions", 
+    label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
+    icon: "👥" 
+  },    { path: "/chat", label: "Chat", icon: "💬" },
     { path: "/executive", label: "Executive Team", icon: "👔" },
     { path: "/games", label: "Games Arcade", icon: "🎮" },
   ];

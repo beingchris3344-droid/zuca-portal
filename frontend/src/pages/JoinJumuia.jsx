@@ -8,6 +8,7 @@ import {
   MessageCircle, Link as LinkIcon, ArrowLeft, Sparkles,
   Crown, Shield, Heart, TrendingUp, Zap
 } from 'lucide-react';
+import { FaWhatsapp } from "react-icons/fa";
 
 function JoinJumuia() {
   const navigate = useNavigate();
@@ -18,6 +19,16 @@ function JoinJumuia() {
   const [joiningId, setJoiningId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [hoveredCard, setHoveredCard] = useState(null);
+
+const [user, setUser] = useState(null);
+
+useEffect(() => {
+  const storedUser = localStorage.getItem("user");
+  if (storedUser) {
+    setUser(JSON.parse(storedUser));
+  }
+
+}, []);
   const [stats, setStats] = useState({
     total: 0,
     available: 0
@@ -119,8 +130,7 @@ function JoinJumuia() {
             <div style={styles.loadingRingInner}></div>
             <Users size={32} style={styles.loadingIcon} />
           </div>
-          <h2 style={styles.loadingTitle}>Finding Your Spiritual Family</h2>
-          <p style={styles.loadingSubtitle}>Loading jumuia groups...</p>
+<h2 style={styles.loadingTitle}>Hey {user?.fullName?.split(" ")[0] || "User"} Please wait </h2>          <p style={styles.loadingSubtitle}>Loading jumuia groups...</p>
         </div>
       </div>
     );
@@ -316,11 +326,11 @@ function JoinJumuia() {
                           ...(joinedJumuia !== j.id && styles.whatsappLinkDisabled),
                         }}
                       >
-                        <MessageCircle size={14} />
+                        <FaWhatsapp size={14} />
                         <span>
                           {joinedJumuia === j.id 
                             ? "Join WhatsApp Group →" 
-                            : "Join this jumuia first to connect"}
+                            : "whatsapp group link"}
                         </span>
                       </a>
                     </motion.div>
@@ -347,21 +357,21 @@ function JoinJumuia() {
                         Joining...
                       </span>
                     ) : joinedJumuia === j.id ? (
-                      <span style={styles.buttonContent}>
-                        <span style={styles.buttonIcon}><Check size={14} /></span>
-                        Already Joined
-                      </span>
-                    ) : joinedJumuia ? (
-                      <span style={styles.buttonContent}>
-                        <span style={styles.buttonIcon}>🔒</span>
-                        Join Another?
-                      </span>
-                    ) : (
-                      <span style={styles.buttonContent}>
-                        Join This Jumuia
-                        <Zap size={14} style={styles.buttonZap} />
-                      </span>
-                    )}
+  <span style={styles.buttonContent}>
+    <span style={styles.buttonIcon}><Check size={14} /></span>
+    You have joined {j.name}
+  </span>
+) : joinedJumuia ? (
+  <span style={styles.buttonContent}>
+    <span style={styles.buttonIcon}>🔒</span>
+    You have already joined another Jumuia
+  </span>
+) : (
+  <span style={styles.buttonContent}>
+    Join This Jumuia
+    <Zap size={14} style={styles.buttonZap} />
+  </span>
+)}
                   </motion.button>
                 </div>
               </motion.div>

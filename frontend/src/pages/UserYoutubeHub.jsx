@@ -215,7 +215,7 @@ const handleSubscribe = () => {
           <div className="header-left">
             <div className="logo-section">
               <FaYoutube size={28} color="#ff0000" />
-              <h1>ZUCA Media Hub</h1>
+              <h1>ZUCA's YOUTUBE</h1>
             </div>
             {isLive && (
               <div className="live-badge-header">

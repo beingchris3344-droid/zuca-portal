@@ -289,7 +289,7 @@ export default function UserAnnouncements() {
                 Announcements
               </h1>
               <p style={titleSub}>
-                Stay informed with the latest updates from your community
+                Stay informed with the latest updates from ZUCA
               </p>
             </div>
           </div>
@@ -368,7 +368,7 @@ export default function UserAnnouncements() {
             </span>
             <input
               type="text"
-              placeholder="Search announcements by title or content..."
+              placeholder="Search announcements "
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={searchInput}

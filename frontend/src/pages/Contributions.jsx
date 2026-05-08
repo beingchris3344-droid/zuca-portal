@@ -265,7 +265,7 @@ function Contributions() {
       <div className="header">
         <div className="header-left">
           <h1 className="title">My Contributions</h1>
-          <p className="subtitle">Track and manage your pledges</p>
+          <p className="subtitle">USE PLEDGE FOR RECORD(mpesa STK push coming soon) </p>
         </div>
         <button 
           onClick={() => fetchContributions(true)}

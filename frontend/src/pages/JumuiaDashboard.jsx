@@ -606,7 +606,7 @@ const handleSendMessage = async () => {
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <h1 style={styles.title}>{jumuiaName || 'My Jumuia'}</h1>
-          <p style={styles.subtitle}>Your jumuia community dashboard</p>
+          <p style={styles.subtitle}> jumuia  dashboard</p>
         </div>
       </div>
 

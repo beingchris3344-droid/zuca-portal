@@ -244,6 +244,9 @@ function Layout() {
           <div style={headerRightStyle}>
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
+              <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
+                              <FiMessageSquare size={18} /> Ask zuca
+                            </button>
             </div>
 
             <div ref={userMenuRef} style={userMenuContainerStyle}>
@@ -301,11 +304,15 @@ function Layout() {
 
       <style>
         {`
+
+        
           * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
           }
+
+
 
           html, body, #root {
             height: 100%;
@@ -367,6 +374,27 @@ function Layout() {
           [class*="Notifications"] [style*="position: absolute"] {
             z-index: 9999999 !important;
           }
+
+          .ai-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  border-radius: 10px;
+  padding: 7px 1px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: white;
+
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
         `}
       </style>
     </div>
@@ -623,8 +651,8 @@ const hamburgerStyle = {
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
   borderRadius: "10px",
-  width: "40px",
-  height: "40px",
+  width: "0px",
+  height: "0px",
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
@@ -641,7 +669,7 @@ const hamburgerIconStyle = {
 
 const pageTitleStyle = {
   color: "#1e293b",
-  fontSize: "18px",
+  fontSize: "16px",
   fontWeight: "600",
   "@media (max-width: 900px)": {
     fontSize: "16px",
@@ -651,11 +679,22 @@ const pageTitleStyle = {
 const headerRightStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "20px",
+  gap: "7px",
+  left: "9px",
   position: "relative",
   zIndex: 31,
   "@media (max-width: 900px)": {
-    gap: "12px",
+    
+  },
+};
+
+// NEW - Group for notifications + AI button
+const headerActionsGroup = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  "@media (max-width: 600px)": {
+    gap: "4px",
   },
 };
 
@@ -665,10 +704,11 @@ const enhancedNotificationWrapperStyle = {
   isolation: "isolate",
   background: "#f1f5f9",
   borderRadius: "12px",
-  padding: "0px",
+  padding: "0.10px",
   border: "1px solid #e2e8f0",
   transition: "all 0.2s ease",
   cursor: "pointer",
+  left: "17px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -677,6 +717,9 @@ const enhancedNotificationWrapperStyle = {
 const userMenuContainerStyle = {
   position: "relative",
   zIndex: 100,
+  left: "9px",
+  padding: "5px 5px",
+  gap: "15px",
 };
 
 const userMenuTriggerStyle = {

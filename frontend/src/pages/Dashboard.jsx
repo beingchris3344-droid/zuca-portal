@@ -579,7 +579,7 @@ const fetchFeaturedGallery = async () => {
             </div>
             <div className="header-right">
               <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
-                <FiMessageSquare size={18} /> Ask AI
+                <FiMessageSquare size={18} /> Ask zuca
               </button>
               <button className="logout-btn" onClick={handleLogout}>
                 <FiLogOut size={16} /> Exit
@@ -587,62 +587,64 @@ const fetchFeaturedGallery = async () => {
             </div>
           </div>
 
-          {/* USER PROFILE CARD */}
-          <div className="profile-card">
-            <div className="profile-row">
-              <div className="avatar-section">
-                <div className="avatar-wrapper" onClick={() => setShowProfileSettings(true)}>
-                  {profileImage ? (
-                    <img src={profileImage} alt={user.fullName} />
-                  ) : (
-                    <div className="avatar-placeholder">{user.fullName?.charAt(0).toUpperCase()}</div>
-                  )}
-                  <div className="avatar-overlay"><FiCamera size={20} /></div>
-                </div>
-              </div>
-              <div className="profile-info">
-                <div className="info-header">
-                  <h2>{user.fullName}</h2>
-                  <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
-                </div>
-                <p className="email">📩--{user.email}</p>
-                <p className="phone">📞 {user.phone || "Not set"}</p>
-                <div className="badges">
-                  <span className="role-badge">👔 {user.role?.toUpperCase() || "MEMBER"}</span>
-                  {user.homeJumuia && <span className="jumuia-badge">👥 {user.homeJumuia.name}</span>}
-                </div>
-              </div>
-            </div>
-            <div className="profile-stats">
-              <div className="stat-item">
-                <div className="stat-icon">📅</div>
-                <div className="stat-info">
-                  <span className="stat-value">{getMemberSinceMonths()}</span>
-                  <span className="stat-label">Joined</span>
-                </div>
-              </div>
-              <div className="stat-divider"></div>
-              <div className="stat-item">
-                <div className="stat-icon">💰</div>
-                <div className="stat-info">
-                  <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
-                  <span className="stat-label">Total Paid</span>
-                </div>
-              </div>
-              <div className="stat-divider"></div>
-              <div className="stat-item">
-              <div className="stat-icon">
-  <FaWhatsapp color="#25D366" size={24} />
+         {/* USER PROFILE CARD */}
+<div className="profile-card">
+  <div className="profile-row">
+    <div className="avatar-section">
+      <div className="avatar-wrapper" onClick={() => setShowProfileSettings(true)}>
+        {profileImage ? (
+          <img src={profileImage} alt={user.fullName} />
+        ) : (
+          <div className="avatar-placeholder">{user.fullName?.charAt(0).toUpperCase()}</div>
+        )}
+        <div className="avatar-overlay"><FiCamera size={20} /></div>
+      </div>
+    </div>
+    <div className="profile-info">
+      <div className="info-header">
+        <h2>{user.fullName}</h2>
+      </div>
+      <div className="membership-row">
+        <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
+      </div>
+      <p className="email">📩 {user.email}</p>
+      <p className="phone">📞 {user.phone || "Not set"}</p>
+      <div className="badges">
+        <span className="role-badge">👔 {user.role?.toUpperCase() || "MEMBER"}</span>
+        {user.homeJumuia && <span className="jumuia-badge">👥 {user.homeJumuia.name}</span>}
+      </div>
+    </div>
+  </div>
+  <div className="profile-stats">
+    <div className="stat-item">
+      <div className="stat-icon">📅</div>
+      <div className="stat-info">
+        <span className="stat-value">{getMemberSinceMonths()}</span>
+        <span className="stat-label">Joined</span>
+      </div>
+    </div>
+    <div className="stat-divider"></div>
+    <div className="stat-item">
+      <div className="stat-icon">💰</div>
+      <div className="stat-info">
+        <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
+        <span className="stat-label">Total Paid</span>
+      </div>
+    </div>
+    <div className="stat-divider"></div>
+    <div className="stat-item">
+      <div className="stat-icon">
+        <FaWhatsapp color="#25D366" size={24} />
+      </div>
+      <div className="stat-info">
+        <a href={getWhatsAppLink()} className="whatsapp-link" target="_blank" rel="noopener noreferrer">
+          Message You🫵
+        </a>
+        <span className="stat-label">WhatsApp</span>
+      </div>
+    </div>
+  </div>
 </div>
-                <div className="stat-info">
-                  <a href={getWhatsAppLink()} className="whatsapp-link" target="_blank" rel="noopener noreferrer">
-                  Message You🫵
-                  </a>
-                  <span className="stat-label">WhatsApp</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
 
        {/* TODAY'S LITURGICAL READING - PREMIUM DESIGN */}
@@ -2902,6 +2904,37 @@ margin-top: 20px;
   }
 }
 
+
+/* Small polish for membership row */
+.membership-row {
+  margin-bottom: 0.5rem;
+}
+
+.member-badge {
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: inline-block;
+}
+
+/* Make email/phone cleaner */
+.email, .phone {
+  font-size: 0.8rem;
+  color: #ec0000;
+  margin: 0.2rem 0;
+}
+
+/* Fix for the 📩 icon - remove extra dash */
+.email {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Keep original everything else */
 /* ============================================
    PREMIUM SCHEDULES SECTION
    ============================================ */

@@ -6,7 +6,7 @@ import {
   Phone, Mail, Calendar, Shield, Star, Award,
   ArrowLeft, Home, Briefcase, User, Mail as MailIcon,
   PhoneCall, CalendarDays, Clock, CheckCircle,
-  X, ExternalLink, ZoomIn
+  X, ExternalLink, ZoomIn, History, ChevronDown
 } from 'lucide-react';
 import { formatDistance, format } from 'date-fns';
 
@@ -25,10 +25,19 @@ export default function ExecutivePage() {
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
   const [showFullImage, setShowFullImage] = useState(false);
+  const [activeTab, setActiveTab] = useState('current');
+  const [executiveHistory, setExecutiveHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetchExecutiveTeam();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchExecutiveHistory();
+    }
+  }, [activeTab]);
 
   const fetchExecutiveTeam = async () => {
     try {
@@ -38,6 +47,18 @@ export default function ExecutivePage() {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchExecutiveHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get('/api/executive/history');
+      setExecutiveHistory(res.data.history);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -59,7 +80,6 @@ export default function ExecutivePage() {
 
   const goBack = () => navigate(-1);
   const goHome = () => navigate('/dashboard');
-
 
   const chair = getMember('Chairperson');
   const viceChair = getMember('Vice Chairperson');
@@ -149,12 +169,20 @@ export default function ExecutivePage() {
     );
   };
 
-  // Component for hierarchical level with responsive design
-  const Level = ({ children, isVertical = false, className = "" }) => (
-    <div className={`flow-level ${className} ${isVertical ? 'vertical' : ''}`}>
-      {children}
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="executive-loader">
+        <div className="loader-spinner">
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <Crown size={24} className="loader-crown" />
+        </div>
+        <h3>Executive Council</h3>
+        <p>Loading leadership structure</p>
+      </div>
+    );
+  }
 
   return (
     <div className="executive-page">
@@ -197,182 +225,232 @@ export default function ExecutivePage() {
         </div>
       </div>
 
-      {/* Hierarchical Flowchart - Desktop & Mobile Responsive */}
-      <div className="org-chart">
-        
-        {/* Level 1 */}
-        <div className="org-level">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={chair} onClick={setSelectedMember} department="leadership" />
-            </div>
-          </div>
-        </div>
-
-        {/* Connector down */}
-        <div className="org-connector vertical">
-          <div className="connector-line"></div>
-        </div>
-
-        {/* Level 2 */}
-        <div className="org-level">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={viceChair} onClick={setSelectedMember} department="leadership" />
-            </div>
-          </div>
-        </div>
-
-        {/* Connector split */}
-        <div className="org-connector split">
-          <div className="connector-line"></div>
-          <div className="connector-horizontal"></div>
-        </div>
-
-        {/* Level 3 - Two columns */}
-        <div className="org-level two-cols">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={secretary} onClick={setSelectedMember} department="leadership" />
-            </div>
-          </div>
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={viceSecretary} onClick={setSelectedMember} department="leadership" />
-            </div>
-          </div>
-        </div>
-
-        {/* Connector down */}
-        <div className="org-connector vertical">
-          <div className="connector-line"></div>
-        </div>
-
-        {/* Level 4 */}
-        <div className="org-level">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={treasurer} onClick={setSelectedMember} department="leadership" />
-            </div>
-          </div>
-        </div>
-
-        {/* Department Separator */}
-        <div className="dept-separator choir">
-          <div className="dept-dot"></div>
-          <span>CHOIR DEPARTMENT</span>
-          <div className="dept-line"></div>
-        </div>
-
-        {/* Connector split */}
-        <div className="org-connector split">
-          <div className="connector-line"></div>
-          <div className="connector-horizontal"></div>
-        </div>
-
-        {/* Level 5 - Two columns */}
-        <div className="org-level two-cols">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={choirMod} onClick={setSelectedMember} department="choir" />
-            </div>
-          </div>
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={viceChoir} onClick={setSelectedMember} department="choir" />
-            </div>
-          </div>
-        </div>
-
-        {/* Connector down */}
-        <div className="org-connector vertical">
-          <div className="connector-line"></div>
-        </div>
-
-        {/* Department Separator */}
-        <div className="dept-separator media">
-          <div className="dept-dot"></div>
-          <span>MEDIA DEPARTMENT</span>
-          <div className="dept-line"></div>
-        </div>
-
-        {/* Connector down */}
-        <div className="org-connector vertical">
-          <div className="connector-line"></div>
-        </div>
-
-        {/* Level 6 */}
-        <div className="org-level">
-          <div className="org-node-wrapper">
-            <div className="org-node">
-              <MemberCard member={mediaMod} onClick={setSelectedMember} department="media" />
-            </div>
-          </div>
-        </div>
-
-        {/* Department Separator */}
-        <div className="dept-separator voice">
-          <div className="dept-dot"></div>
-          <span>VOICE REPRESENTATIVES</span>
-          <div className="dept-line"></div>
-        </div>
-
-        {/* Connector wide */}
-        <div className="org-connector wide">
-          <div className="connector-line"></div>
-          <div className="connector-horizontal-wide"></div>
-        </div>
-
-        {/* Level 7 - Four columns */}
-        <div className="org-level four-cols">
-          {voiceReps.map((rep, idx) => (
-            <div key={idx} className="org-node-wrapper">
-              <div className="org-node">
-                <MemberCard member={rep} onClick={setSelectedMember} department="voice" />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Department Separator */}
-        <div className="dept-separator jumuia">
-          <div className="dept-dot"></div>
-          <span>JUMUIA MODERATORS</span>
-          <div className="dept-line"></div>
-        </div>
-
-        {/* Connector wide */}
-        <div className="org-connector wide">
-          <div className="connector-line"></div>
-          <div className="connector-horizontal-wide"></div>
-        </div>
-
-        {/* Level 8 - Six columns */}
-        <div className="org-level six-cols">
-          {jumuiaMods.map((mod, idx) => (
-            <div key={idx} className="org-node-wrapper">
-              <div className="org-node">
-                <MemberCard member={mod} onClick={setSelectedMember} department="jumuia" />
-              </div>
-            </div>
-          ))}
-        </div>
-
+      {/* Tabs */}
+      <div className="executive-tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'current' ? 'active' : ''}`}
+          onClick={() => setActiveTab('current')}
+        >
+          <Users size={16} />
+          <span>Current Leadership</span>
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
+          <History size={16} />
+          <span>Leadership History</span>
+        </button>
       </div>
 
-      {/* Legend */}
-      <div className="legend">
-        <div className="legend-title">Departments</div>
-        <div className="legend-items">
-          <div className="legend-item"><div className="legend-color leadership"></div><span>Leadership</span></div>
-          <div className="legend-item"><div className="legend-color choir"></div><span>Choir</span></div>
-          <div className="legend-item"><div className="legend-color jumuia"></div><span>Jumuia</span></div>
-          <div className="legend-item"><div className="legend-color media"></div><span>Media</span></div>
-          <div className="legend-item"><div className="legend-color voice"></div><span>Voice</span></div>
-        </div>
-      </div>
+      {/* Current Leadership View */}
+      {activeTab === 'current' && (
+        <>
+          <div className="org-chart">
+            {/* Level 1 */}
+            <div className="org-level">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={chair} onClick={setSelectedMember} department="leadership" />
+                </div>
+              </div>
+            </div>
 
-      {/* Modal Components (same as before) */}
+            <div className="org-connector vertical">
+              <div className="connector-line"></div>
+            </div>
+
+            {/* Level 2 */}
+            <div className="org-level">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={viceChair} onClick={setSelectedMember} department="leadership" />
+                </div>
+              </div>
+            </div>
+
+            <div className="org-connector split">
+              <div className="connector-line"></div>
+              <div className="connector-horizontal"></div>
+            </div>
+
+            {/* Level 3 */}
+            <div className="org-level two-cols">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={secretary} onClick={setSelectedMember} department="leadership" />
+                </div>
+              </div>
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={viceSecretary} onClick={setSelectedMember} department="leadership" />
+                </div>
+              </div>
+            </div>
+
+            <div className="org-connector vertical">
+              <div className="connector-line"></div>
+            </div>
+
+            {/* Level 4 */}
+            <div className="org-level">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={treasurer} onClick={setSelectedMember} department="leadership" />
+                </div>
+              </div>
+            </div>
+
+            <div className="dept-separator choir">
+              <div className="dept-dot"></div>
+              <span>CHOIR DEPARTMENT</span>
+              <div className="dept-line"></div>
+            </div>
+
+            <div className="org-connector split">
+              <div className="connector-line"></div>
+              <div className="connector-horizontal"></div>
+            </div>
+
+            {/* Level 5 */}
+            <div className="org-level two-cols">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={choirMod} onClick={setSelectedMember} department="choir" />
+                </div>
+              </div>
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={viceChoir} onClick={setSelectedMember} department="choir" />
+                </div>
+              </div>
+            </div>
+
+            <div className="org-connector vertical">
+              <div className="connector-line"></div>
+            </div>
+
+            <div className="dept-separator media">
+              <div className="dept-dot"></div>
+              <span>MEDIA DEPARTMENT</span>
+              <div className="dept-line"></div>
+            </div>
+
+            <div className="org-connector vertical">
+              <div className="connector-line"></div>
+            </div>
+
+            {/* Level 6 */}
+            <div className="org-level">
+              <div className="org-node-wrapper">
+                <div className="org-node">
+                  <MemberCard member={mediaMod} onClick={setSelectedMember} department="media" />
+                </div>
+              </div>
+            </div>
+
+            <div className="dept-separator voice">
+              <div className="dept-dot"></div>
+              <span>VOICE REPRESENTATIVES</span>
+              <div className="dept-line"></div>
+            </div>
+
+            <div className="org-connector wide">
+              <div className="connector-line"></div>
+              <div className="connector-horizontal-wide"></div>
+            </div>
+
+            {/* Level 7 */}
+            <div className="org-level four-cols">
+              {voiceReps.map((rep, idx) => (
+                <div key={idx} className="org-node-wrapper">
+                  <div className="org-node">
+                    <MemberCard member={rep} onClick={setSelectedMember} department="voice" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="dept-separator jumuia">
+              <div className="dept-dot"></div>
+              <span>JUMUIA MODERATORS</span>
+              <div className="dept-line"></div>
+            </div>
+
+            <div className="org-connector wide">
+              <div className="connector-line"></div>
+              <div className="connector-horizontal-wide"></div>
+            </div>
+
+            {/* Level 8 */}
+            <div className="org-level six-cols">
+              {jumuiaMods.map((mod, idx) => (
+                <div key={idx} className="org-node-wrapper">
+                  <div className="org-node">
+                    <MemberCard member={mod} onClick={setSelectedMember} department="jumuia" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="legend">
+            <div className="legend-title">Departments</div>
+            <div className="legend-items">
+              <div className="legend-item"><div className="legend-color leadership"></div><span>Leadership</span></div>
+              <div className="legend-item"><div className="legend-color choir"></div><span>Choir</span></div>
+              <div className="legend-item"><div className="legend-color jumuia"></div><span>Jumuia</span></div>
+              <div className="legend-item"><div className="legend-color media"></div><span>Media</span></div>
+              <div className="legend-item"><div className="legend-color voice"></div><span>Voice</span></div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* History View */}
+      {activeTab === 'history' && (
+        <div className="history-view">
+          {historyLoading ? (
+            <div className="history-loading-state">
+              <div className="loader-spinner-small"></div>
+              <p>Loading history...</p>
+            </div>
+          ) : executiveHistory.length === 0 ? (
+            <div className="history-empty-state">
+              <History size={48} strokeWidth={1} />
+              <p>No executive history available</p>
+            </div>
+          ) : (
+            <div className="history-list">
+              {executiveHistory.map((record) => (
+                <div key={record.id} className="history-card">
+                  <div className="history-card-avatar">
+                    {record.profileImage ? (
+                      <img src={record.profileImage} alt={record.name} />
+                    ) : (
+                      <div className="history-avatar-placeholder">{record.name.charAt(0)}</div>
+                    )}
+                  </div>
+                  <div className="history-card-info">
+                    <h4>{record.name}</h4>
+                    <p>{record.role}</p>
+                    <small>
+                      {format(new Date(record.assignedAt), 'MMMM d, yyyy')}
+                      {record.removedAt && ` - ${format(new Date(record.removedAt), 'MMMM d, yyyy')}`}
+                    </small>
+                  </div>
+                  <div className={`history-category-badge ${record.category}`}>
+                    {record.category}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal */}
       {selectedMember && (
         <div className="profile-modal" onClick={() => setSelectedMember(null)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -453,7 +531,6 @@ export default function ExecutivePage() {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Premium Hero */
         .premium-hero {
           position: relative;
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
@@ -488,7 +565,6 @@ export default function ExecutivePage() {
         .hero-wave { position: absolute; bottom: 0; left: 0; right: 0; height: 50px; }
         .hero-wave svg { width: 100%; height: 100%; fill: #f0f4f8; }
 
-        /* Organizational Chart - Desktop & Mobile Responsive */
         .org-chart {
           max-width: 1400px;
           margin: -10px auto 0;
@@ -500,7 +576,6 @@ export default function ExecutivePage() {
           align-items: center;
         }
 
-        /* Level */
         .org-level {
           display: flex;
           justify-content: center;
@@ -520,7 +595,6 @@ export default function ExecutivePage() {
           justify-content: center;
         }
 
-        /* Connectors */
         .org-connector {
           position: relative;
           width: 100%;
@@ -579,7 +653,6 @@ export default function ExecutivePage() {
           margin-top: -2px;
         }
 
-        /* Member Card */
         .member-card {
           background: white;
           border-radius: 20px;
@@ -604,11 +677,11 @@ export default function ExecutivePage() {
         .card-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; }
         .avatar-initial { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: 600; }
 
-        .member-card h3 { font-size: 60px; font-weight: 800; color: #1e293b; margin-bottom: 10px; }
-        .member-card .role { font-size: 10px;  color: #64748b; margin-bottom: 12px; }
+        .member-card h3 { font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+        .member-card .role { font-size: 11px; color: #64748b; margin-bottom: 12px; }
 
         .card-actions { display: flex; justify-content: center; gap: 8px; }
-        .card-actions button { width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .card-actions button { width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
         .wa-btn { background: #dcfce7; color: #22c55e; }
         .wa-btn:hover { background: #22c55e; color: white; transform: scale(1.05); }
         .call-btn { background: #eff6ff; color: #3b82f6; }
@@ -616,7 +689,6 @@ export default function ExecutivePage() {
         .mail-btn { background: #fef3c7; color: #f59e0b; }
         .mail-btn:hover { background: #f59e0b; color: white; transform: scale(1.05); }
 
-        /* Department Separator */
         .dept-separator {
           display: flex;
           align-items: center;
@@ -635,7 +707,6 @@ export default function ExecutivePage() {
         .dept-separator.voice .dept-dot { background: #ef4444; }
         .dept-separator.jumuia .dept-dot { background: #10b981; }
 
-        /* Legend */
         .legend {
           max-width: 600px;
           margin: 20px auto 0;
@@ -655,7 +726,6 @@ export default function ExecutivePage() {
         .legend-color.media { background: #f59e0b; }
         .legend-color.voice { background: #ef4444; }
 
-        /* Modal Styles (same as before) */
         .profile-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .modal-container { background: white; border-radius: 28px; max-width: 500px; width: 100%; max-height: 85vh; overflow-y: auto; position: relative; animation: modalIn 0.3s ease; }
         @keyframes modalIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -701,7 +771,6 @@ export default function ExecutivePage() {
         .quick-action.email { background: #fef3c7; color: #f59e0b; }
         .quick-action.email:hover { background: #f59e0b; color: white; }
 
-        /* Full Image Modal */
         .full-image-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .full-image-container { position: relative; max-width: 90vw; max-height: 90vh; text-align: center; }
@@ -712,105 +781,241 @@ export default function ExecutivePage() {
         .full-image-caption h3 { font-size: 18px; margin-bottom: 4px; }
         .full-image-caption p { font-size: 13px; opacity: 0.8; }
 
-  /* Professional Loader */
-.executive-loader { 
-  min-height: 100vh; 
-  display: flex; 
-  flex-direction: column; 
-  align-items: center; 
-  justify-content: center; 
-  background: linear-gradient(135deg, #0f172a, #1e293b); 
-  color: white; 
-}
+        .executive-loader { 
+          min-height: 100vh; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center; 
+          background: linear-gradient(135deg, #0f172a, #1e293b); 
+          color: white; 
+        }
 
-.loader-spinner { 
-  position: relative; 
-  width: 80px; 
-  height: 80px; 
-  margin-bottom: 24px; 
-}
+        .loader-spinner { 
+          position: relative; 
+          width: 80px; 
+          height: 80px; 
+          margin-bottom: 24px; 
+        }
 
-.ring { 
-  position: absolute; 
-  inset: 0; 
-  border-radius: 50%; 
-  border: 2px solid transparent; 
-  animation: spin 1s linear infinite; 
-}
+        .ring { 
+          position: absolute; 
+          inset: 0; 
+          border-radius: 50%; 
+          border: 2px solid transparent; 
+          animation: spin 1s linear infinite; 
+        }
 
-.ring:nth-child(1) { 
-  border-top-color: #3b82f6; 
-  border-right-color: #3b82f6; 
-}
+        .ring:nth-child(1) { 
+          border-top-color: #3b82f6; 
+          border-right-color: #3b82f6; 
+        }
 
-.ring:nth-child(2) { 
-  border-bottom-color: #8b5cf6; 
-  border-left-color: #8b5cf6; 
-  animation-delay: -0.5s;
-  width: 60%; 
-  height: 60%; 
-  top: 20%; 
-  left: 20%; 
-}
+        .ring:nth-child(2) { 
+          border-bottom-color: #8b5cf6; 
+          border-left-color: #8b5cf6; 
+          animation-delay: -0.5s;
+          width: 60%; 
+          height: 60%; 
+          top: 20%; 
+          left: 20%; 
+        }
 
-.ring:nth-child(3) { 
-  border-top-color: #10b981; 
-  border-right-color: #10b981; 
-  width: 30%; 
-  height: 30%; 
-  top: 35%; 
-  left: 35%; 
-  animation-duration: 0.8s;
-}
+        .ring:nth-child(3) { 
+          border-top-color: #10b981; 
+          border-right-color: #10b981; 
+          width: 30%; 
+          height: 30%; 
+          top: 35%; 
+          left: 35%; 
+          animation-duration: 0.8s;
+        }
 
-@keyframes spin { 
-  100% { transform: rotate(360deg); } 
-}
+        @keyframes spin { 
+          100% { transform: rotate(360deg); } 
+        }
 
-.loader-crown { 
-  position: absolute; 
-  top: 50%; 
-  left: 50%; 
-  transform: translate(-50%, -50%); 
-  opacity: 0.9;
-  animation: glow 2s ease-in-out infinite;
-}
+        .loader-crown { 
+          position: absolute; 
+          top: 50%; 
+          left: 50%; 
+          transform: translate(-50%, -50%); 
+          opacity: 0.9;
+          animation: glow 2s ease-in-out infinite;
+        }
 
-@keyframes glow {
-  0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-}
+        @keyframes glow {
+          0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+          50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
 
-.executive-loader h3 { 
-  font-size: 20px; 
-  margin-bottom: 8px; 
-  font-weight: 600;
-  background: linear-gradient(135deg, #fff, #94a3b8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+        .executive-loader h3 { 
+          font-size: 20px; 
+          margin-bottom: 8px; 
+          font-weight: 600;
+          background: linear-gradient(135deg, #fff, #94a3b8);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
 
-.executive-loader p { 
-  color: #64748b; 
-  font-size: 13px; 
-  letter-spacing: 0.5px;
-}
+        .executive-loader p { 
+          color: #64748b; 
+          font-size: 13px; 
+          letter-spacing: 0.5px;
+        }
 
-/* Add loading dots animation */
-.executive-loader p::after {
-  content: '';
-  animation: dots 1.5s steps(4, end) infinite;
-}
+        .executive-loader p::after {
+          content: '';
+          animation: dots 1.5s steps(4, end) infinite;
+        }
 
-@keyframes dots {
-  0%, 20% { content: ''; }
-  40% { content: '.'; }
-  60% { content: '..'; }
-  80%, 100% { content: '...'; }
-}
+        @keyframes dots {
+          0%, 20% { content: ''; }
+          40% { content: '.'; }
+          60% { content: '..'; }
+          80%, 100% { content: '...'; }
+        }
 
-        /* Responsive - Mobile */
+        /* Tabs */
+        .executive-tabs {
+          display: flex;
+          justify-content: center;
+          gap: 16px;
+          margin: 20px auto;
+          max-width: 400px;
+          padding: 0 20px;
+        }
+
+        .tab-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 20px;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 60px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #64748b;
+        }
+
+        .tab-btn.active {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          border-color: #3b82f6;
+          color: white;
+          box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+
+        /* History View */
+        .history-view {
+          max-width: 800px;
+          margin: 20px auto;
+          padding: 20px;
+        }
+
+        .history-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .history-card {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background: white;
+          padding: 16px;
+          border-radius: 16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          transition: all 0.2s;
+        }
+
+        .history-card:hover {
+          transform: translateX(4px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .history-card-avatar {
+          width: 60px;
+          height: 60px;
+          flex-shrink: 0;
+        }
+
+        .history-card-avatar img,
+        .history-avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .history-avatar-placeholder {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          font-weight: 600;
+        }
+
+        .history-card-info {
+          flex: 1;
+        }
+
+        .history-card-info h4 {
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+
+        .history-card-info p {
+          font-size: 13px;
+          color: #64748b;
+          margin-bottom: 4px;
+        }
+
+        .history-card-info small {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+
+        .history-category-badge {
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+
+        .history-category-badge.leadership { background: #dbeafe; color: #3b82f6; }
+        .history-category-badge.choir { background: #ede9fe; color: #8b5cf6; }
+        .history-category-badge.jumuia { background: #d1fae5; color: #10b981; }
+        .history-category-badge.media { background: #fed7aa; color: #f59e0b; }
+        .history-category-badge.voice { background: #fee2e2; color: #ef4444; }
+
+        .history-loading-state,
+        .history-empty-state {
+          text-align: center;
+          padding: 60px 20px;
+          background: white;
+          border-radius: 20px;
+        }
+
+        .loader-spinner-small {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 16px;
+        }
+
         @media (max-width: 768px) {
           .premium-hero { padding: 16px 16px 60px; }
           .hero-content h1 { font-size: 26px; }
@@ -826,7 +1031,7 @@ export default function ExecutivePage() {
           
           .member-card { min-width: 150px; padding: 12px 16px; }
           .card-avatar { width: 50px; height: 50px; }
-          .member-card h3 { font-size: 13px; }
+          .member-card h3 { font-size: 14px; }
           
           .org-connector.split .connector-horizontal { width: 200px; }
           .org-connector.wide .connector-horizontal-wide { width: 90%; }
@@ -843,12 +1048,20 @@ export default function ExecutivePage() {
           .info-item { flex-direction: column; text-align: center; }
           .info-actions { justify-content: center; }
           .full-image-close { top: -35px; right: -10px; width: 32px; height: 32px; }
+
+          .history-card {
+            flex-wrap: wrap;
+          }
+          
+          .history-category-badge {
+            margin-left: auto;
+          }
         }
 
         @media (max-width: 480px) {
           .member-card { min-width: 130px; padding: 10px 12px; }
           .card-avatar { width: 45px; height: 45px; }
-          .member-card h3 { font-size: 12px; }
+          .member-card h3 { font-size: 13px; }
           .hero-stats { gap: 10px; }
           .hero-stats .stat { font-size: 9px; padding: 3px 10px; }
         }

@@ -1085,7 +1085,7 @@ const fetchFeaturedGallery = async () => {
       <div className="header-icon-music">🎵</div>
       <div>
         <h3>RECENT HYMNS</h3>
-        <p className="header-subtitle">Zion's sacred melodies</p>
+        <p className="header-subtitle">Recently added Lyrics</p>
       </div>
     </div>
     {recentHymns.length > 0 && (
@@ -1159,7 +1159,7 @@ const fetchFeaturedGallery = async () => {
       <div className="header-icon-mass">⛪</div>
       <div>
         <h3>UPCOMING MASS PROGRAMS</h3>
-        <p className="header-subtitle">Worship schedule & services</p>
+        <p className="header-subtitle">Mass songs programe</p>
       </div>
     </div>
     {massPrograms.length > 0 && (
@@ -1224,7 +1224,7 @@ const fetchFeaturedGallery = async () => {
       <div className="header-icon-gallery">📸</div>
       <div>
         <h3>FEATURED GALLERY</h3>
-        <p className="header-subtitle">Moments from our community</p>
+        <p className="header-subtitle">Moments from zuca</p>
       </div>
     </div>
     {featuredGallery.length > 0 && (

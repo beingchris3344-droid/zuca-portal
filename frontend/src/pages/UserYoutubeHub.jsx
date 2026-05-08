@@ -170,6 +170,7 @@ const handleSubscribe = () => {
   const channelId = channel?.id || "UCJ7NvR5_ZUwhtM16sJY4anQ";
   const subscribeUrl = `https://www.youtube.com/channel/${channelId}?sub_confirmation=1`;
   
+  // Popup dimensions for desktop
   const width = 500;
   const height = 600;
   const left = window.screen.width / 2 - width / 2;
@@ -177,10 +178,9 @@ const handleSubscribe = () => {
   
   window.open(
     subscribeUrl,
-    "Subscribe to ZUCA",
+    "Subscribe to ZUCA YouTube Channel",
     `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes`
   );
-
 
   // Show visual feedback
   setSubscribed(true);
@@ -340,37 +340,28 @@ const handleSubscribe = () => {
         {/* CHANNEL INFO BAR */}
         {channel && (
           <div className="channel-info-bar">
-  <div className="channel-avatar">
-    {channel.thumbnail ? (
-      <img src={channel.thumbnail} alt={channel.name} />
-    ) : (
-      <div className="channel-placeholder">🎬</div>
-    )}
-  </div>
-  <div className="channel-details">
-    <h3>{channel.name}</h3>
-    <div className="channel-stats">
-      <span><FiUsers /> {formatNumber(channel.subscribers)} subscribers</span>
-      <span><FiEye /> {formatNumber(channel.totalViews)} views</span>
-      <span><FiVideo /> {channel.totalVideos} videos</span>
-    </div>
-    <p>{channel.description?.substring(0, 100)}...</p>
-  </div>
+            <div className="channel-avatar">
+              {channel.thumbnail ? (
+                <img src={channel.thumbnail} alt={channel.name} />
+              ) : (
+                <div className="channel-placeholder">🎬</div>
+              )}
+            </div>
+            <div className="channel-details">
+              <h3>{channel.name}</h3>
+              <div className="channel-stats">
+                <span><FiUsers /> {formatNumber(channel.subscribers)} subscribers</span>
+                <span><FiEye /> {formatNumber(channel.totalViews)} views</span>
+                <span><FiVideo /> {channel.totalVideos} videos</span>
+              </div>
+              <p>{channel.description?.substring(0, 100)}...</p>
+            </div>
 
-  {isMobileDevice() ? (
-    <div className="mobile-subscribe-wrapper">
-      <iframe
-        src={`https://www.youtube.com/subscribe_embed?channel_id=${channel?.id || "UCJ7NvR5_ZUwhtM16sJY4anQ"}`}
-        title="Subscribe to ZUCA YouTube Channel"
-        style={{ width: '200px', height: '48px', border: 'none' }}
-      />
-    </div>
-  ) : (
-    <button className="subscribe-btn" onClick={handleSubscribe}>
-      <FiBell /> Subscribe
-    </button>
-  )}
-</div>
+            
+            <button className="subscribe-btn" onClick={handleSubscribe}>
+              <FiBell /> Subscribe
+            </button>
+          </div>
         )}
 
         {/* SEARCH BAR */}

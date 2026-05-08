@@ -23,8 +23,11 @@ function Gallery() {
   const [media, setMedia] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [featuredMedia, setFeaturedMedia] = useState([]);
+  
+const [imageLoading, setImageLoading] = useState({});
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [loading, setLoading] = useState(true);
+  
   const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 0 });
@@ -93,36 +96,47 @@ function Gallery() {
 
   // Fetch public media
   const fetchMedia = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-        category: filters.category !== "all" ? filters.category : undefined,
-        type: filters.type !== "all" ? filters.type : undefined,
-        sortBy: filters.sortBy,
-        featured: filters.featured
-      };
-      
-      const response = await axios.get(`${BASE_URL}/api/media/public`, { params });
-      
-      setMedia(response.data.media || []);
-      setPagination(prev => ({
-        ...prev,
-        total: response.data.pagination?.total || 0,
-        totalPages: response.data.pagination?.totalPages || 0
-      }));
-      
-      const uniqueCategories = [...new Set(response.data.media?.map(m => m.category).filter(Boolean))];
-      setCategories(uniqueCategories);
-      
-    } catch (err) {
-      console.error("Error fetching media:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  try {
+    setLoading(true);
+    const params = {
+      page: pagination.page,
+      limit: pagination.limit,
+      category: filters.category !== "all" ? filters.category : undefined,
+      type: filters.type !== "all" ? filters.type : undefined,
+      sortBy: filters.sortBy,
+      featured: filters.featured
+    };
+    
+    const response = await axios.get(`${BASE_URL}/api/media/public`, { params });
+    
+    const mediaData = response.data.media || [];
+    setMedia(mediaData);
+    
+    // Set loading state for all images
+    const loadingState = {};
+    mediaData.forEach(item => {
+      if (item.type === 'image') {
+        loadingState[item.id] = true;
+      }
+    });
+    setImageLoading(loadingState);
+    
+    setPagination(prev => ({
+      ...prev,
+      total: response.data.pagination?.total || 0,
+      totalPages: response.data.pagination?.totalPages || 0
+    }));
+    
+    const uniqueCategories = [...new Set(mediaData.map(m => m.category).filter(Boolean))];
+    setCategories(uniqueCategories);
+    
+  } catch (err) {
+    console.error("Error fetching media:", err);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const fetchFeaturedMedia = async () => {
     try {
@@ -727,13 +741,31 @@ function Gallery() {
               {featuredMedia.slice(0, 6).map((item, index) => (
                 <div key={item.id} className="featured-card" onClick={() => selectMedia(item, media.findIndex(m => m.id === item.id))}>
                   <div className="featured-thumbnail">
-                    {item.type === 'image' ? (
-                      <img src={item.thumbnailUrl || item.url} alt={item.title} loading="lazy" />
-                    ) : item.type === 'video' ? (
-                      <video src={item.url} muted />
-                    ) : (
-                      <div className="featured-placeholder"><FiMusic size={48} /></div>
-                    )}
+                   {item.type === 'image' ? (
+  <div className="image-loader-container">
+    <div className="image-spinner-zuca">
+  <img 
+    src="/src/assets/zuca-logo.png" 
+    alt="Loading ZUCA..." 
+    className="zuca-logo-image"
+  />
+</div>
+    <img 
+      src={item.thumbnailUrl || item.url} 
+      alt={item.title} 
+      loading="lazy"
+      onLoad={(e) => {
+        e.target.style.opacity = '1';
+        e.target.previousSibling.style.display = 'none';
+      }}
+      style={{ opacity: 0 }}
+    />
+  </div>
+) : item.type === 'video' ? (
+  <video src={item.url} muted />
+) : (
+  <div className="media-placeholder"><FiMusic size={32} /></div>
+)}
                     <div className="featured-overlay">
                       <FiPlayCircle size={48} />
                       <span>Play Now</span>
@@ -829,32 +861,58 @@ function Gallery() {
               </div>
             ) : viewMode === 'grid' ? (
               <div className="media-grid">
-                {media.map((item, index) => (
-                  <div key={item.id} className={`media-card ${selectedMedia?.id === item.id ? 'active' : ''}`} onClick={() => selectMedia(item, index)}>
-                    <div className="media-thumbnail">
-                      {item.type === 'image' ? (
-                        <img src={item.thumbnailUrl || item.url} alt={item.title} loading="lazy" />
-                      ) : item.type === 'video' ? (
-                        <video src={item.url} muted />
-                      ) : (
-                        <div className="media-placeholder"><FiMusic size={32} /></div>
-                      )}
-                      {item.type === 'video' && <div className="video-badge"><FiPlay /></div>}
-                      {item.type === 'audio' && <div className="audio-badge"><FiMusic /></div>}
-                      {item.isFeatured && <div className="featured-badge"><FiStar /></div>}
-                      <div className="media-hover-overlay"><FiPlayCircle size={32} /><span>Click to Play</span></div>
-                    </div>
-                    <div className="media-info">
-                      <h4 className="media-title">{item.title}</h4>
-                      <div className="media-stats">
-                        <span><FiEye /> {formatNumber(item._count?.views)}</span>
-                        <span><FiHeart /> {formatNumber(item._count?.likes)}</span>
-                        <span><FiMessageCircle /> {formatNumber(item._count?.comments)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+  {media.map((item, index) => (
+    <div 
+      key={item.id} 
+      className={`media-card ${selectedMedia?.id === item.id ? 'active' : ''}`} 
+      onClick={() => selectMedia(item, index)}
+    >
+<div className="media-thumbnail">
+  {item.type === 'image' ? (
+    <div className="image-loader-container">
+      <div className="image-spinner-zuca">
+  <img 
+    src="/src/assets/zuca-logo.png" 
+    alt="Loading ZUCA..." 
+    className="zuca-logo-image"
+  />
+</div>
+      <img 
+        src={item.thumbnailUrl || item.url} 
+        alt={item.title} 
+        loading="lazy"
+        onLoad={(e) => {
+          e.target.style.opacity = '1';
+          e.target.previousSibling.style.display = 'none';
+        }}
+        style={{ opacity: 0 }}
+      />
+    </div>
+  ) : item.type === 'video' ? (
+    <video src={item.url} muted />
+  ) : (
+    <div className="media-placeholder"><FiMusic size={32} /></div>
+  )}
+  
+  {item.type === 'video' && <div className="video-badge"><FiPlay /></div>}
+  {item.type === 'audio' && <div className="audio-badge"><FiMusic /></div>}
+  {item.isFeatured && <div className="featured-badge"><FiStar /></div>}
+  <div className="media-hover-overlay">
+    <FiPlayCircle size={32} />
+    <span>Click to Play</span>
+  </div>
+</div>
+      <div className="media-info">
+        <h4 className="media-title">{item.title}</h4>
+        <div className="media-stats">
+          <span><FiEye /> {formatNumber(item._count?.views)}</span>
+          <span><FiHeart /> {formatNumber(item._count?.likes)}</span>
+          <span><FiMessageCircle /> {formatNumber(item._count?.comments)}</span>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
             ) : (
               <div className="media-list">
                 <table className="media-table">
@@ -1731,6 +1789,144 @@ function Gallery() {
     font-size: 12px;
   }
 }
+
+.image-loading-spinner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.media-thumbnail {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.media-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+
+
+
+
+
+  /* your existing CSS... */
+
+  /* ========== ADD THIS ZUCA LOGO SPINNER CSS HERE ========== */
+  .image-loader-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #f1f5f9;
+  }
+
+  .image-spinner-zuca {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    z-index: 1;
+  }
+
+  .zuca-cross {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #ffd700, #ff0062);
+    clip-path: polygon(40% 0%, 60% 0%, 60% 40%, 100% 40%, 100% 60%, 60% 60%, 60% 100%, 40% 100%, 40% 60%, 0% 60%, 0% 40%, 40% 40%);
+    animation: rotateCross 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  }
+
+  .zuca-circle {
+    position: absolute;
+    inset: 0;
+    border: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: pulseCircle 1.2s ease-in-out infinite;
+  }
+
+  .zuca-dove {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    animation: flyDove 0.8s ease-in-out infinite alternate;
+  }
+
+  .zuca-dove::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 1px;
+    width: 6px;
+    height: 4px;
+    background: white;
+    border-radius: 50% 50% 0 0;
+    transform: rotate(-20deg);
+  }
+
+  @keyframes rotateCross {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  @keyframes pulseCircle {
+    0%, 100% { transform: scale(1); opacity: 1; border-color: #3b82f6; }
+    50% { transform: scale(1.15); opacity: 0.6; border-color: #ffd700; }
+  }
+
+  @keyframes flyDove {
+    0% { transform: rotate(-45deg) translateY(0); opacity: 0.5; }
+    100% { transform: rotate(-45deg) translateY(-5px); opacity: 1; }
+  }
+
+
+  .zuca-logo-image {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
       `}</style>
     </div>
   );

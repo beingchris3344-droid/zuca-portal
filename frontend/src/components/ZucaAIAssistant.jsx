@@ -534,7 +534,7 @@ const TypingIndicator = ({ isFullPage }) => (
       <div className="typing-dot" style={{ animationDelay: "0.2s" }}></div>
       <div className="typing-dot" style={{ animationDelay: "0.4s" }}></div>
       <span style={{ fontSize: isFullPage ? "13px" : "11px", color: "#64748b", marginLeft: "4px" }}>
-        ZUCA AI is thinking...
+       ...
       </span>
     </div>
   </div>

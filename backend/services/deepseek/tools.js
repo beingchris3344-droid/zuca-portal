@@ -37,11 +37,7 @@ const tools = [
     function: {
       name: "get_my_profile",
       description: "Get the current user's profile information",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -49,11 +45,7 @@ const tools = [
     function: {
       name: "get_my_pledges",
       description: "Get all pledges and contribution status for the current user",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -63,12 +55,7 @@ const tools = [
       description: "Get unread notifications for the current user",
       parameters: {
         type: "object",
-        properties: {
-          markAsRead: {
-            type: "boolean",
-            description: "Whether to mark all as read"
-          }
-        },
+        properties: { markAsRead: { type: "boolean", description: "Whether to mark all as read" } },
         required: []
       }
     }
@@ -83,14 +70,8 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          amount: {
-            type: "number",
-            description: "Amount to pledge in KES"
-          },
-          campaignTitle: {
-            type: "string",
-            description: "Optional: specific campaign to pledge to"
-          }
+          amount: { type: "number", description: "Amount to pledge in KES" },
+          campaignTitle: { type: "string", description: "Optional: specific campaign to pledge to" }
         },
         required: ["amount"]
       }
@@ -101,11 +82,7 @@ const tools = [
     function: {
       name: "get_active_campaigns",
       description: "Get all active contribution campaigns",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -132,9 +109,7 @@ const tools = [
       description: "Approve a user's pending pledge (admin/treasurer only)",
       parameters: {
         type: "object",
-        properties: {
-          pledgeId: { type: "string", description: "The pledge ID to approve" }
-        },
+        properties: { pledgeId: { type: "string", description: "The pledge ID to approve" } },
         required: ["pledgeId"]
       }
     }
@@ -148,9 +123,7 @@ const tools = [
       description: "Get upcoming mass programs",
       parameters: {
         type: "object",
-        properties: {
-          limit: { type: "number", description: "Number of masses to return (default 5)" }
-        },
+        properties: { limit: { type: "number", description: "Number of masses to return (default 5)" } },
         required: []
       }
     }
@@ -160,11 +133,7 @@ const tools = [
     function: {
       name: "get_todays_readings",
       description: "Get today's liturgical readings",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -174,9 +143,7 @@ const tools = [
       description: "Get liturgical readings for a specific date",
       parameters: {
         type: "object",
-        properties: {
-          date: { type: "string", description: "Date in YYYY-MM-DD format" }
-        },
+        properties: { date: { type: "string", description: "Date in YYYY-MM-DD format" } },
         required: ["date"]
       }
     }
@@ -207,11 +174,7 @@ const tools = [
         type: "object",
         properties: {
           query: { type: "string", description: "Search query" },
-          type: { 
-            type: "string", 
-            enum: ["entrance", "offertory", "communion", "exit", "mass", "bible", "procession", "thanksgiving"],
-            description: "Optional: filter by mass program type"
-          }
+          type: { type: "string", enum: ["entrance", "offertory", "communion", "exit", "mass", "bible", "procession", "thanksgiving"], description: "Optional: filter by mass program type" }
         },
         required: ["query"]
       }
@@ -239,11 +202,7 @@ const tools = [
     function: {
       name: "get_jumuia_list",
       description: "Get list of all jumuia groups with member counts",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -268,9 +227,7 @@ const tools = [
       description: "Join a jumuia group",
       parameters: {
         type: "object",
-        properties: {
-          jumuiaName: { type: "string", description: "Jumuia name to join" }
-        },
+        properties: { jumuiaName: { type: "string", description: "Jumuia name to join" } },
         required: ["jumuiaName"]
       }
     }
@@ -284,9 +241,7 @@ const tools = [
       description: "Get recent announcements",
       parameters: {
         type: "object",
-        properties: {
-          limit: { type: "number", description: "Number to return (default 5)" }
-        },
+        properties: { limit: { type: "number", description: "Number to return (default 5)" } },
         required: []
       }
     }
@@ -316,9 +271,7 @@ const tools = [
       description: "Post a message to the community chat",
       parameters: {
         type: "object",
-        properties: {
-          message: { type: "string", description: "Message to post" }
-        },
+        properties: { message: { type: "string", description: "Message to post" } },
         required: ["message"]
       }
     }
@@ -348,11 +301,7 @@ const tools = [
     function: {
       name: "get_youtube_info",
       description: "Get ZUCA YouTube channel statistics and latest videos",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
 
@@ -377,11 +326,7 @@ const tools = [
     function: {
       name: "get_game_status",
       description: "Check current user's active games",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
 
@@ -391,10 +336,18 @@ const tools = [
     function: {
       name: "get_executive_team",
       description: "Get the current executive team",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_executive_by_position",
+      description: "Get the executive for a specific position",
       parameters: {
         type: "object",
-        properties: {},
-        required: []
+        properties: { position: { type: "string", description: "Position title (e.g., 'Secretary', 'Treasurer')" } },
+        required: ["position"]
       }
     }
   },
@@ -406,8 +359,8 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          userIdentifier: { type: "string", description: "User's name, email, membership number (e.g., 'Morris', 'Z#002', 'morris@email.com')" },
-          position: { type: "string", description: "Position title (e.g., 'Secretary', 'Treasurer', 'Choir Moderator')" }
+          userIdentifier: { type: "string", description: "User's name, email, membership number" },
+          position: { type: "string", description: "Position title (e.g., 'Secretary', 'Treasurer', 'Chairperson')" }
         },
         required: ["userIdentifier", "position"]
       }
@@ -420,10 +373,66 @@ const tools = [
       description: "Remove a user from their executive position (admin only)",
       parameters: {
         type: "object",
-        properties: {
-          userIdentifier: { type: "string", description: "User's name, email, or membership number" }
-        },
+        properties: { userIdentifier: { type: "string", description: "User's name, email, or membership number" } },
         required: ["userIdentifier"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_assign_executives",
+      description: "Assign multiple executives at once (admin only)",
+      parameters: {
+        type: "object",
+        properties: {
+          assignments: {
+            type: "array",
+            description: "Array of assignments",
+            items: {
+              type: "object",
+              properties: {
+                userIdentifier: { type: "string", description: "User name, email, or membership number" },
+                position: { type: "string", description: "Position title" }
+              },
+              required: ["userIdentifier", "position"]
+            }
+          }
+        },
+        required: ["assignments"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_remove_executives",
+      description: "Remove multiple executives at once (admin only)",
+      parameters: {
+        type: "object",
+        properties: {
+          userIdentifiers: {
+            type: "array",
+            description: "Array of user names, emails, or membership numbers to remove",
+            items: { type: "string" }
+          }
+        },
+        required: ["userIdentifiers"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "swap_executives",
+      description: "Swap two executives between positions (admin only)",
+      parameters: {
+        type: "object",
+        properties: {
+          user1: { type: "string", description: "First user's name, email, or membership number" },
+          user2: { type: "string", description: "Second user's name, email, or membership number" }
+        },
+        required: ["user1", "user2"]
       }
     }
   },
@@ -450,11 +459,7 @@ const tools = [
     function: {
       name: "list_schedules",
       description: "List all schedules (admin/secretary only)",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
 
@@ -466,9 +471,7 @@ const tools = [
       description: "List all users in the system (admin only)",
       parameters: {
         type: "object",
-        properties: {
-          limit: { type: "number", description: "Number to return (default 20)" }
-        },
+        properties: { limit: { type: "number", description: "Number to return (default 20)" } },
         required: []
       }
     }
@@ -480,9 +483,7 @@ const tools = [
       description: "Find a specific user by name, email, phone, or membership number (admin only)",
       parameters: {
         type: "object",
-        properties: {
-          searchTerm: { type: "string", description: "Name, email, phone, or membership number to search" }
-        },
+        properties: { searchTerm: { type: "string", description: "Name, email, phone, or membership number to search" } },
         required: ["searchTerm"]
       }
     }
@@ -525,11 +526,7 @@ const tools = [
     function: {
       name: "get_system_stats",
       description: "Get platform overview statistics (admin only)",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -537,11 +534,7 @@ const tools = [
     function: {
       name: "get_system_health",
       description: "Get system health status including uptime, memory, errors (admin only)",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
 
@@ -554,11 +547,7 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          contentType: { 
-            type: "string", 
-            enum: ["prayer", "reflection", "quiz", "newsletter", "social_post", "announcement_draft"],
-            description: "Type of content to generate"
-          },
+          contentType: { type: "string", enum: ["prayer", "reflection", "quiz", "newsletter", "social_post", "announcement_draft"], description: "Type of content to generate" },
           topic: { type: "string", description: "Topic or subject for the content" },
           additionalContext: { type: "string", description: "Any additional context" }
         },
@@ -575,9 +564,7 @@ const tools = [
       description: "Search the web for Catholic resources and information",
       parameters: {
         type: "object",
-        properties: {
-          query: { type: "string", description: "Search query" }
-        },
+        properties: { query: { type: "string", description: "Search query" } },
         required: ["query"]
       }
     }
@@ -589,19 +576,16 @@ const tools = [
     function: {
       name: "show_help",
       description: "Show the user what they can do based on their role",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
+
   // ==================== EMAIL & NOTIFICATIONS ====================
   {
     type: "function",
     function: {
       name: "send_bulk_email",
-      description: "Send an email announcement to ALL users via the notification system which triggers push, email, and in-app alerts (admin/secretary only)",
+      description: "Send an email announcement to ALL users (admin/secretary only)",
       parameters: {
         type: "object",
         properties: {
@@ -616,32 +600,28 @@ const tools = [
     type: "function",
     function: {
       name: "send_email",
-      description: "Send an email to a specific user by name, email, or membership number (admin only)",
+      description: "Send an email to a specific user (admin only)",
       parameters: {
         type: "object",
         properties: {
-          userIdentifier: { type: "string", description: "User's name, email, or membership number to find them" },
+          userIdentifier: { type: "string", description: "User's name, email, or membership number" },
           title: { type: "string", description: "Email subject line" },
           message: { type: "string", description: "Email body content" }
         },
         required: ["userIdentifier", "title", "message"]
       }
     }
-  }
+  },
 
+  // ==================== CONTRIBUTIONS LIST ====================
   {
-  type: "function",
-  function: {
-    name: "list_all_contributions",
-    description: "List all contributions/campaigns with their progress",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: []
+    type: "function",
+    function: {
+      name: "list_all_contributions",
+      description: "List all contributions/campaigns with their progress",
+      parameters: { type: "object", properties: {}, required: [] }
     }
   }
-}
-
 ];
 
 module.exports = tools;

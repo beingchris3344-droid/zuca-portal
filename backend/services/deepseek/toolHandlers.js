@@ -809,6 +809,25 @@ async function executeToolCall(toolName, args, context) {
         });
         
         if (!targetUser) return { error: `User "${args.userIdentifier}" not found.` };
+
+        let positionTitle = args.position;
+  const titleMap = {
+    "chairperson": "Chairperson",
+    "chair": "Chairperson",
+    "vice chair": "Vice Chairperson",
+    "vicechair": "Vice Chairperson",
+    "secretary": "Secretary",
+    "treasurer": "Treasurer",
+    "choir moderator": "Choir Moderator",
+    "choirmoderator": "Choir Moderator",
+    "media moderator": "Media Moderator",
+    "mediamoderator": "Media Moderator"
+  };
+  
+  if (titleMap[positionTitle.toLowerCase()]) {
+    positionTitle = titleMap[positionTitle.toLowerCase()];
+    console.log(`📝 Mapped "${args.position}" → "${positionTitle}"`);
+  }
         
         const position = await prisma.executivePosition.findFirst({
           where: { title: { contains: args.position, mode: "insensitive" } }
@@ -957,7 +976,10 @@ async function executeToolCall(toolName, args, context) {
         return { users, count: users.length, message: `Showing ${users.length} users` };
       }
 
-      case "find_user": {
+     case "find_user": {
+        let searchTerm = args.searchTerm;
+        searchTerm = searchTerm.replace(/[''"`]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        
         let isAuthorized = false;
         
         if (currentUser?.userId) {
@@ -976,9 +998,9 @@ async function executeToolCall(toolName, args, context) {
         const found = await prisma.user.findFirst({
           where: {
             OR: [
-              { fullName: { contains: args.searchTerm, mode: "insensitive" } },
-              { email: { contains: args.searchTerm, mode: "insensitive" } },
-              { membership_number: { contains: args.searchTerm, mode: "insensitive" } }
+              { fullName: { contains: searchTerm, mode: "insensitive" } },
+              { email: { contains: searchTerm, mode: "insensitive" } },
+              { membership_number: { contains: searchTerm, mode: "insensitive" } }
             ]
           },
           include: { homeJumuia: true, pledges: { include: { contributionType: true } } }
@@ -3475,6 +3497,445 @@ case "check_if_live": {
     color: reading.liturgicalColor,
     readings: reading.readings
   };
+}
+
+case "bulk_assign_executives": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can assign executives." };
+  
+  const results = [];
+  
+  for (const assignment of args.assignments) {
+    try {
+      // Find user
+      const targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { fullName: { contains: assignment.userIdentifier, mode: "insensitive" } },
+            { email: { contains: assignment.userIdentifier, mode: "insensitive" } },
+            { membership_number: { contains: assignment.userIdentifier, mode: "insensitive" } }
+          ]
+        }
+      });
+      
+      if (!targetUser) {
+        results.push({ user: assignment.userIdentifier, success: false, error: "User not found" });
+        continue;
+      }
+      
+      // Find position
+      const position = await prisma.executivePosition.findFirst({
+        where: { title: { contains: assignment.position, mode: "insensitive" } }
+      });
+      
+      if (!position) {
+        results.push({ user: assignment.userIdentifier, success: false, error: `Position "${assignment.position}" not found` });
+        continue;
+      }
+      
+      // Remove existing from this position
+      const existing = await prisma.executive.findFirst({
+        where: { positionId: position.id, isActive: true }
+      });
+      
+      if (existing) {
+        await prisma.executiveHistory.create({
+          data: {
+            userId: existing.userId,
+            positionId: existing.positionId,
+            assignedBy: existing.assignedBy,
+            assignedAt: existing.assignedAt,
+            removedAt: new Date(),
+            removedBy: currentUser.userId
+          }
+        });
+        await prisma.executive.update({ where: { id: existing.id }, data: { isActive: false } });
+      }
+      
+      // Check if user already has this position (inactive)
+      const userExisting = await prisma.executive.findFirst({
+        where: { userId: targetUser.id, positionId: position.id }
+      });
+      
+      if (userExisting) {
+        await prisma.executive.update({
+          where: { id: userExisting.id },
+          data: { isActive: true, assignedBy: currentUser.userId, assignedAt: new Date() }
+        });
+      } else {
+        await prisma.executive.create({
+          data: { userId: targetUser.id, positionId: position.id, assignedBy: currentUser.userId }
+        });
+      }
+      
+      // Update specialRole
+      const specialRoleMap = {
+        "Chairperson": null, "Secretary": "secretary", "Treasurer": "treasurer",
+        "Choir Moderator": "choir_moderator", "Media Moderator": "media_moderator"
+      };
+      const specialRole = specialRoleMap[position.title];
+      if (specialRole) {
+        await prisma.user.update({ where: { id: targetUser.id }, data: { specialRole } });
+      }
+      
+      // Notify user
+      await prisma.notification.create({
+        data: {
+          userId: targetUser.id,
+          type: "executive_appointment",
+          title: "🎉 Executive Appointment!",
+          message: `You've been appointed as ${position.title}!`
+        }
+      });
+      
+      results.push({ user: targetUser.fullName, position: position.title, success: true });
+      
+    } catch (err) {
+      results.push({ user: assignment.userIdentifier, success: false, error: err.message });
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.filter(r => !r.success).length;
+  
+  let message = `✅ ${successCount} executives assigned`;
+  if (failCount > 0) message += `, ❌ ${failCount} failed`;
+  
+  return { success: true, message, results };
+}
+
+// ==================== SINGLE REMOVE ====================
+case "remove_executive": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can remove executives." };
+  
+  // Find the user
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } },
+        { membership_number: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: `User "${args.userIdentifier}" not found.` };
+  
+  // Find their active executive position
+  const assignment = await prisma.executive.findFirst({
+    where: { userId: targetUser.id, isActive: true },
+    include: { position: true }
+  });
+  
+  if (!assignment) return { error: `${targetUser.fullName} has no active executive position.` };
+  
+  // Move to history
+  await prisma.executiveHistory.create({
+    data: {
+      userId: assignment.userId,
+      positionId: assignment.positionId,
+      assignedBy: assignment.assignedBy,
+      assignedAt: assignment.assignedAt,
+      removedAt: new Date(),
+      removedBy: currentUser.userId
+    }
+  });
+  
+  // Remove from executive
+  await prisma.executive.delete({ where: { id: assignment.id } });
+  
+  // Clear specialRole if no other positions
+  const otherAssignments = await prisma.executive.findFirst({
+    where: { userId: targetUser.id, isActive: true }
+  });
+  if (!otherAssignments) {
+    await prisma.user.update({
+      where: { id: targetUser.id },
+      data: { specialRole: null }
+    });
+  }
+  
+  // Notify
+  await prisma.notification.create({
+    data: {
+      userId: targetUser.id,
+      type: "executive_removed",
+      title: "📋 Position Updated",
+      message: `You have been removed from ${assignment.position.title}. Thank you for your service!`
+    }
+  });
+  
+  return {
+    success: true,
+    message: `✅ Removed ${targetUser.fullName} from ${assignment.position.title}.`
+  };
+}
+
+// ==================== BULK REMOVE ====================
+case "bulk_remove_executives": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can remove executives." };
+  
+  const results = [];
+  
+  for (const identifier of args.userIdentifiers) {
+    try {
+      // Find the user
+      const targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { fullName: { contains: identifier, mode: "insensitive" } },
+            { email: { contains: identifier, mode: "insensitive" } },
+            { membership_number: { contains: identifier, mode: "insensitive" } }
+          ]
+        }
+      });
+      
+      if (!targetUser) {
+        results.push({ user: identifier, success: false, error: "User not found" });
+        continue;
+      }
+      
+      // Find their active position
+      const assignment = await prisma.executive.findFirst({
+        where: { userId: targetUser.id, isActive: true },
+        include: { position: true }
+      });
+      
+      if (!assignment) {
+        results.push({ user: targetUser.fullName, success: false, error: "No active position" });
+        continue;
+      }
+      
+      // Move to history
+      await prisma.executiveHistory.create({
+        data: {
+          userId: assignment.userId,
+          positionId: assignment.positionId,
+          assignedBy: assignment.assignedBy,
+          assignedAt: assignment.assignedAt,
+          removedAt: new Date(),
+          removedBy: currentUser.userId
+        }
+      });
+      
+      // Remove
+      await prisma.executive.delete({ where: { id: assignment.id } });
+      
+      // Clear specialRole
+      const otherAssignments = await prisma.executive.findFirst({
+        where: { userId: targetUser.id, isActive: true }
+      });
+      if (!otherAssignments) {
+        await prisma.user.update({
+          where: { id: targetUser.id },
+          data: { specialRole: null }
+        });
+      }
+      
+      // Notify
+      await prisma.notification.create({
+        data: {
+          userId: targetUser.id,
+          type: "executive_removed",
+          title: "📋 Position Updated",
+          message: `You have been removed from ${assignment.position.title}.`
+        }
+      });
+      
+      results.push({ user: targetUser.fullName, position: assignment.position.title, success: true });
+      
+    } catch (err) {
+      results.push({ user: identifier, success: false, error: err.message });
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.filter(r => !r.success).length;
+  
+  let message = `✅ Removed ${successCount} executives`;
+  if (failCount > 0) message += `, ❌ ${failCount} failed`;
+  
+  return { success: true, message, results };
+}
+
+// ==================== SWAP EXECUTIVES ====================
+case "swap_executives": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") return { error: "Only admins can swap executives." };
+  
+  // Find both users
+  const user1 = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.user1, mode: "insensitive" } },
+        { email: { contains: args.user1, mode: "insensitive" } },
+        { membership_number: { contains: args.user1, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  const user2 = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.user2, mode: "insensitive" } },
+        { email: { contains: args.user2, mode: "insensitive" } },
+        { membership_number: { contains: args.user2, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!user1) return { error: `User "${args.user1}" not found.` };
+  if (!user2) return { error: `User "${args.user2}" not found.` };
+  
+  // Get their current positions
+  const assignment1 = await prisma.executive.findFirst({
+    where: { userId: user1.id, isActive: true },
+    include: { position: true }
+  });
+  
+  const assignment2 = await prisma.executive.findFirst({
+    where: { userId: user2.id, isActive: true },
+    include: { position: true }
+  });
+  
+  if (!assignment1 && !assignment2) {
+    return { error: "Neither user has an executive position to swap." };
+  }
+  
+  if (!assignment1) {
+    return { error: `${user1.fullName} has no executive position to swap.` };
+  }
+  
+  if (!assignment2) {
+    return { error: `${user2.fullName} has no executive position to swap.` };
+  }
+  
+  // Store old positions
+  const pos1Id = assignment1.positionId;
+  const pos1Title = assignment1.position.title;
+  const pos2Id = assignment2.positionId;
+  const pos2Title = assignment2.position.title;
+  
+  // Move both to history (before swap)
+  await prisma.executiveHistory.create({
+    data: {
+      userId: user1.id, positionId: pos1Id,
+      assignedBy: assignment1.assignedBy, assignedAt: assignment1.assignedAt,
+      removedAt: new Date(), removedBy: currentUser.userId
+    }
+  });
+  
+  await prisma.executiveHistory.create({
+    data: {
+      userId: user2.id, positionId: pos2Id,
+      assignedBy: assignment2.assignedBy, assignedAt: assignment2.assignedAt,
+      removedAt: new Date(), removedBy: currentUser.userId
+    }
+  });
+  
+  // Delete old assignments
+  await prisma.executive.delete({ where: { id: assignment1.id } });
+  await prisma.executive.delete({ where: { id: assignment2.id } });
+  
+  // Create swapped assignments
+  await prisma.executive.create({
+    data: { userId: user1.id, positionId: pos2Id, assignedBy: currentUser.userId }
+  });
+  
+  await prisma.executive.create({
+    data: { userId: user2.id, positionId: pos1Id, assignedBy: currentUser.userId }
+  });
+  
+  // Update specialRoles based on new positions
+  const specialRoleMap = {
+    "Secretary": "secretary", "Treasurer": "treasurer",
+    "Choir Moderator": "choir_moderator", "Media Moderator": "media_moderator"
+  };
+  
+  const newRole1 = specialRoleMap[pos2Title] || null;
+  const newRole2 = specialRoleMap[pos1Title] || null;
+  
+  await prisma.user.update({ where: { id: user1.id }, data: { specialRole: newRole1 } });
+  await prisma.user.update({ where: { id: user2.id }, data: { specialRole: newRole2 } });
+  
+  // Notify both users
+  await prisma.notification.create({
+    data: {
+      userId: user1.id, type: "executive_swapped",
+      title: "🔄 Position Swapped",
+      message: `You are now ${pos2Title}! (Previously ${pos1Title})`
+    }
+  });
+  
+  await prisma.notification.create({
+    data: {
+      userId: user2.id, type: "executive_swapped",
+      title: "🔄 Position Swapped",
+      message: `You are now ${pos1Title}! (Previously ${pos2Title})`
+    }
+  });
+  
+  return {
+    success: true,
+    message: `🔄 Swapped: ${user1.fullName} (${pos1Title} → ${pos2Title}) ↔ ${user2.fullName} (${pos2Title} → ${pos1Title})`
+  };
+}
+
+case "get_executive_by_position": {
+  const executive = await prisma.executive.findFirst({
+    where: {
+      position: { title: { contains: args.position, mode: "insensitive" } },
+      isActive: true
+    },
+    include: {
+      user: { select: { id: true, fullName: true, email: true, phone: true, profileImage: true } },
+      position: true
+    }
+  });
+  
+  if (!executive) {
+    return { message: `No executive found for position "${args.position}".` };
+  }
+  
+  return {
+    position: executive.position.title,
+    name: executive.user.fullName,
+    email: executive.customEmail || executive.user.email,
+    phone: executive.customPhone || executive.user.phone
+  };
+}
+
+case "check_if_executive": {
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  const executive = await prisma.executive.findFirst({
+    where: { userId: targetUser.id, isActive: true },
+    include: { position: true }
+  });
+  
+  if (executive) {
+    return { 
+      isExecutive: true, 
+      position: executive.position.title,
+      message: `${targetUser.fullName} is the ${executive.position.title}.`
+    };
+  } else {
+    return { 
+      isExecutive: false, 
+      message: `${targetUser.fullName} is not currently an executive.`
+    };
+  }
 }
 
       default:

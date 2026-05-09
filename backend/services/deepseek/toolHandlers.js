@@ -947,7 +947,10 @@ async function executeToolCall(toolName, args, context) {
       }
 
            // ==================== ADMIN - USER MANAGEMENT ====================
-      case "list_all_users": {
+      case "get_all_users":
+case "list_all_users":
+case "list_users":
+case "all_users": {
         let isAuthorized = false;
         
         if (currentUser?.userId) {

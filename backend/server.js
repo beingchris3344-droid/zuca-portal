@@ -5194,8 +5194,6 @@ async function notifyAdminsOfLogin(loggedInUser) {
 
 
 
-
-// ================== ROLE LOGIN ==================
 app.post("/api/role-login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -5216,7 +5214,7 @@ app.post("/api/role-login", async (req, res) => {
 
     let matchedRole = null;
     let membershipNumber = null;
-
+    
     for (const pattern of rolePatterns) {
       if (password.startsWith(pattern.prefix)) {
         membershipNumber = password.replace(pattern.prefix, "");
@@ -5229,10 +5227,14 @@ app.post("/api/role-login", async (req, res) => {
       return res.status(400).json({ error: "Invalid role login format" });
     }
 
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: { 
         email: normalizedEmail,
-        membership_number: membershipNumber
+        membership_number: membershipNumber,
+        specialRole: matchedRole.role,
+        ...(matchedRole.role === "jumuia_leader" && {
+          leadingJumuia: { code: matchedRole.jumuiaCode }
+        })
       },
       include: { 
         homeJumuia: true,
@@ -5244,30 +5246,13 @@ app.post("/api/role-login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    if (user.specialRole !== matchedRole.role) {
-      return res.status(403).json({ error: `You are not assigned as ${matchedRole.role}` });
-    }
-
-    if (matchedRole.role === "jumuia_leader") {
-      const jumuia = await prisma.jumuia.findFirst({
-        where: { 
-          code: matchedRole.jumuiaCode,
-          leaders: { some: { id: user.id } }
-        }
-      });
-
-      if (!jumuia) {
-        return res.status(403).json({ error: `You are not the leader of ${matchedRole.jumuiaName}` });
-      }
-    }
-
-    await prisma.user.update({
+    prisma.user.update({
       where: { id: user.id },
       data: { 
         lastRoleLogin: new Date(),
         lastActive: new Date()
       }
-    });
+    }).catch(err => console.error("Timestamp update failed:", err.message));
 
     let permissions = [];
     let accessLevel = "role";
@@ -5295,65 +5280,65 @@ app.post("/api/role-login", async (req, res) => {
         break;
     }
 
-    // ✅ ADD THIS - Notify admins about role login
-const admins = await prisma.user.findMany({
-  where: { role: "admin" },
-  select: { id: true }
-});
-
-if (admins.length > 0) {
-  // Send push notifications to each admin
-  for (const admin of admins) {
-    await createAndSendNotification({
-      userId: admin.id,
-      type: "user_login",
-      title: "👤 Role Login",
-      message: `${user.fullName} logged in as ${matchedRole.role}`,
-      data: { 
+    const token = jwt.sign(
+      { 
         userId: user.id, 
-        userName: user.fullName, 
         role: matchedRole.role,
-        jumuia: matchedRole.jumuiaName || null
+        email: user.email,
+        accessLevel,
+        permissions,
+        jumuiaCode: matchedRole.jumuiaCode || null,
+        jumuiaName: matchedRole.jumuiaName || null
+      },
+      JWT_SECRET,
+      { expiresIn: "365h" }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: matchedRole.role,
+        jumuia: matchedRole.jumuiaName || null,
+        permissions,
+        accessLevel
       }
     });
-  }
-}
 
-const token = jwt.sign(
-  { 
-    userId: user.id, 
-    role: matchedRole.role,
-    email: user.email,
-    accessLevel,
-    permissions,
-    jumuiaCode: matchedRole.jumuiaCode || null,
-    jumuiaName: matchedRole.jumuiaName || null
-  },
-  JWT_SECRET,
-  { expiresIn: "365h" }
-);
+    const admins = await prisma.user.findMany({
+      where: { role: "admin" },
+      select: { id: true }
+    });
 
-res.json({
-  token,
-  user: {
-    id: user.id,
-    fullName: user.fullName,
-    email: user.email,
-    phone: user.phone,
-    role: matchedRole.role,
-    jumuia: matchedRole.jumuiaName || null,
-    permissions,
-    accessLevel
+    if (admins.length > 0) {
+      await Promise.allSettled(
+        admins.map(admin => 
+          createAndSendNotification({
+            userId: admin.id,
+            type: "user_login",
+            title: "👤 Role Login",
+            message: `${user.fullName} logged in as ${matchedRole.role}`,
+            data: { 
+              userId: user.id, 
+              userName: user.fullName, 
+              role: matchedRole.role,
+              jumuia: matchedRole.jumuiaName || null
+            }
+          })
+        )
+      );
+    }
+
+  } catch (err) {
+    console.error("Role login error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
-
-} catch (err) {
-  console.error("Role login error:", err);
-  res.status(500).json({ error: err.message });
-}
-});
-
-
 // ================== TOKEN REFRESH ENDPOINT ==================
 app.post("/api/auth/refresh-token", async (req, res) => {
   try {

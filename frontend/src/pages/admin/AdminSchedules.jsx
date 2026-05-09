@@ -857,7 +857,7 @@ function AdminSchedules() {
   };
 
   const resetForm = () => {
-    if (window.confirm("Are you sure you want to reset? All unsaved changes will be lost.")) {
+    if (window.confirm("Are you sure you want tosave current changes.")) {
       setFormData({
         title: "",
         semesterPeriod: { start: null, end: null },

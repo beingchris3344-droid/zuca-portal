@@ -254,32 +254,32 @@ function Login() {
     },
     jumuia_leader: {
       greeting: "👑 Jumuia Leader",
-      title: "Welcome, Shepherd!",
-      subtitle: "Lead Your Community",
+      title: "Welcome, moderator",
+      subtitle: "manage your jumuia",
       color: "#8b5cf6"
     },
     treasurer: {
       greeting: "💰 Treasurer",
-      title: "Welcome, Steward!",
-      subtitle: "Manage Contributions",
+      title: "Welcome,!",
+      subtitle: "Manage Finances",
       color: "#f59e0b"
     },
     secretary: {
       greeting: "📝 Secretary",
-      title: "Welcome, Scribe!",
-      subtitle: "Share God's Word",
+      title: "Welcome,!",
+      subtitle: "manage zuca",
       color: "#10b981"
     },
     choir_moderator: {
       greeting: "🎵 Choir Moderator",
-      title: "Welcome, Maestro!",
-      subtitle: "Lead the Praise",
+      title: "Welcome,",
+      subtitle: "ST KIZITO CHOIR,",
       color: "#ec4899"
     },
     media_moderator: {
       greeting: "📸 Media Moderator",
-      title: "Welcome, Creator!",
-      subtitle: "Capture Memories",
+      title: "Welcome,",
+      subtitle: "manage gallary",
       color: "#06b6d4"
     }
   };

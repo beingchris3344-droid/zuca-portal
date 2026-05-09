@@ -696,7 +696,7 @@ const LiturgicalCalendar = () => {
                 <div style={styles.modalColorDisplay}>
                   <span style={{
                     ...styles.modalColorDot,
-                    backgroundColor: seasonInfo.color === '#FFFFFF' ? '#FFD700' : seasonInfo.color,
+                    backgroundColor: seasonInfo.color === '#cccccc' ? '#ffffff' : seasonInfo.color,
                     boxShadow: `0 0 0 2px ${seasonInfo.color}40`,
                   }}></span>
                   <span style={{
@@ -2014,7 +2014,7 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '8px',
-    background: '#f8fafc',
+    background: '#ffee00',
     borderRadius: '10px',
     padding: '12px',
     border: '1px solid #e2e8f0',
@@ -2027,14 +2027,14 @@ const styles = {
   },
 
   modalDetailLabel: {
-    color: '#64748b',
+    color: '#000000',
     fontSize: '11px',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
 
   modalDetailValue: {
-    color: '#1e293b',
+    color: '#000000',
     fontSize: '13px',
     fontWeight: '500',
   },

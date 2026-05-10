@@ -30,7 +30,6 @@ import {
 import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
 // Slideshow images 
-import slide1 from "../assets/background2.webp";
 import slide2 from "../assets/2.jpg"; 
 import slide3 from "../assets/3.jpg"; 
 import slide4 from "../assets/4.jpg"; 
@@ -65,7 +64,6 @@ function Landing2() {
 
   // Slideshow images array
   const slides = [
-    { id: 1, image: slide1, title: "Welcome to ZUCA", description: "Faith & Fellowship" },
     { id: 2, image: slide2, title: "Community Prayer", description: "Join us in worship" },
     { id: 3, image: slide3, title: "Youth in Action", description: "Building a stronger faith community" },
     { id: 4, image: slide4, title: "Mass & Celebrations", description: "Come together in faith" },
@@ -519,22 +517,32 @@ while <strong>Brighet</strong> remained as assistant chairperson. Subsequently, 
 completing her studies, and <strong>Cecilia</strong> was appointed as vice moderator. Currently, <strong>Tonny</strong> serves as the chairperson and to day <strong>ZUCA</strong> is still growing.
 </p>
 
+
+
+            
+            
             <div className="activities-grid">
               <div className="activity-item">
                 <FaChurch className="activity-icon" />
-                <span>Weekly Mass</span>
+                
+                <p1>OUR ACTIVITIES</p1>
+               
+                
+       
               </div>
+
+              
               <div className="activity-item">
                 <FaMusic className="activity-icon" />
-                <span>St Kizito Choir</span>
+                <span>Choir Practice/Mass Animations</span>
               </div>
               <div className="activity-item">
                 <FaUsers className="activity-icon" />
-                <span>Jumuias</span>
+                <span>Jumuia Groups</span>
               </div>
               <div className="activity-item">
                 <FaHandsHelping className="activity-icon" />
-                <span>Outdoor functions</span>
+                <span>Outdoor and Indoor functions</span>
               </div>
             </div>
           </div>

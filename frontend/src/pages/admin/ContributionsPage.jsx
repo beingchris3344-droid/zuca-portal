@@ -1452,9 +1452,21 @@ useEffect(() => {
                       {type.deadline && (
                         <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
                       )}
-                      {type.jumuiaId && (
-                        <span className="campaign-jumuia-badge">Jumuia Campaign</span>
-                      )}
+                     {type.jumuia && (
+  <span className="campaign-jumuia-badge" style={{
+    background: '#f59e0b20',
+    color: '#f59e0b',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: '500',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px'
+  }}>
+    🏠 {type.jumuia.name}
+  </span>
+)}
                     </div>
                   </div>
                 </div>

@@ -14,6 +14,35 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZucaPortal</title>
+    
+    <!-- FORCE ALL INPUTS TO BE WHITE - OVERRIDE EVERYTHING -->
+    <style>
+      /* This will force ALL inputs to be white across the entire site */
+      input:not([type="checkbox"]):not([type="radio"]),
+      textarea,
+      select {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 6px !important;
+      }
+      
+      input::placeholder,
+      textarea::placeholder {
+        color: #9ca3af !important;
+        opacity: 1 !important;
+      }
+      
+      /* Fix Chrome autofill yellow background */
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+        box-shadow: 0 0 0px 1000px #ffffff inset !important;
+        -webkit-text-fill-color: #1e293b !important;
+      }
+    </style>
   </head>
 
   <body>

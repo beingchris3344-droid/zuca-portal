@@ -232,7 +232,7 @@ function UserSchedules() {
             <h3>${section.title || "Section"}</h3>
             <table style="width: 100%; border-collapse: collapse;">
               <thead>
-                <tr><th>DATE</th><th>EVENT</th></tr>
+                <tr><th>DATE</th><th>EVENT/LEADING</th></tr>
               </thead>
               <tbody>
                 ${validRows.map(row => `

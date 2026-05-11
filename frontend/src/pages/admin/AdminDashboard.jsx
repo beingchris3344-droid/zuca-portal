@@ -707,7 +707,10 @@ function AdminDashboard() {
                       <div className="pending-desc">{approval.description}</div>
                     </div>
                     <div className="pending-actions">
-                      <button className="approve-btn">Approve</button>
+                      
+                      <button className="approve-btn" onClick={() => navigate('./pages/admin/ContributionsPage')}>Approve</button>
+                      
+                      
                       <button className="reject-btn">Reject</button>
                     </div>
                   </div>

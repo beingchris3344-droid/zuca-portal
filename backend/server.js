@@ -5662,7 +5662,6 @@ app.get("/api/announcements", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post("/api/announcements", authenticate, async (req, res) => {
   try {
     const { title, content, category, published } = req.body;
@@ -5688,58 +5687,46 @@ app.post("/api/announcements", authenticate, async (req, res) => {
 
     console.log("✅ Announcement created:", announcement.id);
 
-    const users = await prisma.user.findMany({ 
-      select: { id: true } 
-    });
-    
-    if (users.length > 0) {
-      const now = new Date();
-      const notifications = users.map(user => ({
-        id: `ann-${announcement.id}-${user.id}-${Date.now()}`,
-        userId: user.id,
-        type: "announcement",
-        title: "📢 New Announcement",
-        message: title,
-        read: false,
-        createdAt: now,
-      }));
-
-     // Send push notifications to all users
-for (const notif of notifications) {
-  await createAndSendNotification({
-    userId: notif.userId,
-    type: notif.type,
-    title: notif.title,
-    message: notif.message,
-    data: notif.data || {}
-  });
-}
-
-console.log(`✅ Sent ${notifications.length} push notifications`);
-      
-      if (io) {
-        notifications.forEach(notif => {
-          const formattedNotif = {
-            ...notif,
-            createdAt: now.toISOString()
-          };
-          io.to(notif.userId).emit("new_notification", formattedNotif);
-        });
-      }
-    }
-
     const formattedAnnouncement = {
       ...announcement,
       createdAt: announcement.createdAt.toISOString()
     };
 
     res.json(formattedAnnouncement);
+
+    const users = await prisma.user.findMany({ select: { id: true } });
+    
+    if (users.length > 0) {
+      Promise.allSettled(
+        users.map(async (user) => {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "announcement",
+              title: "📢 New Announcement",
+              message: title,
+              data: { announcementId: announcement.id }
+            });
+          } catch (err) {
+            console.error("Failed to send announcement notification to user:", user.id, err.message);
+          }
+        })
+      ).then(() => {
+        console.log(`✅ Sent ${users.length} announcement push notifications`);
+      });
+      
+      if (io) {
+        users.forEach(user => {
+          io.to(user.id).emit("new_notification", formattedAnnouncement);
+        });
+      }
+    }
+
   } catch (err) {
     console.error("❌ Error creating announcement:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 app.put("/api/announcements/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -5912,6 +5899,8 @@ app.get("/api/admin/mass-programs", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 // CREATE mass program (admin/choir moderator only) - FIXED VERSION (NO REMATCHING)
 app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
   try {
@@ -5921,7 +5910,6 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Date and venue are required" });
     }
 
-    // Check authorization
     const user = await prisma.user.findUnique({ 
       where: { id: req.user.userId } 
     });
@@ -5933,7 +5921,6 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Not authorized to create mass programs" });
     }
 
-    // Create mass program
     const newProgram = await prisma.massProgram.create({
       data: { 
         date: new Date(date), 
@@ -5942,20 +5929,14 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       }
     });
 
-    // ========== FIXED: NO REMATCHING - JUST SAVE EXACTLY WHAT WAS GIVEN ==========
     for (const [type, value] of Object.entries(songsData)) {
       if (!value || value.trim() === "") continue;
       
-      // Split into individual song titles
       const songTitles = value.includes(';') 
         ? value.split(';').map(s => s.trim()).filter(s => s)
         : [value.trim()];
       
-      console.log(`📝 Saving ${songTitles.length} songs for ${type}:`, songTitles);
-      
-      // Process each song - ONLY exact match, NO fuzzy matching
       for (const songTitle of songTitles) {
-        // ONLY try exact match - NO contains, NO word-by-word
         let song = await prisma.song.findFirst({ 
           where: { 
             title: {
@@ -5965,7 +5946,6 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
           } 
         });
 
-        // If not found, create NEW song - NO searching
         if (!song) {
           song = await prisma.song.create({ 
             data: { 
@@ -5986,7 +5966,6 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
           });
         }
         
-        // Create the relationship
         await prisma.massProgramSong.create({
           data: {
             type,
@@ -5997,13 +5976,11 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       }
     }
 
-    // Fetch complete program with songs
     const completeProgram = await prisma.massProgram.findUnique({
       where: { id: newProgram.id },
       include: { songs: { include: { song: true } } }
     });
 
-    // Format response - GROUP multiple songs by type
     const songMap = {};
     completeProgram.songs.forEach((s) => {
       if (!songMap[s.type]) {
@@ -6012,7 +5989,6 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       songMap[s.type].push(s.song.title);
     });
 
-    // Convert arrays back to semicolon strings for response
     const response = {
       id: completeProgram.id,
       date: completeProgram.date.toISOString().split("T")[0],
@@ -6030,28 +6006,31 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       createdAt: completeProgram.createdAt.toISOString()
     };
 
-    console.log("📤 Create response:", response);
+    res.status(201).json(response);
 
-    // Emit socket event
     if (io) {
       io.emit("program_created", response);
     }
 
-    // Create notifications in background
     const users = await prisma.user.findMany({ select: { id: true } });
     if (users.length > 0) {
-      for (const user of users) {
-        await createAndSendNotification({
-          userId: user.id,
-          type: "program",
-          title: "⛪ New Mass Program",
-          message: `Mass at ${venue} on ${new Date(date).toLocaleDateString()}`,
-          data: {}
-        });
-      }
+      Promise.allSettled(
+        users.map(async (user) => {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "program",
+              title: "⛪ New Mass Program",
+              message: `Mass at ${venue} on ${new Date(date).toLocaleDateString()}`,
+              data: {}
+            });
+          } catch (err) {
+            console.error("Failed to send program notification:", err.message);
+          }
+        })
+      );
     }
 
-    res.status(201).json(response);
   } catch (err) {
     console.error("Error creating mass program:", err);
     res.status(500).json({ error: err.message });
@@ -6476,6 +6455,7 @@ app.get("/api/contributions/jumuia", authenticate, async (req, res) => {
   }
 });
 
+
 app.post("/api/admin/contributions/jumuia", authenticate, async (req, res) => {
   try {
     const { title, description, amountRequired, deadline, jumuiaId } = req.body;
@@ -6514,6 +6494,27 @@ app.post("/api/admin/contributions/jumuia", authenticate, async (req, res) => {
     }
 
     res.json(newType);
+
+    if (users.length > 0) {
+      Promise.allSettled(
+        users.map(async (user) => {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "contribution",
+              title: "💰 New Jumuia Contribution",
+              message: `New contribution "${title}" for your jumuia. Target: ${amountRequired}`,
+              data: { contributionId: newType.id, jumuiaId }
+            });
+          } catch (err) {
+            console.error("Failed to send notification to user:", user.id, err.message);
+          }
+        })
+      ).then(() => {
+        console.log(`✅ Sent ${users.length} jumuia contribution push notifications`);
+      });
+    }
+
   } catch (err) {
     console.error("Create Jumuia Contribution error:", err);
     res.status(500).json({ error: err.message });
@@ -6750,32 +6751,26 @@ app.post("/api/jumuia/:jumuiaId/contributions", authenticate, checkJumuiaAccess,
       });
     }
 
-    if (members.length > 0) {
-      const now = new Date();
-      const notifications = members.map(m => ({
-        id: `jcontrib-${contribution.id}-${m.id}-${Date.now()}`,
-        userId: m.id,
-        jumuiaId,
-        type: "contribution",
-        title: "💰 New Jumuia Contribution",
-        message: `New contribution "${title}" for your jumuia. Target: ${amountRequired}`,
-        data: { contributionId: contribution.id },
-        read: false,
-        createdAt: now,
-      }));
-
-    // Send push notifications to all users
-for (const notif of notifications) {
-  await createAndSendNotification({
-    userId: notif.userId,
-    type: notif.type,
-    title: notif.title,
-    message: notif.message,
-    data: notif.data || {}
-  });
-}
-    }
     res.status(201).json(contribution);
+
+    if (members.length > 0) {
+      Promise.allSettled(
+        members.map(async (member) => {
+          try {
+            await createAndSendNotification({
+              userId: member.id,
+              type: "contribution",
+              title: "💰 New Jumuia Contribution",
+              message: `New contribution "${title}" for your jumuia. Target: ${amountRequired}`,
+              data: { contributionId: contribution.id, jumuiaId }
+            });
+          } catch (err) {
+            console.error("Failed to send notification:", err.message);
+          }
+        })
+      );
+    }
+
   } catch (err) {
     console.error("Error creating jumuia contribution:", err);
     res.status(500).json({ error: err.message });
@@ -8106,7 +8101,6 @@ app.get("/api/jumuia/:jumuiaId/announcements", authenticate, checkJumuiaAccess, 
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post("/api/jumuia/:jumuiaId/announcements", authenticate, checkJumuiaAccess, async (req, res) => {
   try {
     const { jumuiaId } = req.params;
@@ -8145,41 +8139,38 @@ app.post("/api/jumuia/:jumuiaId/announcements", authenticate, checkJumuiaAccess,
       }
     });
 
-    const members = await prisma.user.findMany({
-      where: { jumuiaId },
-      select: { id: true }
-    });
-
-    if (members.length > 0) {
-      const now = new Date();
-      const notifications = members.map(m => ({
-        id: `jann-${announcement.id}-${m.id}-${Date.now()}`,
-        userId: m.id,
-        jumuiaId,
-        type: "announcement",
-        title: "📢 New Jumuia Announcement",
-        message: title,
-        data: { announcementId: announcement.id },
-        read: false,
-        createdAt: now,
-      }));
-
-      // Send push notifications to all users
-for (const notif of notifications) {
-  await createAndSendNotification({
-    userId: notif.userId,
-    type: notif.type,
-    title: notif.title,
-    message: notif.message,
-    data: notif.data || {}
-  });
-}}
     const formatted = {
       ...announcement,
       createdAt: announcement.createdAt.toISOString()
     };
 
     res.status(201).json(formatted);
+
+    const members = await prisma.user.findMany({
+      where: { jumuiaId },
+      select: { id: true }
+    });
+
+    if (members.length > 0) {
+      Promise.allSettled(
+        members.map(async (member) => {
+          try {
+            await createAndSendNotification({
+              userId: member.id,
+              type: "announcement",
+              title: "📢 New Jumuia Announcement",
+              message: title,
+              data: { announcementId: announcement.id, jumuiaId }
+            });
+          } catch (err) {
+            console.error("Failed to send jumuia announcement notification:", err.message);
+          }
+        })
+      ).then(() => {
+        console.log(`✅ Sent ${members.length} jumuia announcement push notifications`);
+      });
+    }
+
   } catch (err) {
     console.error("Error creating jumuia announcement:", err);
     res.status(500).json({ error: err.message });
@@ -10277,7 +10268,6 @@ function calculatePledgeState(currentPledge, operation, amount = 0) {
 }
 
 
-
 app.post("/api/contribution-types", authenticate, async (req, res) => {
   try {
     const { title, description, amountRequired, deadline } = req.body;
@@ -10314,31 +10304,35 @@ app.post("/api/contribution-types", authenticate, async (req, res) => {
       });
     }
 
-    if (users.length > 0) {
-      // Send push notifications to all users
-      for (const user of users) {
-        try {
-          await createAndSendNotification({
-            userId: user.id,
-            type: "contribution",
-            title: "💰 New Contribution Campaign",
-            message: `A new contribution "${title}" has been launched. Target: ${amountRequired} per member`,
-            data: { contributionId: newType.id }
-          });
-        } catch (err) {
-          console.error("Failed to send notification to user:", user.id, err.message);
-        }
-      }
-    }
-
-    console.log(`✅ Sent ${users.length} contribution push notifications`);
-
     res.json(newType);
+    
+    if (users.length > 0) {
+      Promise.allSettled(
+        users.map(async (user) => {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "contribution",
+              title: "💰 New Contribution Campaign",
+              message: `A new contribution "${title}" has been launched. Target: ${amountRequired} per member`,
+              data: { contributionId: newType.id }
+            });
+          } catch (err) {
+            console.error("Failed to send notification to user:", user.id, err.message);
+          }
+        })
+      ).then(() => {
+        console.log(`✅ Sent ${users.length} contribution push notifications`);
+      });
+    }
+    
   } catch (err) {
     console.error("CREATE ContributionType ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 app.get("/api/contribution-types", authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
@@ -10354,6 +10348,9 @@ app.get("/api/contribution-types", authenticate, async (req, res) => {
         pledges: {
           include: { user: { select: { id: true, fullName: true, email: true } } },
         },
+        jumuia: { 
+          select: { id: true, name: true, code: true }
+        }
       },
       orderBy: { createdAt: "desc" },
     });
@@ -13521,7 +13518,6 @@ app.post("/api/admin/schedules", authenticate, async (req, res) => {
 
     console.log("📋 Creating schedule:", title);
 
-    // Create schedule with structured data
     const schedule = await prisma.schedule.create({
       data: {
         title,
@@ -13540,7 +13536,6 @@ app.post("/api/admin/schedules", authenticate, async (req, res) => {
 
     console.log("✅ Schedule created with ID:", schedule.id);
 
-    // Create events if provided
     const createdEvents = [];
     if (events && events.length > 0) {
       console.log(`📝 Creating ${events.length} events...`);
@@ -13563,22 +13558,31 @@ app.post("/api/admin/schedules", authenticate, async (req, res) => {
       }
     }
 
-    // SEND RESPONSE IMMEDIATELY
     res.status(201).json({ success: true, schedule });
     
-    // THEN process notifications in the background (don't await)
     if (isPublished) {
       console.log("📢 Processing notifications in background...");
       
-      // Send new schedule notification
-      notifyAllUsers(
-        `📅 New Schedule Published`,
-        `${title} has been published`,
-        "schedule",
-        { scheduleId: schedule.id }
-      ).catch(console.error);
+      const users = await prisma.user.findMany({ select: { id: true } });
       
-      // Create notification schedules for events
+      if (users.length > 0) {
+        Promise.allSettled(
+          users.map(async (user) => {
+            try {
+              await createAndSendNotification({
+                userId: user.id,
+                type: "schedule",
+                title: "📅 New Schedule Published",
+                message: `${title} has been published`,
+                data: { scheduleId: schedule.id }
+              });
+            } catch (err) {
+              console.error("Failed to send schedule notification:", err.message);
+            }
+          })
+        );
+      }
+      
       for (const event of createdEvents) {
         setTimeout(() => {
           createEventNotifications(event, schedule.id).catch(console.error);

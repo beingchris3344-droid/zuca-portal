@@ -232,167 +232,221 @@ export default function ExecutivePage() {
       {/* Current Leadership View */}
       {activeTab === 'current' && (
         <>
-          <div className="org-chart">
-            {/* Level 1 */}
-            <div className="org-level">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={chair} onClick={setSelectedMember} department="leadership" />
-                </div>
-              </div>
-            </div>
+        <div className="org-chart">
+  {/* Static Leadership Section - Keep existing structure */}
+  <div className="org-level">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={chair} onClick={setSelectedMember} department="leadership" />
+      </div>
+    </div>
+  </div>
 
-            <div className="org-connector vertical">
-              <div className="connector-line"></div>
-            </div>
+  <div className="org-connector vertical">
+    <div className="connector-line"></div>
+  </div>
 
-            {/* Level 2 */}
-            <div className="org-level">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={viceChair} onClick={setSelectedMember} department="leadership" />
-                </div>
-              </div>
-            </div>
+  <div className="org-level">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={viceChair} onClick={setSelectedMember} department="leadership" />
+      </div>
+    </div>
+  </div>
 
-            <div className="org-connector split">
-              <div className="connector-line"></div>
-              <div className="connector-horizontal"></div>
-            </div>
+  <div className="org-connector split">
+    <div className="connector-line"></div>
+    <div className="connector-horizontal"></div>
+  </div>
 
-            {/* Level 3 */}
-            <div className="org-level two-cols">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={secretary} onClick={setSelectedMember} department="leadership" />
-                </div>
-              </div>
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={viceSecretary} onClick={setSelectedMember} department="leadership" />
-                </div>
-              </div>
-            </div>
+  <div className="org-level two-cols">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={secretary} onClick={setSelectedMember} department="leadership" />
+      </div>
+    </div>
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={viceSecretary} onClick={setSelectedMember} department="leadership" />
+      </div>
+    </div>
+  </div>
 
-            <div className="org-connector vertical">
-              <div className="connector-line"></div>
-            </div>
+  <div className="org-connector vertical">
+    <div className="connector-line"></div>
+  </div>
 
-            {/* Level 4 */}
-            <div className="org-level">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={treasurer} onClick={setSelectedMember} department="leadership" />
-                </div>
-              </div>
-            </div>
+  <div className="org-level">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={treasurer} onClick={setSelectedMember} department="leadership" />
+      </div>
+    </div>
+  </div>
 
-            <div className="dept-separator choir">
-              <div className="dept-dot"></div>
-              <span>CHOIR DEPARTMENT</span>
-              <div className="dept-line"></div>
-            </div>
+  {/* Choir Department */}
+  <div className="dept-separator choir">
+    <div className="dept-dot"></div>
+    <span>CHOIR DEPARTMENT</span>
+    <div className="dept-line"></div>
+  </div>
 
-            <div className="org-connector split">
-              <div className="connector-line"></div>
-              <div className="connector-horizontal"></div>
-            </div>
+  <div className="org-connector split">
+    <div className="connector-line"></div>
+    <div className="connector-horizontal"></div>
+  </div>
 
-            {/* Level 5 */}
-            <div className="org-level two-cols">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={choirMod} onClick={setSelectedMember} department="choir" />
-                </div>
-              </div>
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={viceChoir} onClick={setSelectedMember} department="choir" />
-                </div>
-              </div>
-            </div>
+  <div className="org-level two-cols">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={choirMod} onClick={setSelectedMember} department="choir" />
+      </div>
+    </div>
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={viceChoir} onClick={setSelectedMember} department="choir" />
+      </div>
+    </div>
+  </div>
 
-            <div className="org-connector vertical">
-              <div className="connector-line"></div>
-            </div>
+  <div className="org-connector vertical">
+    <div className="connector-line"></div>
+  </div>
 
-            <div className="dept-separator media">
-              <div className="dept-dot"></div>
-              <span>MEDIA DEPARTMENT</span>
-              <div className="dept-line"></div>
-            </div>
+  {/* Media Department */}
+  <div className="dept-separator media">
+    <div className="dept-dot"></div>
+    <span>MEDIA DEPARTMENT</span>
+    <div className="dept-line"></div>
+  </div>
 
-            <div className="org-connector vertical">
-              <div className="connector-line"></div>
-            </div>
+  <div className="org-connector vertical">
+    <div className="connector-line"></div>
+  </div>
 
-            {/* Level 6 */}
-            <div className="org-level">
-              <div className="org-node-wrapper">
-                <div className="org-node">
-                  <MemberCard member={mediaMod} onClick={setSelectedMember} department="media" />
-                </div>
-              </div>
-            </div>
+  <div className="org-level">
+    <div className="org-node-wrapper">
+      <div className="org-node">
+        <MemberCard member={mediaMod} onClick={setSelectedMember} department="media" />
+      </div>
+    </div>
+  </div>
 
-            <div className="dept-separator voice">
-              <div className="dept-dot"></div>
-              <span>VOICE REPRESENTATIVES</span>
-              <div className="dept-line"></div>
-            </div>
+  {/* Voice Representatives */}
+  <div className="dept-separator voice">
+    <div className="dept-dot"></div>
+    <span>VOICE REPRESENTATIVES</span>
+    <div className="dept-line"></div>
+  </div>
 
-            <div className="org-connector wide">
-              <div className="connector-line"></div>
-              <div className="connector-horizontal-wide"></div>
-            </div>
+  <div className="org-connector wide">
+    <div className="connector-line"></div>
+    <div className="connector-horizontal-wide"></div>
+  </div>
 
-            {/* Level 7 */}
-            <div className="org-level four-cols">
-              {voiceReps.map((rep, idx) => (
-                <div key={idx} className="org-node-wrapper">
-                  <div className="org-node">
-                    <MemberCard member={rep} onClick={setSelectedMember} department="voice" />
-                  </div>
-                </div>
-              ))}
-            </div>
+  <div className="org-level four-cols">
+    {voiceReps.map((rep, idx) => (
+      <div key={idx} className="org-node-wrapper">
+        <div className="org-node">
+          <MemberCard member={rep} onClick={setSelectedMember} department="voice" />
+        </div>
+      </div>
+    ))}
+  </div>
 
-            <div className="dept-separator jumuia">
-              <div className="dept-dot"></div>
-              <span>JUMUIA MODERATORS</span>
-              <div className="dept-line"></div>
-            </div>
+  {/* Jumuia Moderators */}
+  <div className="dept-separator jumuia">
+    <div className="dept-dot"></div>
+    <span>JUMUIA MODERATORS</span>
+    <div className="dept-line"></div>
+  </div>
 
-            <div className="org-connector wide">
-              <div className="connector-line"></div>
-              <div className="connector-horizontal-wide"></div>
-            </div>
+  <div className="org-connector wide">
+    <div className="connector-line"></div>
+    <div className="connector-horizontal-wide"></div>
+  </div>
 
-            {/* Level 8 */}
-            <div className="org-level six-cols">
-              {jumuiaMods.map((mod, idx) => (
-                <div key={idx} className="org-node-wrapper">
-                  <div className="org-node">
-                    <MemberCard member={mod} onClick={setSelectedMember} department="jumuia" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+  <div className="org-level six-cols">
+    {jumuiaMods.map((mod, idx) => (
+      <div key={idx} className="org-node-wrapper">
+        <div className="org-node">
+          <MemberCard member={mod} onClick={setSelectedMember} department="jumuia" />
+        </div>
+      </div>
+    ))}
+  </div>
 
-          {/* Legend */}
-          <div className="legend">
-            <div className="legend-title">Departments</div>
-            <div className="legend-items">
-              <div className="legend-item"><div className="legend-color leadership"></div><span>Leadership</span></div>
-              <div className="legend-item"><div className="legend-color choir"></div><span>Choir</span></div>
-              <div className="legend-item"><div className="legend-color jumuia"></div><span>Jumuia</span></div>
-              <div className="legend-item"><div className="legend-color media"></div><span>Media</span></div>
-              <div className="legend-item"><div className="legend-color voice"></div><span>Voice</span></div>
-            </div>
-          </div>
-        </>
+   {/* ===== DYNAMIC CUSTOM DEPARTMENTS (Show any new departments added by admin) ===== */}
+  {Object.entries(executives.reduce((acc, exec) => {
+    const category = exec.category;
+    if (!['leadership', 'choir', 'jumuia', 'media', 'voice'].includes(category)) {
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(exec);
+    }
+    return acc;
+  }, {})).map(([category, members], deptIndex) => (
+    <div key={category}>
+      {/* Vertical connector line FROM previous section to this department */}
+      <div className="org-connector vertical">
+        <div className="connector-line"></div>
+      </div>
+
+      {/* Department Separator */}
+      <div className="dept-separator" style={{ borderColor: '#64748b' }}>
+        <div className="dept-dot" style={{ background: '#64748b' }}></div>
+        <span>{category.toUpperCase()} DEPARTMENT</span>
+        <div className="dept-line"></div>
+      </div>
+
+      {/* Split connector if multiple members, otherwise single vertical */}
+      {members.length > 1 ? (
+        <div className="org-connector split">
+          <div className="connector-line"></div>
+          <div className="connector-horizontal"></div>
+        </div>
+      ) : (
+        <div className="org-connector vertical">
+          <div className="connector-line"></div>
+        </div>
       )}
+
+      {/* Members Grid */}
+      <div className={`org-level ${members.length <= 2 ? 'two-cols' : members.length <= 4 ? 'four-cols' : 'six-cols'}`}>
+        {members.map((member, idx) => (
+          <div key={idx} className="org-node-wrapper">
+            <div className="org-node">
+              <MemberCard member={member} onClick={setSelectedMember} department={category} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
+
+        <div className="legend">
+  <div className="legend-title">Departments</div>
+  <div className="legend-items">
+    <div className="legend-item"><div className="legend-color leadership"></div><span>Leadership</span></div>
+    <div className="legend-item"><div className="legend-color choir"></div><span>Choir</span></div>
+    <div className="legend-item"><div className="legend-color jumuia"></div><span>Jumuia</span></div>
+    <div className="legend-item"><div className="legend-color media"></div><span>Media</span></div>
+    <div className="legend-item"><div className="legend-color voice"></div><span>Voice</span></div>
+    {Object.keys(executives.reduce((acc, exec) => {
+      const cat = exec.category;
+      if (!['leadership', 'choir', 'jumuia', 'media', 'voice'].includes(cat)) acc[cat] = true;
+      return acc;
+    }, {})).map(category => (
+      <div key={category} className="legend-item">
+        <div className="legend-color" style={{ background: '#64748b' }}></div>
+        <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+      </div>
+    ))}
+  </div>
+    </div>
+      </>
+      )}
+
 
       {/* History View */}
       {activeTab === 'history' && (

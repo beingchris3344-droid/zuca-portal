@@ -37,6 +37,7 @@ model User {
   assignedJumuiaId String? // Which jumuia they lead (only for jumuia_leaders)
   lastRoleLogin    DateTime? // Track last time they used special login
 
+
   // Relations
   blockedBy        BlockedUser[]     @relation("BlockedBy")
   blockedUsers     BlockedUser[]     @relation("UserBlocks")
@@ -85,6 +86,8 @@ model User {
   scheduleDrafts ScheduleDraft[]
 
   files File[] // Files uploaded by this user
+
+  
 }
 
 model Announcement {
@@ -797,4 +800,18 @@ model ScheduledNotification {
   @@index([isSent])
   @@index([priority])
   @@map("scheduled_notifications")
+}
+
+
+model TreasurerNote {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  content   String?  @db.Text
+  images    String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
 }

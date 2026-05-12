@@ -2159,6 +2159,117 @@ app.get("/api/calendar/test-day/:year/:month/:day", async (req, res) => {
   }
 });
 
+// ==================== TREASURER NOTES & CALCULATIONS ====================
+
+// Get all notes for current user
+app.get("/api/treasurer/notes", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const notes = await prisma.$queryRaw`
+      SELECT * FROM "TreasurerNote" 
+      WHERE "userId" = ${userId} 
+      ORDER BY "createdAt" DESC
+    `;
+    
+    res.json({ success: true, notes: notes || [] });
+  } catch (err) {
+    console.error("Error fetching notes:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single note by ID
+app.get("/api/treasurer/notes/:id", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    
+    const note = await prisma.$queryRaw`
+      SELECT * FROM "TreasurerNote" 
+      WHERE "id" = ${id} AND "userId" = ${userId}
+    `;
+    
+    if (!note || note.length === 0) {
+      return res.status(404).json({ error: "Note not found" });
+    }
+    
+    res.json({ success: true, note: note[0] });
+  } catch (err) {
+    console.error("Error fetching note:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new note
+app.post("/api/treasurer/notes", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { title, content } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+    
+    await prisma.$executeRaw`
+      INSERT INTO "TreasurerNote" ("id", "userId", "title", "content", "images", "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), ${userId}, ${title}, ${content || ''}, ARRAY[]::TEXT[], NOW(), NOW())
+    `;
+    
+    res.json({ success: true, message: "Note created successfully" });
+  } catch (err) {
+    console.error("Error creating note:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update note
+app.put("/api/treasurer/notes/:id", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const { title, content } = req.body;
+    
+    const result = await prisma.$executeRaw`
+      UPDATE "TreasurerNote" 
+      SET "title" = ${title}, "content" = ${content || ''}, "updatedAt" = NOW()
+      WHERE "id" = ${id} AND "userId" = ${userId}
+    `;
+    
+    if (result === 0) {
+      return res.status(404).json({ error: "Note not found" });
+    }
+    
+    res.json({ success: true, message: "Note updated successfully" });
+  } catch (err) {
+    console.error("Error updating note:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete note
+app.delete("/api/treasurer/notes/:id", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    
+    const result = await prisma.$executeRaw`
+      DELETE FROM "TreasurerNote" 
+      WHERE "id" = ${id} AND "userId" = ${userId}
+    `;
+    
+    if (result === 0) {
+      return res.status(404).json({ error: "Note not found" });
+    }
+    
+    res.json({ success: true, message: "Note deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting note:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ==================== MEDIA GALLERY - COMPLETE ====================
 
 // Create media temp directory

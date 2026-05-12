@@ -25,6 +25,7 @@ export default function UsersPage() {
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [updatingUserId, setUpdatingUserId] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportOptions, setExportOptions] = useState({ format: 'excel' });
   const [copiedId, setCopiedId] = useState(null);
   const [hoveredRow, setHoveredRow] = useState(null);
   const [expandedMobileMenu, setExpandedMobileMenu] = useState(false);
@@ -163,37 +164,206 @@ export default function UsersPage() {
     admins: users.filter(u => u.role === "admin").length,
     members: users.filter(u => u.role === "member").length,
   }), [users]);
-
-  const exportToExcel = () => {
-    const dataToExport = selectedUsers.length > 0 
-      ? users.filter(u => selectedUsers.includes(u.id))
-      : filteredUsers;
-    
-    const exportData = dataToExport.map(user => ({
+const exportToExcel = () => {
+  const dataToExport = selectedUsers.length > 0 
+    ? users.filter(u => selectedUsers.includes(u.id))
+    : filteredUsers;
+  
+  // Filter out admin users and format properly
+  const exportData = dataToExport
+    .filter(user => user.role !== "admin")
+    .map(user => ({
       Name: user.fullName,
       "Membership #": user.membership_number || "N/A",
       Email: user.email,
-      Role: user.role,
+      "Phone Number": user.phone || "N/A",
+      Role: user.role === "member" ? "Member" : user.role,
       "Special Role": user.specialRole ? formatSpecialRole(user.specialRole) : "None",
-      Status: user.online ? "Online" : "Offline",
       "Home Jumuia": user.homeJumuia?.name || "N/A",
-      "Leading Jumuia": user.leadingJumuia?.name || "N/A",
+      "Leading Jumuia": user.specialRole === "jumuia_leader" ? (user.leadingJumuia?.name || "N/A") : "N/A",
     }));
 
+  const filename = `users_${new Date().toISOString().split('T')[0]}`;
+  
+  if (exportOptions.format === 'excel') {
+    // Excel export
     const ws = XLSX.utils.json_to_sheet(exportData);
+    const colWidths = [
+      { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 },
+      { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 20 }
+    ];
+    ws['!cols'] = colWidths;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Users");
-    XLSX.writeFile(wb, `users_${new Date().toISOString().split('T')[0]}.xlsx`);
-    setShowExportMenu(false);
-    showNotification(`Exported ${exportData.length} users`, "success");
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  } else if (exportOptions.format === 'doc') {
+    // Word Document export
+    exportToWord(exportData, filename);
+  }
+  
+  setShowExportMenu(false);
+  showNotification(`Exported ${exportData.length} users`, "success");
+};
+
+const exportToWord = (data, filename) => {
+  if (!data || data.length === 0) {
+    showNotification("No data to export", "error");
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  const headerDisplayNames = {
+    'No.': '#',
+    'Name': 'Name',
+    'Membership #': '#',
+    'Email': 'Email',
+    'Phone Number': 'Phone',
+    'Role': 'Role',
+    'Special Role': 'Special',
+    'Home Jumuia': 'Home',
+    'Leading Jumuia': 'Leading'
   };
 
+  let tableRows = '';
+  data.forEach((row, index) => {
+    const rowNumber = index + 1;
+    tableRows += '<tr>';
+    // Add row number column
+    tableRows += `<td style="padding: 2px 3px; border: 1px solid #ccc; font-size: 7pt; text-align: center;">${rowNumber}</td>`;
+    // Add remaining columns
+    headers.forEach(header => {
+let value = row[header];
+if (value === undefined || value === null) value = '-';
+
+// Different truncation limits per column type
+if (header === 'Email') {
+  if (value.length > 35) value = value.substring(0, 32) + '...';
+} else if (typeof value === 'string' && value.length > 20) {
+  value = value.substring(0, 17) + '...';
+}
+      tableRows += `<td style="padding: 2px 3px; border: 1px solid #ccc; font-size: 7pt;">${value}</td>`;
+    });
+    tableRows += '</tr>';
+  });
+  
+  let headerRow = '<th style="padding: 3px 3px; border: 1px solid #ccc; background: #e0e0e0; font-weight: bold; font-size: 7pt; text-align: center;">#</th>';
+  headers.forEach(header => {
+    const displayName = headerDisplayNames[header] || header;
+    headerRow += `<th style="padding: 3px 3px; border: 1px solid #ccc; background: #e0e0e0; font-weight: bold; font-size: 7pt;">${displayName}</th>`;
+  });
+  
+  const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${filename}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      margin: 0.5in 0.3in;
+      padding: 0;
+      color: #000;
+      font-size: 7pt;
+    }
+    h1 {
+      font-size: 12pt;
+      text-align: center;
+      border-bottom: 1px solid #000;
+      padding-bottom: 3px;
+      margin-bottom: 8px;
+    }
+    .header-info {
+      margin-bottom: 8px;
+      font-size: 7pt;
+    }
+    .header-info p {
+      margin: 1px 0;
+    }
+    table {
+      width: 120%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 5pt;
+      margin-left:-100px;
+      margin-bottom: 30px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 2px 2px;
+      vertical-align: top;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+    th:nth-child(1) { width: 4%; }
+    th:nth-child(2) { width: 13%; }
+    th:nth-child(3) { width: 6%; }
+    th:nth-child(4) { width: 15%; }
+    th:nth-child(5) { width: 9%; }
+    th:nth-child(6) { width: 6%; }
+    th:nth-child(7) { width: 10%; }
+    th:nth-child(8) { width: 18%; }
+    th:nth-child(9) { width: 19%; }
+    
+    th {
+      background: #e0e0e0;
+      font-weight: bold;
+      text-align: left;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .footer {
+      position: fixed;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 6pt;
+      color: #666;
+      border-top: 1px solid #ccc;
+      padding-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ZETECH UNIVERSITY CATHOLIC ACTION MEMBERS</h1>
+  
+  
+  <div class="header-info">
+    <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+    <p><strong>Total Records:</strong> ${data.length}</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>${headerRow}</tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Generated by ZUCA Portal - User Management System
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'application/msword' });
+  saveAs(blob, `${filename}.doc`);
+};
   const formatSpecialRole = (role) => {
     const roles = {
       'jumuia_leader': 'Jumuia Leader',
       'treasurer': 'Treasurer',
       'secretary': 'Secretary',
-      'choir_moderator': 'Choir Moderator'
+      'choir_moderator': 'Choir Moderator',
+      'media_moderator': 'Media Moderator' 
     };
     return roles[role] || role;
   };
@@ -244,14 +414,72 @@ export default function UsersPage() {
             <button style={styles.exportBtn} onClick={() => setShowExportMenu(!showExportMenu)}>
               <FiDownload size={16} /> Export <FiChevronDown size={14} />
             </button>
-            <AnimatePresence>
-              {showExportMenu && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={styles.exportMenu}>
-                  <button style={styles.exportMenuItem} onClick={exportToExcel}>📊 Excel Spreadsheet</button>
-                  <div style={styles.exportMenuNote}>{selectedUsers.length > 0 ? `${selectedUsers.length} selected` : `${filteredUsers.length} filtered`}</div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+    <AnimatePresence>
+  {showExportMenu && (
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={styles.exportMenu}>
+     <button style={styles.exportMenuItem} onClick={() => {
+  // Direct Excel export - no state needed
+  const dataToExport = selectedUsers.length > 0 
+    ? users.filter(u => selectedUsers.includes(u.id))
+    : filteredUsers;
+  
+  const exportData = dataToExport
+    .filter(user => user.role !== "admin")
+    .map(user => ({
+      Name: user.fullName,
+      "Membership #": user.membership_number || "N/A",
+      Email: user.email,
+      "Phone Number": user.phone || "N/A",
+      Role: user.role === "member" ? "Member" : user.role,
+      "Special Role": user.specialRole ? formatSpecialRole(user.specialRole) : "None",
+      "Home Jumuia": user.homeJumuia?.name || "N/A",
+      "Leading Jumuia": user.specialRole === "jumuia_leader" ? (user.leadingJumuia?.name || "N/A") : "N/A",
+    }));
+
+  const filename = `users_${new Date().toISOString().split('T')[0]}`;
+  
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Users");
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+  
+  setShowExportMenu(false);
+  showNotification(`Exported ${exportData.length} users`, "success");
+}}>
+  📊 Excel Spreadsheet
+</button>
+
+<button style={styles.exportMenuItem} onClick={() => {
+  // Direct Word export
+  const dataToExport = selectedUsers.length > 0 
+    ? users.filter(u => selectedUsers.includes(u.id))
+    : filteredUsers;
+  
+  const exportData = dataToExport
+    .filter(user => user.role !== "admin")
+    .map(user => ({
+      Name: user.fullName,
+      "Membership #": user.membership_number || "N/A",
+      Email: user.email,
+      "Phone Number": user.phone || "N/A",
+      Role: user.role === "member" ? "Member" : user.role,
+      "Special Role": user.specialRole ? formatSpecialRole(user.specialRole) : "None",
+      "Home Jumuia": user.homeJumuia?.name || "N/A",
+      "Leading Jumuia": user.specialRole === "jumuia_leader" ? (user.leadingJumuia?.name || "N/A") : "N/A",
+    }));
+
+  const filename = `users_${new Date().toISOString().split('T')[0]}`;
+  
+  exportToWord(exportData, filename);
+  setShowExportMenu(false);
+  showNotification(`Exported ${exportData.length} users`, "success");
+}}>
+  📄 Word Document
+</button>
+      <div style={styles.exportMenuNote}>{selectedUsers.length > 0 ? `${selectedUsers.length} selected` : `${filteredUsers.length} filtered`}</div>
+    </motion.div>
+  )}
+</AnimatePresence>
           </div>
           <button style={styles.refreshBtn} onClick={fetchUsers}><FiRefreshCw size={16} /> Refresh</button>
         </div>
@@ -449,15 +677,28 @@ const styles = {
   filterSelect: { padding: "10px 14px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: "13px", color: "#1e293b", cursor: "pointer", outline: "none" },
   bulkDeleteBtn: { display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", background: "#ef4444", border: "none", borderRadius: "10px", fontSize: "13px", fontWeight: "500", color: "white", cursor: "pointer" },
   tableContainer: { background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", overflow: "hidden" },
-  tableWrapper: { overflowX: "auto", maxHeight: "calc(100vh - 320px)", overflowY: "auto" },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "1100px" },
-  checkboxCell: { width: "40px", padding: "12px", textAlign: "center" },
+tableWrapper: { 
+  overflowX: "auto",           // Allows horizontal scrolling if needed
+  maxHeight: "calc(100vh - 320px)", 
+  overflowY: "auto",
+  width: "100%"
+},table: { 
+
+   width: "max-content", 
+  borderCollapse: "collapse", 
+  tableLayout: "auto"  
+},  checkboxCell: { width: "40px", padding: "12px", textAlign: "center" },
   checkbox: { width: "16px", height: "16px", cursor: "pointer", accentColor: "#3b82f6" },
   tableHeader: { padding: "14px 12px", textAlign: "left", fontSize: "12px", fontWeight: "600", color: "#64748b", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", position: "sticky", top: 0 },
   tableRow: { borderBottom: "1px solid #f1f5f9", transition: "background 0.2s" },
   tableRowHover: { background: "#f8fafc" },
-  tableCell: { padding: "14px 12px", fontSize: "13px", color: "#1e293b" },
-  userCell: { display: "flex", alignItems: "center", gap: "12px" },
+tableCell: { 
+  padding: "14px 12px", 
+  fontSize: "13px", 
+  color: "#1e293b",
+  whiteSpace: "nowrap",        // Prevents text from wrapping
+  borderBottom: "1px solid #f1f5f9"
+},  userCell: { display: "flex", alignItems: "center", gap: "12px" },
   userAvatar: { width: "36px", height: "36px", borderRadius: "10px", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
   userName: { fontWeight: "600", color: "#1e293b", marginBottom: "2px" },
   userId: { fontSize: "11px", color: "#94a3b8" },

@@ -2207,10 +2207,11 @@ async function generateVideoThumbnail(videoPath, outputDir, outputName) {
     
     ffmpeg(videoPath)
       .screenshots({
-        timestamps: ['00:00:02'], // Take screenshot at 2 seconds
+        timestamps: ['00:00:12'],
         filename: outputName,
         folder: outputDir,
-        size: '320x180'
+        size: '640x360',          
+        quality: 90               
       })
       .on('end', () => {
         console.log('✅ Thumbnail generated:', outputName);
@@ -2223,7 +2224,7 @@ async function generateVideoThumbnail(videoPath, outputDir, outputName) {
   });
 }
 
-// ==================== ADMIN MEDIA MANAGEMENT ====================
+// ADMIN UPLOAD//
 
 app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) => {
   try {
@@ -2232,9 +2233,8 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
       return res.status(403).json({ error: "Only admins, secretaries, and media moderators can upload media" });
     }
 
-    // IMPORTANT: Access files from req.files object
-    const files = req.files['files']; // This gets the files array
-    const thumbnails = req.files['thumbnails']; // This gets thumbnails array (if any)
+    const files = req.files['files'];
+    const thumbnails = req.files['thumbnails'];
     
     if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
@@ -2242,13 +2242,23 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
 
     const { category, tags, isPublic, isFeatured, description } = req.body;
     const uploadedMedia = [];
+    
+    // Store file paths for background processing
+    const filePaths = [];
 
-    // Process files (ignore thumbnails for now since backend generates them)
+    // Process files - upload to Supabase
     for (const file of files) {
       const mediaType = getMediaType(file.mimetype);
       const fileName = `media_${Date.now()}_${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
       const filePath = `media/${fileName}`;
-      let thumbnailUrl = null;
+      
+      // Save the temp file path for later thumbnail generation
+      filePaths.push({
+        tempPath: file.path,
+        fileName: fileName,
+        originalName: file.originalname,
+        mediaType: mediaType
+      });
       
       // Upload original file to Supabase
       const { error: uploadError } = await supabase.storage
@@ -2260,47 +2270,14 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
 
       if (uploadError) {
         console.error("Supabase upload error:", uploadError);
+        // Clean up this file
         fs.unlinkSync(file.path);
         return res.status(500).json({ error: `Failed to upload ${file.originalname}` });
       }
 
       const publicURL = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${filePath}`;
       
-      // Generate thumbnail for videos (your existing code)
-      if (mediaType === 'video') {
-        try {
-          const thumbFileName = `thumb_${fileName.replace(path.extname(fileName), '.jpg')}`;
-          
-          await generateVideoThumbnail(file.path, thumbnailsDir, thumbFileName);
-          
-          const thumbFilePath = `media/thumbnails/${thumbFileName}`;
-          const { error: thumbError } = await supabase.storage
-            .from("media")
-            .upload(thumbFilePath, fs.createReadStream(path.join(thumbnailsDir, thumbFileName)), {
-              contentType: 'image/jpeg',
-              upsert: true,
-            });
-          
-          if (!thumbError) {
-            thumbnailUrl = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${thumbFilePath}`;
-            console.log('✅ Thumbnail uploaded for:', file.originalname);
-          }
-          
-          try {
-            if (fs.existsSync(path.join(thumbnailsDir, thumbFileName))) {
-              fs.unlinkSync(path.join(thumbnailsDir, thumbFileName));
-            }
-          } catch(e) {}
-          
-        } catch (thumbErr) {
-          console.error('❌ Thumbnail generation failed:', thumbErr.message);
-        }
-      }
-      
-      // Clean up temp file
-      fs.unlinkSync(file.path);
-      
-      // Save to database
+      // Save to database (thumbnail will be updated later)
       const media = await prisma.media.create({
         data: {
           title: file.originalname.replace(/\.[^/.]+$/, ""),
@@ -2312,7 +2289,7 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
           sizeFormatted: formatFileSize(file.size),
           type: mediaType,
           url: publicURL,
-          thumbnailUrl: thumbnailUrl,  
+          thumbnailUrl: null,
           category: category || "uncategorized",
           tags: tags ? tags.split(',').map(t => t.trim()) : [],
           isPublic: isPublic === 'true',
@@ -2324,6 +2301,92 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
       uploadedMedia.push(media);
     }
 
+    // ✅ SEND RESPONSE IMMEDIATELY
+    res.status(201).json({ success: true, media: uploadedMedia });
+
+    // ========== BACKGROUND PROCESSING ==========
+    // Process thumbnails in background using saved file paths
+    setTimeout(async () => {
+      for (let i = 0; i < filePaths.length; i++) {
+        const fileInfo = filePaths[i];
+        const media = uploadedMedia[i];
+        
+        if (fileInfo.mediaType === 'video') {
+          try {
+            // Check if temp file still exists
+            if (!fs.existsSync(fileInfo.tempPath)) {
+              console.log(`⚠️ Temp file not found: ${fileInfo.tempPath}`);
+              continue;
+            }
+            
+            const thumbFileName = `thumb_${fileInfo.fileName.replace(path.extname(fileInfo.fileName), '.jpg')}`;
+            
+            await generateVideoThumbnail(fileInfo.tempPath, thumbnailsDir, thumbFileName);
+            
+            const thumbFilePath = `media/thumbnails/${thumbFileName}`;
+            const { error: thumbError } = await supabase.storage
+              .from("media")
+              .upload(thumbFilePath, fs.createReadStream(path.join(thumbnailsDir, thumbFileName)), {
+                contentType: 'image/jpeg',
+                upsert: true,
+              });
+            
+            if (!thumbError) {
+              const thumbnailUrl = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${thumbFilePath}`;
+              await prisma.media.update({
+                where: { id: media.id },
+                data: { thumbnailUrl }
+              });
+              console.log('✅ Thumbnail generated for:', fileInfo.originalName);
+            }
+            
+            // Clean up temp file AFTER thumbnail generation
+            try {
+              if (fs.existsSync(fileInfo.tempPath)) {
+                fs.unlinkSync(fileInfo.tempPath);
+              }
+              if (fs.existsSync(path.join(thumbnailsDir, thumbFileName))) {
+                fs.unlinkSync(path.join(thumbnailsDir, thumbFileName));
+              }
+            } catch(e) {}
+            
+          } catch (thumbErr) {
+            console.error('❌ Thumbnail generation failed:', thumbErr.message);
+            // Still try to clean up temp file
+            try {
+              if (fs.existsSync(fileInfo.tempPath)) fs.unlinkSync(fileInfo.tempPath);
+            } catch(e) {}
+          }
+        } else {
+          // For non-video files, just delete the temp file
+          try {
+            if (fs.existsSync(fileInfo.tempPath)) fs.unlinkSync(fileInfo.tempPath);
+          } catch(e) {}
+        }
+      }
+    }, 100);
+
+    // Send notifications in background
+    if (uploadedMedia.length > 0 && isPublic === 'true') {
+      setTimeout(async () => {
+        const users = await prisma.user.findMany({ select: { id: true } });
+        for (const user of users) {
+          try {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "new_media",
+              title: "📸 New Gallery Update",
+              message: `ZUCA added new ${uploadedMedia.length} item(s) to the gallery`,
+              data: { mediaId: uploadedMedia[0].id }
+            });
+          } catch (err) {
+            console.error("Failed to send notification:", err.message);
+          }
+        }
+        console.log(`✅ Sent ${users.length} media notifications`);
+      }, 200);
+    }
+
     // Clean up any uploaded thumbnails (if they exist)
     if (thumbnails && thumbnails.length > 0) {
       for (const thumb of thumbnails) {
@@ -2333,38 +2396,8 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
       }
     }
 
-    // Create notifications (your existing code)
-    if (uploadedMedia.length > 0 && isPublic === 'true') {
-      const users = await prisma.user.findMany({ select: { id: true, fullName: true } });
-      const now = new Date();
-      
-      const notifications = users.map(user => ({
-        id: `media-${uploadedMedia[0].id}-${user.id}-${Date.now()}`,
-        userId: user.id,
-        type: "new_media",
-        title: "📸 New Gallery Update",
-        message: `ZUCA added new ${uploadedMedia.length} item(s) to the gallery`,
-        read: false,
-        createdAt: now,
-      }));
-
-      // Send push notifications to each user
-for (const notif of notifications) {
-  await createAndSendNotification({
-    userId: notif.userId,
-    type: notif.type,
-    title: notif.title,
-    message: notif.message,
-    data: notif.data || {}
-  });
-}
-     
-    }
-
-    res.status(201).json({ success: true, media: uploadedMedia });
   } catch (err) {
     console.error("Media upload error:", err);
-    // Clean up all temp files
     if (req.files) {
       const allFiles = [...(req.files['files'] || []), ...(req.files['thumbnails'] || [])];
       allFiles.forEach(file => {
@@ -2373,7 +2406,9 @@ for (const notif of notifications) {
         } catch(e) {}
       });
     }
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
   

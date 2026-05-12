@@ -1067,6 +1067,87 @@ app.delete("/api/admin/executive/remove/:assignmentId", authenticate, requireAdm
   }
 });
 
+
+// Create new executive position (Admin only)
+app.post("/api/admin/executive/positions", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { title, category, level, description } = req.body;
+
+    if (!title || !category || !level) {
+      return res.status(400).json({ error: "Title, category, and level are required" });
+    }
+
+    const existing = await prisma.executivePosition.findUnique({
+      where: { title }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: "Position with this title already exists" });
+    }
+
+    const newPosition = await prisma.executivePosition.create({
+      data: {
+        title,
+        category,
+        level: parseInt(level),
+        description: description || null
+      }
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: `Position "${title}" created successfully`,
+      position: newPosition 
+    });
+  } catch (err) {
+    console.error("Error creating position:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// Delete executive position (Admin only)
+app.delete("/api/admin/executive/positions/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if position exists
+    const position = await prisma.executivePosition.findUnique({
+      where: { id },
+      include: {
+        executives: {
+          where: { isActive: true }
+        }
+      }
+    });
+
+    if (!position) {
+      return res.status(404).json({ error: "Position not found" });
+    }
+
+    // Check if position has active executives
+    if (position.executives.length > 0) {
+      return res.status(400).json({ 
+        error: "Cannot delete position with active executives. Remove all executives from this position first." 
+      });
+    }
+
+    // Delete the position
+    await prisma.executivePosition.delete({
+      where: { id }
+    });
+
+    res.json({ 
+      success: true, 
+      message: `Position "${position.title}" deleted successfully` 
+    });
+  } catch (err) {
+    console.error("Error deleting position:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 11. Get executive stats (Admin only)
 app.get("/api/admin/executive/stats", authenticate, requireAdmin, async (req, res) => {
   try {

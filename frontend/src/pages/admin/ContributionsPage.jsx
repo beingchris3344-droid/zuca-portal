@@ -1158,6 +1158,20 @@ useEffect(() => {
             </div>
           )}
 
+          <button 
+  onClick={() => navigate('/treasurer/notes')}
+  style={{
+    padding: '10px 20px',
+    background: '#8b5cf6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer'
+  }}
+>
+  📝 Notes & Calculator
+</button>
+
           {/* Export Button with Dropdown */}
           <div className="export-dropdown" ref={exportMenuRef}>
             <button 
@@ -2020,14 +2034,16 @@ useEffect(() => {
     position: absolute;
     top: 100%;
     right: 0;
+    margin-left: -150px;
     margin-top: 8px;
     width: 400px;
+
     max-width: calc(100vw - 32px);
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
     border: 1px solid #e2e8f0;
-    padding: 20px;
+    padding: 20px 20px;
     z-index: 1000;
   }
   /* Smart positioning for export menu */

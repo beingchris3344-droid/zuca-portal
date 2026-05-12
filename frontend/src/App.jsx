@@ -11,7 +11,7 @@ import pushService from "./services/pushService";
 // Import AI Assistants
 import ZucaAIAssistant from "./components/ZucaAIAssistant";
 import AdminAIAssistant from "./components/AdminAIAssistant";
-
+import TreasurerNotes from './pages/treasurer/TreasurerNotes';
 import Layout from "./components/Layout";
 import 'react-image-crop/dist/ReactCrop.css';
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -381,6 +381,7 @@ function AppContent() {
   return (
     <>
       <Routes>
+        <Route path="/treasurer/notes" element={<TreasurerNotes />} />
         {/* ================= LANDING PAGE ================= */}
         <Route path="/" element={<Landing2 />} />
         

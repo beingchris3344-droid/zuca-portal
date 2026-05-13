@@ -1,160 +1,148 @@
 // frontend/src/api.js
+
 import axios from "axios";
 
 const hostname = window.location.hostname;
 
-// Define your backends
-const BACKENDS = [
-  "https://zuca-backend-iw9p.onrender.com",
-  "https://zuca-portal2.onrender.com"
-];
+// ---------- BACKEND URLS ----------
+const PRIMARY_URL =
+  hostname === "localhost"
+    ? "http://localhost:5000"
+    : "https://zuca-backend-iw9p.onrender.com";
 
-let BASE_URL;
+const BACKUP_URL =
+  hostname === "localhost"
+    ? "http://localhost:5001"
+    : "https://zuca-portal2.onrender.com";
 
-if (hostname === "localhost") {
-  BASE_URL = "http://localhost:5000";
-} else {
-  BASE_URL = BACKENDS[0]; // Start with first
-}
+// ---------- ACTIVE SERVER ----------
+let activeBaseURL = PRIMARY_URL;
 
-// Create axios instances
-export const publicApi = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
+// ---------- MAIN API ----------
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: activeBaseURL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Add token interceptor
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+// ---------- PUBLIC API ----------
+export const publicApi = axios.create({
+  baseURL: activeBaseURL,
+  timeout: 15000,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-// Function to try all backends
-const tryAllBackends = async (requestConfig, isPublic = false) => {
-  let lastError = null;
-  
-  for (const backend of BACKENDS) {
-    try {
-      console.log(`Trying backend: ${backend}`);
-      
-      // Create a new config with this backend
-      const config = {
-        ...requestConfig,
-        baseURL: backend,
-        url: requestConfig.url,
-      };
-      
-      // Make the request
-      const response = isPublic 
-        ? await publicApi(config)
-        : await api(config);
-      
-      // If successful, update the default backend for future requests
-      if (isPublic) {
-        publicApi.defaults.baseURL = backend;
-      } else {
-        api.defaults.baseURL = backend;
-      }
-      
-      console.log(`✅ Success with backend: ${backend}`);
-      return response;
-      
-    } catch (error) {
-      console.log(`❌ Failed with backend: ${backend}`);
-      lastError = error;
-    }
-  }
-  
-  // All backends failed
-  throw lastError;
-};
+// ---------- AUTH TOKEN ----------
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
 
-// Response interceptor for authenticated api
+    // Always use current active backend
+    config.baseURL = activeBaseURL;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ---------- PUBLIC API BASE URL ----------
+publicApi.interceptors.request.use(
+  (config) => {
+    config.baseURL = activeBaseURL;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ---------- FAILOVER SYSTEM ----------
 api.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     const originalRequest = error.config;
-    
-    // Prevent infinite loop
-    if (originalRequest._triedAllBackends) {
+
+    // Prevent infinite retries
+    if (originalRequest._retry) {
       return Promise.reject(error);
     }
-    
-    // Check if it's a backend error
-    const isBackendError = 
-      error.message === "Network Error" ||
-      error.code === "ERR_NETWORK" ||
+
+    const shouldFailover =
+      !error.response ||
       error.code === "ECONNABORTED" ||
-      (error.response && error.response.status >= 500);
-    
-    if (isBackendError && hostname !== "localhost") {
-      originalRequest._triedAllBackends = true;
-      console.log("⚠️ Backend failed, trying all available backends...");
-      
-      try {
-        return await tryAllBackends(originalRequest, false);
-      } catch (retryError) {
-        return Promise.reject(retryError);
-      }
+      error.response.status >= 500;
+
+    if (shouldFailover) {
+      originalRequest._retry = true;
+
+      console.log("Primary backend failed.");
+      console.log("Switching to backup backend...");
+
+      // Switch globally
+      activeBaseURL = BACKUP_URL;
+
+      // Retry failed request
+      originalRequest.baseURL = BACKUP_URL;
+
+      return axios(originalRequest);
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for public api
-publicApi.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    if (originalRequest._triedAllBackends) {
-      return Promise.reject(error);
-    }
-    
-    const isBackendError = 
-      error.message === "Network Error" ||
-      error.code === "ERR_NETWORK" ||
-      error.code === "ECONNABORTED" ||
-      (error.response && error.response.status >= 500);
-    
-    if (isBackendError && hostname !== "localhost") {
-      originalRequest._triedAllBackends = true;
-      console.log("⚠️ Backend failed, trying all available backends...");
-      
-      try {
-        return await tryAllBackends(originalRequest, true);
-      } catch (retryError) {
-        return Promise.reject(retryError);
+// ---------- HEALTH CHECK ----------
+const checkPrimaryHealth = async () => {
+  try {
+    const response = await axios.get(
+      `${PRIMARY_URL}/health`,
+      {
+        timeout: 5000,
+      }
+    );
+
+    if (response.status === 200) {
+      // Restore primary if backup is active
+      if (activeBaseURL !== PRIMARY_URL) {
+        console.log("Primary backend restored.");
+        console.log("Switching back to primary backend...");
+
+        activeBaseURL = PRIMARY_URL;
       }
     }
-    
-    return Promise.reject(error);
+  } catch (error) {
+    // Primary still unavailable
   }
-);
+};
 
-// URL helpers
-export const CONTRIBUTION_TYPES_URL = () => `${api.defaults.baseURL}/api/contribution-types`;
-export const CONTRIBUTION_TYPE_URL = (id) => `${api.defaults.baseURL}/api/contribution-types/${id}`;
-export const PLEDGE_URL = (id) => `${api.defaults.baseURL}/api/pledges/${id}`;
+// ---------- CHECK PRIMARY EVERY 30s ----------
+setInterval(checkPrimaryHealth, 30000);
 
+// ---------- URL HELPERS ----------
+export const CONTRIBUTION_TYPES_URL = () =>
+  `${activeBaseURL}/api/contribution-types`;
+
+export const CONTRIBUTION_TYPE_URL = (id) =>
+  `${activeBaseURL}/api/contribution-types/${id}`;
+
+export const PLEDGE_URL = (id) =>
+  `${activeBaseURL}/api/pledges/${id}`;
+
+// ---------- AUTH HEADER HELPER ----------
 export const authHeader = (token) => ({
-  headers: { Authorization: `Bearer ${token}` },
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
 });
 
-// Helper to get current backend
-export const getCurrentBackend = () => api.defaults.baseURL;
+// ---------- EXPORT ACTIVE URL ----------
+export const getActiveBackend = () => activeBaseURL;
 
-export default BASE_URL;
+export default api;

@@ -18,7 +18,7 @@ async function main() {
   const token = jwt.sign(
     { userId: admin.id, email: admin.email, role: admin.role },
     SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "365d" }
   );
 
   console.log("New Admin JWT:", token);

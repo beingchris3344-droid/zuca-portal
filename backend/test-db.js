@@ -1,16 +1,4 @@
-// test-db.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prayers = require('@codexcommunion/prayer-collection');
 
-async function main() {
-  try {
-    const users = await prisma.user.findMany();
-    console.log("Connected! Users:", users);
-  } catch (err) {
-    console.error("Database connection error:", err);
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
-main();
+console.log("Package loaded:", typeof prayers);
+console.log("Methods:", Object.keys(prayers));

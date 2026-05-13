@@ -4,183 +4,174 @@ import axios from "axios";
 const hostname = window.location.hostname;
 
 // Define your backends
-const PRIMARY_BACKEND = "https://zuca-portal2.onrender.com";
-const SECONDARY_BACKEND = "https://zuca-backend-iw9p.onrender.com";
+const PRIMARY_BACKEND = "https://zuca-backend-iw9p.onrender.com";
+const SECONDARY_BACKEND = "https://zuca-portal2.onrender.com";
 
-
-
+// Set initial backend
+let currentBackend;
 let BASE_URL;
-let currentBackend = PRIMARY_BACKEND;
-let isSwitching = false; // Prevent multiple simultaneous switches
 
 if (hostname === "localhost") {
   // Local development
+  currentBackend = "http://localhost:5000";
   BASE_URL = "http://localhost:5000";
 } else {
   // Production - start with primary backend
+  currentBackend = PRIMARY_BACKEND;
   BASE_URL = PRIMARY_BACKEND;
 }
 
-// Create a public API instance (NO authentication)
+// Helper function to switch backend
+const switchBackend = () => {
+  if (hostname === "localhost") return;
+  
+  if (currentBackend === PRIMARY_BACKEND) {
+    currentBackend = SECONDARY_BACKEND;
+  } else if (currentBackend === SECONDARY_BACKEND) {
+    currentBackend = PRIMARY_BACKEND;
+  }
+  
+  BASE_URL = currentBackend;
+  
+  // Update axios instances with new baseURL
+  publicApi.defaults.baseURL = BASE_URL;
+  api.defaults.baseURL = BASE_URL;
+  
+  console.log(`🔄 Switched to backend: ${BASE_URL}`);
+};
+
+// Create axios instances
 export const publicApi = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000,
 });
 
-// Create an authenticated API instance (WITH authentication)
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000,
 });
 
-// Helper function to switch backend silently
-export const switchBackend = () => {
-  if (isSwitching) return BASE_URL;
-  
-  isSwitching = true;
-  
-  if (currentBackend === PRIMARY_BACKEND) {
-    currentBackend = SECONDARY_BACKEND;
-  } else {
-    currentBackend = PRIMARY_BACKEND;
-  }
-  BASE_URL = currentBackend;
-  
-  // Update all axios instances with new baseURL
-  publicApi.defaults.baseURL = BASE_URL;
-  api.defaults.baseURL = BASE_URL;
-  
-  // Silent switch - no console logs in production
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`🔄 Switched to backend: ${BASE_URL}`);
-  }
-  
-  isSwitching = false;
-  return BASE_URL;
-};
-
-// Add token interceptor FIRST
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Generic retry function with exponential backoff
-const retryWithBackoff = async (fn, retries = 2, delay = 1000) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+// Add token interceptor to authenticated api
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-};
+);
 
-// Response interceptor for authenticated api with seamless failover
+// Response interceptor for authenticated api with failover
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Reset retry flag on success
+    if (response.config._retried) {
+      delete response.config._retried;
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     
-    // Prevent infinite loops
-    if (originalRequest._retryCount >= 3) {
-      return Promise.reject(error);
-    }
-    
-    originalRequest._retryCount = originalRequest._retryCount || 0;
-    
-    // Check if this is a retryable error
-    const isRetryable = 
-      error.message === "Network Error" || 
-      error.code === "ECONNABORTED" ||
-      error.response?.status >= 500 ||
-      error.response?.status === 429; // Rate limit
-    
-    if (isRetryable && hostname !== "localhost") {
-      originalRequest._retryCount++;
+    // Check if we already tried switching backends for this request
+    if (!originalRequest._retried) {
+      originalRequest._retried = true;
       
-      // Try switching backend after first failure
-      if (originalRequest._retryCount === 1) {
+      // Check if it's a backend/server error (not a client error like 400)
+      const isBackendFailure = 
+        error.message === "Network Error" ||
+        error.code === "ERR_NETWORK" ||
+        error.code === "ECONNABORTED" ||
+        error.code === "ETIMEDOUT" ||
+        (error.response && error.response.status >= 500);
+      
+      // Only retry on backend failures and not in localhost
+      if (isBackendFailure && hostname !== "localhost") {
+        // Switch to the other backend
         switchBackend();
+        
+        // Update the request URL with new baseURL
         originalRequest.baseURL = BASE_URL;
         
-        // Retry with new backend
+        // Retry the request with new backend
         try {
-          return await api(originalRequest);
+          console.log(`🔄 Retrying request on secondary backend...`);
+          const response = await api(originalRequest);
+          return response;
         } catch (retryError) {
-          // If second backend also fails, try original with delay
-          if (originalRequest._retryCount < 3) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            originalRequest.baseURL = currentBackend === PRIMARY_BACKEND ? SECONDARY_BACKEND : PRIMARY_BACKEND;
-            return await api(originalRequest);
+          // If second backend also fails, try one more time with original
+          console.log(`⚠️ Secondary backend failed, trying primary again...`);
+          switchBackend(); // Switch back to original
+          originalRequest.baseURL = BASE_URL;
+          
+          try {
+            const response = await api(originalRequest);
+            return response;
+          } catch (finalError) {
+            console.error(`❌ All backends failed`);
+            return Promise.reject(finalError);
           }
-          return Promise.reject(retryError);
         }
-      }
-      
-      // If both backends failed, retry with exponential backoff
-      if (originalRequest._retryCount < 3) {
-        const delay = 1000 * Math.pow(2, originalRequest._retryCount - 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return await api(originalRequest);
       }
     }
     
+    // If we've already tried switching, just reject
     return Promise.reject(error);
   }
 );
 
-// Same seamless failover for publicApi
+// Response interceptor for public api with failover
 publicApi.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config._retried) {
+      delete response.config._retried;
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     
-    if (originalRequest._retryCount >= 3) {
-      return Promise.reject(error);
-    }
-    
-    originalRequest._retryCount = originalRequest._retryCount || 0;
-    
-    const isRetryable = 
-      error.message === "Network Error" || 
-      error.code === "ECONNABORTED" ||
-      error.response?.status >= 500 ||
-      error.response?.status === 429;
-    
-    if (isRetryable && hostname !== "localhost") {
-      originalRequest._retryCount++;
+    if (!originalRequest._retried) {
+      originalRequest._retried = true;
       
-      if (originalRequest._retryCount === 1) {
+      const isBackendFailure = 
+        error.message === "Network Error" ||
+        error.code === "ERR_NETWORK" ||
+        error.code === "ECONNABORTED" ||
+        error.code === "ETIMEDOUT" ||
+        (error.response && error.response.status >= 500);
+      
+      if (isBackendFailure && hostname !== "localhost") {
         switchBackend();
         originalRequest.baseURL = BASE_URL;
         
         try {
-          return await publicApi(originalRequest);
+          console.log(`🔄 Retrying public request on secondary backend...`);
+          const response = await publicApi(originalRequest);
+          return response;
         } catch (retryError) {
-          if (originalRequest._retryCount < 3) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            originalRequest.baseURL = currentBackend === PRIMARY_BACKEND ? SECONDARY_BACKEND : PRIMARY_BACKEND;
-            return await publicApi(originalRequest);
+          console.log(`⚠️ Secondary backend failed, trying primary again...`);
+          switchBackend();
+          originalRequest.baseURL = BASE_URL;
+          
+          try {
+            const response = await publicApi(originalRequest);
+            return response;
+          } catch (finalError) {
+            console.error(`❌ All backends failed for public request`);
+            return Promise.reject(finalError);
           }
-          return Promise.reject(retryError);
         }
-      }
-      
-      if (originalRequest._retryCount < 3) {
-        const delay = 1000 * Math.pow(2, originalRequest._retryCount - 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return await publicApi(originalRequest);
       }
     }
     
@@ -188,13 +179,26 @@ publicApi.interceptors.response.use(
   }
 );
 
-// Export URL helpers
+// URL helpers - these are FUNCTIONS so they always get the current BASE_URL
 export const CONTRIBUTION_TYPES_URL = () => `${BASE_URL}/api/contribution-types`;
 export const CONTRIBUTION_TYPE_URL = (id) => `${BASE_URL}/api/contribution-types/${id}`;
 export const PLEDGE_URL = (id) => `${BASE_URL}/api/pledges/${id}`;
+export const DONATIONS_URL = () => `${BASE_URL}/api/donations`;
+export const USER_URL = () => `${BASE_URL}/api/user`;
+export const PROFILE_URL = () => `${BASE_URL}/api/profile`;
 
+// Helper to get auth header
 export const authHeader = (token) => ({
   headers: { Authorization: `Bearer ${token}` },
 });
+
+// Helper to get current base URL (for debugging)
+export const getCurrentBaseURL = () => BASE_URL;
+
+// Helper to manually switch backend (if needed)
+export const manualSwitchBackend = () => {
+  switchBackend();
+  return BASE_URL;
+};
 
 export default BASE_URL;

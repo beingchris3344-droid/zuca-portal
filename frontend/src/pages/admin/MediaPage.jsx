@@ -402,56 +402,84 @@ function MediaPage() {
 
   // Handle single file upload
   const uploadFile = async (queueItem) => {
-    const formData = new FormData();
-    formData.append("files", queueItem.file);
-    formData.append("description", caption);
-    formData.append("category", category);
-    formData.append("tags", tags);
-    formData.append("isFeatured", isFeatured.toString());
-    formData.append("isPublic", isPublic.toString());
+  const formData = new FormData();
+  formData.append("files", queueItem.file);
+  formData.append("description", caption);
+  formData.append("category", category);
+  formData.append("tags", tags);
+  formData.append("isFeatured", isFeatured.toString());
+  formData.append("isPublic", isPublic.toString());
+  
+  try {
+    // Update status to uploading with 0 progress
+    setUploadQueue(prev => prev.map(item => 
+      item.id === queueItem.id ? { ...item, status: 'uploading', progress: 0 } : item
+    ));
     
-    try {
-      const response = await axios.post(`${BASE_URL}/api/admin/media/upload`, formData, {
-        headers: { ...headers, "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadQueue(prev => prev.map(item => 
-            item.id === queueItem.id ? { ...item, progress: percent, status: 'uploading' } : item
-          ));
-        }
-      });
-      
-      setUploadQueue(prev => prev.map(item => 
-        item.id === queueItem.id ? { ...item, status: 'completed' } : item
-      ));
-      
-      return response.data;
-    } catch (err) {
-      setUploadQueue(prev => prev.map(item => 
-        item.id === queueItem.id ? { ...item, status: 'failed', error: err.message } : item
-      ));
-      throw err;
-    }
-  };
-
+    const response = await axios.post(`${BASE_URL}/api/admin/media/upload`, formData, {
+      headers: { ...headers, "Content-Type": "multipart/form-data" },
+      onUploadProgress: (progressEvent) => {
+        // Calculate percentage
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        console.log(`Uploading ${queueItem.name}: ${percentCompleted}%`); // This helps debug
+        // Update progress for this specific file
+        setUploadQueue(prev => prev.map(item => 
+          item.id === queueItem.id ? { ...item, progress: percentCompleted } : item
+        ));
+      }
+    });
+    
+    // Mark as completed with 100%
+    setUploadQueue(prev => prev.map(item => 
+      item.id === queueItem.id ? { ...item, status: 'completed', progress: 100 } : item
+    ));
+    
+    return response.data;
+  } catch (err) {
+    console.error("Upload error:", err);
+    setUploadQueue(prev => prev.map(item => 
+      item.id === queueItem.id ? { ...item, status: 'failed', error: err.message, progress: 0 } : item
+    ));
+    throw err;
+  }
+};
   // Handle bulk upload
   const handleBulkUpload = async () => {
-    setUploading(true);
-    for (const item of uploadQueue) {
-      if (item.status === 'pending') {
-        await uploadFile(item);
-      }
+  if (uploadQueue.length === 0) return;
+  
+  setUploading(true);
+  let completed = 0;
+  const pendingItems = uploadQueue.filter(item => item.status === 'pending');
+  const total = pendingItems.length;
+  
+  for (const item of pendingItems) {
+    if (item.status === 'pending') {
+      await uploadFile(item);
+      completed++;
+      // Update overall progress
+      const overallProgress = (completed / total) * 100;
+      setUploadProgress(overallProgress);
     }
-    setUploading(false);
-    setUploadQueue([]);
-    setCaption("");
-    setTags("");
-    setCategory("uncategorized");
-    setIsFeatured(false);
-    setIsPublic(true);
-    fetchMedia();
-    setShowUploadModal(false);
-  };
+  }
+  
+  setUploading(false);
+  
+  // Clear completed items after showing success
+  setTimeout(() => {
+    const allCompleted = uploadQueue.every(item => item.status === 'completed');
+    if (allCompleted) {
+      setUploadQueue([]);
+      setCaption("");
+      setTags("");
+      setCategory("uncategorized");
+      setIsFeatured(false);
+      setIsPublic(true);
+      fetchMedia();
+      setShowUploadModal(false);
+    }
+    setUploadProgress(0);
+  }, 1500);
+};
 
   // Remove from queue
   const removeFromQueue = (id) => {
@@ -1085,35 +1113,97 @@ function MediaPage() {
                   <label><input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} /> 🌍 Make public</label>
                 </div>
 
-                {/* Upload Queue */}
-                {uploadQueue.length > 0 && (
-                  <div className="upload-queue">
-                    <h4>Upload Queue ({uploadQueue.length} files)</h4>
-                    {uploadQueue.map(item => (
-                      <div key={item.id} className="queue-item">
-                        <div className="queue-info">
-                          <span className="queue-icon">{item.type === 'image' ? '🖼️' : item.type === 'video' ? '🎬' : '🎵'}</span>
-                          <div className="queue-details">
-                            <div className="queue-name">{item.name}</div>
-                            <div className="queue-size">{formatFileSize(item.size)}</div>
-                          </div>
-                          <button className="queue-remove" onClick={() => removeFromQueue(item.id)}><FiX /></button>
-                        </div>
-                        {item.status === 'uploading' && (
-                          <div className="queue-progress"><div className="progress-bar" style={{ width: `${item.progress}%` }}></div><span>{item.progress}%</span></div>
-                        )}
-                        {item.status === 'completed' && <div className="queue-status success">✅ Uploaded</div>}
-                        {item.status === 'failed' && <div className="queue-status error">❌ Failed: {item.error}</div>}
-                      </div>
-                    ))}
-                    <div className="queue-actions">
-                      <button className="cancel-btn" onClick={() => setUploadQueue([])}>Clear All</button>
-                      <button className="upload-all-btn" onClick={handleBulkUpload} disabled={uploading}>
-                        {uploading ? 'Uploading...' : `Upload All (${uploadQueue.length}) →`}
-                      </button>
-                    </div>
-                  </div>
-                )}
+         {/* Upload Queue with Better Progress Display */}
+{uploadQueue.length > 0 && (
+  <div className="upload-queue">
+    <div className="queue-header">
+      <h4>📤 Upload Queue ({uploadQueue.length} file{uploadQueue.length !== 1 ? 's' : ''})</h4>
+      {uploading && (
+        <div className="overall-progress">
+          <div className="overall-progress-bar" style={{ width: `${uploadProgress}%` }}></div>
+          <span>Overall: {Math.round(uploadProgress)}% Complete</span>
+        </div>
+      )}
+    </div>
+    
+    {uploadQueue.map(item => (
+      <div key={item.id} className={`queue-item ${item.status}`}>
+        <div className="queue-info">
+          <span className="queue-icon">
+            {item.type === 'image' ? '🖼️' : item.type === 'video' ? '🎬' : '🎵'}
+          </span>
+          <div className="queue-details">
+            <div className="queue-name" title={item.name}>
+              {item.name.length > 40 ? item.name.substring(0, 40) + '...' : item.name}
+            </div>
+            <div className="queue-size">{formatFileSize(item.size)}</div>
+          </div>
+          {item.status === 'pending' && !uploading && (
+            <button className="queue-remove" onClick={() => removeFromQueue(item.id)}>
+              <FiX />
+            </button>
+          )}
+          {item.status === 'completed' && (
+            <span className="queue-status-badge success">✓ Complete</span>
+          )}
+          {item.status === 'failed' && (
+            <span className="queue-status-badge error">✗ Failed</span>
+          )}
+        </div>
+        
+        {/* Individual File Progress Bar */}
+        {(item.status === 'uploading' || (item.status === 'pending' && uploading)) && (
+          <div className="queue-progress-container">
+            <div className="queue-progress">
+              <div 
+                className="progress-bar-fill" 
+                style={{ width: `${item.progress}%` }}
+              >
+                <span className="progress-percent">{item.progress}%</span>
+              </div>
+            </div>
+            {item.status === 'uploading' && (
+              <div className="uploading-status-text">
+                Uploading... {item.progress}%
+              </div>
+            )}
+          </div>
+        )}
+        
+        {item.status === 'failed' && (
+          <div className="queue-error">❌ Error: {item.error}</div>
+        )}
+      </div>
+    ))}
+    
+    <div className="queue-actions">
+      {!uploading && uploadQueue.some(item => item.status === 'pending') && (
+        <>
+          <button className="cancel-btn" onClick={() => setUploadQueue([])}>
+            Clear All
+          </button>
+          <button 
+            className="upload-all-btn" 
+            onClick={handleBulkUpload}
+          >
+            <FiUpload /> Upload All ({uploadQueue.filter(item => item.status === 'pending').length}) →
+          </button>
+        </>
+      )}
+      {uploading && (
+        <div className="uploading-status">
+          <div className="spinner-small"></div>
+          <span>Uploading files, please wait...</span>
+        </div>
+      )}
+      {!uploading && uploadQueue.every(item => item.status === 'completed') && (
+        <div className="upload-complete-message">
+          ✓ All files uploaded successfully!
+        </div>
+      )}
+    </div>
+  </div>
+)}
               </div>
             </motion.div>
           </motion.div>
@@ -1376,6 +1466,237 @@ function MediaPage() {
           .type-filters { overflow-x: auto; flex-wrap: nowrap; width: 100%; }
           .form-row { flex-direction: column; }
         }
+
+        /* Enhanced Upload Queue Styles - Add these near the other upload styles */
+.queue-header {
+  margin-bottom: 16px;
+}
+
+.queue-header h4 {
+  font-size: 14px;
+  margin: 0 0 12px 0;
+  color: #1e293b;
+}
+
+.overall-progress {
+  background: #f1f5f9;
+  border-radius: 20px;
+  padding: 8px 12px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.overall-progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  transition: width 0.3s ease;
+  opacity: 0.2;
+}
+
+.overall-progress span {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.queue-item {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  transition: all 0.3s;
+  border: 1px solid #e2e8f0;
+}
+
+.queue-item.uploading {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.queue-item.completed {
+  background: #f0fdf4;
+  border-color: #22c55e;
+}
+
+.queue-item.failed {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.queue-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.queue-icon {
+  font-size: 24px;
+}
+
+.queue-details {
+  flex: 1;
+}
+
+.queue-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.queue-size {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.queue-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.queue-remove:hover {
+  background: #e2e8f0;
+  color: #ef4444;
+}
+
+.queue-status-badge {
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.queue-status-badge.success {
+  background: #22c55e20;
+  color: #16a34a;
+}
+
+.queue-status-badge.error {
+  background: #ef444420;
+  color: #dc2626;
+}
+
+.queue-progress-container {
+  margin-top: 10px;
+}
+
+.queue-progress {
+  background: #e2e8f0;
+  border-radius: 20px;
+  overflow: hidden;
+  height: 28px;
+  position: relative;
+}
+
+.progress-bar-fill {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-percent {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  position: relative;
+  z-index: 1;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.uploading-status-text {
+  font-size: 11px;
+  color: #3b82f6;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.queue-error {
+  font-size: 11px;
+  color: #ef4444;
+  margin-top: 8px;
+  padding: 6px;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+.uploading-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #eff6ff;
+  border-radius: 8px;
+  color: #3b82f6;
+  font-size: 13px;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.upload-complete-message {
+  padding: 8px 16px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  color: #16a34a;
+  font-size: 13px;
+  text-align: center;
+}
+
+.queue-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
       `}</style>
     </div>
   );

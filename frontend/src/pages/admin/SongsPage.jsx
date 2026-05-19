@@ -95,6 +95,78 @@ export default function SongsPage() {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
+  const [savedDrafts, setSavedDrafts] = useState([]);
+const [showDraftsList, setShowDraftsList] = useState(false);
+
+  // Load all saved drafts from localStorage
+  const loadSavedDrafts = () => {
+    const drafts = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key === 'programDraft') {
+        try {
+          const draftData = JSON.parse(localStorage.getItem(key));
+          if (draftData && draftData.data) {
+            drafts.push({
+              key: key,
+              timestamp: draftData.timestamp || 0,
+              date: draftData.data.date || 'No date',
+              venue: draftData.data.venue || 'No venue',
+              editingId: draftData.editingId || null
+            });
+          }
+        } catch (err) {
+          console.error("Error parsing draft:", err);
+        }
+      }
+    }
+    drafts.sort((a, b) => b.timestamp - a.timestamp);
+    setSavedDrafts(drafts);
+  };
+
+  // Load a specific draft
+  const loadSpecificDraft = (draftKey) => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      const formData = parsed.data;
+      
+      if (!formData.songs || Object.keys(formData.songs).length === 0) {
+        formData.songs = initializeSongs();
+      }
+      
+      setForm(formData);
+      setEditingId(parsed.editingId || null);
+      setShowDraftsList(false);
+      setIsFormOpen(true);
+      setDraftLoaded(true);
+      showNotification(`Draft loaded`, "success");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      console.error("Error loading draft:", err);
+      showNotification("Failed to load draft", "error");
+    }
+  };
+
+  // Delete a draft
+  const deleteDraft = (draftKey, event) => {
+    event.stopPropagation();
+    if (window.confirm("Delete this saved draft?")) {
+      localStorage.removeItem(draftKey);
+      loadSavedDrafts();
+      showNotification("Draft deleted", "info");
+      if (savedDrafts.length === 1) {
+        setShowDraftsList(false);
+      }
+    }
+  };
+
+    // Load saved drafts on component mount
+  useEffect(() => {
+    loadSavedDrafts();
+  }, []);
+
   // Check access
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -752,6 +824,26 @@ return false;
             <button className="btn-icon" onClick={() => fetchPrograms(true)} disabled={refreshing} title="Refresh">
               <FiRefreshCw className={refreshing ? 'spinning' : ''} />
             </button>
+
+              {/* ADD THIS DRAFTS BUTTON */}
+  <button className="btn-icon" onClick={() => { loadSavedDrafts(); setShowDraftsList(!showDraftsList); }} title="Saved Drafts" style={{ position: 'relative' }}>
+    <FiSave />
+    {savedDrafts.length > 0 && (
+      <span style={{
+        position: 'absolute',
+        top: '-5px',
+        right: '-5px',
+        background: '#ef4444',
+        color: 'white',
+        fontSize: '10px',
+        fontWeight: 'bold',
+        padding: '2px 5px',
+        borderRadius: '10px',
+        minWidth: '18px',
+        textAlign: 'center'
+      }}>{savedDrafts.length}</span>
+    )}
+  </button>
             {canModify && (
               <button className="btn-primary" onClick={() => setIsFormOpen(!isFormOpen)}>
                 {isFormOpen ? <FiX /> : <FiPlus />}
@@ -774,6 +866,66 @@ return false;
             }}><FiX /> Clear</button>
           </div>
         )}
+
+        {showDraftsList && (
+  <div className="drafts-panel">
+    <div className="drafts-header">
+      <h3><FiSave /> Saved Drafts</h3>
+      <button className="close-drafts" onClick={() => setShowDraftsList(false)}>
+        <FiX />
+      </button>
+    </div>
+    
+    {savedDrafts.length === 0 ? (
+      <div className="no-drafts">
+        <p>No saved drafts found</p>
+        <small>Drafts are auto-saved when you fill the form</small>
+      </div>
+    ) : (
+      <>
+        <div className="drafts-list">
+          {savedDrafts.map((draft) => (
+            <div key={draft.key} className="draft-item" onClick={() => loadSpecificDraft(draft.key)}>
+              <div className="draft-info">
+                <div className="draft-title">
+                  <FiCalendar /> {draft.date || 'No date'}
+                </div>
+                <div className="draft-venue">
+                  <FiMapPin /> {draft.venue || 'No venue'}
+                </div>
+                <div className="draft-meta">
+                  <FiClock /> {new Date(draft.timestamp).toLocaleString()}
+                </div>
+                {draft.editingId && (
+                  <div className="draft-badge-small">Editing</div>
+                )}
+              </div>
+              <button className="delete-draft-btn" onClick={(e) => deleteDraft(draft.key, e)}>
+                <FiTrash2 />
+              </button>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+)}
+
+{/* Add this after the drafts-list div, before closing the drafts-panel */}
+{savedDrafts.length > 0 && (
+  <div className="drafts-footer">
+    <button className="clear-all-drafts" onClick={() => {
+      if (window.confirm("Delete ALL saved drafts?")) {
+        localStorage.removeItem('programDraft');
+        loadSavedDrafts();
+        setShowDraftsList(false);
+        showNotification("All drafts cleared", "info");
+      }
+    }}>
+      Clear All Drafts
+    </button>
+  </div>
+)}
 
         <div className="search-filter-bar">
           <div className="search-box">
@@ -996,6 +1148,147 @@ return false;
         .btn-secondary:hover { background: #f8fafc; }
         .spinning { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Drafts Panel Styles */
+.drafts-panel {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.drafts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.drafts-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.close-drafts {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.close-drafts:hover {
+  background: #e2e8f0;
+}
+
+.drafts-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.draft-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.draft-item:hover {
+  background: #eff6ff;
+}
+
+.draft-info {
+  flex: 1;
+}
+
+.draft-title, .draft-venue, .draft-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.draft-title { color: #0f172a; font-weight: 500; }
+.draft-venue { color: #475569; }
+.draft-meta { color: #94a3b8; font-size: 11px; margin-bottom: 0; }
+
+.draft-badge-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef3c7;
+  color: #d97706;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  margin-top: 6px;
+  width: fit-content;
+}
+
+.delete-draft-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.delete-draft-btn:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.no-drafts {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+}
+
+.no-drafts p {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+}
+
+.no-drafts small {
+  font-size: 11px;
+}
+
+.drafts-footer {
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: right;
+}
+
+.clear-all-drafts {
+  background: none;
+  border: 1px solid #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.clear-all-drafts:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
         
         .draft-indicator { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #fffbeb; border-radius: 12px; margin-bottom: 20px; color: #d97706; font-size: 14px; border: 1px solid #fde68a; }
         .draft-clear { margin-left: auto; background: none; border: none; color: #d97706; padding: 4px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px; }

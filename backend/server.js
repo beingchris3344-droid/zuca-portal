@@ -5285,6 +5285,7 @@ await sendVerificationEmail(tempUser, verificationCode);
 });
 
 // ================== VERIFY EMAIL & THEN SAVE TO DATABASE ==================
+
 app.post("/api/verify-email", async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -5295,35 +5296,20 @@ app.post("/api/verify-email", async (req, res) => {
     
     const normalizedEmail = email.toLowerCase();
     
-    console.log(`🔐 Verifying email: ${normalizedEmail} with code: ${code}`);
-    console.log(`📦 Pending registrations keys:`, Array.from(pendingRegistrations.keys()));
-    
     // ✅ Get pending registration from memory
     const pendingUser = pendingRegistrations.get(normalizedEmail);
     
     if (!pendingUser) {
-      return res.status(404).json({ error: "No pending registration found or code expired. Please register again." });
+      return res.status(404).json({ error: "No pending registration found or code expired" });
     }
     
-    // ✅ Check code match
     if (pendingUser.verificationCode !== code) {
-      return res.status(400).json({ error: "Invalid verification code. Please check and try again." });
+      return res.status(400).json({ error: "Invalid verification code" });
     }
     
-    // ✅ Check expiry - FIXED: Convert both to timestamps for comparison
-    const now = new Date();
-    const expiryDate = new Date(pendingUser.verificationExpiry);
-    
-    console.log(`⏰ Current time: ${now.toISOString()}`);
-    console.log(`⏰ Expiry time: ${expiryDate.toISOString()}`);
-    console.log(`⏰ Is expired: ${now > expiryDate}`);
-    
-    if (now > expiryDate) {
-      // Delete expired registration
+    if (pendingUser.verificationExpiry && new Date() > pendingUser.verificationExpiry) {
       pendingRegistrations.delete(normalizedEmail);
-      return res.status(400).json({ 
-        error: "Verification code has expired (15 minutes). Please register again." 
-      });
+      return res.status(400).json({ error: "Verification code has expired. Please register again." });
     }
     
     // ✅ NOW save to database - ONLY AFTER VERIFICATION
@@ -5343,10 +5329,15 @@ app.post("/api/verify-email", async (req, res) => {
     // ✅ Delete from pending memory
     pendingRegistrations.delete(normalizedEmail);
     
-    // ✅ Send welcome email (don't await - do in background)
-    sendWelcomeEmail(user, user.membership_number).catch(err => 
-      console.error(`❌ Welcome email failed:`, err.message)
-    );
+    // ✅ Send welcome email
+    (async () => {
+      try {
+        await sendWelcomeEmail(user, user.membership_number);
+        console.log(`✅ Welcome email sent to ${user.email}`);
+      } catch (err) {
+        console.error(`❌ Welcome email failed:`, err.message);
+      }
+    })();
     
     // ✅ Generate token and log user in
     const token = jwt.sign(

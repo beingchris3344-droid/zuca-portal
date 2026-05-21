@@ -11452,30 +11452,27 @@ async function createAndSendNotification({ userId, type, title, message, data = 
     createdAt: notif.createdAt.toISOString()
   });
 
-  // Send push notification
-  try {
-    await sendPushNotification(userId, title, message, { type, ...data });
-  } catch (err) {
-    console.log('Push not sent (user may not have PWA installed):', err.message);
-  }
+  // Send push notification (don't await)
+  sendPushNotification(userId, title, message, { type, ...data }).catch(err => {
+    console.log('Push not sent:', err.message);
+  });
 
-  // ========== ADD THIS EMAIL SECTION ==========
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { homeJumuia: true }
-    });
-    
-    if (user && user.email) {
-      await sendPersonalizedEmail(user, type, title, message, data);
-      console.log(`✅ Email sent to ${user.email}`);
-    } else {
-      console.log(`⚠️ No email found for user ${userId}`);
+  // ✅ DON'T AWAIT EMAILS - FIRE AND FORGET
+  (async () => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { homeJumuia: true }
+      });
+      
+      if (user && user.email) {
+        await sendPersonalizedEmail(user, type, title, message, data);
+        console.log(`✅ Email sent to ${user.email}`);
+      }
+    } catch (err) {
+      console.error('❌ Email error:', err.message);
     }
-  } catch (err) {
-    console.error('❌ Email error:', err.message);
-  }
-  // ========== END OF EMAIL SECTION ==========
+  })();
 
   return notif;
 }

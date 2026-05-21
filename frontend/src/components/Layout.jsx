@@ -411,10 +411,10 @@ useEffect(() => {
           }
 
           .ai-btn {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: linear-gradient(135deg, #cf331e, #830707c5);
   border: none;
-  border-radius: 10px;
-  padding: 7px 1px;
+  border-radius: 13px;
+  padding: 2px 4px;
   display: flex;
   align-items: center;
   gap: 3px;

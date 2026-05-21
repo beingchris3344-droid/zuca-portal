@@ -5169,8 +5169,32 @@ app.post("/api/register", async (req, res) => {
     const { fullName, email, password, phone } = req.body;
     console.log("🔵 STEP 2: Data received", { fullName, email, phone });
 
-    // ... validation code ...
+    // ✅ FIX: Define normalizedEmail FIRST
+    const normalizedEmail = email.toLowerCase();
+    
+    // Format phone
+    let formattedPhone = phone;
+    if (phone.startsWith("07")) {
+      formattedPhone = "+254" + phone.slice(1);
+    }
 
+    // Check if email already exists
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingEmail) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+
+    const existingPhone = await prisma.user.findUnique({
+      where: { phone: formattedPhone },
+    });
+    if (existingPhone) {
+      return res.status(400).json({ error: "Phone already registered" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    
     console.log("🔵 STEP 3: About to generate membership number");
     let membershipNumber = "Z#001";
     // ... membership generation code ...
@@ -5182,7 +5206,7 @@ app.post("/api/register", async (req, res) => {
     console.log("🔵 STEP 6: Code generated");
 
     console.log("🔵 STEP 7: About to store in pendingRegistrations");
-    const pendingKey = `${normalizedEmail}`;
+    const pendingKey = `${normalizedEmail}`;  // ✅ Now works!
     pendingRegistrations.set(pendingKey, {
       fullName,
       email: normalizedEmail,
@@ -5196,7 +5220,6 @@ app.post("/api/register", async (req, res) => {
     });
     console.log("🔵 STEP 8: Stored in pendingRegistrations");
 
-    // Clean up
     setTimeout(() => {
       if (pendingRegistrations.has(pendingKey)) {
         pendingRegistrations.delete(pendingKey);
@@ -5204,7 +5227,6 @@ app.post("/api/register", async (req, res) => {
     }, 15 * 60 * 1000);
     console.log("🔵 STEP 9: Cleanup timer set");
 
-    // Send verification email (fire and forget)
     console.log("🔵 STEP 10: About to fire email (async)");
     (async () => {
       try {
@@ -5218,7 +5240,6 @@ app.post("/api/register", async (req, res) => {
     })();
     console.log("🔵 STEP 11: Email fire-and-forget triggered");
 
-    // Send response
     console.log("🔵 STEP 12: About to send response");
     res.json({
       success: true,
@@ -5229,8 +5250,7 @@ app.post("/api/register", async (req, res) => {
     console.log("🔵 STEP 13: Response sent successfully ✅");
 
   } catch (err) {
-    console.error("❌ Registration Error at step:", err);
-    // Only send error if response hasn't been sent
+    console.error("❌ Registration Error:", err);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
     }

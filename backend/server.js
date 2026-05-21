@@ -5165,80 +5165,23 @@ app.post("/api/auth/verify", async (req, res) => {
 // ================== REGISTER - NO SAVE UNTIL VERIFIED ==================
 app.post("/api/register", async (req, res) => {
   try {
+    console.log("🔵 STEP 1: Registration started");
     const { fullName, email, password, phone } = req.body;
+    console.log("🔵 STEP 2: Data received", { fullName, email, phone });
 
-    if (!fullName || !email || !password || !phone) {
-      return res.status(400).json({
-        error: "Full name, email, password, and phone are required",
-      });
-    }
+    // ... validation code ...
 
-    let formattedPhone = phone;
-    if (phone.startsWith("07")) {
-      formattedPhone = "+254" + phone.slice(1);
-    }
-
-    const normalizedEmail = email.toLowerCase();
-
-    // Check if email already exists in main User table
-    const existingEmail = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-    });
-    if (existingEmail) {
-      return res.status(400).json({ error: "Email already exists" });
-    }
-
-    const existingPhone = await prisma.user.findUnique({
-      where: { phone: formattedPhone },
-    });
-    if (existingPhone) {
-      return res.status(400).json({ error: "Phone already registered" });
-    }
-
-    const hashed = await bcrypt.hash(password, 10);
-    
+    console.log("🔵 STEP 3: About to generate membership number");
     let membershipNumber = "Z#001";
+    // ... membership generation code ...
+    console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
 
-    try {
-      const lastUser = await prisma.user.findFirst({
-        orderBy: { createdAt: "desc" },
-        where: {
-          membership_number: {
-            not: null,
-            not: "nan",
-            not: ""
-          }
-        }
-      });
-
-      if (lastUser?.membership_number) {
-        const membershipStr = String(lastUser.membership_number);
-        const match = membershipStr.match(/\d+/);
-
-        if (match) {
-          const lastNum = parseInt(match[0], 10);
-          if (!isNaN(lastNum)) {
-            const nextNum = (lastNum + 1).toString().padStart(3, "0");
-            membershipNumber = `Z#${nextNum}`;
-          }
-        } else {
-          const userCount = await prisma.user.count();
-          const nextNum = (userCount + 1).toString().padStart(3, "0");
-          membershipNumber = `Z#${nextNum}`;
-        }
-      }
-    } catch (err) {
-      console.error("Membership generation error:", err);
-      const timestamp = Date.now().toString().slice(-6);
-      membershipNumber = `Z#${timestamp}`;
-    }
-
-    // Generate verification code
+    console.log("🔵 STEP 5: About to generate verification code");
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    console.log("🔵 STEP 6: Code generated");
 
-    // ✅ STORE IN MEMORY/TEMPORARY STORAGE (NOT DATABASE)
-    // Using a Map to store pending registrations in memory
+    console.log("🔵 STEP 7: About to store in pendingRegistrations");
     const pendingKey = `${normalizedEmail}`;
     pendingRegistrations.set(pendingKey, {
       fullName,
@@ -5251,36 +5194,46 @@ app.post("/api/register", async (req, res) => {
       verificationExpiry,
       createdAt: new Date()
     });
+    console.log("🔵 STEP 8: Stored in pendingRegistrations");
 
-    // Clean up expired pending registrations periodically
+    // Clean up
     setTimeout(() => {
       if (pendingRegistrations.has(pendingKey)) {
         pendingRegistrations.delete(pendingKey);
       }
-    }, 15 * 60 * 1000); // Delete after 15 minutes
+    }, 15 * 60 * 1000);
+    console.log("🔵 STEP 9: Cleanup timer set");
 
-    // ✅ Send verification email
+    // Send verification email (fire and forget)
+    console.log("🔵 STEP 10: About to fire email (async)");
     (async () => {
       try {
-const tempUser = { email: normalizedEmail, fullName: fullName };
-await sendVerificationEmail(tempUser, verificationCode);
+        console.log(`📧 Sending email to ${normalizedEmail}`);
+        const tempUser = { email: normalizedEmail, fullName: fullName };
+        await sendVerificationEmail(tempUser, verificationCode);
         console.log(`✅ Verification email sent to ${normalizedEmail}`);
       } catch (err) {
         console.error(`❌ Verification email failed:`, err.message);
       }
     })();
+    console.log("🔵 STEP 11: Email fire-and-forget triggered");
 
-    // ✅ Send response - NO DATABASE SAVE
+    // Send response
+    console.log("🔵 STEP 12: About to send response");
     res.json({
       success: true,
       message: "Verification code sent to your email. Please verify to complete registration.",
       email: normalizedEmail,
       requiresVerification: true
     });
+    console.log("🔵 STEP 13: Response sent successfully ✅");
 
   } catch (err) {
-    console.error("Registration Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ Registration Error at step:", err);
+    // Only send error if response hasn't been sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 

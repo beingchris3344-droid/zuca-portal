@@ -5258,32 +5258,54 @@ app.post("/api/register", async (req, res) => {
 });
 
 // ================== VERIFY EMAIL & THEN SAVE TO DATABASE ==================
-
 app.post("/api/verify-email", async (req, res) => {
   try {
     const { email, code } = req.body;
     
+    console.log("📧 ===== VERIFICATION REQUEST =====");
+    console.log("📧 Email received:", email);
+    console.log("📧 Code received:", code);
+    console.log("📧 Code type:", typeof code);
+    
     if (!email || !code) {
+      console.log("❌ Missing email or code");
       return res.status(400).json({ error: "Email and verification code required" });
     }
     
     const normalizedEmail = email.toLowerCase();
+    console.log("📧 Normalized email:", normalizedEmail);
     
     // ✅ Get pending registration from memory
     const pendingUser = pendingRegistrations.get(normalizedEmail);
     
+    console.log("📧 Pending user found:", pendingUser ? "YES" : "NO");
+    
     if (!pendingUser) {
+      console.log("📧 Available pending keys:", Array.from(pendingRegistrations.keys()));
       return res.status(404).json({ error: "No pending registration found or code expired" });
     }
     
-    if (pendingUser.verificationCode !== code) {
+    console.log("📧 Stored verification code:", pendingUser.verificationCode);
+    console.log("📧 Stored code type:", typeof pendingUser.verificationCode);
+    console.log("📧 Comparing:", pendingUser.verificationCode, "===", code);
+    console.log("📧 Match result:", pendingUser.verificationCode === code);
+    console.log("📧 Match result (string):", String(pendingUser.verificationCode) === String(code));
+    
+    // ✅ FIX: Convert both to strings for comparison
+    if (String(pendingUser.verificationCode) !== String(code)) {
+      console.log("❌ Invalid verification code - mismatch");
       return res.status(400).json({ error: "Invalid verification code" });
     }
     
+    console.log("📧 Code verified successfully!");
+    
     if (pendingUser.verificationExpiry && new Date() > pendingUser.verificationExpiry) {
+      console.log("❌ Code expired at:", pendingUser.verificationExpiry);
       pendingRegistrations.delete(normalizedEmail);
       return res.status(400).json({ error: "Verification code has expired. Please register again." });
     }
+    
+    console.log("📧 Creating user in database...");
     
     // ✅ NOW save to database - ONLY AFTER VERIFICATION
     const user = await prisma.user.create({
@@ -5299,10 +5321,13 @@ app.post("/api/verify-email", async (req, res) => {
       }
     });
     
+    console.log("✅ User created successfully with ID:", user.id);
+    
     // ✅ Delete from pending memory
     pendingRegistrations.delete(normalizedEmail);
+    console.log("📧 Removed from pending storage");
     
-    // ✅ Send welcome email
+    // ✅ Send welcome email (fire and forget)
     (async () => {
       try {
         await sendWelcomeEmail(user, user.membership_number);
@@ -5319,6 +5344,8 @@ app.post("/api/verify-email", async (req, res) => {
       { expiresIn: "365d" }
     );
     
+    console.log("✅ Verification complete! Sending success response...");
+    
     res.json({
       success: true,
       message: "Email verified successfully! Account created.",
@@ -5333,7 +5360,7 @@ app.post("/api/verify-email", async (req, res) => {
     });
     
   } catch (err) {
-    console.error("Verification error:", err);
+    console.error("❌ Verification error:", err);
     res.status(500).json({ error: err.message });
   }
 });

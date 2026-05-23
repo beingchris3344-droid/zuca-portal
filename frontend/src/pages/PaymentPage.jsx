@@ -39,6 +39,7 @@ function PaymentPage() {
   const [touchStart, setTouchStart] = useState(null);
   const slideIntervalRef = useRef(null);
   const slideshowRef = useRef(null);
+  const [waitingForCallback, setWaitingForCallback] = useState(false);
   
   // Slideshow images array
   const slides = [
@@ -104,6 +105,102 @@ function PaymentPage() {
       }
     };
   }, [isPlaying, slides.length]);
+
+
+const pollPaymentStatus = (paymentId) => {
+  console.log("🟢 pollPaymentStatus STARTED with ID:", paymentId);
+  let attempts = 0;
+  const maxAttempts = 60; // 3 minutes total
+  
+  const interval = setInterval(async () => {
+    attempts++;
+    console.log(`🟡 Attempt ${attempts}: Checking payment status for ${paymentId}`);
+    
+    try {
+      const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${paymentId}/status`);
+      console.log(`📊 Attempt ${attempts}: Status =`, response.data.payment?.status);
+      
+      // SUCCESS - payment completed
+      if (response.data.payment?.status === "SUCCESS") {
+        console.log("✅ Payment SUCCESS!");
+        clearInterval(interval);
+        setMessage({ text: `✅ Payment successful! Receipt: ${response.data.payment.mpesaReceiptNumber || 'N/A'}`, type: "success" });
+        setProcessing(false);
+        
+        const paymentData = {
+          receiptNumber: response.data.payment.mpesaReceiptNumber,
+          amount: response.data.payment.amount,
+          campaignTitle: campaign.title,
+          timestamp: new Date().toLocaleString(),
+        };
+        localStorage.setItem("lastPayment", JSON.stringify(paymentData));
+        localStorage.removeItem("lastPaymentId");
+        
+        setTimeout(() => {
+          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}`);
+        }, 2000);
+        return;
+      }
+      
+      // FAILED - actual failure
+      if (response.data.payment?.status === "FAILED") {
+        console.log("❌ Payment FAILED:", response.data.payment.resultDesc);
+        clearInterval(interval);
+        setMessage({ text: `❌ Payment failed: ${response.data.payment.resultDesc || 'Please try again'}`, type: "error" });
+        setProcessing(false);
+        localStorage.removeItem("lastPaymentId");
+        return;
+      }
+      
+      // PENDING - still waiting (this is NORMAL, don't show error!)
+      if (response.data.payment?.status === "PENDING") {
+        console.log("⏳ Still PENDING, waiting...");
+        // Only show status update every 10 seconds so user knows we're waiting
+        if (attempts % 3 === 0) {
+          const secondsElapsed = attempts * 3;
+          setMessage({ text: `⏳ Processing payment... (${secondsElapsed}s). Please check your phone.`, type: "info" });
+        }
+      }
+      
+    } catch (err) {
+      console.error("❌ Status check error:", err);
+    }
+    
+    // Timeout after max attempts
+    if (attempts >= maxAttempts) {
+      console.log("⏰ Max attempts reached, giving up");
+      clearInterval(interval);
+      setMessage({ text: "⏳ Payment is still being processed. You will receive an SMS and email confirmation shortly.", type: "info" });
+      setProcessing(false);
+    }
+  }, 3000);
+};
+  // Check for pending payment when page loads (for recovery)
+useEffect(() => {
+  const checkPendingPayment = async () => {
+    const lastPaymentId = localStorage.getItem("lastPaymentId");
+    if (lastPaymentId) {
+      console.log("Found pending payment:", lastPaymentId);
+      try {
+        const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${lastPaymentId}/status`);
+        if (response.data.payment?.status === "SUCCESS") {
+          // Payment was successful even though frontend didn't know!
+          localStorage.removeItem("lastPaymentId");
+          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}`);
+        } else if (response.data.payment?.status === "PENDING") {
+          setMessage({ text: "We found a pending payment. Waiting for confirmation...", type: "info" });
+          setProcessing(true);
+          pollPaymentStatus(lastPaymentId);
+        } else {
+          localStorage.removeItem("lastPaymentId");
+        }
+      } catch (err) {
+        console.error("Error checking pending payment:", err);
+      }
+    }
+  };
+  checkPendingPayment();
+}, []);
   
   // Get user from localStorage
   const token = localStorage.getItem("token");
@@ -137,104 +234,69 @@ function PaymentPage() {
     fetchCampaign();
   }, [slug, campaignId, isLoggedIn, user.phone]);
   
-  const pollPaymentStatus = (paymentId) => {
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      try {
-        const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${paymentId}/status`);
-        
-        if (response.data.payment?.status === "SUCCESS") {
-          clearInterval(interval);
-          
-          // Save payment data for success page
-          const paymentData = {
-            receiptNumber: response.data.payment.mpesaReceiptNumber,
-            amount: response.data.payment.amount,
-            campaignTitle: campaign.title,
-            timestamp: new Date().toLocaleString(),
-          };
-          localStorage.setItem("lastPayment", JSON.stringify(paymentData));
-          
-          // Redirect to success page with payment data
-          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}`);
-          
-        } else if (response.data.payment?.status === "FAILED") {
-          clearInterval(interval);
-          setMessage({ text: `❌ Payment failed: ${response.data.payment.resultDesc || 'Please try again'}`, type: "error" });
-          setProcessing(false);
-        }
-      } catch (err) {}
-      
-      if (attempts > 30) {
-        clearInterval(interval);
-        setMessage({ text: "⏳ Payment is being processed. You will receive an SMS and email confirmation.", type: "info" });
-        setProcessing(false);
-      }
-    }, 3000);
-  };
   
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoginMessage("");
-    
-    try {
-      const response = await axios.post(`${BASE_URL}/api/login`, {
-        email: loginEmail,
-        password: loginPassword
-      });
-      
-      if (response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-        setLoginMessage("✅ Login successful! Refreshing...");
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    } catch (err) {
-      setLoginMessage(err.response?.data?.error || "Login failed. Please try again.");
-    }
-  };
+
+ 
+
+const handlePayment = async () => {
+  if (!isLoggedIn) {
+    setShowLoginForm(true);
+    return;
+  }
   
-  const handlePayment = async () => {
-    if (!isLoggedIn) {
-      setShowLoginForm(true);
-      return;
-    }
-    
-    if (!phone || phone.length < 10) {
-      setMessage({ text: "Please enter a valid M-PESA phone number", type: "error" });
-      return;
-    }
-    
-    if (!amount || amount < 10) {
-      setMessage({ text: "Please enter a valid amount (minimum KES 10)", type: "error" });
-      return;
-    }
-    
-    setProcessing(true);
-    setMessage({ text: "", type: "" });
-    
-    try {
-      const response = await axios.post(
-        `${BASE_URL}/api/mpesa/stk-push`,
-        {
-          campaignId: campaign.id,
-          amount: parseFloat(amount),
-          phoneNumber: phone,
-          userId: user.id
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      if (response.data.success) {
-        setMessage({ text: "✅ STK Push sent! Check your phone and enter your PIN.", type: "success" });
-        pollPaymentStatus(response.data.paymentId);
+  if (!phone || phone.length < 10) {
+    setMessage({ text: "Please enter a valid M-PESA phone number", type: "error" });
+    return;
+  }
+  
+  if (!amount || amount < 10) {
+    setMessage({ text: "Please enter a valid amount (minimum KES 10)", type: "error" });
+    return;
+  }
+  
+  setProcessing(true);
+  setMessage({ text: "⏳ Sending request to M-PESA...", type: "info" });
+  
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/api/mpesa/stk-push`,
+      {
+        campaignId: campaign.id,
+        amount: parseFloat(amount),
+        phoneNumber: phone,
+        userId: user.id
+      },
+      { 
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 120000 
       }
-    } catch (err) {
-      setMessage({ text: `❌ ${err.response?.data?.error || "Payment failed. Please try again."}`, type: "error" });
+    );
+    
+    if (response.data.success) {
+     localStorage.setItem("lastPaymentId", response.data.paymentId)
+      pollPaymentStatus(response.data.paymentId);
+    } else {
+      setMessage({ text: `❌ ${response.data.error || "Payment failed. Please try again."}`, type: "error" });
       setProcessing(false);
     }
-  };
+ } catch (err) {
+  console.error("Payment error:", err);
+  
+  // If it's a timeout, the payment might still be processing
+  if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+    // DON'T show "failed" - show "processing"
+    setMessage({ 
+      text: "⚠️ Payment is being processed. Please check your phone for the M-PESA prompt. The page will update automatically when confirmed.", 
+      type: "info" 
+    });
+    // Keep processing true - don't let user retry yet
+    // The pollPaymentStatus should still be running
+  } else {
+    setMessage({ text: `❌ ${err.response?.data?.error || "Payment failed"}`, type: "error" });
+    setProcessing(false);
+  }
+}
+};
   
   if (loading) {
     return (

@@ -109,54 +109,17 @@ router.post("/stk-push", async (req, res) => {
       console.log(`Created temporary user for guest payment: ${user.id}`);
     }
     
-    // Get or create pledge
-    let pledge = await prisma.pledge.findFirst({
-      where: {
-        userId: user.id,
-        contributionTypeId: campaignId
-      },
-      include: {
-        contributionType: true,
-        user: true
-      }
-    });
-    
-    if (!pledge) {
-      pledge = await prisma.pledge.create({
-        data: {
-          userId: user.id,
-          contributionTypeId: campaignId,
-          amountPaid: 0,
-          pendingAmount: amount,
-          status: "PENDING"
-        },
-        include: {
-          contributionType: true,
-          user: true
-        }
-      });
-    } else {
-      const newPendingAmount = (pledge.pendingAmount || 0) + amount;
-      pledge = await prisma.pledge.update({
-        where: { id: pledge.id },
-        data: { pendingAmount: newPendingAmount },
-        include: {
-          contributionType: true,
-          user: true
-        }
-      });
-    }
-    
-    // Create payment record
-    const payment = await prisma.payment.create({
-      data: {
-        amount: amount,
-        phoneNumber: phoneNumber,
-        status: "PENDING",
-        pledgeId: pledge.id,
-        userId: user.id
-      }
-    });
+    // ========== REMOVED ALL PLEDGE CODE ==========
+    // Create payment record directly - NO pledge!
+ const payment = await prisma.payment.create({
+  data: {
+    amount: amount,
+    phoneNumber: phoneNumber,
+    status: "PENDING",
+    userId: user.id,
+    contributionTypeId: campaignId  // Direct link to campaign
+  }
+});
     
     // Initiate STK Push
     const callbackUrl = process.env.MPESA_CALLBACK_URL 
@@ -221,8 +184,7 @@ router.post("/stk-push", async (req, res) => {
     console.error("STK Push error:", err);
     res.status(500).json({ error: err.message });
   }
-});
-// 3. M-PESA Callback URL (webhook)
+});// 3. M-PESA Callback URL (webhook)
 router.post("/callback", async (req, res) => {
   try {
     console.log("M-PESA Callback received:", JSON.stringify(req.body, null, 2));
@@ -235,17 +197,14 @@ router.post("/callback", async (req, res) => {
     const { stkCallback } = Body;
     const { ResultCode, ResultDesc, CheckoutRequestID, CallbackMetadata } = stkCallback;
     
+    // Find payment - NO pledge, include user and contributionType directly
     const payment = await prisma.payment.findFirst({
       where: { checkoutRequestID: CheckoutRequestID },
       include: {
-        pledge: {
+        user: true,
+        contributionType: {
           include: {
-            contributionType: {
-              include: {
-                jumuia: true
-              }
-            },
-            user: true
+            jumuia: true
           }
         }
       }
@@ -255,6 +214,10 @@ router.post("/callback", async (req, res) => {
       console.log("Payment not found for CheckoutRequestID:", CheckoutRequestID);
       return res.status(200).json({ ResultCode: 0, ResultDesc: "OK" });
     }
+    
+    // DECLARE THESE ONCE HERE (outside the if block)
+    const campaign = payment.contributionType;
+    const payer = payment.user;
     
     if (ResultCode === 0) {
       let mpesaReceiptNumber = "";
@@ -271,6 +234,7 @@ router.post("/callback", async (req, res) => {
         }
       }
       
+      // Update payment status to SUCCESS
       await prisma.payment.update({
         where: { id: payment.id },
         data: {
@@ -281,60 +245,98 @@ router.post("/callback", async (req, res) => {
           completedAt: new Date()
         }
       });
+
+    // Find the user's pledge for this campaign
+let userPledge = await prisma.pledge.findFirst({
+  where: {
+    userId: payer.id,
+    contributionTypeId: campaign.id
+  }
+});
+
+if (userPledge) {
+  // Update existing pledge - JUST LIKE MANUAL ADD!
+  const newAmountPaid = (userPledge.amountPaid || 0) + amount;
+  const newPendingAmount = Math.max(0, (userPledge.pendingAmount || 0) - amount);
+  let newStatus = userPledge.status;
+  
+  if (newPendingAmount === 0 && newAmountPaid > 0) {
+    newStatus = "APPROVED";
+  }
+  if (newAmountPaid >= campaign.amountRequired) {
+    newStatus = "COMPLETED";
+  }
+  
+  await prisma.pledge.update({
+    where: { id: userPledge.id },
+    data: {
+      amountPaid: newAmountPaid,
+      pendingAmount: newPendingAmount,
+      status: newStatus
+    }
+  });
+  
+  console.log(`✅ Updated pledge: amountPaid=${newAmountPaid}, pendingAmount=${newPendingAmount}, status=${newStatus}`);
+} else {
+  // No pledge exists - create one with the payment as amountPaid
+  await prisma.pledge.create({
+    data: {
+      userId: payer.id,
+      contributionTypeId: campaign.id,
+      amountPaid: amount,
+      pendingAmount: 0,
+      status: "APPROVED"
+    }
+  });
+  console.log(`✅ Created new pledge with amountPaid=${amount}`);
+}
+
+// Also update campaign collected amount
+await prisma.contributionType.update({
+  where: { id: campaign.id },
+  data: {
+    collectedAmount: {
+      increment: amount
+    }
+  }
+});
       
-      const newAmountPaid = (payment.pledge.amountPaid || 0) + amount;
-      const newPendingAmount = Math.max(0, (payment.pledge.pendingAmount || 0) - amount);
-      let newStatus = "APPROVED";
-      
-      if (newAmountPaid >= payment.pledge.contributionType.amountRequired) {
-        newStatus = "COMPLETED";
-      }
-      
-      await prisma.pledge.update({
-        where: { id: payment.pledgeId },
-        data: {
-          amountPaid: newAmountPaid,
-          pendingAmount: newPendingAmount,
-          status: newStatus,
-          approvedAt: new Date()
-        }
-      });
-      
-      const campaign = payment.pledge.contributionType;
-      const payer = payment.pledge.user;
+      // ========== REMOVED ALL PLEDGE CODE ==========
       const isJumuiaCampaign = campaign.jumuiaId !== null;
       const jumuiaName = campaign.jumuia?.name || "Global";
       const jumuiaId = campaign.jumuiaId;
       
-      // Send notifications
+      // Send receipt email
       if (payer.email) {
         (async () => {
           try {
-          await sendPersonalizedEmail(
-  { email: payer.email, fullName: payer.fullName },
-  "payment_receipt",
-  `💰 Payment Receipt for ${campaign.title}`,
-  `Dear ${payer.fullName},...`,
-  { 
-    amount: amount, 
-    receiptNumber: mpesaReceiptNumber, 
-    campaignTitle: campaign.title  // ← Use 'campaignTitle' to match mailer.js
-  }
-);
+            await sendPersonalizedEmail(
+              { email: payer.email, fullName: payer.fullName },
+              "payment_receipt",
+              `💰 Payment Receipt for ${campaign.title}`,
+              `Dear ${payer.fullName},\n\nThank you for your payment of KES ${amount.toLocaleString()} towards "${campaign.title}".\n\nM-PESA Receipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
+              { 
+                amount: amount, 
+                receiptNumber: mpesaReceiptNumber, 
+                campaignTitle: campaign.title
+              }
+            );
           } catch (emailErr) {
             console.error("Failed to send receipt email:", emailErr.message);
           }
         })();
       }
       
+      // Create notification for user
       await createNotification({
         userId: payer.id,
         type: "payment_success",
         title: "✅ Payment Successful!",
         message: `Your payment of KES ${amount.toLocaleString()} for "${campaign.title}" has been received. Receipt: ${mpesaReceiptNumber}`,
-        data: { pledgeId: payment.pledgeId, amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title }
+        data: { amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title }
       });
       
+      // Notify admins
       const admins = await prisma.user.findMany({
         where: { role: "admin" },
         select: { id: true, fullName: true }
@@ -346,10 +348,11 @@ router.post("/callback", async (req, res) => {
           type: "payment_received",
           title: "💰 New Payment Received",
           message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-          data: { pledgeId: payment.pledgeId, userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
         });
       }
       
+      // Notify treasurers
       const treasurers = await prisma.user.findMany({
         where: { specialRole: "treasurer" },
         select: { id: true, fullName: true }
@@ -361,10 +364,11 @@ router.post("/callback", async (req, res) => {
           type: "payment_received",
           title: "💰 New Payment Received",
           message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-          data: { pledgeId: payment.pledgeId, userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
         });
       }
       
+      // Notify jumuia leaders if applicable
       if (isJumuiaCampaign && jumuiaId) {
         const jumuiaLeaders = await prisma.user.findMany({
           where: { specialRole: "jumuia_leader", assignedJumuiaId: jumuiaId },
@@ -377,24 +381,20 @@ router.post("/callback", async (req, res) => {
             type: "jumuia_payment",
             title: `🏠 ${jumuiaName} - New Payment`,
             message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}"`,
-            data: { pledgeId: payment.pledgeId, userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId: jumuiaId, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+            data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId: jumuiaId, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
           });
         }
       }
       
+      // Socket.io events
       const io = req.app.get("io");
       if (io) {
         io.to(payer.id).emit("payment_updated", {
-          pledgeId: payment.pledgeId,
-          amountPaid: newAmountPaid,
-          pendingAmount: newPendingAmount,
-          status: newStatus,
           amountJustPaid: amount,
           receiptNumber: mpesaReceiptNumber
         });
         
         io.emit("admin_payment_received", {
-          pledgeId: payment.pledgeId,
           userName: payer.fullName,
           amount: amount,
           campaign: campaign.title,
@@ -405,7 +405,6 @@ router.post("/callback", async (req, res) => {
         
         if (isJumuiaCampaign && jumuiaId) {
           io.to(`jumuia-${jumuiaId}`).emit("jumuia_payment_received", {
-            pledgeId: payment.pledgeId,
             userName: payer.fullName,
             amount: amount,
             campaign: campaign.title,
@@ -417,6 +416,7 @@ router.post("/callback", async (req, res) => {
       console.log(`✅ Payment processed: ${mpesaReceiptNumber} for ${payer.fullName} (${jumuiaName})`);
       
     } else {
+      // Payment failed
       await prisma.payment.update({
         where: { id: payment.id },
         data: {
@@ -427,11 +427,11 @@ router.post("/callback", async (req, res) => {
       });
       
       await createNotification({
-        userId: payment.pledge.userId,
+        userId: payment.userId,
         type: "payment_failed",
         title: "❌ Payment Failed",
-        message: `Your payment of KES ${payment.amount.toLocaleString()} for "${payment.pledge.contributionType.title}" failed. Reason: ${ResultDesc}`,
-        data: { pledgeId: payment.pledgeId }
+        message: `Your payment of KES ${payment.amount.toLocaleString()} for "${payment.contributionType.title}" failed. Reason: ${ResultDesc}`,
+        data: { amount: payment.amount }
       });
       
       console.log(`❌ Payment failed: ${ResultDesc}`);
@@ -482,49 +482,72 @@ router.get("/campaign-by-id/:campaignId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // 4. Query payment status
 router.get("/payment/:paymentId/status", async (req, res) => {
   try {
     const { paymentId } = req.params;
     
     const payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: {
-        pledge: {
-          include: {
-            contributionType: true,
-            user: true
-          }
-        }
-      }
+      where: { id: paymentId }
     });
     
     if (!payment) {
       return res.status(404).json({ error: "Payment not found" });
     }
     
+    console.log("📊 Status check - Payment:", {
+      id: payment.id,
+      status: payment.status,
+      checkoutRequestID: payment.checkoutRequestID,
+      amount: payment.amount
+    });
+    
+    // Only query M-PESA if still pending and we have a checkoutRequestID
     if (payment.status === "PENDING" && payment.checkoutRequestID) {
       try {
+        console.log("🔍 Querying M-PESA status for:", payment.checkoutRequestID);
         const result = await mpesaService.queryStatus(payment.checkoutRequestID);
+        console.log("📡 M-PESA query result:", JSON.stringify(result, null, 2));
+        
+        // ResultCode 0 = Success
         if (result.ResultCode === 0) {
+          console.log("✅ Payment successful!");
           await prisma.payment.update({
             where: { id: payment.id },
-            data: { status: "SUCCESS" }
+            data: { 
+              status: "SUCCESS",
+              completedAt: new Date()
+            }
           });
           payment.status = "SUCCESS";
-        } else if (result.ResultCode !== 1037) {
+        } 
+      // ResultCode 1037 or 4999 = Pending (still processing)
+else if (result.ResultCode === "1037" || result.ResultCode === "4999") {
+  console.log("⏳ Payment still pending - waiting for PIN...");
+  // Keep as PENDING - don't change
+}
+        // Any other ResultCode = Failed
+        else {
+          console.log("❌ Payment failed with code:", result.ResultCode);
           await prisma.payment.update({
             where: { id: payment.id },
-            data: { status: "FAILED", resultDesc: result.ResultDesc }
+            data: { 
+              status: "FAILED", 
+              resultDesc: result.ResultDesc || "Payment failed"
+            }
           });
           payment.status = "FAILED";
         }
       } catch (err) {
-        console.error("Status query error:", err.message);
+        console.error("❌ Status query error:", err.message);
+        console.error("Full error:", err);
+        // Don't change status on error - keep as PENDING
       }
+    } else {
+      console.log("📊 Not querying M-PESA. Status:", payment.status, "Has checkoutID:", !!payment.checkoutRequestID);
     }
     
+    // Return payment status to frontend
     res.json({
       success: true,
       payment: {
@@ -535,19 +558,13 @@ router.get("/payment/:paymentId/status", async (req, res) => {
         resultDesc: payment.resultDesc,
         createdAt: payment.createdAt,
         completedAt: payment.completedAt
-      },
-      pledge: {
-        amountPaid: payment.pledge.amountPaid,
-        pendingAmount: payment.pledge.pendingAmount,
-        status: payment.pledge.status
       }
     });
   } catch (err) {
-    console.error("Status check error:", err);
+    console.error("❌ Status check error:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // Get payment page by campaign ID (no slug needed)
 router.get("/pay/campaign/:campaignId", async (req, res) => {

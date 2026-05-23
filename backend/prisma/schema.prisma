@@ -153,16 +153,17 @@ model ContributionType {
   id             String    @id @default(uuid())
   title          String
   description    String?
-  amountRequired Float
+  amountRequired Float      // Target amount
+  collectedAmount Float     @default(0)  // ← ADD THIS - actual amount collected
   deadline       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  jumuiaId       String? // null = for all members, specific jumuia = for that jumuia only
+  jumuiaId       String?
   jumuia         Jumuia?   @relation(fields: [jumuiaId], references: [id])
   pledges        Pledge[]
-   paymentSlug    String?   @unique
+  paymentSlug    String?   @unique
+  payments       Payment[]
 }
-
 model Pledge {
   id                 String           @id @default(uuid())
   userId             String
@@ -179,7 +180,8 @@ model Pledge {
   contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Cascade)
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   pledgeMessages     PledgeMessage[]
-   payments           Payment[]  
+    payments           Payment[]  
+   
 }
 
 model ChatRoom {
@@ -832,9 +834,14 @@ model Payment {
   resultCode         Int?
   resultDesc         String?
   
-  // Relations
-  pledgeId           String
-  pledge             Pledge       @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  // Make pledge OPTIONAL
+  pledgeId           String?
+  pledge             Pledge?      @relation(fields: [pledgeId], references: [id], onDelete: SetNull)
+  
+  // Add contributionType relation
+  contributionTypeId String?
+  contributionType   ContributionType? @relation(fields: [contributionTypeId], references: [id], onDelete: SetNull)
+  
   userId             String
   user               User         @relation(fields: [userId], references: [id])
   

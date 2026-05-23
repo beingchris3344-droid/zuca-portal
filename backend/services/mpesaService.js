@@ -70,54 +70,55 @@ class MpesaService {
   }
 
   async stkPush(phoneNumber, amount, accountReference, transactionDesc, callbackUrl) {
-    try {
-      const token = await this.getAccessToken();
-      const formattedPhone = this.formatPhoneNumber(phoneNumber);
-      const timestamp = this.getTimestamp();
-      const password = Buffer.from(
-        `${this.shortcode}${this.passkey}${timestamp}`
-      ).toString("base64");
-      
-      const requestBody = {
-        BusinessShortCode: this.shortcode,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: "CustomerPayBillOnline",
-        Amount: Math.round(amount),
-        PartyA: formattedPhone,
-        PartyB: this.shortcode,
-        PhoneNumber: formattedPhone,
-        CallBackURL: callbackUrl,
-        AccountReference: accountReference.substring(0, 12),
-        TransactionDesc: transactionDesc.substring(0, 13),
-      };
-      
-      const response = await axios.post(
-        `${this.baseURL}/mpesa/stkpush/v1/processrequest`,
-        requestBody,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      
-      return {
-        success: true,
-        checkoutRequestID: response.data.CheckoutRequestID,
-        responseCode: response.data.ResponseCode,
-        responseDescription: response.data.ResponseDescription,
-        merchantRequestID: response.data.MerchantRequestID,
-      };
-    } catch (error) {
-      console.error("STK Push failed:", error.response?.data || error.message);
-      return {
-        success: false,
-        error: error.response?.data?.errorMessage || error.message,
-      };
-    }
+  try {
+    const token = await this.getAccessToken();
+    const formattedPhone = this.formatPhoneNumber(phoneNumber);
+    const timestamp = this.getTimestamp();
+    const password = Buffer.from(
+      `${this.shortcode}${this.passkey}${timestamp}`
+    ).toString("base64");
+    
+    const requestBody = {
+      BusinessShortCode: this.shortcode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: "CustomerPayBillOnline",
+      Amount: Math.round(amount),
+      PartyA: formattedPhone,
+      PartyB: this.shortcode,
+      PhoneNumber: formattedPhone,
+      CallBackURL: callbackUrl,
+      AccountReference: accountReference.substring(0, 12),
+      TransactionDesc: transactionDesc.substring(0, 13),
+    };
+    
+    const response = await axios.post(
+      `${this.baseURL}/mpesa/stkpush/v1/processrequest`,
+      requestBody,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,  // ← Add timeout
+      }
+    );
+    
+    return {
+      success: true,
+      checkoutRequestID: response.data.CheckoutRequestID,
+      responseCode: response.data.ResponseCode,
+      responseDescription: response.data.ResponseDescription,
+      merchantRequestID: response.data.MerchantRequestID,
+    };
+  } catch (error) {
+    console.error("STK Push failed:", error.response?.data || error.message);
+    return {
+      success: false,
+      error: error.response?.data?.errorMessage || error.message,
+    };
   }
+}
 
   async queryStatus(checkoutRequestID) {
     try {

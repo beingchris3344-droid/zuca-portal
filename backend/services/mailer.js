@@ -416,6 +416,25 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
     const frontendUrl = process.env.NODE_ENV === 'production' 
       ? 'https://zucaportal.onrender.com'
       : 'https://zetechcatholic.vercel.app';
+
+       if (notificationType === 'payment_receipt') {
+      // Generate M-PESA style receipt HTML
+      const receiptHTML = generateMpesaReceiptHTML({
+        amount: data.amount,
+        campaignTitle: data.campaignTitle || data.campaign,
+        receiptNumber: data.receiptNumber
+      });
+      
+      // Send the receipt email
+      await sendViaBrevo(
+        user.email, 
+        `${emoji} ${title}`, 
+        receiptHTML, 
+        `Your payment of KES ${data.amount?.toLocaleString()} was successful. Receipt: ${data.receiptNumber}`
+      );
+      console.log(`✅ Payment receipt email sent to ${user.email} via Brevo`);
+      return true;
+    }
     
     let actionButton = '';
     let actionUrl = `${frontendUrl}/dashboard`;
@@ -575,6 +594,211 @@ ZUCA | Zetech University Catholic Action
     console.error(`❌ Email failed to ${user.email}:`, error.message);
     return false;
   }
+}
+
+// Generate M-PESA style receipt HTML (for payment receipt emails)
+function generateMpesaReceiptHTML(paymentData) {
+  const logoUrl = "https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/profiles/profile_c2dd6c54-4576-41b1-a85d-1af90d88254a_1777067617594.jpg";
+  const amount = paymentData.amount || 0;
+  const campaignTitle = paymentData.campaignTitle || 'Contribution';
+  const receiptNumber = paymentData.receiptNumber || 'N/A';
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>ZUCA Payment Receipt</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background: #e8e8e8;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          padding: 16px;
+        }
+        .receipt {
+          max-width: 380px;
+          width: 100%;
+          background: white;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          margin: 0 auto;
+        }
+        .header {
+          background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+          padding: 16px;
+          text-align: center;
+        }
+        .logos {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          margin-bottom: 8px;
+        }
+        .zuca-logo-img {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid white;
+        }
+        .mpesa-text {
+          font-size: 20px;
+          font-weight: bold;
+          color: white;
+          letter-spacing: 1px;
+        }
+        .mpesa-by {
+          font-size: 9px;
+          color: rgba(255,255,255,0.8);
+          margin-top: 2px;
+        }
+        .lipa {
+          font-size: 10px;
+          color: rgba(255,255,255,0.7);
+          margin-top: 4px;
+        }
+        .success-icon { text-align: center; padding: 16px 0 8px; }
+        .check-circle {
+          width: 48px;
+          height: 48px;
+          background: #4CAF50;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 28px;
+        }
+        .content { padding: 16px; }
+        .status { text-align: center; margin-bottom: 16px; }
+        .status-badge {
+          background: #4CAF50;
+          color: white;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: bold;
+          display: inline-block;
+        }
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+          border-bottom: 1px solid #f0f0f0;
+        }
+        .detail-label { font-size: 12px; color: #666; }
+        .detail-value {
+          font-size: 12px;
+          font-weight: 600;
+          color: #333;
+          text-align: right;
+          max-width: 60%;
+          word-break: break-word;
+        }
+        .amount-value { font-size: 20px; font-weight: bold; color: #4CAF50; }
+        .receipt-number {
+          background: #e8f5e9;
+          padding: 8px;
+          text-align: center;
+          border-radius: 8px;
+          font-family: monospace;
+          font-size: 11px;
+          letter-spacing: 0.5px;
+          margin: 12px 0;
+        }
+        .footer {
+          text-align: center;
+          padding: 12px;
+          background: #f5f5f5;
+          border-top: 1px solid #e0e0e0;
+        }
+        .footer-text { font-size: 9px; color: #999; line-height: 1.4; }
+        .timestamp { font-size: 9px; color: #999; text-align: center; margin-top: 10px; }
+        hr { margin: 12px 0; border: none; border-top: 1px dashed #ccc; }
+        @media (max-width: 480px) {
+          .receipt { max-width: 100%; }
+          .detail-value { max-width: 55%; font-size: 11px; }
+          .detail-label { font-size: 11px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <div class="header">
+          <div class="logos">
+            <img src="${logoUrl}" alt="ZUCA" class="zuca-logo-img">
+            <div>
+              <div class="mpesa-text">M-PESA</div>
+              <div class="mpesa-by">by Safaricom</div>
+            </div>
+          </div>
+          <div class="lipa">Lipa Na M-PESA</div>
+        </div>
+        <div class="success-icon">
+          <div class="check-circle">✓</div>
+        </div>
+        <div class="content">
+          <div class="status">
+            <span class="status-badge">✅ PAYMENT SENT SUCCESSFULLY</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Sent to:</span>
+            <span class="detail-value">ZUCA - Zetech Catholic Action</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Campaign:</span>
+            <span class="detail-value">${campaignTitle}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Amount:</span>
+            <span class="amount-value">KES ${amount.toLocaleString()}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Payment method:</span>
+            <span class="detail-value">M-PESA (Lipa Na M-PESA)</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Transaction type:</span>
+            <span class="detail-value">Pay Bill</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Date:</span>
+            <span class="detail-value">${new Date().toLocaleDateString()}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Time:</span>
+            <span class="detail-value">${new Date().toLocaleTimeString()}</span>
+          </div>
+          <div class="receipt-number">
+            M-PESA Receipt: ${receiptNumber}
+          </div>
+          <hr>
+          <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value" style="color: #4CAF50;">Completed ✓</span>
+          </div>
+          <div class="timestamp">
+            Receipt generated: ${new Date().toLocaleString()}
+          </div>
+        </div>
+        <div class="footer">
+          <div class="footer-text">
+            Official ZUCA payment receipt • Valid without signature
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 }
 
 // ==================== BULK EMAIL SENDING (USES BREVO) ====================

@@ -164,16 +164,17 @@ router.post("/stk-push", async (req, res) => {
         : `${getBaseUrl(req)}/api/mpesa/callback`;
 
     console.log("📡 Callback URL:", callbackUrl);
-   // Determine campaign type
-const campaignType = campaign.jumuiaId ? 'Jumuia' : 'ZUCA';
-let shortTitle = campaign.title;
+    
+    // Determine campaign type
+    const campaignType = campaign.jumuiaId ? 'Jumuia' : 'ZUCA';
+    let shortTitle = campaign.title;
 
-if (shortTitle.length > 25) {
-    shortTitle = shortTitle.substring(0, 22) + '...';
-}
+    if (shortTitle.length > 25) {
+        shortTitle = shortTitle.substring(0, 22) + '...';
+    }
 
-const accountReference = `${campaignType}: ${shortTitle}`;
-const transactionDesc = `Payment to ${campaignType} - ${shortTitle}`;
+    const accountReference = `${campaignType}: ${shortTitle}`;
+    const transactionDesc = `Payment to ${campaignType} - ${shortTitle}`;
     
     const result = await mpesaService.stkPush(
       phoneNumber,
@@ -182,13 +183,20 @@ const transactionDesc = `Payment to ${campaignType} - ${shortTitle}`;
       transactionDesc,
       callbackUrl
     );
-    
-    if (result.success) {
+
+    console.log("📢 STK Push Result:", JSON.stringify(result, null, 2));
+
+    // ALWAYS save the checkoutRequestID if we have one
+    if (result.checkoutRequestID) {
       await prisma.payment.update({
         where: { id: payment.id },
         data: { checkoutRequestID: result.checkoutRequestID }
       });
-      
+    }
+
+    // Even if result.success is false, the STK push might still be processing
+    // Keep the payment as PENDING, don't mark as FAILED immediately
+    if (result.success) {
       res.json({
         success: true,
         message: "STK Push sent. Check your phone for the M-PESA prompt.",
@@ -196,14 +204,17 @@ const transactionDesc = `Payment to ${campaignType} - ${shortTitle}`;
         paymentId: payment.id
       });
     } else {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: "FAILED", resultDesc: result.error }
-      });
+      // Don't mark as FAILED - the user might still receive the prompt
+      console.log("⚠️ STK Push response was not successful, but keeping as PENDING");
+      console.log("Error details:", result.error);
       
-      res.status(400).json({
+      // Keep payment as PENDING (don't update status to FAILED)
+      res.json({
         success: false,
-        error: result.error || "Failed to initiate payment"
+        message: "Payment is being processed. Please check your phone for the M-PESA prompt.",
+        error: result.error,
+        paymentId: payment.id,
+        checkoutRequestID: result.checkoutRequestID
       });
     }
   } catch (err) {
@@ -211,7 +222,6 @@ const transactionDesc = `Payment to ${campaignType} - ${shortTitle}`;
     res.status(500).json({ error: err.message });
   }
 });
-
 // 3. M-PESA Callback URL (webhook)
 router.post("/callback", async (req, res) => {
   try {
@@ -300,13 +310,17 @@ router.post("/callback", async (req, res) => {
       if (payer.email) {
         (async () => {
           try {
-            await sendPersonalizedEmail(
-              { email: payer.email, fullName: payer.fullName },
-              "payment_receipt",
-              `💰 Payment Receipt for ${campaign.title}`,
-              `Dear ${payer.fullName},\n\nThank you for your payment of KES ${amount.toLocaleString()} towards "${campaign.title}".\n\nM-PESA Receipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
-              { amount, receiptNumber: mpesaReceiptNumber, campaign: campaign.title }
-            );
+          await sendPersonalizedEmail(
+  { email: payer.email, fullName: payer.fullName },
+  "payment_receipt",
+  `💰 Payment Receipt for ${campaign.title}`,
+  `Dear ${payer.fullName},...`,
+  { 
+    amount: amount, 
+    receiptNumber: mpesaReceiptNumber, 
+    campaignTitle: campaign.title  // ← Use 'campaignTitle' to match mailer.js
+  }
+);
           } catch (emailErr) {
             console.error("Failed to send receipt email:", emailErr.message);
           }

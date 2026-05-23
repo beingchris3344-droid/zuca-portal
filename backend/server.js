@@ -351,6 +351,8 @@ const io = new Server(server, {
   },
 });
 
+app.set("io", io);
+
 // Track online users
 let onlineUsers = new Map(); // userId -> socketId
 let userSocketMap = new Map(); // socketId -> userId
@@ -5739,6 +5741,14 @@ app.post("/api/auth/resend-code", async (req, res) => {
 });
 
 
+// Import M-PESA routes
+const mpesaRoutes = require("./routes/mpesaRoutes");
+
+// Register M-PESA routes
+app.use("/api/mpesa", mpesaRoutes);
+app.use("/", mpesaRoutes); // For the /pay/:slug route
+
+
 // ================== GROQ AI ROUTES ==================
 const aiRoutes = require("./routes/ai");
 app.use("/api", aiRoutes);
@@ -10398,7 +10408,7 @@ app.get("/api/my-contribution-stats", authenticate, async (req, res) => {
 });
 
 
-  // ... your existing calculatePledgeState function ...
+  // existing calculatePledgeState function ...
 
 
 
@@ -10559,6 +10569,26 @@ app.get("/api/contribution-types", authenticate, async (req, res) => {
     });
     res.json(types);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single contribution type by ID (for payment page)
+app.get("/api/contribution-types/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const contributionType = await prisma.contributionType.findUnique({
+      where: { id }
+    });
+    
+    if (!contributionType) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    
+    res.json(contributionType);
+  } catch (err) {
+    console.error("Error fetching campaign:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -11083,7 +11113,7 @@ app.put("/api/pledges/:pledgeId/messages/read", authenticate, async (req, res) =
 });
 
 // ================== GLOBAL PLEDGE ACTIONS ==================
-// ADD THIS AFTER YOUR EXISTING PLEDGE ROUTES
+
 
 app.put("/api/pledges/:pledgeId/approve", authenticate, async (req, res) => {
   try {
@@ -11336,6 +11366,7 @@ app.post("/api/send-test-notification", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // ================== PUSH NOTIFICATIONS ==================
 const webpush = require('web-push');
 

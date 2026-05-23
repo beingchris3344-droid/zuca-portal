@@ -87,6 +87,8 @@ model User {
 
   files File[] // Files uploaded by this user
 
+    payments             Payment[]   
+
   
 }
 
@@ -158,6 +160,7 @@ model ContributionType {
   jumuiaId       String? // null = for all members, specific jumuia = for that jumuia only
   jumuia         Jumuia?   @relation(fields: [jumuiaId], references: [id])
   pledges        Pledge[]
+   paymentSlug    String?   @unique
 }
 
 model Pledge {
@@ -176,6 +179,7 @@ model Pledge {
   contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Cascade)
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   pledgeMessages     PledgeMessage[]
+   payments           Payment[]  
 }
 
 model ChatRoom {
@@ -814,4 +818,34 @@ model TreasurerNote {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+
+model Payment {
+  id                 String       @id @default(uuid())
+  amount             Float
+  phoneNumber        String
+  transactionId      String?      @unique
+  checkoutRequestID  String?      @unique
+  mpesaReceiptNumber String?      @unique
+  status             PaymentStatus @default(PENDING)
+  resultCode         Int?
+  resultDesc         String?
+  
+  // Relations
+  pledgeId           String
+  pledge             Pledge       @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User         @relation(fields: [userId], references: [id])
+  
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  completedAt        DateTime?
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
 }

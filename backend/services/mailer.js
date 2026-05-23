@@ -1,43 +1,29 @@
 // services/mailer.js
-const nodemailer = require('nodemailer');
 const SibApiV3Sdk = require('sib-api-v3-sdk');
 
-// ==================== GMAIL FOR NOTIFICATIONS ====================
-const gmailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// ==================== BREVO FOR REGISTRATION & RESET ====================
+// ==================== BREVO FOR ALL EMAILS ====================
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
 const apiKey = defaultClient.authentications['api-key'];
 apiKey.apiKey = process.env.BREVO_API_KEY;
 const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
 // Helper: Send via Brevo
-async function sendViaBrevo(to, subject, htmlContent, textContent) {
-  let sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-  sendSmtpEmail.to = [{ email: to }];
-  sendSmtpEmail.sender = { email: process.env.EMAIL_USER, name: "ZUCA 🙏" };
-  sendSmtpEmail.subject = subject;
-  sendSmtpEmail.htmlContent = htmlContent;
-  sendSmtpEmail.textContent = textContent || "";
-  
-  await brevoApi.sendTransacEmail(sendSmtpEmail);
-}
-
-// Helper: Send via Gmail
-async function sendViaGmail(to, subject, htmlContent, textContent) {
-  await gmailTransporter.sendMail({
-    from: `"ZUCA 🙏" <${process.env.EMAIL_USER}>`,
-    to: to,
-    subject: subject,
-    html: htmlContent,
-    text: textContent
-  });
+async function sendViaBrevo(to, subject, htmlContent, textContent, fromName = "ZUCA 🙏") {
+  try {
+    let sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.sender = { email: process.env.EMAIL_USER || "zucaportal2025@gmail.com", name: fromName };
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = htmlContent;
+    sendSmtpEmail.textContent = textContent || "";
+    
+    const response = await brevoApi.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email sent to ${to} via Brevo, MessageId: ${response.messageId}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Brevo email failed to ${to}:`, error.message);
+    return false;
+  }
 }
 
 // Helper: Get warm, spiritual greeting
@@ -71,6 +57,9 @@ function getNotificationEmoji(type) {
     'pledge_message': '💬',
     'new_pledge': '🎯',
     'payment_added': '💵',
+    'payment_success': '✅',
+    'payment_received': '💰',
+    'payment_failed': '❌',
     'game_invite': '🎮',
     'event_reminder': '⏰',
     'schedule': '📅',
@@ -100,6 +89,8 @@ function getNotificationColor(type) {
     'contribution': '#fbbf24',
     'pledge_approved': '#10b981',
     'payment_added': '#10b981',
+    'payment_success': '#10b981',
+    'payment_received': '#10b981',
     'event_reminder': '#f59e0b',
     'youtube_live': '#ef4444',
     'executive_appointment': '#fbbf24',
@@ -127,7 +118,7 @@ function getRandomBlessing() {
   return blessings[Math.floor(Math.random() * blessings.length)];
 }
 
-// ==================== WELCOME EMAIL (USES BREVO) ====================
+// ==================== WELCOME EMAIL ====================
 async function sendWelcomeEmail(user, membershipNumber) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -305,7 +296,7 @@ ${currentTime}
   }
 }
 
-// ==================== VERIFICATION EMAIL (USES BREVO) ====================
+// ==================== VERIFICATION EMAIL ====================
 async function sendVerificationEmail(user, verificationCode) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -358,7 +349,7 @@ async function sendVerificationEmail(user, verificationCode) {
   }
 }
 
-// ==================== PASSWORD RESET EMAIL (USES BREVO) ====================
+// ==================== PASSWORD RESET EMAIL ====================
 async function sendPasswordResetEmail(email, resetCode) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -410,7 +401,7 @@ async function sendPasswordResetEmail(email, resetCode) {
   }
 }
 
-// ==================== REGULAR NOTIFICATION EMAIL (USES GMAIL) ====================
+// ==================== NOTIFICATION EMAIL (RECEIPTS, ETC.) - NOW USES BREVO ====================
 async function sendPersonalizedEmail(user, notificationType, title, message, data = {}) {
   try {
     const greeting = getTimeBasedGreeting();
@@ -450,7 +441,9 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
         break;
       case 'pledge_approved':
       case 'payment_added':
-        actionUrl = `${frontendUrl}/my-pledges`;
+      case 'payment_success':
+      case 'payment_received':
+        actionUrl = `${frontendUrl}/contributions`;
         buttonText = 'View your pledge status';
         buttonEmoji = '📊';
         break;
@@ -517,7 +510,8 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
             ${data.amount ? `
               <div style="background: #fef3c7; padding: 20px; border-radius: 16px; margin-top: 25px; text-align: center; border: 1px solid #fde68a;">
                 <div style="font-size: 32px; font-weight: bold; color: #d97706;">KES ${data.amount.toLocaleString()}</div>
-                <div style="font-size: 13px; color: #92400e;">💝 Your generous pledge amount</div>
+                <div style="font-size: 13px; color: #92400e;">💝 Payment Amount</div>
+                ${data.receiptNumber ? `<div style="font-size: 12px; color: #92400e; margin-top: 8px;">Receipt: ${data.receiptNumber}</div>` : ''}
               </div>
             ` : ''}
             ${data.position ? `
@@ -557,6 +551,9 @@ ${message}
 
 💛 ${personalMessage}
 
+${data.amount ? `💰 Amount: KES ${data.amount.toLocaleString()}` : ''}
+${data.receiptNumber ? `📱 Receipt: ${data.receiptNumber}` : ''}
+
 ---
 📅 ${currentTime}
 🏠 ${jumuiaName}
@@ -570,28 +567,30 @@ Tumsifu Yesu Kristu! 🙏
 ZUCA | Zetech University Catholic Action
     `;
     
-    await sendViaGmail(user.email, `${emoji} ${title}`, htmlContent, textContent);
-    console.log(`✅ Notification email sent to ${user.email} via Gmail`);
+    // NOW USING BREVO FOR ALL NOTIFICATION EMAILS
+    await sendViaBrevo(user.email, `${emoji} ${title}`, htmlContent, textContent);
+    console.log(`✅ Notification email sent to ${user.email} via Brevo (${notificationType})`);
     return true;
   } catch (error) {
-    console.error(`❌ Email failed:`, error.message);
+    console.error(`❌ Email failed to ${user.email}:`, error.message);
     return false;
   }
 }
 
-// ==================== BULK EMAIL SENDING (USES GMAIL) ====================
+// ==================== BULK EMAIL SENDING (USES BREVO) ====================
 async function sendBulkEmails(users, notificationType, title, message, data = {}) {
   if (!users || users.length === 0) {
     console.log('📧 No users to send emails to');
     return { sent: 0, failed: 0 };
   }
   
-  console.log(`📧 Sending ${notificationType} emails to ${users.length} users in batches...`);
+  console.log(`📧 Sending ${notificationType} emails to ${users.length} users in batches via Brevo...`);
   
   let sent = 0;
   let failed = 0;
   
-  const batchSize = 20;
+  // Brevo has rate limits, send in batches
+  const batchSize = 50;
   const batches = Math.ceil(users.length / batchSize);
   
   for (let i = 0; i < users.length; i += batchSize) {
@@ -608,6 +607,7 @@ async function sendBulkEmails(users, notificationType, title, message, data = {}
     
     await Promise.all(promises);
     
+    // Wait between batches to avoid rate limits
     if (i + batchSize < users.length) {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }

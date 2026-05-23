@@ -43,6 +43,8 @@ import Games from "./pages/Games";
 import UserSchedules from "./pages/UserSchedules";
 import UserYoutubeHub from "./pages/UserYoutubeHub";
 import Prayer from "./pages/Prayer";
+import PaymentPage from "./pages/PaymentPage";
+import PaymentSuccess from "./pages/PaymentSuccess";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -397,6 +399,9 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/user-manual" element={<UserManual />} />
+        <Route path="/pay/:slug" element={<PaymentPage />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/pay/campaign/:campaignId" element={<PaymentPage />} /> 
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
         <Route path="/executive" element={<ExecutivePage />} />

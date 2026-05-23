@@ -99,6 +99,8 @@ function ContributionsPage() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const [paymentLink, setPaymentLink] = useState({ show: false, url: "", campaign: "" });
+const [generatingLink, setGeneratingLink] = useState(false);
 
   
 
@@ -244,6 +246,52 @@ function ContributionsPage() {
       fetchAll();
     }
   }, [token]);
+
+  // Generate payment link for a campaign
+// Generate payment link for a campaign
+const handleGeneratePaymentLink = async (campaignId, campaignTitle) => {
+  setGeneratingLink(true);
+  
+  try {
+    // Call backend to create/update slug
+    const response = await axios.post(
+      `${BASE_URL}/api/mpesa/campaigns/${campaignId}/generate-link`,
+      {},
+      { headers }
+    );
+    
+    if (response.data.success) {
+      // Construct payment link using FRONTEND URL (not backend URL)
+      const paymentLink = `${window.location.origin}/pay/${response.data.slug}`;
+      
+      setPaymentLink({
+        show: true,
+        url: paymentLink,
+        campaign: campaignTitle
+      });
+      showNotification("Payment link generated successfully!", "success");
+    }
+  } catch (err) {
+    console.error("Failed to generate payment link:", err);
+    showNotification(err.response?.data?.error || "Failed to generate payment link", "error");
+  } finally {
+    setGeneratingLink(false);
+  }
+};
+
+// Copy payment link to clipboard
+const copyPaymentLink = () => {
+  navigator.clipboard.writeText(paymentLink.url);
+  showNotification("Payment link copied to clipboard!", "success");
+  setTimeout(() => {
+    setPaymentLink({ show: false, url: "", campaign: "" });
+  }, 2000);
+};
+
+// Close payment link modal
+const closePaymentLinkModal = () => {
+  setPaymentLink({ show: false, url: "", campaign: "" });
+};
 
 
   // FORCE SIDEBAR VISIBLE - FIXES THE FADING ISSUE
@@ -1321,6 +1369,60 @@ useEffect(() => {
         </div>
       </div>
 
+
+      {/* Payment Link Modal */}
+{paymentLink.show && (
+  <div className="payment-link-modal-overlay" onClick={closePaymentLinkModal}>
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      className="payment-link-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="payment-link-header">
+        <h3>🔗 Payment Link Generated</h3>
+        <button className="close-modal-btn" onClick={closePaymentLinkModal}>×</button>
+      </div>
+      
+      <div className="payment-link-body">
+        <p>Share this link with members for <strong>{paymentLink.campaign}</strong>:</p>
+        
+        <div className="payment-link-url-container">
+          <input
+            type="text"
+            readOnly
+            value={paymentLink.url}
+            className="payment-link-url"
+            onClick={(e) => e.target.select()}
+          />
+          <button className="copy-link-btn" onClick={copyPaymentLink}>
+            📋 Copy
+          </button>
+        </div>
+        
+        <div className="payment-link-actions">
+          <button 
+            className="whatsapp-share-btn"
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`💰 Payment link for ${paymentLink.campaign}: ${paymentLink.url}`)}`, '_blank')}
+          >
+            📱 Share on WhatsApp
+          </button>
+          <button className="email-share-btn"
+            onClick={() => window.location.href = `mailto:?subject=Payment Link for ${paymentLink.campaign}&body=Please use this link to make your payment: ${paymentLink.url}`}
+          >
+            ✉️ Share via Email
+          </button>
+        </div>
+        
+        <div className="payment-link-note">
+          <small>⚠️ Anyone with this link can make a payment. Share securely with your Jumuia members.</small>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+)}
+
       {/* Create Campaign Form */}
       {canModify && (
         <div className="create-campaign">
@@ -1444,55 +1546,73 @@ useEffect(() => {
               animate={{ y: 0, opacity: 1 }}
               className="campaign-card"
             >
-              {/* Campaign Header */}
-              <div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
-                <div className="campaign-header-left">
-                  {canModify && (
-                    <input
-                      type="checkbox"
-                      className="campaign-checkbox"
-                      checked={isSelected}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleSelectCampaign(type.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  )}
-                  <div className="campaign-info">
-                    <h3 className="campaign-name">{type.title}</h3>
-                    <div className="campaign-meta">
-                      <span className="campaign-target">KES {type.amountRequired?.toLocaleString()} per member</span>
-                      {type.deadline && (
-                        <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
-                      )}
-                     {type.jumuia && (
-  <span className="campaign-jumuia-badge" style={{
-    background: '#f59e0b20',
-    color: '#f59e0b',
-    padding: '2px 8px',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: '500',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px'
-  }}>
-    🏠 {type.jumuia.name}
-  </span>
-)}
-                    </div>
-                  </div>
-                </div>
+             {/* Campaign Header */}
+<div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
+  <div className="campaign-header-left">
+    {canModify && (
+      <input
+        type="checkbox"
+        className="campaign-checkbox"
+        checked={isSelected}
+        onChange={(e) => {
+          e.stopPropagation();
+          toggleSelectCampaign(type.id);
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    )}
+    <div className="campaign-info">
+      <h3 className="campaign-name">{type.title}</h3>
+      <div className="campaign-meta">
+        <span className="campaign-target">KES {type.amountRequired?.toLocaleString()} per member</span>
+        {type.deadline && (
+          <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
+        )}
+        {type.jumuia && (
+          <span className="campaign-jumuia-badge" style={{
+            background: '#f59e0b20',
+            color: '#f59e0b',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: '500',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            🏠 {type.jumuia.name}
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+  
+  <div className="campaign-actions-right">
+    {/* NEW: Generate Payment Link Button */}
+    {canModify && (
+      <button
+        className="generate-link-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleGeneratePaymentLink(type.id, type.title);
+        }}
+        title="Generate payment link to share with members"
+      >
+        🔗 Generate Link
+      </button>
+    )}
+    
+    <div className="campaign-progress-info">
+      <div className="progress-stats">
+        <span className="progress-percent">{typeStats.completion.toFixed(1)}%</span>
+        <span className="progress-count">{typeStats.contributors}/{typeStats.totalMembers} members</span>
+      </div>
+      <span className="collapse-icon">{isCollapsed ? "▼" : "▲"}</span>
+    </div>
+  </div>
+</div>
                 
-                <div className="campaign-progress-info">
-                  <div className="progress-stats">
-                    <span className="progress-percent">{typeStats.completion.toFixed(1)}%</span>
-                    <span className="progress-count">{typeStats.contributors}/{typeStats.totalMembers} members</span>
-                  </div>
-                  <span className="collapse-icon">{isCollapsed ? "▼" : "▲"}</span>
-                </div>
-              </div>
+               
 
               {/* Progress Bar */}
               <div className="progress-bar-container">
@@ -2636,6 +2756,13 @@ useEffect(() => {
     margin: 0 12px;
     flex-shrink: 0;
   }
+
+  .amount-remaining {
+  color: #8b5cf6;
+}
+.amount-required {
+  color: #64748b;
+}
   .status-badge {
     padding: 4px 8px;
     border-radius: 4px;
@@ -2813,6 +2940,197 @@ useEffect(() => {
     color: #64748b;
     font-size: 14px;
   }
+
+  /* Campaign Actions */
+.campaign-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.generate-link-btn {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.generate-link-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.generate-link-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Payment Link Modal */
+.payment-link-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.payment-link-modal {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.payment-link-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.payment-link-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.payment-link-body {
+  padding: 24px;
+}
+
+.payment-link-body p {
+  margin: 0 0 16px 0;
+  color: #334155;
+  font-size: 14px;
+}
+
+.payment-link-url-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.payment-link-url {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.payment-link-url:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.copy-link-btn {
+  padding: 12px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.copy-link-btn:hover {
+  background: #059669;
+}
+
+.payment-link-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-share-btn, .email-share-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.whatsapp-share-btn {
+  background: #25D366;
+  color: white;
+}
+
+.whatsapp-share-btn:hover {
+  background: #128C7E;
+}
+
+.email-share-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.email-share-btn:hover {
+  background: #2563eb;
+}
+
+.payment-link-note {
+  background: #fef3c7;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+.payment-link-note small {
+  color: #92400e;
+  font-size: 12px;
+}
 `}</style>
     </motion.div>
   );
@@ -2872,17 +3190,25 @@ function MemberRow({
         <div className="member-details">
           <div className="member-name">{pledge.user?.fullName || "Unknown"}</div>
           <div className="member-amounts">
-            <span className="amount-paid">Paid: KES {pledge.amountPaid?.toLocaleString() || 0}</span>
-            {pledge.pendingAmount > 0 && (
-              <span className="amount-pending">Pending: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
-            )}
-          </div>
+  <span className="amount-paid">💰 Paid: KES {pledge.amountPaid?.toLocaleString() || 0}</span>
+  {pledge.pendingAmount > 0 && (
+    <span className="amount-pending">⏳ Pending Approval: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
+  )}
+  {!isCompleted && pledge.amountPaid > 0 && pledge.pendingAmount === 0 && (
+    <span className="amount-remaining">📊 Remaining: KES {Math.max(0, type.amountRequired - (pledge.amountPaid || 0)).toLocaleString()}</span>
+  )}
+  {!isCompleted && pledge.amountPaid === 0 && pledge.pendingAmount === 0 && (
+    <span className="amount-required">🎯 Required: KES {type.amountRequired.toLocaleString()}</span>
+  )}
+</div>
         </div>
-        <div className="member-status">
-          <span className={`status-badge ${getStatusStyle(pledge.status, isCompleted)}`}>
-            {status}
-          </span>
-        </div>
+       <div className="member-status">
+  <span className={`status-badge ${getStatusStyle(pledge.status, isCompleted)}`}>
+    {isCompleted ? "✅ COMPLETED" : 
+     pledge.pendingAmount > 0 ? "⏳ PENDING" : 
+     pledge.amountPaid > 0 ? "✓ APPROVED" : "📋 NO PLEDGE"}
+  </span>
+</div>
         <span className="expand-icon">{isExpanded ? "▼" : "▶"}</span>
       </div>
 

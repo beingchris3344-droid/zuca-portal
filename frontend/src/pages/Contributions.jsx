@@ -23,7 +23,12 @@ function Contributions() {
   const fetchAttempted = useRef(false);
   const token = localStorage.getItem("token");
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
+ const handlePayNow = (contribution) => {
+  // Use the campaign ID from the contribution
+  const campaignId = contribution.contributionTypeId;
+  const paymentLink = `${window.location.origin}/pay/campaign/${campaignId}`;
+  window.open(paymentLink, '_blank');
+};
   // Socket connection for real-time updates
   useEffect(() => {
     const socket = io(BASE_URL);
@@ -147,6 +152,8 @@ function Contributions() {
   const calculateRemaining = (contribution) => {
     return contribution.amountRequired - contribution.amountPaid;
   };
+
+  
 
   // NEW: Handle opening message thread
   const handleOpenMessage = (pledgeId, pledgeTitle) => {
@@ -404,6 +411,7 @@ function Contributions() {
                 handleInputChange(contribution.id, field, value)
               }
               onPledge={() => handlePledge(contribution.id)}
+              onPayNow={() => handlePayNow(contribution)} 
               isSubmitting={submitting[contribution.id]}
               remainingAmount={calculateRemaining(contribution)}
               isExpanded={expandedCard === contribution.id}
@@ -765,6 +773,7 @@ const ContributionCard = ({
   pledgeInput, 
   onPledgeChange, 
   onPledge, 
+   onPayNow,
   isSubmitting,
   remainingAmount,
   isExpanded,
@@ -951,6 +960,16 @@ const ContributionCard = ({
                     >
                       {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
                     </button>
+
+                      {/* PAY NOW Button - Same style as PLEDGE button */}
+  <button 
+    className={`paynow-btn ${isSubmitting ? 'submitting' : ''}`}
+    onClick={onPayNow}
+    disabled={isSubmitting}
+    style={{ width: '100%' }}
+  >
+    💳 Pay Now with M-PESA
+  </button>
                     
                     {/* NEW: Message button */}
                     <button 
@@ -1308,6 +1327,31 @@ const ContributionCard = ({
             padding: 16px;
           }
         }
+          /* Pay Now Button - Same style as PLEDGE button */
+.paynow-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #10b981;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.paynow-btn:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+}
+.paynow-btn.submitting {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.paynow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
       `}</style>
     </motion.div>
   );

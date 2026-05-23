@@ -127,17 +127,24 @@ const pollPaymentStatus = (paymentId) => {
         setMessage({ text: `✅ Payment successful! Receipt: ${response.data.payment.mpesaReceiptNumber || 'N/A'}`, type: "success" });
         setProcessing(false);
         
+        // Get sender details from user object (already logged in)
+        const senderName = user?.fullName || user?.name || "Customer";
+        const senderPhone = phone || user?.phone || "N/A";
+        
         const paymentData = {
           receiptNumber: response.data.payment.mpesaReceiptNumber,
           amount: response.data.payment.amount,
           campaignTitle: campaign.title,
+          senderName: senderName,
+          senderPhone: senderPhone,
           timestamp: new Date().toLocaleString(),
         };
         localStorage.setItem("lastPayment", JSON.stringify(paymentData));
         localStorage.removeItem("lastPaymentId");
         
+        // Pass sender details in URL params
         setTimeout(() => {
-          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}`);
+          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}`);
         }, 2000);
         return;
       }
@@ -152,10 +159,9 @@ const pollPaymentStatus = (paymentId) => {
         return;
       }
       
-      // PENDING - still waiting (this is NORMAL, don't show error!)
+      // PENDING - still waiting
       if (response.data.payment?.status === "PENDING") {
         console.log("⏳ Still PENDING, waiting...");
-        // Only show status update every 10 seconds so user knows we're waiting
         if (attempts % 3 === 0) {
           const secondsElapsed = attempts * 3;
           setMessage({ text: `⏳ Processing payment... (${secondsElapsed}s). Please check your phone.`, type: "info" });
@@ -181,12 +187,21 @@ useEffect(() => {
     const lastPaymentId = localStorage.getItem("lastPaymentId");
     if (lastPaymentId) {
       console.log("Found pending payment:", lastPaymentId);
+      
+      // Get stored sender info
+      const senderInfo = JSON.parse(localStorage.getItem("paymentSenderInfo") || "{}");
+      
       try {
         const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${lastPaymentId}/status`);
         if (response.data.payment?.status === "SUCCESS") {
           // Payment was successful even though frontend didn't know!
           localStorage.removeItem("lastPaymentId");
-          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}`);
+          
+          // Use stored sender info or fallback
+          const senderName = senderInfo.name || user?.fullName || "Customer";
+          const senderPhone = senderInfo.phone || phone || user?.phone || "N/A";
+          
+          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign?.title || "")}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}`);
         } else if (response.data.payment?.status === "PENDING") {
           setMessage({ text: "We found a pending payment. Waiting for confirmation...", type: "info" });
           setProcessing(true);
@@ -257,6 +272,14 @@ const handlePayment = async () => {
   setProcessing(true);
   setMessage({ text: "⏳ Sending request to M-PESA...", type: "info" });
   
+  // Store sender details in localStorage for recovery
+  const senderInfo = {
+    name: user?.fullName || user?.name || "Customer",
+    phone: phone,
+    campaignTitle: campaign.title
+  };
+  localStorage.setItem("paymentSenderInfo", JSON.stringify(senderInfo));
+  
   try {
     const response = await axios.post(
       `${BASE_URL}/api/mpesa/stk-push`,
@@ -273,29 +296,25 @@ const handlePayment = async () => {
     );
     
     if (response.data.success) {
-     localStorage.setItem("lastPaymentId", response.data.paymentId)
+      localStorage.setItem("lastPaymentId", response.data.paymentId);
       pollPaymentStatus(response.data.paymentId);
     } else {
       setMessage({ text: `❌ ${response.data.error || "Payment failed. Please try again."}`, type: "error" });
       setProcessing(false);
     }
- } catch (err) {
-  console.error("Payment error:", err);
-  
-  // If it's a timeout, the payment might still be processing
-  if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-    // DON'T show "failed" - show "processing"
-    setMessage({ 
-      text: "⚠️ Payment is being processed. Please check your phone for the M-PESA prompt. The page will update automatically when confirmed.", 
-      type: "info" 
-    });
-    // Keep processing true - don't let user retry yet
-    // The pollPaymentStatus should still be running
-  } else {
-    setMessage({ text: `❌ ${err.response?.data?.error || "Payment failed"}`, type: "error" });
-    setProcessing(false);
+  } catch (err) {
+    console.error("Payment error:", err);
+    
+    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      setMessage({ 
+        text: "⚠️ Payment is being processed. Please check your phone for the M-PESA prompt. The page will update automatically when confirmed.", 
+        type: "info" 
+      });
+    } else {
+      setMessage({ text: `❌ ${err.response?.data?.error || "Payment failed"}`, type: "error" });
+      setProcessing(false);
+    }
   }
-}
 };
   
   if (loading) {

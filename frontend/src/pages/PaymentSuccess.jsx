@@ -113,12 +113,16 @@ function PaymentSuccess() {
     const receipt = params.get("receipt");
     const amount = params.get("amount");
     const campaign = params.get("campaign");
+    const senderName = params.get("senderName");
+    const senderPhone = params.get("senderPhone");
     
     if (receipt || location.state) {
       setPaymentData({
         receiptNumber: receipt || location.state?.receiptNumber,
         amount: amount || location.state?.amount,
         campaignTitle: campaign || location.state?.campaignTitle,
+        senderName: senderName || location.state?.senderName || "N/A",
+        senderPhone: senderPhone || location.state?.senderPhone || "N/A",
         timestamp: new Date().toLocaleString(),
         date: new Date(),
       });
@@ -343,6 +347,16 @@ const downloadReceipt = () => {
           </div>
 
           <div class="detail-row">
+            <span class="detail-label">Sender Name:</span>
+            <span class="detail-value">${paymentData?.senderName || 'N/A'}</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Sender Phone:</span>
+            <span class="detail-value">${paymentData?.senderPhone || 'N/A'}</span>
+          </div>
+
+          <div class="detail-row">
             <span class="detail-label">Date:</span>
             <span class="detail-value">${new Date().toLocaleDateString()}</span>
           </div>
@@ -409,7 +423,7 @@ const downloadReceipt = () => {
   
   // Share on WhatsApp
   const shareOnWhatsApp = () => {
-    const message = `🙏 ZUCA Payment Confirmation 🙏\n\nCampaign: ${paymentData?.campaignTitle}\nAmount: KES ${(paymentData?.amount || 0).toLocaleString()}\nReceipt No: ${paymentData?.receiptNumber}\nDate: ${paymentData?.timestamp}\n\nThank you for your contribution! Tumsifu Yesu Kristu!`;
+    const message = `🙏 ZUCA Payment Confirmation 🙏\n\nCampaign: ${paymentData?.campaignTitle}\nAmount: KES ${(paymentData?.amount || 0).toLocaleString()}\nReceipt No: ${paymentData?.receiptNumber}\nSender: ${paymentData?.senderName}\nPhone: ${paymentData?.senderPhone}\nDate: ${paymentData?.timestamp}\n\nThank you for your contribution! Tumsifu Yesu Kristu!`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
   };
   
@@ -493,6 +507,16 @@ const downloadReceipt = () => {
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>M-PESA Receipt:</span>
               <span style={styles.detailValueCode}>{paymentData?.receiptNumber || "N/A"}</span>
+            </div>
+            
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Sender Name:</span>
+              <span style={styles.detailValue}>{paymentData?.senderName || "N/A"}</span>
+            </div>
+            
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Sender Phone:</span>
+              <span style={styles.detailValue}>{paymentData?.senderPhone || "N/A"}</span>
             </div>
             
             <div style={styles.detailRow}>

@@ -14,14 +14,18 @@ export default function MessengerPage() {
     loading, 
     fetchUser, 
     fetchConversations,
+    activeConversation,      // ← USE FROM CONTEXT (not local state)
+    setActiveConversation,   // ← USE FROM CONTEXT
     darkMode,
     setDarkMode 
   } = useMessenger();
   
-  const [activeConversation, setActiveConversation] = useState(null);
+  // ❌ REMOVE this line - don't create local state
+  // const [activeConversation, setActiveConversation] = useState(null);
+  
   const [showNewChat, setShowNewChat] = useState(false);
   const [showInfoDrawer, setShowInfoDrawer] = useState(false);
-  const [mobileView, setMobileView] = useState('list'); // 'list', 'chat', 'info'
+  const [mobileView, setMobileView] = useState('list');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
 
   // Check screen size for responsive layout
@@ -37,18 +41,17 @@ export default function MessengerPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
- -//  initialization
-useEffect(() => {
-  const init = async () => {
-    
-    await fetchUser();
-    await fetchConversations(); 
-  };
-  init();
-}, []);
+  // Initialize user data
+  useEffect(() => {
+    const init = async () => {
+      await fetchUser();
+      await fetchConversations();
+    };
+    init();
+  }, []);
 
   const handleSelectChat = (conversation) => {
-    setActiveConversation(conversation);
+    setActiveConversation(conversation);  // ← This updates both state and ref
     if (!isDesktop) {
       setMobileView('chat');
     }
@@ -91,10 +94,15 @@ useEffect(() => {
     }
   };
 
-  const goBack = () => navigate(-1);
-  const goHome = () => navigate('/dashboard');
-
-  
+  if (loading) {
+    return (
+      <div className="messenger-loading">
+        <div className="loading-spinner"></div>
+        <h3>ZUCA Messenger</h3>
+        <p>Loading your conversations...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`messenger-page ${darkMode ? 'dark' : ''}`}>
@@ -166,12 +174,13 @@ useEffect(() => {
 
       <style jsx>{`
         .messenger-page {
-          height: 100vh;
+          height: 90%;
+          margin-bottom:40px;
           background: #ECE5DD;
+          
           overflow: hidden;
         }
 
-        /* Loading State */
         .messenger-loading {
           height: 100vh;
           display: flex;
@@ -206,7 +215,6 @@ useEffect(() => {
           opacity: 0.8;
         }
 
-        /* Desktop Layout */
         .desktop-container {
           display: flex;
           height: 100%;
@@ -239,13 +247,11 @@ useEffect(() => {
           overflow-y: auto;
         }
 
-        /* Mobile Layout */
         .mobile-container {
           height: 100%;
           width: 100%;
         }
 
-        /* Dark Mode Styles */
         .messenger-page.dark {
           background: #111B21;
         }
@@ -260,12 +266,10 @@ useEffect(() => {
           border-left-color: #202C33;
         }
 
-        /* Responsive Adjustments */
         @media (max-width: 1024px) {
           .chats-panel {
             width: 320px;
           }
-          
           .info-drawer {
             width: 280px;
           }

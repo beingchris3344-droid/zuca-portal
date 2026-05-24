@@ -31,7 +31,14 @@ const getExecutiveBadge = (role, executivePosition) => {
 };
 
 const ChatsList = ({ onSelectChat, onNewChat }) => {
-  const { conversations, onlineUsers, loading, user, startConversation } = useMessenger();
+  const { 
+    conversations, 
+    onlineUsers, 
+    loading, 
+    user, 
+    startConversation
+  } = useMessenger();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredChats, setFilteredChats] = useState([]);
   const [allAdmins, setAllAdmins] = useState([]);
@@ -156,7 +163,7 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
 
   return (
     <div className="chats-list-container">
-      {/* Header - WhatsApp Dark Teal */}
+      {/* Header */}
       <div className="chats-header">
         <div className="logo-section">
           <h2>ZUCA Messenger</h2>
@@ -261,7 +268,7 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
               </>
             )}
 
-            {/* All Chats Section (Regular users + Executives) */}
+            {/* All Chats Section */}
             {regularChats.length > 0 && searchQuery.length === 0 && hasPinnedChats && (
               <div className="all-chats-header">
                 <span>Chats</span>

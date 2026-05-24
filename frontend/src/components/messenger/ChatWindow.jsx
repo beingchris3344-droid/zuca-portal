@@ -1,6 +1,6 @@
 // frontend/src/components/messenger/ChatWindow.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Video, MoreVertical, ArrowLeft, Smile, Paperclip, Send, Image, File, X, Check, CheckCheck } from 'lucide-react';
+import { Phone, Video, MoreVertical, ArrowLeft } from 'lucide-react';
 import { useMessenger } from '../../contexts/MessengerContext';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
@@ -13,17 +13,19 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     typingUsers,
     sendMessage,
     fetchMessages,
-    markAsRead
+    markAsRead,
+    addReaction,
+    socket
   } = useMessenger();
   
   const [messageInput, setMessageInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [sending, setSending] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
+  
 
   const isOnline = onlineUsers.includes(conversation?.participant?.id);
   const isTypingNow = typingUsers[conversation?.participant?.id];
@@ -46,6 +48,28 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     inputRef.current?.focus();
   }, [conversation?.id]);
 
+  useEffect(() => {
+    console.log('💬 ChatWindow messages updated:', messages.length);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Listen for real-time messages
+  useEffect(() => {
+    if (!socket?.current) return;
+    
+    const handleNewMessage = () => {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    };
+    
+    socket.current.on('dm:new_message', handleNewMessage);
+    
+    return () => {
+      socket.current?.off('dm:new_message', handleNewMessage);
+    };
+  }, [socket]);
+
   const markConversationAsRead = async () => {
     if (conversation?.id) {
       const unreadMessages = messages.filter(m => m.senderId !== user?.id && !m.isRead);
@@ -55,31 +79,23 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if ((!messageInput.trim() && attachments.length === 0) || sending) return;
-
-    setSending(true);
-    const content = messageInput.trim();
-    const files = attachments.map(a => ({
-      name: a.name,
-      type: a.type,
-      size: a.size,
-      url: a.url,
-      thumbnail: a.thumbnail
-    }));
-
-    const success = await sendMessage(conversation.id, content, files);
-    
-    if (success) {
-      setMessageInput('');
-      setAttachments([]);
-      setShowEmojiPicker(false);
-      handleStopTyping();
-    }
-    
-    setSending(false);
-  };
-
+  // ✅ FIXED: Handle send with optimistic update and prevent double send
+ const handleSendMessage = async () => {
+  if ((!messageInput.trim() && attachments.length === 0) || sending) return;
+  
+  const content = messageInput.trim();
+  const filesToSend = [...attachments];
+  
+  setMessageInput('');
+  setAttachments([]);
+  handleStopTyping();
+  
+  setSending(true);
+  await sendMessage(conversation.id, content, filesToSend);
+  setSending(false);
+  
+  inputRef.current?.focus();
+};
   const handleTyping = () => {
     if (!isTyping) {
       setIsTyping(true);
@@ -100,18 +116,13 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !sending) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const getOtherParticipant = () => {
-    if (!conversation) return null;
-    return conversation.participant;
-  };
-
-  const participant = getOtherParticipant();
+  const participant = conversation?.participant;
 
   if (!conversation || !participant) {
     return (
@@ -123,7 +134,7 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
               <path d="M12 6v6l4 2" stroke="#25D366" strokeWidth="1.5"/>
             </svg>
           </div>
-          <h3>ZUCA Messanger</h3>
+          <h3>ZUCA Messenger</h3>
           <p>Select a conversation to start messaging</p>
         </div>
       </div>
@@ -132,7 +143,7 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
 
   return (
     <div className="chat-window">
-      {/* Chat Header - WhatsApp Dark Teal */}
+      {/* Chat Header */}
       <div className="chat-header">
         <div className="header-left">
           <button className="back-btn" onClick={onBack}>
@@ -163,12 +174,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           </div>
         </div>
         <div className="header-right">
-          <button className="icon-btn">
-            <Phone size={20} />
-          </button>
-          <button className="icon-btn">
-            <Video size={20} />
-          </button>
           <button className="icon-btn" onClick={onOpenInfo}>
             <MoreVertical size={20} />
           </button>
@@ -190,8 +195,12 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
         ) : (
           <>
             {messages.map((message, index) => {
+              const isOwn = message.senderId === user?.id;
               const showDate = index === 0 || 
                 new Date(message.createdAt).toDateString() !== new Date(messages[index - 1]?.createdAt).toDateString();
+              
+              // For optimistic messages, always show avatar
+              const showAvatar = true;
               
               return (
                 <React.Fragment key={message.id}>
@@ -202,8 +211,10 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
                   )}
                   <MessageBubble 
                     message={message} 
-                    isOwn={message.senderId === user?.id}
+                    isOwn={isOwn}
                     onReaction={(reaction) => addReaction(message.id, reaction, conversation.id)}
+                    showAvatar={true}
+                    senderName={message.sender?.fullName}
                   />
                 </React.Fragment>
               );
@@ -244,7 +255,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           position: relative;
         }
 
-        /* Header - WhatsApp Dark Teal */
         .chat-header {
           display: flex;
           justify-content: space-between;
@@ -349,7 +359,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           background: rgba(255, 255, 255, 0.1);
         }
 
-        /* Messages Area */
         .messages-area {
           flex: 1;
           overflow-y: auto;
@@ -399,10 +408,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           animation: typing 1.4s infinite ease-in-out;
         }
 
-        .typing-dots span:nth-child(1) { animation-delay: 0s; }
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
         @keyframes typing {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-6px); opacity: 1; }
@@ -413,7 +418,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           color: #667781;
         }
 
-        /* Empty State */
         .chat-window-empty {
           height: 100%;
           display: flex;
@@ -427,34 +431,9 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           padding: 32px;
         }
 
-        .whatsapp-logo {
-          margin-bottom: 24px;
-        }
-
-        .empty-content h3 {
-          font-size: 20px;
-          font-weight: 500;
-          color: #111B21;
-          margin-bottom: 8px;
-        }
-
-        .empty-content p {
-          font-size: 14px;
-          color: #667781;
-        }
-
         .no-messages {
           text-align: center;
           padding: 60px 20px;
-        }
-
-        .no-messages-icon {
-          margin-bottom: 16px;
-        }
-
-        .no-messages p {
-          font-size: 13px;
-          color: #667781;
         }
 
         @media (max-width: 768px) {

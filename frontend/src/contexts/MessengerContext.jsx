@@ -17,15 +17,22 @@ export const MessengerProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({});
   const [darkMode, setDarkMode] = useState(false);
   
-  // ✅ Caching states
-  const [messageCache, setMessageCache] = useState({}); // { conversationId: messages[] }
-  const [conversationsCache, setConversationsCache] = useState(null); // cached conversations
-  const [userCache, setUserCache] = useState(null); // cached user data
+  // Caching states
+  const [messageCache, setMessageCache] = useState({});
+  const [conversationsCache, setConversationsCache] = useState(null);
+  const [userCache, setUserCache] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
   const socketRef = useRef(null);
+  const activeConversationRef = useRef(null);
 
-  // ✅ Load cached data from localStorage on mount
+  // Wrapper for setActiveConversation to update both state and ref
+  const updateActiveConversation = (conversation) => {
+    setActiveConversation(conversation);
+    activeConversationRef.current = conversation;
+  };
+
+  // Load cached data from localStorage on mount
   useEffect(() => {
     const loadCachedData = () => {
       try {
@@ -59,7 +66,7 @@ export const MessengerProvider = ({ children }) => {
     loadCachedData();
   }, []);
 
-  // ✅ Save conversations to localStorage when they change
+  // Save conversations to localStorage when they change
   useEffect(() => {
     if (conversations.length > 0) {
       localStorage.setItem('messenger_conversations', JSON.stringify(conversations));
@@ -67,7 +74,7 @@ export const MessengerProvider = ({ children }) => {
     }
   }, [conversations]);
 
-  // ✅ Save user to localStorage
+  // Save user to localStorage
   useEffect(() => {
     if (user) {
       localStorage.setItem('messenger_user', JSON.stringify(user));
@@ -75,7 +82,7 @@ export const MessengerProvider = ({ children }) => {
     }
   }, [user]);
 
-  // ✅ Save message cache to localStorage
+  // Save message cache to localStorage
   useEffect(() => {
     if (Object.keys(messageCache).length > 0) {
       localStorage.setItem('messenger_messages_cache', JSON.stringify(messageCache));
@@ -109,36 +116,46 @@ export const MessengerProvider = ({ children }) => {
     });
 
     socketRef.current.on('dm:new_message', (message) => {
-      // Update cache when new message arrives
+      console.log('📨 New message received:', message);
+      
+      // Update cache
       setMessageCache(prev => ({
         ...prev,
         [message.conversationId]: [...(prev[message.conversationId] || []), message]
       }));
       
-      // Update messages if this is the active conversation
-      setMessages(prev => {
-        if (message.conversationId === activeConversation?.id) {
+      // Check if this is the active conversation
+      if (activeConversationRef.current?.id === message.conversationId) {
+        console.log('✅ Adding message to active chat');
+        setMessages(prev => {
+          if (prev.some(m => m.id === message.id)) return prev;
           return [...prev, message];
-        }
-        return prev;
-      });
+        });
+      }
       
-      // Update conversations list (last message)
-      setConversations(prev => prev.map(conv => 
-        conv.id === message.conversationId 
-          ? { ...conv, lastMessage: message.content, lastMessageAt: new Date() }
-          : conv
-      ));
+      // Update conversations list
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === message.conversationId) {
+          const isActive = activeConversationRef.current?.id === message.conversationId;
+          return {
+            ...conv,
+            lastMessage: message.content,
+            lastMessageAt: new Date(),
+            unreadCount: isActive ? 0 : (conv.unreadCount || 0) + 1
+          };
+        }
+        return conv;
+      }));
     });
 
     socketRef.current.on('dm:typing_start', ({ conversationId, userId }) => {
-      if (conversationId === activeConversation?.id) {
+      if (conversationId === activeConversationRef.current?.id) {
         setTypingUsers(prev => ({ ...prev, [userId]: true }));
       }
     });
 
     socketRef.current.on('dm:typing_stop', ({ conversationId, userId }) => {
-      if (conversationId === activeConversation?.id) {
+      if (conversationId === activeConversationRef.current?.id) {
         setTypingUsers(prev => ({ ...prev, [userId]: false }));
       }
     });
@@ -181,7 +198,6 @@ export const MessengerProvider = ({ children }) => {
 
   // Fetch user data (with cache)
   const fetchUser = async () => {
-    // Return cached user if available
     if (userCache) {
       setUser(userCache);
       return userCache;
@@ -201,11 +217,9 @@ export const MessengerProvider = ({ children }) => {
 
   // Fetch conversations (with cache)
   const fetchConversations = async () => {
-    // Return cached conversations immediately
     if (conversationsCache) {
       setConversations(conversationsCache);
       setLoading(false);
-      // Still fetch in background to update
       fetchConversationsInBackground();
       return conversationsCache;
     }
@@ -226,7 +240,6 @@ export const MessengerProvider = ({ children }) => {
     }
   };
   
-  // Background fetch for conversations (updates cache silently)
   const fetchConversationsInBackground = async () => {
     try {
       const res = await api.get('/api/messenger/conversations');
@@ -241,10 +254,8 @@ export const MessengerProvider = ({ children }) => {
 
   // Fetch messages for a conversation (with cache)
   const fetchMessages = async (conversationId) => {
-    // Return cached messages immediately if available
     if (messageCache[conversationId]) {
       setMessages(messageCache[conversationId]);
-      // Still fetch in background to update
       fetchMessagesInBackground(conversationId);
       return messageCache[conversationId];
     }
@@ -253,7 +264,6 @@ export const MessengerProvider = ({ children }) => {
       const res = await api.get(`/api/messenger/messages/${conversationId}`);
       const newMessages = res.data.messages || [];
       
-      // Store in cache
       setMessageCache(prev => ({
         ...prev,
         [conversationId]: newMessages
@@ -261,7 +271,6 @@ export const MessengerProvider = ({ children }) => {
       setMessages(newMessages);
       localStorage.setItem('messenger_messages_cache', JSON.stringify(messageCache));
       
-      // Mark as read in background
       api.put(`/api/messenger/conversations/${conversationId}/read`).catch(console.error);
       
       setConversations(prev => prev.map(conv =>
@@ -275,7 +284,6 @@ export const MessengerProvider = ({ children }) => {
     }
   };
   
-  // Background fetch for messages (updates cache silently)
   const fetchMessagesInBackground = async (conversationId) => {
     try {
       const res = await api.get(`/api/messenger/messages/${conversationId}`);
@@ -287,8 +295,7 @@ export const MessengerProvider = ({ children }) => {
       }));
       localStorage.setItem('messenger_messages_cache', JSON.stringify(messageCache));
       
-      // Only update messages if this is the active conversation
-      if (activeConversation?.id === conversationId) {
+      if (activeConversationRef.current?.id === conversationId) {
         setMessages(newMessages);
       }
     } catch (error) {
@@ -296,46 +303,115 @@ export const MessengerProvider = ({ children }) => {
     }
   };
 
-  // Send a message
-  const sendMessage = async (conversationId, content, files = []) => {
-    if (!content && files.length === 0) return null;
+ // Send a message with optimistic update (INSTANT)
+const sendMessage = async (conversationId, content, files = []) => {
+  if (!content && files.length === 0) return null;
+  
+  const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const currentUser = user;
+  
+  // Create optimistic message (appears instantly)
+  const optimisticMessage = {
+    id: tempId,
+    content: content,
+    senderId: currentUser?.id,
+    conversationId: conversationId,
+    isRead: false,
+    isDeleted: false,
+    isEdited: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sender: {
+      id: currentUser?.id,
+      fullName: currentUser?.fullName,
+      profileImage: currentUser?.profileImage,
+      role: currentUser?.role
+    },
+    files: files,
+    isOptimistic: true
+  };
+  
+  // Add to UI immediately
+  setMessages(prev => [...prev, optimisticMessage]);
+  setConversations(prev => prev.map(conv =>
+    conv.id === conversationId 
+      ? { ...conv, lastMessage: content, lastMessageAt: new Date() }
+      : conv
+  ));
+  
+  // Update cache
+  setMessageCache(prev => ({
+    ...prev,
+    [conversationId]: [...(prev[conversationId] || []), optimisticMessage]
+  }));
+  
+  // Send to server in background
+  try {
+    const res = await api.post('/api/messenger/messages', {
+      conversationId,
+      content,
+      files
+    });
+    
+    const realMessage = res.data;
+    
+    // Replace optimistic with real message
+    setMessages(prev => prev.map(msg => 
+      msg.id === tempId ? realMessage : msg
+    ));
+    
+    // Update cache with real message
+    setMessageCache(prev => ({
+      ...prev,
+      [conversationId]: prev[conversationId]?.map(msg => 
+        msg.id === tempId ? realMessage : msg
+      )
+    }));
+    
+    socketRef.current?.emit('dm:send_message', {
+      conversationId,
+      content,
+      files,
+      tempId: realMessage.id
+    });
+    
+    return realMessage;
+  } catch (error) {
+    console.error('Error sending message:', error);
+    setMessages(prev => prev.map(msg => 
+      msg.id === tempId ? { ...msg, failed: true, error: error.message } : msg
+    ));
+    return null;
+  }
+};
+  // Retry failed message
+  const retryMessage = async (message) => {
+    if (message.status !== 'failed') return;
+    
+    // Mark as retrying
+    setMessages(prev => prev.map(msg =>
+      msg.id === message.id ? { ...msg, status: 'retrying' } : msg
+    ));
     
     try {
       const res = await api.post('/api/messenger/messages', {
-        conversationId,
-        content,
-        files
+        conversationId: message.conversationId,
+        content: message.content,
+        files: message.files || []
       });
       
-      const newMessage = res.data;
+      const realMessage = res.data;
       
-      // Update cache
-      setMessageCache(prev => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), newMessage]
-      }));
-      setMessages(prev => [...prev, newMessage]);
-      
-      setConversations(prev => prev.map(conv =>
-        conv.id === conversationId 
-          ? { ...conv, lastMessage: content, lastMessageAt: new Date() }
-          : conv
+      // Replace with real message
+      setMessages(prev => prev.map(msg =>
+        msg.id === message.id ? { ...realMessage, status: 'sent' } : msg
       ));
       
-      // Save to localStorage
-      localStorage.setItem('messenger_messages_cache', JSON.stringify(messageCache));
-      localStorage.setItem('messenger_conversations', JSON.stringify(conversations));
-      
-      socketRef.current?.emit('dm:send_message', {
-        conversationId,
-        content,
-        files,
-        tempId: newMessage.id
-      });
-      
-      return newMessage;
+      return realMessage;
     } catch (error) {
-      console.error('Error sending message:', error);
+      setMessages(prev => prev.map(msg =>
+        msg.id === message.id ? { ...msg, status: 'failed' } : msg
+      ));
       return null;
     }
   };
@@ -346,7 +422,7 @@ export const MessengerProvider = ({ children }) => {
       const res = await api.post(`/api/messenger/conversations/${userId}`);
       const newConversation = res.data.conversation;
       setConversations(prev => [newConversation, ...prev]);
-      setActiveConversation(newConversation);
+      updateActiveConversation(newConversation);
       localStorage.setItem('messenger_conversations', JSON.stringify(conversations));
       return newConversation;
     } catch (error) {
@@ -437,7 +513,7 @@ export const MessengerProvider = ({ children }) => {
     }
   };
 
-  // Clear all cache (for logout)
+  // Clear all cache
   const clearCache = () => {
     localStorage.removeItem('messenger_user');
     localStorage.removeItem('messenger_conversations');
@@ -451,7 +527,7 @@ export const MessengerProvider = ({ children }) => {
     user,
     conversations,
     activeConversation,
-    setActiveConversation,
+    setActiveConversation: updateActiveConversation,
     messages,
     onlineUsers,
     loading,
@@ -463,6 +539,7 @@ export const MessengerProvider = ({ children }) => {
     fetchConversations,
     fetchMessages,
     sendMessage,
+    retryMessage,
     startConversation,
     sendTyping,
     markAsRead,

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Check, CheckCheck, Download, File, Image, Music, Film, X, Smile, MoreHorizontal } from 'lucide-react';
 
-const MessageBubble = ({ message, isOwn, onReaction }) => {
+const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderName = '' }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -33,12 +33,75 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
     setShowReactions(false);
   };
 
+  const getAvatarUrl = () => {
+    if (message.sender?.profileImage) {
+      return message.sender.profileImage;
+    }
+    return null;
+  };
+
+  const getInitials = () => {
+    if (senderName) {
+      return senderName.charAt(0).toUpperCase();
+    }
+    if (message.sender?.fullName) {
+      return message.sender.fullName.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  const getAvatarColor = () => {
+    const colors = [
+      '#075E54', '#128C7E', '#25D366', '#34B7F1',
+      '#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b', '#10b981'
+    ];
+    const name = senderName || message.sender?.fullName || '?';
+    const index = name.length % colors.length;
+    return colors[index];
+  };
+
+  // For debugging - log what's happening
+  console.log('MessageBubble - isOwn:', isOwn, 'showAvatar:', showAvatar, 'sender:', senderName);
+
   return (
     <div className={`message-wrapper ${isOwn ? 'own' : 'other'}`}>
+      {/* Avatar for received messages (other person) - LEFT side */}
+      {!isOwn && showAvatar && (
+        <div className="message-avatar message-avatar-left">
+          {getAvatarUrl() ? (
+            <img src={getAvatarUrl()} alt={senderName || message.sender?.fullName} />
+          ) : (
+            <div className="avatar-initials" style={{ backgroundColor: getAvatarColor() }}>
+              {getInitials()}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Avatar for own messages (you) - RIGHT side */}
+      {isOwn && showAvatar && (
+        <div className="message-avatar message-avatar-right">
+          {getAvatarUrl() ? (
+            <img src={getAvatarUrl()} alt="You" />
+          ) : (
+            <div className="avatar-initials" style={{ backgroundColor: getAvatarColor() }}>
+              {getInitials()}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Spacer for when avatar is hidden */}
+      {!showAvatar && <div className="message-avatar-spacer"></div>}
+      
       <div className="message-container">
+        {/* Sender name for group chats (optional) */}
+        {!isOwn && showAvatar && senderName && (
+          <div className="sender-name">{senderName}</div>
+        )}
+        
         {/* Message Bubble */}
         <div className="message-bubble">
-          {/* File Attachments */}
           {message.files && message.files.length > 0 && (
             <div className="message-files">
               {message.files.map((file) => (
@@ -64,7 +127,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
             </div>
           )}
 
-          {/* Message Text */}
           {message.content && (
             <div className="message-text">
               {message.content.split('\n').map((line, i) => (
@@ -76,7 +138,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
             </div>
           )}
 
-          {/* Message Footer */}
           <div className="message-footer">
             <span className="message-time">{formatTime(message.createdAt)}</span>
             {isOwn && (
@@ -87,7 +148,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
             {message.isEdited && <span className="edited-badge">edited</span>}
           </div>
 
-          {/* Reaction Button */}
           <button 
             className="reaction-trigger"
             onClick={() => setShowReactions(!showReactions)}
@@ -96,7 +156,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           </button>
         </div>
 
-        {/* Reactions Display */}
         {message.reactionCounts && Object.keys(message.reactionCounts).length > 0 && (
           <div className="reactions-display">
             {Object.entries(message.reactionCounts).map(([reaction, count]) => (
@@ -108,7 +167,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
         )}
       </div>
 
-      {/* Reactions Picker */}
       {showReactions && (
         <div className="reactions-picker" onClick={(e) => e.stopPropagation()}>
           {reactions.map((reaction) => (
@@ -129,8 +187,9 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
       <style jsx>{`
         .message-wrapper {
           display: flex;
-          margin: 4px 0;
-          position: relative;
+          margin: 8px 0;
+          gap: 8px;
+          align-items: flex-start;
         }
 
         .message-wrapper.own {
@@ -141,12 +200,65 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           justify-content: flex-start;
         }
 
+        /* Avatar styles */
+        .message-avatar-left {
+          width: 36px;
+          height: 36px;
+          flex-shrink: 0;
+          margin-right: 8px;
+        }
+
+        .message-avatar-right {
+          width: 36px;
+          height: 36px;
+          flex-shrink: 0;
+          margin-left: 8px;
+          order: 2;
+        }
+
+        .message-avatar-left img,
+        .message-avatar-right img {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .avatar-initials {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          font-weight: 600;
+          color: white;
+        }
+
+        .message-avatar-spacer {
+          width: 36px;
+          flex-shrink: 0;
+        }
+
         .message-container {
           max-width: 65%;
           position: relative;
         }
 
-        /* Message Bubble */
+        /* For own messages, the container should be on the left of the avatar */
+        .message-wrapper.own .message-container {
+          order: 1;
+        }
+
+        .sender-name {
+          font-size: 11px;
+          font-weight: 600;
+          color: #075E54;
+          margin-bottom: 2px;
+          margin-left: 8px;
+        }
+
         .message-bubble {
           position: relative;
           padding: 8px 12px;
@@ -163,7 +275,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           border-top-right-radius: 4px;
         }
 
-        /* Files */
         .message-files {
           display: flex;
           flex-direction: column;
@@ -229,7 +340,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           background: rgba(0, 0, 0, 0.05);
         }
 
-        /* Message Text */
         .message-text {
           font-size: 14px;
           line-height: 1.4;
@@ -238,7 +348,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           white-space: pre-wrap;
         }
 
-        /* Message Footer */
         .message-footer {
           display: flex;
           align-items: center;
@@ -263,7 +372,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           font-style: italic;
         }
 
-        /* Reaction Trigger Button */
         .reaction-trigger {
           position: absolute;
           bottom: -8px;
@@ -292,7 +400,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           background: #E9EDEF;
         }
 
-        /* Reactions Display */
         .reactions-display {
           display: flex;
           gap: 2px;
@@ -311,7 +418,6 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
           border: 1px solid #E9EDEF;
         }
 
-        /* Reactions Picker */
         .reactions-picker {
           position: absolute;
           bottom: 100%;
@@ -360,12 +466,22 @@ const MessageBubble = ({ message, isOwn, onReaction }) => {
 
         @media (max-width: 768px) {
           .message-container {
-            max-width: 80%;
+            max-width: 75%;
           }
           
           .image-preview {
             max-width: 150px;
             max-height: 150px;
+          }
+          
+          .message-avatar-left,
+          .message-avatar-right {
+            width: 32px;
+            height: 32px;
+          }
+          
+          .message-avatar-spacer {
+            width: 32px;
           }
         }
       `}</style>

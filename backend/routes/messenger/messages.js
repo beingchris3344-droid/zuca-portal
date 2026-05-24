@@ -11,7 +11,6 @@ router.get('/:conversationId', authenticateDM, async (req, res) => {
     const { cursor, limit = 50 } = req.query;
     const userId = req.user.userId;
 
-    // Verify user is in this conversation
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: conversationId,
@@ -46,7 +45,6 @@ router.get('/:conversationId', authenticateDM, async (req, res) => {
       }
     });
 
-    // Mark unread messages as read (background)
     const unreadMessages = messages.filter(m => m.senderId !== userId);
     if (unreadMessages.length > 0) {
       const readReceipts = unreadMessages.map(m => ({
@@ -62,7 +60,7 @@ router.get('/:conversationId', authenticateDM, async (req, res) => {
     }
 
     res.json({
-      messages: messages.reverse(), // Return in ascending order
+      messages: messages.reverse(),
       nextCursor: messages.length === parseInt(limit) ? messages[messages.length - 1].id : null
     });
   } catch (err) {
@@ -78,7 +76,6 @@ router.post('/', authenticateDM, async (req, res) => {
 
     let convId = conversationId;
 
-    // If no conversationId, create one with recipient
     if (!convId && recipientId) {
       const conversation = await getOrCreateConversation(senderId, recipientId);
       convId = conversation.id;
@@ -88,7 +85,6 @@ router.post('/', authenticateDM, async (req, res) => {
       return res.status(400).json({ error: "conversationId or recipientId required" });
     }
 
-    // Verify user is in conversation
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: convId,
@@ -117,11 +113,9 @@ router.post('/', authenticateDM, async (req, res) => {
       }
     });
 
-    // If files were provided, save them to database linked to this message
     if (files && files.length > 0) {
       const fileRecords = [];
       for (const file of files) {
-        // file has url, name, type, size from upload
         const fileRecord = await prisma.directMessageFile.create({
           data: {
             name: file.name,
@@ -138,17 +132,55 @@ router.post('/', authenticateDM, async (req, res) => {
       message.files = fileRecords;
     }
 
-    // Update conversation last message
     await updateConversationLastMessage(convId, content, senderId);
 
-    // Get recipient ID for notification
     const recipientId2 = conversation.participant1Id === senderId 
       ? conversation.participant2Id 
       : conversation.participant1Id;
 
-    // Send real-time notification via Socket.io
+    // ✅ ADD NOTIFICATION FOR RECIPIENT
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { fullName: true, profileImage: true }
+    });
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId: recipientId2,
+        type: "direct_message",
+        title: `💬 New message from ${sender.fullName}`,
+        message: content?.substring(0, 100) || "Sent you a message",
+        data: {
+          conversationId: convId,
+          messageId: message.id,
+          senderId: senderId,
+          senderName: sender.fullName
+        },
+        read: false,
+        createdAt: new Date()
+      }
+    });
+
     const io = req.app.get('io');
     if (io) {
+      // Send message notification to bell icon
+      io.to(recipientId2).emit('new_notification', {
+        id: notification.id,
+        userId: recipientId2,
+        type: "direct_message",
+        title: `💬 New message from ${sender.fullName}`,
+        message: content?.substring(0, 100) || "Sent you a message",
+        data: {
+          conversationId: convId,
+          messageId: message.id,
+          senderId: senderId,
+          senderName: sender.fullName
+        },
+        read: false,
+        createdAt: notification.createdAt.toISOString()
+      });
+      
+      // Send message to chat window
       io.to(recipientId2).emit('new_dm_message', {
         ...message,
         conversationId: convId,
@@ -179,7 +211,6 @@ router.put('/:messageId/read', authenticateDM, async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    // Don't mark own messages as read
     if (message.senderId === userId) {
       return res.json({ success: true });
     }
@@ -199,13 +230,11 @@ router.put('/:messageId/read', authenticateDM, async (req, res) => {
       }
     });
 
-    // Update message read status
     await prisma.directMessage.update({
       where: { id: messageId },
       data: { isRead: true, readAt: new Date() }
     });
 
-    // Notify sender via socket
     const io = req.app.get('io');
     if (io) {
       io.to(message.senderId).emit('message_read', { messageId, userId });
@@ -231,7 +260,6 @@ router.delete('/:messageId', authenticateDM, async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    // Only sender or admin can delete
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const isAdmin = user?.role === 'admin';
 
@@ -249,7 +277,6 @@ router.delete('/:messageId', authenticateDM, async (req, res) => {
       }
     });
 
-    // Notify both users
     const io = req.app.get('io');
     if (io) {
       const conversation = await prisma.conversation.findUnique({
@@ -286,7 +313,6 @@ router.put('/:messageId', authenticateDM, async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    // Only sender can edit
     if (message.senderId !== userId) {
       return res.status(403).json({ error: "Not authorized" });
     }
@@ -303,7 +329,6 @@ router.put('/:messageId', authenticateDM, async (req, res) => {
       }
     });
 
-    // Notify both users
     const io = req.app.get('io');
     if (io) {
       const conversation = await prisma.conversation.findUnique({

@@ -314,6 +314,59 @@ router.delete('/:conversationId', authenticateDM, async (req, res) => {
   }
 });
 
+// POST - Clear all messages in conversation (keep conversation)
+router.post('/:conversationId/clear', authenticateDM, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.userId;
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { participant1Id: userId },
+          { participant2Id: userId }
+        ]
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    // Soft delete all messages in conversation for this user
+    await prisma.directMessage.updateMany({
+      where: {
+        conversationId,
+        isDeleted: false
+      },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId,
+        content: "[Message cleared]"
+      }
+    });
+
+    // Reset conversation last message
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessage: null,
+        lastMessageAt: null,
+        lastMessageBy: null,
+        updatedAt: new Date()
+      }
+    });
+
+    res.json({ success: true, message: "Chat cleared successfully" });
+
+  } catch (err) {
+    console.error("Clear conversation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT - Mark conversation as read
 router.put('/:conversationId/read', authenticateDM, async (req, res) => {
   try {

@@ -89,8 +89,66 @@ model User {
 
     payments             Payment[]   
 
+  // =====DIRECT MESSAGING ====================
   
+  // Conversations (Direct Messages)
+  conversations1 Conversation[] @relation("Participant1")
+  conversations2 Conversation[] @relation("Participant2")
+  
+  // Direct Messages sent
+  sentMessages   DirectMessage[] @relation("SentMessages")
+  
+  // DM Files
+  dmFiles        DirectMessageFile[]
+  
+  // DM Reactions
+  dmReactions    DirectMessageReaction[]
+  
+  // DM Read Receipts
+  dmReadReceipts DirectMessageReadReceipt[]
+  
+  // DM Blocks (who I blocked)
+  blockedByMe    BlockedDMUser[] @relation("DMBlocker")
+  
+  // DM Blocks (who blocked me)
+  blockedMe      BlockedDMUser[] @relation("DMBlocked")
+  
+  // DM Reports I made
+  dmReports      ReportedDMMessage[] @relation("DMReporter")
+
+
+  
+  // ==================== DM PHASE 2 & 3 RELATIONS ====================
+  
+  // Search
+  dmSearchIndex      DMSearchIndex[]      // Messages I sent that are indexed
+  
+  // Typing
+  dmTypingStatus     DMTypingStatus[]     // My typing status
+  
+  // Drafts
+  dmDrafts           DMDraft[]            // My saved drafts
+  
+  // Scheduled
+  dmScheduled        DMScheduled[]        // My scheduled messages
+  
+  // Pinned
+  dmPinned           DMPinned[]           // Messages I pinned
+  
+  // Shares
+  dmShares           DMShare[]            // Messages I shared
+  
+  // Broadcasts (admin)
+  dmBroadcasts       DMBroadcast[]        // Broadcasts I sent
+  dmBroadcastReceipts DMBroadcastReceipt[] // Broadcasts I received
+  
+  // Settings
+  dmSettings         DMSettings?          // My messaging preferences
+
 }
+
+  
+
 
 model Announcement {
   id        String   @id @default(uuid())
@@ -315,6 +373,8 @@ model Jumuia {
   // NEW: Jumuia-specific chat and notifications
   chatRooms     JumuiaChatRoom[]
   notifications Notification[]
+
+  broadcastTarget DMBroadcast[]
 }
 
 model Notification {
@@ -855,4 +915,405 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   CANCELLED
+}
+
+
+// ==================== DIRECT MESSAGING SYSTEM ====================
+
+// 1. Conversations table - stores chat sessions between two users
+model Conversation {
+  id             String   @id @default(uuid())
+  participant1Id String
+  participant2Id String
+  participant1   User     @relation("Participant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2   User     @relation("Participant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  
+  // Last message preview (for conversation list)
+  lastMessage    String?  @db.Text
+  lastMessageAt  DateTime @default(now())
+  lastMessageBy  String?  // User ID who sent last message
+  
+  // Unread counts per participant
+  unreadCount1   Int      @default(0)
+  unreadCount2   Int      @default(0)
+  
+  // Metadata
+  isArchived1    Boolean  @default(false)
+  isArchived2    Boolean  @default(false)
+  isDeleted1     Boolean  @default(false)
+  isDeleted2     Boolean  @default(false)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  messages DirectMessage[]
+
+  @@unique([participant1Id, participant2Id])
+  @@index([participant1Id, participant2Id])
+  @@index([participant1Id, lastMessageAt])
+  @@index([participant2Id, lastMessageAt])
+  @@map("conversations")
+
+    // relations:
+  searchIndex   DMSearchIndex[]    // Search index entries
+  typingStatus  DMTypingStatus[]   // Who is typing
+  drafts        DMDraft[]          // Drafts in this conversation
+  scheduled     DMScheduled[]      // Scheduled messages
+  pinned        DMPinned[]         // Pinned messages in this conversation
+
+}
+
+// 2. Direct Messages table - stores individual messages
+model DirectMessage {
+  id             String   @id @default(uuid())
+  content        String?  @db.Text
+  senderId       String
+  conversationId String
+  
+  // Message status
+  isRead         Boolean  @default(false)
+  readAt         DateTime?
+  isDeleted      Boolean  @default(false)
+  deletedAt      DateTime?
+  deletedBy      String?
+  isEdited       Boolean  @default(false)
+  editedAt       DateTime?
+  
+  // Reply feature
+  replyToId      String?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  sender         User              @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        DirectMessage?    @relation("MessageReply", fields: [replyToId], references: [id])
+  replies        DirectMessage[]   @relation("MessageReply")
+  files          DirectMessageFile[]
+  reactions      DirectMessageReaction[]
+  readReceipts   DirectMessageReadReceipt[]
+  reports        ReportedDMMessage[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+  @@index([isDeleted])
+  @@index([createdAt])
+  @@map("direct_messages")
+
+   // relations:
+  searchIndex  DMSearchIndex?   // Search index entry for this message
+  pinnedBy     DMPinned[]       // Who pinned this message
+  sharedVia    DMShare[]        // Share links for this message
+  draftReplies DMDraft[]        // Drafts that reply to this message
+
+}
+
+// 3. File attachments for direct messages
+model DirectMessageFile {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  size        Int
+  data        String   @db.Text
+  thumbnail   String?  @db.Text
+  messageId   String
+  userId      String
+  createdAt   DateTime @default(now())
+  duration    Int?
+  width       Int?
+  height      Int?
+
+  message     DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([userId])
+  @@index([type])
+  @@map("direct_message_files")
+}
+
+// 4. Reactions on direct messages
+model DirectMessageReaction {
+  id          String   @id @default(uuid())
+  reaction    String
+  messageId   String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  message     DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, reaction])
+  @@index([messageId])
+  @@index([userId])
+  @@map("direct_message_reactions")
+}
+
+// 5. Read receipts for direct messages
+model DirectMessageReadReceipt {
+  id          String   @id @default(uuid())
+  messageId   String
+  userId      String
+  readAt      DateTime @default(now())
+
+  message     DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("direct_message_read_receipts")
+}
+
+// 6. Blocked users for DM
+model BlockedDMUser {
+  id          String   @id @default(uuid())
+  blockerId   String
+  blockedId   String
+  reason      String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  blocker     User     @relation("DMBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked     User     @relation("DMBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("blocked_dm_users")
+}
+
+// 7. Reported messages for moderation
+model ReportedDMMessage {
+  id          String   @id @default(uuid())
+  messageId   String
+  reporterId  String
+  reason      String
+  description String?  @db.Text
+  status      String   @default("pending")
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  message     DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter    User          @relation("DMReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([reporterId])
+  @@index([status])
+  @@map("reported_dm_messages")
+}
+
+// ==================== PHASE 2: ADDITIONAL DM TABLES ====================
+
+// 1. Search index for fast message search
+model DMSearchIndex {
+  id             String   @id @default(uuid())
+  messageId      String   @unique
+  content        String   @db.Text
+  conversationId String
+  senderId       String
+  createdAt      DateTime @default(now())
+
+  message        DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([content])  // For full-text search
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("dm_search_index")
+}
+
+// 2. Typing status tracking (for Socket.io)
+model DMTypingStatus {
+  conversationId String
+  userId         String
+  isTyping       Boolean  @default(false)
+  updatedAt      DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("dm_typing_status")
+}
+
+// 3. Draft messages (unsent)
+model DMDraft {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String?
+  content        String?  @db.Text
+  files          Json?    // Store file metadata as JSON
+  replyToId      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  replyTo        DirectMessage? @relation(fields: [replyToId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([updatedAt])
+  @@map("dm_drafts")
+}
+
+// 4. Scheduled messages
+model DMScheduled {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String
+  content        String?  @db.Text
+  files          Json?    // Store file metadata as JSON
+  scheduledFor   DateTime
+  status         String   @default("pending") // pending, sent, cancelled, failed
+  errorMessage   String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  sentAt         DateTime?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@map("dm_scheduled")
+}
+
+// 5. Pinned messages
+model DMPinned {
+  id             String   @id @default(uuid())
+  messageId      String
+  conversationId String
+  userId         String
+  pinnedAt       DateTime @default(now())
+
+  message      DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])  // Can't pin same message twice
+  @@index([conversationId])
+  @@index([userId])
+  @@index([pinnedAt])
+  @@map("dm_pinned")
+}
+
+// 6. Shared message links (forwarding)
+model DMShare {
+  id             String   @id @default(uuid())
+  messageId      String
+  shareId        String   @unique  // Short code for sharing
+  sharedBy       String
+  views          Int      @default(0)
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime? // Optional expiry
+
+  message      DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sharedByUser User          @relation(fields: [sharedBy], references: [id], onDelete: Cascade)
+
+  @@index([shareId])
+  @@index([messageId])
+  @@index([createdAt])
+  @@map("dm_shares")
+}
+
+
+// ==================== PHASE 3: ADMIN & ANALYTICS TABLES ====================
+
+// 7. Daily analytics for admin dashboard
+model DMAnalytics {
+  id                 String   @id @default(uuid())
+  date               DateTime @unique
+  totalMessages      Int      @default(0)
+  totalConversations Int      @default(0)
+  activeUsers        Int      @default(0)
+  newUsers           Int      @default(0)
+  filesShared        Int      @default(0)
+  messagesDeleted    Int      @default(0)
+  reportsFiled       Int      @default(0)
+  blocksCreated      Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([date])
+  @@map("dm_analytics")
+}
+
+// 8. Admin broadcast messages
+model DMBroadcast {
+  id             String   @id @default(uuid())
+  senderId       String
+  title          String
+  content        String   @db.Text
+  targetRole     String?  // null = all users, "admin", "member", etc.
+  targetJumuiaId String?  // Send to specific jumuia only
+  sentAt         DateTime @default(now())
+  scheduledFor   DateTime? // Schedule for later
+  status         String   @default("sent") // sent, scheduled, draft, cancelled
+
+  sender User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  jumuia Jumuia? @relation(fields: [targetJumuiaId], references: [id], onDelete: SetNull)
+
+  receipts DMBroadcastReceipt[]
+
+  @@index([senderId])
+  @@index([sentAt])
+  @@index([status])
+  @@map("dm_broadcasts")
+}
+
+// 9. Broadcast receipts (track who received/read)
+model DMBroadcastReceipt {
+  id          String   @id @default(uuid())
+  broadcastId String
+  userId      String
+  read        Boolean  @default(false)
+  readAt      DateTime?
+  deliveredAt DateTime @default(now())
+
+  broadcast DMBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, userId])
+  @@index([broadcastId])
+  @@index([userId])
+  @@index([read])
+  @@map("dm_broadcast_receipts")
+}
+
+// 10. User messaging settings/preferences
+model DMSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  notificationsEnabled  Boolean  @default(true)
+  emailNotifications    Boolean  @default(false)
+  pushNotifications     Boolean  @default(true)
+  soundEnabled          Boolean  @default(true)
+  theme                 String   @default("light")
+  messageFontSize       String   @default("medium")
+  enterToSend           Boolean  @default(true)
+  showReadReceipts      Boolean  @default(true)
+  showTypingIndicator   Boolean  @default(true)
+  autoDeleteDays        Int?
+  messagePreview        Boolean  @default(true)        
+  blockedNotifications  Boolean  @default(false)       
+  deliveryReports       Boolean  @default(true)       
+  readReports           Boolean  @default(true)        
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dm_settings")
 }

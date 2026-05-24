@@ -16,6 +16,7 @@ const cors = require("cors");
 const multer = require("multer");
 
 const app = express();
+const messengerRoutes = require('./routes/messenger');
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -114,6 +115,10 @@ app.use((req, res, next) => {
   console.log(req.method, req.path, req.body);
   next();
 });
+
+
+// Direct Messaging System Routes
+app.use('/api/messenger', messengerRoutes);
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
@@ -352,6 +357,8 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
+
+require('./socket/dmSocket')(io);
 
 // Track online users
 let onlineUsers = new Map(); // userId -> socketId

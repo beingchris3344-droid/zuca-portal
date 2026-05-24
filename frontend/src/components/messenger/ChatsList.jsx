@@ -36,7 +36,8 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
     onlineUsers, 
     loading, 
     user, 
-    startConversation
+    startConversation,
+    darkMode 
   } = useMessenger();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +45,6 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
   const [allAdmins, setAllAdmins] = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
 
-  // Fetch all admin users (ONLY admins for pinning)
   useEffect(() => {
     fetchAllAdmins();
   }, []);
@@ -53,7 +53,6 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
     setLoadingAdmins(true);
     try {
       const res = await api.get('/api/messenger/search/all-users');
-      // ONLY get users with admin role (not executives)
       const admins = res.data.users.filter(u => u.role === 'admin');
       setAllAdmins(admins);
     } catch (error) {
@@ -66,7 +65,6 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
   useEffect(() => {
     if (searchQuery.trim() === '') {
       const sorted = [...conversations].sort((a, b) => {
-        // Only admins are considered "pinned"
         const isPinnedA = a.participant?.role === 'admin';
         const isPinnedB = b.participant?.role === 'admin';
         
@@ -128,14 +126,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
     }
   };
 
-  // Get existing admin conversations
   const existingAdminConversations = filteredChats.filter(chat => chat.participant?.role === 'admin');
   const existingAdminIds = new Set(existingAdminConversations.map(c => c.participant?.id));
-  
-  // Get admins without existing conversations
   const newAdmins = allAdmins.filter(admin => !existingAdminIds.has(admin.id) && admin.id !== user?.id);
   
-  // Combine: existing admin conversations + new admins + regular chats
   const displayChats = [
     ...existingAdminConversations,
     ...newAdmins.map(admin => ({
@@ -152,19 +146,11 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
   const hasPinnedChats = existingAdminConversations.length > 0 || newAdmins.length > 0;
   const regularChats = displayChats.filter(chat => chat.participant?.role !== 'admin');
 
-  if (loading) {
-    return (
-      <div className="chats-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading chats...</p>
-      </div>
-    );
-  }
+  
 
   return (
-    <div className="chats-list-container">
-      {/* Header */}
-      <div className="chats-header">
+    <div className={`chats-list-container ${darkMode ? 'dark' : ''}`}>
+      <div className={`chats-header ${darkMode ? 'dark' : ''}`}>
         <div className="logo-section">
           <h2>ZUCA Messenger</h2>
         </div>
@@ -178,9 +164,8 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="search-container">
-        <div className="search-box">
+      <div className={`search-container ${darkMode ? 'dark' : ''}`}>
+        <div className={`search-box ${darkMode ? 'dark' : ''}`}>
           <Search size={18} className="search-icon" />
           <input
             type="text"
@@ -191,10 +176,9 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
         </div>
       </div>
 
-      {/* Chats List */}
-      <div className="chats-scroll">
+      <div className={`chats-scroll ${darkMode ? 'dark' : ''}`}>
         {displayChats.length === 0 && regularChats.length === 0 ? (
-          <div className="no-chats">
+          <div className={`no-chats ${darkMode ? 'dark' : ''}`}>
             <div className="no-chats-icon">
               <MessageCircle size={48} strokeWidth={1} />
             </div>
@@ -207,10 +191,9 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           </div>
         ) : (
           <>
-            {/* Pinned Section (Only Admins) */}
             {hasPinnedChats && searchQuery.length === 0 && (
               <>
-                <div className="pinned-header">
+                <div className={`pinned-header ${darkMode ? 'dark' : ''}`}>
                   <span className="pinned-icon">📌</span>
                   <span>Pinned</span>
                 </div>
@@ -222,7 +205,7 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
                   return (
                     <div
                       key={chat.id}
-                      className="chat-item pinned-chat"
+                      className={`chat-item pinned-chat ${darkMode ? 'dark' : ''}`}
                       onClick={() => isVirtual ? handleStartChatWithAdmin(chat.participant) : onSelectChat(chat)}
                     >
                       <div className="chat-avatar">
@@ -268,9 +251,8 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
               </>
             )}
 
-            {/* All Chats Section */}
             {regularChats.length > 0 && searchQuery.length === 0 && hasPinnedChats && (
-              <div className="all-chats-header">
+              <div className={`all-chats-header ${darkMode ? 'dark' : ''}`}>
                 <span>Chats</span>
               </div>
             )}
@@ -284,7 +266,7 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
               return (
                 <div
                   key={chat.id}
-                  className="chat-item"
+                  className={`chat-item ${darkMode ? 'dark' : ''}`}
                   onClick={() => onSelectChat(chat)}
                 >
                   <div className="chat-avatar">
@@ -337,6 +319,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           background: #FFFFFF;
         }
 
+        .chats-list-container.dark {
+          background: #111B21;
+        }
+
         .chats-header {
           padding: 16px 20px;
           display: flex;
@@ -345,10 +331,18 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           background: #075E54;
         }
 
+        .chats-header.dark {
+          background: #202C33;
+        }
+
         .logo-section h2 {
           font-size: 20px;
           font-weight: 600;
           color: #FFFFFF;
+        }
+
+        .chats-header.dark .logo-section h2 {
+          color: #E9EDEF;
         }
 
         .header-actions {
@@ -369,6 +363,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           transition: all 0.2s;
         }
 
+        .chats-header.dark .icon-btn {
+          color: #E9EDEF;
+        }
+
         .icon-btn:hover {
           background: rgba(255, 255, 255, 0.1);
         }
@@ -378,6 +376,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           background: #FFFFFF;
         }
 
+        .search-container.dark {
+          background: #111B21;
+        }
+
         .search-box {
           display: flex;
           align-items: center;
@@ -385,6 +387,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           background: #F0F2F5;
           border-radius: 30px;
           padding: 8px 16px;
+        }
+
+        .search-box.dark {
+          background: #202C33;
         }
 
         .search-icon {
@@ -400,8 +406,12 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           color: #111B21;
         }
 
-        .search-box input::placeholder {
-          color: #667781;
+        .search-box.dark input {
+          color: #E9EDEF;
+        }
+
+        .search-box.dark input::placeholder {
+          color: #8696A0;
         }
 
         .pinned-header {
@@ -415,6 +425,12 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           border-bottom: 1px solid #E9EDEF;
         }
 
+        .pinned-header.dark {
+          background: #202C33;
+          color: #8696A0;
+          border-bottom-color: #2A3942;
+        }
+
         .all-chats-header {
           padding: 8px 16px;
           background: #F8F9FA;
@@ -423,10 +439,20 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           border-bottom: 1px solid #E9EDEF;
         }
 
+        .all-chats-header.dark {
+          background: #202C33;
+          color: #8696A0;
+          border-bottom-color: #2A3942;
+        }
+
         .chats-scroll {
           flex: 1;
           overflow-y: auto;
           background: #FFFFFF;
+        }
+
+        .chats-scroll.dark {
+          background: #111B21;
         }
 
         .chat-item {
@@ -439,16 +465,24 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           border-bottom: 1px solid #E9EDEF;
         }
 
+        .chat-item.dark {
+          border-bottom-color: #2A3942;
+        }
+
         .chat-item.pinned-chat {
           background: #F8F9FA;
         }
 
-        .chat-item.pinned-chat:hover {
-          background: #F0F2F5;
+        .chat-item.pinned-chat.dark {
+          background: #202C33;
         }
 
         .chat-item:hover {
           background: #F5F6F6;
+        }
+
+        .chat-item.dark:hover {
+          background: #2A3942;
         }
 
         .chat-avatar {
@@ -488,35 +522,6 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           border: 2px solid #FFFFFF;
         }
 
-        .pinned-crown {
-          position: absolute;
-          top: -4px;
-          right: -4px;
-          font-size: 14px;
-          background: #FFD700;
-          border-radius: 50%;
-          width: 20px;
-          height: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 2px solid #FFFFFF;
-        }
-
-        .executive-crown {
-          position: absolute;
-          top: -4px;
-          right: -4px;
-          font-size: 11px;
-          border-radius: 50%;
-          width: 18px;
-          height: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 2px solid #FFFFFF;
-        }
-
         .chat-info {
           flex: 1;
           min-width: 0;
@@ -531,6 +536,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           align-items: center;
           gap: 6px;
           flex-wrap: wrap;
+        }
+
+        .chat-item.dark .chat-name {
+          color: #E9EDEF;
         }
 
         .admin-badge {
@@ -555,6 +564,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           display: flex;
           align-items: center;
           gap: 6px;
+        }
+
+        .chat-item.dark .chat-message {
+          color: #8696A0;
         }
 
         .unread-dot {
@@ -582,6 +595,10 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           margin-bottom: 6px;
         }
 
+        .chat-item.dark .chat-time {
+          color: #8696A0;
+        }
+
         .unread-badge {
           background: #25D366;
           color: white;
@@ -598,21 +615,24 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           padding: 60px 20px;
         }
 
-        .no-chats-icon {
-          margin-bottom: 20px;
-          color: #667781;
-        }
-
         .no-chats h3 {
           font-size: 18px;
           color: #111B21;
           margin-bottom: 8px;
         }
 
+        .no-chats.dark h3 {
+          color: #E9EDEF;
+        }
+
         .no-chats p {
           font-size: 14px;
           color: #667781;
           margin-bottom: 24px;
+        }
+
+        .no-chats.dark p {
+          color: #8696A0;
         }
 
         .new-chat-btn {
@@ -642,6 +662,18 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
           height: 100%;
           gap: 16px;
           background: #FFFFFF;
+        }
+
+        .chats-loading.dark {
+          background: #111B21;
+        }
+
+        .chats-loading p {
+          color: #667781;
+        }
+
+        .chats-loading.dark p {
+          color: #8696A0;
         }
 
         .loading-spinner {

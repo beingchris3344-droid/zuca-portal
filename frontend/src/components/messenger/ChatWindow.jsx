@@ -1,9 +1,10 @@
 // frontend/src/components/messenger/ChatWindow.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Video, MoreVertical, ArrowLeft } from 'lucide-react';
+import { Phone, Video, MoreVertical, ArrowLeft, Settings } from 'lucide-react';
 import { useMessenger } from '../../contexts/MessengerContext';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import SettingsModal from './SettingsModal';
 
 const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
   const { 
@@ -25,7 +26,7 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
-  
+  const [showSettings, setShowSettings] = useState(false);
 
   const isOnline = onlineUsers.includes(conversation?.participant?.id);
   const isTypingNow = typingUsers[conversation?.participant?.id];
@@ -79,27 +80,26 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     }
   };
 
-  // ✅ FIXED: Handle send with optimistic update and prevent double send
- const handleSendMessage = async () => {
-  if ((!messageInput.trim() && attachments.length === 0) || sending) return;
-  
-  const content = messageInput.trim();
-  const filesToSend = [...attachments];
-  
-  setMessageInput('');
-  setAttachments([]);
-  handleStopTyping();
-  
-  setSending(true);
-  await sendMessage(conversation.id, content, filesToSend);
-  setSending(false);
-  
-  inputRef.current?.focus();
-};
+  const handleSendMessage = async () => {
+    if ((!messageInput.trim() && attachments.length === 0) || sending) return;
+    
+    const content = messageInput.trim();
+    const filesToSend = [...attachments];
+    
+    setMessageInput('');
+    setAttachments([]);
+    handleStopTyping();
+    
+    setSending(true);
+    await sendMessage(conversation.id, content, filesToSend);
+    setSending(false);
+    
+    inputRef.current?.focus();
+  };
+
   const handleTyping = () => {
     if (!isTyping) {
       setIsTyping(true);
-      // Emit typing start via socket
     }
     
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -111,7 +111,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
   const handleStopTyping = () => {
     if (isTyping) {
       setIsTyping(false);
-      // Emit typing stop via socket
     }
   };
 
@@ -174,6 +173,9 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
           </div>
         </div>
         <div className="header-right">
+          <button className="icon-btn" onClick={() => setShowSettings(true)}>
+            <Settings size={20} />
+          </button>
           <button className="icon-btn" onClick={onOpenInfo}>
             <MoreVertical size={20} />
           </button>
@@ -198,9 +200,6 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
               const isOwn = message.senderId === user?.id;
               const showDate = index === 0 || 
                 new Date(message.createdAt).toDateString() !== new Date(messages[index - 1]?.createdAt).toDateString();
-              
-              // For optimistic messages, always show avatar
-              const showAvatar = true;
               
               return (
                 <React.Fragment key={message.id}>
@@ -245,6 +244,11 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
         sending={sending}
         inputRef={inputRef}
       />
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <SettingsModal onClose={() => setShowSettings(false)} />
+      )}
 
       <style jsx>{`
         .chat-window {

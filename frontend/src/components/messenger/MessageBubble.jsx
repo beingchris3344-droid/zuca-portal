@@ -1,10 +1,11 @@
 // frontend/src/components/messenger/MessageBubble.jsx
 import React, { useState } from 'react';
-import { Check, CheckCheck, Download, File, Image, Music, Film, X, Smile, MoreHorizontal } from 'lucide-react';
+import { Check, CheckCheck, Download, File, Image, Music, Film, X, Smile } from 'lucide-react';
+import { useMessenger } from '../../contexts/MessengerContext';
 
 const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderName = '' }) => {
+  const { fontSize } = useMessenger();
   const [showReactions, setShowReactions] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
@@ -41,13 +42,8 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
   };
 
   const getInitials = () => {
-    if (senderName) {
-      return senderName.charAt(0).toUpperCase();
-    }
-    if (message.sender?.fullName) {
-      return message.sender.fullName.charAt(0).toUpperCase();
-    }
-    return '?';
+    const name = senderName || message.sender?.fullName || '?';
+    return name.charAt(0).toUpperCase();
   };
 
   const getAvatarColor = () => {
@@ -60,12 +56,18 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
     return colors[index];
   };
 
-  // For debugging - log what's happening
-  console.log('MessageBubble - isOwn:', isOwn, 'showAvatar:', showAvatar, 'sender:', senderName);
+  // Get font size class
+  const getFontSizeClass = () => {
+    switch(fontSize) {
+      case 'small': return 'text-small';
+      case 'large': return 'text-large';
+      default: return 'text-medium';
+    }
+  };
 
   return (
     <div className={`message-wrapper ${isOwn ? 'own' : 'other'}`}>
-      {/* Avatar for received messages (other person) - LEFT side */}
+      {/* Avatar for received messages on LEFT */}
       {!isOwn && showAvatar && (
         <div className="message-avatar message-avatar-left">
           {getAvatarUrl() ? (
@@ -78,7 +80,7 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
         </div>
       )}
       
-      {/* Avatar for own messages (you) - RIGHT side */}
+      {/* Avatar for own messages on RIGHT */}
       {isOwn && showAvatar && (
         <div className="message-avatar message-avatar-right">
           {getAvatarUrl() ? (
@@ -91,17 +93,15 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
         </div>
       )}
       
-      {/* Spacer for when avatar is hidden */}
+      {/* Spacer when no avatar */}
       {!showAvatar && <div className="message-avatar-spacer"></div>}
       
       <div className="message-container">
-        {/* Sender name for group chats (optional) */}
         {!isOwn && showAvatar && senderName && (
           <div className="sender-name">{senderName}</div>
         )}
         
-        {/* Message Bubble */}
-        <div className="message-bubble">
+        <div className={`message-bubble ${getFontSizeClass()}`}>
           {message.files && message.files.length > 0 && (
             <div className="message-files">
               {message.files.map((file) => (
@@ -246,7 +246,6 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
           position: relative;
         }
 
-        /* For own messages, the container should be on the left of the avatar */
         .message-wrapper.own .message-container {
           order: 1;
         }
@@ -265,6 +264,19 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
           border-radius: 18px;
           background: ${isOwn ? '#DCF8C6' : '#FFFFFF'};
           box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Font size styles */
+        .text-small {
+          font-size: 12px;
+        }
+
+        .text-medium {
+          font-size: 14px;
+        }
+
+        .text-large {
+          font-size: 16px;
         }
 
         .message-wrapper.other .message-bubble {
@@ -341,7 +353,6 @@ const MessageBubble = ({ message, isOwn, onReaction, showAvatar = false, senderN
         }
 
         .message-text {
-          font-size: 14px;
           line-height: 1.4;
           color: #111B21;
           word-wrap: break-word;

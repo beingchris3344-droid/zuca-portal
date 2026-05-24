@@ -57,7 +57,7 @@ const formatSpecialRole = (specialRole) => {
 };
 
 const ChatInfoDrawer = ({ conversation, onClose, isMobile = false }) => {
-  const { user, onlineUsers, blockUser, reportUser, deleteConversation, archiveConversation } = useMessenger();
+  const { user, onlineUsers, blockUser, reportUser, deleteConversation, archiveConversation, clearConversation } = useMessenger();
   const [showActions, setShowActions] = useState(false);
   
   const participant = conversation?.participant;
@@ -96,6 +96,20 @@ const ChatInfoDrawer = ({ conversation, onClose, isMobile = false }) => {
     onClose();
   };
 
+  // ✅ ADDED: Clear Chat handler
+  const handleClearChat = async () => {
+    if (window.confirm(`Clear all messages in this chat? This action cannot be undone.`)) {
+      try {
+        await clearConversation(conversation?.id);
+        onClose();
+        alert('Chat cleared successfully');
+      } catch (error) {
+        console.error('Error clearing chat:', error);
+        alert('Failed to clear chat');
+      }
+    }
+  };
+
   const getInitials = (name) => {
     return name?.charAt(0)?.toUpperCase() || '?';
   };
@@ -120,6 +134,10 @@ const ChatInfoDrawer = ({ conversation, onClose, isMobile = false }) => {
             <button onClick={handleArchive} className="action-item">
               <Archive size={18} />
               <span>Archive Chat</span>
+            </button>
+            <button onClick={handleClearChat} className="action-item">
+              <Trash2 size={18} />
+              <span>Clear Chat</span>
             </button>
             <button onClick={handleDeleteChat} className="action-item danger">
               <Trash2 size={18} />

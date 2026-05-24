@@ -186,6 +186,8 @@ export default function Notifications({ userId }) {
         pageType = 'program';
       } else if (pagePath.includes('/chat')) {
         pageType = 'message';
+        } else if (pagePath.includes('/messenger')) {  
+  pageType = 'direct_message';
       } else if (pagePath.includes('/contributions')) {
         pageType = 'contribution';
       } else if (pagePath.includes('/jumuia-contributions')) {
@@ -329,6 +331,14 @@ export default function Notifications({ userId }) {
     case 'message':
       path = '/chat';
       break;
+
+       case 'direct_message':  
+      path = '/messenger';
+      state = { 
+        conversationId: notif.data?.conversationId,
+        messageId: notif.data?.messageId
+      };
+      break;
     case 'contribution':
       path = '/contributions';
       break;
@@ -385,6 +395,7 @@ export default function Notifications({ userId }) {
     switch(type) {
       case 'announcement': return '📢';
       case 'message': return '💬';
+      case 'direct_message': return '💬';
       case 'program': return '⛪';
       case 'event': return '📅';
       case 'contribution': return '💰';

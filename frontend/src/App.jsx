@@ -45,6 +45,8 @@ import UserYoutubeHub from "./pages/UserYoutubeHub";
 import Prayer from "./pages/Prayer";
 import PaymentPage from "./pages/PaymentPage";
 import PaymentSuccess from "./pages/PaymentSuccess";
+import MessengerPage from './pages/MessengerPage';
+import { MessengerProvider } from './contexts/MessengerContext';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -423,6 +425,7 @@ function AppContent() {
           <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/chat" element={<Chat />} />
+           <Route path="/messenger" element={<MessengerPage />} />  
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
@@ -456,6 +459,7 @@ function AppContent() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="messenger" element={<MessengerPage />} />  
           <Route path="activity" element={<ActivityPage />} />
           <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
@@ -579,11 +583,14 @@ function AppContent() {
   );
 }
 
+
 // Main App component with Router wrapper
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <MessengerProvider> 
+        <AppContent />
+      </MessengerProvider>
     </BrowserRouter>
   );
 }

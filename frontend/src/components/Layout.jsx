@@ -14,10 +14,61 @@ import {
   FiAward, FiYoutube, FiMapPin,
 } from "react-icons/fi";
 import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo  } from "react-icons/fa";
+import { api } from "../api";
+import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
 
 
+// Messenger Icon with Badge Component - ADD THIS BEFORE the Layout function
+const MessengerIcon = () => {
+  const [unreadCount, setUnreadCount] = useState(0);
 
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const res = await api.get('/api/messenger/unread/count', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnreadCount(res.data.unreadCount);
+      } catch (err) {
+        console.error('Error fetching unread count:', err);
+      }
+    };
+    
+    fetchUnreadCount();
+    
+    // Setup socket connection for real-time updates
+    const socket = io(BASE_URL, {
+      transports: ['websocket'],
+      auth: { token: localStorage.getItem("token") }
+    });
+    
+    socket.on('dm:new_message', () => {
+      setUnreadCount(prev => prev + 1);
+    });
+    
+    socket.on('dm:message_read', () => {
+      fetchUnreadCount();
+    });
+    
+    return () => socket.disconnect();
+  }, []);
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9l-5.05 1.9z" />
+        <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
+        <path d="M14 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
+      </svg>
+      {unreadCount > 0 && (
+        <span className="messenger-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+      )}
+    </div>
+  );
+};
 
 
 function Layout() {
@@ -150,7 +201,9 @@ useEffect(() => {
   {path: "/jumuia-contributions", 
     label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
     icon: "👥" 
-  },    { path: "/chat", label: "Chat", icon: "💬" },
+  },    
+  { path: "/messenger", label: "Messages", icon: <MessengerIcon /> },
+  { path: "/chat", label: "Chat", icon: "💬" },
     { path: "/executive", label: "Executive Team", icon: "👔" },
     { path: "/games", label: "Games Arcade", icon: "🎮" },
   ];
@@ -429,6 +482,24 @@ useEffect(() => {
 .ai-btn:hover {
   transform: scale(1.02);
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.messenger-badge {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  background: #25D366;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
         `}
       </style>
@@ -871,6 +942,11 @@ const userDropdownLogout = {
 const dropdownLogoutIcon = {
   fontSize: "16px",
 };
+
+
+
+
+
 
 // REMOVED: contentStyle - no longer needed since we removed the wrapper
 

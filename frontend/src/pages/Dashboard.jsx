@@ -56,8 +56,38 @@ function Dashboard() {
   const [showCropper, setShowCropper] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  
 
+// ==================== SIMPLE GLOBAL CACHE FOR DASHBOARD ====================
+const dashboardCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+const cachedFetch = async (url, config) => {
+  const cacheKey = `${url}_${JSON.stringify(config)}`;
+  const cached = dashboardCache.get(cacheKey);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`📦 Cache hit: ${url}`);
+    return { data: cached.data, status: 200, statusText: 'OK' };
+  }
+  
+  console.log(`🌐 Fetching: ${url}`);
+  const response = await originalGet(url, config);
+  dashboardCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
+  return response;
+};
+
+// Save original axios.get
+const originalGet = axios.get;
+
+// Override axios.get to use cache
+axios.get = function(url, config) {
+  // Only cache GET requests to our API
+  if (typeof url === 'string' && url.includes('/api/') && !url.includes('/upload')) {
+    return cachedFetch(url, config);
+  }
+  return originalGet.call(this, url, config);
+};
 
  
 const getEventBadge = (type) => {

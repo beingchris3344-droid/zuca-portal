@@ -519,6 +519,7 @@ if (header === 'Email') {
                 <th style={styles.tableHeader}>User</th>
                 <th style={styles.tableHeader}>Membership #</th>
                 <th style={styles.tableHeader}>Email</th>
+                <th style={styles.tableHeader}>Phone</th>
                 <th style={styles.tableHeader}>Role</th>
                 <th style={styles.tableHeader}>Special Role</th>
                 <th style={styles.tableHeader}>Home Jumuia</th>
@@ -554,6 +555,25 @@ if (header === 'Email') {
                       <button style={styles.copyBtn} onClick={() => copyToClipboard(user.email, `email-${user.id}`)}>{copiedId === `email-${user.id}` ? <FiCheck size={12} /> : <FiCopy size={12} />}</button>
                     </div>
                   </td>
+
+                  <td style={styles.tableCell}>
+  <div style={styles.phoneCell}>
+    {user.phone ? (
+      <>
+        <span style={styles.phoneNumber}>{user.phone}</span>
+        <button 
+          style={styles.copyBtn} 
+          onClick={() => copyToClipboard(user.phone, `phone-${user.id}`)}
+          title="Copy phone number"
+        >
+          {copiedId === `phone-${user.id}` ? <FiCheck size={12} /> : <FiCopy size={12} />}
+        </button>
+      </>
+    ) : (
+      <span style={{ color: '#94a3b8' }}>—</span>
+    )}
+  </div>
+</td>
                   <td style={styles.tableCell}>
                     <span style={{...styles.roleBadge, ...(user.role === "admin" ? styles.roleAdmin : styles.roleMember)}}>{user.role}</span>
                   </td>
@@ -698,7 +718,9 @@ tableCell: {
   color: "#1e293b",
   whiteSpace: "nowrap",        // Prevents text from wrapping
   borderBottom: "1px solid #f1f5f9"
-},  userCell: { display: "flex", alignItems: "center", gap: "12px" },
+},  
+
+userCell: { display: "flex", alignItems: "center", gap: "12px" },
   userAvatar: { width: "36px", height: "36px", borderRadius: "10px", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
   userName: { fontWeight: "600", color: "#1e293b", marginBottom: "2px" },
   userId: { fontSize: "11px", color: "#94a3b8" },
@@ -735,5 +757,16 @@ tableCell: {
   modalRole: { display: "inline-block", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "600" },
   modalFooter: { padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", gap: "12px", justifyContent: "flex-end" },
   modalActionBtn: { padding: "8px 16px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: "500", cursor: "pointer" },
-  modalDeleteBtn: { padding: "8px 16px", background: "#fef2f2", color: "#ef4444", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: "500", cursor: "pointer" },
+  modalDeleteBtn: { padding: "8px 16px", background: "#fef2f2", color: "#ef4444", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: "500", cursor: "pointer" },phoneCell: { 
+  display: "flex", 
+  alignItems: "center", 
+  gap: "8px" 
+},
+phoneNumber: { 
+  fontSize: "12px", 
+  color: "#475569",
+  fontFamily: "monospace"
+},
+
+
 };

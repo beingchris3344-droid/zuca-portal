@@ -126,7 +126,7 @@ async function sendWelcomeEmail(user, membershipNumber) {
     const currentTime = getCurrentTime();
     const blessing = getRandomBlessing();
     const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://zucaportal.onrender.com'
+      ? 'zetechcatholicaction.com'
       : 'https://zetechcatholic.vercel.app';
     
     const htmlContent = `
@@ -302,7 +302,7 @@ async function sendVerificationEmail(user, verificationCode) {
     const greeting = getTimeBasedGreeting();
     const firstName = user.fullName?.split(' ')[0] || 'Dear Member';
     const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://zucaportal.onrender.com'
+      ? 'https://zetechcatholicaction.com'
       : 'https://zetechcatholic.vercel.app';
     
     const htmlContent = `
@@ -355,7 +355,7 @@ async function sendPasswordResetEmail(email, resetCode) {
     const greeting = getTimeBasedGreeting();
     const currentTime = getCurrentTime();
     const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://zucaportal.onrender.com'
+      ? 'https://zetechcatholicaction.com'
       : 'https://zetechcatholic.vercel.app';
     
     const htmlContent = `
@@ -414,7 +414,7 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
     const jumuiaName = user.homeJumuia?.name || 'ZUCA Family';
     
     const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://zucaportal.onrender.com'
+      ? 'https://zetechcatholicaction.com'
       : 'https://zetechcatholic.vercel.app';
 
       if (notificationType === 'payment_receipt') {

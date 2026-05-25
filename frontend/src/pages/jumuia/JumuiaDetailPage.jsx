@@ -95,6 +95,8 @@ export default function JumuiaDetailPage() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const [paymentLink, setPaymentLink] = useState({ show: false, url: "", campaign: "" });  
+const [generatingLink, setGeneratingLink] = useState(false);
 
 
   //announcements
@@ -736,6 +738,45 @@ const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
     }
   };
 
+  // Generate payment link for a campaign
+const handleGeneratePaymentLink = async (campaignId, campaignTitle) => {
+  setGeneratingLink(true);
+  
+  try {
+    const response = await api.post(
+      `/api/mpesa/campaigns/${campaignId}/generate-link`,
+      {}
+    );
+    
+    if (response.data.success) {
+      const paymentLinkUrl = `${window.location.origin}/pay/${response.data.slug}`;
+      
+      setPaymentLink({
+        show: true,
+        url: paymentLinkUrl,
+        campaign: campaignTitle
+      });
+      showNotification("Payment link generated successfully!", "success");
+    }
+  } catch (err) {
+    console.error("Failed to generate payment link:", err);
+    showNotification(err.response?.data?.error || "Failed to generate payment link", "error");
+  } finally {
+    setGeneratingLink(false);
+  }
+};
+
+// Copy payment link to clipboard
+const copyPaymentLink = () => {
+  navigator.clipboard.writeText(paymentLink.url);
+  showNotification("Payment link copied to clipboard!", "success");
+};
+
+// Close payment link modal
+const closePaymentLinkModal = () => {
+  setPaymentLink({ show: false, url: "", campaign: "" });
+};
+
   // Filter functions
   const filterPledgesByStatus = (pledges) => {
     if (activeTabContrib === "all") return pledges;
@@ -1204,6 +1245,8 @@ const handleCreateAnnouncement = async () => {
             setExportOptions={setExportOptions}
             handleExport={handleExport}
             socketConnected={socketConnected}
+             handleGeneratePaymentLink={handleGeneratePaymentLink}
+    generatingLink={generatingLink}    
           />
         )}
       </div>
@@ -1225,6 +1268,153 @@ const handleCreateAnnouncement = async () => {
           onClose={() => setPledgeMessageThread(null)}
         />
       )}
+
+      {/* Payment Link Modal */}
+{paymentLink.show && (
+  <div className="payment-link-modal-overlay" onClick={closePaymentLinkModal}>
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      className="payment-link-modal"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        background: 'white',
+        borderRadius: '16px',
+        width: '90%',
+        maxWidth: '500px',
+        zIndex: 10000,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        overflow: 'hidden'
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 24px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white'
+      }}>
+        <h3 style={{ margin: 0, fontSize: '18px' }}>🔗 Payment Link Generated</h3>
+        <button 
+          onClick={closePaymentLinkModal}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            fontSize: '28px',
+            cursor: 'pointer',
+            lineHeight: 1,
+            padding: 0,
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%'
+          }}
+        >
+          ×
+        </button>
+      </div>
+      
+      <div style={{ padding: '24px' }}>
+        <p style={{ margin: '0 0 16px 0', color: '#334155', fontSize: '14px' }}>
+          Share this link with members for <strong>{paymentLink.campaign}</strong>:
+        </p>
+        
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="text"
+            readOnly
+            value={paymentLink.url}
+            onClick={(e) => e.target.select()}
+            style={{
+              flex: 1,
+              padding: '12px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '8px',
+              fontSize: '13px',
+              background: '#f8fafc',
+              color: '#1e293b',
+              fontFamily: 'monospace',
+              cursor: 'pointer'
+            }}
+          />
+          <button
+            onClick={copyPaymentLink}
+            style={{
+              padding: '12px 20px',
+              background: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            📋 Copy
+          </button>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`💰 Payment link for ${paymentLink.campaign}: ${paymentLink.url}`)}`, '_blank')}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              background: '#25D366',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            📱 Share on WhatsApp
+          </button>
+          <button
+            onClick={() => window.location.href = `mailto:?subject=Payment Link for ${paymentLink.campaign}&body=Please use this link to make your payment: ${paymentLink.url}`}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            ✉️ Share via Email
+          </button>
+        </div>
+        
+        <div style={{
+          background: '#fef3c7',
+          padding: '12px',
+          borderRadius: '8px',
+          borderLeft: '3px solid #f59e0b'
+        }}>
+          <small style={{ color: '#92400e', fontSize: '12px' }}>
+            ⚠️ Anyone with this link can make a payment. Share securely with your Jumuia members.
+          </small>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+)}
+
+
     </div>
   );
 }
@@ -1682,15 +1872,42 @@ function ContributionsSection(props) {
                   </div>
                 </div>
                 
-                <div style={styles.campaignProgressInfo}>
-                  <div style={styles.progressStats}>
-                    <span style={styles.progressPercent}>{stats.completion.toFixed(1)}%</span>
-                    <span style={styles.progressCount}>{stats.contributors}/{stats.totalMembers} members</span>
-                  </div>
-                  <span style={styles.collapseIcon}>{isCollapsed ? "▼" : "▲"}</span>
-                </div>
-              </div>
-
+             <div style={styles.campaignProgressInfo}>
+  {/* Generate Payment Link Button */}
+  {props.canModify && (
+    <button
+      className="generate-link-btn"
+      onClick={(e) => {
+        e.stopPropagation();
+        props.handleGeneratePaymentLink(type.id, type.title);
+      }}
+      disabled={props.generatingLink}
+      style={{
+        padding: '6px 12px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: '500',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginRight: '16px'
+      }}
+    >
+      🔗 Generate Link
+    </button>
+  )}
+  
+  <div style={styles.progressStats}>
+    <span style={styles.progressPercent}>{stats.completion.toFixed(1)}%</span>
+    <span style={styles.progressCount}>{stats.contributors}/{stats.totalMembers} members</span>
+  </div>
+  <span style={styles.collapseIcon}>{isCollapsed ? "▼" : "▲"}</span>
+</div>
+</div>
               {/* Progress Bar */}
               <div style={styles.progressBarContainer}>
                 <div style={styles.progressBar}>

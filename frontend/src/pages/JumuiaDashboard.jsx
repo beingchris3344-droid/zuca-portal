@@ -49,6 +49,38 @@ function JumuiaDashboard() {
   const messagesEndRef = useRef(null);
 
   const goBack = () => navigate('/dashboard');
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+const [showRightArrow, setShowRightArrow] = useState(false);
+const tabsContainerRef = useRef(null);
+
+const checkScrollPosition = () => {
+  if (tabsContainerRef.current) {
+    const { scrollLeft, scrollWidth, clientWidth } = tabsContainerRef.current;
+    setShowLeftArrow(scrollLeft > 20);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 20);
+  }
+};
+
+const scrollTabs = (direction) => {
+  if (tabsContainerRef.current) {
+    const scrollAmount = 200;
+    const newScrollLeft = tabsContainerRef.current.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
+    tabsContainerRef.current.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
+  }
+};
+
+useEffect(() => {
+  const checkScroll = () => checkScrollPosition();
+  window.addEventListener('resize', checkScroll);
+  return () => window.removeEventListener('resize', checkScroll);
+}, []);
+
+useEffect(() => {
+  checkScrollPosition();
+}, [activeTab]);
 
 
   // Replace your existing useEffect that gets jumuia info (lines 57-70)
@@ -611,27 +643,55 @@ const handleSendMessage = async () => {
       </div>
 
       {/* Tabs */}
-      <div style={styles.tabs}>
-        <button
-          style={{...styles.tabBtn, ...(activeTab === 'contributions' ? styles.tabBtnActive : {})}}
-          onClick={() => setActiveTab('contributions')}
-        >
-          <FiHeart size={16} /> Contributions
-        </button>
-        <button
-          style={{...styles.tabBtn, ...(activeTab === 'announcements' ? styles.tabBtnActive : {})}}
-          onClick={() => setActiveTab('announcements')}
-        >
-          <FiBell size={16} /> Announcements
-        </button>
-        <button
-          style={{...styles.tabBtn, ...(activeTab === 'chat' ? styles.tabBtnActive : {})}}
-          onClick={() => setActiveTab('chat')}
-        >
-          <FiMessageCircle size={16} /> Chat
-        </button>
-      </div>
-
+     <div style={styles.tabsSection}>
+  {/* Left Arrow */}
+  {showLeftArrow && (
+    <button 
+      style={styles.scrollArrow} 
+      onClick={() => scrollTabs('left')}
+      aria-label="Scroll left"
+    >
+      ◀
+    </button>
+  )}
+  
+  {/* Scrollable Tabs */}
+  <div 
+    ref={tabsContainerRef}
+    style={styles.tabs}
+    onScroll={checkScrollPosition}
+  >
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'contributions' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('contributions')}
+    >
+      <FiHeart size={16} /> Contributions
+    </button>
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'announcements' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('announcements')}
+    >
+      <FiBell size={16} /> Announcements
+    </button>
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'chat' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('chat')}
+    >
+      <FiMessageCircle size={16} /> Chat
+    </button>
+  </div>
+  
+  {/* Right Arrow */}
+  {showRightArrow && (
+    <button 
+      style={styles.scrollArrow} 
+      onClick={() => scrollTabs('right')}
+      aria-label="Scroll right"
+    >
+      ▶
+    </button>
+  )}
+</div>
       {/* Tab Content */}
       <div style={styles.tabContent}>
         {/* CONTRIBUTIONS TAB */}
@@ -1152,23 +1212,27 @@ const ContributionCard = ({
                     disabled={isSubmitting}
                   />
 
-                  <div style={{display: 'flex', gap: '8px'}}>
-                    <button 
-                      style={{...styles.pledgeBtn, ...(isSubmitting ? styles.pledgeBtnSubmitting : {})}}
-                      onClick={onPledge}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
-                    </button>
-                    
-                    <button 
-                      style={styles.messageBtn}
-                      onClick={onOpenMessage}
-                      disabled={isSubmitting}
-                    >
-                      💬
-                    </button>
-                  </div>
+                  <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+  <button style={{...styles.pledgeBtn, flex: 1}} onClick={onPledge} disabled={isSubmitting}>
+    {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
+  </button>
+  
+  {/* NEW: Pay Now Button */}
+  <button 
+    style={styles.payNowBtn}
+    onClick={() => {
+      const paymentLink = `${window.location.origin}/pay/campaign/${contribution.contributionTypeId || contribution.id}`;
+      window.open(paymentLink, '_blank');
+    }}
+    disabled={isSubmitting}
+  >
+    💳 Pay Now
+  </button>
+  
+  <button style={styles.messageBtn} onClick={onOpenMessage} disabled={isSubmitting}>
+    💬
+  </button>
+</div>
                 </div>
                 <p style={styles.formNote}>
                   Your pledge will be pending until approved by an administrator.
@@ -1221,6 +1285,19 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s",
   },
+
+  payNowBtn: {
+  flex: 1,
+  padding: "14px",
+  border: "none",
+  borderRadius: "10px",
+  background: "#10b981",
+  color: "white",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+  transition: "all 0.2s",
+},
   
   notification: {
     position: "fixed",
@@ -1257,13 +1334,51 @@ const styles = {
     margin: 0,
   },
   
-  tabs: {
-    maxWidth: "1200px",
-    margin: "0 auto 24px",
-    display: "flex",
-    gap: "8px",
-    borderBottom: "2px solid #e2e8f0",
-    paddingBottom: "8px",
+ tabs: {
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  display: "flex",
+  gap: "8px",
+  borderBottom: "2px solid #e2e8f0",
+  paddingBottom: "8px",
+  // SCROLLABLE TABS - EASY TO SCROLL
+  overflowX: "auto",
+  overflowY: "hidden",
+  WebkitOverflowScrolling: "touch",  // Smooth momentum scrolling on iOS
+  scrollBehavior: "smooth",          // Smooth scrolling
+  cursor: "grab",                    // Shows grab cursor
+  "&:active": {
+    cursor: "grabbing",              // Shows grabbing when scrolling
+  },
+  // Hide scrollbar but keep functionality (cleaner look)
+  scrollbarWidth: "none",            // Firefox
+  msOverflowStyle: "none",           // IE/Edge
+  "&::-webkit-scrollbar": {
+    display: "none",                 // Chrome/Safari
+  },
+
+  tabsWrapper: {
+  position: "relative",
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  "&::after": {
+    content: "''",
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: "40px",
+    height: "100%",
+    background: "linear-gradient(to right, transparent, #f8fafc)",
+    pointerEvents: "none",
+    display: "none",
+  },
+  "@media (max-width: 768px)": {
+    "&::after": {
+      display: "block",
+    },
+  },
+},
+
   },
   tabBtn: {
     padding: "10px 20px",
@@ -1343,6 +1458,57 @@ const styles = {
     borderColor: "#3b82f6",
     color: "white",
   },
+
+  tabsSection: {
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  position: "relative",
+},
+scrollArrow: {
+  width: "32px",
+  height: "32px",
+  borderRadius: "50%",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  fontSize: "14px",
+  color: "#475569",
+  flexShrink: 0,
+  transition: "all 0.2s",
+  "@media (min-width: 769px)": {
+    display: "none",  // Hide arrows on desktop
+  },
+  "&:hover": {
+    background: "#f1f5f9",
+    transform: "scale(1.05)",
+  },
+  "&:active": {
+    transform: "scale(0.95)",
+  },
+},
+tabs: {
+  display: "flex",
+  gap: "8px",
+  borderBottom: "2px solid #e2e8f0",
+  paddingBottom: "8px",
+  overflowX: "auto",
+  overflowY: "hidden",
+  WebkitOverflowScrolling: "touch",
+  scrollBehavior: "smooth",
+  flex: 1,
+  // Hide scrollbar
+  scrollbarWidth: "none",
+  msOverflowStyle: "none",
+  "&::-webkit-scrollbar": {
+    display: "none",
+  },
+},
   filterCount: {
     fontSize: "11px",
     background: "#e2e8f0",

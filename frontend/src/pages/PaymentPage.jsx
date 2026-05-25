@@ -147,8 +147,8 @@ const pollPaymentStatus = (paymentId) => {
         
         // Pass sender details in URL params
         setTimeout(() => {
-          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}`);
-        }, 2000);
+  navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}&jumuiaName=${encodeURIComponent(campaign.jumuia?.name || '')}`);
+}, 2000);
         return;
       }
       
@@ -406,6 +406,13 @@ const handlePayment = async () => {
             {/* Campaign info */}
             <div style={styles.campaignInfo}>
               <h3 style={styles.campaignTitle}>{campaign.title}</h3>
+              {campaign.jumuia && (
+    <div style={styles.jumuiaInfo}>
+      🏠 <strong>Jumuia:</strong> {campaign.jumuia.name}
+    </div>
+  )}
+
+
               <p style={styles.campaignDesc}>{campaign.description || "Support our cause"}</p>
               <div style={styles.requiredAmount}>Target: KES {campaign.amountRequired?.toLocaleString()}</div>
             </div>
@@ -718,6 +725,18 @@ const handlePayment = async () => {
             width: 20px;
           }
         }
+
+        jumuiaInfo: {
+  background: "#fef3c7",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  marginBottom: "12px",
+  fontSize: "13px",
+  color: "#d97706",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+},
       `}</style>
     </div>
   );

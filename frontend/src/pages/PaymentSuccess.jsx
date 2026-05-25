@@ -114,6 +114,7 @@ function PaymentSuccess() {
     const amount = params.get("amount");
     const campaign = params.get("campaign");
     const senderName = params.get("senderName");
+    const jumuiaName = params.get("jumuiaName"); 
     const senderPhone = params.get("senderPhone");
     
     if (receipt || location.state) {
@@ -123,6 +124,7 @@ function PaymentSuccess() {
         campaignTitle: campaign || location.state?.campaignTitle,
         senderName: senderName || location.state?.senderName || "N/A",
         senderPhone: senderPhone || location.state?.senderPhone || "N/A",
+          jumuiaName: jumuiaName || location.state?.jumuiaName || null,  
         timestamp: new Date().toLocaleString(),
         date: new Date(),
       });
@@ -331,6 +333,13 @@ const downloadReceipt = () => {
             <span class="detail-value">${paymentData?.campaignTitle || 'Contribution'}</span>
           </div>
 
+          ${paymentData?.jumuiaName ? `
+<div class="detail-row">
+  <span class="detail-label">Jumuia:</span>
+  <span class="detail-value">🏠 ${paymentData.jumuiaName}</span>
+</div>
+` : ''}
+
           <div class="detail-row">
             <span class="detail-label">Amount:</span>
             <span class="amount-value">KES ${(paymentData?.amount || 0).toLocaleString()}</span>
@@ -498,6 +507,13 @@ const downloadReceipt = () => {
               <span style={styles.detailLabel}>Campaign:</span>
               <span style={styles.detailValue}>{paymentData?.campaignTitle || "Contribution"}</span>
             </div>
+
+            {paymentData?.jumuiaName && (
+  <div style={styles.detailRow}>
+    <span style={styles.detailLabel}>Jumuia:</span>
+    <span style={styles.detailValue}>🏠 {paymentData.jumuiaName}</span>
+  </div>
+)}
             
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Amount Paid:</span>

@@ -287,6 +287,87 @@ async function getMessagingStats(startDate, endDate) {
   };
 }
 
+// ==================== NOTIFICATION HELPERS (ADD THIS) ====================
+
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  try {
+    // Get io instance from app if available (you'll need to pass it or get from global)
+    const io = global.io; // Or pass as parameter
+    
+    // Create notification in database
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message: message?.substring(0, 255) || title,
+        data: data,
+        read: false,
+        createdAt: new Date()
+      }
+    });
+    
+    // Emit via socket if io is available
+    if (io) {
+      io.to(userId).emit('new_notification', {
+        id: notification.id,
+        userId,
+        type,
+        title,
+        message: notification.message,
+        data: data,
+        read: false,
+        createdAt: notification.createdAt.toISOString()
+      });
+    }
+    
+    return notification;
+  } catch (err) {
+    console.error(`Failed to create notification for user ${userId}:`, err.message);
+    return null;
+  }
+}
+
+// Update batchSendNotifications to use createAndSendNotification
+async function batchSendNotifications(userIds, title, message, type, data = {}) {
+  const batchSize = 100;
+  let success = 0;
+  const results = [];
+  
+  for (let i = 0; i < userIds.length; i += batchSize) {
+    const batch = userIds.slice(i, i + batchSize);
+    const promises = batch.map(userId => 
+      createAndSendNotification({
+        userId,
+        type,
+        title,
+        message,
+        data
+      }).catch(err => {
+        console.error(`Failed to notify ${userId}:`, err.message);
+        return null;
+      })
+    );
+    
+    const batchResults = await Promise.all(promises);
+    success += batchResults.filter(r => r !== null).length;
+    results.push(...batchResults);
+  }
+  
+  return { success, failed: userIds.length - success, results };
+}
+
+// ==================== ADD SQL HELPER ====================
+
+// For raw SQL queries that need parameter binding
+function sql(strings, ...values) {
+  let result = strings[0];
+  for (let i = 0; i < values.length; i++) {
+    result += values[i] + strings[i + 1];
+  }
+  return result;
+}
+
 module.exports = {
   // Auth
   authenticateDM,
@@ -300,6 +381,7 @@ module.exports = {
   getFileTypeIcon,
   formatFileSize,
   // Notification
+   createAndSendNotification,
   batchSendNotifications,
   // Search
   searchMessages,

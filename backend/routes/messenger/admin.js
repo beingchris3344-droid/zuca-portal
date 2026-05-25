@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { authenticateDM, batchSendNotifications } = require('./helpers');
+const { authenticateDM, batchSendNotifications, createAndSendNotification } = require('./helpers');
 const { sendPersonalizedEmail } = require('../../services/mailer');
+
 
 // ==================== ADMIN MIDDLEWARE ====================
 async function requireAdmin(req, res, next) {

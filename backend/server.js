@@ -119,6 +119,9 @@ app.use((req, res, next) => {
 
 // Direct Messaging System Routes
 app.use('/api/messenger', messengerRoutes);
+// Add this line with your other route registrations
+const adminMessagingRoutes = require('./routes/admin-messaging');
+app.use('/api/admin/messenger', adminMessagingRoutes);
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 

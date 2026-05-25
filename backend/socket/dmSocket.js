@@ -1,53 +1,68 @@
-// backend/socket/dmSocket.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Store online users and their socket IDs
-const onlineUsers = new Map(); // userId -> socketId
-const userSockets = new Map(); // socketId -> userId
-const typingUsers = new Map(); // conversationId -> Set of userIds
+const onlineUsers = new Map();
+const userSockets = new Map();
+const typingUsers = new Map();
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
     console.log('🔌 New socket connected:', socket.id);
 
-    // ==================== USER AUTH & ONLINE STATUS ====================
-    
-    // User joins with their userId
+    // Join conversation room for real-time messaging
+    socket.on('join_conversation', (conversationId) => {
+      if (conversationId) {
+        socket.join(`conversation:${conversationId}`);
+        console.log(`🔊 Socket ${socket.id} joined conversation room: conversation:${conversationId}`);
+      }
+    });
+
     socket.on('dm:join', async (userId) => {
       if (!userId) return;
       
-      // Store mappings
       onlineUsers.set(userId, socket.id);
       userSockets.set(socket.id, userId);
+      socket.join(userId);
       
-      // Join user to their personal room
-      socket.join(`user:${userId}`);
+      let isAdmin = false;
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true }
+        });
+        isAdmin = user?.role === 'admin';
+        if (isAdmin) {
+          socket.join('admin-room');
+          console.log(`👑 Admin ${userId} joined admin room`);
+        }
+      } catch (err) {
+        console.error('Error checking admin role:', err);
+      }
       
-      // Update user's online status in database
       await prisma.user.update({
         where: { id: userId },
         data: { lastActive: new Date() }
       });
       
-      console.log(`✅ User ${userId} joined DM system`);
+      console.log(`✅ User ${userId} joined DM system (Admin: ${isAdmin})`);
+      console.log(`📊 Current online users: ${Array.from(onlineUsers.keys()).join(', ')}`);
       
-      // Broadcast online status to all connected users
       io.emit('dm:user_online', { userId, online: true });
       
-      // Send list of online users to the new user
       const onlineUsersList = Array.from(onlineUsers.keys());
       socket.emit('dm:online_users', { users: onlineUsersList });
+      
+      if (!isAdmin) {
+        io.to('admin-room').emit('dm:user_online', { userId, online: true });
+      }
     });
     
-    // Handle user disconnect
     socket.on('disconnect', async () => {
       const userId = userSockets.get(socket.id);
       if (userId) {
         onlineUsers.delete(userId);
         userSockets.delete(socket.id);
         
-        // Remove from typing statuses
         for (const [convId, users] of typingUsers.entries()) {
           if (users.has(userId)) {
             users.delete(userId);
@@ -59,13 +74,13 @@ module.exports = (io) => {
         }
         
         console.log(`🔴 User ${userId} disconnected`);
+        console.log(`📊 Remaining online users: ${Array.from(onlineUsers.keys()).join(', ')}`);
+        
         io.emit('dm:user_offline', { userId, online: false });
+        io.to('admin-room').emit('dm:user_offline', { userId, online: false });
       }
     });
     
-    // ==================== REAL-TIME MESSAGES ====================
-    
-    // Send new message
     socket.on('dm:send_message', async (data) => {
       try {
         const { conversationId, content, files, replyToId, tempId } = data;
@@ -76,7 +91,6 @@ module.exports = (io) => {
           return;
         }
         
-        // Verify user is in conversation
         const conversation = await prisma.conversation.findFirst({
           where: {
             id: conversationId,
@@ -84,7 +98,8 @@ module.exports = (io) => {
               { participant1Id: userId },
               { participant2Id: userId }
             ]
-          }
+          },
+          select: { id: true, participant1Id: true, participant2Id: true }
         });
         
         if (!conversation) {
@@ -92,7 +107,10 @@ module.exports = (io) => {
           return;
         }
         
-        // Create message in database
+        const recipientId = conversation.participant1Id === userId 
+          ? conversation.participant2Id 
+          : conversation.participant1Id;
+        
         const message = await prisma.directMessage.create({
           data: {
             content: content || null,
@@ -103,15 +121,14 @@ module.exports = (io) => {
           include: {
             sender: {
               select: { id: true, fullName: true, profileImage: true, role: true }
-            },
-            files: true
+            }
           }
         });
         
-        // If files were uploaded, link them to message
+        // Handle files in background
         if (files && files.length > 0) {
-          for (const file of files) {
-            await prisma.directMessageFile.create({
+          const filePromises = files.map(file => 
+            prisma.directMessageFile.create({
               data: {
                 name: file.name,
                 type: file.type,
@@ -121,69 +138,107 @@ module.exports = (io) => {
                 userId: userId,
                 messageId: message.id
               }
-            });
-          }
-          // Fetch message with files
-          const updatedMessage = await prisma.directMessage.findUnique({
-            where: { id: message.id },
-            include: {
-              sender: { select: { id: true, fullName: true, profileImage: true, role: true } },
-              files: true
-            }
-          });
-          Object.assign(message, updatedMessage);
+            })
+          );
+          Promise.all(filePromises).catch(console.error);
         }
         
-        // Update conversation last message
-        await prisma.conversation.update({
+        // ✅ ONLY ONE EMIT - to conversation room (NO duplicate)
+    // ✅ ONLY ONE EMIT - to conversation room (NO duplicate)
+io.to(`conversation:${conversationId}`).emit('dm:new_message', {
+  id: message.id,
+  content: message.content,
+  conversationId: conversationId,
+  senderId: message.senderId,
+  createdAt: message.createdAt,
+  replyToId: message.replyToId,
+  sender: {
+    id: message.sender.id,
+    fullName: message.sender.fullName,
+    profileImage: message.sender.profileImage,
+    role: message.sender.role
+  },
+  tempId: data.tempId
+});
+
+// Confirm to sender
+socket.emit('dm:message_sent', {
+  id: message.id,
+  content: message.content,
+  conversationId: conversationId,
+  senderId: message.senderId,
+  createdAt: message.createdAt,
+  sender: {
+    id: message.sender.id,
+    fullName: message.sender.fullName,
+    profileImage: message.sender.profileImage,
+    role: message.sender.role
+  },
+  tempId: data.tempId
+});
+        
+               // Fire and forget - don't await these
+        const isSenderParticipant1 = conversation.participant1Id === userId;
+        const unreadField = isSenderParticipant1 ? 'unreadCount2' : 'unreadCount1';
+        
+        // Update conversation with last message AND reactivate for sender
+        prisma.conversation.update({
           where: { id: conversationId },
           data: {
             lastMessage: content?.substring(0, 100) || "📎 File attached",
             lastMessageAt: new Date(),
-            lastMessageBy: userId
+            lastMessageBy: userId,
+            ...(isSenderParticipant1 ? { isDeleted1: false } : { isDeleted2: false })
           }
-        });
+        }).catch(console.error);
         
-        // Get recipient ID
-        const recipientId = conversation.participant1Id === userId 
-          ? conversation.participant2Id 
-          : conversation.participant1Id;
+        // Also reactivate for recipient
+        prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            ...(conversation.participant1Id === recipientId ? { isDeleted1: false } : { isDeleted2: false })
+          }
+        }).catch(console.error);
         
-        // Increment unread count for recipient
-        const isSenderParticipant1 = conversation.participant1Id === userId;
-        const unreadField = isSenderParticipant1 ? 'unreadCount2' : 'unreadCount1';
-        
-        await prisma.conversation.update({
+        // Update unread count
+        prisma.conversation.update({
           where: { id: conversationId },
           data: { [unreadField]: { increment: 1 } }
-        });
+        }).catch(console.error);
         
-        // Send to recipient in real-time
-        io.to(`user:${recipientId}`).emit('dm:new_message', {
-          ...message,
-          conversationId,
-          tempId
-        });
-        
-        // Confirm to sender
-        socket.emit('dm:message_sent', {
-          ...message,
-          conversationId,
-          tempId
-        });
-        
-        // Send notification to recipient
-        const recipient = await prisma.user.findUnique({
-          where: { id: recipientId },
-          select: { fullName: true, email: true }
-        });
-        
-        socket.to(`user:${recipientId}`).emit('dm:notification', {
-          title: `New message from ${message.sender.fullName}`,
-          body: content?.substring(0, 100) || "Sent a file",
-          messageId: message.id,
-          conversationId
-        });
+        // Create notification
+        prisma.notification.create({
+          data: {
+            userId: recipientId,
+            type: "direct_message",
+            title: `💬 New message from ${message.sender.fullName}`,
+            message: content?.substring(0, 100) || "Sent you a message",
+            data: {
+              conversationId,
+              messageId: message.id,
+              senderId: userId,
+              senderName: message.sender.fullName
+            },
+            read: false,
+            createdAt: new Date()
+          }
+        }).then(notification => {
+          io.to(recipientId).emit('new_notification', {
+            id: notification.id,
+            userId: recipientId,
+            type: "direct_message",
+            title: `💬 New message from ${message.sender.fullName}`,
+            message: content?.substring(0, 100) || "Sent you a message",
+            data: {
+              conversationId,
+              messageId: message.id,
+              senderId: userId,
+              senderName: message.sender.fullName
+            },
+            read: false,
+            createdAt: notification.createdAt.toISOString()
+          });
+        }).catch(console.error);
         
       } catch (err) {
         console.error('Send message error:', err);
@@ -191,12 +246,11 @@ module.exports = (io) => {
       }
     });
     
-    // ==================== TYPING INDICATORS ====================
-    
-    // User started typing
     socket.on('dm:typing_start', async ({ conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
+      
+      console.log(`📝 User ${userId} started typing in conversation ${conversationId}`);
       
       if (!typingUsers.has(conversationId)) {
         typingUsers.set(conversationId, new Set());
@@ -204,57 +258,33 @@ module.exports = (io) => {
       
       typingUsers.get(conversationId).add(userId);
       
-      // Get recipient(s) in conversation
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId }
+      io.to(`conversation:${conversationId}`).emit('dm:typing_start', {
+        conversationId,
+        userId
       });
-      
-      if (conversation) {
-        const recipientId = conversation.participant1Id === userId 
-          ? conversation.participant2Id 
-          : conversation.participant1Id;
-        
-        io.to(`user:${recipientId}`).emit('dm:typing_start', {
-          conversationId,
-          userId
-        });
-      }
     });
     
-    // User stopped typing
     socket.on('dm:typing_stop', async ({ conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
+      
+      console.log(`📝 User ${userId} stopped typing in conversation ${conversationId}`);
       
       if (typingUsers.has(conversationId)) {
         typingUsers.get(conversationId).delete(userId);
       }
       
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId }
+      io.to(`conversation:${conversationId}`).emit('dm:typing_stop', {
+        conversationId,
+        userId
       });
-      
-      if (conversation) {
-        const recipientId = conversation.participant1Id === userId 
-          ? conversation.participant2Id 
-          : conversation.participant1Id;
-        
-        io.to(`user:${recipientId}`).emit('dm:typing_stop', {
-          conversationId,
-          userId
-        });
-      }
     });
     
-    // ==================== READ RECEIPTS ====================
-    
-    // Mark message as read
     socket.on('dm:mark_read', async ({ messageId, conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
       
       try {
-        // Create read receipt
         await prisma.directMessageReadReceipt.upsert({
           where: {
             messageId_userId: { messageId, userId }
@@ -267,20 +297,18 @@ module.exports = (io) => {
           }
         });
         
-        // Update message isRead flag
         await prisma.directMessage.update({
           where: { id: messageId },
           data: { isRead: true, readAt: new Date() }
         });
         
-        // Notify sender that message was read
         const message = await prisma.directMessage.findUnique({
           where: { id: messageId },
           select: { senderId: true }
         });
         
         if (message && message.senderId !== userId) {
-          io.to(`user:${message.senderId}`).emit('dm:message_read', {
+          io.to(message.senderId).emit('dm:message_read', {
             messageId,
             conversationId,
             userId,
@@ -293,13 +321,11 @@ module.exports = (io) => {
       }
     });
     
-    // Mark all messages in conversation as read
     socket.on('dm:mark_conversation_read', async ({ conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
       
       try {
-        // Get all unread messages from other user
         const unreadMessages = await prisma.directMessage.findMany({
           where: {
             conversationId,
@@ -309,7 +335,6 @@ module.exports = (io) => {
           select: { id: true, senderId: true }
         });
         
-        // Create read receipts
         for (const msg of unreadMessages) {
           await prisma.directMessageReadReceipt.upsert({
             where: {
@@ -323,8 +348,7 @@ module.exports = (io) => {
             }
           });
           
-          // Notify each sender
-          io.to(`user:${msg.senderId}`).emit('dm:message_read', {
+          io.to(msg.senderId).emit('dm:message_read', {
             messageId: msg.id,
             conversationId,
             userId,
@@ -332,7 +356,6 @@ module.exports = (io) => {
           });
         }
         
-        // Update messages as read
         await prisma.directMessage.updateMany({
           where: {
             conversationId,
@@ -342,7 +365,6 @@ module.exports = (io) => {
           data: { isRead: true, readAt: new Date() }
         });
         
-        // Reset unread count
         const conversation = await prisma.conversation.findUnique({
           where: { id: conversationId }
         });
@@ -362,9 +384,6 @@ module.exports = (io) => {
       }
     });
     
-    // ==================== MESSAGE ACTIONS ====================
-    
-    // Delete message
     socket.on('dm:delete_message', async ({ messageId, conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
@@ -389,14 +408,13 @@ module.exports = (io) => {
           }
         });
         
-        // Notify conversation participants
         const conversation = await prisma.conversation.findUnique({
           where: { id: conversationId }
         });
         
         if (conversation) {
-          io.to(`user:${conversation.participant1Id}`).emit('dm:message_deleted', { messageId });
-          io.to(`user:${conversation.participant2Id}`).emit('dm:message_deleted', { messageId });
+          io.to(conversation.participant1Id).emit('dm:message_deleted', { messageId });
+          io.to(conversation.participant2Id).emit('dm:message_deleted', { messageId });
         }
         
       } catch (err) {
@@ -404,7 +422,6 @@ module.exports = (io) => {
       }
     });
     
-    // Edit message
     socket.on('dm:edit_message', async ({ messageId, content, conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
@@ -428,14 +445,13 @@ module.exports = (io) => {
           }
         });
         
-        // Notify conversation participants
         const conversation = await prisma.conversation.findUnique({
           where: { id: conversationId }
         });
         
         if (conversation) {
-          io.to(`user:${conversation.participant1Id}`).emit('dm:message_edited', updated);
-          io.to(`user:${conversation.participant2Id}`).emit('dm:message_edited', updated);
+          io.to(conversation.participant1Id).emit('dm:message_edited', updated);
+          io.to(conversation.participant2Id).emit('dm:message_edited', updated);
         }
         
       } catch (err) {
@@ -443,7 +459,6 @@ module.exports = (io) => {
       }
     });
     
-    // Add reaction
     socket.on('dm:add_reaction', async ({ messageId, reaction, conversationId }) => {
       const userId = userSockets.get(socket.id);
       if (!userId) return;
@@ -463,7 +478,6 @@ module.exports = (io) => {
           });
         }
         
-        // Get updated counts
         const counts = await prisma.directMessageReaction.groupBy({
           by: ['reaction'],
           where: { messageId },
@@ -473,19 +487,18 @@ module.exports = (io) => {
         const reactionCounts = {};
         counts.forEach(c => { reactionCounts[c.reaction] = c._count; });
         
-        // Notify conversation participants
         const conversation = await prisma.conversation.findUnique({
           where: { id: conversationId }
         });
         
         if (conversation) {
-          io.to(`user:${conversation.participant1Id}`).emit('dm:reaction_updated', {
+          io.to(conversation.participant1Id).emit('dm:reaction_updated', {
             messageId,
             reaction,
             counts: reactionCounts,
             userId
           });
-          io.to(`user:${conversation.participant2Id}`).emit('dm:reaction_updated', {
+          io.to(conversation.participant2Id).emit('dm:reaction_updated', {
             messageId,
             reaction,
             counts: reactionCounts,

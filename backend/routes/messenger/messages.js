@@ -294,6 +294,18 @@ router.delete('/:messageId', authenticateDM, async (req, res) => {
   }
 });
 
+// GET - Get online users list
+router.get('/online-users', authenticateDM, async (req, res) => {
+  try {
+    // You need to track online users - either from socket or database
+    // For now, return empty array or implement tracking
+    const onlineUsersList = Array.from(onlineUsers || []);
+    res.json({ users: onlineUsersList });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT edit message
 router.put('/:messageId', authenticateDM, async (req, res) => {
   try {

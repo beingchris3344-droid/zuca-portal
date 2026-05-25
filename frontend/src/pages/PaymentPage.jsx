@@ -20,7 +20,7 @@ import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
 
 function PaymentPage() {
-  const { slug, campaignId } = useParams(); // ← Get both params
+  const { slug, campaignId } = useParams();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +39,6 @@ function PaymentPage() {
   const [touchStart, setTouchStart] = useState(null);
   const slideIntervalRef = useRef(null);
   const slideshowRef = useRef(null);
-  const [waitingForCallback, setWaitingForCallback] = useState(false);
   
   // Slideshow images array
   const slides = [
@@ -56,7 +55,6 @@ function PaymentPage() {
     { id: 12, image: slide12 },
   ];
 
-  // Slideshow navigation functions
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % slides.length);
   };
@@ -64,7 +62,6 @@ function PaymentPage() {
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
-  
 
   const goToSlide = (index) => {
     setCurrentSlide(index);
@@ -74,7 +71,6 @@ function PaymentPage() {
     setIsPlaying(!isPlaying);
   };
 
-  // Touch handlers for mobile swipe
   const handleTouchStart = (e) => {
     setTouchStart(e.touches[0].clientX);
   };
@@ -84,18 +80,12 @@ function PaymentPage() {
     const touchEnd = e.changedTouches[0].clientX;
     const diff = touchStart - touchEnd;
     if (Math.abs(diff) > 50) {
-      if (diff > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
+      if (diff > 0) nextSlide();
+      else prevSlide();
     }
     setTouchStart(null);
   };
 
-  
-
-  // Auto-play slideshow
   useEffect(() => {
     if (isPlaying) {
       slideIntervalRef.current = setInterval(() => {
@@ -103,142 +93,107 @@ function PaymentPage() {
       }, 5000);
     }
     return () => {
-      if (slideIntervalRef.current) {
-        clearInterval(slideIntervalRef.current);
-      }
+      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
     };
   }, [isPlaying, slides.length]);
 
-
-const pollPaymentStatus = (paymentId) => {
-  console.log("🟢 pollPaymentStatus STARTED with ID:", paymentId);
-  let attempts = 0;
-  const maxAttempts = 60; // 3 minutes total
-  
-  const interval = setInterval(async () => {
-    attempts++;
-    console.log(`🟡 Attempt ${attempts}: Checking payment status for ${paymentId}`);
+  const pollPaymentStatus = (paymentId) => {
+    let attempts = 0;
+    const maxAttempts = 60;
     
-    try {
-      const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${paymentId}/status`);
-      console.log(`📊 Attempt ${attempts}: Status =`, response.data.payment?.status);
-      
-      // SUCCESS - payment completed
-      if (response.data.payment?.status === "SUCCESS") {
-        console.log("✅ Payment SUCCESS!");
-        clearInterval(interval);
-        setMessage({ text: `✅ Payment successful! Receipt: ${response.data.payment.mpesaReceiptNumber || 'N/A'}`, type: "success" });
-        setProcessing(false);
-        
-        // Get sender details from user object (already logged in)
-        const senderName = user?.fullName || user?.name || "Customer";
-        const senderPhone = phone || user?.phone || "N/A";
-        
-        const paymentData = {
-          receiptNumber: response.data.payment.mpesaReceiptNumber,
-          amount: response.data.payment.amount,
-          campaignTitle: campaign.title,
-          senderName: senderName,
-          senderPhone: senderPhone,
-          timestamp: new Date().toLocaleString(),
-        };
-        localStorage.setItem("lastPayment", JSON.stringify(paymentData));
-        localStorage.removeItem("lastPaymentId");
-        
-        // Pass sender details in URL params
-        setTimeout(() => {
-  navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}&jumuiaName=${encodeURIComponent(campaign.jumuia?.name || '')}`);
-}, 2000);
-        return;
-      }
-      
-      // FAILED - actual failure
-      if (response.data.payment?.status === "FAILED") {
-        console.log("❌ Payment FAILED:", response.data.payment.resultDesc);
-        clearInterval(interval);
-        setMessage({ text: `❌ Payment failed: ${response.data.payment.resultDesc || 'Please try again'}`, type: "error" });
-        setProcessing(false);
-        localStorage.removeItem("lastPaymentId");
-        return;
-      }
-      
-      // PENDING - still waiting
-      if (response.data.payment?.status === "PENDING") {
-        console.log("⏳ Still PENDING, waiting...");
-        if (attempts % 3 === 0) {
-          const secondsElapsed = attempts * 3;
-          setMessage({ text: `⏳ Processing payment... (${secondsElapsed}s). Please check your phone.`, type: "info" });
-        }
-      }
-      
-    } catch (err) {
-      console.error("❌ Status check error:", err);
-    }
-    
-    // Timeout after max attempts
-    if (attempts >= maxAttempts) {
-      console.log("⏰ Max attempts reached, giving up");
-      clearInterval(interval);
-      setMessage({ text: "⏳ Payment is still being processed. You will receive an SMS and email confirmation shortly.", type: "info" });
-      setProcessing(false);
-    }
-  }, 3000);
-};
-  // Check for pending payment when page loads (for recovery)
-useEffect(() => {
-  const checkPendingPayment = async () => {
-    const lastPaymentId = localStorage.getItem("lastPaymentId");
-    if (lastPaymentId) {
-      console.log("Found pending payment:", lastPaymentId);
-      
-      // Get stored sender info
-      const senderInfo = JSON.parse(localStorage.getItem("paymentSenderInfo") || "{}");
-      
+    const interval = setInterval(async () => {
+      attempts++;
       try {
-        const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${lastPaymentId}/status`);
+        const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${paymentId}/status`);
+        
         if (response.data.payment?.status === "SUCCESS") {
-          // Payment was successful even though frontend didn't know!
+          clearInterval(interval);
+          setMessage({ text: `✅ Payment successful! Receipt: ${response.data.payment.mpesaReceiptNumber || 'N/A'}`, type: "success" });
+          setProcessing(false);
+          
+          const senderName = user?.fullName || user?.name || "Customer";
+          const senderPhone = phone || user?.phone || "N/A";
+          
+          const paymentData = {
+            receiptNumber: response.data.payment.mpesaReceiptNumber,
+            amount: response.data.payment.amount,
+            campaignTitle: campaign.title,
+            senderName: senderName,
+            senderPhone: senderPhone,
+            timestamp: new Date().toLocaleString(),
+            jumuiaName: campaign.jumuia?.name || '',
+          };
+          localStorage.setItem("lastPayment", JSON.stringify(paymentData));
           localStorage.removeItem("lastPaymentId");
           
-          // Use stored sender info or fallback
-          const senderName = senderInfo.name || user?.fullName || "Customer";
-          const senderPhone = senderInfo.phone || phone || user?.phone || "N/A";
-          
-          navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign?.title || "")}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}`);
-        } else if (response.data.payment?.status === "PENDING") {
-          setMessage({ text: "We found a pending payment. Waiting for confirmation...", type: "info" });
-          setProcessing(true);
-          pollPaymentStatus(lastPaymentId);
-        } else {
+          setTimeout(() => {
+            navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign.title)}&senderName=${encodeURIComponent(senderName)}&senderPhone=${encodeURIComponent(senderPhone)}&jumuiaName=${encodeURIComponent(campaign.jumuia?.name || '')}`);
+          }, 2000);
+          return;
+        }
+        
+        if (response.data.payment?.status === "FAILED") {
+          clearInterval(interval);
+          setMessage({ text: `❌ Payment failed: ${response.data.payment.resultDesc || 'Please try again'}`, type: "error" });
+          setProcessing(false);
           localStorage.removeItem("lastPaymentId");
+          return;
+        }
+        
+        if (attempts % 5 === 0) {
+          setMessage({ text: `⏳ Processing payment... Please check your phone.`, type: "info" });
         }
       } catch (err) {
-        console.error("Error checking pending payment:", err);
+        console.error("Status check error:", err);
       }
-    }
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        setMessage({ text: "⏳ Payment is still being processed. You will receive an SMS and email confirmation shortly.", type: "info" });
+        setProcessing(false);
+      }
+    }, 3000);
   };
-  checkPendingPayment();
-}, []);
-  
-  // Get user from localStorage
+
+  useEffect(() => {
+    const checkPendingPayment = async () => {
+      const lastPaymentId = localStorage.getItem("lastPaymentId");
+      if (lastPaymentId) {
+        try {
+          const response = await axios.get(`${BASE_URL}/api/mpesa/payment/${lastPaymentId}/status`);
+          if (response.data.payment?.status === "SUCCESS") {
+            localStorage.removeItem("lastPaymentId");
+            navigate(`/payment-success?receipt=${response.data.payment.mpesaReceiptNumber}&amount=${response.data.payment.amount}&campaign=${encodeURIComponent(campaign?.title || "")}`);
+          } else if (response.data.payment?.status === "PENDING") {
+            setMessage({ text: "We found a pending payment. Waiting for confirmation...", type: "info" });
+            setProcessing(true);
+            pollPaymentStatus(lastPaymentId);
+          } else {
+            localStorage.removeItem("lastPaymentId");
+          }
+        } catch (err) {
+          console.error("Error checking pending payment:", err);
+        }
+      }
+    };
+    checkPendingPayment();
+  }, []);
+
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isLoggedIn = !!token && !!user?.id;
-  
+
   useEffect(() => {
     const fetchCampaign = async () => {
       try {
         let response;
-        
-        // Check if we have campaignId or slug
         if (campaignId) {
-  response = await axios.get(`${BASE_URL}/api/mpesa/campaign-by-id/${campaignId}`);
-} else if (slug) {
-  response = await axios.get(`${BASE_URL}/api/mpesa/campaign-by-slug/${slug}`);
-} else {
+          response = await axios.get(`${BASE_URL}/api/mpesa/campaign-by-id/${campaignId}`);
+        } else if (slug) {
+          response = await axios.get(`${BASE_URL}/api/mpesa/campaign-by-slug/${slug}`);
+        } else {
           throw new Error("No campaign identifier provided");
         }
-        
         setCampaign(response.data);
         setAmount(response.data.amountRequired);
         if (isLoggedIn && user.phone) setPhone(user.phone);
@@ -251,74 +206,71 @@ useEffect(() => {
     };
     fetchCampaign();
   }, [slug, campaignId, isLoggedIn, user.phone]);
-  
-  
 
- 
-
-const handlePayment = async () => {
-  if (!isLoggedIn) {
-    setShowLoginForm(true);
-    return;
-  }
-  
-  if (!phone || phone.length < 10) {
-    setMessage({ text: "Please enter a valid M-PESA phone number", type: "error" });
-    return;
-  }
-  
-  if (!amount || amount < 10) {
-    setMessage({ text: "Please enter a valid amount (minimum KES 10)", type: "error" });
-    return;
-  }
-  
-  setProcessing(true);
-  setMessage({ text: "⏳ Sending request to M-PESA...", type: "info" });
-  
-  // Store sender details in localStorage for recovery
-  const senderInfo = {
-    name: user?.fullName || user?.name || "Customer",
-    phone: phone,
-    campaignTitle: campaign.title
-  };
-  localStorage.setItem("paymentSenderInfo", JSON.stringify(senderInfo));
-  
-  try {
-    const response = await axios.post(
-      `${BASE_URL}/api/mpesa/stk-push`,
-      {
-        campaignId: campaign.id,
-        amount: parseFloat(amount),
-        phoneNumber: phone,
-        userId: user.id
-      },
-      { 
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 120000 
-      }
-    );
-    
-    if (response.data.success) {
-      localStorage.setItem("lastPaymentId", response.data.paymentId);
-      pollPaymentStatus(response.data.paymentId);
-    } else {
-      setMessage({ text: `❌ ${response.data.error || "Payment failed. Please try again."}`, type: "error" });
-      setProcessing(false);
-    }
-  } catch (err) {
-    console.error("Payment error:", err);
-    
-    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-      setMessage({ 
-        text: "⚠️ Payment is being processed. Please check your phone for the M-PESA prompt. The page will update automatically when confirmed.", 
-        type: "info" 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${BASE_URL}/api/login`, {
+        email: loginEmail,
+        password: loginPassword
       });
-    } else {
+      if (response.data.token) {
+        localStorage.setItem("token", response.data.token);
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+        window.location.reload();
+      }
+    } catch (err) {
+      setLoginMessage(err.response?.data?.error || "Login failed");
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!isLoggedIn) {
+      setShowLoginForm(true);
+      return;
+    }
+    
+    if (!phone || phone.length < 10) {
+      setMessage({ text: "Please enter a valid M-PESA phone number", type: "error" });
+      return;
+    }
+    
+    if (!amount || amount < 10) {
+      setMessage({ text: "Please enter a valid amount (minimum KES 10)", type: "error" });
+      return;
+    }
+    
+    setProcessing(true);
+    setMessage({ text: "⏳ Sending request to M-PESA...", type: "info" });
+    
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/api/mpesa/stk-push`,
+        {
+          campaignId: campaign.id,
+          amount: parseFloat(amount),
+          phoneNumber: phone,
+          userId: user.id
+        },
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 120000 
+        }
+      );
+      
+      if (response.data.success) {
+        localStorage.setItem("lastPaymentId", response.data.paymentId);
+        pollPaymentStatus(response.data.paymentId);
+      } else {
+        setMessage({ text: `❌ ${response.data.error || "Payment failed. Please try again."}`, type: "error" });
+        setProcessing(false);
+      }
+    } catch (err) {
+      console.error("Payment error:", err);
       setMessage({ text: `❌ ${err.response?.data?.error || "Payment failed"}`, type: "error" });
       setProcessing(false);
     }
-  }
-};
+  };
   
   if (loading) {
     return (
@@ -341,7 +293,6 @@ const handlePayment = async () => {
   
   return (
     <div style={styles.pageWrapper}>
-      {/* Slideshow Background */}
       <div 
         className="slideshow-container"
         ref={slideshowRef}
@@ -358,7 +309,6 @@ const handlePayment = async () => {
           </div>
         ))}
         
-        {/* Slideshow Navigation Arrows */}
         <button className="slideshow-nav slideshow-nav-prev" onClick={prevSlide}>
           <FaChevronLeft />
         </button>
@@ -366,7 +316,6 @@ const handlePayment = async () => {
           <FaChevronRight />
         </button>
         
-        {/* Slideshow Dots */}
         <div className="slideshow-dots">
           {slides.map((_, index) => (
             <button
@@ -377,13 +326,11 @@ const handlePayment = async () => {
           ))}
         </div>
         
-        {/* Play/Pause Button */}
         <button className="slideshow-play-pause" onClick={togglePlayPause}>
           {isPlaying ? <FaPause /> : <FaPlay />}
         </button>
       </div>
 
-      {/* Content Overlay */}
       <div style={styles.overlay}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -391,7 +338,6 @@ const handlePayment = async () => {
           transition={{ duration: 0.5 }}
           style={styles.card}
         >
-          {/* ZUCA Logo */}
           <div style={styles.logoContainer}>
             <img src={logo} alt="ZUCA Logo" style={styles.logo} />
             <span style={styles.logoText}>ZUCA</span>
@@ -403,34 +349,32 @@ const handlePayment = async () => {
           </div>
           
           <div style={styles.content}>
-            {/* Campaign info */}
             <div style={styles.campaignInfo}>
               <h3 style={styles.campaignTitle}>{campaign.title}</h3>
+              
+              {/* ✅ JUMUIA NAME DISPLAY - NOW WORKING */}
               {campaign.jumuia && (
-    <div style={styles.jumuiaInfo}>
-      🏠 <strong>Jumuia:</strong> {campaign.jumuia.name}
-    </div>
-  )}
-
-
+                <div style={styles.jumuiaInfo}>
+                  🏠 <strong>Jumuia:</strong> {campaign.jumuia.name}
+                </div>
+              )}
+              
               <p style={styles.campaignDesc}>{campaign.description || "Support our cause"}</p>
               <div style={styles.requiredAmount}>Target: KES {campaign.amountRequired?.toLocaleString()}</div>
             </div>
             
-            {/* If NOT logged in - Show login/register options */}
             {!isLoggedIn && !showLoginForm && (
               <div style={styles.loginPrompt}>
-                <p style={styles.loginPromptText}>🔐 Please login to make a payment: Dear member Log in is required in order to update your payment details in zuca system Thankyou!</p>
+                <p style={styles.loginPromptText}>🔐 Please login to make a payment</p>
                 <button style={styles.loginPromptBtn} onClick={() => setShowLoginForm(true)}>
                   Login to ZUCA
                 </button>
                 <p style={styles.registerLink}>
-                  Don't have an account? <Link to="/register" style={styles.registerLinkBtn}>Register here then reopen the payment link</Link>
+                  Don't have an account? <Link to="/register" style={styles.registerLinkBtn}>Register here</Link>
                 </p>
               </div>
             )}
             
-            {/* Login Form */}
             {!isLoggedIn && showLoginForm && (
               <div style={styles.loginFormContainer}>
                 <h4 style={styles.loginTitle}>Login to ZUCA</h4>
@@ -460,16 +404,8 @@ const handlePayment = async () => {
                       {loginMessage}
                     </div>
                   )}
-                  <button type="submit" style={styles.loginBtn}>
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.cancelBtn}
-                    onClick={() => setShowLoginForm(false)}
-                  >
-                    Cancel
-                  </button>
+                  <button type="submit" style={styles.loginBtn}>Login</button>
+                  <button type="button" style={styles.cancelBtn} onClick={() => setShowLoginForm(false)}>Cancel</button>
                 </form>
                 <p style={styles.registerLink}>
                   Don't have an account? <Link to="/register" style={styles.registerLinkBtn}>Register here</Link>
@@ -477,7 +413,6 @@ const handlePayment = async () => {
               </div>
             )}
             
-            {/* If logged in - Show payment form */}
             {isLoggedIn && (
               <>
                 <div style={styles.userInfo}>
@@ -546,7 +481,6 @@ const handlePayment = async () => {
           overflow: hidden;
           z-index: 0;
         }
-
         .slide {
           position: absolute;
           top: 0;
@@ -560,12 +494,7 @@ const handlePayment = async () => {
           transition: opacity 1s ease-in-out;
           z-index: 1;
         }
-
-        .slide.active {
-          opacity: 1;
-          z-index: 2;
-        }
-
+        .slide.active { opacity: 1; z-index: 2; }
         .slide-overlay {
           position: absolute;
           top: 0;
@@ -575,7 +504,6 @@ const handlePayment = async () => {
           background: rgba(0, 0, 0, 0.6);
           z-index: 1;
         }
-
         .slideshow-nav {
           position: absolute;
           top: 50%;
@@ -595,20 +523,9 @@ const handlePayment = async () => {
           transition: all 0.3s ease;
           font-size: 20px;
         }
-
-        .slideshow-nav:hover {
-          background: rgba(0, 198, 255, 0.8);
-          transform: translateY(-50%) scale(1.05);
-        }
-
-        .slideshow-nav-prev {
-          left: 20px;
-        }
-
-        .slideshow-nav-next {
-          right: 20px;
-        }
-
+        .slideshow-nav:hover { background: rgba(0, 198, 255, 0.8); transform: translateY(-50%) scale(1.05); }
+        .slideshow-nav-prev { left: 20px; }
+        .slideshow-nav-next { right: 20px; }
         .slideshow-dots {
           position: absolute;
           bottom: 20px;
@@ -621,7 +538,6 @@ const handlePayment = async () => {
           flex-wrap: wrap;
           padding: 0 16px;
         }
-
         .dot {
           width: 10px;
           height: 10px;
@@ -632,13 +548,7 @@ const handlePayment = async () => {
           transition: all 0.3s ease;
           padding: 0;
         }
-
-        .dot.active {
-          background: #00c6ff;
-          width: 24px;
-          border-radius: 10px;
-        }
-
+        .dot.active { background: #00c6ff; width: 24px; border-radius: 10px; }
         .slideshow-play-pause {
           position: absolute;
           bottom: 20px;
@@ -658,12 +568,7 @@ const handlePayment = async () => {
           transition: all 0.3s ease;
           font-size: 14px;
         }
-
-        .slideshow-play-pause:hover {
-          background: rgba(0, 198, 255, 0.8);
-          transform: scale(1.05);
-        }
-
+        .slideshow-play-pause:hover { background: rgba(0, 198, 255, 0.8); transform: scale(1.05); }
         .spinner {
           width: 40px;
           height: 40px;
@@ -673,7 +578,6 @@ const handlePayment = async () => {
           animation: spin 1s linear infinite;
           margin: 0 auto 16px;
         }
-
         .spinner-small {
           display: inline-block;
           width: 16px;
@@ -685,58 +589,20 @@ const handlePayment = async () => {
           margin-right: 8px;
           vertical-align: middle;
         }
-
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-
         @media (max-width: 768px) {
-          .slideshow-nav {
-            width: 36px;
-            height: 36px;
-            font-size: 16px;
-          }
-          .slideshow-nav-prev {
-            left: 10px;
-          }
-          .slideshow-nav-next {
-            right: 10px;
-          }
-          .slideshow-play-pause {
-            width: 36px;
-            height: 36px;
-            font-size: 12px;
-            bottom: 15px;
-            right: 15px;
-          }
+          .slideshow-nav { width: 36px; height: 36px; font-size: 16px; }
+          .slideshow-nav-prev { left: 10px; }
+          .slideshow-nav-next { right: 10px; }
+          .slideshow-play-pause { width: 36px; height: 36px; font-size: 12px; bottom: 15px; right: 15px; }
         }
-
         @media (max-width: 480px) {
-          .slideshow-nav {
-            width: 30px;
-            height: 30px;
-            font-size: 14px;
-          }
-          .dot {
-            width: 8px;
-            height: 8px;
-          }
-          .dot.active {
-            width: 20px;
-          }
+          .slideshow-nav { width: 30px; height: 30px; font-size: 14px; }
+          .dot { width: 8px; height: 8px; }
+          .dot.active { width: 20px; }
         }
-
-        jumuiaInfo: {
-  background: "#fef3c7",
-  padding: "8px 12px",
-  borderRadius: "8px",
-  marginBottom: "12px",
-  fontSize: "13px",
-  color: "#d97706",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-},
       `}</style>
     </div>
   );
@@ -827,6 +693,18 @@ const styles = {
     fontWeight: "bold",
     marginBottom: "8px",
     color: "#1e293b",
+  },
+  // ✅ JUMUIA INFO STYLE - CORRECTLY PLACED HERE
+  jumuiaInfo: {
+    background: "#fef3c7",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    marginBottom: "12px",
+    fontSize: "13px",
+    color: "#d97706",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
   },
   campaignDesc: {
     fontSize: "14px",

@@ -602,6 +602,9 @@ function generateMpesaReceiptHTML(paymentData) {
   const amount = paymentData.amount || 0;
   const campaignTitle = paymentData.campaignTitle || 'Contribution';
   const receiptNumber = paymentData.receiptNumber || 'N/A';
+  const jumuiaName = paymentData.jumuiaName || null;
+  const senderName = paymentData.payerName || 'N/A';
+  const senderPhone = paymentData.payerPhone || 'N/A';
   
   return `
     <!DOCTYPE html>
@@ -614,25 +617,25 @@ function generateMpesaReceiptHTML(paymentData) {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          background: #e8e8e8;
+          background: #f5f7fa;
           display: flex;
           justify-content: center;
           align-items: center;
           min-height: 100vh;
-          padding: 16px;
+          padding: 20px;
         }
         .receipt {
-          max-width: 380px;
+          max-width: 500px;
           width: 100%;
           background: white;
-          border-radius: 16px;
+          border-radius: 24px;
           overflow: hidden;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          box-shadow: 0 20px 40px rgba(0,0,0,0.1);
           margin: 0 auto;
         }
         .header {
           background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-          padding: 16px;
+          padding: 24px;
           text-align: center;
         }
         .logos {
@@ -643,91 +646,153 @@ function generateMpesaReceiptHTML(paymentData) {
           margin-bottom: 8px;
         }
         .zuca-logo-img {
-          width: 40px;
-          height: 40px;
+          width: 50px;
+          height: 50px;
           border-radius: 50%;
           object-fit: cover;
           border: 2px solid white;
         }
         .mpesa-text {
-          font-size: 20px;
+          font-size: 22px;
           font-weight: bold;
           color: white;
           letter-spacing: 1px;
         }
         .mpesa-by {
-          font-size: 9px;
+          font-size: 10px;
           color: rgba(255,255,255,0.8);
           margin-top: 2px;
         }
         .lipa {
-          font-size: 10px;
+          font-size: 11px;
           color: rgba(255,255,255,0.7);
           margin-top: 4px;
         }
-        .success-icon { text-align: center; padding: 16px 0 8px; }
+        .success-icon { 
+          text-align: center; 
+          padding: 24px 0 16px;
+          background: linear-gradient(135deg, #f8fafc, #ffffff);
+        }
         .check-circle {
-          width: 48px;
-          height: 48px;
+          width: 70px;
+          height: 70px;
           background: #4CAF50;
           border-radius: 50%;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           color: white;
-          font-size: 28px;
+          font-size: 36px;
+          box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
         }
-        .content { padding: 16px; }
-        .status { text-align: center; margin-bottom: 16px; }
+        .content { 
+          padding: 20px 24px;
+          background: #ffffff;
+        }
+        .status { 
+          text-align: center; 
+          margin-bottom: 20px;
+        }
         .status-badge {
           background: #4CAF50;
           color: white;
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
+          padding: 6px 16px;
+          border-radius: 30px;
+          font-size: 12px;
           font-weight: bold;
           display: inline-block;
+        }
+        .details-card {
+          background: #f8fafc;
+          border-radius: 16px;
+          padding: 20px;
+          margin-bottom: 20px;
+        }
+        .details-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e293b;
+          margin-bottom: 16px;
+          border-left: 3px solid #4CAF50;
+          padding-left: 12px;
         }
         .detail-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 8px 0;
-          border-bottom: 1px solid #f0f0f0;
+          padding: 10px 0;
+          border-bottom: 1px solid #e2e8f0;
         }
-        .detail-label { font-size: 12px; color: #666; }
+        .detail-row:last-child {
+          border-bottom: none;
+        }
+        .detail-label { 
+          font-size: 13px; 
+          color: #64748b;
+          font-weight: 500;
+        }
         .detail-value {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 600;
-          color: #333;
+          color: #1e293b;
           text-align: right;
           max-width: 60%;
           word-break: break-word;
         }
-        .amount-value { font-size: 20px; font-weight: bold; color: #4CAF50; }
+        .amount-value { 
+          font-size: 22px; 
+          font-weight: bold; 
+          color: #4CAF50;
+        }
         .receipt-number {
           background: #e8f5e9;
-          padding: 8px;
+          padding: 10px 12px;
           text-align: center;
-          border-radius: 8px;
+          border-radius: 10px;
           font-family: monospace;
-          font-size: 11px;
+          font-size: 12px;
           letter-spacing: 0.5px;
-          margin: 12px 0;
+          margin: 16px 0;
+          font-weight: 600;
+          color: #2E7D32;
         }
         .footer {
           text-align: center;
-          padding: 12px;
-          background: #f5f5f5;
-          border-top: 1px solid #e0e0e0;
+          padding: 16px 24px;
+          background: #f8fafc;
+          border-top: 1px solid #e2e8f0;
         }
-        .footer-text { font-size: 9px; color: #999; line-height: 1.4; }
-        .timestamp { font-size: 9px; color: #999; text-align: center; margin-top: 10px; }
-        hr { margin: 12px 0; border: none; border-top: 1px dashed #ccc; }
+        .footer-text { 
+          font-size: 10px; 
+          color: #94a3b8; 
+          line-height: 1.5;
+        }
+        .timestamp { 
+          font-size: 10px; 
+          color: #94a3b8; 
+          text-align: center; 
+          margin-top: 12px;
+        }
+        hr { 
+          margin: 16px 0; 
+          border: none; 
+          border-top: 1px dashed #cbd5e1; 
+        }
+        .blessing {
+          text-align: center;
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid #e2e8f0;
+          font-size: 12px;
+          color: #64748b;
+          font-style: italic;
+        }
         @media (max-width: 480px) {
           .receipt { max-width: 100%; }
-          .detail-value { max-width: 55%; font-size: 11px; }
-          .detail-label { font-size: 11px; }
+          .detail-value { max-width: 55%; font-size: 12px; }
+          .detail-label { font-size: 12px; }
+          .content { padding: 16px; }
+          .details-card { padding: 16px; }
         }
       </style>
     </head>
@@ -743,56 +808,87 @@ function generateMpesaReceiptHTML(paymentData) {
           </div>
           <div class="lipa">Lipa Na M-PESA</div>
         </div>
+        
         <div class="success-icon">
           <div class="check-circle">✓</div>
         </div>
+        
         <div class="content">
           <div class="status">
             <span class="status-badge">✅ PAYMENT SENT SUCCESSFULLY</span>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Sent to:</span>
-            <span class="detail-value">ZUCA - Zetech Catholic Action</span>
+          
+          <div class="details-card">
+            <div class="details-title">Payment Details</div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Sender Name:</span>
+              <span class="detail-value">${senderName}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Sender Phone:</span>
+              <span class="detail-value">${senderPhone}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Campaign:</span>
+              <span class="detail-value">${campaignTitle}</span>
+            </div>
+            
+            ${jumuiaName ? `
+            <div class="detail-row">
+              <span class="detail-label">Jumuia:</span>
+              <span class="detail-value">🏠 ${jumuiaName}</span>
+            </div>
+            ` : ''}
+            
+            <div class="detail-row">
+              <span class="detail-label">Amount Paid:</span>
+              <span class="detail-value amount-value">KES ${amount.toLocaleString()}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Payment Method:</span>
+              <span class="detail-value">M-PESA (Lipa Na M-PESA)</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Transaction Type:</span>
+              <span class="detail-value">Pay Bill</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Date & Time:</span>
+              <span class="detail-value">${new Date().toLocaleString()}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Status:</span>
+              <span class="detail-value" style="color: #4CAF50;">✅ COMPLETED</span>
+            </div>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Campaign:</span>
-            <span class="detail-value">${campaignTitle}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Amount:</span>
-            <span class="amount-value">KES ${amount.toLocaleString()}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Payment method:</span>
-            <span class="detail-value">M-PESA (Lipa Na M-PESA)</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Transaction type:</span>
-            <span class="detail-value">Pay Bill</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Date:</span>
-            <span class="detail-value">${new Date().toLocaleDateString()}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Time:</span>
-            <span class="detail-value">${new Date().toLocaleTimeString()}</span>
-          </div>
+          
           <div class="receipt-number">
-            M-PESA Receipt: ${receiptNumber}
+            📱 M-PESA Receipt: ${receiptNumber}
           </div>
+          
+          <div class="blessing">
+            🙏 Thank you for your generous contribution!<br>
+            Tumsifu Yesu Kristu!
+          </div>
+          
           <hr>
-          <div class="detail-row">
-            <span class="detail-label">Status:</span>
-            <span class="detail-value" style="color: #4CAF50;">Completed ✓</span>
-          </div>
+          
           <div class="timestamp">
             Receipt generated: ${new Date().toLocaleString()}
           </div>
         </div>
+        
         <div class="footer">
           <div class="footer-text">
-            Official ZUCA payment receipt • Valid without signature
+            Official ZUCA payment receipt • Valid without signature<br>
+            Zetech University Catholic Action
           </div>
         </div>
       </div>

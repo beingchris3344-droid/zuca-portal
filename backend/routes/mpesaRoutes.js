@@ -312,40 +312,44 @@ await prisma.contributionType.update({
       const jumuiaName = campaign.jumuia?.name || "Global";
       const jumuiaId = campaign.jumuiaId;
       
-      // Send receipt email
-      if (payer.email) {
-        (async () => {
-          try {
-            await sendPersonalizedEmail(
-              { email: payer.email, fullName: payer.fullName },
-              "payment_receipt",
-              `💰 Payment Receipt for ${campaign.title}`,
-              `Dear ${payer.fullName},\n\nThank you for your payment of KES ${amount.toLocaleString()} towards "${campaign.title}".\n\nM-PESA Receipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
-              { 
-                amount: amount, 
-                receiptNumber: mpesaReceiptNumber, 
-                campaignTitle: campaign.title
-              }
-            );
-          } catch (emailErr) {
-            console.error("Failed to send receipt email:", emailErr.message);
-          }
-        })();
-      }
+    // Send receipt email with ALL details
+// Send receipt email with ALL details
+if (payer.email) {
+  (async () => {
+    try {
+      await sendPersonalizedEmail(
+        { email: payer.email, fullName: payer.fullName, phone: payer.phone },
+        "payment_receipt",
+        `💰 Payment Receipt for ${campaign.title}`,
+        `Dear ${payer.fullName},\n\nThank you for your payment...`,
+        { 
+          amount: amount, 
+          receiptNumber: mpesaReceiptNumber, 
+          campaignTitle: campaign.title,
+          jumuiaName: jumuiaName !== "Global" ? jumuiaName : null,
+          payerName: payer.fullName,
+          payerPhone: payer.phone
+        }
+      );
+    } catch (emailErr) {
+      console.error("Failed to send receipt email:", emailErr.message);
+    }
+  })();
+}
       
-      // Create notification for user
+           // Create notification for user
       await createNotification({
         userId: payer.id,
         type: "payment_success",
         title: "✅ Payment Successful!",
-        message: `Your payment of KES ${amount.toLocaleString()} for "${campaign.title}" has been received. Receipt: ${mpesaReceiptNumber}`,
-        data: { amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title }
+        message: `Your payment of KES ${amount.toLocaleString()} for "${campaign.title}"${jumuiaName !== "Global" ? ` (${jumuiaName} Jumuia)` : ''} has been received. Receipt: ${mpesaReceiptNumber}`,
+        data: { amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title, jumuiaName }
       });
       
-      // Notify admins
+      // Notify admins (with email)
       const admins = await prisma.user.findMany({
         where: { role: "admin" },
-        select: { id: true, fullName: true }
+        select: { id: true, fullName: true, email: true }
       });
       
       for (const admin of admins) {
@@ -354,14 +358,31 @@ await prisma.contributionType.update({
           type: "payment_received",
           title: "💰 New Payment Received",
           message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
         });
+        
+        // Send email to admin
+        if (admin.email) {
+          (async () => {
+            try {
+              await sendPersonalizedEmail(
+                { email: admin.email, fullName: admin.fullName },
+                "payment_received",
+                `💰 New Payment: ${campaign.title}`,
+                `Dear ${admin.fullName},\n\n${payer.fullName} has made a payment of KES ${amount.toLocaleString()} for "${campaign.title}"${jumuiaName !== "Global" ? ` (${jumuiaName} Jumuia)` : ''}.\n\nReceipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
+                { amount, campaignTitle: campaign.title, payerName: payer.fullName, receiptNumber: mpesaReceiptNumber, jumuiaName }
+              );
+            } catch (err) {
+              console.error("Failed to send admin email:", err.message);
+            }
+          })();
+        }
       }
       
-      // Notify treasurers
+      // Notify treasurers (with email)
       const treasurers = await prisma.user.findMany({
         where: { specialRole: "treasurer" },
-        select: { id: true, fullName: true }
+        select: { id: true, fullName: true, email: true }
       });
       
       for (const treasurer of treasurers) {
@@ -370,25 +391,63 @@ await prisma.contributionType.update({
           type: "payment_received",
           title: "💰 New Payment Received",
           message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
         });
+        
+        // Send email to treasurer
+        if (treasurer.email) {
+          (async () => {
+            try {
+              await sendPersonalizedEmail(
+                { email: treasurer.email, fullName: treasurer.fullName },
+                "payment_received",
+                `💰 New Payment: ${campaign.title}`,
+                `Dear ${treasurer.fullName},\n\n${payer.fullName} has made a payment of KES ${amount.toLocaleString()} for "${campaign.title}"${jumuiaName !== "Global" ? ` (${jumuiaName} Jumuia)` : ''}.\n\nReceipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
+                { amount, campaignTitle: campaign.title, payerName: payer.fullName, receiptNumber: mpesaReceiptNumber, jumuiaName }
+              );
+            } catch (err) {
+              console.error("Failed to send treasurer email:", err.message);
+            }
+          })();
+        }
       }
       
-      // Notify jumuia leaders if applicable
+      // Notify Jumuia Leaders (only for this specific Jumuia, with email)
       if (isJumuiaCampaign && jumuiaId) {
         const jumuiaLeaders = await prisma.user.findMany({
-          where: { specialRole: "jumuia_leader", assignedJumuiaId: jumuiaId },
-          select: { id: true, fullName: true }
+          where: { 
+            specialRole: "jumuia_leader",
+            assignedJumuiaId: jumuiaId
+          },
+          select: { id: true, fullName: true, email: true }
         });
         
         for (const leader of jumuiaLeaders) {
+          // Create notification
           await createNotification({
             userId: leader.id,
             type: "jumuia_payment",
             title: `🏠 ${jumuiaName} - New Payment`,
             message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}"`,
-            data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId: jumuiaId, jumuiaName: jumuiaName, receiptNumber: mpesaReceiptNumber }
+            data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId, jumuiaName, receiptNumber: mpesaReceiptNumber }
           });
+          
+          // Send email to Jumuia leader
+          if (leader.email) {
+            (async () => {
+              try {
+                await sendPersonalizedEmail(
+                  { email: leader.email, fullName: leader.fullName },
+                  "jumuia_payment",
+                  `🏠 ${jumuiaName} - New Contribution`,
+                  `Dear ${leader.fullName},\n\n${payer.fullName} has made a payment of KES ${amount.toLocaleString()} for "${campaign.title}" in your Jumuia.\n\nReceipt: ${mpesaReceiptNumber}\nDate: ${new Date().toLocaleString()}\n\nTumsifu Yesu Kristu! 🙏`,
+                  { amount, campaignTitle: campaign.title, payerName: payer.fullName, receiptNumber: mpesaReceiptNumber, jumuiaName }
+                );
+              } catch (err) {
+                console.error(`Failed to send email to Jumuia leader ${leader.email}:`, err.message);
+              }
+            })();
+          }
         }
       }
       
@@ -455,7 +514,8 @@ router.get("/campaign-by-slug/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
     const campaign = await prisma.contributionType.findFirst({
-      where: { paymentSlug: slug }
+      where: { paymentSlug: slug },
+      include: { jumuia: true }
     });
     
     if (!campaign) {
@@ -475,7 +535,8 @@ router.get("/campaign-by-id/:campaignId", async (req, res) => {
     const { campaignId } = req.params;
     
     const campaign = await prisma.contributionType.findUnique({
-      where: { id: campaignId }
+      where: { id: campaignId },
+       include: { jumuia: true } 
     });
     
     if (!campaign) {

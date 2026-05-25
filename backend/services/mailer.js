@@ -417,13 +417,17 @@ async function sendPersonalizedEmail(user, notificationType, title, message, dat
       ? 'https://zucaportal.onrender.com'
       : 'https://zetechcatholic.vercel.app';
 
-       if (notificationType === 'payment_receipt') {
-      // Generate M-PESA style receipt HTML
-      const receiptHTML = generateMpesaReceiptHTML({
-        amount: data.amount,
-        campaignTitle: data.campaignTitle || data.campaign,
-        receiptNumber: data.receiptNumber
-      });
+      if (notificationType === 'payment_receipt') {
+  // Generate M-PESA style receipt HTML
+  const receiptHTML = generateMpesaReceiptHTML({
+    amount: data.amount,
+    campaignTitle: data.campaignTitle || data.campaign,
+    receiptNumber: data.receiptNumber,
+    jumuiaName: data.jumuiaName,
+    payerName: data.payerName,      
+    payerPhone: data.payerPhone,  
+    sentTo: data.sentTo || "ZUCA - Zetech Catholic Action"
+  });
       
       // Send the receipt email
       await sendViaBrevo(
@@ -605,6 +609,7 @@ function generateMpesaReceiptHTML(paymentData) {
   const jumuiaName = paymentData.jumuiaName || null;
   const senderName = paymentData.payerName || 'N/A';
   const senderPhone = paymentData.payerPhone || 'N/A';
+  const sentTo = paymentData.sentTo || "ZUCA - Zetech Catholic Action";
   
   return `
     <!DOCTYPE html>
@@ -787,13 +792,6 @@ function generateMpesaReceiptHTML(paymentData) {
           color: #64748b;
           font-style: italic;
         }
-        @media (max-width: 480px) {
-          .receipt { max-width: 100%; }
-          .detail-value { max-width: 55%; font-size: 12px; }
-          .detail-label { font-size: 12px; }
-          .content { padding: 16px; }
-          .details-card { padding: 16px; }
-        }
       </style>
     </head>
     <body>
@@ -822,6 +820,11 @@ function generateMpesaReceiptHTML(paymentData) {
             <div class="details-title">Payment Details</div>
             
             <div class="detail-row">
+              <span class="detail-label">Sent to:</span>
+              <span class="detail-value">${sentTo}</span>
+            </div>
+            
+            <div class="detail-row">
               <span class="detail-label">Sender Name:</span>
               <span class="detail-value">${senderName}</span>
             </div>
@@ -844,7 +847,7 @@ function generateMpesaReceiptHTML(paymentData) {
             ` : ''}
             
             <div class="detail-row">
-              <span class="detail-label">Amount Paid:</span>
+              <span class="detail-label">Amount:</span>
               <span class="detail-value amount-value">KES ${amount.toLocaleString()}</span>
             </div>
             
@@ -859,8 +862,13 @@ function generateMpesaReceiptHTML(paymentData) {
             </div>
             
             <div class="detail-row">
-              <span class="detail-label">Date & Time:</span>
-              <span class="detail-value">${new Date().toLocaleString()}</span>
+              <span class="detail-label">Date:</span>
+              <span class="detail-value">${new Date().toLocaleDateString()}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Time:</span>
+              <span class="detail-value">${new Date().toLocaleTimeString()}</span>
             </div>
             
             <div class="detail-row">
@@ -896,7 +904,6 @@ function generateMpesaReceiptHTML(paymentData) {
     </html>
   `;
 }
-
 // ==================== BULK EMAIL SENDING (USES BREVO) ====================
 async function sendBulkEmails(users, notificationType, title, message, data = {}) {
   if (!users || users.length === 0) {

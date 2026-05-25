@@ -176,15 +176,6 @@ export const MessengerProvider = ({ children }) => {
   };
 
 
-  // Auto-refresh conversations every 5 seconds
-useEffect(() => {
-  const interval = setInterval(() => {
-    fetchConversations();
-    console.log('🔄 Auto-refreshing conversations...');
-  }, 5000);
-  
-  return () => clearInterval(interval);
-}, []);
 
   // Initialize on mount
   useEffect(() => {

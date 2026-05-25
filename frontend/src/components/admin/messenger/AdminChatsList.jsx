@@ -30,16 +30,7 @@ const AdminChatsList = ({ onSelectChat, onNewChat, darkMode = false }) => {
     }
   };
 
-  // ✅ AUTO-REFRESH CONVERSATIONS EVERY 5 SECONDS
-useEffect(() => {
-  const interval = setInterval(() => {
-    fetchConversations();
-    console.log('🔄 Admin: Auto-refreshing conversations...');
-  }, 5000);
   
-  return () => clearInterval(interval);
-}, []);
-
   // Socket connection for online status
   useEffect(() => {
     const token = localStorage.getItem('token');

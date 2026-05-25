@@ -25,8 +25,7 @@ export default function ConversationsTab() {
   const inputRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
-
-  
+  // Fetch conversations function
   const fetchConversations = async () => {
     setLoading(true);
     try {
@@ -42,24 +41,7 @@ export default function ConversationsTab() {
     }
   };
 
-
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    initSocket();
-    fetchConversations();
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, []);
-
-  
-
+  // Initialize socket
   const initSocket = () => {
     const token = localStorage.getItem('token');
     if (!token || !currentUser.id) return;
@@ -74,35 +56,36 @@ export default function ConversationsTab() {
       socketRef.current.emit('dm:join', currentUser.id);
     });
 
- socketRef.current.on('dm:new_message', (message) => {
-  // Update messages if in current conversation
-  if (selectedConversation?.id === message.conversationId) {
-    setMessages(prev => {
-      if (prev.some(m => m.id === message.id)) return prev;
-      return [...prev, message];
+    socketRef.current.on('dm:new_message', (message) => {
+      // Update messages if in current conversation
+      if (selectedConversation?.id === message.conversationId) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+        scrollToBottom();
+        
+        // Reset unread count to 0 since we're in this conversation
+        setConversations(prev => prev.map(conv =>
+          conv.id === message.conversationId ? { ...conv, unreadCount: 0 } : conv
+        ));
+      } else {
+        // Increment unread count for other conversations
+        setConversations(prev => prev.map(conv =>
+          conv.id === message.conversationId 
+            ? { ...conv, unreadCount: (conv.unreadCount || 0) + 1 }
+            : conv
+        ));
+      }
+      
+      // Update last message
+      setConversations(prev => prev.map(conv =>
+        conv.id === message.conversationId
+          ? { ...conv, lastMessage: message.content, lastMessageAt: new Date() }
+          : conv
+      ));
     });
-    scrollToBottom();
     
-    // ✅ Reset unread count to 0 since we're in this conversation
-    setConversations(prev => prev.map(conv =>
-      conv.id === message.conversationId ? { ...conv, unreadCount: 0 } : conv
-    ));
-  } else {
-    // ✅ Increment unread count for other conversations
-    setConversations(prev => prev.map(conv =>
-      conv.id === message.conversationId 
-        ? { ...conv, unreadCount: (conv.unreadCount || 0) + 1 }
-        : conv
-    ));
-  }
-  
-  // Update last message
-  setConversations(prev => prev.map(conv =>
-    conv.id === message.conversationId
-      ? { ...conv, lastMessage: message.content, lastMessageAt: new Date() }
-      : conv
-  ));
-});
     socketRef.current.on('dm:user_online', ({ userId }) => {
       setOnlineUsers(prev => [...new Set([...prev, userId])]);
     });
@@ -124,7 +107,34 @@ export default function ConversationsTab() {
     });
   };
 
-  
+  // Auto-refresh conversations every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchConversations();
+      console.log('🔄 Admin: Auto-refreshing conversations...');
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 768;
+      setIsMobile(desktop);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    initSocket();
+    fetchConversations();
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
 
   const fetchMessages = async (conversationId) => {
     try {
@@ -197,23 +207,25 @@ export default function ConversationsTab() {
       socketRef.current?.emit('dm:typing_stop', { conversationId: selectedConversation?.id });
     }, 2000);
   };
-
-  const openConversation = async (conv) => {
+const openConversation = async (conv) => {
   setSelectedConversation(conv);
   await fetchMessages(conv.id);
   setShowChat(true);
   
-  // ✅ Reset unread count immediately when opening conversation
+  // Force reset unread count locally and on backend
   setConversations(prev => prev.map(c => 
     c.id === conv.id ? { ...c, unreadCount: 0 } : c
   ));
   
-  // ✅ Also call API to mark messages as read
   try {
     const token = localStorage.getItem('token');
     await api.put(`/api/messenger/conversations/${conv.id}/read`, {}, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    console.log(`✅ Marked conversation ${conv.id} as read`);
+    
+    // Refresh to get updated counts from backend
+    setTimeout(() => fetchConversations(), 500);
   } catch (err) {
     console.error('Error marking as read:', err);
   }

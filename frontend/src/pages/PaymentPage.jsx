@@ -64,6 +64,7 @@ function PaymentPage() {
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
+  
 
   const goToSlide = (index) => {
     setCurrentSlide(index);
@@ -91,6 +92,8 @@ function PaymentPage() {
     }
     setTouchStart(null);
   };
+
+  
 
   // Auto-play slideshow
   useEffect(() => {

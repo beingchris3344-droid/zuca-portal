@@ -130,18 +130,7 @@ const ChatsList = ({ onSelectChat, onNewChat }) => {
   const existingAdminIds = new Set(existingAdminConversations.map(c => c.participant?.id));
   const newAdmins = allAdmins.filter(admin => !existingAdminIds.has(admin.id) && admin.id !== user?.id);
   
-  const displayChats = [
-    ...existingAdminConversations,
-    ...newAdmins.map(admin => ({
-      id: `admin-${admin.id}`,
-      participant: admin,
-      lastMessage: null,
-      lastMessageAt: null,
-      unreadCount: 0,
-      isVirtual: true
-    })),
-    ...filteredChats.filter(chat => chat.participant?.role !== 'admin')
-  ];
+const displayChats = filteredChats;
 
   const hasPinnedChats = existingAdminConversations.length > 0 || newAdmins.length > 0;
   const regularChats = displayChats.filter(chat => chat.participant?.role !== 'admin');

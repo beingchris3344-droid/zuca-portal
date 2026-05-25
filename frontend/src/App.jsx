@@ -77,6 +77,7 @@ import PendingSongs from "./pages/admin/PendingSongs";
 import OCRScannerPage from "./pages/admin/OCRScanner";
 import AddHymn from './pages/admin/AddHymn';
 import AdminSchedules from "./pages/admin/AdminSchedules";
+import AdminMessenger from './pages/admin/AdminMessenger';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -459,7 +460,7 @@ function AppContent() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UsersPage />} />
-          <Route path="messenger" element={<MessengerPage />} />  
+          <Route path="messenger" element={<AdminMessenger />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
           <Route path="songs" element={<SongsPage />} />
@@ -477,6 +478,7 @@ function AppContent() {
           <Route path="/admin/pending-songs" element={<PendingSongs />} />
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
           <Route path="/admin/health-centre" element={<AdminHealthCentre />} />
+          <Route path="/admin/messenger" element={<AdminMessenger />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />
@@ -584,15 +586,36 @@ function AppContent() {
 }
 
 
-// Main App component with Router wrapper
 function App() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const checkUserRole = () => {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      setIsAdmin(currentUser.role === 'admin');
+      setLoading(false);
+    };
+    
+    checkUserRole();
+    
+    // Listen for login/logout changes
+    window.addEventListener('storage', checkUserRole);
+    return () => window.removeEventListener('storage', checkUserRole);
+  }, []);
+  
+  if (loading) return <div>Loading...</div>;
+  
   return (
     <BrowserRouter>
-      <MessengerProvider> 
+      {!isAdmin ? (
+        <MessengerProvider>
+          <AppContent />
+        </MessengerProvider>
+      ) : (
         <AppContent />
-      </MessengerProvider>
+      )}
     </BrowserRouter>
   );
 }
-
 export default App;

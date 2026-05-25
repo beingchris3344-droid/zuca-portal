@@ -138,6 +138,54 @@ export const MessengerProvider = ({ children }) => {
     }
   }, [messageCache]);
 
+    // Fetch conversations (with cache)
+  const fetchConversations = async () => {
+    if (conversationsCache) {
+      setConversations(conversationsCache);
+      setLoading(false);
+      fetchConversationsInBackground();
+      return conversationsCache;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await api.get('/api/messenger/conversations');
+      const convData = res.data.conversations || [];
+      setConversations(convData);
+      setConversationsCache(convData);
+      localStorage.setItem('messenger_conversations', JSON.stringify(convData));
+      return convData;
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const fetchConversationsInBackground = async () => {
+    try {
+      const res = await api.get('/api/messenger/conversations');
+      const convData = res.data.conversations || [];
+      setConversations(convData);
+      setConversationsCache(convData);
+      localStorage.setItem('messenger_conversations', JSON.stringify(convData));
+    } catch (error) {
+      console.error('Background fetch error:', error);
+    }
+  };
+
+
+  // Auto-refresh conversations every 5 seconds
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchConversations();
+    console.log('🔄 Auto-refreshing conversations...');
+  }, 5000);
+  
+  return () => clearInterval(interval);
+}, []);
+
   // Initialize on mount
   useEffect(() => {
     const init = async () => {
@@ -173,36 +221,104 @@ export const MessengerProvider = ({ children }) => {
     socketRef.current.on('dm:online_users', ({ users }) => {
       setOnlineUsers(users);
     });
-
-    socketRef.current.on('dm:new_message', (message) => {
-      console.log('📨 New message received:', message);
-      
-      setMessageCache(prev => ({
-        ...prev,
-        [message.conversationId]: [...(prev[message.conversationId] || []), message]
-      }));
-      
-      if (activeConversationRef.current?.id === message.conversationId) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === message.id)) return prev;
-          return [...prev, message];
-        });
+    
+socketRef.current.on('dm:new_message', (message) => {
+  console.log('📨 Message received:', message.id, 'tempId:', message.tempId);
+  
+  // Handle sender's own message (replace optimistic)
+  if (message.tempId) {
+    setMessages(prev => {
+      const hasOptimistic = prev.some(msg => msg.id === message.tempId);
+      if (hasOptimistic) {
+        return prev.map(msg => 
+          msg.id === message.tempId ? { ...message, id: message.id } : msg
+        );
       }
-      
-      setConversations(prev => prev.map(conv => {
-        if (conv.id === message.conversationId) {
-          const isActive = activeConversationRef.current?.id === message.conversationId;
-          return {
-            ...conv,
-            lastMessage: message.content,
-            lastMessageAt: new Date(),
-            unreadCount: isActive ? 0 : (conv.unreadCount || 0) + 1
-          };
-        }
-        return conv;
-      }));
+      if (prev.some(m => m.id === message.id)) return prev;
+      return [...prev, message];
     });
+    
+    setMessageCache(prev => ({
+      ...prev,
+      [message.conversationId]: prev[message.conversationId]?.map(msg => 
+        msg.id === message.tempId ? { ...message, id: message.id } : msg
+      ) || [message]
+    }));
 
+    
+    
+    // Update conversation list for sender (move to top)
+    setConversations(prev => {
+      const existingConvIndex = prev.findIndex(conv => conv.id === message.conversationId);
+      if (existingConvIndex !== -1) {
+        const updatedConv = {
+          ...prev[existingConvIndex],
+          lastMessage: message.content,
+          lastMessageAt: new Date(),
+        };
+        return [updatedConv, ...prev.filter((_, i) => i !== existingConvIndex)];
+      }
+      return prev;
+    });
+    return;
+  }
+  
+  // For recipient: add message to chat
+  if (activeConversationRef.current?.id === message.conversationId) {
+    setMessages(prev => {
+      if (prev.some(m => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
+  }
+  
+  // Update cache
+  setMessageCache(prev => ({
+    ...prev,
+    [message.conversationId]: [...(prev[message.conversationId] || []), message]
+  }));
+  
+  // Update conversation list - ADD NEW or UPDATE EXISTING and MOVE TO TOP
+  setConversations(prev => {
+    
+    const existingConvIndex = prev.findIndex(conv => conv.id === message.conversationId);
+    const isActive = activeConversationRef.current?.id === message.conversationId;
+    
+    if (existingConvIndex !== -1) {
+      // Update existing conversation
+      const updatedConv = {
+        ...prev[existingConvIndex],
+        lastMessage: message.content,
+        lastMessageAt: new Date(),
+        unreadCount: isActive ? 0 : (prev[existingConvIndex].unreadCount || 0) + 1
+      };
+      // Remove from current position
+      const newList = prev.filter((_, i) => i !== existingConvIndex);
+      // Add to top
+      return [updatedConv, ...newList];
+} else {
+  // Add brand new conversation - IMMEDIATE DISPLAY
+  const newConversation = {
+    id: message.conversationId,
+    participant: message.sender || {
+      id: message.senderId,
+      fullName: "User",
+      profileImage: null,
+      role: "member"
+    },
+    lastMessage: message.content,
+    lastMessageAt: new Date(),
+    unreadCount: 1,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  
+  // Force add to top of list
+  return [newConversation, ...prev];
+}
+  });
+
+  
+});
     socketRef.current.on('dm:typing_start', ({ conversationId, userId }) => {
       if (conversationId === activeConversationRef.current?.id) {
         setTypingUsers(prev => ({ ...prev, [userId]: true }));
@@ -270,42 +386,7 @@ export const MessengerProvider = ({ children }) => {
     }
   };
 
-  // Fetch conversations (with cache)
-  const fetchConversations = async () => {
-    if (conversationsCache) {
-      setConversations(conversationsCache);
-      setLoading(false);
-      fetchConversationsInBackground();
-      return conversationsCache;
-    }
-    
-    setLoading(true);
-    try {
-      const res = await api.get('/api/messenger/conversations');
-      const convData = res.data.conversations || [];
-      setConversations(convData);
-      setConversationsCache(convData);
-      localStorage.setItem('messenger_conversations', JSON.stringify(convData));
-      return convData;
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const fetchConversationsInBackground = async () => {
-    try {
-      const res = await api.get('/api/messenger/conversations');
-      const convData = res.data.conversations || [];
-      setConversations(convData);
-      setConversationsCache(convData);
-      localStorage.setItem('messenger_conversations', JSON.stringify(convData));
-    } catch (error) {
-      console.error('Background fetch error:', error);
-    }
-  };
+
 
   // Fetch messages for a conversation (with cache)
   const fetchMessages = async (conversationId) => {
@@ -359,82 +440,57 @@ export const MessengerProvider = ({ children }) => {
   };
 
   // Send a message with optimistic update
-  const sendMessage = async (conversationId, content, files = []) => {
-    if (!content && files.length === 0) return null;
-    
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const currentUser = user;
-    
-    const optimisticMessage = {
-      id: tempId,
-      content: content,
-      senderId: currentUser?.id,
-      conversationId: conversationId,
-      isRead: false,
-      isDeleted: false,
-      isEdited: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      sender: {
-        id: currentUser?.id,
-        fullName: currentUser?.fullName,
-        profileImage: currentUser?.profileImage,
-        role: currentUser?.role
-      },
-      files: files,
-      isOptimistic: true
-    };
-    
-    setMessages(prev => [...prev, optimisticMessage]);
-    setConversations(prev => prev.map(conv =>
-      conv.id === conversationId 
-        ? { ...conv, lastMessage: content, lastMessageAt: new Date() }
-        : conv
-    ));
-    
-    setMessageCache(prev => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), optimisticMessage]
-    }));
-    
-    try {
-      const res = await api.post('/api/messenger/messages', {
-        conversationId,
-        content,
-        files
-      });
-      
-      const realMessage = res.data;
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempId ? realMessage : msg
-      ));
-      
-      setMessageCache(prev => ({
-        ...prev,
-        [conversationId]: prev[conversationId]?.map(msg => 
-          msg.id === tempId ? realMessage : msg
-        )
-      }));
-      
-      socketRef.current?.emit('dm:send_message', {
-        conversationId,
-        content,
-        files,
-        tempId: realMessage.id
-      });
-      
-      return realMessage;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempId ? { ...msg, failed: true, error: error.message } : msg
-      ));
-      return null;
-    }
+ // Send a message with optimistic update
+const sendMessage = async (conversationId, content, files = []) => {
+  if (!content && files.length === 0) return null;
+  
+  const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const currentUser = user;
+  
+  const optimisticMessage = {
+    id: tempId,
+    content: content,
+    senderId: currentUser?.id,
+    conversationId: conversationId,
+    isRead: false,
+    isDeleted: false,
+    isEdited: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sender: {
+      id: currentUser?.id,
+      fullName: currentUser?.fullName,
+      profileImage: currentUser?.profileImage,
+      role: currentUser?.role
+    },
+    files: files,
+    isOptimistic: true
   };
+  
+  setMessages(prev => [...prev, optimisticMessage]);
+  setConversations(prev => prev.map(conv =>
+    conv.id === conversationId 
+      ? { ...conv, lastMessage: content, lastMessageAt: new Date() }
+      : conv
+  ));
+  
+  setMessageCache(prev => ({
+    ...prev,
+    [conversationId]: [...(prev[conversationId] || []), optimisticMessage]
+  }));
+  
+  // Socket emit
+  socketRef.current?.emit('dm:send_message', {
+    conversationId,
+    content,
+    files,
+    tempId: tempId
+  });
+  
+  return { id: tempId, isOptimistic: true };
+};
 
-  // ✅ ADDED: Clear all messages in a conversation (keep conversation)
+  // Clear all messages 
   const clearConversation = async (conversationId) => {
     try {
       await api.post(`/api/messenger/conversations/${conversationId}/clear`);
@@ -463,31 +519,40 @@ export const MessengerProvider = ({ children }) => {
   };
 
   // ✅ ADDED: Delete entire conversation (soft delete for current user)
-  const deleteConversation = async (conversationId) => {
-    try {
-      await api.delete(`/api/messenger/conversations/${conversationId}`);
-      
-      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-      
-      if (activeConversation?.id === conversationId) {
-        setActiveConversation(null);
-        setMessages([]);
-      }
-      
-      setMessageCache(prev => {
-        const newCache = { ...prev };
-        delete newCache[conversationId];
-        return newCache;
-      });
-      
-      console.log(`✅ Deleted conversation ${conversationId}`);
-      return true;
-    } catch (error) {
-      console.error('Error deleting conversation:', error);
-      return false;
+ const deleteConversation = async (conversationId) => {
+  try {
+    await api.delete(`/api/messenger/conversations/${conversationId}`);
+    
+    setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+    
+    // ✅ Clear active conversation and messages if it was deleted
+    if (activeConversation?.id === conversationId) {
+      setActiveConversation(null);
+      setMessages([]);  // Clear messages from state
     }
-  };
-
+    
+    // ✅ Clear message cache for this conversation
+    setMessageCache(prev => {
+      const newCache = { ...prev };
+      delete newCache[conversationId];
+      return newCache;
+    });
+    
+    // ✅ Also remove from localStorage cache
+    const cachedMessages = localStorage.getItem('messenger_messages_cache');
+    if (cachedMessages) {
+      const cache = JSON.parse(cachedMessages);
+      delete cache[conversationId];
+      localStorage.setItem('messenger_messages_cache', JSON.stringify(cache));
+    }
+    
+    console.log(`✅ Deleted conversation ${conversationId}`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    return false;
+  }
+};
   // Start new conversation
   const startConversation = async (userId) => {
     try {
@@ -604,6 +669,7 @@ export const MessengerProvider = ({ children }) => {
     onlineUsers,
     loading,
     typingUsers,
+     setTypingUsers,
     darkMode,
     setDarkMode,
     fontSize,

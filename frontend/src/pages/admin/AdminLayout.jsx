@@ -1,6 +1,6 @@
 // frontend/src/layouts/AdminLayout.jsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import io from "socket.io-client";
 import { FiMessageSquare } from "react-icons/fi";
@@ -19,6 +19,7 @@ export default function AdminLayout() {
   const notificationRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const sidebarRef = useRef(null);
+  const [messengerUnreadCount, setMessengerUnreadCount] = useState(0);
 
   // Handle resize for mobile/desktop
   useEffect(() => {
@@ -58,6 +59,21 @@ export default function AdminLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobile]);
 
+  const fetchMessengerUnreadCount = useCallback(async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${BASE_URL}/api/messenger/unread/count`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      setMessengerUnreadCount(data.totalUnread || 0);
+    }
+  } catch (err) {
+    console.error('Failed to fetch messenger unread count:', err);
+  }
+}, []);
+
   // Socket connection
   useEffect(() => {
     const socket = io(BASE_URL);
@@ -79,8 +95,12 @@ export default function AdminLayout() {
       setOnlineMembers(data.count);
     });
 
-    return () => socket.disconnect();
-  }, []);
+    socket.on('dm:new_message', () => {
+  fetchMessengerUnreadCount();
+});
+
+return () => socket.disconnect();
+}, [fetchMessengerUnreadCount]);
 
   // Fetch existing notifications
   useEffect(() => {
@@ -117,6 +137,7 @@ export default function AdminLayout() {
       }
     };
     fetchNotifications();
+     fetchMessengerUnreadCount();
   }, []);
 
   const getIconForType = (type) => {
@@ -175,6 +196,7 @@ export default function AdminLayout() {
     }
   };
 
+
   const navItems = [
     { label: "ADMIN DASHBOARD", path: "", icon: "📊", bg: "#eff6ff", color: "#3b82f6" },
     { label: "ALL USERS", path: "users", icon: "👥", bg: "#e0f2fe", color: "#06b6d4" },
@@ -189,6 +211,7 @@ export default function AdminLayout() {
     { label: "PENDING SONGS", path: "pending-songs", icon: "⏳", bg: "#fef3c7", color: "#f59e0b" },
     { label: "GEN ANNOUNCEMENTS", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },
     { label: "GEN CONTRIBUTIONS", path: "contributions", icon: "💰", bg: "#d1fae5", color: "#10b981" },
+    { label: "MESSENGER", path: "messenger", icon: "💬", bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
     { label: "CHAT MONITOR", path: "chat", icon: "💬", bg: "#e0f2fe", color: "#06b6d4" },
     { label: "HEALTH CENTRE", path: "health-centre", icon: "🏥", bg: "#dcfce7", color: "#10b981" },
     { label: "USER MANUAL", path: "security", icon: "🔒", bg: "#f1f5f9", color: "#64748b" },
@@ -248,15 +271,30 @@ export default function AdminLayout() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.03 }}
                   >
-                    <span style={navIconStyle}>{item.icon}</span>
-                    <span style={navLabelStyle(isActive, item.color)}>{item.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicator"
-                        style={activeIndicatorStyle(item.color)}
-                        transition={{ type: "spring", damping: 20 }}
-                      />
-                    )}
+               <span style={navIconStyle}>{item.icon}</span>
+<span style={navLabelStyle(isActive, item.color)}>{item.label}</span>
+{item.badge > 0 && (
+  <span style={{ 
+    marginLeft: 'auto', 
+    backgroundColor: '#ef4444', 
+    color: 'white', 
+    fontSize: '10px', 
+    fontWeight: 'bold', 
+    padding: '2px 6px', 
+    borderRadius: '10px', 
+    minWidth: '18px', 
+    textAlign: 'center' 
+  }}>
+    {item.badge > 99 ? '99+' : item.badge}
+  </span>
+)}
+{isActive && (
+  <motion.div
+    layoutId="activeIndicator"
+    style={activeIndicatorStyle(item.color)}
+    transition={{ type: "spring", damping: 20 }}
+  />
+)}
                   </motion.div>
                 )}
               </NavLink>

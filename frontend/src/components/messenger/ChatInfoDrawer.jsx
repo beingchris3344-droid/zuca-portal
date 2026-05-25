@@ -56,7 +56,7 @@ const formatSpecialRole = (specialRole) => {
   return roleMap[specialRole] || specialRole;
 };
 
-const ChatInfoDrawer = ({ conversation, onClose, isMobile = false }) => {
+const ChatInfoDrawer = ({ conversation, onClose, onBack, isMobile = false }) => {
   const { user, onlineUsers, blockUser, reportUser, deleteConversation, archiveConversation, clearConversation } = useMessenger();
   const [showActions, setShowActions] = useState(false);
   
@@ -84,12 +84,18 @@ const ChatInfoDrawer = ({ conversation, onClose, isMobile = false }) => {
     }
   };
 
-  const handleDeleteChat = async () => {
-    if (window.confirm(`Delete chat with ${participant?.fullName}? This cannot be undone.`)) {
-      await deleteConversation(conversation?.id);
-      onClose();
+ const handleDeleteChat = async () => {
+  if (window.confirm(`Delete chat with ${participant?.fullName}? This cannot be undone.`)) {
+    await deleteConversation(conversation?.id);
+    onClose();  // Close the drawer
+    
+    // ✅ Also need to go back to chat list
+    // The onBack function needs to be passed from parent
+    if (onBack) {
+      onBack();
     }
-  };
+  }
+};
 
   const handleArchive = async () => {
     await archiveConversation(conversation?.id);

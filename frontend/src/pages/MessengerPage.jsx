@@ -41,14 +41,7 @@ export default function MessengerPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Initialize user data
-  useEffect(() => {
-    const init = async () => {
-      await fetchUser();
-      await fetchConversations();
-    };
-    init();
-  }, []);
+ 
 
   const handleSelectChat = (conversation) => {
     setActiveConversation(conversation);  // ← This updates both state and ref
@@ -94,16 +87,7 @@ export default function MessengerPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="messenger-loading">
-        <div className="loading-spinner"></div>
-        <h3>ZUCA Messenger</h3>
-        <p>Loading your conversations...</p>
-      </div>
-    );
-  }
-
+ 
   return (
     <div className={`messenger-page ${darkMode ? 'dark' : ''}`}>
       {/* Desktop Layout - Two Panels Side by Side */}
@@ -132,6 +116,7 @@ export default function MessengerPage() {
               <ChatInfoDrawer 
                 conversation={activeConversation}
                 onClose={handleCloseInfo}
+                 onBack={handleBackToList}
               />
             </div>
           )}
@@ -158,6 +143,7 @@ export default function MessengerPage() {
             <ChatInfoDrawer 
               conversation={activeConversation}
               onClose={handleCloseInfo}
+              onBack={handleBackToList}
               isMobile={true}
             />
           )}

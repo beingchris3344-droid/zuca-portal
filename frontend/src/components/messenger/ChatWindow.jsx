@@ -31,14 +31,27 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
   const isOnline = onlineUsers.includes(conversation?.participant?.id);
   const isTypingNow = typingUsers[conversation?.participant?.id];
 
-  // Load messages when conversation changes
-  useEffect(() => {
+   const markConversationAsRead = async () => {
     if (conversation?.id) {
-      fetchMessages(conversation.id);
-      markConversationAsRead();
+      const unreadMessages = messages.filter(m => m.senderId !== user?.id && !m.isRead);
+      for (const msg of unreadMessages) {
+        await markAsRead(msg.id, conversation.id);
+      }
     }
-  }, [conversation?.id]);
+  };
 
+useEffect(() => {
+  if (conversation?.id) {
+    fetchMessages(conversation.id);
+    markConversationAsRead();
+    
+    // ✅ ADD THIS - Join conversation room for real-time messages
+    if (socket?.current) {
+      socket.current.emit('join_conversation', conversation.id);
+      console.log('📢 User joined conversation room:', conversation.id);
+    }
+  }
+}, [conversation?.id]);
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -71,15 +84,11 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     };
   }, [socket]);
 
-  const markConversationAsRead = async () => {
-    if (conversation?.id) {
-      const unreadMessages = messages.filter(m => m.senderId !== user?.id && !m.isRead);
-      for (const msg of unreadMessages) {
-        await markAsRead(msg.id, conversation.id);
-      }
-    }
-  };
 
+
+
+
+ 
   const handleSendMessage = async () => {
     if ((!messageInput.trim() && attachments.length === 0) || sending) return;
     
@@ -97,23 +106,28 @@ const ChatWindow = ({ conversation, onBack, onOpenInfo }) => {
     inputRef.current?.focus();
   };
 
-  const handleTyping = () => {
-    if (!isTyping) {
-      setIsTyping(true);
-    }
-    
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      handleStopTyping();
-    }, 2000);
-  };
+ // In ChatWindow.jsx, update the handleTyping function:
 
-  const handleStopTyping = () => {
-    if (isTyping) {
-      setIsTyping(false);
-    }
-  };
+const handleTyping = () => {
+  if (!isTyping) {
+    setIsTyping(true);
+    // ✅ Emit typing start to socket
+    socket?.current?.emit('dm:typing_start', { conversationId: conversation?.id });
+  }
+  
+  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+  typingTimeoutRef.current = setTimeout(() => {
+    handleStopTyping();
+  }, 2000);
+};
 
+const handleStopTyping = () => {
+  if (isTyping) {
+    setIsTyping(false);
+    // ✅ Emit typing stop to socket
+    socket?.current?.emit('dm:typing_stop', { conversationId: conversation?.id });
+  }
+};
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !sending) {
       e.preventDefault();

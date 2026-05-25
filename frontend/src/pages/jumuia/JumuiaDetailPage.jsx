@@ -1269,28 +1269,38 @@ const handleCreateAnnouncement = async () => {
         />
       )}
 
-      {/* Payment Link Modal */}
+     {/* Payment Link Modal - CENTERED */}
 {paymentLink.show && (
-  <div className="payment-link-modal-overlay" onClick={closePaymentLinkModal}>
+  <div 
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      backdropFilter: 'blur(4px)',
+      zIndex: 10000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+    onClick={closePaymentLinkModal}
+  >
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0.9, opacity: 0 }}
-      className="payment-link-modal"
-      onClick={(e) => e.stopPropagation()}
       style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
+        maxWidth: '500px',
+        width: '100%',
         background: 'white',
         borderRadius: '16px',
-        width: '90%',
-        maxWidth: '500px',
-        zIndex: 10000,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
       }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div style={{
         display: 'flex',
@@ -1316,8 +1326,11 @@ const handleCreateAnnouncement = async () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: '50%'
+            borderRadius: '50%',
+            transition: 'background 0.2s'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
         >
           ×
         </button>
@@ -1328,7 +1341,7 @@ const handleCreateAnnouncement = async () => {
           Share this link with members for <strong>{paymentLink.campaign}</strong>:
         </p>
         
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <input
             type="text"
             readOnly
@@ -1343,7 +1356,8 @@ const handleCreateAnnouncement = async () => {
               background: '#f8fafc',
               color: '#1e293b',
               fontFamily: 'monospace',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              minWidth: '200px'
             }}
           />
           <button

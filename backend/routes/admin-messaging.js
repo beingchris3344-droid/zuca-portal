@@ -20,24 +20,66 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-// GET - All conversations for admin
+// GET - All conversations (admin view)
 router.get('/conversations', authenticateDM, requireAdmin, async (req, res) => {
   try {
-    const conversations = await prisma.conversation.findMany({
-      include: {
-        participant1: {
-          select: { id: true, fullName: true, email: true, profileImage: true, role: true }
+    const { page = 1, limit = 50, search } = req.query;
+    const adminId = req.user.userId; // Get the admin's ID
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const where = {};
+    if (search) {
+      where.OR = [
+        { participant1: { fullName: { contains: search, mode: 'insensitive' } } },
+        { participant2: { fullName: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+    
+    const [conversations, total] = await Promise.all([
+      prisma.conversation.findMany({
+        where,
+        include: {
+          participant1: { select: { id: true, fullName: true, email: true, role: true, profileImage: true } },
+          participant2: { select: { id: true, fullName: true, email: true, role: true, profileImage: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
         },
-        participant2: {
-          select: { id: true, fullName: true, email: true, profileImage: true, role: true }
-        }
-      },
-      orderBy: { lastMessageAt: 'desc' }
+        orderBy: { lastMessageAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.conversation.count({ where })
+    ]);
+    
+    // Format conversations with unread count for the admin viewer
+    const formattedConversations = conversations.map(conv => {
+      const isAdminParticipant1 = conv.participant1?.id === adminId;
+      const otherParticipant = isAdminParticipant1 ? conv.participant2 : conv.participant1;
+      
+      return {
+        id: conv.id,
+        participant: otherParticipant,
+        lastMessage: conv.lastMessage,
+        lastMessageAt: conv.lastMessageAt,
+        lastMessageBy: conv.lastMessageBy,
+        unreadCount: isAdminParticipant1 ? conv.unreadCount1 : conv.unreadCount2,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt
+      };
     });
     
-    res.json({ success: true, conversations });
+    res.json({
+      success: true,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      conversations: formattedConversations
+    });
+    
   } catch (err) {
-    console.error('Error fetching conversations:', err);
+    console.error("Get all conversations error:", err);
     res.status(500).json({ error: err.message });
   }
 });

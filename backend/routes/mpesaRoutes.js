@@ -214,6 +214,12 @@ router.post("/callback", async (req, res) => {
       console.log("Payment not found for CheckoutRequestID:", CheckoutRequestID);
       return res.status(200).json({ ResultCode: 0, ResultDesc: "OK" });
     }
+
+    console.log("=== JUMUIA PAYMENT DEBUG ===");
+console.log("Campaign ID:", payment.contributionTypeId);
+console.log("Campaign has jumuiaId?", payment.contributionType?.jumuiaId);
+console.log("Campaign Jumuia:", payment.contributionType?.jumuia?.name);
+console.log("User Jumuia:", payment.user?.jumuiaId);
     
     // DECLARE THESE ONCE HERE (outside the if block)
     const campaign = payment.contributionType;
@@ -510,7 +516,7 @@ router.get("/payment/:paymentId/status", async (req, res) => {
         console.log("📡 M-PESA query result:", JSON.stringify(result, null, 2));
         
         // ResultCode 0 = Success
-        if (result.ResultCode === 0) {
+        if (result.ResultCode == 0) {
           console.log("✅ Payment successful!");
           await prisma.payment.update({
             where: { id: payment.id },
@@ -522,7 +528,7 @@ router.get("/payment/:paymentId/status", async (req, res) => {
           payment.status = "SUCCESS";
         } 
       // ResultCode 1037 or 4999 = Pending (still processing)
-else if (result.ResultCode === "1037" || result.ResultCode === "4999") {
+else if (result.ResultCode === "1037" || result.ResultCode === "4999" || result.ResultCode == 1037) {
   console.log("⏳ Payment still pending - waiting for PIN...");
   // Keep as PENDING - don't change
 }

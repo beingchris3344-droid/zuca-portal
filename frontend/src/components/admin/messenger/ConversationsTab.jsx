@@ -25,6 +25,25 @@ export default function ConversationsTab() {
   const inputRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
+
+  
+  const fetchConversations = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await api.get('/api/admin/messenger/conversations', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setConversations(res.data.conversations || []);
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -38,6 +57,8 @@ export default function ConversationsTab() {
       }
     };
   }, []);
+
+  
 
   const initSocket = () => {
     const token = localStorage.getItem('token');
@@ -53,22 +74,35 @@ export default function ConversationsTab() {
       socketRef.current.emit('dm:join', currentUser.id);
     });
 
-    socketRef.current.on('dm:new_message', (message) => {
-      if (selectedConversation?.id === message.conversationId) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === message.id)) return prev;
-          return [...prev, message];
-        });
-        scrollToBottom();
-      }
-      
-      setConversations(prev => prev.map(conv =>
-        conv.id === message.conversationId
-          ? { ...conv, lastMessage: message.content, lastMessageAt: new Date() }
-          : conv
-      ));
+ socketRef.current.on('dm:new_message', (message) => {
+  // Update messages if in current conversation
+  if (selectedConversation?.id === message.conversationId) {
+    setMessages(prev => {
+      if (prev.some(m => m.id === message.id)) return prev;
+      return [...prev, message];
     });
-
+    scrollToBottom();
+    
+    // ✅ Reset unread count to 0 since we're in this conversation
+    setConversations(prev => prev.map(conv =>
+      conv.id === message.conversationId ? { ...conv, unreadCount: 0 } : conv
+    ));
+  } else {
+    // ✅ Increment unread count for other conversations
+    setConversations(prev => prev.map(conv =>
+      conv.id === message.conversationId 
+        ? { ...conv, unreadCount: (conv.unreadCount || 0) + 1 }
+        : conv
+    ));
+  }
+  
+  // Update last message
+  setConversations(prev => prev.map(conv =>
+    conv.id === message.conversationId
+      ? { ...conv, lastMessage: message.content, lastMessageAt: new Date() }
+      : conv
+  ));
+});
     socketRef.current.on('dm:user_online', ({ userId }) => {
       setOnlineUsers(prev => [...new Set([...prev, userId])]);
     });
@@ -90,20 +124,7 @@ export default function ConversationsTab() {
     });
   };
 
-  const fetchConversations = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/api/admin/messenger/conversations', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setConversations(res.data.conversations || []);
-    } catch (err) {
-      console.error('Error fetching conversations:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   const fetchMessages = async (conversationId) => {
     try {
@@ -178,11 +199,27 @@ export default function ConversationsTab() {
   };
 
   const openConversation = async (conv) => {
-    setSelectedConversation(conv);
-    await fetchMessages(conv.id);
-    setShowChat(true);
-    setTimeout(() => scrollToBottom(), 100);
-  };
+  setSelectedConversation(conv);
+  await fetchMessages(conv.id);
+  setShowChat(true);
+  
+  // ✅ Reset unread count immediately when opening conversation
+  setConversations(prev => prev.map(c => 
+    c.id === conv.id ? { ...c, unreadCount: 0 } : c
+  ));
+  
+  // ✅ Also call API to mark messages as read
+  try {
+    const token = localStorage.getItem('token');
+    await api.put(`/api/messenger/conversations/${conv.id}/read`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (err) {
+    console.error('Error marking as read:', err);
+  }
+  
+  setTimeout(() => scrollToBottom(), 100);
+};
 
   const closeChat = () => {
     setShowChat(false);

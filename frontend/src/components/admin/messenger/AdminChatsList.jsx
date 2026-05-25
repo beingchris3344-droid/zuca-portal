@@ -30,6 +30,16 @@ const AdminChatsList = ({ onSelectChat, onNewChat, darkMode = false }) => {
     }
   };
 
+  // ✅ AUTO-REFRESH CONVERSATIONS EVERY 5 SECONDS
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchConversations();
+    console.log('🔄 Admin: Auto-refreshing conversations...');
+  }, 5000);
+  
+  return () => clearInterval(interval);
+}, []);
+
   // Socket connection for online status
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -102,15 +112,7 @@ const AdminChatsList = ({ onSelectChat, onNewChat, darkMode = false }) => {
     return conv.participant?.role !== 'admin';
   });
 
-  if (loading) {
-    return (
-      <div className={`chats-loading ${darkMode ? 'dark' : ''}`}>
-        <div className="loading-spinner"></div>
-        <p>Loading conversations...</p>
-      </div>
-    );
-  }
-
+  
   return (
     <div className={`chats-list-container ${darkMode ? 'dark' : ''}`}>
       <div className={`chats-header ${darkMode ? 'dark' : ''}`}>

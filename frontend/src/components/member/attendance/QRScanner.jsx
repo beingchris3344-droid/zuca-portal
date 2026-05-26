@@ -1,27 +1,24 @@
-import React, { useState } from 'react';
-import { X, Camera, QrCode } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Camera } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../../api';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function QRScanner({ onClose, onSuccess }) {
-  const [scanning, setScanning] = useState(true);
   const [error, setError] = useState(null);
+  const scannerRef = useRef(null);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
   
-  const handleScan = async (data) => {
-    if (!data) return;
-    
-    setScanning(false);
-    
+  const onScanSuccess = async (decodedText, decodedResult) => {
     try {
       // Parse the QR data
       let qrData;
       try {
-        qrData = JSON.parse(data);
+        qrData = JSON.parse(decodedText);
       } catch (e) {
         setError('Invalid QR code format');
         return;
@@ -53,14 +50,34 @@ export default function QRScanner({ onClose, onSuccess }) {
       } else {
         setError(errorMsg?.error || 'Check-in failed');
       }
-      setScanning(true);
     }
   };
   
-  const handleError = (err) => {
-    console.error('Camera error:', err);
-    setError('Unable to access camera. Please allow camera permissions.');
+  const onScanError = (err) => {
+    console.error('Scan error:', err);
   };
+  
+  useEffect(() => {
+    // Initialize scanner
+    const scanner = new Html5QrcodeScanner(
+      "qr-reader",
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      },
+      false
+    );
+    
+    scanner.render(onScanSuccess, onScanError);
+    scannerRef.current = scanner;
+    
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear();
+      }
+    };
+  }, []);
   
   return (
     <div className="qr-scanner-overlay" onClick={onClose}>
@@ -79,19 +96,11 @@ export default function QRScanner({ onClose, onSuccess }) {
             <div className="qr-scanner-error">
               <div className="error-icon">⚠️</div>
               <p>{error}</p>
-              <button onClick={() => { setError(null); setScanning(true); }}>Try Again</button>
+              <button onClick={() => { setError(null); }}>Try Again</button>
             </div>
           ) : (
             <>
-              <div className="scanner-view">
-                {scanning && (
-                  <div className="scanner-placeholder">
-                    <QrCode size={48} />
-                    <p>Position QR code in frame</p>
-                    <div className="scanner-line"></div>
-                  </div>
-                )}
-              </div>
+              <div id="qr-reader" className="scanner-view"></div>
               <p className="scanner-instruction">
                 Point your camera at the QR code displayed on screen
               </p>
@@ -118,7 +127,7 @@ export default function QRScanner({ onClose, onSuccess }) {
           background: white;
           border-radius: 24px;
           width: 90%;
-          max-width: 400px;
+          max-width: 500px;
           overflow: hidden;
         }
         
@@ -146,45 +155,13 @@ export default function QRScanner({ onClose, onSuccess }) {
         }
         
         .qr-scanner-body {
-          padding: 24px;
+          padding: 20px;
         }
         
         .scanner-view {
-          background: #1a1a1a;
+          width: 100%;
           border-radius: 16px;
-          height: 300px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 16px;
-          position: relative;
           overflow: hidden;
-        }
-        
-        .scanner-placeholder {
-          text-align: center;
-          color: white;
-        }
-        
-        .scanner-placeholder p {
-          margin-top: 16px;
-          font-size: 14px;
-        }
-        
-        .scanner-line {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background: #22c55e;
-          animation: scan 2s linear infinite;
-        }
-        
-        @keyframes scan {
-          0% { top: 0; }
-          50% { top: 100%; }
-          100% { top: 0; }
         }
         
         .scanner-instruction {
@@ -196,7 +173,7 @@ export default function QRScanner({ onClose, onSuccess }) {
         
         .qr-scanner-error {
           text-align: center;
-          padding: 20px;
+          padding: 40px 20px;
         }
         
         .error-icon {

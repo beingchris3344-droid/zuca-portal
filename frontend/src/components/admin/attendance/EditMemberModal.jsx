@@ -57,13 +57,13 @@ export default function EditMemberModal({ entry, onClose, onSave }) {
   
   // ============ CHECK-IN METHOD DISPLAY ============
   const getMethodDisplay = (method) => {
-    switch(method) {
-      case 'SELF': return 'Self Check-in';
-      case 'WIFI_AUTO': return 'Wi-Fi Auto';
-      case 'MANUAL': return 'Manual (Admin)';
-      default: return method;
-    }
-  };
+  switch(method) {
+    case 'SELF': return 'Self Check-in';
+    case 'QR_CODE': return 'QR Code';
+    case 'MANUAL': return 'Manual (Admin)';
+    default: return method;
+  }
+};
   
   return (
     <div className="modal-overlay" onClick={onClose}>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Users, Wifi } from 'lucide-react';
-
+import { Calendar, MapPin, Clock, Users, QrCode } from 'lucide-react';
 export default function ActiveMeetingsCard({ meetings, onCheckin, checkingIn }) {
   const navigate = useNavigate();
   
@@ -29,9 +28,9 @@ export default function ActiveMeetingsCard({ meetings, onCheckin, checkingIn }) 
                 <span><Clock size={12} /> {meeting.eventTime || '4:30 PM'}</span>
                 <span><MapPin size={12} /> {meeting.location || 'ZUCA'}</span>
               </div>
-              <div className="meeting-stats">
+                            <div className="meeting-stats">
                 <Users size={12} /> {meeting._count?.entries || 0} checked in
-                {meeting.enableWifiCheckin && <Wifi size={12} className="wifi-icon" />}
+                {meeting.enableQRCheckin && <QrCode size={12} className="qr-icon" />}
               </div>
             </div>
             <button 
@@ -119,7 +118,7 @@ export default function ActiveMeetingsCard({ meetings, onCheckin, checkingIn }) 
           align-items: center;
           gap: 6px;
         }
-        .wifi-icon { color: #3b82f6; }
+                .qr-icon { color: #3b82f6; }
         .checkin-btn-small {
           background: #ef4444;
           color: white;

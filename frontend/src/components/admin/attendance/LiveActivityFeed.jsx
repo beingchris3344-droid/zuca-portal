@@ -37,7 +37,7 @@ export default function LiveActivityFeed({ sheetId, onNewCheckin }) {
   const getActivityIcon = (type) => {
     switch(type) {
       case 'self_checkin': return <UserCheck size={14} className="icon-self" />;
-      case 'wifi_checkin': return <Wifi size={14} className="icon-wifi" />;
+           case 'qr_checkin': return <QrCode size={14} className="icon-qr" />;
       case 'admin_add': return <UserPlus size={14} className="icon-admin" />;
       case 'admin_edit': return <UserCheck size={14} className="icon-edit" />;
       case 'admin_delete': return <XCircle size={14} className="icon-delete" />;
@@ -51,8 +51,8 @@ export default function LiveActivityFeed({ sheetId, onNewCheckin }) {
     switch(activity.type) {
       case 'self_checkin':
         return `${activity.userName} checked in via Self`;
-      case 'wifi_checkin':
-        return `${activity.userName} connected via Wi-Fi Auto`;
+           case 'qr_checkin':
+        return `${activity.userName} checked in via QR Code`;
       case 'admin_add':
         return `Admin added ${activity.userName}`;
       case 'admin_edit':
@@ -102,7 +102,7 @@ export default function LiveActivityFeed({ sheetId, onNewCheckin }) {
     socket.on('attendance_checkin', (data) => {
       if (data.sheetId === sheetId) {
         addActivity({
-          type: data.method === 'SELF' ? 'self_checkin' : 'wifi_checkin',
+                   type: data.method === 'SELF' ? 'self_checkin' : 'qr_checkin',
           userName: data.userName,
           method: data.method,
           time: data.time
@@ -314,8 +314,12 @@ export default function LiveActivityFeed({ sheetId, onNewCheckin }) {
           border-left: 3px solid #3b82f6;
         }
         
-        .feed-item.wifi_checkin {
+                        .icon-qr { color: #22c55e; }
           border-left: 3px solid #22c55e;
+        }
+        
+        .feed-item.qr_checkin {
+          border-left: 3px solid #059669;
         }
         
         .feed-item.admin_add {

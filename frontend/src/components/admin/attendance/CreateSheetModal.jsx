@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Wifi, Users, Calendar, Clock, MapPin } from 'lucide-react';
+import { X, QrCode, Users, Calendar, Clock, MapPin } from 'lucide-react';
 import { api } from '../../../api';
 
 export default function CreateSheetModal({ onClose, onCreate }) {
@@ -11,8 +11,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
     eventTime: '16:30',
     location: '',
     allowSelfCheckin: true,
-    enableWifiCheckin: false,
-    wifiSSID: '',
+    enableQRCheckin: false,
     jumuiaId: ''
   });
   
@@ -61,11 +60,6 @@ export default function CreateSheetModal({ onClose, onCreate }) {
       return;
     }
     
-    if (formData.enableWifiCheckin && !formData.wifiSSID) {
-      alert('Please enter Wi-Fi SSID for auto check-in');
-      return;
-    }
-    
     setLoading(true);
     try {
       const submitData = {
@@ -75,8 +69,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
         eventTime: formData.eventTime,
         location: formData.location || null,
         allowSelfCheckin: formData.allowSelfCheckin,
-        enableWifiCheckin: formData.enableWifiCheckin,
-        wifiSSID: formData.enableWifiCheckin ? formData.wifiSSID : null,
+        enableWifiCheckin: formData.enableQRCheckin, // Map to backend field
         jumuiaId: formData.jumuiaId || null
       };
       
@@ -96,7 +89,6 @@ export default function CreateSheetModal({ onClose, onCreate }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-container" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="modal-header">
           <h2>Create New Attendance Sheet</h2>
           <button className="close-btn" onClick={onClose}>
@@ -104,7 +96,6 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           </button>
         </div>
         
-        {/* Form */}
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             {/* Title */}
@@ -115,7 +106,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="e.g.,  Leaders meeting, Choir Practice"
+                placeholder="e.g., Leaders meeting, Choir Practice"
                 required
               />
             </div>
@@ -164,7 +155,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
-                placeholder="e.g., Annex 002,, complex etc "
+                placeholder="e.g., Annex 002, complex etc"
               />
             </div>
             
@@ -205,49 +196,32 @@ export default function CreateSheetModal({ onClose, onCreate }) {
               </label>
             </div>
             
-            {/* Wi-Fi Auto Check-in */}
+            {/* QR Code Check-in */}
             <div className="method-item">
               <div className="method-info">
-                <span className="method-icon"><Wifi size={18} /></span>
+                <span className="method-icon"><QrCode size={18} /></span>
                 <div>
-                  <div className="method-title">Wi-Fi Auto Check-in</div>
-                  <div className="method-desc">Members auto-check-in when connected to meeting Wi-Fi</div>
+                  <div className="method-title">QR Code Check-in</div>
+                  <div className="method-desc">Members scan QR code to check in</div>
                 </div>
               </div>
               <label className="toggle-switch">
                 <input
                   type="checkbox"
-                  name="enableWifiCheckin"
-                  checked={formData.enableWifiCheckin}
+                  name="enableQRCheckin"
+                  checked={formData.enableQRCheckin}
                   onChange={handleChange}
                 />
                 <span className="toggle-slider"></span>
               </label>
             </div>
             
-            {/* Wi-Fi SSID (conditional) */}
-            {formData.enableWifiCheckin && (
-              <div className="form-group wifi-group">
-                <label>Wi-Fi SSID (Network Name) *</label>
-                <input
-                  type="text"
-                  name="wifiSSID"
-                  value={formData.wifiSSID}
-                  onChange={handleChange}
-                  placeholder="e.g., ZUCA-Meeting-260526"
-                />
-                <div className="helper-text">
-                  💡 Members must connect to this exact Wi-Fi network for auto check-in
-                </div>
-              </div>
-            )}
-            
             {/* Divider */}
             <div className="divider">
               <span>Target Audience</span>
             </div>
             
-            {/* Jumuia Selection - WITH EXECUTIVE TEAM ADDED */}
+            {/* Jumuia Selection */}
             <div className="form-group">
               <label>Target Group (Optional)</label>
               <select
@@ -478,13 +452,6 @@ export default function CreateSheetModal({ onClose, onCreate }) {
         
         input:checked + .toggle-slider:before {
           transform: translateX(20px);
-        }
-        
-        .wifi-group {
-          margin-top: 16px;
-          padding: 16px;
-          background: #f8f8f8;
-          border-radius: 12px;
         }
         
         .helper-text {

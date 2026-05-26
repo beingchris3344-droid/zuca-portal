@@ -216,7 +216,7 @@ const handleMarkAbsent = async (entryId, memberName) => {
   const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
   
   const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
-  const wifiCount = presentEntries.filter(e => e.signMethod === 'WIFI_AUTO').length;
+   const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
   const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
   
   // ============ LOADING STATE ============
@@ -286,16 +286,16 @@ const handleMarkAbsent = async (entryId, memberName) => {
         </div>
         
         {/* Method Breakdown */}
-        <div className="methods-breakdown">
+             <div className="methods-breakdown">
           <div className="method-item">
             <span className="method-dot self"></span>
             <span>Self Check-in</span>
             <span className="method-count">{selfCount}</span>
           </div>
           <div className="method-item">
-            <span className="method-dot wifi"></span>
-            <span>Wi-Fi Auto</span>
-            <span className="method-count">{wifiCount}</span>
+            <span className="method-dot qr"></span>
+            <span>QR Code</span>
+            <span className="method-count">{qrCount}</span>
           </div>
           <div className="method-item">
             <span className="method-dot manual"></span>
@@ -378,8 +378,8 @@ const handleMarkAbsent = async (entryId, memberName) => {
                       <td>{entry.role}</td>
                       <td>
                         <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
-                          {entry.signMethod === 'SELF' ? 'Self' : 
-                           entry.signMethod === 'WIFI_AUTO' ? 'Wi-Fi' : 'Manual'}
+                                                   {entry.signMethod === 'SELF' ? 'Self' : 
+                           entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
                         </span>
                       </td>
                       <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
@@ -654,7 +654,7 @@ const handleMarkAbsent = async (entryId, memberName) => {
         }
         
         .method-dot.self { background: #3b82f6; }
-        .method-dot.wifi { background: #22c55e; }
+              .method-dot.qr { background: #22c55e; }
         .method-dot.manual { background: #f59e0b; }
         
         .method-count {
@@ -768,7 +768,7 @@ const handleMarkAbsent = async (entryId, memberName) => {
           color: #0284c7;
         }
         
-        .method-badge.wifi_auto {
+              .method-badge.qr_code {
           background: #dcfce7;
           color: #22c55e;
         }

@@ -213,7 +213,7 @@ export default function AdminAttendanceDetails() {
   const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
   
   const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
-  const wifiCount = presentEntries.filter(e => e.signMethod === 'WIFI_AUTO').length;
+const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
   const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
   
   // ============ SKELETON LOADER ============
@@ -566,10 +566,10 @@ export default function AdminAttendanceDetails() {
           <span className="method-count">{selfCount}</span>
         </div>
         <div className="method-item">
-          <span className="method-dot wifi"></span>
-          <span>Wi-Fi Auto</span>
-          <span className="method-count">{wifiCount}</span>
-        </div>
+  <span className="method-dot qr"></span>
+  <span>QR Code</span>
+  <span className="method-count">{qrCount}</span>
+</div>
         <div className="method-item">
           <span className="method-dot manual"></span>
           <span>Manual (Admin)</span>
@@ -650,10 +650,10 @@ export default function AdminAttendanceDetails() {
                     <td>{entry.phoneNumber || '-'}</td>
                     <td>{entry.role}</td>
                     <td>
-                      <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
-                        {entry.signMethod === 'SELF' ? 'Self' : 
-                         entry.signMethod === 'WIFI_AUTO' ? 'Wi-Fi' : 'Manual'}
-                      </span>
+                     <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
+  {entry.signMethod === 'SELF' ? 'Self' : 
+   entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
+</span>
                     </td>
                     <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
                    <td className="actions">
@@ -889,8 +889,7 @@ export default function AdminAttendanceDetails() {
         }
         
         .method-dot.self { background: #3b82f6; }
-        .method-dot.wifi { background: #22c55e; }
-        .method-dot.manual { background: #f59e0b; }
+.method-dot.qr { background: #059669; }        .method-dot.manual { background: #f59e0b; }
         
         .method-count {
           font-weight: 600;
@@ -1002,10 +1001,14 @@ export default function AdminAttendanceDetails() {
           color: #0284c7;
         }
         
-        .method-badge.wifi_auto {
+              .method-badge.qr_code {
           background: #dcfce7;
           color: #22c55e;
         }
+          .method-badge.qr_code {
+  background: #dcfce7;
+  color: #059669;
+}
         
         .method-badge.manual {
           background: #fef3c7;

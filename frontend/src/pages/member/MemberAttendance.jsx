@@ -5,7 +5,7 @@ import BASE_URL from '../../api';
 import { 
   Calendar, MapPin, Clock, Users, CheckCircle, 
   ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
-  Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode
+  Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock
 } from 'lucide-react';
 import QRScanner from '../../components/member/attendance/QRScanner';
 
@@ -282,17 +282,22 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
               
               {/* Header Section */}
               <div className="card-header-premium">
-                <div className="badge-group">
-                  <span className="live-badge-premium">
-                    <Zap size={12} /> LIVE NOW
-                  </span>
-                {sheet.enableWifiCheckin && (
+               <div className="badge-group">
+  {sheet.isActive ? (
+    <span className="live-badge-premium">
+      <Zap size={12} /> LIVE NOW
+    </span>
+  ) : (
+    <span className="closed-badge-premium">
+      <Lock size={12} /> CLOSED
+    </span>
+  )}
+{sheet.enableQrCheckin && (
   <span className="qr-badge-premium">
-    <QrCode size={12} /> QR Code Available
+    <QrCode size={12} /> QR Available
   </span>
-
-                  )}
-                </div>
+)}
+</div>
                 <div className="time-badge">
                   <Clock size={14} />
                   <span>{sheet.eventTime || '4:30 PM'}</span>
@@ -428,6 +433,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
         .member-attendance {
           min-height: 100vh;
           background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          margin-bottom: 70px;
           padding: 0;
         }
         
@@ -647,6 +653,18 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           flex-wrap: wrap;
           gap: 10px;
         }
+          .closed-badge-premium {
+  background: #64748b;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.5px;
+}
         
         .badge-group {
           display: flex;

@@ -135,7 +135,7 @@ export default function MemberAttendanceHistory() {
                     <div className="history-method">
                       <span className={`method-badge ${record.signMethod?.toLowerCase()}`}>
                         {record.signMethod === 'SELF' ? 'Self Check-in' : 
-                         record.signMethod === 'WIFI_AUTO' ? 'Wi-Fi Auto' : 'Manual'}
+ record.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
                       </span>
                     </div>
                   </div>
@@ -239,7 +239,7 @@ export default function MemberAttendanceHistory() {
         .history-meta { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-bottom: 8px; }
         .method-badge { font-size: 10px; padding: 2px 10px; border-radius: 20px; }
         .method-badge.self { background: #dbeafe; color: #2563eb; }
-        .method-badge.wifi_auto { background: #dcfce7; color: #16a34a; }
+        .method-badge.qr_code { background: #dcfce7; color: #059669; }
         .method-badge.manual { background: #fef3c7; color: #d97706; }
         .history-arrow { color: #94a3b8; }
         .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 24px; }

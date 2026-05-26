@@ -770,17 +770,12 @@ const fetchFeaturedGallery = async () => {
             </div>
           )}
           
-          <button 
-            className="checkin-btn-sm"
-            onClick={() => handleSelfCheckin(sheet.id)}
-            disabled={checkingIn === sheet.id}
-          >
-            {checkingIn === sheet.id ? (
-              <>⏳ Checking in...</>
-            ) : (
-              <>✅ Check Myself In</>
-            )}
-          </button>
+   <button 
+  className="checkin-btn-sm"
+  onClick={() => navigate('/member/attendance')}
+>
+  🎯 Check In →
+</button>
         </div>
       ))}
     </div>

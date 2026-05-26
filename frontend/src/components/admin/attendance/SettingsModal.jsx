@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { X, Wifi, Users, Save } from 'lucide-react';
+import { X, Users, Save, QrCode } from 'lucide-react';
 import { api } from '../../../api';
 
 export default function SettingsModal({ sheet, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
     allowSelfCheckin: sheet.allowSelfCheckin,
-    enableWifiCheckin: sheet.enableWifiCheckin,
-    wifiSSID: sheet.wifiSSID || ''
+    enableQRCheckin: sheet.enableQRCheckin || true
   });
   const [loading, setLoading] = useState(false);
   
@@ -27,10 +26,9 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.put(`/api/attendance/sheet/${sheet.id}/settings`, {
+           await api.put(`/api/attendance/sheet/${sheet.id}/settings`, {
         allowSelfCheckin: formData.allowSelfCheckin,
-        enableWifiCheckin: formData.enableWifiCheckin,
-        wifiSSID: formData.enableWifiCheckin ? formData.wifiSSID : null
+        enableQRCheckin: formData.enableQRCheckin
       }, { headers: getHeaders() });
       
       onUpdate();
@@ -68,23 +66,18 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           <div className="modal-body">
             <div className="settings-section">
               <h4>Check-in Methods</h4>
-              <label className="checkbox-label">
+                           <label className="checkbox-label">
                 <input type="checkbox" name="allowSelfCheckin" checked={formData.allowSelfCheckin} onChange={handleChange} />
                 <span>Allow Self Check-in</span>
               </label>
               
               <label className="checkbox-label">
-                <input type="checkbox" name="enableWifiCheckin" checked={formData.enableWifiCheckin} onChange={handleChange} />
-                <span>Enable Wi-Fi Auto Check-in</span>
+                <input type="checkbox" name="enableQRCheckin" checked={formData.enableQRCheckin} onChange={handleChange} />
+                                <span>Enable QR Code Check-in</span>
               </label>
             </div>
             
-            {formData.enableWifiCheckin && (
-              <div className="settings-section">
-                <h4><Wifi size={16} /> Wi-Fi Configuration</h4>
-                <input type="text" name="wifiSSID" value={formData.wifiSSID} onChange={handleChange} placeholder="Wi-Fi SSID" className="wifi-input" />
-              </div>
-            )}
+            
           </div>
           
           <div className="modal-footer">
@@ -94,9 +87,13 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              <Save size={16} /> Save Changes
-            </button>
+           <button type="submit" className="btn-primary" disabled={loading}>
+  {loading ? (
+    <>Saving...</>
+  ) : (
+    <><Save size={16} /> Save Changes</>
+  )}
+</button>
           </div>
         </form>
       </div>

@@ -5,11 +5,11 @@ import { saveAs } from 'file-saver';
 import SettingsModal from './SettingsModal';
 
 
-// Icons
+// Icons - REMOVED Wifi
 import { 
   Plus, Eye, Bell, Lock, Download, Settings, 
   Trash2, Edit2, Search, RefreshCw, X,
-  Calendar, MapPin, Clock, Users, Wifi, FileText, CheckCircle,
+  Calendar, MapPin, Clock, Users, FileText, CheckCircle,
   Filter, ChevronDown, QrCode
 } from 'lucide-react';
 
@@ -35,7 +35,7 @@ export default function AdminAttendance() {
   
   // Filter states for Entries tab
   const [entrySearchTerm, setEntrySearchTerm] = useState('');
-  const [entryMethodFilter, setEntryMethodFilter] = useState('all');
+  const [entryMethodFilter, setEntryMethodFilter] = useState('all'); // all, SELF, MANUAL, QR_CODE
   const [entryRoleFilter, setEntryRoleFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   
@@ -43,18 +43,14 @@ export default function AdminAttendance() {
   const [exportType, setExportType] = useState('full');
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-const [selectedSheetForSettings, setSelectedSheetForSettings] = useState(null);
-const [showQRModal, setShowQRModal] = useState(false);
-const [selectedSheetForQR, setSelectedSheetForQR] = useState(null);
+  const [selectedSheetForSettings, setSelectedSheetForSettings] = useState(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedSheetForQR, setSelectedSheetForQR] = useState(null);
 
-
-
-
-
-const openSettingsModal = (sheet) => {
-  setSelectedSheetForSettings(sheet);
-  setShowSettingsModal(true);
-};
+  const openSettingsModal = (sheet) => {
+    setSelectedSheetForSettings(sheet);
+    setShowSettingsModal(true);
+  };
   
   // ============ HELPER FUNCTIONS ============
   const getHeaders = () => {
@@ -89,15 +85,14 @@ const openSettingsModal = (sheet) => {
     }
   };
   
-const fetchAllEntries = async () => {
-  try {
-    // Use the new single endpoint instead of looping
-    const response = await api.get('/api/attendance/all-entries', { headers: getHeaders() });
-    setAllEntries(response.data.entries || []);
-  } catch (error) {
-    console.error('Error fetching entries:', error);
-  }
-};
+  const fetchAllEntries = async () => {
+    try {
+      const response = await api.get('/api/attendance/all-entries', { headers: getHeaders() });
+      setAllEntries(response.data.entries || []);
+    } catch (error) {
+      console.error('Error fetching entries:', error);
+    }
+  };
   
   const fetchAllData = async () => {
     setLoading(true);
@@ -153,7 +148,7 @@ const fetchAllEntries = async () => {
       const attendanceRate = totalExpected > 0 ? ((presentMembers.length / totalExpected) * 100).toFixed(1) : 0;
       
       const selfCount = presentMembers.filter(e => e.signMethod === 'SELF').length;
-      const wifiCount = presentMembers.filter(e => e.signMethod === 'WIFI_AUTO').length;
+      const qrCount = presentMembers.filter(e => e.signMethod === 'QR_CODE').length;
       const manualCount = presentMembers.filter(e => e.signMethod === 'MANUAL').length;
       
       let htmlContent = `<!DOCTYPE html>
@@ -201,20 +196,20 @@ const fetchAllEntries = async () => {
             <td>${member.fullName}</td>
             <td>${member.phoneNumber || '-'}</td>
             <td>${member.role}</td>
-            <td>${member.signMethod === 'SELF' ? 'Self' : member.signMethod === 'WIFI_AUTO' ? 'Wi-Fi' : 'Manual'}</td>
+            <td>${member.signMethod === 'SELF' ? 'Self' : member.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}</td>
             <td>${new Date(member.signTime).toLocaleTimeString()}</td>
           </tr>`;
         });
-        htmlContent += `</tbody></tr>`;
+        htmlContent += `</tbody></table>`;
       }
       
       if (type === 'full') {
         htmlContent += `<h2>SIGN METHOD BREAKDOWN</h2>
-        <table>
+        </table>
           <thead><tr><th>Method</th><th>Count</th><th>Percentage</th></tr></thead>
           <tbody>
             <tr><td>Self Check-in</td><td>${selfCount}</td><td>${presentMembers.length > 0 ? ((selfCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
-            <tr><td>Wi-Fi Auto</td><td>${wifiCount}</td><td>${presentMembers.length > 0 ? ((wifiCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
+            <tr><td>QR Code</td><td>${qrCount}</td><td>${presentMembers.length > 0 ? ((qrCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
             <tr><td>Manual (Admin)</td><td>${manualCount}</td><td>${presentMembers.length > 0 ? ((manualCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
           </tbody>
         </table>`;
@@ -258,28 +253,28 @@ const fetchAllEntries = async () => {
   };
 
   const handleDeletePastSheet = async (sheetId, sheetTitle) => {
-  if (!window.confirm(`Delete "${sheetTitle}" permanently? This cannot be undone.`)) return;
-  try {
-    await api.delete(`/api/attendance/sheet/${sheetId}`, { headers: getHeaders() });
-    showToast('Sheet deleted successfully!', 'success');
-    fetchActiveSheets(); // Refresh the list
-    fetchAdminStats();
-  } catch (error) {
-    showToast(error.response?.data?.error || 'Failed to delete sheet', 'error');
-  }
-};
+    if (!window.confirm(`Delete "${sheetTitle}" permanently? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/api/attendance/sheet/${sheetId}`, { headers: getHeaders() });
+      showToast('Sheet deleted successfully!', 'success');
+      fetchActiveSheets();
+      fetchAdminStats();
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to delete sheet', 'error');
+    }
+  };
 
-const handleReopenSheet = async (sheetId, sheetTitle) => {
-  if (!window.confirm(`Reopen "${sheetTitle}"? This will allow members to check in again.`)) return;
-  try {
-    await api.post(`/api/attendance/sheet/${sheetId}/reopen`, {}, { headers: getHeaders() });
-    showToast('Sheet reopened successfully!', 'success');
-    fetchActiveSheets(); // Refresh the list
-    fetchAdminStats();
-  } catch (error) {
-    showToast(error.response?.data?.error || 'Failed to reopen sheet', 'error');
-  }
-};
+  const handleReopenSheet = async (sheetId, sheetTitle) => {
+    if (!window.confirm(`Reopen "${sheetTitle}"? This will allow members to check in again.`)) return;
+    try {
+      await api.post(`/api/attendance/sheet/${sheetId}/reopen`, {}, { headers: getHeaders() });
+      showToast('Sheet reopened successfully!', 'success');
+      fetchActiveSheets();
+      fetchAdminStats();
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to reopen sheet', 'error');
+    }
+  };
   
   // ============ ACTIONS ============
   const handleCreateSheet = async (sheetData) => {
@@ -307,9 +302,9 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
   };
 
   const openQRModal = (sheet) => {
-  setSelectedSheetForQR(sheet);
-  setShowQRModal(true);
-};
+    setSelectedSheetForQR(sheet);
+    setShowQRModal(true);
+  };
   
   // ============ INITIAL LOAD ============
   useEffect(() => {
@@ -388,18 +383,17 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
                 <div className="sheet-details"><span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span><span><Clock size={14} /> {sheet.eventTime || '4:30 PM'}</span><span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span></div>
                 <div className="sheet-progress"><div className="progress-bar"><div className="progress-fill" style={{ width: `${((sheet._count?.entries || 0) / (sheet.totalMembers || 100)) * 100}%` }}></div></div><span>{sheet._count?.entries || 0} checked in</span></div>
                <div className="sheet-actions">
-  <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}><Eye size={16} /> View</button>
-  <button onClick={() => handleCloseSheet(sheet.id)}><Lock size={16} /> Close</button>
-
-    <button onClick={() => openQRModal(sheet)}><QrCode size={16} /> QR Code</button>  
-  <button onClick={() => openSettingsModal(sheet)}><Settings size={16} /> Settings</button>
-  <button><Bell size={16} /> Remind</button>
-  <button onClick={() => { setSelectedSheetForExport(sheet); setShowExportModal(true); }}><Download size={16} /> Export</button>
-</div>
+                  <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}><Eye size={16} /> View</button>
+                  <button onClick={() => handleCloseSheet(sheet.id)}><Lock size={16} /> Close</button>
+                  <button onClick={() => openQRModal(sheet)}><QrCode size={16} /> QR Code</button>  
+                  <button onClick={() => openSettingsModal(sheet)}><Settings size={16} /> Settings</button>
+                  <button><Bell size={16} /> Remind</button>
+                  <button onClick={() => { setSelectedSheetForExport(sheet); setShowExportModal(true); }}><Download size={16} /> Export</button>
+                </div>
               </div>
             ))}</div>
           </div>
-                 <div className="section">
+          <div className="section">
             <h2>📅 Past Sheets ({completedSheets.length})</h2>
             <div className="sheets-list">
               {completedSheets.length === 0 ? (
@@ -415,20 +409,20 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
                       <span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
                       <span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span>
                     </div>
-       <div className="sheet-actions">
-  <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}>
-    <Eye size={16} /> View Report
-  </button>
-  <button onClick={() => handleReopenSheet(sheet.id, sheet.title)} className="reopen-btn">
-    <RefreshCw size={16} /> Reopen
-  </button>
-  <button onClick={() => { setSelectedSheetForExport(sheet); setShowExportModal(true); }}>
-    <Download size={16} /> Download
-  </button>
-  <button onClick={() => handleDeletePastSheet(sheet.id, sheet.title)} className="delete-btn">
-    <Trash2 size={16} /> Delete
-  </button>
-</div>
+                    <div className="sheet-actions">
+                      <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}>
+                        <Eye size={16} /> View Report
+                      </button>
+                      <button onClick={() => handleReopenSheet(sheet.id, sheet.title)} className="reopen-btn">
+                        <RefreshCw size={16} /> Reopen
+                      </button>
+                      <button onClick={() => { setSelectedSheetForExport(sheet); setShowExportModal(true); }}>
+                        <Download size={16} /> Download
+                      </button>
+                      <button onClick={() => handleDeletePastSheet(sheet.id, sheet.title)} className="delete-btn">
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -445,8 +439,24 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
             <button className="filter-btn" onClick={() => setShowFilters(!showFilters)}><Filter size={16} /> Filters <ChevronDown size={14} /></button>
           </div>
           {showFilters && (<div className="filters-panel">
-            <div className="filter-group"><label>Check-in Method</label><select value={entryMethodFilter} onChange={(e) => setEntryMethodFilter(e.target.value)}><option value="all">All Methods</option><option value="SELF">Self Check-in</option><option value="WIFI_AUTO">Wi-Fi Auto</option><option value="MANUAL">Manual</option></select></div>
-            <div className="filter-group"><label>Role</label><select value={entryRoleFilter} onChange={(e) => setEntryRoleFilter(e.target.value)}><option value="all">All Roles</option><option value="member">Member</option><option value="admin">Admin</option><option value="treasurer">Treasurer</option><option value="secretary">Secretary</option><option value="jumuia_leader">Jumuia Leader</option></select></div>
+            <div className="filter-group"><label>Check-in Method</label>
+              <select value={entryMethodFilter} onChange={(e) => setEntryMethodFilter(e.target.value)}>
+                <option value="all">All Methods</option>
+                <option value="SELF">Self Check-in</option>
+                <option value="QR_CODE">QR Code</option>
+                <option value="MANUAL">Manual</option>
+              </select>
+            </div>
+            <div className="filter-group"><label>Role</label>
+              <select value={entryRoleFilter} onChange={(e) => setEntryRoleFilter(e.target.value)}>
+                <option value="all">All Roles</option>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="treasurer">Treasurer</option>
+                <option value="secretary">Secretary</option>
+                <option value="jumuia_leader">Jumuia Leader</option>
+              </select>
+            </div>
             {(entryMethodFilter !== 'all' || entryRoleFilter !== 'all' || entrySearchTerm) && (<button className="clear-filters" onClick={() => { setEntrySearchTerm(''); setEntryMethodFilter('all'); setEntryRoleFilter('all'); }}>Clear Filters</button>)}
           </div>)}
           <div className="entries-table">
@@ -458,7 +468,7 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
                 <td>{entry.phoneNumber || '-'}</td>
                 <td>{entry.role}</td>
                 <td>{entry.sheet?.title || '-'}</td>
-                <td><span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>{entry.signMethod}</span></td>
+                <td><span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>{entry.signMethod === 'QR_CODE' ? 'QR Code' : entry.signMethod}</span></td>
                 <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
                 <td><button className="icon-btn"><Edit2 size={14} /></button><button className="icon-btn danger"><Trash2 size={14} /></button></td>
               </tr>
@@ -496,7 +506,7 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
         </div>
       )}
 
-            {/* Settings Modal */}
+      {/* Settings Modal */}
       {showSettingsModal && selectedSheetForSettings && (
         <SettingsModal
           sheet={selectedSheetForSettings}
@@ -511,7 +521,7 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
         />
       )}
 
-          {/* QR Code Modal  */}
+      {/* QR Code Modal  */}
       {showQRModal && selectedSheetForQR && (
         <QRCodeModal
           sheet={selectedSheetForQR}
@@ -549,6 +559,30 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
         .status-badge { font-size: 12px; padding: 2px 8px; border-radius: 20px; }
         .status-badge.live { background: #dcfce7; color: #22c55e; }
         .status-badge.completed { background: #f0f0f0; color: #666; }
+
+        /* Mobile responsive stats cards - 2 rows on mobile */
+        @media (max-width: 640px) {
+          .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+          .stat-card {
+            padding: 12px;
+          }
+          .stat-value {
+            font-size: 18px;
+          }
+          .stat-icon {
+            width: 36px;
+            height: 36px;
+          }
+          .stat-icon svg {
+            width: 18px;
+            height: 18px;
+          }
+        }
+        
         .sheet-details { display: flex; gap: 16px; font-size: 12px; color: #666; margin-bottom: 12px; }
         .sheet-details span { display: flex; align-items: center; gap: 4px; }
         .sheet-progress { margin-bottom: 12px; }
@@ -556,13 +590,28 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
         .progress-fill { height: 100%; background: #22c55e; border-radius: 3px; }
         .sheet-actions { display: flex; gap: 8px; }
         .sheet-actions button { padding: 6px 12px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        
+        /* Mobile responsive sheet actions - 2 columns */
+        @media (max-width: 640px) {
+          .sheet-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+          }
+          .sheet-actions button {
+            justify-content: center;
+            padding: 8px 12px;
+            font-size: 11px;
+          }
+        }
+        
         .entries-table { background: white; border-radius: 12px; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
         th { background: #f8f8f8; font-weight: 600; }
         .method-badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; }
         .method-badge.self { background: #e0f2fe; color: #0284c7; }
-        .method-badge.wifi_auto { background: #dcfce7; color: #22c55e; }
+        .method-badge.qr_code { background: #dcfce7; color: #22c55e; }
         .method-badge.manual { background: #fef3c7; color: #d97706; }
         .icon-btn { background: none; border: none; cursor: pointer; padding: 4px; }
         .icon-btn.danger { color: #ef4444; }
@@ -603,20 +652,20 @@ const handleReopenSheet = async (sheetId, sheetTitle) => {
         .clear-filters { padding: 8px 16px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
         .delete-btn {
-  background: #fee2e2 !important;
-  color: #ef4444 !important;
-}
-.delete-btn:hover {
-  background: #fecaca !important;
-}
+          background: #fee2e2 !important;
+          color: #ef4444 !important;
+        }
+        .delete-btn:hover {
+          background: #fecaca !important;
+        }
 
-.reopen-btn {
-  background: #e0f2fe !important;
-  color: #0284c7 !important;
-}
-.reopen-btn:hover {
-  background: #bae6fd !important;
-}
+        .reopen-btn {
+          background: #e0f2fe !important;
+          color: #0284c7 !important;
+        }
+        .reopen-btn:hover {
+          background: #bae6fd !important;
+        }
       `}</style>
     </div>
   );

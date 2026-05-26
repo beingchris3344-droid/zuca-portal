@@ -57,16 +57,21 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
     });
     
     if (!qrToken) {
-      const qrTokenValue = crypto.randomBytes(32).toString('hex');
-      qrToken = await prisma.qRCodeToken.create({
-        data: {
-          token: qrTokenValue,
-          sheetId: sheetId,
-          expiresAt: new Date(sheet.eventDate),
-          createdBy: req.user.userId
-        }
-      });
+  const qrTokenValue = crypto.randomBytes(32).toString('hex');
+  // Set expiry to 30 days from now
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + 30);
+  
+  qrToken = await prisma.qRCodeToken.create({
+    data: {
+      token: qrTokenValue,
+      sheetId: sheetId,
+      expiresAt: expiryDate,
+      createdBy: req.user.userId
     }
+  });
+  console.log("✅ Created new QR token, expires:", expiryDate);
+}
     
     // Create QR data payload
     const qrData = JSON.stringify({
@@ -107,10 +112,12 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
     const { token } = req.body;
     const userId = req.user.userId;
     
+    console.log("🔍 Scanning QR - Token received:", token);
+    
+    // First, find the token (ignore expiry for debugging)
     const qrToken = await prisma.qRCodeToken.findFirst({
       where: {
-        token: token,
-        expiresAt: { gt: new Date() }
+        token: token
       },
       include: { 
         sheet: {
@@ -121,8 +128,19 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       }
     });
     
+    console.log("🔍 Token found in DB:", qrToken ? "YES" : "NO");
+    
     if (!qrToken) {
-      return res.status(400).json({ error: "Invalid or expired QR code" });
+      return res.status(400).json({ error: "Invalid QR code" });
+    }
+    
+    console.log("🔍 Token expiry:", qrToken.expiresAt);
+    console.log("🔍 Current time:", new Date());
+    
+    // Check if expired
+    if (qrToken.expiresAt < new Date()) {
+      console.log("❌ Token EXPIRED");
+      return res.status(400).json({ error: "QR code has expired" });
     }
     
     // Check if sheet is active
@@ -162,11 +180,7 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       }
     });
     
-    // Mark token as used (optional - can allow multiple uses per sheet)
-    // await prisma.qRCodeToken.update({
-    //   where: { id: qrToken.id },
-    //   data: { usedCount: { increment: 1 } }
-    // });
+    console.log("✅ QR Check-in successful for:", user.fullName);
     
     res.json({ success: true, entry });
   } catch (err) {

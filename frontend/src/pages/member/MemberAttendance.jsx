@@ -1,0 +1,1121 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import BASE_URL from '../../api';
+import { 
+  Calendar, MapPin, Clock, Users, Wifi, CheckCircle, 
+  ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
+  Award, Zap, Shield, Bell, Coffee, Sun, Moon
+} from 'lucide-react';
+
+export default function MemberAttendance() {
+  const navigate = useNavigate();
+  const [activeSheets, setActiveSheets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [checkingIn, setCheckingIn] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [greeting, setGreeting] = useState('');
+  
+  const getHeaders = () => {
+    const token = localStorage.getItem('token');
+    return { Authorization: `Bearer ${token}` };
+  };
+  
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
+
+   const checkWiFiNetwork = async (sheet) => {
+    if (!sheet.enableWifiCheckin) return true;
+    
+    const userNetwork = prompt(
+      `🔐 Wi-Fi Verification Required\n\n` +
+      `This meeting requires connection to:\n` +
+      `📡 "${sheet.wifiSSID}"\n\n` +
+      `Please enter the EXACT Wi-Fi network name you are connected to:`
+    );
+    
+    if (userNetwork && userNetwork.trim() === sheet.wifiSSID) {
+      return true;
+    } else if (userNetwork) {
+      showToast(`❌ Wrong Wi-Fi Network!\nYou need to connect to "${sheet.wifiSSID}"`, 'error');
+      return false;
+    }
+    return false;
+  };
+  
+  const fetchActiveSheets = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${BASE_URL}/api/attendance/active`, {
+        headers: getHeaders()
+      });
+      setActiveSheets(response.data.sheets || []);
+    } catch (error) {
+      console.error('Error fetching active sheets:', error);
+      showToast('Failed to load meetings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+ const handleCheckin = async (sheetId) => {
+  const sheet = activeSheets.find(s => s.id === sheetId);
+  if (!sheet) return;
+  
+  setCheckingIn(sheetId);
+  try {
+    await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
+      sheetId,
+      deviceId: `web-${Date.now()}`,
+      deviceName: navigator.userAgent
+    }, {
+      headers: getHeaders()
+    });
+    showToast('✅ Checked in successfully!', 'success');
+    fetchActiveSheets();
+  } catch (error) {
+    const errorMsg = error.response?.data;
+    const status = error.response?.status;
+    
+    // Detailed error messages based on error type
+    if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
+      showToast(
+        `❌ Wrong Wi-Fi Network!\n\n` +
+        `You are not connected to the meeting Wi-Fi.\n` +
+        `Please connect to: "${sheet.wifiSSID}"\n\n` +
+        `Then try again.`,
+        'error'
+      );
+    } 
+    else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
+      showToast(
+        `⚠️ Already Checked In\n\n` +
+        `You have already checked in for "${sheet.title}" at ${new Date(errorMsg?.checkInTime).toLocaleTimeString()}\n` +
+        `Method: ${errorMsg?.method === 'SELF' ? 'Self Check-in' : errorMsg?.method === 'WIFI_AUTO' ? 'Wi-Fi Auto' : 'Manual'}`,
+        'error'
+      );
+    } 
+    else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
+      showToast(
+        `⚠️ Device Already Used\n\n` +
+        `This device has already been used to check someone into this meeting.\n` +
+        `Each device can only check in once per meeting.`,
+        'error'
+      );
+    }
+    else if (status === 403) {
+      showToast(
+        `🔒 Access Denied\n\n` +
+        `Self check-in is not enabled for this meeting.\n` +
+        `Please contact the meeting organizer.`,
+        'error'
+      );
+    }
+    else if (status === 404) {
+      showToast(
+        `📋 Meeting Not Found\n\n` +
+        `This attendance sheet may have been closed.\n` +
+        `Please refresh and try again.`,
+        'error'
+      );
+    }
+    else {
+      showToast(
+        `❌ Check-in Failed\n\n` +
+        `${errorMsg?.message || 'An unexpected error occurred. Please try again.'}`,
+        'error'
+      );
+    }
+  } finally {
+    setCheckingIn(null);
+  }
+};
+
+const handleWifiCheckin = async (sheetId, wifiSSID) => {
+  const sheet = activeSheets.find(s => s.id === sheetId);
+  if (!sheet) return;
+  
+  const confirmed = window.confirm(
+    `📡 Wi-Fi Check-in\n\n` +
+    `Make sure you are connected to:\n` +
+    `"${wifiSSID}"\n\n` +
+    `Click OK to check in using this network.`
+  );
+  
+  if (!confirmed) return;
+  
+  setCheckingIn(sheetId);
+  try {
+    await axios.post(`${BASE_URL}/api/attendance/wifi-checkin`, {
+      sheetId,
+      ssid: wifiSSID,
+      deviceId: `web-${Date.now()}`,
+      deviceName: navigator.userAgent
+    }, {
+      headers: getHeaders()
+    });
+    showToast('✅ Wi-Fi check-in successful!', 'success');
+    fetchActiveSheets();
+  } catch (error) {
+    const errorMsg = error.response?.data;
+    if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
+      showToast(`❌ Wrong Wi-Fi network. Please connect to "${wifiSSID}"`, 'error');
+    } else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
+      showToast('You have already checked in for this meeting', 'error');
+    } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
+      showToast('This device has already been used to check someone in', 'error');
+    } else {
+      showToast(errorMsg?.message || 'Wi-Fi check-in failed', 'error');
+    }
+  } finally {
+    setCheckingIn(null);
+  }
+};
+  
+  useEffect(() => {
+    fetchActiveSheets();
+    
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting("Good Morning ☀️");
+    else if (hour < 17) setGreeting("Good Afternoon 🌤️");
+    else setGreeting("Good Evening 🌙");
+  }, []);
+  
+  const totalCheckedIn = activeSheets.reduce((sum, sheet) => sum + (sheet._count?.entries || 0), 0);
+  const totalMeetings = activeSheets.length;
+  
+  if (loading) {
+    return (
+      <div className="member-attendance">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading meetings...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="member-attendance">
+      {toast.show && (
+        <div className={`toast-notification ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+      
+      {/* Hero Header */}
+      <div className="hero-header">
+        <div className="hero-bg-pattern"></div>
+        <button className="back-btn-hero" onClick={() => navigate('/dashboard')}>
+          <ArrowLeft size={18} /> Back
+        </button>
+        <div className="hero-content">
+          <div className="hero-greeting">
+            <span className="greeting-emoji">👋</span>
+            <span className="greeting-text">{greeting}</span>
+          </div>
+          <h1 className="hero-title">Active <span className="hero-highlight">Meetings</span></h1>
+          <p className="hero-subtitle">Check in to today's zuca meetings and check your attendance</p>
+        </div>
+        <button className="refresh-btn-hero" onClick={fetchActiveSheets}>
+          <RefreshCw size={18} />
+        </button>
+      </div>
+      
+      {/* Stats Overview */}
+      {activeSheets.length > 0 && (
+        <div className="stats-overview">
+          <div className="stat-card-overview">
+            <div className="stat-icon-overview meetings">
+              <Calendar size={20} />
+            </div>
+            <div className="stat-info-overview">
+              <span className="stat-value-overview">{totalMeetings}</span>
+              <span className="stat-label-overview">Active Meetings</span>
+            </div>
+          </div>
+          <div className="stat-card-overview">
+            <div className="stat-icon-overview members">
+              <Users size={20} />
+            </div>
+            <div className="stat-info-overview">
+              <span className="stat-value-overview">{totalCheckedIn}</span>
+              <span className="stat-label-overview">Checked In</span>
+            </div>
+          </div>
+          <div className="stat-card-overview">
+            <div className="stat-icon-overview streak">
+              <Award size={20} />
+            </div>
+            <div className="stat-info-overview">
+              <span className="stat-value-overview">
+                {totalMeetings > 0 ? Math.round((totalCheckedIn / (totalMeetings * 100)) * 100) : 0}%
+              </span>
+              <span className="stat-label-overview">Avg Attendance</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Meetings List */}
+      {activeSheets.length === 0 ? (
+        <div className="empty-state-premium">
+          <div className="empty-state-icon">📋</div>
+          <h3>No Active Meetings</h3>
+          <p>There are no active attendance sheets at the moment.</p>
+          <div className="empty-state-decoration">
+            <Coffee size={24} />
+            <span>Check back later</span>
+          </div>
+        </div>
+      ) : (
+        <div className="meetings-list">
+          {activeSheets.map((sheet, index) => (
+            <div key={sheet.id} className="meeting-card-premium" style={{ animationDelay: `${index * 0.1}s` }}>
+              {/* Card Glow Effect */}
+              <div className="card-glow"></div>
+              
+              {/* Header Section */}
+              <div className="card-header-premium">
+                <div className="badge-group">
+                  <span className="live-badge-premium">
+                    <Zap size={12} /> LIVE NOW
+                  </span>
+                  {sheet.enableWifiCheckin && (
+                    <span className="wifi-badge-premium">
+                      <Wifi size={12} /> Auto Check-in
+                    </span>
+                  )}
+                </div>
+                <div className="time-badge">
+                  <Clock size={14} />
+                  <span>{sheet.eventTime || '4:30 PM'}</span>
+                </div>
+              </div>
+              
+              {/* Title */}
+              <h3 className="meeting-title-premium">{sheet.title}</h3>
+              
+              {/* Details Grid */}
+              <div className="details-grid-premium">
+                <div className="detail-card-premium">
+                  <Calendar size={18} />
+                  <div>
+                    <span className="detail-label">Date</span>
+                    <span className="detail-value">
+                      {new Date(sheet.eventDate).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <div className="detail-card-premium">
+                  <MapPin size={18} />
+                  <div>
+                    <span className="detail-label">Location</span>
+                    <span className="detail-value">{sheet.location || 'ZUCA'}</span>
+                  </div>
+                </div>
+                <div className="detail-card-premium">
+                  <Users size={18} />
+                  <div>
+                    <span className="detail-label">Attendance</span>
+                    <span className="detail-value">{sheet._count?.entries || 0} checked in</span>
+                  </div>
+                </div>
+                {sheet.enableWifiCheckin && sheet.wifiSSID && (
+                  <div className="detail-card-premium wifi-highlight">
+                    <Wifi size={18} />
+                    <div>
+                      <span className="detail-label">Wi-Fi Network</span>
+                      <span className="detail-value">{sheet.wifiSSID}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Progress Bar */}
+              {sheet.totalMembers && (
+                <div className="progress-section">
+                  <div className="progress-header">
+                    <span>Check-in Progress</span>
+                    <span className="progress-percent">
+                      {Math.round(((sheet._count?.entries || 0) / sheet.totalMembers) * 100)}%
+                    </span>
+                  </div>
+                  <div className="progress-bar-premium">
+                    <div 
+                      className="progress-fill-premium" 
+                      style={{ width: `${Math.round(((sheet._count?.entries || 0) / sheet.totalMembers) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+              
+                         {/* Action Buttons */}
+              <div className="action-buttons-group">
+                {sheet.enableWifiCheckin && (
+                  <button 
+                    className="checkin-btn-wifi"
+                    onClick={() => handleWifiCheckin(sheet.id, sheet.wifiSSID)}
+                    disabled={checkingIn === sheet.id}
+                  >
+                    {checkingIn === sheet.id ? (
+                      <div className="btn-spinner"></div>
+                    ) : (
+                      <>
+                        <Wifi size={18} />
+                        Wi-Fi
+                      </>
+                    )}
+                  </button>
+                )}
+                
+                <button 
+                  className="checkin-btn-premium"
+                  onClick={() => handleCheckin(sheet.id)}
+                  disabled={checkingIn === sheet.id}
+                >
+                  {checkingIn === sheet.id ? (
+                    <>
+                      <div className="btn-spinner"></div>
+                      Checking in...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={20} />
+                      Self Check-in
+                      <ChevronRight size={18} className="btn-arrow" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* History Section */}
+      <div className="history-section-premium">
+        <div className="history-content">
+          <div className="history-icon-wrapper">
+            <Bell size={24} />
+          </div>
+          <div className="history-text">
+            <h4>Your Attendance Record</h4>
+            <p>View your complete check-in history and statistics</p>
+          </div>
+          <button className="history-btn-premium" onClick={() => navigate('/member/attendance-history')}>
+            View History <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+      
+      <style>{`
+        .member-attendance {
+          min-height: 100vh;
+          background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          padding: 0;
+        }
+        
+        /* Hero Header */
+        .hero-header {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          padding: 28px 24px 48px;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .hero-bg-pattern {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 50%);
+          pointer-events: none;
+        }
+        
+        .back-btn-hero {
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.2);
+          padding: 8px 16px;
+          border-radius: 40px;
+          color: white;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          margin-bottom: 24px;
+          transition: all 0.2s;
+        }
+        
+        .back-btn-hero:hover {
+          background: rgba(255,255,255,0.2);
+          transform: translateX(-4px);
+        }
+        
+        .refresh-btn-hero {
+          position: absolute;
+          top: 28px;
+          right: 24px;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.2);
+          width: 40px;
+          height: 40px;
+          border-radius: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .refresh-btn-hero:hover {
+          background: rgba(255,255,255,0.2);
+          transform: rotate(90deg);
+        }
+        
+        .hero-content {
+          text-align: center;
+        }
+        
+        .hero-greeting {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(10px);
+          padding: 6px 16px;
+          border-radius: 40px;
+          margin-bottom: 16px;
+        }
+        
+        .greeting-text {
+          font-size: 13px;
+          color: #94a3b8;
+        }
+        
+        .hero-title {
+          font-size: 36px;
+          font-weight: 700;
+          color: white;
+          margin: 0 0 12px 0;
+        }
+        
+        .hero-highlight {
+          background: linear-gradient(135deg, #60a5fa, #c084fc);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        
+        .hero-subtitle {
+          font-size: 14px;
+          color: #94a3b8;
+          max-width: 400px;
+          margin: 0 auto;
+        }
+        
+        /* Stats Overview */
+        .stats-overview {
+          display: flex;
+          gap: 16px;
+          padding: 0 24px;
+          margin-top: -24px;
+          position: relative;
+          z-index: 2;
+          flex-wrap: wrap;
+        }
+        
+        .stat-card-overview {
+          flex: 1;
+          background: white;
+          border-radius: 20px;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+          border: 1px solid #e2e8f0;
+        }
+        
+        .stat-icon-overview {
+          width: 48px;
+          height: 48px;
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .stat-icon-overview.meetings { background: #eff6ff; color: #3b82f6; }
+        .stat-icon-overview.members { background: #dcfce7; color: #22c55e; }
+        .stat-icon-overview.streak { background: #fef3c7; color: #f59e0b; }
+        
+        .stat-info-overview {
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .stat-value-overview {
+          font-size: 24px;
+          font-weight: 700;
+          color: #1e293b;
+        }
+        
+        .stat-label-overview {
+          font-size: 11px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        /* Meetings List */
+        .meetings-list {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          max-width: 900px;
+          margin: 0 auto;
+        }
+        
+        .meeting-card-premium {
+          background: white;
+          border-radius: 28px;
+          padding: 24px;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          animation: fadeInUp 0.5s ease forwards;
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        
+        @keyframes fadeInUp {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .meeting-card-premium:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 20px 35px -12px rgba(0,0,0,0.15);
+        }
+        
+        .card-glow {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: linear-gradient(90deg, #dc2626, #f97316, #dc2626);
+          background-size: 200% 100%;
+          animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        
+        .card-header-premium {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        
+        .badge-group {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        
+        .live-badge-premium {
+          background: linear-gradient(135deg, #dc2626, #b91c1c);
+          color: white;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 30px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          letter-spacing: 0.5px;
+        }
+        
+        .wifi-badge-premium {
+          background: #e0f2fe;
+          color: #0284c7;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 30px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .time-badge {
+          background: #f8fafc;
+          padding: 5px 12px;
+          border-radius: 30px;
+          font-size: 12px;
+          font-weight: 500;
+          color: #64748b;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .meeting-title-premium {
+          font-size: 20px;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0 0 20px 0;
+          letter-spacing: -0.3px;
+        }
+        
+        .details-grid-premium {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+        
+        .detail-card-premium {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 16px;
+          transition: all 0.2s;
+        }
+        
+        .detail-card-premium:hover {
+          background: #f1f5f9;
+          transform: translateX(4px);
+        }
+        
+        .detail-card-premium.wifi-highlight {
+          background: #f0fdf4;
+          border-left: 3px solid #22c55e;
+        }
+        
+        .detail-card-premium div {
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .detail-label {
+          font-size: 10px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .detail-value {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+        
+        .progress-section {
+          margin-bottom: 20px;
+        }
+        
+        .progress-header {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 8px;
+        }
+        
+        .progress-percent {
+          font-weight: 700;
+          color: #3b82f6;
+        }
+        
+        .progress-bar-premium {
+          height: 8px;
+          background: #e2e8f0;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        
+        .progress-fill-premium {
+          height: 100%;
+          background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+          border-radius: 10px;
+          transition: width 0.5s ease;
+        }
+        
+        .checkin-btn-premium {
+          width: 100%;
+          background: linear-gradient(135deg, #1e293b, #0f172a);
+          color: white;
+          border: none;
+          padding: 16px;
+          border-radius: 20px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .checkin-btn-premium::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transition: left 0.5s ease;
+        }
+        
+        .checkin-btn-premium:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(15, 23, 42, 0.3);
+        }
+        
+        .checkin-btn-premium:hover::before {
+          left: 100%;
+        }
+        
+        .checkin-btn-premium:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+        
+        .btn-arrow {
+          transition: transform 0.2s ease;
+        }
+        
+        .checkin-btn-premium:hover .btn-arrow {
+          transform: translateX(4px);
+        }
+        
+        .btn-spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+        
+        /* History Section */
+        .history-section-premium {
+          padding: 24px;
+          background: white;
+          margin: 24px 24px 40px;
+          border-radius: 24px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          border: 1px solid #e2e8f0;
+        }
+        
+        .history-content {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+        
+        .history-icon-wrapper {
+          width: 56px;
+          height: 56px;
+          background: linear-gradient(135deg, #eff6ff, #e0f2fe);
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #3b82f6;
+        }
+        
+        .history-text {
+          flex: 1;
+        }
+        
+        .history-text h4 {
+          margin: 0 0 4px 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+        
+        .history-text p {
+          margin: 0;
+          font-size: 13px;
+          color: #64748b;
+        }
+        
+        .history-btn-premium {
+          background: #f1f5f9;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 40px;
+          font-weight: 600;
+          font-size: 14px;
+          color: #1e293b;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s;
+        }
+        
+        .history-btn-premium:hover {
+          background: #e2e8f0;
+          gap: 12px;
+        }
+        
+        /* Empty State */
+        .empty-state-premium {
+          text-align: center;
+          padding: 60px 24px;
+          margin: 40px 24px;
+          background: white;
+          border-radius: 32px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        .empty-state-icon {
+          font-size: 64px;
+          margin-bottom: 20px;
+        }
+        
+        .empty-state-premium h3 {
+          font-size: 22px;
+          margin-bottom: 8px;
+          color: #1e293b;
+        }
+        
+        .empty-state-premium p {
+          color: #64748b;
+          margin-bottom: 24px;
+        }
+        
+        .empty-state-decoration {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 20px;
+          background: #f8fafc;
+          border-radius: 40px;
+          font-size: 13px;
+          color: #64748b;
+        }
+        
+        /* Loading */
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 60vh;
+        }
+        
+        .loading-spinner {
+          width: 50px;
+          height: 50px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 16px;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Toast */
+        .toast-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 24px;
+  border-radius: 16px;
+  background: #1e293b;
+  color: white;
+  font-size: 14px;
+  z-index: 1000;
+  animation: slideUp 0.3s ease;
+  max-width: 350px;
+  width: 90%;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 1.5;
+}
+        
+        .toast-notification.error {
+          background: #ef4444;
+        }
+        
+        .toast-notification.success {
+          background: #22c55e;
+        }
+        
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+        
+        /* Responsive */
+        @media (max-width: 640px) {
+          .hero-title {
+            font-size: 28px;
+          }
+          
+          .stats-overview {
+            flex-direction: column;
+            gap: 12px;
+            padding: 0 16px;
+          }
+          
+          .meetings-list {
+            padding: 16px;
+          }
+          
+          .meeting-card-premium {
+            padding: 18px;
+          }
+          
+          .details-grid-premium {
+            grid-template-columns: 1fr;
+          }
+          
+          .history-section-premium {
+            margin: 16px;
+            padding: 18px;
+          }
+          
+          .history-content {
+            flex-direction: column;
+            text-align: center;
+          }
+          
+          .hero-content {
+            padding-right: 48px;
+          }
+        }
+
+        .action-buttons-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.checkin-btn-wifi {
+  flex: 1;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: white;
+  border: none;
+  padding: 14px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.checkin-btn-wifi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(2, 132, 199, 0.3);
+}
+
+.checkin-btn-premium {
+  flex: 2;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  color: white;
+  border: none;
+  padding: 14px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.checkin-btn-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(15, 23, 42, 0.3);
+}
+
+.checkin-btn-wifi:disabled,
+.checkin-btn-premium:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.btn-arrow {
+  transition: transform 0.2s ease;
+}
+
+.checkin-btn-premium:hover .btn-arrow {
+  transform: translateX(4px);
+}
+
+@media (max-width: 550px) {
+  .action-buttons-group {
+    flex-direction: column;
+  }
+  
+  .checkin-btn-wifi,
+  .checkin-btn-premium {
+    width: 100%;
+  }
+}
+      `}</style>
+    </div>
+  );
+}

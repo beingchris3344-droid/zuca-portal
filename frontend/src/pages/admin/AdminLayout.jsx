@@ -199,6 +199,7 @@ return () => socket.disconnect();
 
   const navItems = [
     { label: "ADMIN DASHBOARD", path: "", icon: "📊", bg: "#eff6ff", color: "#3b82f6" },
+     { label: "ATTENDANCE", path: "attendance", icon: "📋", bg: "#e0e7ff", color: "#3b82f6" },
     { label: "ALL USERS", path: "users", icon: "👥", bg: "#e0f2fe", color: "#06b6d4" },
     { label: "SCHEDULE MANAGER", path: "schedules", icon: "📅", bg: "#fef3c7", color: "#f59e0b" },
     { label: "ROLE MANAGEMENT", path: "roles", icon: "👑", bg: "#fce7f3", color: "#ec4899" },

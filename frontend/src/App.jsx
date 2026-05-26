@@ -47,6 +47,8 @@ import PaymentPage from "./pages/PaymentPage";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import MessengerPage from './pages/MessengerPage';
 import { MessengerProvider } from './contexts/MessengerContext';
+import MemberAttendance from './pages/member/MemberAttendance';
+import MemberAttendanceHistory from './pages/member/MemberAttendanceHistory';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -78,6 +80,8 @@ import OCRScannerPage from "./pages/admin/OCRScanner";
 import AddHymn from './pages/admin/AddHymn';
 import AdminSchedules from "./pages/admin/AdminSchedules";
 import AdminMessenger from './pages/admin/AdminMessenger';
+import AdminAttendance from './components/admin/attendance/AdminAttendance';
+import AdminAttendanceDetails from './pages/admin/AdminAttendanceDetails';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -419,6 +423,9 @@ function AppContent() {
         >
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/announcements" element={<Announcements />} />
+          <Route path="member/attendance" element={<MemberAttendance />} />
+          <Route path="member/attendance-history" element={<MemberAttendanceHistory />} />
+          
           <Route path="/mass-programs" element={<MassPrograms />} />
           <Route path="/contributions" element={<Contributions />} />
           <Route path="/jumuia-contributions" element={<JumuiaDashboard />} /> 
@@ -479,6 +486,8 @@ function AppContent() {
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
           <Route path="/admin/health-centre" element={<AdminHealthCentre />} />
           <Route path="/admin/messenger" element={<AdminMessenger />} />
+          <Route path="attendance" element={<AdminAttendance />} />
+          <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />

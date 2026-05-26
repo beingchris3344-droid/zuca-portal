@@ -56,6 +56,12 @@ function Dashboard() {
   const [showCropper, setShowCropper] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+
+  //attendance states
+
+  const [activeSheets, setActiveSheets] = useState([]);
+const [checkingIn, setCheckingIn] = useState(null);
   
 
 // ==================== SIMPLE GLOBAL CACHE FOR DASHBOARD ====================
@@ -136,6 +142,45 @@ const isToday = (dateString) => {
       console.error("Error fetching announcements:", error);
     }
   };
+
+  // Fetch active attendance sheets
+const fetchActiveSheets = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${BASE_URL}/api/attendance/active`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setActiveSheets(response.data.sheets || []);
+  } catch (error) {
+    console.error('Error fetching active sheets:', error);
+  }
+};
+
+// Self check-in function
+const handleSelfCheckin = async (sheetId) => {
+  setCheckingIn(sheetId);
+  try {
+    const token = localStorage.getItem('token');
+    await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
+      sheetId,
+      deviceId: `web-${Date.now()}`,
+      deviceName: navigator.userAgent
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    alert('✅ Checked in successfully!');
+    fetchActiveSheets(); // Refresh the list
+  } catch (error) {
+    const errorMsg = error.response?.data;
+    if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
+      alert('You have already checked in for this meeting');
+    } else {
+      alert(errorMsg?.message || 'Check-in failed');
+    }
+  } finally {
+    setCheckingIn(null);
+  }
+};
 
   // Fetch mass programs
   const fetchMassPrograms = async () => {
@@ -510,7 +555,8 @@ const fetchFeaturedGallery = async () => {
             fetchRecentChats(),
             fetchExecutiveTeam(),
             fetchUpcomingSchedules(),
-            fetchTodaysReading()
+            fetchTodaysReading(),
+            fetchActiveSheets()
             // No fetchSystemStats() for regular users
           ]);
         }
@@ -679,6 +725,73 @@ const fetchFeaturedGallery = async () => {
     </div>
   </div>
 </div>
+
+
+{/* ACTIVE MEETINGS CARD */}
+{activeSheets.length > 0 && (
+  <div className="active-meetings-card">
+    <div className="section-header">
+      <div className="header-with-icon">
+        <div className="header-icon-meeting">🔴</div>
+        <div>
+          <h3>ACTIVE MEETINGS</h3>
+          <p className="header-subtitle">Check in to today's gatherings</p>
+        </div>
+      </div>
+      <div className="meeting-count-badge">{activeSheets.length} Active</div>
+    </div>
+
+    <div className="active-meetings-list">
+      {activeSheets.slice(0, 2).map(sheet => (
+        <div key={sheet.id} className="meeting-card-active">
+          <div className="meeting-status-row">
+            <span className="live-indicator">● LIVE</span>
+            <span className="meeting-time-sm">
+              <span className="time-icon">🕐</span> {sheet.eventTime || '4:30 PM'}
+            </span>
+          </div>
+          
+          <h4 className="meeting-title-sm">{sheet.title}</h4>
+          
+          <div className="meeting-details-sm">
+            <span><span className="detail-icon">📅</span> {new Date(sheet.eventDate).toLocaleDateString()}</span>
+            <span><span className="detail-icon">📍</span> {sheet.location || 'ZUCA'}</span>
+          </div>
+          
+          <div className="meeting-stats-sm">
+            <span className="stat-icon-sm">👥</span>
+            <span>{sheet._count?.entries || 0} people checked in</span>
+          </div>
+          
+          {sheet.enableWifiCheckin && sheet.wifiSSID && (
+            <div className="meeting-wifi-sm">
+              <span className="wifi-icon">📶</span>
+              <span>Wi-Fi: {sheet.wifiSSID}</span>
+            </div>
+          )}
+          
+          <button 
+            className="checkin-btn-sm"
+            onClick={() => handleSelfCheckin(sheet.id)}
+            disabled={checkingIn === sheet.id}
+          >
+            {checkingIn === sheet.id ? (
+              <>⏳ Checking in...</>
+            ) : (
+              <>✅ Check Myself In</>
+            )}
+          </button>
+        </div>
+      ))}
+    </div>
+    
+    {activeSheets.length > 2 && (
+     <button className="view-all-meetings" onClick={() => navigate('/member/attendance')}>
+  View All {activeSheets.length} Meetings →
+</button>
+    )}
+  </div>
+)}
 
 
        {/* TODAY'S LITURGICAL READING - PREMIUM DESIGN */}
@@ -5254,6 +5367,175 @@ const fetchFeaturedGallery = async () => {
   }
   50% {
     transform: translateY(-8px);
+  }
+}
+
+/* ============================================
+   ACTIVE MEETINGS CARD
+   ============================================ */
+
+.active-meetings-card {
+  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  border-radius: 30px;
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #dc2626;
+}
+
+.header-icon-meeting {
+  font-size: 1.8rem;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  padding: 0.5rem;
+  border-radius: 16px;
+  color: white;
+  display: inline-block;
+}
+
+.meeting-count-badge {
+  background: #dc2626;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.active-meetings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.meeting-card-active {
+  background: white;
+  border-radius: 20px;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.meeting-card-active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  border-color: #dc2626;
+}
+
+.meeting-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.live-indicator {
+  background: #dc2626;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.meeting-time-sm {
+  font-size: 0.7rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.meeting-title-sm {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.meeting-details-sm {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.detail-icon {
+  margin-right: 0.2rem;
+}
+
+.meeting-stats-sm {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.meeting-wifi-sm {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: #3b82f6;
+  margin-bottom: 0.75rem;
+}
+
+.checkin-btn-sm {
+  width: 100%;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.checkin-btn-sm:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.checkin-btn-sm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.view-all-meetings {
+  width: 100%;
+  background: transparent;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+  padding: 0.6rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: all 0.3s ease;
+}
+
+.view-all-meetings:hover {
+  background: #dc2626;
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .active-meetings-card {
+    padding: 1rem;
+  }
+  
+  .meeting-title-sm {
+    font-size: 0.9rem;
+  }
+  
+  .checkin-btn-sm {
+    font-size: 0.7rem;
+    padding: 0.5rem;
   }
 }
       `}</style>

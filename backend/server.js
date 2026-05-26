@@ -124,6 +124,10 @@ app.use('/api/messenger', messengerRoutes);
 const adminMessagingRoutes = require('./routes/admin-messaging');
 app.use('/api/admin/messenger', adminMessagingRoutes);
 
+// Attendance registrations
+const attendanceRoutes = require("./routes/attendanceRoutes");
+app.use("/api/attendance", attendanceRoutes);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -14938,6 +14942,25 @@ app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req,
   
   res.json({ success: true, message: "API metrics cache cleared" });
 });
+
+// ==================== ATTENDANCE AUTO-REMINDERS (INTERNAL CRON JOB) ====================
+// This runs automatically every hour - NO external cron service needed!
+
+// Import the function from attendanceRoutes
+const { sendAutomaticAbsentReminders } = require("./routes/attendanceRoutes");
+
+// Run every hour to send automatic reminders to absent members
+setInterval(async () => {
+  try {
+    const now = new Date();
+    console.log(`⏰ [${now.toLocaleTimeString()}] Running attendance reminder check...`);
+    await sendAutomaticAbsentReminders();
+  } catch (err) {
+    console.error("❌ Attendance reminder cron error:", err.message);
+  }
+}, 60 * 60 * 1000); // Every hour (60 minutes * 60 seconds * 1000 milliseconds)
+
+console.log("✅ Attendance auto-reminder cron job scheduled (runs every hour)");
 
 
 

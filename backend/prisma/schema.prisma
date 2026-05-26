@@ -89,6 +89,12 @@ model User {
 
     payments             Payment[]   
 
+
+     // For Attendance System
+  attendanceSheetsCreated AttendanceSheet[]  @relation("UserAttendanceSheets")
+  attendanceEntries       AttendanceEntry[]  @relation("AttendanceUser")
+  attendanceVerified      AttendanceEntry[]  @relation("AttendanceVerifier")
+
   // =====DIRECT MESSAGING ====================
   
   // Conversations (Direct Messages)
@@ -1316,4 +1322,104 @@ model DMSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("dm_settings")
+}
+
+// ==================== ATTENDANCE SYSTEM ====================
+
+model AttendanceSheet {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  eventDate   DateTime
+  eventTime   String?
+  location    String?
+
+
+    jumuiaId    String?
+  
+  // Check-in settings
+  allowSelfCheckin  Boolean @default(false)
+  enableWifiCheckin Boolean @default(false)
+  wifiSSID          String?
+  checkinCode       String?
+  
+  // Status
+  isActive    Boolean @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  closedAt    DateTime?
+  
+  // Relations
+  entries     AttendanceEntry[]
+   qrCodes            QRCodeToken[]  
+  creator     User     @relation("UserAttendanceSheets", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([createdBy])
+  @@index([eventDate])
+  @@index([isActive])
+  @@map("attendance_sheets")
+}
+
+model AttendanceEntry {
+  id            String   @id @default(uuid())
+  sheetId       String
+  userId        String?
+  deviceId      String?
+  deviceName    String?
+  
+  // Person details (filled from account or admin input)
+  fullName      String
+  phoneNumber   String?
+  role          String?
+   specialRole   String? 
+  membershipNumber String?
+  jumuiaId      String?
+  jumuiaName    String?
+  
+  // Check-in tracking
+  signMethod    SignMethod
+  signTime      DateTime @default(now())
+  verifiedBy    String?
+  notes         String?
+  
+  // Wi-Fi tracking (if applicable)
+  connectedSSID String?
+  connectedBSSID String?
+  
+  // Relations
+  sheet         AttendanceSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  user          User?           @relation("AttendanceUser", fields: [userId], references: [id], onDelete: SetNull)
+  verifier      User?           @relation("AttendanceVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+
+  @@unique([sheetId, userId])
+  @@unique([sheetId, deviceId])
+  @@index([sheetId])
+  @@index([userId])
+  @@index([signMethod])
+  @@index([signTime])
+  @@map("attendance_entries")
+}
+
+enum SignMethod {
+  MANUAL
+  SELF
+  WIFI_AUTO
+    QR_CODE
+}
+
+model QRCodeToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  sheetId    String
+  sheet      AttendanceSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  used       Boolean  @default(false)
+  usedBy     String?
+  usedCount  Int      @default(0)
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  
+  @@index([token])
+  @@index([sheetId])
+  @@index([expiresAt])
 }

@@ -94,7 +94,7 @@ model User {
   attendanceSheetsCreated AttendanceSheet[]  @relation("UserAttendanceSheets")
   attendanceEntries       AttendanceEntry[]  @relation("AttendanceUser")
   attendanceVerified      AttendanceEntry[]  @relation("AttendanceVerifier")
-
+ attendanceLinksCreated  AttendanceLink[]    @relation("UserAttendanceLinks")
   // =====DIRECT MESSAGING ====================
   
   // Conversations (Direct Messages)
@@ -1353,6 +1353,7 @@ model AttendanceSheet {
   entries     AttendanceEntry[]
    qrCodes            QRCodeToken[]  
   creator     User     @relation("UserAttendanceSheets", fields: [createdBy], references: [id], onDelete: Cascade)
+    attendanceLinks AttendanceLink[]
 
   @@index([createdBy])
   @@index([eventDate])
@@ -1418,6 +1419,25 @@ model QRCodeToken {
   usedCount  Int      @default(0)
   createdBy  String?
   createdAt  DateTime @default(now())
+  
+  @@index([token])
+  @@index([sheetId])
+  @@index([expiresAt])
+}
+
+model AttendanceLink {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  sheetId     String
+  sheet       AttendanceSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  maxUses     Int?
+  usedCount   Int      @default(0)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  creator     User     @relation("UserAttendanceLinks", fields: [createdBy], references: [id])
   
   @@index([token])
   @@index([sheetId])

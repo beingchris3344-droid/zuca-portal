@@ -107,14 +107,15 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
 });
 
 // QR Code check-in endpoint
+// QR Code check-in endpoint
 router.post("/qr-checkin", authenticate, async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token, deviceId, deviceName } = req.body;  // ← ADD deviceId, deviceName
     const userId = req.user.userId;
     
     console.log("🔍 Scanning QR - Token received:", token);
     
-    // First, find the token (ignore expiry for debugging)
+    // First, find the token
     const qrToken = await prisma.qRCodeToken.findFirst({
       where: {
         token: token
@@ -148,7 +149,24 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       return res.status(400).json({ error: "This meeting has been closed" });
     }
     
-    // Check if already checked in
+    // ✅ ADD DEVICE CHECK HERE - Prevent multiple check-ins from same device
+    if (deviceId) {
+      const deviceEntry = await prisma.attendanceEntry.findFirst({
+        where: {
+          sheetId: qrToken.sheetId,
+          deviceId: deviceId
+        }
+      });
+
+      if (deviceEntry) {
+        return res.status(400).json({
+          error: "DEVICE_ALREADY_USED",
+          message: "This device has already been used to check someone into this meeting"
+        });
+      }
+    }
+    
+    // Check if user already checked in
     const existingEntry = await prisma.attendanceEntry.findFirst({
       where: { sheetId: qrToken.sheetId, userId: userId }
     });
@@ -163,11 +181,13 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
     
-    // Create check-in entry
+    // Create check-in entry with device info
     const entry = await prisma.attendanceEntry.create({
       data: {
         sheetId: qrToken.sheetId,
         userId: userId,
+        deviceId: deviceId,           // ← ADD THIS
+        deviceName: deviceName,       // ← ADD THIS
         fullName: user.fullName,
         phoneNumber: user.phone,
         role: user.role,
@@ -177,6 +197,15 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
         signMethod: "QR_CODE",
         signTime: new Date(),
         notes: "Checked in via QR Code"
+      }
+    });
+    
+    // Increment QR token usage count
+    await prisma.qRCodeToken.update({
+      where: { id: qrToken.id },
+      data: {
+        usedCount: { increment: 1 },
+        usedBy: userId
       }
     });
     
@@ -1416,6 +1445,133 @@ router.post("/sheet/:sheetId/remind-all", authenticate, requireLeaderOrAdmin, se
 
 // Admin only routes
 router.get("/admin/stats", authenticate, requireAdmin, getAdminStats);
+
+// ==================== ATTENDANCE LINK ROUTES ====================
+
+// Generate shareable link for a sheet
+router.post("/sheet/:sheetId/generate-link", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { sheetId } = req.params;
+    const { expiresInDays = 7, maxUses = null } = req.body;
+    
+    const sheet = await prisma.attendanceSheet.findUnique({
+      where: { id: sheetId }
+    });
+    
+    if (!sheet) {
+      return res.status(404).json({ error: "Sheet not found" });
+    }
+    
+    if (!sheet.isActive) {
+      return res.status(400).json({ error: "Sheet is closed. Reopen it first." });
+    }
+    
+const token = crypto.randomBytes(4).toString('hex');
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + expiresInDays);
+    
+    const attendanceLink = await prisma.attendanceLink.create({
+      data: {
+        token: token,
+        sheetId: sheetId,
+        expiresAt: expiryDate,
+        maxUses: maxUses ? parseInt(maxUses) : null,
+        createdBy: req.user.userId
+      }
+    });
+    
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const shareableLink = `${baseUrl}/attendance/link/${token}`;
+    
+    res.json({
+      success: true,
+      link: shareableLink,
+      token: token,
+      expiresAt: expiryDate
+    });
+    
+  } catch (err) {
+    console.error("Generate link error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get link info (when user clicks the link)
+router.get("/link/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const attendanceLink = await prisma.attendanceLink.findUnique({
+      where: { token: token },
+      include: { sheet: true }
+    });
+    
+    if (!attendanceLink) {
+      return res.status(404).json({ error: "Invalid link" });
+    }
+    
+    if (attendanceLink.expiresAt < new Date()) {
+      return res.status(400).json({ error: "Link has expired" });
+    }
+    
+    if (!attendanceLink.sheet.isActive) {
+      return res.status(400).json({ error: "Meeting has been closed" });
+    }
+    
+    res.json({
+      success: true,
+      sheetId: attendanceLink.sheetId,
+      sheet: {
+        id: attendanceLink.sheet.id,
+        title: attendanceLink.sheet.title,
+        eventDate: attendanceLink.sheet.eventDate,
+        eventTime: attendanceLink.sheet.eventTime,
+        location: attendanceLink.sheet.location
+      }
+    });
+    
+  } catch (err) {
+    console.error("Get link error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all links for a sheet
+router.get("/sheet/:sheetId/links", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { sheetId } = req.params;
+    
+    const links = await prisma.attendanceLink.findMany({
+      where: { sheetId: sheetId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        creator: {
+          select: { id: true, fullName: true }
+        }
+      }
+    });
+    
+    res.json({ success: true, links });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a link
+router.delete("/link/:linkId", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { linkId } = req.params;
+    
+    await prisma.attendanceLink.delete({
+      where: { id: linkId }
+    });
+    
+    res.json({ success: true, message: "Link deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ==================== GET ALL ENTRIES (ADMIN ONLY) ====================
 // Add this after getAdminStats and before module.exports

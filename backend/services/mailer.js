@@ -599,23 +599,111 @@ ZUCA | Zetech University Catholic Action
     console.log(`📱 SMS Check - User: ${user.email}, Phone: ${user.phone || 'NO PHONE'}, Type: ${notificationType}`);
     
     // ===== AUTO-SEND SMS FOR IMPORTANT NOTIFICATIONS =====
-    const smsTypes = ['attendance_checkin', 'attendance_missed', 'attendance_reminder', 'payment_receipt', 'verification', 'pledge_approved'];
-    if (user?.phone && smsTypes.includes(notificationType)) {
+        // ===== AUTO-SEND SMS FOR ALL IMPORTANT NOTIFICATIONS =====
+    const smsTypes = [
+      'attendance_checkin',
+      'attendance_missed',
+      'attendance_reminder',
+      'attendance_sheet_opened',
+      'attendance_thankyou',
+      'payment_receipt',
+      'payment_received',
+      'payment_success',
+      'payment_added',
+      'pledge_approved',
+      'new_pledge',
+      'verification',
+      'password_reset',
+      'welcome',
+      'announcement',
+      'program',
+      'event_reminder',
+      'game_invite',
+      'executive_appointment',
+      'user_login',
+      'contribution'
+    ];
+        if (user?.phone && smsTypes.includes(notificationType)) {
       console.log(`📱 ATTEMPTING SMS to ${user.phone} for ${notificationType}`);
       let smsMessage = '';
+      
       switch(notificationType) {
+        // Attendance related
         case 'attendance_checkin':
-          smsMessage = `ZUCA: Checked in for meeting. Thank you! 🙏`;
+          smsMessage = `ZUCA: Checked in for meeting. Thank you for attending! 🙏`;
           break;
+        case 'attendance_missed':
+          smsMessage = `ZUCA: You missed the meeting. Please check the app for important updates.`;
+          break;
+        case 'attendance_reminder':
+          smsMessage = `ZUCA: ${message.slice(0, 120)}`;
+          break;
+        case 'attendance_sheet_opened':
+          const eventDate = data.eventDate ? new Date(data.eventDate).toLocaleDateString() : 'today';
+          smsMessage = `ZUCA: ${title} on ${eventDate}. Please check in when you arrive. 🙏`;
+          break;
+        case 'attendance_thankyou':
+          smsMessage = `ZUCA: Thank you for attending! Your presence is appreciated. 🙏`;
+          break;
+        
+        // Payment related
         case 'payment_receipt':
-          smsMessage = `ZUCA: KES ${data.amount?.toLocaleString()} payment received. Receipt: ${data.receiptNumber}. Thank you! 🙏`;
+        case 'payment_received':
+        case 'payment_success':
+        case 'payment_added':
+          smsMessage = `ZUCA: KES ${data.amount?.toLocaleString()} payment received. Receipt: ${data.receiptNumber || 'N/A'}. Thank you! 🙏`;
           break;
+        
+        // Pledge related
+        case 'pledge_approved':
+          smsMessage = `ZUCA: Your pledge of KES ${data.amount?.toLocaleString()} has been approved! God bless you. 🙏`;
+          break;
+        case 'new_pledge':
+          smsMessage = `ZUCA: New pledge created! Amount: KES ${data.amount?.toLocaleString()}. Thank you for your commitment! 🙏`;
+          break;
+        
+        // Account related
+        case 'verification':
+          smsMessage = `ZUCA: Your verification code is ${data.code || 'in the app'}. Valid for 15 minutes.`;
+          break;
+        case 'password_reset':
+          smsMessage = `ZUCA: Password reset requested. Check your email for the code.`;
+          break;
+        case 'welcome':
+          smsMessage = `ZUCA: Welcome to ZUCA family! Your membership number is ${data.membershipNumber || 'in your email'}. Tumsifu Yesu Kristu! 🙏`;
+          break;
+        case 'user_login':
+          smsMessage = `ZUCA: New login detected on your account at ${new Date().toLocaleTimeString()}. If this wasn't you, please secure your account.`;
+          break;
+        
+        // General notifications
+        case 'announcement':
+          smsMessage = `ZUCA: 📢 ${title}. ${message.slice(0, 100)}`;
+          break;
+        case 'program':
+          smsMessage = `ZUCA: ⛪ ${title}. Check the app for Mass schedules.`;
+          break;
+        case 'event_reminder':
+          smsMessage = `ZUCA: ⏰ Reminder: ${title}. ${message.slice(0, 100)}`;
+          break;
+        case 'game_invite':
+          smsMessage = `ZUCA: 🎮 Game invitation! ${title}. Join and have fun!`;
+          break;
+        case 'executive_appointment':
+          smsMessage = `ZUCA: 🎉 Congratulations! You have been appointed as ${data.position || 'an executive'}. God bless your service! 🙏`;
+          break;
+        case 'contribution':
+          smsMessage = `ZUCA: 💰 ${title}. ${message.slice(0, 100)}`;
+          break;
+        
+        // Default fallback
         default:
           smsMessage = `ZUCA: ${title}`;
       }
+      
       sendSms(user.phone, smsMessage).catch(err => console.error(`SMS failed:`, err.message));
-      } else {
-      console.log(`📱 SMS SKIPPED - Phone: ${user?.phone || 'missing'}, Type in list: ${smsTypes.includes(notificationType)}`);
+    } else {
+      console.log(`📱 SMS SKIPPED - Phone: ${user?.phone || 'missing'}, Type: ${notificationType}, In list: ${smsTypes.includes(notificationType)}`);
     }
   
     return true;

@@ -528,6 +528,7 @@ const createAttendanceSheet = async (req, res) => {
         eventTime,
         location,
         allowSelfCheckin: allowSelfCheckin || false,
+         enableQRCheckin: true,
         enableWifiCheckin: enableWifiCheckin || false,
         wifiSSID: enableWifiCheckin ? wifiSSID : null,
         jumuiaId: targetJumuiaId,
@@ -610,7 +611,19 @@ const getActiveSheets = async (req, res) => {
       orderBy: { eventDate: "asc" }
     });
 
-    res.json({ success: true, sheets });
+    // Filter to ensure we only return sheets that are truly active
+    // Also filter out sheets where eventDate is in the past (more than 1 day ago)
+    const now = new Date();
+    const activeSheetsOnly = sheets.filter(sheet => {
+      // Check if sheet is active AND not too old
+      const eventDate = new Date(sheet.eventDate);
+      const daysSinceEvent = (now - eventDate) / (1000 * 60 * 60 * 24);
+      return sheet.isActive === true && daysSinceEvent <= 7; // Only show sheets from last 7 days
+    });
+
+    console.log(`📋 Found ${activeSheetsOnly.length} active sheets out of ${sheets.length} total`);
+    
+    res.json({ success: true, sheets: activeSheetsOnly });
   } catch (err) {
     console.error("Get active sheets error:", err);
     res.status(500).json({ error: err.message });
@@ -1162,7 +1175,8 @@ router.post("/sheet/:sheetId/reopen", authenticate, requireAdmin, async (req, re
       where: { id: sheetId },
       data: { 
         isActive: true,
-        closedAt: null
+        closedAt: null,
+        eventDate: new Date() // Update to current date when reopening
       }
     });
 

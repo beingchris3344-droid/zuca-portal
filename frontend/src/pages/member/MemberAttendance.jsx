@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
 import { 
-  Calendar, MapPin, Clock, Users, Wifi, CheckCircle, 
+  Calendar, MapPin, Clock, Users, CheckCircle, 
   ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
-  Award, Zap, Shield, Bell, Coffee, Sun, Moon
+  Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode
 } from 'lucide-react';
+import QRScanner from '../../components/member/attendance/QRScanner';
 
 export default function MemberAttendance() {
   const navigate = useNavigate();
@@ -25,6 +26,8 @@ export default function MemberAttendance() {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
   };
+
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
    const checkWiFiNetwork = async (sheet) => {
     if (!sheet.enableWifiCheckin) return true;
@@ -283,10 +286,11 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
                   <span className="live-badge-premium">
                     <Zap size={12} /> LIVE NOW
                   </span>
-                  {sheet.enableWifiCheckin && (
-                    <span className="wifi-badge-premium">
-                      <Wifi size={12} /> Auto Check-in
-                    </span>
+                {sheet.enableWifiCheckin && (
+  <span className="qr-badge-premium">
+    <QrCode size={12} /> QR Code Available
+  </span>
+
                   )}
                 </div>
                 <div className="time-badge">
@@ -329,10 +333,10 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
                 </div>
                 {sheet.enableWifiCheckin && sheet.wifiSSID && (
                   <div className="detail-card-premium wifi-highlight">
-                    <Wifi size={18} />
+                   <QrCode size={18} />
                     <div>
-                      <span className="detail-label">Wi-Fi Network</span>
-                      <span className="detail-value">{sheet.wifiSSID}</span>
+                      <span className="detail-label">QR Code Check-in</span>
+                      <span className="detail-value">Scan QR Code to Check-in</span>
                     </div>
                   </div>
                 )}
@@ -359,21 +363,15 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
                          {/* Action Buttons */}
               <div className="action-buttons-group">
                 {sheet.enableWifiCheckin && (
-                  <button 
-                    className="checkin-btn-wifi"
-                    onClick={() => handleWifiCheckin(sheet.id, sheet.wifiSSID)}
-                    disabled={checkingIn === sheet.id}
-                  >
-                    {checkingIn === sheet.id ? (
-                      <div className="btn-spinner"></div>
-                    ) : (
-                      <>
-                        <Wifi size={18} />
-                        Wi-Fi
-                      </>
-                    )}
-                  </button>
-                )}
+  <button 
+    className="checkin-btn-qr"
+    onClick={() => setShowQRScanner(true)}
+    disabled={checkingIn === sheet.id}
+  >
+    <QrCode size={18} />
+    Scan QR
+  </button>
+)}
                 
                 <button 
                   className="checkin-btn-premium"
@@ -414,6 +412,17 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           </button>
         </div>
       </div>
+
+        {/* QR Scanner Modal - ADD THIS HERE */}
+      {showQRScanner && (
+        <QRScanner
+          onClose={() => setShowQRScanner(false)}
+          onSuccess={() => {
+  showToast('✅ Checked in via QR Code!', 'success');
+  fetchActiveSheets();
+}}
+        />
+      )}
       
       <style>{`
         .member-attendance {
@@ -658,17 +667,17 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           letter-spacing: 0.5px;
         }
         
-        .wifi-badge-premium {
-          background: #e0f2fe;
-          color: #0284c7;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 5px 12px;
-          border-radius: 30px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
+      .qr-badge-premium {
+  background: #dcfce7;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
         
         .time-badge {
           background: #f8fafc;
@@ -1037,9 +1046,9 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
   margin-top: 16px;
 }
 
-.checkin-btn-wifi {
+.checkin-btn-qr {
   flex: 1;
-  background: linear-gradient(135deg, #0284c7, #0369a1);
+  background: linear-gradient(135deg, #059669, #047857);
   color: white;
   border: none;
   padding: 14px 12px;
@@ -1051,69 +1060,11 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.3s ease;
 }
 
-.checkin-btn-wifi:hover {
+.checkin-btn-qr:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(2, 132, 199, 0.3);
-}
-
-.checkin-btn-premium {
-  flex: 2;
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  color: white;
-  border: none;
-  padding: 14px 12px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: all 0.3s ease;
-}
-
-.checkin-btn-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(15, 23, 42, 0.3);
-}
-
-.checkin-btn-wifi:disabled,
-.checkin-btn-premium:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.btn-arrow {
-  transition: transform 0.2s ease;
-}
-
-.checkin-btn-premium:hover .btn-arrow {
-  transform: translateX(4px);
-}
-
-@media (max-width: 550px) {
-  .action-buttons-group {
-    flex-direction: column;
-  }
-  
-  .checkin-btn-wifi,
-  .checkin-btn-premium {
-    width: 100%;
-  }
+  box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
 }
       `}</style>
     </div>

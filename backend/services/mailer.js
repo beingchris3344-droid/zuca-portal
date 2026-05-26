@@ -614,28 +614,9 @@ ZUCA | Zetech University Catholic Action
           smsMessage = `ZUCA: ${title}`;
       }
       sendSms(user.phone, smsMessage).catch(err => console.error(`SMS failed:`, err.message));
-    } else {
+      } else {
       console.log(`📱 SMS SKIPPED - Phone: ${user?.phone || 'missing'}, Type in list: ${smsTypes.includes(notificationType)}`);
     }
-
-    
-    // ===== AUTO-SEND SMS FOR IMPORTANT NOTIFICATIONS =====
-    const smsTypes = ['attendance_checkin', 'attendance_missed', 'attendance_reminder', 'payment_receipt', 'verification', 'pledge_approved'];
-    if (user?.phone && smsTypes.includes(notificationType)) {
-      let smsMessage = '';
-      switch(notificationType) {
-        case 'attendance_checkin':
-          smsMessage = `ZUCA: Checked in for meeting. Thank you! 🙏`;
-          break;
-        case 'payment_receipt':
-          smsMessage = `ZUCA: KES ${data.amount?.toLocaleString()} payment received. Receipt: ${data.receiptNumber}. Thank you! 🙏`;
-          break;
-        default:
-          smsMessage = `ZUCA: ${title}`;
-      }
-      sendSms(user.phone, smsMessage).catch(err => console.error(`SMS failed:`, err.message));
-    }
-    
   
     return true;
   } catch (error) {
@@ -643,6 +624,10 @@ ZUCA | Zetech University Catholic Action
     return false;
   }
 }
+
+
+    
+   
 
 // Generate M-PESA style receipt HTML (for payment receipt emails)
 function generateMpesaReceiptHTML(paymentData) {

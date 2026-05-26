@@ -593,6 +593,25 @@ ZUCA | Zetech University Catholic Action
     // NOW USING BREVO FOR ALL NOTIFICATION EMAILS
     await sendViaBrevo(user.email, `${emoji} ${title}`, htmlContent, textContent);
     console.log(`✅ Notification email sent to ${user.email} via Brevo (${notificationType})`);
+    
+    // ===== AUTO-SEND SMS FOR IMPORTANT NOTIFICATIONS =====
+    const smsTypes = ['attendance_checkin', 'attendance_missed', 'attendance_reminder', 'payment_receipt', 'verification', 'pledge_approved'];
+    if (user?.phone && smsTypes.includes(notificationType)) {
+      let smsMessage = '';
+      switch(notificationType) {
+        case 'attendance_checkin':
+          smsMessage = `ZUCA: Checked in for meeting. Thank you! 🙏`;
+          break;
+        case 'payment_receipt':
+          smsMessage = `ZUCA: KES ${data.amount?.toLocaleString()} payment received. Receipt: ${data.receiptNumber}. Thank you! 🙏`;
+          break;
+        default:
+          smsMessage = `ZUCA: ${title}`;
+      }
+      sendSms(user.phone, smsMessage).catch(err => console.error(`SMS failed:`, err.message));
+    }
+    
+  
     return true;
   } catch (error) {
     console.error(`❌ Email failed to ${user.email}:`, error.message);
@@ -944,12 +963,61 @@ async function sendBulkEmails(users, notificationType, title, message, data = {}
   return { sent, failed };
 }
 
+// ==================== SMS FUNCTIONS ====================
+
+/**
+ * Send SMS via Brevo API
+ * @param {string} phoneNumber - Recipient with country code (e.g., "254712345678")
+ * @param {string} message - SMS content
+ * @returns {Promise<boolean>}
+ */
+async function sendSms(phoneNumber, message) {
+  try {
+    // Format phone number: remove '+', spaces, and leading zero
+    let cleanNumber = phoneNumber.toString().replace(/\+/g, '').replace(/\s/g, '');
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
+    
+    const response = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: "ZUCA",
+        recipient: cleanNumber,
+        content: message.slice(0, 160),
+        type: "transactional",
+        unicodeEnabled: true
+      })
+    });
+
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log(`✅ SMS sent to ${phoneNumber}, MessageId: ${data.messageId}`);
+      return true;
+    } else {
+      console.error(`❌ SMS failed:`, data.message);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ SMS error:`, error.message);
+    return false;
+  }
+}
+
+
 module.exports = { 
   sendPasswordResetEmail,
   sendPersonalizedEmail,
   sendWelcomeEmail,
   sendVerificationEmail,
   sendBulkEmails,
+  sendSms,
   getTimeBasedGreeting,
   getCurrentTime,
   getNotificationEmoji

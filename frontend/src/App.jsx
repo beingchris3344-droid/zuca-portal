@@ -49,6 +49,7 @@ import MessengerPage from './pages/MessengerPage';
 import { MessengerProvider } from './contexts/MessengerContext';
 import MemberAttendance from './pages/member/MemberAttendance';
 import MemberAttendanceHistory from './pages/member/MemberAttendanceHistory';
+import LinkCheckin from './components/admin/attendance/LinkCheckin';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -437,6 +438,7 @@ function AppContent() {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
+          <Route path="/attendance/link/:token" element={<LinkCheckin />} />
 
           {/* GAMES */}
           <Route path="/games/tictactoe" element={<TicTacToe />} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, CheckCircle, XCircle, Clock, Wifi, UserPlus, Bell, Edit2, Trash2, Send, RefreshCw, Calendar, MapPin } from 'lucide-react';
+import { X, Users, CheckCircle, XCircle, Clock, UserPlus, Bell, Edit2, Trash2, Send, RefreshCw, Calendar, MapPin, QrCode, Link2 } from 'lucide-react';
 import { api } from '../../../api';
 import io from 'socket.io-client';
 import AddMemberModal from './AddMemberModal';
@@ -9,6 +9,8 @@ import LiveActivityFeed from './LiveActivityFeed';
 
 // Get BASE_URL from the api.js default export
 import BASE_URL from '../../../api';
+import ShareLinkModal from './ShareLinkModal';
+
 
 export default function SheetDetailsModal({ sheet, onClose, onRefresh }) {
   // ============ STATE ============
@@ -29,6 +31,8 @@ export default function SheetDetailsModal({ sheet, onClose, onRefresh }) {
   
   // Toast
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+    const [showShareModal, setShowShareModal] = useState(false);
   
   // ============ HELPER FUNCTIONS ============
   const getHeaders = () => {
@@ -309,7 +313,7 @@ const handleMarkAbsent = async (entryId, memberName) => {
           <LiveActivityFeed sheetId={sheet.id} onNewCheckin={fetchSheetData} />
         )}
         
-        {/* Action Buttons */}
+               {/* Action Buttons */}
         <div className="action-buttons">
           <button className="btn-primary" onClick={() => setShowAddMember(true)}>
             <UserPlus size={16} /> Add Member
@@ -319,6 +323,10 @@ const handleMarkAbsent = async (entryId, memberName) => {
             setShowRemindModal(true);
           }}>
             <Bell size={16} /> Remind All
+          </button>
+          {/* Add Share Link Button */}
+         <button className="btn-share" onClick={() => setShowShareModal(true)}>
+            <Link2 size={16} /> Share Link
           </button>
           {sheetData?.isActive && (
             <button className="btn-danger" onClick={handleCloseSheet}>
@@ -480,6 +488,13 @@ const handleMarkAbsent = async (entryId, memberName) => {
             remindType={remindType}
             onClose={() => setShowRemindModal(false)}
             onSend={handleBulkRemind}
+          />
+        )}
+
+                {showShareModal && (
+          <ShareLinkModal
+            sheet={sheetData || sheet}
+            onClose={() => setShowShareModal(false)}
           />
         )}
       </div>
@@ -837,6 +852,24 @@ const handleMarkAbsent = async (entryId, memberName) => {
           padding: 40px;
           color: #666;
         }
+
+        .btn-share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-share:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
         
         .toast {
           position: fixed;

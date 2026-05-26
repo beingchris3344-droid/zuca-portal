@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import QRScanner from '../../components/member/attendance/QRScanner';
 
+import { getDeviceId, getDeviceName } from '../../utils/deviceId';
+
 export default function MemberAttendance() {
   const navigate = useNavigate();
   const [activeSheets, setActiveSheets] = useState([]);
@@ -71,8 +73,8 @@ export default function MemberAttendance() {
   try {
     await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
       sheetId,
-      deviceId: `web-${Date.now()}`,
-      deviceName: navigator.userAgent
+      deviceId: getDeviceId(),
+      deviceName: getDeviceName()
     }, {
       headers: getHeaders()
     });
@@ -154,8 +156,8 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
     await axios.post(`${BASE_URL}/api/attendance/wifi-checkin`, {
       sheetId,
       ssid: wifiSSID,
-      deviceId: `web-${Date.now()}`,
-      deviceName: navigator.userAgent
+      deviceId: getDeviceId(),
+      deviceName: getDeviceName()
     }, {
       headers: getHeaders()
     });

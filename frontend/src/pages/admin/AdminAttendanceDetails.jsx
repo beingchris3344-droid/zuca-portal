@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { X, Users, CheckCircle, XCircle, Clock, Wifi, UserPlus, Bell, Edit2, Trash2, Send, RefreshCw, Calendar, MapPin, ArrowLeft } from 'lucide-react';
+import { X, Users, CheckCircle, XCircle, Clock, Wifi, UserPlus, Bell, Edit2, Trash2, Send, RefreshCw, Calendar, MapPin, ArrowLeft, Link2 } from 'lucide-react';
 import { api } from '../../api';
 import io from 'socket.io-client';
 import BASE_URL from '../../api';
@@ -8,6 +8,7 @@ import AddMemberModal from '../../components/admin/attendance/AddMemberModal';
 import EditMemberModal from '../../components/admin/attendance/EditMemberModal';
 import RemindModal from '../../components/admin/attendance/RemindModal';
 import LiveActivityFeed from '../../components/admin/attendance/LiveActivityFeed';
+import ShareLinkModal from '../../components/admin/attendance/ShareLinkModal';
 
 export default function AdminAttendanceDetails() {
   const { sheetId } = useParams();
@@ -25,6 +26,8 @@ export default function AdminAttendanceDetails() {
   const [showRemindModal, setShowRemindModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [remindType, setRemindType] = useState('all');
+
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -593,6 +596,10 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
         }}>
           <Bell size={16} /> Remind All
         </button>
+        {/* Share Link Button */}
+        <button className="btn-share" onClick={() => setShowShareModal(true)}>
+          <Link2 size={16} /> Share Link
+        </button>
         {sheetData?.isActive && (
           <button className="btn-danger" onClick={handleCloseSheet}>
             <XCircle size={16} /> Close Sheet
@@ -755,6 +762,14 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
           onSend={handleBulkRemind}
         />
       )}
+
+       {/* Share Link Modal */}
+      {showShareModal && (
+        <ShareLinkModal
+          sheet={sheetData}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
       
       <style>{`
         .attendance-details-page {
@@ -897,11 +912,17 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
         }
         
         .action-buttons {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-        
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 480px) {
+  .action-buttons {
+    grid-template-columns: 1fr;
+  }
+}
         .btn-primary, .btn-secondary, .btn-danger {
           display: flex;
           align-items: center;
@@ -1078,6 +1099,24 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
         .toast.success {
           background: #22c55e;
         }
+
+        .btn-share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #026602;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-share:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
       `}</style>
     </div>
   );

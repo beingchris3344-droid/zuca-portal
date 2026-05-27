@@ -107,25 +107,40 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
 });
 
 // QR Code check-in endpoint
+// QR Code check-in endpoint
 router.post("/qr-checkin", authenticate, async (req, res) => {
   try {
-    const { token, deviceId, deviceName } = req.body;
+    const { token, deviceId, deviceName } = req.body;  // ← ADD deviceId, deviceName
     const userId = req.user.userId;
     
     console.log("🔍 Scanning QR - Token received:", token);
     
-    // Find the token
+    // First, find the token
     const qrToken = await prisma.qRCodeToken.findFirst({
-      where: { token: token },
-      include: { sheet: true }
+      where: {
+        token: token
+      },
+      include: { 
+        sheet: {
+          include: {
+            _count: { select: { entries: true } }
+          }
+        }
+      }
     });
+    
+    console.log("🔍 Token found in DB:", qrToken ? "YES" : "NO");
     
     if (!qrToken) {
       return res.status(400).json({ error: "Invalid QR code" });
     }
     
+    console.log("🔍 Token expiry:", qrToken.expiresAt);
+    console.log("🔍 Current time:", new Date());
+    
     // Check if expired
     if (qrToken.expiresAt < new Date()) {
+      console.log("❌ Token EXPIRED");
       return res.status(400).json({ error: "QR code has expired" });
     }
     
@@ -134,31 +149,7 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       return res.status(400).json({ error: "This meeting has been closed" });
     }
     
-    // Check if user already checked in
-    const existingEntry = await prisma.attendanceEntry.findFirst({
-      where: { 
-        sheetId: qrToken.sheetId, 
-        userId: userId 
-      }
-    });
-    
-    if (existingEntry) {
-      return res.status(400).json({ 
-        error: "Already checked in",
-        message: `You already checked in for this meeting`
-      });
-    }
-    
-    // ✅ FIX: Get user data FIRST
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    
-    // Check device (prevent multiple check-ins from same device)
+    // ✅ ADD DEVICE CHECK HERE - Prevent multiple check-ins from same device
     if (deviceId) {
       const deviceEntry = await prisma.attendanceEntry.findFirst({
         where: {
@@ -175,13 +166,24 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       }
     }
     
-    // Create check-in entry
+    // Check if user already checked in
+const existingEntry = await prisma.attendanceEntry.findFirst({
+  where: { sheetId: qrToken.sheetId, userId: userId }
+});
+
+if (existingEntry) {
+  return res.status(400).json({ 
+    error: "Already checked in",
+    message: `You already checked in on ${new Date(existingEntry.signTime).toLocaleString()}`
+  });
+}
+    // Create check-in entry with device info
     const entry = await prisma.attendanceEntry.create({
       data: {
         sheetId: qrToken.sheetId,
         userId: userId,
-        deviceId: deviceId,
-        deviceName: deviceName,
+        deviceId: deviceId,           // ← ADD THIS
+        deviceName: deviceName,       // ← ADD THIS
         fullName: user.fullName,
         phoneNumber: user.phone,
         role: user.role,
@@ -191,6 +193,15 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
         signMethod: "QR_CODE",
         signTime: new Date(),
         notes: "Checked in via QR Code"
+      }
+    });
+    
+    // Increment QR token usage count
+    await prisma.qRCodeToken.update({
+      where: { id: qrToken.id },
+      data: {
+        usedCount: { increment: 1 },
+        usedBy: userId
       }
     });
     
@@ -1463,8 +1474,8 @@ const token = crypto.randomBytes(4).toString('hex');
       }
     });
     
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const shareableLink = `${baseUrl}/attendance/link/${token}`;
+   const baseUrl = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+const shareableLink = `${baseUrl}/attendance/link/${token}`;
     
     res.json({
       success: true,

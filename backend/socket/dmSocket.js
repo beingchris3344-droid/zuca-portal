@@ -25,25 +25,38 @@ module.exports = (io) => {
       socket.join(userId);
       
       let isAdmin = false;
-      try {
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true }
-        });
-        isAdmin = user?.role === 'admin';
-        if (isAdmin) {
-          socket.join('admin-room');
-          console.log(`👑 Admin ${userId} joined admin room`);
-        }
-      } catch (err) {
-        console.error('Error checking admin role:', err);
-      }
-      
-      await prisma.user.update({
-        where: { id: userId },
-        data: { lastActive: new Date() }
-      });
-      
+try {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true }
+  });
+  
+  // Check if user exists
+  if (!user) {
+    console.log(`⚠️ User ${userId} not found in database - rejecting connection`);
+    socket.emit('dm:error', { error: 'User account not found' });
+    return;
+  }
+  
+  isAdmin = user.role === 'admin';
+  if (isAdmin) {
+    socket.join('admin-room');
+    console.log(`👑 Admin ${userId} joined admin room`);
+  }
+  
+  // Only update lastActive if user exists
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastActive: new Date() }
+  });
+  
+} catch (err) {
+  console.error('Error in dm:join:', err);
+  if (err.code === 'P2025') {
+    socket.emit('dm:error', { error: 'User account not found' });
+    return;
+  }
+}
       console.log(`✅ User ${userId} joined DM system (Admin: ${isAdmin})`);
       console.log(`📊 Current online users: ${Array.from(onlineUsers.keys()).join(', ')}`);
       

@@ -316,7 +316,7 @@ function getMessageTone(userRole, specialRole) {
   // Regular member
   return {
     missedTitle: "You Missed Today's Meeting",
-    missedMessage: "We missed you at today's gathering. We hope to see you at the next meeting! please make effort in attending zuca meetings as much as possible Thankyou!",
+    missedMessage: "Attendance is almost closed. please make effort in attending zuca meetings as much as possible Thankyou!",
     style: "gentle",
     actionRequired: false
   };

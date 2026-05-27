@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../../api';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { getDeviceId, getDeviceName } from '../../../utils/deviceId';
 
 export default function QRScanner({ onClose, onSuccess }) {
@@ -133,7 +133,7 @@ export default function QRScanner({ onClose, onSuccess }) {
       if (!scannerInitialized.current) {
         scannerInitialized.current = true;
         
-        const scanner = new Html5QrcodeScanner(
+        const scanner = new Html5Qrcode(
           "qr-reader",
           {
             fps: 10,
@@ -179,7 +179,7 @@ export default function QRScanner({ onClose, onSuccess }) {
         const hasPermission = await requestCameraPermission();
         if (!hasPermission) return;
         
-        const scanner = new Html5QrcodeScanner(
+        const scanner = new Html5Qrcode(
           "qr-reader",
           {
             fps: 10,

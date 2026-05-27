@@ -5212,10 +5212,15 @@ app.post("/api/register", async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     
-    console.log("🔵 STEP 3: About to generate membership number");
-    let membershipNumber = "Z#001";
-    // ... membership generation code ...
-    console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
+  // In /api/register, replace the membership number generation:
+console.log("🔵 STEP 3: About to generate membership number");
+
+// ✅ Generate a REAL unique membership number
+const userCount = await prisma.user.count();
+const nextNumber = userCount + 1;
+const membershipNumber = `Z#${nextNumber.toString().padStart(3, '0')}`;
+
+console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
 
     console.log("🔵 STEP 5: About to generate verification code");
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -5299,21 +5304,74 @@ app.post("/api/verify-email", async (req, res) => {
       return res.status(400).json({ error: "Verification code has expired. Please register again." });
     }
     
-    // ✅ FIX: Generate unique membership number
-    const userCount = await prisma.user.count();
-    const nextNumber = userCount + 1;
-    const uniqueMembershipNumber = `Z#${nextNumber.toString().padStart(3, '0')}`;
+    // ✅ FIX: Use the membership number from pending registration, NOT generate a new one!
+    const membershipNumber = pendingUser.membership_number;  // ← USE EXISTING ONE
     
-    console.log(`📊 Creating user #${nextNumber} with membership: ${uniqueMembershipNumber}`);
+    console.log(`📊 Creating user with membership: ${membershipNumber}`);
     
-    // ✅ Save to database with UNIQUE membership number
+    // ✅ Check if membership number is actually unique
+    const existingUser = await prisma.user.findUnique({
+      where: { membership_number: membershipNumber }
+    });
+    
+    if (existingUser) {
+      // If somehow the membership number is taken, generate a new unique one
+      const userCount = await prisma.user.count();
+      const uniqueMembershipNumber = `Z#${(userCount + 1).toString().padStart(3, '0')}`;
+      console.log(`⚠️ Membership ${membershipNumber} taken, using ${uniqueMembershipNumber}`);
+      
+      const user = await prisma.user.create({
+        data: {
+          fullName: pendingUser.fullName,
+          email: pendingUser.email,
+          password: pendingUser.password,
+          phone: pendingUser.phone,
+          membership_number: uniqueMembershipNumber,
+          role: pendingUser.role,
+          emailVerified: true,
+          lastActive: new Date()
+        }
+      });
+      
+      pendingRegistrations.delete(normalizedEmail);
+      
+      // Send welcome email
+      (async () => {
+        try {
+          await sendWelcomeEmail(user, user.membership_number);
+        } catch (err) {
+          console.error(`❌ Welcome email failed:`, err.message);
+        }
+      })();
+      
+      const token = jwt.sign(
+        { userId: user.id, role: user.role, emailVerified: true },
+        JWT_SECRET,
+        { expiresIn: "365d" }
+      );
+      
+      return res.json({
+        success: true,
+        message: "Email verified successfully! Account created.",
+        token: token,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          emailVerified: true
+        }
+      });
+    }
+    
+    // ✅ Save to database with the ORIGINAL membership number
     const user = await prisma.user.create({
       data: {
         fullName: pendingUser.fullName,
         email: pendingUser.email,
         password: pendingUser.password,
         phone: pendingUser.phone,
-        membership_number: uniqueMembershipNumber,  // ← FIXED HERE
+        membership_number: membershipNumber,  // ← FIXED: Use pending's number
         role: pendingUser.role,
         emailVerified: true,
         lastActive: new Date()
@@ -5353,6 +5411,14 @@ app.post("/api/verify-email", async (req, res) => {
     
   } catch (err) {
     console.error("Verification error:", err);
+    
+    // Handle duplicate key error gracefully
+    if (err.code === 'P2002') {
+      return res.status(409).json({ 
+        error: "Membership number conflict. Please try registering again." 
+      });
+    }
+    
     res.status(500).json({ error: err.message });
   }
 });

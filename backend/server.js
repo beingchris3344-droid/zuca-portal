@@ -5186,16 +5186,13 @@ app.post("/api/register", async (req, res) => {
     const { fullName, email, password, phone } = req.body;
     console.log("🔵 STEP 2: Data received", { fullName, email, phone });
 
-    // ✅ FIX: Define normalizedEmail FIRST
     const normalizedEmail = email.toLowerCase();
     
-    // Format phone
     let formattedPhone = phone;
     if (phone.startsWith("07")) {
       formattedPhone = "+254" + phone.slice(1);
     }
 
-    // Check if email already exists
     const existingEmail = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
@@ -5212,15 +5209,10 @@ app.post("/api/register", async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     
-  // In /api/register, replace the membership number generation:
-console.log("🔵 STEP 3: About to generate membership number");
-
-// ✅ Generate a REAL unique membership number
-const userCount = await prisma.user.count();
-const nextNumber = userCount + 1;
-const membershipNumber = `Z#${nextNumber.toString().padStart(3, '0')}`;
-
-console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
+    // ✅ NEW: Use database sequence
+    console.log("🔵 STEP 3: About to generate membership number");
+    const membershipNumber = await getNextMembershipNumber();
+    console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
 
     console.log("🔵 STEP 5: About to generate verification code");
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -5228,7 +5220,7 @@ console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
     console.log("🔵 STEP 6: Code generated");
 
     console.log("🔵 STEP 7: About to store in pendingRegistrations");
-    const pendingKey = `${normalizedEmail}`;  // ✅ Now works!
+    const pendingKey = `${normalizedEmail}`;
     pendingRegistrations.set(pendingKey, {
       fullName,
       email: normalizedEmail,

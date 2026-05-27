@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { X, Users, CheckCircle, XCircle, Clock, Wifi, UserPlus, Bell, Edit2, Trash2, Send, RefreshCw, Calendar, MapPin, ArrowLeft, Link2 } from 'lucide-react';
 import { api } from '../../api';
@@ -19,20 +19,13 @@ export default function AdminAttendanceDetails() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('present');
-  
-  // Modal states
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditMember, setShowEditMember] = useState(false);
   const [showRemindModal, setShowRemindModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [remindType, setRemindType] = useState('all');
-
   const [showShareModal, setShowShareModal] = useState(false);
-  
-  // Search and filter
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Toast
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   
   // ============ HELPER FUNCTIONS ============
@@ -41,13 +34,13 @@ export default function AdminAttendanceDetails() {
     return { Authorization: `Bearer ${token}` };
   };
   
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
-  };
+  }, []);
   
   // ============ FETCH SHEET DATA ============
-  const fetchSheetData = async () => {
+  const fetchSheetData = useCallback(async () => {
     try {
       const response = await api.get(`/api/attendance/sheet/${sheetId}`, { headers: getHeaders() });
       setSheetData(response.data.sheet);
@@ -58,12 +51,12 @@ export default function AdminAttendanceDetails() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [sheetId, showToast]);
   
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     setRefreshing(true);
     await fetchSheetData();
-  };
+  }, [fetchSheetData]);
   
   // ============ INITIAL LOAD ============
   useEffect(() => {
@@ -73,17 +66,29 @@ export default function AdminAttendanceDetails() {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
     });
     
     socket.on('connect', () => {
-      console.log('Socket connected for sheet:', sheetId);
+      console.log('✅ Socket connected for sheet:', sheetId);
       socket.emit('join_attendance_sheet', sheetId);
     });
     
+    socket.on('disconnect', () => {
+      console.log('❌ Socket disconnected');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+    
     socket.on('attendance_checkin', (data) => {
+      console.log('📢 Real-time check-in received:', data);
       if (data.sheetId === sheetId) {
         fetchSheetData();
+        showToast(`${data.userName || 'Someone'} just checked in!`, 'info');
       }
     });
     
@@ -94,11 +99,25 @@ export default function AdminAttendanceDetails() {
       }
     });
     
+    socket.on('attendance_entry_added', (data) => {
+      if (data.sheetId === sheetId) {
+        fetchSheetData();
+      }
+    });
+    
+    socket.on('attendance_entry_deleted', (data) => {
+      if (data.sheetId === sheetId) {
+        fetchSheetData();
+      }
+    });
+    
     return () => {
       socket.emit('leave_attendance_sheet', sheetId);
       socket.disconnect();
     };
-  }, [sheetId]);
+  }, [sheetId, fetchSheetData, showToast]);
+  
+
   
   // ============ ACTIONS ============
   const handleAddMember = async (memberData) => {
@@ -967,6 +986,13 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
           margin-bottom: 16px;
           border-bottom: 1px solid #e0e0e0;
         }
+
+        .icon-btn.absent { 
+  color: #f59e0b; 
+}
+.icon-btn.absent:hover { 
+  background: #fef3c7; 
+}
         
         .tab {
           display: flex;

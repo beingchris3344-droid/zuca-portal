@@ -11,6 +11,7 @@ export default function QRScanner({ onClose, onSuccess }) {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const scannerRef = useRef(null);
   const scannerInitialized = useRef(false);
+  const isProcessing = useRef(false); // Prevents duplicate requests
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -18,7 +19,13 @@ export default function QRScanner({ onClose, onSuccess }) {
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
-    // Stop scanning immediately to prevent multiple scans
+    // Prevent multiple scans while processing
+    if (isProcessing.current) {
+      console.log('Already processing a scan, ignoring...');
+      return;
+    }
+    
+    // Stop scanning immediately
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.pause();
@@ -28,6 +35,8 @@ export default function QRScanner({ onClose, onSuccess }) {
       }
     }
     
+    isProcessing.current = true;
+    
     try {
       // Parse the QR data
       let qrData;
@@ -35,7 +44,7 @@ export default function QRScanner({ onClose, onSuccess }) {
         qrData = JSON.parse(decodedText);
       } catch (e) {
         setError('Invalid QR code format');
-        // Resume scanning after error
+        isProcessing.current = false;
         if (scannerRef.current) {
           await scannerRef.current.resume();
           setIsScanning(true);
@@ -46,6 +55,7 @@ export default function QRScanner({ onClose, onSuccess }) {
       // Verify it's an attendance QR code
       if (qrData.type !== 'attendance_checkin') {
         setError('Not a valid attendance QR code');
+        isProcessing.current = false;
         if (scannerRef.current) {
           await scannerRef.current.resume();
           setIsScanning(true);
@@ -78,6 +88,8 @@ export default function QRScanner({ onClose, onSuccess }) {
         setError(errorMsg?.error || 'Check-in failed');
       }
       
+      isProcessing.current = false;
+      
       // Resume scanning after error
       if (scannerRef.current) {
         try {
@@ -91,7 +103,6 @@ export default function QRScanner({ onClose, onSuccess }) {
   };
   
   const onScanError = (err) => {
-    // Don't show every scan error to user
     console.error('Scan error:', err);
   };
   
@@ -99,7 +110,6 @@ export default function QRScanner({ onClose, onSuccess }) {
   const requestCameraPermission = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      // Stop all tracks immediately - we just need permission
       stream.getTracks().forEach(track => track.stop());
       return true;
     } catch (err) {
@@ -114,15 +124,11 @@ export default function QRScanner({ onClose, onSuccess }) {
     let mounted = true;
     
     const initScanner = async () => {
-      // Request permission first
       const hasPermission = await requestCameraPermission();
-      if (!hasPermission) {
-        return;
-      }
+      if (!hasPermission) return;
       
       if (!mounted) return;
       
-      // Initialize scanner only once
       if (!scannerInitialized.current) {
         scannerInitialized.current = true;
         
@@ -165,8 +171,8 @@ export default function QRScanner({ onClose, onSuccess }) {
     setPermissionDenied(false);
     setIsScanning(false);
     scannerInitialized.current = false;
+    isProcessing.current = false;
     
-    // Reinitialize scanner
     setTimeout(() => {
       const initScanner = async () => {
         const hasPermission = await requestCameraPermission();
@@ -354,7 +360,7 @@ export default function QRScanner({ onClose, onSuccess }) {
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        /* Hide the default scanner UI elements we don't want */
+        /* Hide default scanner UI */
         #qr-reader__dashboard_section_csr {
           display: none !important;
         }
@@ -363,7 +369,6 @@ export default function QRScanner({ onClose, onSuccess }) {
           display: none !important;
         }
         
-        /* Style the scanner region */
         #qr-reader {
           border: none !important;
           box-shadow: none !important;
@@ -373,7 +378,6 @@ export default function QRScanner({ onClose, onSuccess }) {
           border-radius: 16px;
         }
         
-        /* Loading state while scanning */
         .scanner-loading {
           text-align: center;
           padding: 40px;

@@ -19,13 +19,16 @@ export default function QRScanner({ onClose, onSuccess }) {
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
-    // Prevent multiple scans while processing
+    // ✅ CRITICAL: Lock must be set BEFORE any async operation
     if (isProcessing.current) {
       console.log('Already processing a scan, ignoring...');
       return;
     }
     
-    // Stop scanning immediately
+    // ✅ Set lock IMMEDIATELY (synchronously)
+    isProcessing.current = true;
+    
+    // Stop scanning (async, but lock is already set)
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.pause();
@@ -34,8 +37,6 @@ export default function QRScanner({ onClose, onSuccess }) {
         console.error('Error pausing scanner:', err);
       }
     }
-    
-    isProcessing.current = true;
     
     try {
       // Parse the QR data
@@ -74,7 +75,7 @@ export default function QRScanner({ onClose, onSuccess }) {
       
       if (response.data.success) {
         onSuccess && onSuccess(response.data.entry);
-        onClose();
+        onClose(); // Modal closes, lock doesn't need reset
       }
     } catch (error) {
       const errorMsg = error.response?.data;

@@ -9,9 +9,11 @@ export default function QRScanner({ onClose, onSuccess }) {
   const [error, setError] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const scannerRef = useRef(null);
   const scannerInitialized = useRef(false);
-  const isProcessing = useRef(false); // Prevents duplicate requests
+  const isProcessing = useRef(false);
+  const streamRef = useRef(null);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -19,16 +21,13 @@ export default function QRScanner({ onClose, onSuccess }) {
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
-    // CRITICAL: Lock must be set BEFORE any async operation
     if (isProcessing.current) {
       console.log('Already processing a scan, ignoring...');
       return;
     }
     
-    // Set lock IMMEDIATELY (synchronously)
     isProcessing.current = true;
     
-    // Stop scanning (async, but lock is already set)
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.pause();
@@ -39,7 +38,6 @@ export default function QRScanner({ onClose, onSuccess }) {
     }
     
     try {
-      // Parse the QR data
       let qrData;
       try {
         qrData = JSON.parse(decodedText);
@@ -53,7 +51,6 @@ export default function QRScanner({ onClose, onSuccess }) {
         return;
       }
       
-      // Verify it's an attendance QR code
       if (qrData.type !== 'attendance_checkin') {
         setError('Not a valid attendance QR code');
         isProcessing.current = false;
@@ -64,7 +61,6 @@ export default function QRScanner({ onClose, onSuccess }) {
         return;
       }
       
-      // Send check-in request with device ID
       const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
         token: qrData.token,
         deviceId: getDeviceId(),
@@ -75,7 +71,7 @@ export default function QRScanner({ onClose, onSuccess }) {
       
       if (response.data.success) {
         onSuccess && onSuccess(response.data.entry);
-        onClose(); // Modal closes, lock doesn't need reset
+        onClose();
       }
     } catch (error) {
       const errorMsg = error.response?.data;
@@ -91,7 +87,6 @@ export default function QRScanner({ onClose, onSuccess }) {
       
       isProcessing.current = false;
       
-      // Resume scanning after error
       if (scannerRef.current) {
         try {
           await scannerRef.current.resume();
@@ -104,24 +99,29 @@ export default function QRScanner({ onClose, onSuccess }) {
   };
   
   const onScanError = (err) => {
-    console.error('Scan error:', err);
-  };
-  
-  // Request camera permission once
-  const requestCameraPermission = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(track => track.stop());
-      return true;
-    } catch (err) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setPermissionDenied(true);
-      }
-      return false;
+    // Only log critical errors
+    if (err && err.message && 
+        !err.message.includes('No MultiFormat Readers') &&
+        !err.message.includes('NotFoundException')) {
+      console.error('Scan error:', err);
     }
   };
   
-  // Stop scanner function
+  const stopCameraTracks = () => {
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => {
+          if (track && track.readyState === 'live') {
+            track.stop();
+          }
+        });
+      } catch (err) {
+        console.error('Error stopping camera tracks:', err);
+      }
+      streamRef.current = null;
+    }
+  };
+  
   const stopScanner = async () => {
     if (scannerRef.current) {
       try {
@@ -132,135 +132,190 @@ export default function QRScanner({ onClose, onSuccess }) {
       }
       scannerRef.current = null;
     }
+    stopCameraTracks();
   };
   
-  useEffect(() => {
-    let mounted = true;
-    let retryTimeout = null;
+  // Check if mediaDevices is supported
+  const isMediaDevicesSupported = () => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+  
+  const requestCameraPermission = async () => {
+    // Check if browser supports camera access
+    if (!isMediaDevicesSupported()) {
+      setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+      setPermissionDenied(true);
+      return false;
+    }
     
-    const initScanner = async () => {
-      // Check if element exists
-      const element = document.getElementById("qr-reader");
-      if (!element) {
-        console.error("qr-reader element not found");
-        if (mounted) {
-          setError("Scanner element not found. Please refresh the page.");
+    try {
+      stopCameraTracks();
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: { exact: "environment" } 
+        } 
+      }).catch(async (err) => {
+        // If back camera fails, try default camera
+        if (err.name === 'OverconstrainedError') {
+          return await navigator.mediaDevices.getUserMedia({ video: true });
         }
-        return;
+        throw err;
+      });
+      
+      streamRef.current = stream;
+      // Stop the tracks immediately as we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      return true;
+    } catch (err) {
+      console.error('Camera permission error:', err);
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionDenied(true);
+        setError('Camera access denied. Please allow camera access and try again.');
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera found on this device.');
+      } else if (err.name === 'NotSupportedError') {
+        setError('Camera access is not supported on this device/browser.');
+      } else if (err.name === 'OverconstrainedError') {
+        setError('Could not access the back camera. Please make sure your device has a camera.');
+      } else {
+        setError(`Camera error: ${err.message || 'Unknown error'}`);
       }
+      return false;
+    }
+  };
+  
+  const initializeScanner = async () => {
+    const element = document.getElementById("qr-reader");
+    if (!element) {
+      console.error("qr-reader element not found");
+      setError("Scanner element not found. Please refresh the page.");
+      return false;
+    }
+    
+    // Check browser support first
+    if (!isMediaDevicesSupported()) {
+      setError('Your browser does not support camera access. Please use Chrome, Firefox, or Safari.');
+      setPermissionDenied(true);
+      return false;
+    }
+    
+    setIsInitializing(true);
+    
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      setIsInitializing(false);
+      return false;
+    }
+    
+    try {
+      const scanner = new Html5Qrcode("qr-reader");
       
-      const hasPermission = await requestCameraPermission();
-      if (!hasPermission || !mounted) return;
+      // Try to start with back camera, fallback to default
+      let cameraConstraints = { facingMode: "environment" };
       
-      if (!scannerInitialized.current) {
-        scannerInitialized.current = true;
-        
+      await scanner.start(
+        cameraConstraints,
+        {
+          fps: 10,
+          qrbox: { width: 280, height: 280 },
+          aspectRatio: 1.0,
+        },
+        onScanSuccess,
+        onScanError
+      );
+      
+      scannerRef.current = scanner;
+      setIsScanning(true);
+      setError(null);
+      setPermissionDenied(false);
+      setIsInitializing(false);
+      return true;
+    } catch (err) {
+      console.error("Failed to start scanner:", err);
+      setIsInitializing(false);
+      
+      // Try with default camera if back camera fails
+      if (err.message && err.message.includes('facingMode')) {
         try {
-          // Create scanner instance
           const scanner = new Html5Qrcode("qr-reader");
-          
-          // Start scanning with proper configuration
           await scanner.start(
-            { facingMode: "environment" }, // Use back camera
+            { facingMode: "user" }, // Try front camera
             {
               fps: 10,
               qrbox: { width: 280, height: 280 },
               aspectRatio: 1.0,
-              showTorchButtonIfSupported: true,
-              showZoomSliderIfSupported: true,
-              defaultZoomValueIfSupported: 2,
             },
             onScanSuccess,
             onScanError
           );
           
-          if (mounted) {
-            scannerRef.current = scanner;
-            setIsScanning(true);
-            setError(null);
-          }
-        } catch (err) {
-          console.error("Failed to start scanner:", err);
-          if (mounted) {
-            if (err.name === 'NotAllowedError') {
-              setPermissionDenied(true);
-              setError("Camera access denied. Please allow camera access and refresh the page.");
-            } else if (err.name === 'NotFoundError') {
-              setError("No camera found on this device.");
-            } else if (err.message && err.message.includes('Already started')) {
-              // Try to stop and restart
-              await stopScanner();
-              scannerInitialized.current = false;
-              retryTimeout = setTimeout(initScanner, 500);
-            } else {
-              setError(`Could not start camera: ${err.message || 'Unknown error'}`);
-            }
-            setPermissionDenied(true);
-          }
+          scannerRef.current = scanner;
+          setIsScanning(true);
+          setError(null);
+          setPermissionDenied(false);
+          setIsInitializing(false);
+          return true;
+        } catch (fallbackErr) {
+          console.error("Failed with front camera too:", fallbackErr);
         }
       }
-    };
-    
-    // Small delay to ensure DOM is ready
-    retryTimeout = setTimeout(initScanner, 100);
-    
-    return () => {
-      mounted = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      stopScanner();
-      scannerInitialized.current = false;
-    };
-  }, []); // Empty dependency array - only run on mount
+      
+      setError(`Could not start camera: ${err.message || 'Unknown error'}`);
+      setPermissionDenied(true);
+      return false;
+    }
+  };
   
   const handleRetry = async () => {
     setError(null);
     setPermissionDenied(false);
     setIsScanning(false);
+    setIsInitializing(false);
     
-    // Stop existing scanner
     await stopScanner();
     
-    // Reset refs
     scannerInitialized.current = false;
     isProcessing.current = false;
     
-    // Small delay before retry
-    setTimeout(async () => {
-      const hasPermission = await requestCameraPermission();
-      if (!hasPermission) return;
-      
-      try {
-        const element = document.getElementById("qr-reader");
-        if (!element) {
-          setError("Scanner element not found. Please refresh the page.");
-          return;
-        }
-        
-        const scanner = new Html5Qrcode("qr-reader");
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 280, height: 280 },
-            aspectRatio: 1.0,
-            showTorchButtonIfSupported: true,
-            showZoomSliderIfSupported: true,
-          },
-          onScanSuccess,
-          onScanError
-        );
-        
-        scannerRef.current = scanner;
-        setIsScanning(true);
-        setError(null);
-        setPermissionDenied(false);
-      } catch (err) {
-        console.error("Failed to restart scanner:", err);
-        setError("Could not restart camera. Please refresh the page.");
-        setPermissionDenied(true);
-      }
-    }, 500);
+    const readerElement = document.getElementById("qr-reader");
+    if (readerElement) {
+      readerElement.innerHTML = '';
+    }
+    
+    setTimeout(() => {
+      initializeScanner();
+    }, 300);
   };
+  
+  useEffect(() => {
+    let mounted = true;
+    let initTimeout = null;
+    
+    const init = async () => {
+      if (mounted) {
+        await initializeScanner();
+      }
+    };
+    
+    // Check if we're in a secure context (HTTPS or localhost)
+    if (!window.isSecureContext) {
+      setError('Camera access requires a secure connection (HTTPS). Please use HTTPS or localhost.');
+      setPermissionDenied(true);
+      return;
+    }
+    
+    initTimeout = setTimeout(init, 100);
+    
+    return () => {
+      mounted = false;
+      if (initTimeout) clearTimeout(initTimeout);
+      stopScanner();
+      scannerInitialized.current = false;
+    };
+  }, []);
   
   return (
     <div className="qr-scanner-overlay" onClick={onClose}>
@@ -275,36 +330,50 @@ export default function QRScanner({ onClose, onSuccess }) {
         </div>
         
         <div className="qr-scanner-body">
-          {permissionDenied ? (
+          {!isMediaDevicesSupported() && (
             <div className="qr-scanner-error">
-              <div className="error-icon">📷</div>
-              <h4>Camera Access Denied</h4>
-              <p>Please allow camera access to scan QR codes.</p>
-              <button onClick={handleRetry}>Try Again</button>
-              <button onClick={onClose} style={{ marginLeft: '10px', background: '#64748b' }}>Close</button>
+              <div className="error-icon">🌐</div>
+              <h4>Browser Not Supported</h4>
+              <p>Your browser does not support camera access. Please use Chrome, Firefox, Safari, or another modern browser.</p>
+              <button onClick={onClose} className="close-btn">Close</button>
             </div>
-          ) : error ? (
+          )}
+          
+          {(permissionDenied || error) && isMediaDevicesSupported() && (
             <div className="qr-scanner-error">
-              <div className="error-icon">⚠️</div>
-              <h4>Scan Failed</h4>
-              <p>{error}</p>
-              <button onClick={handleRetry}>Try Again</button>
+              <div className="error-icon">{permissionDenied ? "📷" : "⚠️"}</div>
+              <h4>{permissionDenied ? "Camera Access Denied" : "Scan Failed"}</h4>
+              <p>{error || (permissionDenied ? "Please allow camera access to scan QR codes." : "An error occurred while scanning.")}</p>
+              <div className="error-buttons">
+                <button onClick={handleRetry} className="retry-btn">
+                  Try Again
+                </button>
+                <button onClick={onClose} className="close-btn">
+                  Close
+                </button>
+              </div>
             </div>
-          ) : (
+          )}
+          
+          {!error && !permissionDenied && isMediaDevicesSupported() && (
             <>
               <div id="qr-reader" className="scanner-view"></div>
-              {!isScanning && (
+              {isInitializing && (
                 <div className="scanner-loading">
                   <div className="spinner"></div>
                   <p>Starting camera...</p>
                 </div>
               )}
-              <p className="scanner-instruction">
-                📱 Point your camera at the QR code
-              </p>
-              <p className="scanner-hint">
-                Make sure the QR code is well lit and centered
-              </p>
+              {!isInitializing && isScanning && (
+                <>
+                  <p className="scanner-instruction">
+                    📱 Point your camera at the QR code
+                  </p>
+                  <p className="scanner-hint">
+                    Make sure the QR code is well lit and centered
+                  </p>
+                </>
+              )}
             </>
           )}
         </div>
@@ -405,15 +474,8 @@ export default function QRScanner({ onClose, onSuccess }) {
           object-fit: cover;
         }
         
-        /* Hide default scanner UI elements */
-        #qr-reader__dashboard_section_csr {
-          display: none !important;
-        }
-        
-        #qr-reader__dashboard_section_fsr {
-          display: none !important;
-        }
-        
+        #qr-reader__dashboard_section_csr,
+        #qr-reader__dashboard_section_fsr,
         #qr-reader__dashboard_section {
           display: none !important;
         }
@@ -456,10 +518,14 @@ export default function QRScanner({ onClose, onSuccess }) {
           font-size: 14px;
         }
         
-        .qr-scanner-error button {
+        .error-buttons {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+        
+        .retry-btn, .close-btn {
           padding: 10px 28px;
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-          color: white;
           border: none;
           border-radius: 40px;
           cursor: pointer;
@@ -468,9 +534,24 @@ export default function QRScanner({ onClose, onSuccess }) {
           transition: all 0.2s;
         }
         
-        .qr-scanner-error button:hover {
+        .retry-btn {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+          color: white;
+        }
+        
+        .retry-btn:hover {
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .close-btn {
+          background: #e2e8f0;
+          color: #1e293b;
+        }
+        
+        .close-btn:hover {
+          background: #cbd5e1;
+          transform: translateY(-2px);
         }
         
         .scanner-loading {
@@ -507,22 +588,6 @@ export default function QRScanner({ onClose, onSuccess }) {
         
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-        
-        /* Torch button styling */
-        #qr-reader__torch_button {
-          background: rgba(0,0,0,0.7) !important;
-          color: white !important;
-          border-radius: 50% !important;
-          padding: 8px !important;
-          margin: 8px !important;
-        }
-        
-        /* Zoom slider styling */
-        #qr-reader__zoom_slider {
-          background: rgba(0,0,0,0.7) !important;
-          padding: 8px !important;
-          border-radius: 20px !important;
         }
       `}</style>
     </div>

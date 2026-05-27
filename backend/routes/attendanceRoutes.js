@@ -548,23 +548,21 @@ const createAttendanceSheet = async (req, res) => {
       targetJumuiaId = 'executive-team';
     }
 
-    // Create the sheet
-    const sheet = await prisma.attendanceSheet.create({
-      data: {
-        title,
-        description,
-        eventDate: new Date(eventDate),
-        eventTime,
-        location,
-        allowSelfCheckin: allowSelfCheckin || false,
-         enableQRCheckin: true,
-        enableWifiCheckin: enableWifiCheckin || false,
-        wifiSSID: enableWifiCheckin ? wifiSSID : null,
-        jumuiaId: targetJumuiaId,
-        createdBy: req.user.userId,
-        isActive: true
-      }
-    });
+  const sheet = await prisma.attendanceSheet.create({
+  data: {
+    title,
+    description,
+    eventDate: new Date(eventDate),
+    eventTime,
+    location,
+    allowSelfCheckin: allowSelfCheckin || false,
+    enableWifiCheckin: enableWifiCheckin || false,
+    wifiSSID: enableWifiCheckin ? wifiSSID : null,
+    jumuiaId: targetJumuiaId,
+    createdBy: req.user.userId,
+    isActive: true
+  }
+});
 
     // ✅ SEND RESPONSE IMMEDIATELY - User doesn't wait
     res.status(201).json({ success: true, sheet });

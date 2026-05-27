@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Camera, RefreshCw, Calendar, MapPin, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Download, Printer, RefreshCw, Calendar, MapPin, Clock } from 'lucide-react';
 import { api } from '../../../api';
 
 export default function QRCodeModal({ sheet, onClose }) {
@@ -7,11 +7,6 @@ export default function QRCodeModal({ sheet, onClose }) {
   const [loading, setLoading] = useState(true);
   const [sheetInfo, setSheetInfo] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const [cameraActive, setCameraActive] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -36,104 +31,67 @@ export default function QRCodeModal({ sheet, onClose }) {
     }
   };
   
-  const startCamera = async () => {
-    try {
-      // Request camera permission and start immediately
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } // Use back camera by default
-      });
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setCameraActive(true);
-        startScanning();
-      }
-    } catch (error) {
-      console.error('Camera error:', error);
-      showToast('Unable to access camera. Please check permissions.', 'error');
-    }
+  const downloadQRCode = () => {
+    if (!qrCodeUrl) return;
+    const link = document.createElement('a');
+    link.download = `QR_${sheet.title.replace(/[^a-z0-9]/gi, '_')}.png`;
+    link.href = qrCodeUrl;
+    link.click();
+    showToast('QR Code downloaded!', 'success');
   };
   
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraActive(false);
-    setScanning(false);
+  const printQRCode = () => {
+    if (!qrCodeUrl) return;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>QR Code - ${sheet.title}</title>
+          <style>
+            body {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              font-family: Arial, sans-serif;
+            }
+            .qr-container {
+              text-align: center;
+              padding: 20px;
+            }
+            img {
+              width: 300px;
+              height: 300px;
+            }
+            h2 {
+              margin-top: 20px;
+            }
+            .details {
+              margin-top: 10px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="qr-container">
+            <img src="${qrCodeUrl}" />
+            <h2>${sheet.title}</h2>
+            <div class="details">
+              ${new Date(sheet.eventDate).toLocaleDateString()} at ${sheet.eventTime || '4:30 PM'}<br>
+              ${sheet.location || 'ZUCA'}
+            </div>
+            <p>Scan to check in</p>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.print();
+    printWindow.close();
   };
-  
-  const startScanning = () => {
-    setScanning(true);
-  };
-  
-  const handleScan = async (decodedText) => {
-    if (!scanning) return;
-    
-    try {
-      // Send check-in request
-      const response = await api.post('/api/attendance/checkin', {
-        qrCode: decodedText,
-        sheetId: sheet.id
-      }, { headers: getHeaders() });
-      
-      if (response.data.success) {
-        showToast('✓ Check-in successful!', 'success');
-        stopCamera();
-        // Optional: play success sound
-        // new Audio('/success.mp3').play();
-      }
-    } catch (error) {
-      showToast(error.response?.data?.error || 'Check-in failed', 'error');
-    }
-  };
-  
-  // Initialize QR scanner with html5-qrcode or similar
-  useEffect(() => {
-    if (cameraActive && videoRef.current) {
-      // You'll need to install and import a QR scanner library like 'html5-qrcode'
-      // For now, I'll show the structure. Install with: npm install html5-qrcode
-      const loadScanner = async () => {
-        const Html5Qrcode = (await import('html5-qrcode')).Html5Qrcode;
-        const html5QrCode = new Html5Qrcode("qr-reader");
-        
-        const qrCodeSuccessCallback = (decodedText) => {
-          handleScan(decodedText);
-        };
-        
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          qrCodeSuccessCallback
-        );
-        
-        return () => {
-          html5QrCode.stop();
-        };
-      };
-      
-      loadScanner();
-    }
-  }, [cameraActive]);
   
   useEffect(() => {
     generateQRCode();
-    
-    // Start camera automatically when modal opens
-    startCamera();
-    
-    // Cleanup when modal closes
-    return () => {
-      stopCamera();
-    };
   }, [sheet.id]);
   
   return (
@@ -145,61 +103,52 @@ export default function QRCodeModal({ sheet, onClose }) {
         )}
         
         <div className="qr-modal-header">
-          <h3>📱 Scan QR Code</h3>
+          <h3>📱 Check-in QR Code</h3>
           <button className="qr-close-btn" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
         
         <div className="qr-modal-body">
-          {/* Camera Preview - Shows immediately */}
-          <div className="camera-container">
-            {!cameraActive ? (
-              <div className="camera-placeholder">
-                <Camera size={48} />
-                <p>Requesting camera access...</p>
-              </div>
-            ) : (
-              <>
-                <div id="qr-reader" className="qr-reader"></div>
-                <div className="scan-overlay">
-                  <div className="scan-frame"></div>
-                </div>
-              </>
-            )}
-          </div>
-          
-          {/* Meeting Info */}
-          <div className="qr-meeting-info">
-            <h4>{sheetInfo?.title || sheet.title}</h4>
-            <div className="qr-meta">
-              <span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
-              <span><Clock size={14} /> {sheet.eventTime || '4:30 PM'}</span>
-              <span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span>
+          {loading ? (
+            <div className="qr-loading">
+              <div className="qr-spinner"></div>
+              <p>Generating QR Code...</p>
             </div>
-          </div>
-          
-          {/* Instructions */}
-          <div className="qr-instructions">
-            <p>📸 Position the QR code in front of the camera to check in</p>
-            <p>🔄 Camera starts automatically - no file upload needed</p>
-          </div>
-          
-          {/* Control Buttons */}
-          <div className="qr-actions">
-            {!cameraActive ? (
-              <button className="qr-camera-btn" onClick={startCamera}>
-                <Camera size={16} /> Start Camera
-              </button>
-            ) : (
-              <button className="qr-refresh-btn" onClick={() => {
-                stopCamera();
-                startCamera();
-              }}>
-                <RefreshCw size={16} /> Restart Camera
-              </button>
-            )}
-          </div>
+          ) : (
+            <>
+              <div className="qr-code-display">
+                <img src={qrCodeUrl} alt="QR Code" />
+              </div>
+              
+              <div className="qr-meeting-info">
+                <h4>{sheetInfo?.title || sheet.title}</h4>
+                <div className="qr-meta">
+                  <span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
+                  <span><Clock size={14} /> {sheet.eventTime || '4:30 PM'}</span>
+                  <span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span>
+                </div>
+              </div>
+              
+              <div className="qr-instructions">
+                <p>📸 Members can scan this QR code using their phone camera to check in</p>
+                <p>⏰ Valid until meeting ends</p>
+                <p>🔄 You can regenerate anytime while sheet is active</p>
+              </div>
+              
+              <div className="qr-actions">
+                <button className="qr-download-btn" onClick={downloadQRCode}>
+                  <Download size={16} /> Download
+                </button>
+                <button className="qr-print-btn" onClick={printQRCode}>
+                  <Printer size={16} /> Print
+                </button>
+                <button className="qr-refresh-btn" onClick={generateQRCode}>
+                  <RefreshCw size={16} /> Regenerate
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
       
@@ -251,95 +200,17 @@ export default function QRCodeModal({ sheet, onClose }) {
           text-align: center;
         }
         
-        .camera-container {
-          position: relative;
-          background: #000;
+        .qr-code-display {
+          background: white;
+          padding: 16px;
           border-radius: 16px;
-          overflow: hidden;
           margin-bottom: 20px;
-          aspect-ratio: 4/3;
         }
         
-        .qr-reader {
-          width: 100%;
-          height: 100%;
-        }
-        
-        .qr-reader video {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        
-        .scan-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          pointer-events: none;
-        }
-        
-        .scan-frame {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 250px;
-          height: 250px;
-          border: 2px solid #00ff00;
-          border-radius: 16px;
-          box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
-          animation: pulse 1.5s infinite;
-        }
-        
-        .scan-frame::before,
-        .scan-frame::after {
-          content: '';
-          position: absolute;
-          width: 40px;
-          height: 40px;
-          border: 3px solid #00ff00;
-        }
-        
-        .scan-frame::before {
-          top: -2px;
-          left: -2px;
-          border-right: none;
-          border-bottom: none;
-        }
-        
-        .scan-frame::after {
-          bottom: -2px;
-          right: -2px;
-          border-left: none;
-          border-top: none;
-        }
-        
-        @keyframes pulse {
-          0%, 100% {
-            border-color: #00ff00;
-            opacity: 1;
-          }
-          50% {
-            border-color: #00ff88;
-            opacity: 0.7;
-          }
-        }
-        
-        .camera-placeholder {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: #f0f0f0;
-          color: #666;
-          height: 100%;
-          min-height: 300px;
-        }
-        
-        .camera-placeholder p {
-          margin-top: 12px;
+        .qr-code-display img {
+          width: 200px;
+          height: 200px;
+          margin: 0 auto;
         }
         
         .qr-meeting-info {
@@ -387,17 +258,25 @@ export default function QRCodeModal({ sheet, onClose }) {
           flex-wrap: wrap;
         }
         
-        .qr-camera-btn, .qr-refresh-btn {
+        .qr-download-btn, .qr-print-btn, .qr-refresh-btn {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 10px 20px;
+          padding: 8px 16px;
           border-radius: 8px;
           cursor: pointer;
-          font-size: 14px;
+          font-size: 13px;
           border: none;
+        }
+        
+        .qr-download-btn {
           background: #1a1a1a;
           color: white;
+        }
+        
+        .qr-print-btn {
+          background: #f0f0f0;
+          color: #1a1a1a;
         }
         
         .qr-refresh-btn {
@@ -405,18 +284,32 @@ export default function QRCodeModal({ sheet, onClose }) {
           color: #0284c7;
         }
         
+        .qr-loading {
+          text-align: center;
+          padding: 40px;
+        }
+        
+        .qr-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #f0f0f0;
+          border-top-color: #1a1a1a;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 16px;
+        }
+        
         .qr-toast {
           position: fixed;
           bottom: 20px;
           left: 50%;
           transform: translateX(-50%);
-          padding: 12px 24px;
+          padding: 10px 20px;
           border-radius: 8px;
           background: #1a1a1a;
           color: white;
-          font-size: 14px;
+          font-size: 13px;
           z-index: 2100;
-          font-weight: 500;
         }
         
         .qr-toast.error {

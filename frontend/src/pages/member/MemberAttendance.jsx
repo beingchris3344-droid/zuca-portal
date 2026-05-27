@@ -442,7 +442,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
         /* Hero Header */
         .hero-header {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-          padding: 28px 24px 48px;
+          padding: 0px 0px 0px;
           position: relative;
           overflow: hidden;
         }
@@ -463,13 +463,13 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           border: 1px solid rgba(255,255,255,0.2);
           padding: 8px 16px;
           border-radius: 40px;
+top: 20px;
           color: white;
           cursor: pointer;
-          display: inline-flex;
+          display: flex;
           align-items: center;
           gap: 8px;
           font-size: 13px;
-          margin-bottom: 24px;
           transition: all 0.2s;
         }
         
@@ -480,7 +480,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
         
         .refresh-btn-hero {
           position: absolute;
-          top: 28px;
+          top: 7px;
           right: 24px;
           background: rgba(255,255,255,0.1);
           backdrop-filter: blur(10px);
@@ -503,17 +503,21 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
         
         .hero-content {
           text-align: center;
+                    margin-top: -24px;
+
         }
         
         .hero-greeting {
           display: inline-flex;
-          align-items: center;
+          align-items: top;
           gap: 8px;
           background: rgba(255,255,255,0.1);
           backdrop-filter: blur(10px);
           padding: 6px 16px;
           border-radius: 40px;
-          margin-bottom: 16px;
+          margin-top: -50px;
+
+          margin-bottom: 0px;
         }
         
         .greeting-text {
@@ -524,6 +528,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
         .hero-title {
           font-size: 36px;
           font-weight: 700;
+          
           color: white;
           margin: 0 0 12px 0;
         }
@@ -532,12 +537,14 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           background: linear-gradient(135deg, #60a5fa, #c084fc);
           -webkit-background-clip: text;
           background-clip: text;
+          
           color: transparent;
         }
         
         .hero-subtitle {
           font-size: 14px;
           color: #94a3b8;
+          
           max-width: 400px;
           margin: 0 auto;
         }
@@ -547,7 +554,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           display: flex;
           gap: 16px;
           padding: 0 24px;
-          margin-top: -24px;
+          margin-top: 5px;
           position: relative;
           z-index: 2;
           flex-wrap: wrap;
@@ -557,7 +564,7 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           flex: 1;
           background: white;
           border-radius: 20px;
-          padding: 16px;
+          padding: 3px;
           display: flex;
           align-items: center;
           gap: 14px;

@@ -107,15 +107,24 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
 });
 
 // QR Code check-in endpoint
-// QR Code check-in endpoint
+
 router.post("/qr-checkin", authenticate, async (req, res) => {
   try {
-    const { token, deviceId, deviceName } = req.body;  // ← ADD deviceId, deviceName
+    const { token, deviceId, deviceName } = req.body;
     const userId = req.user.userId;
     
     console.log("🔍 Scanning QR - Token received:", token);
     
-    // First, find the token
+    // ✅ FIRST, fetch the user from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Find the QR token
     const qrToken = await prisma.qRCodeToken.findFirst({
       where: {
         token: token
@@ -149,7 +158,7 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       return res.status(400).json({ error: "This meeting has been closed" });
     }
     
-    // ✅ ADD DEVICE CHECK HERE - Prevent multiple check-ins from same device
+    // Device check - Prevent multiple check-ins from same device
     if (deviceId) {
       const deviceEntry = await prisma.attendanceEntry.findFirst({
         where: {
@@ -167,29 +176,30 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
     }
     
     // Check if user already checked in
-const existingEntry = await prisma.attendanceEntry.findFirst({
-  where: { sheetId: qrToken.sheetId, userId: userId }
-});
+    const existingEntry = await prisma.attendanceEntry.findFirst({
+      where: { sheetId: qrToken.sheetId, userId: userId }
+    });
 
-if (existingEntry) {
-  return res.status(400).json({ 
-    error: "Already checked in",
-    message: `You already checked in on ${new Date(existingEntry.signTime).toLocaleString()}`
-  });
-}
-    // Create check-in entry with device info
+    if (existingEntry) {
+      return res.status(400).json({ 
+        error: "Already checked in",
+        message: `You already checked in on ${new Date(existingEntry.signTime).toLocaleString()}`
+      });
+    }
+    
+    // ✅ NOW create check-in entry with user data
     const entry = await prisma.attendanceEntry.create({
       data: {
         sheetId: qrToken.sheetId,
         userId: userId,
-        deviceId: deviceId,           // ← ADD THIS
-        deviceName: deviceName,       // ← ADD THIS
-        fullName: user.fullName,
-        phoneNumber: user.phone,
-        role: user.role,
-        specialRole: user.specialRole,
-        membershipNumber: user.membership_number,
-        jumuiaId: user.jumuiaId,
+        deviceId: deviceId,
+        deviceName: deviceName,
+        fullName: user.fullName,           // ✅ Now 'user' is defined
+        phoneNumber: user.phone,           // ✅ 'user' is defined
+        role: user.role,                   // ✅ 'user' is defined
+        specialRole: user.specialRole,     // ✅ 'user' is defined
+        membershipNumber: user.membership_number, // ✅ 'user' is defined
+        jumuiaId: user.jumuiaId,           // ✅ 'user' is defined
         signMethod: "QR_CODE",
         signTime: new Date(),
         notes: "Checked in via QR Code"
@@ -207,7 +217,15 @@ if (existingEntry) {
     
     console.log("✅ QR Check-in successful for:", user.fullName);
     
+    // Send check-in confirmation (optional)
+    try {
+      await sendCheckinConfirmation(userId, qrToken.sheet.title, entry);
+    } catch (notifyErr) {
+      console.error("Failed to send notification:", notifyErr.message);
+    }
+    
     res.json({ success: true, entry });
+    
   } catch (err) {
     console.error("QR check-in error:", err);
     res.status(500).json({ error: err.message });

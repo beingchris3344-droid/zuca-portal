@@ -167,20 +167,16 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
     }
     
     // Check if user already checked in
-    const existingEntry = await prisma.attendanceEntry.findFirst({
-      where: { sheetId: qrToken.sheetId, userId: userId }
-    });
-    
-    if (existingEntry) {
-      return res.status(400).json({ error: "Already checked in" });
-    }
-    
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    
+const existingEntry = await prisma.attendanceEntry.findFirst({
+  where: { sheetId: qrToken.sheetId, userId: userId }
+});
+
+if (existingEntry) {
+  return res.status(400).json({ 
+    error: "Already checked in",
+    message: `You already checked in on ${new Date(existingEntry.signTime).toLocaleString()}`
+  });
+}
     // Create check-in entry with device info
     const entry = await prisma.attendanceEntry.create({
       data: {

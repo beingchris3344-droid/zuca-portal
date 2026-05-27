@@ -23,6 +23,23 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
 
+// ================== HELPER FUNCTIONS ==================
+async function getNextMembershipNumber() {
+  try {
+    const result = await prisma.$queryRaw`
+      SELECT nextval('membership_number_seq') as next_number
+    `;
+    const nextNumber = parseInt(result[0].next_number);
+    return `Z#${nextNumber.toString().padStart(3, '0')}`;
+  } catch (error) {
+    console.error("⚠️ Sequence error, using fallback:", error.message);
+    const userCount = await prisma.user.count();
+    const nextNumber = userCount + 1;
+    return `Z#${nextNumber.toString().padStart(3, '0')}`;
+  }
+}
+
+
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 

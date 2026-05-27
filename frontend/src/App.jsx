@@ -410,6 +410,8 @@ function AppContent() {
         <Route path="/pay/:slug" element={<PaymentPage />} />
         <Route path="/payment-success" element={<PaymentSuccess />} />
         <Route path="/pay/campaign/:campaignId" element={<PaymentPage />} /> 
+                  <Route path="/attendance/link/:token" element={<LinkCheckin />} />
+
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
         <Route path="/executive" element={<ExecutivePage />} />
@@ -438,7 +440,6 @@ function AppContent() {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
-          <Route path="/attendance/link/:token" element={<LinkCheckin />} />
 
           {/* GAMES */}
           <Route path="/games/tictactoe" element={<TicTacToe />} />

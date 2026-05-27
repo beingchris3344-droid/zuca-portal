@@ -2,13 +2,15 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../../api';
 import { 
-  Calendar, MapPin, Clock, CheckCircle, ArrowRight, QrCode, Smartphone
+  Calendar, MapPin, Clock, CheckCircle, ArrowRight, QrCode, Smartphone, 
+  X, Mail, Lock, UserPlus, LogIn, Eye, EyeOff
 } from 'lucide-react';
 import { 
   FaChevronLeft, FaChevronRight, FaPause, FaPlay, FaChurch, FaPray 
 } from 'react-icons/fa';
+import BASE_URL from '../../../api';
 
-// Slideshow images (using same assets)
+// Slideshow images
 import slide2 from '../../../assets/2.jpg';
 import slide3 from '../../../assets/3.jpg';
 import slide4 from '../../../assets/4.jpg';
@@ -28,6 +30,15 @@ export default function LinkCheckin() {
   const [sheet, setSheet] = useState(null);
   const [error, setError] = useState(null);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   
   // Slideshow states
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -95,32 +106,135 @@ export default function LinkCheckin() {
     };
   }, [isPlaying, slides.length]);
   
+  // Check link and auth status - AUTO REDIRECT IF LOGGED IN
   useEffect(() => {
-    const checkLink = async () => {
+    const checkLinkAndAuth = async () => {
       try {
-        const userToken = localStorage.getItem('token');
+        // Get meeting details from the link
         const response = await api.get(`/api/attendance/link/${token}`);
         
         if (response.data.success) {
           setSheet(response.data.sheet);
           
-          if (!userToken) {
-            localStorage.setItem('redirectAfterLogin', `/attendance/link/${token}`);
-            navigate('/login');
-            return;
+          // Check if user is logged in
+          const userToken = localStorage.getItem('token');
+          
+          if (userToken) {
+            try {
+              const meResponse = await api.get('/api/me', {
+                headers: { Authorization: `Bearer ${userToken}` }
+              });
+              if (meResponse.data) {
+                // ✅ ALREADY LOGGED IN - REDIRECT IMMEDIATELY
+                console.log('✅ Already logged in as:', meResponse.data.fullName);
+                navigate(`/member/attendance?sheetId=${response.data.sheetId}`);
+                return;
+              }
+            } catch (authError) {
+              console.error('Token invalid, clearing...');
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              setIsLoggedIn(false);
+              setCurrentUser(null);
+            }
           }
+          
+          // Not logged in - show the meeting card
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+          setLoading(false);
         }
       } catch (err) {
+        console.error('Link error:', err);
         setError(err.response?.data?.error || 'Invalid or expired link');
-      } finally {
         setLoading(false);
       }
     };
     
-    checkLink();
+    checkLinkAndAuth();
   }, [token, navigate]);
   
+  // Handle login - using same logic as main Login page
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        // Store token and user data
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        if (rememberMe) {
+          localStorage.setItem('rememberMe', 'true');
+          localStorage.setItem('rememberedEmail', loginEmail);
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          localStorage.setItem('rememberExpiry', expiryDate.toISOString());
+        } else {
+          localStorage.setItem('rememberMe', 'false');
+          localStorage.removeItem('rememberedEmail');
+          localStorage.removeItem('rememberExpiry');
+        }
+
+        // After login, redirect to check-in page
+        navigate(`/member/attendance?sheetId=${sheet?.id}`);
+      } else {
+        setLoginError(data.error || "Invalid email or password");
+      }
+    } catch (err) {
+      console.error("Login Error:", err);
+      setLoginError("Unable to connect. Please check your network.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Show toast notification
+  const showToast = (message, type = "success") => {
+    const toast = document.createElement('div');
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 18px;">${type === "success" ? "✅" : "ℹ️"}</span>
+        <span>${message}</span>
+      </div>
+    `;
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: ${type === "success" ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, #3b82f6, #2563eb)"};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      z-index: 10001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: slideInRight 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.animation = "slideOutRight 0.3s ease";
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+  
+  // Handle self check-in
   const handleSelfCheckin = async () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    
     setCheckingIn(true);
     try {
       await api.post(`/api/attendance/self-checkin`, {
@@ -131,22 +245,31 @@ export default function LinkCheckin() {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       
-      alert('✅ Checked in successfully!');
-      navigate(`/member/attendance?sheetId=${sheet.id}`);
+      showToast('✅ Checked in successfully!', 'success');
+      setTimeout(() => {
+        navigate(`/member/attendance?sheetId=${sheet.id}`);
+      }, 1000);
     } catch (error) {
       const errorMsg = error.response?.data;
       if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
-        alert('You have already checked in for this meeting');
-        navigate(`/member/attendance?sheetId=${sheet.id}`);
+        showToast('You have already checked in for this meeting', 'info');
+        setTimeout(() => {
+          navigate(`/member/attendance?sheetId=${sheet.id}`);
+        }, 1000);
       } else {
-        alert(errorMsg?.message || 'Personal check-in is not allowed for this meeting');
+        showToast(errorMsg?.message || 'Personal check-in is not allowed for this meeting', 'error');
       }
     } finally {
       setCheckingIn(false);
     }
   };
   
+  // Handle QR check-in
   const handleQRCheckin = () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     navigate(`/member/attendance?sheetId=${sheet.id}&showScanner=true`);
   };
   
@@ -168,8 +291,8 @@ export default function LinkCheckin() {
           <div className="error-icon">🔗❌</div>
           <h2>Invalid Link</h2>
           <p>{error}</p>
-          <button className="back-btn" onClick={() => navigate('/dashboard')}>
-            Go to Dashboard
+          <button className="back-btn" onClick={() => navigate('/')}>
+            Go to Home
           </button>
         </div>
       </div>
@@ -196,7 +319,6 @@ export default function LinkCheckin() {
           </div>
         ))}
         
-        {/* Slideshow Navigation */}
         <button className="slideshow-nav slideshow-nav-prev" onClick={prevSlide}>
           <FaChevronLeft size={20} />
         </button>
@@ -204,7 +326,6 @@ export default function LinkCheckin() {
           <FaChevronRight size={20} />
         </button>
         
-        {/* Slideshow Dots */}
         <div className="slideshow-dots">
           {slides.map((_, index) => (
             <button
@@ -215,7 +336,6 @@ export default function LinkCheckin() {
           ))}
         </div>
         
-        {/* Play/Pause Button */}
         <button className="slideshow-play-pause" onClick={togglePlayPause}>
           {isPlaying ? <FaPause size={14} /> : <FaPlay size={14} />}
         </button>
@@ -224,20 +344,16 @@ export default function LinkCheckin() {
       {/* Content */}
       <div className="content-overlay">
         <div className="meeting-card">
-          {/* Header */}
           <div className="card-header">
             <div className="live-badge">🔴 LIVE MEETING</div>
             <h1>{sheet.title}</h1>
           </div>
           
-          {/* Meeting Details */}
           <div className="details-section">
             <div className="detail-item">
               <Calendar size={18} />
               <span>{new Date(sheet.eventDate).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'long', 
-                day: 'numeric' 
+                weekday: 'long', month: 'long', day: 'numeric' 
               })}</span>
             </div>
             <div className="detail-item">
@@ -250,14 +366,12 @@ export default function LinkCheckin() {
             </div>
           </div>
           
-          {/* Welcome Message */}
           <div className="welcome-section">
             <FaChurch className="welcome-icon" />
             <p>You've been invited to check in for this meeting.</p>
             <p className="small-note">Choose your check-in method below:</p>
           </div>
           
-          {/* Check-in Methods */}
           <div className="methods-section">
             <button 
               className="method-btn self-btn"
@@ -285,7 +399,6 @@ export default function LinkCheckin() {
             </button>
           </div>
           
-          {/* Mass Reminder */}
           <div className="mass-reminder">
             <FaPray size={16} />
             <span>Weekly Mass: Wednesday 4:30 PM @ Annex 002</span>
@@ -293,14 +406,93 @@ export default function LinkCheckin() {
         </div>
       </div>
       
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
+          <div className="login-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Login to Continue</h3>
+              <button className="modal-close" onClick={() => setShowLoginModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleLogin}>
+              <div className="modal-body">
+                {loginError && <div className="login-error">{loginError}</div>}
+                
+                <div className="form-group">
+                  <label><Mail size={16} /> Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="Your registered email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label><Lock size={16} /> Password</label>
+                  <div className="password-wrapper">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                    />
+                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="options-row">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                    <span>Keep me signed in for 30 days</span>
+                  </label>
+                </div>
+                
+                <div className="register-link">
+                  <span>Don't have an account? </span>
+                  <button type="button" onClick={() => { setShowLoginModal(false); navigate('/register'); }} className="register-btn">
+                    <UserPlus size={14} /> Register here
+                  </button>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="btn-cancel" onClick={() => setShowLoginModal(false)}>Cancel</button>
+                <button type="submit" className="btn-login" disabled={loginLoading}>
+                  {loginLoading ? 'Logging in...' : 'Login'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
       <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
         .link-checkin-container {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
         }
         
-        /* Slideshow Styles */
         .slideshow-container {
           position: fixed;
           top: 0;
@@ -342,7 +534,6 @@ export default function LinkCheckin() {
           z-index: 1;
         }
         
-        /* Slideshow Navigation */
         .slideshow-nav {
           position: absolute;
           top: 50%;
@@ -367,13 +558,8 @@ export default function LinkCheckin() {
           transform: translateY(-50%) scale(1.05);
         }
         
-        .slideshow-nav-prev {
-          left: 20px;
-        }
-        
-        .slideshow-nav-next {
-          right: 20px;
-        }
+        .slideshow-nav-prev { left: 20px; }
+        .slideshow-nav-next { right: 20px; }
         
         .slideshow-dots {
           position: absolute;
@@ -429,7 +615,6 @@ export default function LinkCheckin() {
           transform: scale(1.05);
         }
         
-        /* Content Overlay */
         .content-overlay {
           position: relative;
           z-index: 10;
@@ -452,14 +637,8 @@ export default function LinkCheckin() {
         }
         
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         
         .live-badge {
@@ -484,7 +663,7 @@ export default function LinkCheckin() {
           background: rgba(255, 255, 255, 0.08);
           border-radius: 20px;
           padding: 20px;
-          margin-bottom: 24px;
+          margin-bottom: 20px;
         }
         
         .detail-item {
@@ -535,6 +714,7 @@ export default function LinkCheckin() {
           cursor: pointer;
           transition: all 0.2s ease;
           color: white;
+          width: 100%;
         }
         
         .method-btn:hover {
@@ -589,6 +769,166 @@ export default function LinkCheckin() {
           text-align: center;
         }
         
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        
+        .login-modal {
+          background: white;
+          border-radius: 24px;
+          width: 90%;
+          max-width: 400px;
+          overflow: hidden;
+          animation: slideUp 0.3s ease;
+        }
+        
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px 24px;
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+          color: white;
+        }
+        
+        .modal-header h3 { margin: 0; font-size: 18px; }
+        
+        .modal-close {
+          background: rgba(255,255,255,0.1);
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .modal-body { padding: 24px; }
+        
+        .login-error {
+          background: #fee2e2;
+          color: #ef4444;
+          padding: 10px;
+          border-radius: 8px;
+          font-size: 13px;
+          margin-bottom: 16px;
+        }
+        
+        .form-group { margin-bottom: 16px; }
+        
+        .form-group label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          color: #1e293b;
+        }
+        
+        .form-group input {
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          font-size: 14px;
+        }
+        
+        .form-group input:focus {
+          outline: none;
+          border-color: #8b5cf6;
+        }
+        
+        .password-wrapper { position: relative; }
+        .password-wrapper input { padding-right: 45px; }
+        
+        .password-toggle {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #64748b;
+        }
+        
+        .options-row { margin: 16px 0; }
+        
+        .checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: #64748b;
+          cursor: pointer;
+        }
+        
+        .checkbox-label input {
+          width: 16px;
+          height: 16px;
+          cursor: pointer;
+        }
+        
+        .register-link {
+          text-align: center;
+          margin-top: 16px;
+          font-size: 13px;
+          color: #64748b;
+        }
+        
+        .register-btn {
+          background: none;
+          border: none;
+          color: #8b5cf6;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-weight: 500;
+        }
+        
+        .modal-footer {
+          display: flex;
+          gap: 12px;
+          padding: 16px 24px;
+          border-top: 1px solid #e2e8f0;
+        }
+        
+        .btn-cancel {
+          flex: 1;
+          padding: 10px;
+          background: #f1f5f9;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          font-weight: 500;
+        }
+        
+        .btn-login {
+          flex: 1;
+          padding: 10px;
+          background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          font-weight: 500;
+        }
+        
+        .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+        
         .loading-card, .error-card {
           max-width: 400px;
           width: 100%;
@@ -610,24 +950,9 @@ export default function LinkCheckin() {
           margin: 0 auto 16px;
         }
         
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        
-        .error-icon {
-          font-size: 48px;
-          margin-bottom: 16px;
-        }
-        
-        .error-card h2 {
-          margin: 0 0 8px 0;
-          color: white;
-        }
-        
-        .error-card p {
-          color: #94a3b8;
-          margin-bottom: 24px;
-        }
+        .error-icon { font-size: 48px; margin-bottom: 16px; }
+        .error-card h2 { margin: 0 0 8px 0; color: white; }
+        .error-card p { color: #94a3b8; margin-bottom: 24px; }
         
         .back-btn {
           padding: 12px 24px;
@@ -639,32 +964,13 @@ export default function LinkCheckin() {
           font-weight: 600;
         }
         
-        /* Responsive */
         @media (max-width: 768px) {
-          .slideshow-nav {
-            width: 36px;
-            height: 36px;
-          }
-          
-          .slideshow-nav-prev {
-            left: 10px;
-          }
-          
-          .slideshow-nav-next {
-            right: 10px;
-          }
-          
-          .meeting-card {
-            padding: 24px;
-          }
-          
-          .card-header h1 {
-            font-size: 22px;
-          }
-          
-          .method-btn {
-            padding: 12px 16px;
-          }
+          .slideshow-nav { width: 36px; height: 36px; }
+          .slideshow-nav-prev { left: 10px; }
+          .slideshow-nav-next { right: 10px; }
+          .meeting-card { padding: 24px; }
+          .card-header h1 { font-size: 22px; }
+          .method-btn { padding: 12px 16px; }
         }
       `}</style>
     </div>

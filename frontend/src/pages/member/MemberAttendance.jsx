@@ -73,19 +73,28 @@ const [syncing, setSyncing] = useState(false);
   const sheet = activeSheets.find(s => s.id === sheetId);
   if (!sheet) return;
   
-  // Check if offline
-  if (!isOnline) {
-    // Save offline check-in
-    const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
-    if (saved) {
-      const newCount = await getPendingCount();
-      setPendingCount(newCount);
-      showToast('📱 Offline check-in saved! Will sync when online.', 'info');
-    } else {
-      showToast('❌ Failed to save offline check-in', 'error');
-    }
+ // Check if offline
+if (!isOnline) {
+  // Check if already have a pending check-in for this sheet
+  const pending = await getPendingCheckins();
+  const alreadyPending = pending.some(p => p.sheetId === sheetId);
+  
+  if (alreadyPending) {
+    showToast('⚠️ You already have a pending check-in for this meeting. Will sync when online.', 'info');
     return;
   }
+  
+  // Save offline check-in
+  const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
+  if (saved) {
+    const newCount = await getPendingCount();
+    setPendingCount(newCount);
+    showToast('📱 Offline check-in saved! Will sync when online.', 'info');
+  } else {
+    showToast('❌ Failed to save offline check-in', 'error');
+  }
+  return;
+}
   
   // Online check-in
   setCheckingIn(sheetId);

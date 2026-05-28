@@ -161,7 +161,6 @@ export const getOfflineData = async (key) => {
 };
 
 // ==================== SYNC FUNCTION ====================
-
 // Sync all pending check-ins when back online
 export const syncOfflineCheckins = async () => {
   const pending = await getPendingCheckins();
@@ -187,15 +186,23 @@ export const syncOfflineCheckins = async () => {
         console.log(`✅ Synced check-in for sheet: ${checkin.sheetId}`);
       } else {
         failed++;
-        console.error(`❌ Sync failed for ${checkin.sheetId}:`, response.data.error);
       }
     } catch (error) {
-      failed++;
-      const errorMsg = error.response?.data?.error || error.message;
-      console.error(`❌ Failed to sync check-in ${checkin.id}:`, errorMsg);
+      const errorData = error.response?.data;
+      
+      // ✅ If device already used or already checked in, remove from pending (don't retry)
+      if (errorData?.error === 'DEVICE_ALREADY_USED' || 
+          errorData?.error === 'ALREADY_CHECKED_IN') {
+        await removePendingCheckin(checkin.id);
+        console.log(`🗑️ Removed ${checkin.sheetId} - ${errorData.error}`);
+        synced++; // Count as handled
+      } else {
+        failed++;
+        console.error(`❌ Failed to sync check-in ${checkin.id}:`, errorData?.message || error.message);
+      }
     }
   }
   
-  console.log(`📊 Sync complete: ${synced} synced, ${failed} failed`);
+  console.log(`📊 Sync complete: ${synced} synced/handled, ${failed} failed`);
   return { synced, failed };
 };

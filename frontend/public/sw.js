@@ -4,9 +4,7 @@ const CACHE_NAME = 'zuca-v4';
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  
-  // ❌ IMPORTANT: Do NOT use skipWaiting here
-  // This prevents "app updated in background" spam
+  self.skipWaiting(); // ← Add this line
 });
 
 // ================== ACTIVATE ==================

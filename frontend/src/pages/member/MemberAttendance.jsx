@@ -10,6 +10,7 @@ import {
 import QRScanner from '../../components/member/attendance/QRScanner';
 
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
+import { saveOfflineCheckin, getPendingCount, syncOfflineCheckins } from '../../utils/offlineStorage';
 
 export default function MemberAttendance() {
   const navigate = useNavigate();
@@ -18,6 +19,9 @@ export default function MemberAttendance() {
   const [checkingIn, setCheckingIn] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [greeting, setGreeting] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+const [pendingCount, setPendingCount] = useState(0);
+const [syncing, setSyncing] = useState(false);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -69,6 +73,21 @@ export default function MemberAttendance() {
   const sheet = activeSheets.find(s => s.id === sheetId);
   if (!sheet) return;
   
+  // Check if offline
+  if (!isOnline) {
+    // Save offline check-in
+    const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
+    if (saved) {
+      const newCount = await getPendingCount();
+      setPendingCount(newCount);
+      showToast('📱 Offline check-in saved! Will sync when online.', 'info');
+    } else {
+      showToast('❌ Failed to save offline check-in', 'error');
+    }
+    return;
+  }
+  
+  // Online check-in
   setCheckingIn(sheetId);
   try {
     await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
@@ -84,54 +103,23 @@ export default function MemberAttendance() {
     const errorMsg = error.response?.data;
     const status = error.response?.status;
     
-    // Detailed error messages based on error type
     if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
-      showToast(
-        `❌ Wrong Wi-Fi Network!\n\n` +
-        `You are not connected to the meeting Wi-Fi.\n` +
-        `Please connect to: "${sheet.wifiSSID}"\n\n` +
-        `Then try again.`,
-        'error'
-      );
+      showToast(`❌ Wrong Wi-Fi Network!\n\nPlease connect to: "${sheet.wifiSSID}"`, 'error');
     } 
     else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
-      showToast(
-        `⚠️ Already Checked In\n\n` +
-        `You have already checked in for "${sheet.title}" at ${new Date(errorMsg?.checkInTime).toLocaleTimeString()}\n` +
-        `Method: ${errorMsg?.method === 'SELF' ? 'Self Check-in' : errorMsg?.method === 'WIFI_AUTO' ? 'Wi-Fi Auto' : 'Manual'}`,
-        'error'
-      );
+      showToast(`⚠️ Already checked in for "${sheet.title}"`, 'error');
     } 
     else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
-      showToast(
-        `⚠️ Device Already Used\n\n` +
-        `This device has already been used to check someone into this meeting.\n` +
-        `Each device can only check in once per meeting.`,
-        'error'
-      );
+      showToast(`⚠️ This device has already been used to check someone into this meeting.`, 'error');
     }
     else if (status === 403) {
-      showToast(
-        `🔒 Access Denied\n\n` +
-        `Self check-in is not enabled for this meeting.\n` +
-        `Please contact the meeting organizer.`,
-        'error'
-      );
+      showToast(`🔒 Self check-in is not enabled for this meeting.`, 'error');
     }
     else if (status === 404) {
-      showToast(
-        `📋 Meeting Not Found\n\n` +
-        `This attendance sheet may have been closed.\n` +
-        `Please refresh and try again.`,
-        'error'
-      );
+      showToast(`📋 This attendance sheet may have been closed.`, 'error');
     }
     else {
-      showToast(
-        `❌ Check-in Failed\n\n` +
-        `${errorMsg?.message || 'An unexpected error occurred. Please try again.'}`,
-        'error'
-      );
+      showToast(`❌ Check-in failed\n\n${errorMsg?.message || 'Please try again.'}`, 'error');
     }
   } finally {
     setCheckingIn(null);
@@ -178,6 +166,46 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
     setCheckingIn(null);
   }
 };
+
+// Handle online/offline status and sync
+useEffect(() => {
+  const handleOnline = async () => {
+    console.log('🟢 Back online!');
+    setIsOnline(true);
+    setSyncing(true);
+    
+    // Sync offline check-ins
+    const result = await syncOfflineCheckins(axios, getHeaders);
+    
+    if (result.synced > 0) {
+      showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
+      fetchActiveSheets();
+    }
+    
+    setSyncing(false);
+  };
+  
+  const handleOffline = () => {
+    console.log('🔴 Offline mode');
+    setIsOnline(false);
+    showToast('📱 You are offline. Check-ins will be saved and synced when online.', 'info');
+  };
+  
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  
+  // Load pending count on mount
+  const loadPendingCount = async () => {
+    const count = await getPendingCount();
+    setPendingCount(count);
+  };
+  loadPendingCount();
+  
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
+}, []);
   
   useEffect(() => {
     fetchActiveSheets();
@@ -228,6 +256,28 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
           <RefreshCw size={18} />
         </button>
       </div>
+
+            {/* Offline Banner */}
+      {(!isOnline || pendingCount > 0) && (
+        <div className={`offline-banner ${!isOnline ? 'offline' : 'pending'}`}>
+          <div className="banner-content">
+            {!isOnline ? (
+              <>
+                <span className="banner-icon">📡</span>
+                <span>You are offline</span>
+                {pendingCount > 0 && <span className="pending-badge">{pendingCount} pending</span>}
+                <span className="banner-text">Check-ins will sync when online</span>
+              </>
+            ) : pendingCount > 0 && (
+              <>
+                <span className="banner-icon">🔄</span>
+                <span>Syncing {pendingCount} offline check-in(s)...</span>
+                {syncing && <div className="sync-spinner-small"></div>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Stats Overview */}
       {activeSheets.length > 0 && (
@@ -1092,6 +1142,78 @@ top: 20px;
 .checkin-btn-qr:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
+}
+
+/* Offline Banner */
+.offline-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  border-radius: 50px;
+  padding: 10px 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  animation: slideUp 0.3s ease;
+}
+
+.offline-banner.offline {
+  background: #f59e0b;
+  color: white;
+}
+
+.offline-banner.pending {
+  background: #3b82f6;
+  color: white;
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.banner-icon {
+  font-size: 16px;
+}
+
+.pending-badge {
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+}
+
+.banner-text {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.sync-spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@media (max-width: 640px) {
+  .offline-banner {
+    bottom: 10px;
+    padding: 8px 16px;
+  }
+  
+  .banner-content {
+    font-size: 11px;
+    gap: 8px;
+  }
+  
+  .banner-text {
+    display: none;
+  }
 }
       `}</style>
     </div>

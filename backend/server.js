@@ -5206,8 +5206,23 @@ app.post("/api/register", async (req, res) => {
     const normalizedEmail = email.toLowerCase();
     
     let formattedPhone = phone;
-    if (phone.startsWith("07")) {
-      formattedPhone = "+254" + phone.slice(1);
+    if (formattedPhone) {
+      let cleanPhone = formattedPhone.toString().trim().replace(/[\s\-\(\)]/g, '');
+      if (cleanPhone.startsWith("07")) {
+        formattedPhone = "+254" + cleanPhone.slice(1);
+      } else if (cleanPhone.startsWith("01")) {
+        formattedPhone = "+254" + cleanPhone.slice(1);
+      } else if (cleanPhone.startsWith("+254")) {
+        formattedPhone = cleanPhone;
+      } else if (cleanPhone.startsWith("254") && !cleanPhone.startsWith("+254")) {
+        formattedPhone = "+" + cleanPhone;
+      } else if (cleanPhone.startsWith("0")) {
+        formattedPhone = "+254" + cleanPhone.slice(1);
+      } else if (cleanPhone.length === 9) {
+        formattedPhone = "+254" + cleanPhone;
+      } else {
+        formattedPhone = "+254" + cleanPhone;
+      }
     }
 
     const existingEmail = await prisma.user.findUnique({

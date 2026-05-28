@@ -1,45 +1,57 @@
-// backend/services/cronJobs.js
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
-const { sendPersonalizedEmail } = require("./mailer");
+// services/cronJobs.js
 
-// Send event reminders (events happening tomorrow)
+// Send ALL pending event reminders (not just tomorrow)
 async function sendEventReminders() {
   console.log("🕐 Running event reminders check...");
   
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
+  const now = new Date();
   
-  const nextDay = new Date(tomorrow);
-  nextDay.setDate(nextDay.getDate() + 1);
-  
-  const events = await prisma.scheduleEvent.findMany({
+  // Find ALL notifications that are due to be sent
+  const pendingNotifications = await prisma.scheduledNotification.findMany({
     where: {
-      eventDate: { gte: tomorrow, lt: nextDay }
+      notifyAt: { lte: now },  // Notification time has passed
+      isSent: false            // Not sent yet
     },
-    include: { schedule: true }
+    include: {
+      event: {
+        include: {
+          schedule: true
+        }
+      }
+    }
   });
   
-  if (events.length === 0) {
-    console.log("📭 No events tomorrow");
+  if (pendingNotifications.length === 0) {
+    console.log("📭 No pending notifications");
     return;
   }
+  
+  console.log(`📢 Found ${pendingNotifications.length} pending notifications`);
   
   const allUsers = await prisma.user.findMany({
     select: { id: true, email: true, fullName: true, homeJumuia: true }
   });
   
-  for (const event of events) {
+  for (const notification of pendingNotifications) {
+    console.log(`📧 Sending: ${notification.title}`);
+    
+    // Send to ALL users
     for (const user of allUsers) {
       await sendPersonalizedEmail(
         user,
         "event_reminder",
-        "⏰ Event Tomorrow",
-        `${event.title} tomorrow at ${event.eventTime || "4:30 PM"} at ${event.location || "Main Chapel"}`
+        notification.title,
+        notification.message
       );
     }
-    console.log(`✅ Reminders sent for event: ${event.title}`);
+    
+    // Mark as sent
+    await prisma.scheduledNotification.update({
+      where: { id: notification.id },
+      data: { isSent: true, sentAt: new Date() }
+    });
+    
+    console.log(`✅ Sent reminders for: ${notification.event.title}`);
   }
 }
 

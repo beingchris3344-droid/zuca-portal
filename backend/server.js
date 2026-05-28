@@ -525,25 +525,31 @@ app.post("/api/cron/check", async (req, res) => {
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
-    const day = now.getDay(); // 0 = Sunday, 1 = Monday
+    const day = now.getDay();
     
     console.log(`🕐 Cron check at ${now.toISOString()} - Hour: ${hour}, Minute: ${minute}, Day: ${day}`);
     
     const executed = [];
     
-    // 1. Event reminders - Daily at 8:00 AM (give 5 minute window)
-    if (hour === 8 && minute < 5) {
-      await sendEventReminders();
-      executed.push("event_reminders");
-    }
+    // ========== RUN EVENT REMINDERS EVERY TIME ==========
+    // This will check for ALL pending notifications including:
+    // - 1 week before
+    // - 3 days before  
+    // - 1 day before
+    // - 12 hours before
+    // - 6 hours before
+    // - 1 hour before
+    // - 30 minutes before
+    await sendEventReminders();
+    executed.push("event_reminders");
     
-    // 2. Campaign reminders - Daily at 8:30 AM (give 5 minute window)
+    // ========== CAMPAIGN REMINDERS - Daily at 8:30 AM ==========
     if (hour === 8 && minute >= 30 && minute < 35) {
       await sendCampaignReminders();
       executed.push("campaign_reminders");
     }
     
-    // 3. No announcements alert - Monday at 9:00 AM
+    // ========== NO ANNOUNCEMENTS ALERT - Monday at 9:00 AM ==========
     if (day === 1 && hour === 9 && minute < 5) {
       await checkNoAnnouncements();
       executed.push("announcement_check");
@@ -552,7 +558,7 @@ app.post("/api/cron/check", async (req, res) => {
     res.json({
       success: true,
       time: now.toISOString(),
-      executed: executed.length > 0 ? executed : ["No reminders scheduled at this time"],
+      executed: executed,
       next_check: "Next cron ping in ~60 minutes"
     });
     

@@ -1714,4 +1714,92 @@ router.get("/all-entries", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+
+// Add this to your attendance routes file (before module.exports)
+
+// Get ALL meetings/sheets for a member (their attendance history + all meetings)
+router.get("/member/all-meetings", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get ALL attendance sheets (both active and closed)
+    const allSheets = await prisma.attendanceSheet.findMany({
+      orderBy: { eventDate: "desc" },
+      include: {
+        entries: {
+          where: { userId: userId },
+          select: {
+            id: true,
+            signTime: true,
+            signMethod: true,
+            userId: true
+          }
+        },
+        _count: {
+          select: { entries: true }
+        }
+      }
+    });
+    
+    // Get user's attendance history
+    const userEntries = await prisma.attendanceEntry.findMany({
+      where: { userId: userId },
+      include: {
+        sheet: {
+          select: {
+            id: true,
+            title: true,
+            eventDate: true,
+            eventTime: true,
+            location: true
+          }
+        }
+      },
+      orderBy: { signTime: "desc" }
+    });
+    
+    // Calculate stats
+    const totalMeetings = allSheets.length;
+    const attendedMeetings = userEntries.length;
+    const attendanceRate = totalMeetings > 0 ? (attendedMeetings / totalMeetings) * 100 : 0;
+    
+    // Get upcoming meetings
+    const upcomingMeetings = allSheets.filter(sheet => 
+      new Date(sheet.eventDate) > new Date() && sheet.isActive
+    ).length;
+    
+    // Get missed meetings (sheets where user didn't check in)
+    const attendedSheetIds = new Set(userEntries.map(e => e.sheetId));
+    const missedMeetings = allSheets.filter(sheet => !attendedSheetIds.has(sheet.id));
+    
+    res.json({
+      success: true,
+      allMeetings: allSheets.map(sheet => ({
+        id: sheet.id,
+        title: sheet.title,
+        eventDate: sheet.eventDate,
+        eventTime: sheet.eventTime,
+        location: sheet.location,
+        isActive: sheet.isActive,
+        totalAttendees: sheet._count.entries,
+        userAttended: sheet.entries.length > 0,
+        userSignTime: sheet.entries[0]?.signTime || null,
+        userSignMethod: sheet.entries[0]?.signMethod || null
+      })),
+      userHistory: userEntries,
+      stats: {
+        totalMeetings,
+        attendedMeetings,
+        missedMeetings: missedMeetings.length,
+        attendanceRate: attendanceRate.toFixed(1),
+        upcomingMeetings
+      }
+    });
+    
+  } catch (err) {
+    console.error("Get member meetings error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

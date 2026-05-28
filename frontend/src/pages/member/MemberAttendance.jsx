@@ -218,6 +218,34 @@ useEffect(() => {
   registerBackgroundSync();
 }, []);
 
+// Periodic sync when app is in background (even if not open)
+useEffect(() => {
+  let syncInterval;
+  
+  const backgroundSync = async () => {
+    if (navigator.onLine) {
+      const pending = await getPendingCount();
+      if (pending > 0) {
+        console.log(`🔄 Background sync: ${pending} pending check-ins`);
+        setSyncing(true);
+        const result = await syncOfflineCheckins();
+        if (result.synced > 0) {
+          showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
+          fetchActiveSheets();
+        }
+        const newCount = await getPendingCount();
+        setPendingCount(newCount);
+        setSyncing(false);
+      }
+    }
+  };
+  
+  // Check every 30 seconds even when app is in background
+  syncInterval = setInterval(backgroundSync, 30000);
+  
+  return () => clearInterval(syncInterval);
+}, []);
+
 // Handle online/offline status and sync
 useEffect(() => {
 const handleOnline = async () => {

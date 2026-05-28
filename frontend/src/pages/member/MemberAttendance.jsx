@@ -175,7 +175,7 @@ useEffect(() => {
     setSyncing(true);
     
     // Sync offline check-ins
-    const result = await syncOfflineCheckins(axios, getHeaders);
+    const result = await syncOfflineCheckins();
     
     if (result.synced > 0) {
       showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');

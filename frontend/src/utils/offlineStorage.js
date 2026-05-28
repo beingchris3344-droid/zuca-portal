@@ -1,3 +1,37 @@
+// frontend/src/utils/offlineStorage.js
+
+import axios from 'axios';
+
+// Get the backend URL - same logic as api.js
+const getBaseUrl = () => {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (hostname === 'localhost') {
+    return 'http://localhost:5000';
+  }
+  return 'https://zuca-backend-iw9p.onrender.com';
+};
+
+const BASE_URL = getBaseUrl();
+
+// Create axios instance for offline sync
+const syncApi = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token interceptor
+syncApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ==================== INDEXEDDB HELPERS ====================
+
 // Open IndexedDB for storing offline check-ins
 const openDB = () => {
   return new Promise((resolve, reject) => {
@@ -17,6 +51,8 @@ const openDB = () => {
     };
   });
 };
+
+// ==================== OFFLINE CHECK-IN FUNCTIONS ====================
 
 // Save offline check-in
 export const saveOfflineCheckin = async (sheetId, deviceId, deviceName) => {
@@ -73,6 +109,27 @@ export const removePendingCheckin = async (id) => {
   }
 };
 
+// Get pending count
+export const getPendingCount = async () => {
+  const pending = await getPendingCheckins();
+  return pending.length;
+};
+
+// Clear all pending check-ins (for testing)
+export const clearAllPendingCheckins = async () => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(['pendingCheckins'], 'readwrite');
+    const store = transaction.objectStore('pendingCheckins');
+    store.clear();
+    console.log('🗑️ All pending check-ins cleared');
+  } catch (error) {
+    console.error('Failed to clear check-ins:', error);
+  }
+};
+
+// ==================== OFFLINE DATA CACHING ====================
+
 // Save offline data (like active sheets)
 export const saveOfflineData = async (key, data) => {
   try {
@@ -103,11 +160,13 @@ export const getOfflineData = async (key) => {
   }
 };
 
+// ==================== SYNC FUNCTION ====================
+
 // Sync all pending check-ins when back online
-export const syncOfflineCheckins = async (api, getHeaders) => {
+export const syncOfflineCheckins = async () => {
   const pending = await getPendingCheckins();
   
-  if (pending.length === 0) return;
+  if (pending.length === 0) return { synced: 0, failed: 0 };
   
   console.log(`🔄 Syncing ${pending.length} offline check-in(s)...`);
   
@@ -116,11 +175,11 @@ export const syncOfflineCheckins = async (api, getHeaders) => {
   
   for (const checkin of pending) {
     try {
-      const response = await api.post('/api/attendance/self-checkin', {
+      const response = await syncApi.post('/api/attendance/self-checkin', {
         sheetId: checkin.sheetId,
         deviceId: checkin.deviceId,
         deviceName: `${checkin.deviceName} (Synced)`
-      }, { headers: getHeaders() });
+      });
       
       if (response.data.success) {
         await removePendingCheckin(checkin.id);
@@ -128,32 +187,15 @@ export const syncOfflineCheckins = async (api, getHeaders) => {
         console.log(`✅ Synced check-in for sheet: ${checkin.sheetId}`);
       } else {
         failed++;
+        console.error(`❌ Sync failed for ${checkin.sheetId}:`, response.data.error);
       }
     } catch (error) {
       failed++;
-      console.error(`❌ Failed to sync check-in ${checkin.id}:`, error);
+      const errorMsg = error.response?.data?.error || error.message;
+      console.error(`❌ Failed to sync check-in ${checkin.id}:`, errorMsg);
     }
   }
   
   console.log(`📊 Sync complete: ${synced} synced, ${failed} failed`);
   return { synced, failed };
-};
-
-// Clear all pending check-ins (for testing)
-export const clearAllPendingCheckins = async () => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction(['pendingCheckins'], 'readwrite');
-    const store = transaction.objectStore('pendingCheckins');
-    store.clear();
-    console.log('🗑️ All pending check-ins cleared');
-  } catch (error) {
-    console.error('Failed to clear check-ins:', error);
-  }
-};
-
-// Get pending count
-export const getPendingCount = async () => {
-  const pending = await getPendingCheckins();
-  return pending.length;
 };

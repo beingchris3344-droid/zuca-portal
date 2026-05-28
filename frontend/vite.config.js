@@ -9,25 +9,11 @@ export default defineConfig({
     viteCompression(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Use generateSW strategy instead of injectManifest
-      strategies: 'generateSW',
-      workbox: {
-        // Increase file size limit to 5MB
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        // Don't try to cache huge files
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Exclude large asset files from precaching
-        globIgnores: ['**/assets/*-DE4zo69Q.js'], // Your large bundle
-        // Runtime caching for API calls
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\./,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache'
-            }
-          }
-        ]
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'sw.js',
+      injectManifest: {
+        injectionPoint: undefined,
       },
       manifest: {
         name: "ZucaPortal",
@@ -52,7 +38,6 @@ export default defineConfig({
       }
     })
   ],
-  
   server: {
     port: 5173,
     proxy: {
@@ -63,7 +48,6 @@ export default defineConfig({
       }
     }
   },
-  
   build: {
     rollupOptions: {
       output: {

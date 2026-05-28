@@ -95,6 +95,7 @@ if (!isOnline) {
   }
   return;
 }
+
   
   // Online check-in
   setCheckingIn(sheetId);

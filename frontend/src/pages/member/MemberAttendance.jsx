@@ -169,28 +169,38 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
 
 // Handle online/offline status and sync
 useEffect(() => {
-  const handleOnline = async () => {
-    console.log('🟢 Back online!');
-    setIsOnline(true);
-    setSyncing(true);
-    
-    // Sync offline check-ins
-    const result = await syncOfflineCheckins();
-    
-    if (result.synced > 0) {
-      showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
-      fetchActiveSheets();
-    }
-    
-    setSyncing(false);
-  };
+const handleOnline = async () => {
+  console.log('🟢 Back online!');
+  setIsOnline(true);
+  setSyncing(true);
+  
+  // Sync offline check-ins
+  const result = await syncOfflineCheckins();
+  
+  if (result.synced > 0) {
+    showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
+    fetchActiveSheets();
+  }
+  
+  // ✅ IMPORTANT: Refresh pending count after sync
+  const newCount = await getPendingCount();
+  setPendingCount(newCount);
+  
+  setSyncing(false);
+};
   
   const handleOffline = () => {
-    console.log('🔴 Offline mode');
-    setIsOnline(false);
-    showToast('📱 You are offline. Check-ins will be saved and synced when online.', 'info');
-  };
+  console.log('🔴 Offline mode');
+  setIsOnline(false);
+  showToast('📱 You are offline. Check-ins will be saved and synced when online.', 'info');
   
+  // ✅ Refresh pending count when going offline
+  const loadCount = async () => {
+    const count = await getPendingCount();
+    setPendingCount(count);
+  };
+  loadCount();
+};
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
   

@@ -23,24 +23,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   };
 
 
-  // Register background sync when app loads
-useEffect(() => {
-  const registerBackgroundSync = async () => {
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        await registration.sync.register('sync-checkins');
-        console.log('✅ Background sync registered successfully');
-      } catch (err) {
-        console.error('Background sync registration failed:', err);
-      }
-    } else {
-      console.log('⚠️ Background sync not supported in this browser');
-    }
-  };
   
-  registerBackgroundSync();
-}, []);
   
   // Monitor online/offline status
   useEffect(() => {

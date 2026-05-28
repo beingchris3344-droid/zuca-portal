@@ -182,6 +182,26 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [isOnline, pendingCount]);
 
+
+// Register background sync
+useEffect(() => {
+  const registerBackgroundSync = async () => {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      const registration = await navigator.serviceWorker.ready;
+      try {
+        await registration.sync.register('sync-checkins');
+        console.log('✅ Background sync registered');
+      } catch (err) {
+        console.error('Background sync registration failed:', err);
+      }
+    } else {
+      console.log('Background sync not supported');
+    }
+  };
+  
+  registerBackgroundSync();
+}, []);
+
 // Handle online/offline status and sync
 useEffect(() => {
 const handleOnline = async () => {

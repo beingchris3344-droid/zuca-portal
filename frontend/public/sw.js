@@ -1,24 +1,163 @@
 // ================== ZUCA SERVICE WORKER ==================
 const CACHE_NAME = 'zuca-v4';
+const SYNC_TAG = 'sync-checkins';
 
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  self.skipWaiting(); // ← Add this line
+  self.skipWaiting();
 });
 
 // ================== ACTIVATE ==================
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
-  
-  event.waitUntil(
-    self.clients.claim()
-  );
+  event.waitUntil(self.clients.claim());
 });
 
-// ================== FETCH (Offline Support for Attendance) ==================
+// ================== BACKGROUND SYNC ==================
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync triggered:', event.tag);
+  
+  if (event.tag === SYNC_TAG) {
+    event.waitUntil(syncPendingCheckins());
+  }
+});
+
+async function syncPendingCheckins() {
+  console.log('[SW] Starting background sync...');
+  
+  try {
+    // Get all pending check-ins from IndexedDB
+    const db = await openDB();
+    const pending = await getPendingCheckinsFromDB(db);
+    
+    if (pending.length === 0) {
+      console.log('[SW] No pending check-ins to sync');
+      return;
+    }
+    
+    console.log(`[SW] Syncing ${pending.length} pending check-ins...`);
+    
+    const token = await getTokenFromCache();
+    if (!token) {
+      console.log('[SW] No auth token available');
+      return;
+    }
+    
+    let synced = 0;
+    
+    for (const checkin of pending) {
+      try {
+        const response = await fetch('https://zuca-backend-iw9p.onrender.com/api/attendance/self-checkin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            sheetId: checkin.sheetId,
+            deviceId: checkin.deviceId,
+            deviceName: `${checkin.deviceName} (Background Sync)`
+          })
+        });
+        
+        if (response.ok) {
+          await removePendingCheckinFromDB(db, checkin.id);
+          synced++;
+          console.log(`[SW] ✅ Synced: ${checkin.sheetId}`);
+          
+          // Show notification that sync happened
+          await showSyncNotification(synced, pending.length);
+        }
+      } catch (error) {
+        console.error(`[SW] Failed to sync ${checkin.sheetId}:`, error);
+      }
+    }
+    
+    console.log(`[SW] Background sync complete: ${synced} synced`);
+    
+    // Notify all open windows
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'SYNC_COMPLETE',
+        synced: synced
+      });
+    });
+    
+  } catch (error) {
+    console.error('[SW] Background sync failed:', error);
+  }
+}
+
+// ================== INDEXEDDB HELPERS FOR SW ==================
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('zuca_offline', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+function getPendingCheckinsFromDB(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingCheckins', 'readonly');
+    const store = tx.objectStore('pendingCheckins');
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function removePendingCheckinFromDB(db, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingCheckins', 'readwrite');
+    const store = tx.objectStore('pendingCheckins');
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getTokenFromCache() {
+  const cache = await caches.open(CACHE_NAME);
+  const response = await cache.match('/auth-token');
+  if (response) {
+    const data = await response.json();
+    return data.token;
+  }
+  return null;
+}
+
+async function showSyncNotification(synced, total) {
+  const notification = await self.registration.showNotification('✅ ZUCA Attendance Synced', {
+    body: `${synced} of ${total} offline check-in(s) have been synced.`,
+    icon: '/android-chrome-192x192.png',
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    data: { url: '/member/attendance' }
+  });
+}
+
+// ================== FETCH (Offline Support) ==================
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+  
+  // Cache auth token when user logs in
+  if (url.pathname.includes('/api/login') && event.request.method === 'POST') {
+    event.respondWith(
+      fetch(event.request).then(async (response) => {
+        const clone = response.clone();
+        const data = await clone.json();
+        if (data.token) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put('/auth-token', new Response(JSON.stringify({ token: data.token })));
+        }
+        return response;
+      })
+    );
+    return;
+  }
   
   // Cache attendance API requests for offline use
   if (url.pathname.includes('/api/attendance/active') || 
@@ -27,19 +166,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         try {
-          // Try network first
           const response = await fetch(event.request);
-          // Cache the fresh response
           cache.put(event.request, response.clone());
           return response;
         } catch (error) {
-          // Network failed - return cached version
           const cachedResponse = await cache.match(event.request);
           if (cachedResponse) {
             console.log('[SW] Serving cached attendance data');
             return cachedResponse;
           }
-          // No cache - return offline message
           return new Response(JSON.stringify({ 
             success: false, 
             error: 'You are offline. Please check your connection.',
@@ -54,7 +189,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // For static assets (JS, CSS, images) - cache first
+  // For static assets
   if (event.request.method === 'GET' && 
       (url.pathname.includes('.js') || 
        url.pathname.includes('.css') || 
@@ -81,9 +216,8 @@ self.addEventListener('fetch', (event) => {
 // ================== PUSH NOTIFICATIONS ==================
 self.addEventListener('push', (event) => {
   console.log('[SW] 🔔 Push received');
-
+  
   let title = 'ZUCA Portal';
-
   let options = {
     body: 'New notification',
     icon: '/android-chrome-192x192.png',
@@ -91,53 +225,28 @@ self.addEventListener('push', (event) => {
     vibrate: [200, 100, 200],
     requireInteraction: true,
     silent: false,
-    data: {
-      url: '/'
-    }
+    data: { url: '/' }
   };
-
+  
   if (event.data) {
     try {
       const payload = event.data.json();
-      console.log('[SW] Payload:', payload);
-
       title = payload.title || title;
       options.body = payload.body || options.body;
       options.data.url = payload.data?.url || payload.url || '/';
-
-      // Optional enhancements
-      if (payload.type === 'announcement') {
-        options.body = `📢 ${options.body}`;
-      }
-
-      if (payload.type === 'game_invite') {
-        options.body = `🎮 ${options.body}`;
-        options.vibrate = [500, 200, 500];
-      }
-
-      if (payload.type === 'payment') {
-        options.body = `💰 ${options.body}`;
-      }
-
     } catch (err) {
-      console.log('[SW] Non-JSON push payload');
       options.body = event.data.text() || options.body;
     }
   }
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // ================== NOTIFICATION CLICK ==================
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked');
-
   event.notification.close();
-
   const url = event.notification.data?.url || '/';
-
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientsArr) => {

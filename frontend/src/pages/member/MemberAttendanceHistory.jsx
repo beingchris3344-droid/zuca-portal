@@ -5,7 +5,7 @@ import BASE_URL from '../../api';
 import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, RadialBarChart, RadialBar
+  RadialBarChart, RadialBar
 } from 'recharts';
 
 export default function MemberAttendanceHistory() {
@@ -16,17 +16,25 @@ export default function MemberAttendanceHistory() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [activeChart, setActiveChart] = useState('trend');
+  const [userName, setUserName] = useState('');
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
   
+  // SINGLE fetchData function - combines user info and meetings
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Fetch all meetings for this member (using new endpoint)
+      // Fetch user info first
+      const userResponse = await axios.get(`${BASE_URL}/api/me`, {
+        headers: getHeaders()
+      });
+      setUserName(userResponse.data.fullName || 'Member');
+      
+      // Fetch all meetings for this member
       const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
         headers: getHeaders()
       });
@@ -105,7 +113,6 @@ export default function MemberAttendanceHistory() {
   const getMonthlyComparison = () => {
     const months = {};
     
-    // Group all meetings by month
     allMeetings.forEach(meeting => {
       const date = new Date(meeting.eventDate);
       const monthKey = date.toLocaleString('default', { month: 'short' });
@@ -125,7 +132,6 @@ export default function MemberAttendanceHistory() {
       }
     });
     
-    // Calculate attendance rate for each month
     return Object.values(months).map(month => ({
       ...month,
       attendanceRate: month.totalMeetings > 0 ? (month.attendedMeetings / month.totalMeetings) * 100 : 0
@@ -135,7 +141,6 @@ export default function MemberAttendanceHistory() {
   // Generate weekly performance data
   const getWeeklyPerformance = () => {
     const weeks = {};
-    const now = new Date();
     const eightWeeksAgo = new Date();
     eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
     
@@ -201,47 +206,34 @@ export default function MemberAttendanceHistory() {
       .sort((a, b) => monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month));
   };
   
-  // Performance metrics
+  // Performance metrics - FIXED version
   const getPerformanceMetrics = () => {
     const totalMeetings = stats?.totalMeetings || 0;
     const attendedMeetings = stats?.attendedMeetings || 0;
     
     const attendanceScore = totalMeetings > 0 ? (attendedMeetings / totalMeetings) * 100 : 0;
-    const consistencyScore = calculateConsistencyScore();
-    const timelinessScore = calculateTimelinessScore();
+    
+    // Simple consistency = attendance rate (accurate)
+    const consistencyScore = attendanceScore;
+    
+    // Timeliness (100% if they attended at least once)
+    const timelinessScore = attendedMeetings > 0 ? 100 : 0;
+    
+    const overallScore = (attendanceScore + consistencyScore + timelinessScore) / 3;
     
     return {
       attendanceScore: Math.round(attendanceScore),
       consistencyScore: Math.round(consistencyScore),
       timelinessScore: Math.round(timelinessScore),
-      overallScore: Math.round((attendanceScore + consistencyScore + timelinessScore) / 3)
+      overallScore: Math.round(overallScore)
     };
   };
   
-  const calculateConsistencyScore = () => {
-  const totalMeetings = stats?.totalMeetings || 0;
-  const attendedMeetings = stats?.attendedMeetings || 0;
-  
-  if (totalMeetings === 0) return 0;
-  
-  // Simple: consistency = attendance rate
-  return (attendedMeetings / totalMeetings) * 100;
-};
-  const calculateTimelinessScore = () => {
-    // Calculate based on check-in method
-    const selfCheckins = userHistory.filter(h => h.signMethod === 'SELF' || h.signMethod === 'QR_CODE').length;
-    const totalCheckins = userHistory.length;
-    if (totalCheckins === 0) return 0;
-    return (selfCheckins / totalCheckins) * 100;
-  };
-  
   const filteredMeetings = getFilteredMeetings();
-  const filteredHistory = getFilteredHistory();
   const weeklyData = getWeeklyPerformance();
   const monthlyData = getMonthlyTrend();
   const metrics = getPerformanceMetrics();
   
-  // Calculate additional stats
   const totalMeetings = stats?.totalMeetings || 0;
   const attendedMeetings = stats?.attendedMeetings || 0;
   const missedMeetings = stats?.missedMeetings || 0;
@@ -264,13 +256,23 @@ export default function MemberAttendanceHistory() {
     return null;
   };
   
+  // Get first name only
+  const firstName = userName.split(' ')[0] || 'Member';
+  
   return (
     <div className="attendance-history-page">
       <div className="page-header">
         <button className="back-btn" onClick={() => navigate('/dashboard')}>
           <ArrowLeft size={20} /> Back
         </button>
-        <h1>Performance Analytics Dashboard</h1>
+        
+        <div className="header-text">
+          <h1>
+            Hey, <span className="user-name">{firstName}</span>!
+            <span className="title-split"> This is your zuca attendance history & analysis</span>
+          </h1>
+        </div>
+        
         <div className="semester-badge">
           <Target size={16} />
           <span>Current Semester</span>
@@ -381,7 +383,6 @@ export default function MemberAttendanceHistory() {
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} name="Your Attendance Rate" dot={{ fill: '#10b981', r: 6 }} />
-                    <Line type="monotone" dataKey="totalMeetings" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" name="Total Meetings" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="chart-insight">
@@ -471,7 +472,7 @@ export default function MemberAttendanceHistory() {
             </button>
           </div>
           
-          {/* Meetings List - Shows ALL meetings with attendance status */}
+          {/* Meetings List */}
           <div className="meetings-list">
             <div className="history-header">
               <h3>All Meetings & Attendance Status</h3>
@@ -554,13 +555,24 @@ export default function MemberAttendanceHistory() {
           background: #f8fafc;
           transform: translateX(-2px);
         }
-        .page-header h1 {
+        .header-text {
+          text-align: center;
+          flex: 1;
+        }
+        .header-text h1 {
           font-size: 22px;
           font-weight: 700;
           margin: 0;
-          background: linear-gradient(135deg, #1e293b, #3b82f6);
+        }
+        .user-name {
+          background: linear-gradient(135deg, #10b981, #3b82f6);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+        }
+        .title-split {
+          font-size: 16px;
+          font-weight: 400;
+          color: #64748b;
         }
         .semester-badge {
           display: flex;
@@ -879,6 +891,11 @@ export default function MemberAttendanceHistory() {
           }
           .meeting-meta {
             flex-wrap: wrap;
+          }
+          .title-split {
+            display: block;
+            font-size: 14px;
+            margin-top: 4px;
           }
         }
       `}</style>

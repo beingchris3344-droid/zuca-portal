@@ -68,37 +68,45 @@ const [syncing, setSyncing] = useState(false);
       setLoading(false);
     }
   };
-  
  const handleCheckin = async (sheetId) => {
   const sheet = activeSheets.find(s => s.id === sheetId);
   if (!sheet) return;
   
- // Check if offline
-if (!isOnline) {
-  // Check if already have a pending check-in for this sheet
-  const pending = await getPendingCheckins();
-  const alreadyPending = pending.some(p => p.sheetId === sheetId);
+  // Set loading state immediately
+  setCheckingIn(sheetId);
   
-  if (alreadyPending) {
-    showToast('⚠️ You already have a pending check-in for this meeting. Will sync when online.', 'info');
+  // Check if offline
+  if (!isOnline) {
+    try {
+      // Check if already have a pending check-in for this sheet
+      const pending = await getPendingCheckins();
+      const alreadyPending = pending.some(p => p.sheetId === sheetId);
+      
+      if (alreadyPending) {
+        showToast('⚠️ You already have a pending check-in for this meeting. Will sync when online.', 'info');
+        setCheckingIn(null);
+        return;
+      }
+      
+      // Save offline check-in
+      const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
+      if (saved) {
+        const newCount = await getPendingCount();
+        setPendingCount(newCount);
+        showToast('📱 Offline check-in saved! Will sync when online.', 'info');
+      } else {
+        showToast('❌ Failed to save offline check-in', 'error');
+      }
+    } catch (error) {
+      console.error('Offline check-in error:', error);
+      showToast('❌ Failed to save offline check-in', 'error');
+    } finally {
+      setCheckingIn(null);
+    }
     return;
   }
   
-  // Save offline check-in
-  const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
-  if (saved) {
-    const newCount = await getPendingCount();
-    setPendingCount(newCount);
-    showToast('📱 Offline check-in saved! Will sync when online.', 'info');
-  } else {
-    showToast('❌ Failed to save offline check-in', 'error');
-  }
-  return;
-}
-
-  
   // Online check-in
-  setCheckingIn(sheetId);
   try {
     await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
       sheetId,
@@ -135,7 +143,6 @@ if (!isOnline) {
     setCheckingIn(null);
   }
 };
-
 const handleWifiCheckin = async (sheetId, wifiSSID) => {
   const sheet = activeSheets.find(s => s.id === sheetId);
   if (!sheet) return;

@@ -10,8 +10,7 @@ import {
 import QRScanner from '../../components/member/attendance/QRScanner';
 
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
-import { saveOfflineCheckin, getPendingCount, syncOfflineCheckins } from '../../utils/offlineStorage';
-
+import { saveOfflineCheckin, getPendingCount, getPendingCheckins, syncOfflineCheckins } from '../../utils/offlineStorage';
 export default function MemberAttendance() {
   const navigate = useNavigate();
   const [activeSheets, setActiveSheets] = useState([]);

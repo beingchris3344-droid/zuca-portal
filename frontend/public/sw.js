@@ -18,10 +18,66 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ================== FETCH (Optional Offline Support) ==================
+// ================== FETCH (Offline Support for Attendance) ==================
 self.addEventListener('fetch', (event) => {
-  // Optional: You can expand caching later
-  return;
+  const url = new URL(event.request.url);
+  
+  // Cache attendance API requests for offline use
+  if (url.pathname.includes('/api/attendance/active') || 
+      url.pathname.includes('/api/attendance/sheet/')) {
+    
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        try {
+          // Try network first
+          const response = await fetch(event.request);
+          // Cache the fresh response
+          cache.put(event.request, response.clone());
+          return response;
+        } catch (error) {
+          // Network failed - return cached version
+          const cachedResponse = await cache.match(event.request);
+          if (cachedResponse) {
+            console.log('[SW] Serving cached attendance data');
+            return cachedResponse;
+          }
+          // No cache - return offline message
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'You are offline. Please check your connection.',
+            offline: true 
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      })
+    );
+    return;
+  }
+  
+  // For static assets (JS, CSS, images) - cache first
+  if (event.request.method === 'GET' && 
+      (url.pathname.includes('.js') || 
+       url.pathname.includes('.css') || 
+       url.pathname.includes('.png') || 
+       url.pathname.includes('.jpg') ||
+       url.pathname.includes('.jpeg') ||
+       url.pathname.includes('.svg') ||
+       url.pathname.includes('.webp'))) {
+    
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        return cachedResponse || fetch(event.request).then((response) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, response.clone());
+            return response;
+          });
+        });
+      })
+    );
+    return;
+  }
 });
 
 // ================== PUSH NOTIFICATIONS ==================

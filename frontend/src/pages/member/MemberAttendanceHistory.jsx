@@ -219,16 +219,14 @@ export default function MemberAttendanceHistory() {
   };
   
   const calculateConsistencyScore = () => {
-    const monthlyData = getMonthlyTrend();
-    if (monthlyData.length === 0) return 0;
-    
-    const attendanceRates = monthlyData.map(m => m.attendanceRate);
-    const avgAttendance = attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length;
-    const variance = attendanceRates.reduce((sum, rate) => sum + Math.pow(rate - avgAttendance, 2), 0) / attendanceRates.length;
-    const consistency = Math.max(0, 100 - (variance * 2));
-    return Math.min(100, consistency);
-  };
+  const totalMeetings = stats?.totalMeetings || 0;
+  const attendedMeetings = stats?.attendedMeetings || 0;
   
+  if (totalMeetings === 0) return 0;
+  
+  // Simple: consistency = attendance rate
+  return (attendedMeetings / totalMeetings) * 100;
+};
   const calculateTimelinessScore = () => {
     // Calculate based on check-in method
     const selfCheckins = userHistory.filter(h => h.signMethod === 'SELF' || h.signMethod === 'QR_CODE').length;

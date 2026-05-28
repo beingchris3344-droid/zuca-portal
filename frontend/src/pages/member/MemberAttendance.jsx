@@ -167,6 +167,21 @@ const handleWifiCheckin = async (sheetId, wifiSSID) => {
   }
 };
 
+// Periodically check pending count when online
+useEffect(() => {
+  if (!isOnline) return;
+  
+  const checkPending = async () => {
+    const count = await getPendingCount();
+    if (count !== pendingCount) {
+      setPendingCount(count);
+    }
+  };
+  
+  const interval = setInterval(checkPending, 3000);
+  return () => clearInterval(interval);
+}, [isOnline, pendingCount]);
+
 // Handle online/offline status and sync
 useEffect(() => {
 const handleOnline = async () => {

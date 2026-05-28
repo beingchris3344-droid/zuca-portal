@@ -11,6 +11,7 @@ async function main() {
       fullName: "Super Admin",
       email: "admin@zuca.com",
       password: hashedPassword,
+      phone : "0700000000",
       role: "admin",
     },
   });

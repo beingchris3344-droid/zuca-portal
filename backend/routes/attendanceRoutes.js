@@ -258,11 +258,10 @@ router.get("/sheet/:sheetId/qr-status", authenticate, requireLeaderOrAdmin, asyn
 
 // Get message tone based on user role
 function getMessageTone(userRole, specialRole) {
-  // Executive positions (highest priority)
   if (specialRole === 'chairperson') {
     return {
-      missedTitle: "👑 EXECUTIVE ALERT: Meeting Missed",
-      missedMessage: "Your presence is required at leadership meetings. Please prioritize ZUCA executive duties. Contact the chairperson immediately.",
+      missedTitle: "Executive Attendance Notice",
+      missedMessage: "Your attendance is required at leadership meetings. Please review the meeting minutes and contact the administration regarding your absence.",
       style: "urgent",
       actionRequired: true
     };
@@ -270,8 +269,8 @@ function getMessageTone(userRole, specialRole) {
   
   if (specialRole === 'secretary') {
     return {
-      missedTitle: "📋 SECRETARY ALERT: Meeting Attendance Required",
-      missedMessage: "You missed today's meeting. As secretary, your attendance is crucial for record-keeping. Please review the minutes.",
+      missedTitle: "Secretary Attendance Notice",
+      missedMessage: "You were not recorded as present at today's meeting. As secretary, your attendance is important for meeting documentation. Please contact the chairperson for any updates.",
       style: "important",
       actionRequired: true
     };
@@ -279,8 +278,8 @@ function getMessageTone(userRole, specialRole) {
   
   if (specialRole === 'treasurer') {
     return {
-      missedTitle: "FINANCIAL OFFICER: Meeting Missed",
-      missedMessage: "You were absent from today's meeting. Financial decisions were discussed. Please contact the chairperson for an update.",
+      missedTitle: "Finance Officer Attendance Notice",
+      missedMessage: "Your attendance was not recorded at today's meeting. Financial matters were discussed. Please contact the chairperson for information.",
       style: "important",
       actionRequired: true
     };
@@ -288,8 +287,8 @@ function getMessageTone(userRole, specialRole) {
   
   if (specialRole === 'jumuia_leader') {
     return {
-      missedTitle: "⚠️ JUMUIA LEADER: Action Required",
-      missedMessage: "You missed today's   meeting. Important decisions were made . Please check with the admin.",
+      missedTitle: "Jumuia Leader Attendance Notice",
+      missedMessage: "You were absent from today's meeting. Please check with the administration for any important announcements.",
       style: "urgent",
       actionRequired: true
     };
@@ -297,8 +296,8 @@ function getMessageTone(userRole, specialRole) {
   
   if (specialRole === 'choir_moderator') {
     return {
-      missedTitle: "🎵 CHOIR LEADER:You missed todays meeting",
-      missedMessage: "You missed today's meeting. please make effort to attend zucas meeting..",
+      missedTitle: "Choir Leader Attendance Notice",
+      missedMessage: "Your attendance was not recorded at today's meeting. Please review the meeting notes for any updates on upcoming services.",
       style: "direct",
       actionRequired: false
     };
@@ -306,8 +305,8 @@ function getMessageTone(userRole, specialRole) {
   
   if (specialRole === 'media_moderator') {
     return {
-      missedTitle: "You missed todays zuca meeting!",
-      missedMessage: "You missed today's meeting. Please check the group chat for updates on upcoming events and please meke affort to be attendig meetings.",
+      missedTitle: "Media Team Attendance Notice",
+      missedMessage: "You missed today's meeting. Please check the group communications for updates on upcoming events.",
       style: "informative",
       actionRequired: false
     };
@@ -315,11 +314,12 @@ function getMessageTone(userRole, specialRole) {
   
   // Regular member
   return {
-    missedTitle: "You Missed Today's Meeting",
-    missedMessage: "Attendance is almost closed. please make effort in attending zuca meetings as much as possible Thankyou!",
+    missedTitle: "Meeting Attendance Notice",
+    missedMessage: "Your attendance was not recorded for the recent meeting. Please make note of future meeting schedules.",
     style: "gentle",
     actionRequired: false
   };
+
 }
 
 // Send check-in confirmation to member
@@ -343,12 +343,23 @@ const sendCheckinConfirmation = async (userId, sheetTitle, entry) => {
     // Send email confirmation
     if (user.email) {
       await sendPersonalizedEmail(
-        { email: user.email, fullName: user.fullName },
-        "attendance_checkin",
-        `✅ Check-in Confirmation: ${sheetTitle}`,
-        `Dear ${user.fullName},\n\nYou have been successfully checked in for "${sheetTitle}".\n\nTime: ${new Date(entry.signTime).toLocaleString()}\nMethod: ${entry.signMethod}\n\nThank you for attending!\n\nTumsifu Yesu Kristu! 🙏`,
-        { sheetTitle, signTime: entry.signTime, signMethod: entry.signMethod }
-      );
+  { email: user.email, fullName: user.fullName },
+  "attendance_checkin",
+  `Check-in Confirmation: ${sheetTitle}`,
+  `Dear ${user.fullName},
+
+This is to confirm that you have been successfully checked in for "${sheetTitle}".
+
+Check-in Details:
+- Meeting: ${sheetTitle}
+- Time: ${new Date(entry.signTime).toLocaleString()}
+- Method: ${entry.signMethod}
+
+Thank you for your attendance.
+
+Zetech University Catholic Action (ZUCA)`,
+  { sheetTitle, signTime: entry.signTime, signMethod: entry.signMethod }
+);
     }
   } catch (err) {
     console.error("Failed to send check-in confirmation:", err.message);
@@ -453,13 +464,25 @@ const sendSheetClosedNotification = async (sheetId) => {
       if (member.email) {
         const emailSubject = tone.actionRequired ? `⚠️ URGENT: ${tone.missedTitle}` : tone.missedTitle;
         
-        await sendPersonalizedEmail(
-          { email: member.email, fullName: member.fullName },
-          "attendance_missed",
-          emailSubject,
-          `Dear ${member.fullName},\n\n${tone.missedMessage}\n\nMeeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\n\n${tone.actionRequired ? 'Please make arrangements to attend future meetings.' : 'We hope to see you next time!'}\n\nTumsifu Yesu Kristu! 🙏`,
-          { sheetTitle: sheet.title, meetingDate: sheet.eventDate }
-        );
+       await sendPersonalizedEmail(
+  { email: member.email, fullName: member.fullName },
+  "attendance_missed",
+  `Notice of Absence: ${sheet.title}`,
+  `Dear ${member.fullName},
+
+This is to notify you that your attendance was not recorded for the following meeting:
+
+Meeting: ${sheet.title}
+Date: ${new Date(sheet.eventDate).toLocaleString()}
+Location: ${sheet.location || "ZUCA"}
+
+${tone.actionRequired ? 'Please contact the meeting organizer to discuss any outstanding matters.' : 'We encourage you to attend future meetings to stay informed about ZUCA activities.'}
+
+For any questions, please contact ZUCA administration.
+
+Zetech University Catholic Action (ZUCA)`,
+  { sheetTitle: sheet.title, meetingDate: sheet.eventDate }
+);
       }
     }
     
@@ -478,13 +501,34 @@ const sendSheetClosedNotification = async (sheetId) => {
         const absentList = absentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
         const presentList = presentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
         
-        await sendPersonalizedEmail(
-          { email: sheet.creator.email, fullName: sheet.creator.fullName },
-          "attendance_admin_report",
-          `📊 Attendance Report: ${sheet.title}`,
-          `Dear ${sheet.creator.fullName},\n\nHere is the attendance summary for "${sheet.title}":\n\n${meetingSummary}\n\n✅ PRESENT (${presentMembers.length}):\n${presentList || "None"}\n\n❌ ABSENT (${absentMembers.length}):\n${absentList || "None"}\n\nThank you for your leadership!\n\nTumsifu Yesu Kristu! 🙏`,
-          { sheetTitle: sheet.title, presentCount: presentMembers.length, absentCount: absentMembers.length, presentList, absentList }
-        );
+      await sendPersonalizedEmail(
+  { email: sheet.creator.email, fullName: sheet.creator.fullName },
+  "attendance_admin_report",
+  `Attendance Report: ${sheet.title}`,
+  `Dear ${sheet.creator.fullName},
+
+Here is the official attendance report for "${sheet.title}":
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MEETING SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${meetingSummary}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRESENT (${presentMembers.length})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${presentList || "None"}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABSENT (${absentMembers.length})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${absentList || "None"}
+
+This report is automatically generated by ZUCA attendance system.
+
+Zetech University Catholic Action (ZUCA)`,
+  { sheetTitle: sheet.title, presentCount: presentMembers.length, absentCount: absentMembers.length, presentList, absentList }
+);
       }
     }
     
@@ -520,12 +564,23 @@ const sendReminderToUser = async (userId, sheetId, customMessage = null) => {
     
     if (user.email) {
       await sendPersonalizedEmail(
-        { email: user.email, fullName: user.fullName },
-        "attendance_reminder",
-        `📢 Meeting Reminder: ${sheet.title}`,
-        `Dear ${user.fullName},\n\n${message}\n\nMeeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\nLocation: ${sheet.location || "ZUCA"}\n\nWe look forward to seeing you!\n\nTumsifu Yesu Kristu! 🙏`,
-        { sheetTitle: sheet.title }
-      );
+  { email: user.email, fullName: user.fullName },
+  "attendance_reminder",
+  `Meeting Reminder: ${sheet.title}`,
+  `Dear ${user.fullName},
+
+${message}
+
+Meeting Details:
+- Title: ${sheet.title}
+- Date: ${new Date(sheet.eventDate).toLocaleString()}
+- Location: ${sheet.location || "ZUCA"}
+
+Your attendance is appreciated.
+
+Zetech University Catholic Action (ZUCA)`,
+  { sheetTitle: sheet.title }
+);
     }
     
     return true;
@@ -1388,13 +1443,24 @@ const sendAutomaticAbsentReminders = async () => {
         
         // Send email for important roles
         if (member.specialRole || member.role === "admin") {
-          await sendPersonalizedEmail(
-            { email: member.email, fullName: member.fullName },
-            "attendance_automatic_reminder",
-            `⚠️ ${tone.missedTitle}`,
-            `Dear ${member.fullName},\n\n${reminderMessage}\n\nMeeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\nLocation: ${sheet.location || "ZUCA"}\n\n${tone.actionRequired ? "Please take immediate action." : "We hope to see you next time!"}\n\nTumsifu Yesu Kristu! 🙏`,
-            { sheetTitle: sheet.title, eventDate: sheet.eventDate }
-          );
+        await sendPersonalizedEmail(
+  { email: member.email, fullName: member.fullName },
+  "attendance_automatic_reminder",
+  `Notice of Missed Meeting: ${sheet.title}`,
+  `Dear ${member.fullName},
+
+${reminderMessage}
+
+Meeting Information:
+- Title: ${sheet.title}
+- Date: ${new Date(sheet.eventDate).toLocaleString()}
+- Location: ${sheet.location || "ZUCA"}
+
+${tone.actionRequired ? "Please contact the meeting organizer for important updates." : "Please make note of future meeting schedules."}
+
+Zetech University Catholic Action (ZUCA)`,
+  { sheetTitle: sheet.title, eventDate: sheet.eventDate }
+);
         }
       }
     }

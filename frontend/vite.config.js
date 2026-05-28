@@ -15,6 +15,11 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: undefined,
       },
+      // ✅ Add this to ensure SW is served correctly
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
       manifest: {
         name: "ZucaPortal",
         short_name: "ZucaPortal",
@@ -42,9 +47,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://zuca-backend-iw9p.onrender.com', // ← Use your production backend URL
         changeOrigin: true,
-        secure: false,
+        secure: true,
       }
     }
   },

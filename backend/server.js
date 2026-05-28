@@ -5206,23 +5206,8 @@ app.post("/api/register", async (req, res) => {
     const normalizedEmail = email.toLowerCase();
     
     let formattedPhone = phone;
-    if (formattedPhone) {
-      let cleanPhone = formattedPhone.toString().trim().replace(/[\s\-\(\)]/g, '');
-      if (cleanPhone.startsWith("07")) {
-        formattedPhone = "+254" + cleanPhone.slice(1);
-      } else if (cleanPhone.startsWith("01")) {
-        formattedPhone = "+254" + cleanPhone.slice(1);
-      } else if (cleanPhone.startsWith("+254")) {
-        formattedPhone = cleanPhone;
-      } else if (cleanPhone.startsWith("254") && !cleanPhone.startsWith("+254")) {
-        formattedPhone = "+" + cleanPhone;
-      } else if (cleanPhone.startsWith("0")) {
-        formattedPhone = "+254" + cleanPhone.slice(1);
-      } else if (cleanPhone.length === 9) {
-        formattedPhone = "+254" + cleanPhone;
-      } else {
-        formattedPhone = "+254" + cleanPhone;
-      }
+    if (phone.startsWith("07")) {
+      formattedPhone = "+254" + phone.slice(1);
     }
 
     const existingEmail = await prisma.user.findUnique({
@@ -13524,10 +13509,9 @@ function parseDateString(dateStr) {
   return null;
 }
 
-// Helper function to generate notification message
 function getNotificationMessage(event, timing) {
   const eventTime = event.eventTime || "16:30";
-  const location = event.location || "Room 002";
+  const location = event.location || "Location to be announced";
   const eventDateFormatted = new Date(event.eventDate).toLocaleDateString('en-US', { 
     weekday: 'long', 
     year: 'numeric', 
@@ -13538,7 +13522,7 @@ function getNotificationMessage(event, timing) {
   const messages = {
     "1 week before": `📅 REMINDER: "${event.title}" is in 1 week on ${eventDateFormatted} at ${eventTime} in ${location}. Please prepare and mark your calendar!`,
     "3 days before": `📅 REMINDER: "${event.title}" is in 3 days on ${eventDateFormatted} at ${eventTime} in ${location}. Don't forget to attend!`,
-    "1 day before": `🔔 IMPORTANT: "${event.title}" is TOMORROW at ${eventTime} in ${location}. Please be punctual and prepared!`,
+    "1 day before": `🔔 IMPORTANT: "${event.title}" is on ${eventDateFormatted} at ${eventTime} in ${location}. Please be punctual and prepared!`,
     "12 hours before": `⏰ "${event.title}" is in 12 hours (Today at ${eventTime} in ${location}). Get ready!`,
     "6 hours before": `⏰ "${event.title}" is in 6 hours at ${eventTime} in ${location}. Make your way to the venue.`,
     "1 hour before": `🚨 URGENT: "${event.title}" starts in 1 hour at ${eventTime} in ${location}. Please head to the venue now!`,
@@ -13548,7 +13532,6 @@ function getNotificationMessage(event, timing) {
   
   return messages[timing] || `📢 "${event.title}" is scheduled for ${eventDateFormatted} at ${eventTime} in ${location}.`;
 }
-
 // Helper function to create scheduled notifications for an event (OPTIMIZED)
 async function createEventNotifications(event, scheduleId) {
   try {
@@ -14167,9 +14150,9 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
     
     for (const notification of pendingNotifications) {
       const alreadyReceived = await prisma.notification.findFirst({
-        where: {
-          userId: userId,
-          data: { path: `notification_${notification.id}` }
+  where: {
+    userId: userId,
+    data: { path: [`notification_${notification.id}`] } 
         }
       });
       

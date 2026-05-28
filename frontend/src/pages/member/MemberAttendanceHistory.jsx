@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
-import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar
+  PieChart, Pie, Cell, RadialBarChart, RadialBar
 } from 'recharts';
 
 export default function MemberAttendanceHistory() {
   const navigate = useNavigate();
-  const [history, setHistory] = useState([]);
+  const [userHistory, setUserHistory] = useState([]);
+  const [allMeetings, setAllMeetings] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -21,24 +22,62 @@ export default function MemberAttendanceHistory() {
     return { Authorization: `Bearer ${token}` };
   };
   
-  const fetchHistory = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${BASE_URL}/api/attendance/my-history`, {
+      
+      // Fetch all meetings for this member (using new endpoint)
+      const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
         headers: getHeaders()
       });
-      setHistory(response.data.history || []);
+      
+      setAllMeetings(response.data.allMeetings || []);
+      setUserHistory(response.data.userHistory || []);
       setStats(response.data.stats);
+      
     } catch (error) {
-      console.error('Error fetching attendance history:', error);
+      console.error('Error fetching attendance data:', error);
+      
+      // Fallback to old endpoint if new one fails
+      try {
+        const historyResponse = await axios.get(`${BASE_URL}/api/attendance/my-history`, {
+          headers: getHeaders()
+        });
+        setUserHistory(historyResponse.data.history || []);
+        setStats(historyResponse.data.stats);
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
   
   useEffect(() => {
-    fetchHistory();
+    fetchData();
   }, []);
+  
+  const getFilteredMeetings = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    if (filter === 'thisMonth') {
+      return allMeetings.filter(meeting => {
+        const date = new Date(meeting.eventDate);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+    }
+    if (filter === 'lastMonth') {
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      return allMeetings.filter(meeting => {
+        const date = new Date(meeting.eventDate);
+        return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
+      });
+    }
+    return allMeetings;
+  };
   
   const getFilteredHistory = () => {
     const now = new Date();
@@ -46,7 +85,7 @@ export default function MemberAttendanceHistory() {
     const currentYear = now.getFullYear();
     
     if (filter === 'thisMonth') {
-      return history.filter(item => {
+      return userHistory.filter(item => {
         const date = new Date(item.signTime);
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
       });
@@ -54,76 +93,120 @@ export default function MemberAttendanceHistory() {
     if (filter === 'lastMonth') {
       const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-      return history.filter(item => {
+      return userHistory.filter(item => {
         const date = new Date(item.signTime);
         return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
       });
     }
-    return history;
+    return userHistory;
+  };
+  
+  // Generate monthly attendance comparison data
+  const getMonthlyComparison = () => {
+    const months = {};
+    
+    // Group all meetings by month
+    allMeetings.forEach(meeting => {
+      const date = new Date(meeting.eventDate);
+      const monthKey = date.toLocaleString('default', { month: 'short' });
+      
+      if (!months[monthKey]) {
+        months[monthKey] = { 
+          month: monthKey, 
+          totalMeetings: 0, 
+          attendedMeetings: 0,
+          attendanceRate: 0
+        };
+      }
+      months[monthKey].totalMeetings++;
+      
+      if (meeting.userAttended) {
+        months[monthKey].attendedMeetings++;
+      }
+    });
+    
+    // Calculate attendance rate for each month
+    return Object.values(months).map(month => ({
+      ...month,
+      attendanceRate: month.totalMeetings > 0 ? (month.attendedMeetings / month.totalMeetings) * 100 : 0
+    }));
   };
   
   // Generate weekly performance data
   const getWeeklyPerformance = () => {
     const weeks = {};
-    const filteredHistory = getFilteredHistory();
+    const now = new Date();
+    const eightWeeksAgo = new Date();
+    eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
     
-    filteredHistory.forEach(record => {
-      const date = new Date(record.signTime);
+    const recentMeetings = allMeetings.filter(meeting => 
+      new Date(meeting.eventDate) >= eightWeeksAgo
+    );
+    
+    recentMeetings.forEach(meeting => {
+      const date = new Date(meeting.eventDate);
       const weekNum = Math.ceil(date.getDate() / 7);
       const weekKey = `Week ${weekNum}`;
       
       if (!weeks[weekKey]) {
-        weeks[weekKey] = { week: weekKey, attendance: 0, meetings: 0, onTime: 0 };
+        weeks[weekKey] = { 
+          week: weekKey, 
+          totalMeetings: 0, 
+          attendedMeetings: 0,
+          attendance: 0
+        };
       }
-      weeks[weekKey].meetings++;
-      weeks[weekKey].attendance = 100;
+      weeks[weekKey].totalMeetings++;
       
-      // Assume signMethod determines timeliness
-      if (record.signMethod === 'SELF' || record.signMethod === 'QR_CODE') {
-        weeks[weekKey].onTime++;
+      if (meeting.userAttended) {
+        weeks[weekKey].attendedMeetings++;
       }
     });
     
     return Object.values(weeks).map(week => ({
       ...week,
-      onTimeRate: week.meetings > 0 ? (week.onTime / week.meetings) * 100 : 0
+      attendance: week.totalMeetings > 0 ? (week.attendedMeetings / week.totalMeetings) * 100 : 0
     }));
   };
   
   // Generate monthly trend data
   const getMonthlyTrend = () => {
+    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const months = {};
-    const allHistory = history;
     
-    allHistory.forEach(record => {
-      const date = new Date(record.signTime);
+    allMeetings.forEach(meeting => {
+      const date = new Date(meeting.eventDate);
       const monthKey = date.toLocaleString('default', { month: 'short' });
       
       if (!months[monthKey]) {
-        months[monthKey] = { month: monthKey, attendance: 0, meetings: 0, fullMonth: 0 };
+        months[monthKey] = { 
+          month: monthKey, 
+          totalMeetings: 0, 
+          attendedMeetings: 0,
+          attendanceRate: 0
+        };
       }
-      months[monthKey].meetings++;
-      months[monthKey].attendance = 100;
+      months[monthKey].totalMeetings++;
+      
+      if (meeting.userAttended) {
+        months[monthKey].attendedMeetings++;
+      }
     });
     
-    // Add expected meetings (assuming 4 meetings per month)
-    Object.keys(months).forEach(month => {
-      months[month].expectedMeetings = 4;
-      months[month].attendanceRate = (months[month].meetings / 4) * 100;
-    });
-    
-    return Object.values(months);
+    return Object.values(months)
+      .map(month => ({
+        ...month,
+        attendanceRate: month.totalMeetings > 0 ? (month.attendedMeetings / month.totalMeetings) * 100 : 0
+      }))
+      .sort((a, b) => monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month));
   };
   
   // Performance metrics
   const getPerformanceMetrics = () => {
-    const filteredHistory = getFilteredHistory();
-    const totalMeetings = stats?.total || 0;
-    const presentCount = filteredHistory.length;
-    const expectedTotal = filter === 'all' ? (stats?.total || 0) : 
-                         filter === 'thisMonth' ? 4 : 4;
+    const totalMeetings = stats?.totalMeetings || 0;
+    const attendedMeetings = stats?.attendedMeetings || 0;
     
-    const attendanceScore = expectedTotal > 0 ? (presentCount / expectedTotal) * 100 : 0;
+    const attendanceScore = totalMeetings > 0 ? (attendedMeetings / totalMeetings) * 100 : 0;
     const consistencyScore = calculateConsistencyScore();
     const timelinessScore = calculateTimelinessScore();
     
@@ -136,37 +219,37 @@ export default function MemberAttendanceHistory() {
   };
   
   const calculateConsistencyScore = () => {
-    const weeklyData = getWeeklyPerformance();
-    if (weeklyData.length === 0) return 0;
+    const monthlyData = getMonthlyTrend();
+    if (monthlyData.length === 0) return 0;
     
-    const attendanceRates = weeklyData.map(w => w.attendance);
+    const attendanceRates = monthlyData.map(m => m.attendanceRate);
     const avgAttendance = attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length;
     const variance = attendanceRates.reduce((sum, rate) => sum + Math.pow(rate - avgAttendance, 2), 0) / attendanceRates.length;
-    const consistency = Math.max(0, 100 - (variance / 2));
-    return consistency;
+    const consistency = Math.max(0, 100 - (variance * 2));
+    return Math.min(100, consistency);
   };
   
   const calculateTimelinessScore = () => {
-    const weeklyData = getWeeklyPerformance();
-    if (weeklyData.length === 0) return 0;
-    
-    const avgOnTime = weeklyData.reduce((sum, week) => sum + week.onTimeRate, 0) / weeklyData.length;
-    return avgOnTime;
+    // Calculate based on check-in method
+    const selfCheckins = userHistory.filter(h => h.signMethod === 'SELF' || h.signMethod === 'QR_CODE').length;
+    const totalCheckins = userHistory.length;
+    if (totalCheckins === 0) return 0;
+    return (selfCheckins / totalCheckins) * 100;
   };
   
+  const filteredMeetings = getFilteredMeetings();
   const filteredHistory = getFilteredHistory();
   const weeklyData = getWeeklyPerformance();
   const monthlyData = getMonthlyTrend();
   const metrics = getPerformanceMetrics();
   
-  // Color gradients for charts
-  const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
-  const RADIAL_COLORS = [
-    { offset: '0%', color: '#10b981' },
-    { offset: '100%', color: '#34d399' }
-  ];
+  // Calculate additional stats
+  const totalMeetings = stats?.totalMeetings || 0;
+  const attendedMeetings = stats?.attendedMeetings || 0;
+  const missedMeetings = stats?.missedMeetings || 0;
+  const attendanceRate = stats?.attendanceRate || 0;
+  const upcomingMeetings = stats?.upcomingMeetings || 0;
   
-  // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -192,7 +275,7 @@ export default function MemberAttendanceHistory() {
         <h1>Performance Analytics Dashboard</h1>
         <div className="semester-badge">
           <Target size={16} />
-          <span>Fall 2024 Semester</span>
+          <span>Current Semester</span>
         </div>
       </div>
       
@@ -250,43 +333,37 @@ export default function MemberAttendanceHistory() {
           </div>
           
           {/* Stats Cards */}
-          {stats && (
-            <div className="stats-cards">
-              <div className="stat-card">
-                <div className="stat-icon">📊</div>
-                <div className="stat-value">{stats.total}</div>
-                <div className="stat-label">Total Meetings</div>
-                <div className="stat-trend">+{stats.total > 0 ? '12%' : '0%'} vs last sem</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon">✅</div>
-                <div className="stat-value">{stats.attendanceRate}%</div>
-                <div className="stat-label">Attendance Rate</div>
-                <div className="stat-trend positive">Above average</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon">📅</div>
-                <div className="stat-value">{history.filter(h => {
-                  const d = new Date(h.signTime);
-                  const now = new Date();
-                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                }).length}</div>
-                <div className="stat-label">This Month</div>
-                <div className="stat-trend">4 meetings expected</div>
-              </div>
+          <div className="stats-cards">
+            <div className="stat-card">
+              <div className="stat-icon">📊</div>
+              <div className="stat-value">{totalMeetings}</div>
+              <div className="stat-label">Total Meetings</div>
+              <div className="stat-trend">All time</div>
             </div>
-          )}
+            <div className="stat-card">
+              <div className="stat-icon">✅</div>
+              <div className="stat-value">{attendanceRate}%</div>
+              <div className="stat-label">Attendance Rate</div>
+              <div className="stat-trend positive">{attendedMeetings} of {totalMeetings}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">❌</div>
+              <div className="stat-value">{missedMeetings}</div>
+              <div className="stat-label">Missed Meetings</div>
+              <div className="stat-trend">{upcomingMeetings} upcoming</div>
+            </div>
+          </div>
           
           {/* Chart Navigation */}
           <div className="chart-nav">
             <button className={`chart-nav-btn ${activeChart === 'trend' ? 'active' : ''}`} onClick={() => setActiveChart('trend')}>
-              <BarChart3 size={16} /> Performance Trend
+              <BarChart3 size={16} /> Monthly Trend
             </button>
             <button className={`chart-nav-btn ${activeChart === 'weekly' ? 'active' : ''}`} onClick={() => setActiveChart('weekly')}>
               <TrendingUp size={16} /> Weekly Progress
             </button>
             <button className={`chart-nav-btn ${activeChart === 'radial' ? 'active' : ''}`} onClick={() => setActiveChart('radial')}>
-              <Award size={16} /> Skill Metrics
+              <Award size={16} /> Performance Metrics
             </button>
           </div>
           
@@ -296,7 +373,7 @@ export default function MemberAttendanceHistory() {
               <div className="chart-card">
                 <div className="chart-header">
                   <h3>Monthly Attendance Trend</h3>
-                  <p>Track your attendance performance throughout the semester</p>
+                  <p>Your attendance compared to total meetings each month</p>
                 </div>
                 <ResponsiveContainer width="100%" height={350}>
                   <LineChart data={monthlyData}>
@@ -305,12 +382,12 @@ export default function MemberAttendanceHistory() {
                     <YAxis stroke="#64748b" domain={[0, 100]} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} name="Attendance Rate" dot={{ fill: '#10b981', r: 6 }} />
-                    <Line type="monotone" dataKey="expectedMeetings" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" name="Expected Meetings" dot={false} />
+                    <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} name="Your Attendance Rate" dot={{ fill: '#10b981', r: 6 }} />
+                    <Line type="monotone" dataKey="totalMeetings" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" name="Total Meetings" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="chart-insight">
-                  💡 Your attendance shows {monthlyData[monthlyData.length-1]?.attendanceRate > monthlyData[0]?.attendanceRate ? 'improving' : 'consistent'} trend
+                  💡 You've attended {attendedMeetings} out of {totalMeetings} total meetings ({attendanceRate}% attendance rate)
                 </div>
               </div>
             )}
@@ -319,7 +396,7 @@ export default function MemberAttendanceHistory() {
               <div className="chart-card">
                 <div className="chart-header">
                   <h3>Weekly Performance Breakdown</h3>
-                  <p>Week-by-week analysis of your participation</p>
+                  <p>Week-by-week analysis of your attendance</p>
                 </div>
                 <ResponsiveContainer width="100%" height={350}>
                   <BarChart data={weeklyData}>
@@ -328,13 +405,11 @@ export default function MemberAttendanceHistory() {
                     <YAxis stroke="#64748b" domain={[0, 100]} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Bar dataKey="attendance" fill="#10b981" name="Attendance Rate" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="onTimeRate" fill="#3b82f6" name="On-Time Rate" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="attendance" fill="#10b981" name="Your Attendance" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="chart-insight">
-                  🎯 Keep up the momentum! Your best week was {weeklyData.reduce((best, current) => 
-                    current.attendance > best.attendance ? current : best, weeklyData[0])?.week}
+                  🎯 {attendanceRate >= 80 ? "Excellent attendance! Keep it up!" : attendanceRate >= 60 ? "Good effort! Try to attend more meetings." : "Let's improve your attendance in coming weeks!"}
                 </div>
               </div>
             )}
@@ -351,6 +426,7 @@ export default function MemberAttendanceHistory() {
                       </text>
                     </RadialBarChart>
                   </ResponsiveContainer>
+                  <p className="radial-note">{attendedMeetings} / {totalMeetings} meetings</p>
                 </div>
                 <div className="radial-chart-card">
                   <h4>Consistency Rating</h4>
@@ -362,17 +438,23 @@ export default function MemberAttendanceHistory() {
                       </text>
                     </RadialBarChart>
                   </ResponsiveContainer>
+                  <p className="radial-note">Based on attendance patterns</p>
                 </div>
                 <div className="radial-chart-card">
-                  <h4>Timeliness Score</h4>
+                  <h4>Overall Grade</h4>
                   <ResponsiveContainer width="100%" height={200}>
-                    <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="90%" data={[{ name: 'Score', value: metrics.timelinessScore, fill: '#3b82f6' }]} startAngle={180} endAngle={0}>
+                    <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="90%" data={[{ name: 'Score', value: metrics.overallScore, fill: '#8b5cf6' }]} startAngle={180} endAngle={0}>
                       <RadialBar background clockWise dataKey="value" cornerRadius={10} />
                       <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="radial-label">
-                        {metrics.timelinessScore}%
+                        {metrics.overallScore}%
                       </text>
                     </RadialBarChart>
                   </ResponsiveContainer>
+                  <p className="radial-note">
+                    {metrics.overallScore >= 80 ? 'Excellent Performance' : 
+                     metrics.overallScore >= 60 ? 'Good Performance' : 
+                     'Needs Improvement'}
+                  </p>
                 </div>
               </div>
             )}
@@ -391,46 +473,57 @@ export default function MemberAttendanceHistory() {
             </button>
           </div>
           
-          {/* History List */}
-          {filteredHistory.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">📋</div>
-              <h3>No Attendance Records</h3>
-              <p>You haven't checked in to any meetings yet.</p>
-              <button className="browse-btn" onClick={() => navigate('/member/attendance')}>
-                View Active Meetings →
-              </button>
+          {/* Meetings List - Shows ALL meetings with attendance status */}
+          <div className="meetings-list">
+            <div className="history-header">
+              <h3>All Meetings & Attendance Status</h3>
+              <span className="history-count">{filteredMeetings.length} total meetings</span>
             </div>
-          ) : (
-            <div className="history-list">
-              <div className="history-header">
-                <h3>Recent Check-ins</h3>
-                <span className="history-count">{filteredHistory.length} records</span>
+            {filteredMeetings.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📋</div>
+                <h3>No Meetings Found</h3>
+                <p>No meetings have been scheduled yet.</p>
               </div>
-              {filteredHistory.slice(0, 5).map(record => (
-                <div key={record.id} className="history-item">
-                  <div className="history-icon">
-                    <CheckCircle size={24} className="success-icon" />
+            ) : (
+              filteredMeetings.map(meeting => (
+                <div key={meeting.id} className={`meeting-item ${meeting.userAttended ? 'attended' : 'missed'}`}>
+                  <div className="meeting-icon">
+                    {meeting.userAttended ? (
+                      <CheckCircle size={24} className="success-icon" />
+                    ) : (
+                      <XCircle size={24} className="missed-icon" />
+                    )}
                   </div>
-                  <div className="history-details">
-                    <div className="history-title">{record.sheet?.title || 'Meeting'}</div>
-                    <div className="history-meta">
-                      <span><Calendar size={12} /> {new Date(record.signTime).toLocaleDateString()}</span>
-                      <span><Clock size={12} /> {new Date(record.signTime).toLocaleTimeString()}</span>
-                      <span><MapPin size={12} /> {record.sheet?.location || 'ZUCA'}</span>
+                  <div className="meeting-details">
+                    <div className="meeting-title">{meeting.title}</div>
+                    <div className="meeting-meta">
+                      <span><Calendar size={12} /> {new Date(meeting.eventDate).toLocaleDateString()}</span>
+                      <span><Clock size={12} /> {meeting.eventTime || 'Time TBD'}</span>
+                      <span><MapPin size={12} /> {meeting.location || 'ZUCA'}</span>
                     </div>
-                    <div className="history-method">
-                      <span className={`method-badge ${record.signMethod?.toLowerCase()}`}>
-                        {record.signMethod === 'SELF' ? 'Self Check-in' : 
-                         record.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
+                    <div className="meeting-status">
+                      <span className={`status-badge ${meeting.userAttended ? 'present' : 'absent'}`}>
+                        {meeting.userAttended ? 'Present' : 'Absent'}
                       </span>
+                      {meeting.userAttended && meeting.userSignMethod && (
+                        <span className={`method-badge ${meeting.userSignMethod?.toLowerCase()}`}>
+                          Checked in via {meeting.userSignMethod === 'SELF' ? 'Self' : 
+                           meeting.userSignMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
+                        </span>
+                      )}
+                      {meeting.totalAttendees > 0 && (
+                        <span className="attendees-count">
+                          👥 {meeting.totalAttendees} attended
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <ChevronRight size={18} className="history-arrow" />
+                  <ChevronRight size={18} className="meeting-arrow" />
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </>
       )}
       
@@ -445,6 +538,8 @@ export default function MemberAttendanceHistory() {
           align-items: center;
           justify-content: space-between;
           margin-bottom: 24px;
+          flex-wrap: wrap;
+          gap: 12px;
         }
         .back-btn {
           display: flex;
@@ -656,6 +751,11 @@ export default function MemberAttendanceHistory() {
           font-size: 14px;
           font-weight: 600;
         }
+        .radial-note {
+          margin-top: 12px;
+          font-size: 11px;
+          color: #64748b;
+        }
         .radial-label {
           font-size: 24px;
           font-weight: 700;
@@ -680,10 +780,11 @@ export default function MemberAttendanceHistory() {
           color: white;
           border-color: #1e293b;
         }
-        .history-list {
+        .meetings-list {
           display: flex;
           flex-direction: column;
           gap: 12px;
+          margin-top: 20px;
         }
         .history-header {
           display: flex;
@@ -700,7 +801,7 @@ export default function MemberAttendanceHistory() {
           font-size: 12px;
           color: #64748b;
         }
-        .history-item {
+        .meeting-item {
           display: flex;
           align-items: center;
           gap: 16px;
@@ -708,28 +809,36 @@ export default function MemberAttendanceHistory() {
           padding: 16px;
           border-radius: 16px;
           border: 1px solid #e2e8f0;
-          cursor: pointer;
           transition: all 0.2s;
         }
-        .history-item:hover {
-          background: #f8fafc;
+        .meeting-item:hover {
           transform: translateX(4px);
         }
+        .meeting-item.attended {
+          border-left: 4px solid #22c55e;
+        }
+        .meeting-item.missed {
+          border-left: 4px solid #ef4444;
+        }
         .success-icon { color: #22c55e; }
-        .history-details { flex: 1; }
-        .history-title { font-weight: 600; margin-bottom: 8px; }
-        .history-meta { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-bottom: 8px; }
+        .missed-icon { color: #ef4444; }
+        .meeting-details { flex: 1; }
+        .meeting-title { font-weight: 600; margin-bottom: 8px; }
+        .meeting-meta { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-bottom: 8px; }
+        .meeting-status { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .status-badge { font-size: 10px; padding: 2px 10px; border-radius: 20px; }
+        .status-badge.present { background: #dcfce7; color: #059669; }
+        .status-badge.absent { background: #fee2e2; color: #dc2626; }
         .method-badge { font-size: 10px; padding: 2px 10px; border-radius: 20px; }
         .method-badge.self { background: #dbeafe; color: #2563eb; }
         .method-badge.qr_code { background: #dcfce7; color: #059669; }
         .method-badge.manual { background: #fef3c7; color: #d97706; }
-        .history-arrow { color: #94a3b8; }
+        .attendees-count { font-size: 10px; color: #64748b; }
+        .meeting-arrow { color: #94a3b8; }
         .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 24px; }
         .empty-icon { font-size: 64px; margin-bottom: 16px; }
         .empty-state h3 { margin-bottom: 8px; }
         .empty-state p { color: #64748b; margin-bottom: 20px; }
-        .browse-btn { background: #1e293b; color: white; border: none; padding: 10px 24px; border-radius: 30px; cursor: pointer; transition: all 0.2s; }
-        .browse-btn:hover { background: #334155; transform: translateY(-2px); }
         .loading-state { text-align: center; padding: 60px; color: #64748b; }
         .spinner {
           border: 3px solid #e2e8f0;
@@ -769,6 +878,9 @@ export default function MemberAttendanceHistory() {
           }
           .radial-charts-container {
             grid-template-columns: 1fr;
+          }
+          .meeting-meta {
+            flex-wrap: wrap;
           }
         }
       `}</style>

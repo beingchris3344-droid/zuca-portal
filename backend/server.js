@@ -23,6 +23,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
 
+
 // ================== HELPER FUNCTIONS ==================
 async function getNextMembershipNumber() {
   try {
@@ -384,6 +385,9 @@ const io = new Server(server, {
 app.set("io", io);
 
 require('./socket/dmSocket')(io);
+
+global.io = io;
+
 
 // Track online users
 let onlineUsers = new Map(); // userId -> socketId
@@ -15046,3 +15050,4 @@ console.log("✅ Attendance auto-reminder cron job scheduled (runs every hour)")
 // ================== START SERVER ==================
 const PORT = 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+

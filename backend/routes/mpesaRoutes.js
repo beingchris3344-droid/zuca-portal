@@ -6,7 +6,6 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 const { sendPersonalizedEmail } = require("../services/mailer");
-const { createAndSendNotification } = require('../utils/pushNotifications');
 
 // Helper to get base URL
 function getBaseUrl(req) {
@@ -15,6 +14,22 @@ function getBaseUrl(req) {
   return `${protocol}://${host}`;
 }
 
+// Helper function to create and send notification
+async function createNotification({ userId, type, title, message, data = {} }) {
+  const notif = await prisma.notification.create({
+    data: {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      createdAt: new Date(),
+      data: data
+    }
+  });
+  return notif;
+}
 
 // ==================== ROUTES ====================
 
@@ -321,14 +336,16 @@ if (payer.email) {
     }
   })();
 }
-      // Create notification for user
-await createAndSendNotification({
-  userId: payer.id,
-  type: "payment_success",
-  title: "✅ Payment Successful!",
-  message: `Your payment of KES ${amount.toLocaleString()} for "${campaign.title}"${jumuiaName !== "Global" ? ` (${jumuiaName} Jumuia)` : ''} has been received. Receipt: ${mpesaReceiptNumber}`,
-  data: { amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title, jumuiaName }
-});
+      
+           // Create notification for user
+      await createNotification({
+        userId: payer.id,
+        type: "payment_success",
+        title: "✅ Payment Successful!",
+        message: `Your payment of KES ${amount.toLocaleString()} for "${campaign.title}"${jumuiaName !== "Global" ? ` (${jumuiaName} Jumuia)` : ''} has been received. Receipt: ${mpesaReceiptNumber}`,
+        data: { amount, receiptNumber: mpesaReceiptNumber, campaignTitle: campaign.title, jumuiaName }
+      });
+      
       // Notify admins (with email)
       const admins = await prisma.user.findMany({
         where: { role: "admin" },
@@ -336,13 +353,13 @@ await createAndSendNotification({
       });
       
       for (const admin of admins) {
-        await createAndSendNotification({
-  userId: admin.id,
-  type: "payment_received",
-  title: "💰 New Payment Received",
-  message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-  data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
-});
+        await createNotification({
+          userId: admin.id,
+          type: "payment_received",
+          title: "💰 New Payment Received",
+          message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
+        });
         
         // Send email to admin
         if (admin.email) {
@@ -369,13 +386,14 @@ await createAndSendNotification({
       });
       
       for (const treasurer of treasurers) {
-        await createAndSendNotification({
-  userId: treasurer.id,
-  type: "payment_received",
-  title: "💰 New Payment Received",
-  message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
-  data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
-});
+        await createNotification({
+          userId: treasurer.id,
+          type: "payment_received",
+          title: "💰 New Payment Received",
+          message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}" (${jumuiaName})`,
+          data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaName, receiptNumber: mpesaReceiptNumber }
+        });
+        
         // Send email to treasurer
         if (treasurer.email) {
           (async () => {
@@ -406,13 +424,13 @@ await createAndSendNotification({
         
         for (const leader of jumuiaLeaders) {
           // Create notification
-         await createAndSendNotification({
-  userId: leader.id,
-  type: "jumuia_payment",
-  title: `🏠 ${jumuiaName} - New Payment`,
-  message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}"`,
-  data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId, jumuiaName, receiptNumber: mpesaReceiptNumber }
-});
+          await createNotification({
+            userId: leader.id,
+            type: "jumuia_payment",
+            title: `🏠 ${jumuiaName} - New Payment`,
+            message: `${payer.fullName} paid KES ${amount.toLocaleString()} for "${campaign.title}"`,
+            data: { userId: payer.id, amount, campaignTitle: campaign.title, jumuiaId, jumuiaName, receiptNumber: mpesaReceiptNumber }
+          });
           
           // Send email to Jumuia leader
           if (leader.email) {
@@ -473,13 +491,13 @@ await createAndSendNotification({
         }
       });
       
-     await createAndSendNotification({
-  userId: payment.userId,
-  type: "payment_failed",
-  title: "❌ Payment Failed",
-  message: `Your payment of KES ${payment.amount.toLocaleString()} for "${payment.contributionType.title}" failed. Reason: ${ResultDesc}`,
-  data: { amount: payment.amount }
-});
+      await createNotification({
+        userId: payment.userId,
+        type: "payment_failed",
+        title: "❌ Payment Failed",
+        message: `Your payment of KES ${payment.amount.toLocaleString()} for "${payment.contributionType.title}" failed. Reason: ${ResultDesc}`,
+        data: { amount: payment.amount }
+      });
       
       console.log(`❌ Payment failed: ${ResultDesc}`);
     }

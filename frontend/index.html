@@ -46,26 +46,29 @@
   </head>
 
   <body>
-    <!-- React Root -->
-       <div id="root"></div>
+        <!-- React Root -->
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- ===== NOTIFICATION REQUIRED MODALS ===== -->
+    <!-- ===== NOTIFICATION REQUIRED MODALS (for installed PWA only) ===== -->
+    
+    <!-- Modal 1: Request permission (shown first time) -->
     <div id="notification-required-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; align-items: center; justify-content: center;">
       <div style="background: white; max-width: 400px; margin: 20px; padding: 30px; border-radius: 16px; text-align: center;">
         <h2 style="color: #1e293b;">📢 Stay Updated!</h2>
         <p style="color: #475569; margin: 16px 0;">ZUCA Portal uses notifications to send you:</p>
         <ul style="text-align: left; color: #475569; margin: 16px 0;">
-          <li>Club announcements</li>
-          <li>Mass schedules</li>
-          <li>Event reminders</li>
-          <li>Urgent updates</li>
+          <li>📢 Club announcements</li>
+          <li>⛪ Mass schedules</li>
+          <li>📅 Event reminders</li>
+          <li>⚠️ Urgent updates</li>
         </ul>
         <p style="font-weight: bold; color: #1e293b;">Notifications are required to use this app.</p>
         <button id="enable-notifications-btn" style="background: #0066cc; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 16px;">Enable Notifications</button>
       </div>
     </div>
 
+    <!-- Modal 2: Blocked screen (shown if user denies) -->
     <div id="notifications-blocked-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; align-items: center; justify-content: center;">
       <div style="background: white; max-width: 400px; margin: 20px; padding: 30px; border-radius: 16px; text-align: center;">
         <h2 style="color: #1e293b;">⚠️ Notifications Required</h2>

@@ -99,19 +99,41 @@ const socket = io(BASE_URL, {
 });
 
 
-// ===== NOTIFICATION CHECK COMPONENT =====
+// ===== NOTIFICATION CHECK COMPONENT (PWA only) =====
 function NotificationGate({ children }) {
-  const [notificationStatus, setNotificationStatus] = useState('checking'); // checking, granted, denied
+  const [notificationStatus, setNotificationStatus] = useState('checking'); // checking, granted, denied, not_needed
 
   useEffect(() => {
-    checkNotificationPermission();
+    checkIfPWAAndPermission();
   }, []);
 
-  const checkNotificationPermission = () => {
+  // Function to detect if app is installed as PWA
+  const isPWAInstalled = () => {
+    // Check display mode
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      return true;
+    }
+    // Check for iOS PWA
+    if (window.navigator.standalone === true) {
+      return true;
+    }
+    return false;
+  };
+
+  const checkIfPWAAndPermission = () => {
+    // If NOT installed as PWA, don't require notifications
+    if (!isPWAInstalled()) {
+      console.log("Running in browser - notifications not required");
+      setNotificationStatus('not_needed');
+      return;
+    }
+
+    console.log("Running as installed PWA - notifications required");
+    
+    // Check if browser supports notifications
     if (!('Notification' in window)) {
-      // Browser doesn't support notifications - show warning but allow access
-      alert('Your browser does not support notifications. Please use Chrome, Edge, or Safari 16.4+ for full features.');
-      setNotificationStatus('granted'); // Allow access anyway
+      alert('Your browser does not support notifications. Please use a modern browser for the PWA.');
+      setNotificationStatus('not_needed'); // Allow access but warn
       return;
     }
 
@@ -180,14 +202,17 @@ function NotificationGate({ children }) {
     }
   };
 
+  // Loading state
   if (notificationStatus === 'checking') {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
   }
 
+  // If denied in PWA - show blocked screen
   if (notificationStatus === 'denied') {
     return null; // Modal is already showing
   }
 
+  // For browser users or granted - show app normally
   return children;
 }
 // ===== END NOTIFICATION GATE =====

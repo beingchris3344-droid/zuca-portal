@@ -6,29 +6,11 @@ const prisma = new PrismaClient();
 const crypto = require('crypto');
 
 const { sendPersonalizedEmail } = require("../services/mailer");
-
-// ==================== NOTIFICATION FUNCTION (DEFINED DIRECTLY) ====================
-async function createAndSendNotification({ userId, type, title, message, data = {} }) {
-  try {
-    const notification = await prisma.notification.create({
-      data: {
-        id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        userId,
-        type,
-        title,
-        message,
-        read: false,
-        createdAt: new Date(),
-        data: data
-      }
-    });
-    console.log(`✅ Notification created: ${title} for user ${userId}`);
-    return notification;
-  } catch (err) {
-    console.error("Failed to create notification:", err.message);
-    return null;
-  }
-}
+// Use global notification function from server.js
+const createAndSendNotification = global.createAndSendNotification || (async () => {
+  console.log("⚠️ createAndSendNotification not available globally");
+  return null;
+});
 
 // Generate QR code for a sheet (admin only)
 router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req, res) => {

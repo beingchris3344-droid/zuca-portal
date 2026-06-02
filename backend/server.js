@@ -143,9 +143,7 @@ app.use('/api/messenger', messengerRoutes);
 const adminMessagingRoutes = require('./routes/admin-messaging');
 app.use('/api/admin/messenger', adminMessagingRoutes);
 
-// Attendance registrations
-const attendanceRoutes = require("./routes/attendanceRoutes");
-app.use("/api/attendance", attendanceRoutes);
+
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
@@ -11775,12 +11773,17 @@ async function createAndSendNotification({ userId, type, title, message, data = 
 // ============================================
 // Connect cronJobs to use createAndSendNotification
 // ============================================
-const { setNotificationFunction } = require("./services/cronJobs");
+
 
 // Make globally available
 global.createAndSendNotification = createAndSendNotification;
 global.io = io;
 global.prisma = prisma;
+
+
+// Attendance registrations
+const attendanceRoutes = require("./routes/attendanceRoutes");
+app.use("/api/attendance", attendanceRoutes);
 
 // ============================================
 // THIRD: Define Express routes
@@ -11816,6 +11819,50 @@ app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+async function sendPushNotification(userId, title, body, data = {}) {
+  console.log(`🔔 Attempting push for user: ${userId}`);
+  
+  try {
+    const subscription = await prisma.pushSubscription.findUnique({
+      where: { userId }
+    });
+
+    if (!subscription) {
+      console.log(`⚠️ No push subscription for user ${userId}`);
+      return;
+    }
+
+    console.log(`✅ Found subscription for user ${userId}, sending push...`);
+
+    const unreadCount = await prisma.notification.count({
+      where: { userId: userId, read: false }
+    });
+
+    const pushSubscription = JSON.parse(subscription.subscription);
+    
+    await webpush.sendNotification(
+      pushSubscription, 
+      JSON.stringify({
+        title,
+        body,
+        icon: '/android-chrome-192x192.png',
+        badge: '/favicon.ico',
+        badgeCount: unreadCount + 1,
+        data,
+        timestamp: Date.now()
+      }),
+      { urgency: 'high' }
+    );
+    
+    console.log(`📱 Push sent to ${userId} (badge: ${unreadCount + 1})`);
+  } catch (err) {
+    console.error(`❌ Push failed for ${userId}:`, err.message);
+    if (err.statusCode === 410) {
+      await prisma.pushSubscription.deleteMany({ where: { userId } });
+    }
+  }
+}
 
 // Test endpoint to verify notifications work
 app.post('/api/send-test-notification', authenticate, async (req, res) => {
@@ -15224,28 +15271,6 @@ app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req,
   
   res.json({ success: true, message: "API metrics cache cleared" });
 });
-
-// ==================== ATTENDANCE AUTO-REMINDERS (INTERNAL CRON JOB) ====================
-// This runs automatically every hour - NO external cron service needed!
-
-// Import the function from attendanceRoutes
-const { sendAutomaticAbsentReminders } = require("./routes/attendanceRoutes");
-
-// Run every hour to send automatic reminders to absent members
-setInterval(async () => {
-  try {
-    const now = new Date();
-    console.log(`⏰ [${now.toLocaleTimeString()}] Running attendance reminder check...`);
-    await sendAutomaticAbsentReminders();
-  } catch (err) {
-    console.error("❌ Attendance reminder cron error:", err.message);
-  }
-}, 60 * 60 * 1000); // Every hour (60 minutes * 60 seconds * 1000 milliseconds)
-
-console.log("✅ Attendance auto-reminder cron job scheduled (runs every hour)");
-
-
-
 // ================== START SERVER ==================
 const PORT = 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));

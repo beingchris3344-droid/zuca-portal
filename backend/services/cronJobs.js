@@ -2,7 +2,6 @@
 
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const { sendPersonalizedEmail } = require("./mailer");
 
 async function sendEventReminders() {
   console.log("🕐 Running semester schedule event reminders check...");
@@ -34,24 +33,13 @@ async function sendEventReminders() {
     select: { id: true, email: true, fullName: true }
   });
   
-  console.log(`👥 Total users: ${allUsers.length}`);
-  
   for (const notification of pendingNotifications) {
     console.log(`📧 Processing: ${notification.title}`);
     
-    if (allUsers.length === 0) {
-      console.log(`⚠️ No users found, marking as sent`);
-      await prisma.scheduledNotification.update({
-        where: { id: notification.id },
-        data: { isSent: true, sentAt: new Date() }
-      });
-      continue;
-    }
-    
     for (const user of allUsers) {
       try {
-        const dbNotification = await prisma.notification.create({
-          data: {
+        if (global.createAndSendNotification) {
+          await global.createAndSendNotification({
             userId: user.id,
             type: "event_reminder",
             title: notification.title,
@@ -60,28 +48,38 @@ async function sendEventReminders() {
               eventId: notification.eventId,
               scheduleId: notification.scheduleId,
               priority: notification.priority
-            },
-            read: false,
-            createdAt: new Date()
-          }
-        });
-        
-        if (global.io) {
-          global.io.to(user.id).emit("new_notification", {
-            ...dbNotification,
-            createdAt: dbNotification.createdAt.toISOString()
+            }
           });
+        } else {
+          console.log(`⚠️ createAndSendNotification not available, only creating DB notification`);
+          await prisma.notification.create({
+            data: {
+              userId: user.id,
+              type: "event_reminder",
+              title: notification.title,
+              message: notification.message,
+              data: { 
+                eventId: notification.eventId,
+                scheduleId: notification.scheduleId,
+                priority: notification.priority
+              },
+              read: false,
+              createdAt: new Date()
+            }
+          });
+          
+          if (global.io) {
+            global.io.to(user.id).emit("new_notification", {
+              id: `${Date.now()}`,
+              userId: user.id,
+              type: "event_reminder",
+              title: notification.title,
+              message: notification.message,
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
-        
-        if (notification.priority === "urgent" || notification.priority === "high") {
-          await sendPersonalizedEmail(
-            user,
-            "event_reminder",
-            notification.title,
-            notification.message
-          );
-        }
-        
       } catch (err) {
         console.error(`Failed to send to user ${user.id}:`, err.message);
       }

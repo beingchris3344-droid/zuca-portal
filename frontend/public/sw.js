@@ -1,16 +1,46 @@
 // ================== ZUCA SERVICE WORKER ==================
-const CACHE_NAME = 'zuca-v4';
+const CACHE_NAME = 'zuca-v5';
 const SYNC_TAG = 'sync-checkins';
+
+// URLs to cache on install
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest'
+];
 
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
+  
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Caching app shell');
+      return cache.addAll(urlsToCache);
+    })
+  );
+  
   self.skipWaiting();
 });
 
 // ================== ACTIVATE ==================
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
+  
+  // Clean up old caches
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[SW] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  
   event.waitUntil(self.clients.claim());
 });
 
@@ -27,7 +57,6 @@ async function syncPendingCheckins() {
   console.log('[SW] Starting background sync...');
   
   try {
-    // Get all pending check-ins from IndexedDB
     const db = await openDB();
     const pending = await getPendingCheckinsFromDB(db);
     
@@ -65,9 +94,6 @@ async function syncPendingCheckins() {
           await removePendingCheckinFromDB(db, checkin.id);
           synced++;
           console.log(`[SW] ✅ Synced: ${checkin.sheetId}`);
-          
-          // Show notification that sync happened
-          await showSyncNotification(synced, pending.length);
         }
       } catch (error) {
         console.error(`[SW] Failed to sync ${checkin.sheetId}:`, error);
@@ -84,6 +110,10 @@ async function syncPendingCheckins() {
         synced: synced
       });
     });
+    
+    if (synced > 0) {
+      await showSyncNotification(synced, pending.length);
+    }
     
   } catch (error) {
     console.error('[SW] Background sync failed:', error);
@@ -130,7 +160,7 @@ async function getTokenFromCache() {
 }
 
 async function showSyncNotification(synced, total) {
-  const notification = await self.registration.showNotification('✅ ZUCA Attendance Synced', {
+  await self.registration.showNotification('✅ ZUCA Attendance Synced', {
     body: `${synced} of ${total} offline check-in(s) have been synced.`,
     icon: '/android-chrome-192x192.png',
     badge: '/favicon.ico',
@@ -142,6 +172,18 @@ async function showSyncNotification(synced, total) {
 // ================== FETCH (Offline Support) ==================
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+  
+  // 🔴 ADD THIS: For HTML pages - allow offline loading
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          return cache.match('/index.html');
+        });
+      })
+    );
+    return;
+  }
   
   // Cache auth token when user logs in
   if (url.pathname.includes('/api/login') && event.request.method === 'POST') {
@@ -189,7 +231,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // For static assets
+  // For static assets (JS, CSS, images)
   if (event.request.method === 'GET' && 
       (url.pathname.includes('.js') || 
        url.pathname.includes('.css') || 
@@ -197,7 +239,8 @@ self.addEventListener('fetch', (event) => {
        url.pathname.includes('.jpg') ||
        url.pathname.includes('.jpeg') ||
        url.pathname.includes('.svg') ||
-       url.pathname.includes('.webp'))) {
+       url.pathname.includes('.webp') ||
+       url.pathname.includes('.ico'))) {
     
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {

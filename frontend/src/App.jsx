@@ -98,6 +98,100 @@ const socket = io(BASE_URL, {
   timeout: 20000,
 });
 
+
+// ===== NOTIFICATION CHECK COMPONENT =====
+function NotificationGate({ children }) {
+  const [notificationStatus, setNotificationStatus] = useState('checking'); // checking, granted, denied
+
+  useEffect(() => {
+    checkNotificationPermission();
+  }, []);
+
+  const checkNotificationPermission = () => {
+    if (!('Notification' in window)) {
+      // Browser doesn't support notifications - show warning but allow access
+      alert('Your browser does not support notifications. Please use Chrome, Edge, or Safari 16.4+ for full features.');
+      setNotificationStatus('granted'); // Allow access anyway
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setNotificationStatus('granted');
+    } 
+    else if (Notification.permission === 'denied') {
+      setNotificationStatus('denied');
+      showBlockedModal();
+    } 
+    else {
+      // Not asked yet - show request modal
+      showRequestModal();
+    }
+  };
+
+  const showRequestModal = () => {
+    const modal = document.getElementById('notification-required-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      
+      const enableBtn = document.getElementById('enable-notifications-btn');
+      if (enableBtn) {
+        const newBtn = enableBtn.cloneNode(true);
+        enableBtn.parentNode.replaceChild(newBtn, enableBtn);
+        
+        newBtn.onclick = async () => {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            modal.style.display = 'none';
+            setNotificationStatus('granted');
+            // Re-register push after permission granted
+            if (window.pushService) {
+              window.pushService.subscribe();
+            }
+          } else {
+            modal.style.display = 'none';
+            setNotificationStatus('denied');
+            showBlockedModal();
+          }
+        };
+      }
+    } else {
+      // Fallback: use browser prompt directly
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          setNotificationStatus('granted');
+        } else {
+          setNotificationStatus('denied');
+        }
+      });
+    }
+  };
+
+  const showBlockedModal = () => {
+    const modal = document.getElementById('notifications-blocked-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      
+      const refreshBtn = document.getElementById('refresh-after-enable-btn');
+      if (refreshBtn) {
+        const newBtn = refreshBtn.cloneNode(true);
+        refreshBtn.parentNode.replaceChild(newBtn, refreshBtn);
+        newBtn.onclick = () => window.location.reload();
+      }
+    }
+  };
+
+  if (notificationStatus === 'checking') {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
+  }
+
+  if (notificationStatus === 'denied') {
+    return null; // Modal is already showing
+  }
+
+  return children;
+}
+// ===== END NOTIFICATION GATE =====
+
 // Create a wrapper component that has access to navigate
 function AppContent() {
   const navigate = useNavigate();
@@ -586,15 +680,17 @@ function App() {
   
   if (loading) return <div>Loading...</div>;
   
-  return (
+    return (
     <BrowserRouter>
-      {!isAdmin ? (
-        <MessengerProvider>
+      <NotificationGate>
+        {!isAdmin ? (
+          <MessengerProvider>
+            <AppContent />
+          </MessengerProvider>
+        ) : (
           <AppContent />
-        </MessengerProvider>
-      ) : (
-        <AppContent />
-      )}
+        )}
+      </NotificationGate>
     </BrowserRouter>
   );
 }

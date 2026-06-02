@@ -16,6 +16,7 @@ export default function AdminLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState(0);
   const [sidebarShadow, setSidebarShadow] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const notificationRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -60,19 +61,19 @@ export default function AdminLayout() {
   }, [isMobile]);
 
   const fetchMessengerUnreadCount = useCallback(async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${BASE_URL}/api/messenger/unread/count`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (response.ok) {
-      const data = await response.json();
-      setMessengerUnreadCount(data.totalUnread || 0);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${BASE_URL}/api/messenger/unread/count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMessengerUnreadCount(data.totalUnread || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch messenger unread count:', err);
     }
-  } catch (err) {
-    console.error('Failed to fetch messenger unread count:', err);
-  }
-}, []);
+  }, []);
 
   // Socket connection
   useEffect(() => {
@@ -96,11 +97,11 @@ export default function AdminLayout() {
     });
 
     socket.on('dm:new_message', () => {
-  fetchMessengerUnreadCount();
-});
+      fetchMessengerUnreadCount();
+    });
 
-return () => socket.disconnect();
-}, [fetchMessengerUnreadCount]);
+    return () => socket.disconnect();
+  }, [fetchMessengerUnreadCount]);
 
   // Fetch existing notifications
   useEffect(() => {
@@ -137,7 +138,7 @@ return () => socket.disconnect();
       }
     };
     fetchNotifications();
-     fetchMessengerUnreadCount();
+    fetchMessengerUnreadCount();
   }, []);
 
   const getIconForType = (type) => {
@@ -196,10 +197,9 @@ return () => socket.disconnect();
     }
   };
 
-
   const navItems = [
     { label: "ADMIN DASHBOARD", path: "", icon: "📊", bg: "#eff6ff", color: "#3b82f6" },
-     { label: "ATTENDANCE", path: "attendance", icon: "📋", bg: "#e0e7ff", color: "#3b82f6" },
+    { label: "ATTENDANCE", path: "attendance", icon: "📋", bg: "#e0e7ff", color: "#3b82f6" },
     { label: "ALL USERS", path: "users", icon: "👥", bg: "#e0f2fe", color: "#06b6d4" },
     { label: "SCHEDULE MANAGER", path: "schedules", icon: "📅", bg: "#fef3c7", color: "#f59e0b" },
     { label: "ROLE MANAGEMENT", path: "roles", icon: "👑", bg: "#fce7f3", color: "#ec4899" },
@@ -218,9 +218,212 @@ return () => socket.disconnect();
     { label: "USER MANUAL", path: "security", icon: "🔒", bg: "#f1f5f9", color: "#64748b" },
   ];
 
+  // Styles with access to sidebarCollapsed
+  const containerStyle = {
+    height: "100vh",
+    width: "100vw",
+    background: "#f8fafc",
+    position: "relative",
+    overflow: "hidden",
+    margin: 0,
+    padding: 0,
+  };
+
+  const backdropStyle = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.3)",
+    backdropFilter: "blur(4px)",
+    zIndex: 40,
+  };
+
+  const sidebarStyle = {
+    position: "fixed",
+    left: 0,
+    top: 0,
+    height: "100vh",
+    width: sidebarCollapsed ? "0" : "280px",
+    background: "#ffffff",
+    boxShadow: sidebarCollapsed ? "none" : "2px 0 12px rgba(0, 0, 0, 0.05)",
+    padding: sidebarCollapsed ? "0" : "24px 16px",
+    display: "flex",
+    flexDirection: "column",
+    zIndex: 50,
+    overflowY: "hidden",
+    transition: "all 0.3s ease",
+    whiteSpace: "nowrap",
+  };
+
+  const logoSection = {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px",
+    marginBottom: "24px",
+    borderBottom: "1px solid #e2e8f0",
+  };
+
+  const logoStyle = {
+    width: "44px",
+    height: "auto",
+    borderRadius: "10px",
+  };
+
+  const logoText = { flex: 1 };
+  const logoTitle = { color: "#1e293b", fontSize: "13px", fontWeight: "700", margin: 0 };
+  const logoSubtitle = { color: "#64748b", fontSize: "11px", margin: "4px 0 0" };
+
+  const navContainerStyle = (shadow) => ({
+    flex: 1,
+    overflowY: "auto",
+    paddingRight: "4px",
+    transition: "box-shadow 0.3s",
+    boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
+  });
+
+  const navStyle = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  };
+
+  const navCardStyle = (isActive, bg, color) => ({
+    padding: "12px 16px",
+    borderRadius: "12px",
+    backgroundColor: isActive ? bg : "#ffffff",
+    border: isActive ? `1px solid ${color}` : "1px solid #e2e8f0",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    position: "relative",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    boxShadow: isActive ? `0 2px 4px rgba(59, 130, 246, 0.1)` : "none",
+  });
+
+  const navIconStyle = {
+    fontSize: "20px",
+    width: "28px",
+  };
+
+  const navLabelStyle = (isActive, color) => ({
+    color: isActive ? color : "#475569",
+    fontWeight: isActive ? "600" : "500",
+    fontSize: "13px",
+  });
+
+  const activeIndicatorStyle = (color) => ({
+    position: "absolute",
+    left: 0,
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "3px",
+    height: "20px",
+    background: color,
+    borderRadius: "0 3px 3px 0",
+  });
+
+  const sidebarFooterStyle = { marginTop: "20px" };
+  const sidebarDividerStyle = { height: "1px", background: "#e2e8f0", margin: "16px 0" };
+
+  const logoutButtonStyle = {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "10px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    color: "#dc2626",
+    fontSize: "14px",
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    cursor: "pointer",
+    marginBottom: "20px",
+  };
+
+  const logoutIconStyle = { fontSize: "16px" };
+
+  const mainContentStyle = {
+    marginLeft: isMobile ? 0 : (sidebarCollapsed ? "0" : "280px"),
+    padding: 0,
+    position: "relative",
+    zIndex: 1,
+    height: "100vh",
+    overflow: "hidden",
+    transition: "margin-left 0.3s ease",
+    width: isMobile ? "100%" : `calc(100% - ${sidebarCollapsed ? "0" : "280px"})`,
+    background: "#f8fafc",
+    display: "flex",
+    flexDirection: "column",
+  };
+
+  const contentWrapperStyle = {
+    flex: 1,
+    overflowY: "auto",
+    overflowX: "hidden",
+    padding: "20px",
+    position: "relative",
+  };
+
+  const headerStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    background: "#ffffff",
+    borderRadius: "0px",
+    padding: "0px 20px",
+    marginBottom: "0px",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+    borderBottom: "1px solid #e2e8f0",
+    position: "sticky",
+    top: 0,
+    zIndex: 30,
+    flexShrink: 0,
+    height: "60px",
+  };
+
+  const headerLeftStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+  };
+
+  const hamburgerStyle = {
+    display: "none",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    width: "40px",
+    height: "40px",
+    cursor: "pointer",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const hamburgerIconStyle = {
+    color: "#475569",
+    fontSize: "20px",
+    fontWeight: "600",
+  };
+
+  const pageTitleStyle = {
+    color: "#1e293b",
+    fontSize: "18px",
+    fontWeight: "600",
+  };
+
+  const headerRightStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "20px",
+    position: "relative",
+    zIndex: 31,
+  };
+
   return (
     <div style={containerStyle}>
-      {/* Backdrop for mobile */}
       <AnimatePresence>
         {isMobile && menuOpen && (
           <motion.div
@@ -233,7 +436,6 @@ return () => socket.disconnect();
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
       <motion.aside
         ref={sidebarRef}
         className="sidebar"
@@ -250,10 +452,7 @@ return () => socket.disconnect();
           </div>
         </div>
 
-        <div
-          ref={scrollContainerRef}
-          style={navContainerStyle(sidebarShadow)}
-        >
+        <div ref={scrollContainerRef} style={navContainerStyle(sidebarShadow)}>
           <nav style={navStyle}>
             {navItems.map((item, index) => (
               <NavLink
@@ -272,30 +471,30 @@ return () => socket.disconnect();
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.03 }}
                   >
-               <span style={navIconStyle}>{item.icon}</span>
-<span style={navLabelStyle(isActive, item.color)}>{item.label}</span>
-{item.badge > 0 && (
-  <span style={{ 
-    marginLeft: 'auto', 
-    backgroundColor: '#ef4444', 
-    color: 'white', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    padding: '2px 6px', 
-    borderRadius: '10px', 
-    minWidth: '18px', 
-    textAlign: 'center' 
-  }}>
-    {item.badge > 99 ? '99+' : item.badge}
-  </span>
-)}
-{isActive && (
-  <motion.div
-    layoutId="activeIndicator"
-    style={activeIndicatorStyle(item.color)}
-    transition={{ type: "spring", damping: 20 }}
-  />
-)}
+                    <span style={navIconStyle}>{item.icon}</span>
+                    <span style={navLabelStyle(isActive, item.color)}>{item.label}</span>
+                    {item.badge > 0 && (
+                      <span style={{ 
+                        marginLeft: 'auto', 
+                        backgroundColor: '#ef4444', 
+                        color: 'white', 
+                        fontSize: '10px', 
+                        fontWeight: 'bold', 
+                        padding: '2px 6px', 
+                        borderRadius: '10px', 
+                        minWidth: '18px', 
+                        textAlign: 'center' 
+                      }}>
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeIndicator"
+                        style={activeIndicatorStyle(item.color)}
+                        transition={{ type: "spring", damping: 20 }}
+                      />
+                    )}
                   </motion.div>
                 )}
               </NavLink>
@@ -317,8 +516,7 @@ return () => socket.disconnect();
         </div>
       </motion.aside>
 
-      {/* Main Content - NO PADDING/MARGIN, JUST LIKE Layout.jsx */}
-      <main style={mainContentStyle(isMobile)}>
+      <main style={mainContentStyle}>
         <motion.header
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -342,6 +540,24 @@ return () => socket.disconnect();
             <button className="ai-assistant-btn" onClick={openAI}>
               <FiMessageSquare size={18} />
               <span>AI</span>
+            </button>
+
+            <button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                width: "36px",
+                height: "36px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "18px"
+              }}
+            >
+              {sidebarCollapsed ? "☰" : "✕"}
             </button>
 
             <div className="online-indicator">
@@ -400,12 +616,12 @@ return () => socket.disconnect();
           </div>
         </motion.header>
 
-        {/* Outlet - NO WRAPPER, just like Layout.jsx */}
-        <Outlet />
+        <div style={contentWrapperStyle}>
+          <Outlet />
+        </div>
       </main>
 
       <style>{`
-        /* Global Styles */
         * {
           margin: 0;
           padding: 0;
@@ -423,7 +639,6 @@ return () => socket.disconnect();
           background: #f8fafc;
         }
 
-        /* Mobile Hamburger */
         .mobile-hamburger {
           display: none !important;
         }
@@ -434,7 +649,6 @@ return () => socket.disconnect();
           }
         }
 
-        /* AI Button */
         .ai-assistant-btn {
           display: flex;
           align-items: center;
@@ -449,7 +663,6 @@ return () => socket.disconnect();
           font-size: 12px;
         }
 
-        /* Online Indicator */
         .online-indicator {
           display: flex;
           align-items: center;
@@ -469,7 +682,6 @@ return () => socket.disconnect();
           animation: pulse 2s infinite;
         }
 
-        /* Notification Styles */
         .notification-container {
           position: relative;
         }
@@ -547,10 +759,8 @@ return () => socket.disconnect();
         .notification-message { font-size: 11px; color: #64748b; }
         .notification-time { font-size: 10px; color: #94a3b8; margin-top: 4px; }
 
-        /* Admin Profile */
         .admin-profile {
           display: flex;
-         
           align-items: center;
         }
 
@@ -558,7 +768,7 @@ return () => socket.disconnect();
           width: 36px;
           height: 40px;
           border-radius: 8px;
-           background: #f8fcff;
+          background: #f8fcff;
           object-fit: cover;
           border: 1px solid #e2e8f0;
         }
@@ -568,7 +778,6 @@ return () => socket.disconnect();
           50% { opacity: 0.6; transform: scale(1.1); }
         }
 
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -582,198 +791,3 @@ return () => socket.disconnect();
     </div>
   );
 }
-
-// ==================== STYLES (matching Layout.jsx pattern) ====================
-
-const containerStyle = {
-  height: "100vh",
-  width: "100vw",
-  background: "#f8fafc",
-  position: "relative",
-  overflow: "hidden",
-  margin: 0,
-  padding: 0,
-};
-
-const backdropStyle = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0, 0, 0, 0.3)",
-  backdropFilter: "blur(4px)",
-  zIndex: 40,
-};
-
-const sidebarStyle = {
-  position: "fixed",
-  left: 0,
-  top: 0,
-  height: "100vh",
-  width: "280px",
-  background: "#ffffff",
-  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.05)",
-  padding: "24px 16px",
-  display: "flex",
-  flexDirection: "column",
-  zIndex: 50,
-  overflowY: "hidden",
-};
-
-const logoSection = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  padding: "12px",
-  marginBottom: "24px",
-  borderBottom: "1px solid #e2e8f0",
-};
-
-const logoStyle = {
-  width: "44px",
-  height: "auto",
-  borderRadius: "10px",
-};
-
-const logoText = { flex: 1 };
-const logoTitle = { color: "#1e293b", fontSize: "13px", fontWeight: "700", margin: 0 };
-const logoSubtitle = { color: "#64748b", fontSize: "11px", margin: "4px 0 0" };
-
-const navContainerStyle = (shadow) => ({
-  flex: 1,
-  overflowY: "auto",
-  paddingRight: "4px",
-  transition: "box-shadow 0.3s",
-  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
-});
-
-const navStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-};
-
-const navCardStyle = (isActive, bg, color) => ({
-  padding: "12px 16px",
-  borderRadius: "12px",
-  backgroundColor: isActive ? bg : "#ffffff",
-  border: isActive ? `1px solid ${color}` : "1px solid #e2e8f0",
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  position: "relative",
-  cursor: "pointer",
-  transition: "all 0.2s",
-  boxShadow: isActive ? `0 2px 4px rgba(59, 130, 246, 0.1)` : "none",
-});
-
-const navIconStyle = {
-  fontSize: "20px",
-  width: "28px",
-};
-
-const navLabelStyle = (isActive, color) => ({
-  color: isActive ? color : "#475569",
-  fontWeight: isActive ? "600" : "500",
-  fontSize: "13px",
-});
-
-const activeIndicatorStyle = (color) => ({
-  position: "absolute",
-  left: 0,
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "3px",
-  height: "20px",
-  background: color,
-  borderRadius: "0 3px 3px 0",
-});
-
-const sidebarFooterStyle = { marginTop: "20px" };
-const sidebarDividerStyle = { height: "1px", background: "#e2e8f0", margin: "16px 0" };
-
-const logoutButtonStyle = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  color: "#dc2626",
-  fontSize: "14px",
-  fontWeight: "600",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  cursor: "pointer",
-  marginBottom: "20px",
-};
-
-const logoutIconStyle = { fontSize: "16px" };
-
-// KEY: mainContentStyle - NO PADDING, just like Layout.jsx
-const mainContentStyle = (isMobile) => ({
-  marginLeft: isMobile ? 0 : "280px",
-  padding: 0,  // ← NO PADDING - pages handle their own spacing
-  position: "relative",
-  zIndex: 1,
-  height: "100vh",
-  overflowY: "auto",
-  overflowX: "hidden",
-  transition: "margin-left 0.3s ease",
-  width: isMobile ? "100%" : `calc(100% - 280px)`,
-  background: "#f8fafc",
-});
-
-const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  background: "#ffffff",
-  borderRadius: "0px",
-  padding: "0px 20px",
-  marginBottom: "0px",
-  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-  borderBottom: "1px solid #e2e8f0",
-  position: "sticky",
-  top: 0,
-  zIndex: 30,
-  flexShrink: 0,
-  height: "60px",
-};
-
-const headerLeftStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "16px",
-};
-
-const hamburgerStyle = {
-  display: "none",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  width: "40px",
-  height: "40px",
-  cursor: "pointer",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const hamburgerIconStyle = {
-  color: "#475569",
-  fontSize: "20px",
-  fontWeight: "600",
-};
-
-const pageTitleStyle = {
-  color: "#1e293b",
-  fontSize: "18px",
-  fontWeight: "600",
-};
-
-const headerRightStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "20px",
-  position: "relative",
-  zIndex: 31,
-};

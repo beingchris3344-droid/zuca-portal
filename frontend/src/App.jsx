@@ -107,60 +107,28 @@ function AppContent() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
 
-  // ✅ SERVICE WORKER UPDATE DETECTION - Auto refresh
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      let refreshing = false;
+  // ✅ SERVICE WORKER UPDATE DETECTION - SILENT MODE (no user distraction)
+useEffect(() => {
+  if ('serviceWorker' in navigator) {
+    // Just log silently, no refresh, no notifications
+    navigator.serviceWorker.ready.then((registration) => {
+      if (registration.waiting) {
+        // Silently skip waiting - no user interaction
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
       
-      // Listen for controller change (new service worker takes over)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        
-        console.log('🔄 New version available! Refreshing...');
-        
-        // Auto-refresh after 500ms
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      });
-      
-      // Check for waiting service worker on page load
-      navigator.serviceWorker.ready.then((registration) => {
-        // Check for waiting worker
-        if (registration.waiting) {
-          console.log('⏳ Update waiting, applying...');
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-        
-        // Listen for new service worker
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          console.log('🆕 New service worker found');
-          
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('✅ Update ready, refreshing...');
-              setUpdateAvailable(true);
-              // Auto refresh after 2 seconds
-              setTimeout(() => {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-              }, 2000);
-            }
-          });
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Silently activate new worker without refreshing
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
         });
       });
-      
-      // Periodic check for updates (every 60 seconds)
-      const checkForUpdates = async () => {
-        const registration = await navigator.serviceWorker.ready;
-        await registration.update();
-      };
-      
-      const interval = setInterval(checkForUpdates, 60000);
-      return () => clearInterval(interval);
-    }
-  }, []);
+    });
+  }
+}, []);
 
   // Listen for User AI open events
   useEffect(() => {

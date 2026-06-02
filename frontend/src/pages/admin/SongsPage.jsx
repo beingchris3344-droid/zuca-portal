@@ -14,6 +14,7 @@ import axios from "axios";
 import io from "socket.io-client";
 import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
+import BookletModal from "../../components/BookletModal";
 
 // Define fields with maximum songs per title
 const songFields = [
@@ -85,6 +86,7 @@ export default function SongsPage() {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [selectedProgramForBooklet, setSelectedProgramForBooklet] = useState(null);
   
   // Song search states
   const [songSearchResults, setSongSearchResults] = useState({});
@@ -1078,21 +1080,48 @@ return false;
                       <div className="program-date"><FiCalendar /><span>{formatDate(program.date)}</span></div>
                       <div className="program-venue"><FiMapPin /><span>{program.venue}</span></div>
                     </div>
-                    <div className="program-actions">
-                      {canModify && (<button className="action-btn edit" onClick={(e) => { e.stopPropagation(); handleEdit(program); }} title="Edit"><FiEdit2 /></button>)}
-                      <div className="download-dropdown">
-                        <button className="action-btn download" onClick={(e) => { e.stopPropagation(); toggleDropdown(program.id); }} title="Download" disabled={generatingImage}><FiDownload /></button>
-                        {activeDropdown === program.id && (
-                          <div className="download-menu">
-                            <button onClick={(e) => { e.stopPropagation(); downloadAsWord(program); toggleDropdown(null); }}><BsFileWord /> Word Document</button>
-                            <button onClick={(e) => { e.stopPropagation(); downloadAsPDF(program); toggleDropdown(null); }}><BsFilePdf /> PDF (Print)</button>
-                            <button onClick={(e) => { e.stopPropagation(); downloadAsImage(program); toggleDropdown(null); }}><BsFileImage /> Image (PNG)</button>
-                          </div>
-                        )}
-                      </div>
-                      {canModify && (<button className="action-btn delete" onClick={(e) => { e.stopPropagation(); handleDelete(program.id); }} title="Delete"><FiTrash2 /></button>)}
-                      <button className="expand-btn">{expandedPrograms[program.id] ? <FiChevronUp /> : <FiChevronDown />}</button>
-                    </div>
+              <div className="program-actions">
+  {canModify && (
+    <button className="action-btn edit" onClick={(e) => { e.stopPropagation(); handleEdit(program); }} title="Edit">
+      <FiEdit2 />
+    </button>
+  )}
+  
+  {/* ADD THIS BOOKLET BUTTON - RIGHT HERE */}
+  <button 
+    className="action-btn booklet" 
+    onClick={(e) => { 
+      e.stopPropagation(); 
+      setSelectedProgramForBooklet(program);
+    }} 
+    title="View Full Booklet with Lyrics"
+  >
+    <FiBook />
+  </button>
+  
+  <div className="download-dropdown">
+    <button className="action-btn download" onClick={(e) => { e.stopPropagation(); toggleDropdown(program.id); }} title="Download" disabled={generatingImage}>
+      <FiDownload />
+    </button>
+    {activeDropdown === program.id && (
+      <div className="download-menu">
+        <button onClick={(e) => { e.stopPropagation(); downloadAsWord(program); toggleDropdown(null); }}><BsFileWord /> Word Document</button>
+        <button onClick={(e) => { e.stopPropagation(); downloadAsPDF(program); toggleDropdown(null); }}><BsFilePdf /> PDF (Print)</button>
+        <button onClick={(e) => { e.stopPropagation(); downloadAsImage(program); toggleDropdown(null); }}><BsFileImage /> Image (PNG)</button>
+      </div>
+    )}
+  </div>
+  
+  {canModify && (
+    <button className="action-btn delete" onClick={(e) => { e.stopPropagation(); handleDelete(program.id); }} title="Delete">
+      <FiTrash2 />
+    </button>
+  )}
+  
+  <button className="expand-btn" onClick={(e) => { e.stopPropagation(); toggleProgram(program.id); }}>
+    {expandedPrograms[program.id] ? <FiChevronUp /> : <FiChevronDown />}
+  </button>
+</div>
                   </div>
 
                   <AnimatePresence>
@@ -1122,6 +1151,13 @@ return false;
           )}
         </div>
       </div>
+
+        {selectedProgramForBooklet && (
+        <BookletModal 
+          program={selectedProgramForBooklet} 
+          onClose={() => setSelectedProgramForBooklet(null)} 
+        />
+      )}
 
       <style>{`
         .songs-page { min-height: 100vh; margin-top: 50px; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; }
@@ -1405,6 +1441,11 @@ return false;
           .search-song-btn { justify-content: center; }
           .song-search-dropdown { position: static; margin-top: 4px; }
         }
+
+
+
+        .action-btn.booklet { background: #f3e8ff; color: #9333ea; border-color: #e9d5ff; }
+.action-btn.booklet:hover { background: #e9d5ff; color: #7e22ce; }
       `}</style>
     </div>
   );

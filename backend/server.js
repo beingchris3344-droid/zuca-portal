@@ -91,6 +91,8 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5000",
   "http://localhost:5173",
+    "http://localhost:5174",
+
   "http://10.92.196.169:5173",
   "http://100.79.107.46:5173",
   "http://192.168.100.141:5173",
@@ -6486,6 +6488,196 @@ app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ==================== MASS PROGRAM BOOKLET (LYRICS PDF) ====================
+// Any authenticated user can download
+
+// GET /api/mass-programs/:id/booklet-data - Get program with full lyrics
+app.get("/api/mass-programs/:id/booklet-data", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`\n📖 Generating booklet for program: ${id}`);
+    
+    // Get program WITH its songs through the relation
+    const program = await prisma.massProgram.findUnique({
+      where: { id },
+      include: {
+        songs: {
+          include: {
+            song: true  // Get the actual song with lyrics
+          }
+        }
+      }
+    });
+    
+    if (!program) {
+      return res.status(404).json({ error: "Program not found" });
+    }
+    
+    console.log(`✅ Program: ${program.date} - ${program.venue}`);
+    console.log(`📊 Found ${program.songs.length} song entries`);
+    
+    // Group songs by type
+    const songsByType = {};
+    for (const ps of program.songs) {
+      if (!songsByType[ps.type]) {
+        songsByType[ps.type] = [];
+      }
+      
+      // Clean lyrics if available
+      let cleanLyrics = ps.song.lyrics || "[Lyrics not available yet]";
+      if (cleanLyrics !== "[Lyrics not available yet]") {
+        // Remove HTML tags
+        cleanLyrics = cleanLyrics.replace(/<[^>]*>/g, '');
+        // Fix escaped newlines
+        cleanLyrics = cleanLyrics.replace(/\\n/g, '\n');
+      }
+      
+      songsByType[ps.type].push({
+        title: ps.song.title,
+        reference: ps.song.reference,
+        lyrics: cleanLyrics,
+        found: true
+      });
+    }
+    
+    // Define sections in liturgy order
+    const sectionOrder = [
+      { key: "entrance", label: "ENTRANCE HYMN" },
+      { key: "mass", label: "MASS HYMN" },
+      { key: "bible", label: "BIBLE READING" },
+      { key: "offertory", label: "OFFERTORY HYMN" },
+      { key: "procession", label: "PROCESSION HYMN" },
+      { key: "mtakatifu", label: "MTAKATIFU HYMN" },
+      { key: "signOfPeace", label: "SIGN OF PEACE" },
+      { key: "communion", label: "COMMUNION HYMN" },
+      { key: "thanksgiving", label: "THANKSGIVING HYMN" },
+      { key: "exit", label: "EXIT HYMN" }
+    ];
+    
+    const sections = [];
+    let totalSongs = 0;
+    
+    for (let i = 0; i < sectionOrder.length; i++) {
+      const section = sectionOrder[i];
+      const songs = songsByType[section.key] || [];
+      
+      if (songs.length > 0) {
+        sections.push({
+          key: section.key,
+          label: section.label,
+          order: i,
+          songs: songs
+        });
+        totalSongs += songs.length;
+        console.log(`📌 ${section.label}: ${songs.length} song(s)`);
+      }
+    }
+    
+    // Format date
+    const programDate = new Date(program.date);
+    const formattedDate = programDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    const response = {
+      success: true,
+      program: {
+        id: program.id,
+        date: program.date.toISOString().split('T')[0],
+        formattedDate: formattedDate,
+        venue: program.venue,
+        createdAt: program.createdAt
+      },
+      sections: sections,
+      stats: {
+        totalSections: sections.length,
+        totalSongs: totalSongs
+      }
+    };
+    
+    console.log(`✅ Booklet ready: ${sections.length} sections, ${totalSongs} songs`);
+    res.json(response);
+    
+  } catch (err) {
+    console.error("❌ Booklet error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lightweight preview endpoint (no lyrics)
+app.get("/api/mass-programs/:id/booklet-preview", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const program = await prisma.massProgram.findUnique({
+      where: { id },
+      include: {
+        songs: {
+          include: {
+            song: {
+              select: { title: true }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!program) {
+      return res.status(404).json({ error: "Program not found" });
+    }
+    
+    const sectionOrder = [
+      "entrance", "mass", "bible", "offertory", 
+      "procession", "mtakatifu", "signOfPeace", 
+      "communion", "thanksgiving", "exit"
+    ];
+    
+    const sectionLabels = {
+      entrance: "ENTRANCE HYMN",
+      mass: "MASS HYMN",
+      bible: "BIBLE READING",
+      offertory: "OFFERTORY HYMN",
+      procession: "PROCESSION HYMN",
+      mtakatifu: "MTAKATIFU HYMN",
+      signOfPeace: "SIGN OF PEACE",
+      communion: "COMMUNION HYMN",
+      thanksgiving: "THANKSGIVING HYMN",
+      exit: "EXIT HYMN"
+    };
+    
+    const preview = [];
+    
+    for (const type of sectionOrder) {
+      const typeSongs = program.songs.filter(s => s.type === type);
+      if (typeSongs.length > 0) {
+        preview.push({
+          section: sectionLabels[type],
+          songs: typeSongs.map(s => s.song.title)
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      program: {
+        id: program.id,
+        date: program.date,
+        venue: program.venue
+      },
+      preview: preview
+    });
+    
+  } catch (err) {
+    console.error("Preview error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+console.log("✅ Mass Program Booklet API routes loaded");
 // DELETE mass program (admin/choir moderator only)
 app.delete("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
   try {
@@ -11578,6 +11770,17 @@ async function createAndSendNotification({ userId, type, title, message, data = 
 
   return notif;
 }
+
+
+// ============================================
+// Connect cronJobs to use createAndSendNotification
+// ============================================
+const { setNotificationFunction } = require("./services/cronJobs");
+
+// Make globally available
+global.createAndSendNotification = createAndSendNotification;
+global.io = io;
+global.prisma = prisma;
 
 // ============================================
 // THIRD: Define Express routes

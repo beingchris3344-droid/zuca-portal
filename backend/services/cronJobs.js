@@ -1,16 +1,18 @@
 // services/cronJobs.js
 
-// Send ALL pending event reminders (not just tomorrow)
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+const { sendPersonalizedEmail } = require("./mailer");
+
 async function sendEventReminders() {
-  console.log("🕐 Running event reminders check...");
+  console.log("🕐 Running semester schedule event reminders check...");
   
   const now = new Date();
   
-  // Find ALL notifications that are due to be sent
   const pendingNotifications = await prisma.scheduledNotification.findMany({
     where: {
-      notifyAt: { lte: now },  // Notification time has passed
-      isSent: false            // Not sent yet
+      notifyAt: { lte: now },
+      isSent: false
     },
     include: {
       event: {
@@ -22,40 +24,78 @@ async function sendEventReminders() {
   });
   
   if (pendingNotifications.length === 0) {
-    console.log("📭 No pending notifications");
+    console.log("📭 No pending event reminders");
     return;
   }
   
   console.log(`📢 Found ${pendingNotifications.length} pending notifications`);
   
   const allUsers = await prisma.user.findMany({
-    select: { id: true, email: true, fullName: true, homeJumuia: true }
+    select: { id: true, email: true, fullName: true }
   });
   
+  console.log(`👥 Total users: ${allUsers.length}`);
+  
   for (const notification of pendingNotifications) {
-    console.log(`📧 Sending: ${notification.title}`);
+    console.log(`📧 Processing: ${notification.title}`);
     
-    // Send to ALL users
-    for (const user of allUsers) {
-      await sendPersonalizedEmail(
-        user,
-        "event_reminder",
-        notification.title,
-        notification.message
-      );
+    if (allUsers.length === 0) {
+      console.log(`⚠️ No users found, marking as sent`);
+      await prisma.scheduledNotification.update({
+        where: { id: notification.id },
+        data: { isSent: true, sentAt: new Date() }
+      });
+      continue;
     }
     
-    // Mark as sent
+    for (const user of allUsers) {
+      try {
+        const dbNotification = await prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: "event_reminder",
+            title: notification.title,
+            message: notification.message,
+            data: { 
+              eventId: notification.eventId,
+              scheduleId: notification.scheduleId,
+              priority: notification.priority
+            },
+            read: false,
+            createdAt: new Date()
+          }
+        });
+        
+        if (global.io) {
+          global.io.to(user.id).emit("new_notification", {
+            ...dbNotification,
+            createdAt: dbNotification.createdAt.toISOString()
+          });
+        }
+        
+        if (notification.priority === "urgent" || notification.priority === "high") {
+          await sendPersonalizedEmail(
+            user,
+            "event_reminder",
+            notification.title,
+            notification.message
+          );
+        }
+        
+      } catch (err) {
+        console.error(`Failed to send to user ${user.id}:`, err.message);
+      }
+    }
+    
     await prisma.scheduledNotification.update({
       where: { id: notification.id },
       data: { isSent: true, sentAt: new Date() }
     });
     
-    console.log(`✅ Sent reminders for: ${notification.event.title}`);
+    console.log(`✅ Sent "${notification.title}" to ${allUsers.length} users`);
   }
 }
 
-// Send campaign deadline reminders
 async function sendCampaignReminders() {
   console.log("💰 Running campaign deadline check...");
   
@@ -84,18 +124,20 @@ async function sendCampaignReminders() {
     const daysLeft = Math.ceil((campaign.deadline - new Date()) / (1000 * 60 * 60 * 24));
     
     for (const pledge of campaign.pledges) {
-      await sendPersonalizedEmail(
-        pledge.user,
-        "campaign_reminder",
-        "⏰ Campaign Deadline Approaching",
-        `The "${campaign.title}" campaign ends in ${daysLeft} days. Your pending amount is KES ${pledge.pendingAmount.toLocaleString()}.`
-      );
+      if (global.createAndSendNotification) {
+        await global.createAndSendNotification({
+          userId: pledge.user.id,
+          type: "campaign_reminder",
+          title: `⏰ Campaign Deadline: ${daysLeft} days left`,
+          message: `The "${campaign.title}" campaign ends in ${daysLeft} days. Your pending amount is KES ${pledge.pendingAmount.toLocaleString()}.`,
+          data: { campaignId: campaign.id, daysLeft }
+        });
+      }
     }
-    console.log(`✅ Reminders sent for campaign: ${campaign.title} (${daysLeft} days left)`);
+    console.log(`✅ Reminders sent for campaign: ${campaign.title}`);
   }
 }
 
-// Check if no announcements for 2 weeks
 async function checkNoAnnouncements() {
   console.log("📢 Checking for recent announcements...");
   
@@ -113,16 +155,17 @@ async function checkNoAnnouncements() {
     });
     
     for (const admin of admins) {
-      await sendPersonalizedEmail(
-        admin,
-        "suggestion",
-        "📢 Announcement Suggestion",
-        "No announcements have been posted in 2 weeks. Would you like me to draft one? Reply with 'Draft announcement about [topic]'"
-      );
+      if (global.createAndSendNotification) {
+        await global.createAndSendNotification({
+          userId: admin.id,
+          type: "suggestion",
+          title: "📢 Announcement Suggestion",
+          message: "No announcements have been posted in 2 weeks. Would you like me to draft one?",
+          data: { action: "draft_announcement" }
+        });
+      }
     }
     console.log(`✅ Alert sent to ${admins.length} admins`);
-  } else {
-    console.log(`📰 Recent announcement found: "${recentAnnouncement.title}"`);
   }
 }
 

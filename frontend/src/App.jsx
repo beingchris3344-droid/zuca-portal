@@ -98,125 +98,6 @@ const socket = io(BASE_URL, {
   timeout: 20000,
 });
 
-
-// ===== NOTIFICATION CHECK COMPONENT (PWA only) =====
-function NotificationGate({ children }) {
-  const [notificationStatus, setNotificationStatus] = useState('checking'); // checking, granted, denied, not_needed
-
-  useEffect(() => {
-    checkIfPWAAndPermission();
-  }, []);
-
-  // Function to detect if app is installed as PWA
-  const isPWAInstalled = () => {
-    // Check display mode
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      return true;
-    }
-    // Check for iOS PWA
-    if (window.navigator.standalone === true) {
-      return true;
-    }
-    return false;
-  };
-
-  const checkIfPWAAndPermission = () => {
-    // If NOT installed as PWA, don't require notifications
-    if (!isPWAInstalled()) {
-      console.log("Running in browser - notifications not required");
-      setNotificationStatus('not_needed');
-      return;
-    }
-
-    console.log("Running as installed PWA - notifications required");
-    
-    // Check if browser supports notifications
-    if (!('Notification' in window)) {
-      alert('Your browser does not support notifications. Please use a modern browser for the PWA.');
-      setNotificationStatus('not_needed'); // Allow access but warn
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      setNotificationStatus('granted');
-    } 
-    else if (Notification.permission === 'denied') {
-      setNotificationStatus('denied');
-      showBlockedModal();
-    } 
-    else {
-      // Not asked yet - show request modal
-      showRequestModal();
-    }
-  };
-
-  const showRequestModal = () => {
-    const modal = document.getElementById('notification-required-modal');
-    if (modal) {
-      modal.style.display = 'flex';
-      
-      const enableBtn = document.getElementById('enable-notifications-btn');
-      if (enableBtn) {
-        const newBtn = enableBtn.cloneNode(true);
-        enableBtn.parentNode.replaceChild(newBtn, enableBtn);
-        
-        newBtn.onclick = async () => {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            modal.style.display = 'none';
-            setNotificationStatus('granted');
-            // Re-register push after permission granted
-            if (window.pushService) {
-              window.pushService.subscribe();
-            }
-          } else {
-            modal.style.display = 'none';
-            setNotificationStatus('denied');
-            showBlockedModal();
-          }
-        };
-      }
-    } else {
-      // Fallback: use browser prompt directly
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          setNotificationStatus('granted');
-        } else {
-          setNotificationStatus('denied');
-        }
-      });
-    }
-  };
-
-  const showBlockedModal = () => {
-    const modal = document.getElementById('notifications-blocked-modal');
-    if (modal) {
-      modal.style.display = 'flex';
-      
-      const refreshBtn = document.getElementById('refresh-after-enable-btn');
-      if (refreshBtn) {
-        const newBtn = refreshBtn.cloneNode(true);
-        refreshBtn.parentNode.replaceChild(newBtn, refreshBtn);
-        newBtn.onclick = () => window.location.reload();
-      }
-    }
-  };
-
-  // Loading state
-  if (notificationStatus === 'checking') {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
-  }
-
-  // If denied in PWA - show blocked screen
-  if (notificationStatus === 'denied') {
-    return null; // Modal is already showing
-  }
-
-  // For browser users or granted - show app normally
-  return children;
-}
-// ===== END NOTIFICATION GATE =====
-
 // Create a wrapper component that has access to navigate
 function AppContent() {
   const navigate = useNavigate();
@@ -705,17 +586,15 @@ function App() {
   
   if (loading) return <div>Loading...</div>;
   
-    return (
+  return (
     <BrowserRouter>
-      <NotificationGate>
-        {!isAdmin ? (
-          <MessengerProvider>
-            <AppContent />
-          </MessengerProvider>
-        ) : (
+      {!isAdmin ? (
+        <MessengerProvider>
           <AppContent />
-        )}
-      </NotificationGate>
+        </MessengerProvider>
+      ) : (
+        <AppContent />
+      )}
     </BrowserRouter>
   );
 }

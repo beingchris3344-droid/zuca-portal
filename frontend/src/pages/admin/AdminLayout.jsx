@@ -199,7 +199,7 @@ export default function AdminLayout() {
 
   const navItems = [
     { label: "Admin View", path: "", icon: "", bg: "#eff6ff", color: "#3b82f6" },
-    { label: "Attendance Sheet", path: "attendance", icon: "📋", bg: "#e0e7ff", color: "#3b82f6" },
+    { label: "Attendance Sheet", path: "attendance", icon: "", bg: "#e0e7ff", color: "#3b82f6" },
         { label: "Contributions", path: "contributions", icon: "", bg: "#d1fae5", color: "#10b981" },
             { label: "Announcements", path: "announcements", icon: "", bg: "#dbeafe", color: "#3b82f6" },
                 { label: "Mass Programs", path: "songs", icon: "", bg: "#e0e7ff", color: "#6366f1" },
@@ -213,12 +213,12 @@ export default function AdminLayout() {
     { label: "All Jumuias", path: "jumuia-management", icon: "", bg: "#d1fae5", color: "#10b981" },
     { label: "Gallery", path: "media", icon: "", bg: "#fef3c7", color: "#f59e0b" },
     { label: "YouTube Analytics", path: "analytics", icon: "", bg: "#fee2e2", color: "#ef4444" },
-    { label: "Hymn Book", path: "hymns", icon: "📖", bg: "#fef3c7", color: "#f59e0b" },
+    { label: "Hymn Book", path: "hymns", icon: "", bg: "#fef3c7", color: "#f59e0b" },
     { label: "Pending Songs", path: "pending-songs", icon: "", bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Messanger", path: "messenger", icon: "💬", bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
+    { label: "Messanger", path: "messenger", icon: "", bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
     { label: "Monitor", path: "chat", icon: "", bg: "#e0f2fe", color: "#06b6d4" },
-    { label: "System Analysis", path: "health-centre", icon: "🏥", bg: "#dcfce7", color: "#10b981" },
-    { label: "Admin Manual", path: "security", icon: "🔒", bg: "#f1f5f9", color: "#64748b" },
+    { label: "System Analysis", path: "health-centre", icon: "", bg: "#dcfce7", color: "#10b981" },
+    { label: "Admin Manual", path: "security", icon: "", bg: "#f1f5f9", color: "#64748b" },
   ];
 
   // Styles with access to sidebarCollapsed

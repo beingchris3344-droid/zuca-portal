@@ -13795,8 +13795,15 @@ async function createEventNotifications(event, scheduleId) {
     const eventTime = event.eventTime || "16:30";
     const [hours, minutes] = eventTime.split(":");
     
-    const eventDateTime = new Date(eventDate);
-    eventDateTime.setHours(parseInt(hours), parseInt(minutes), 0);
+    // Create a UTC-based datetime to avoid timezone issues
+    const eventDateTime = new Date(Date.UTC(
+      eventDate.getUTCFullYear(),
+      eventDate.getUTCMonth(),
+      eventDate.getUTCDate(),
+      parseInt(hours),
+      parseInt(minutes),
+      0
+    ));
     
     const notificationTimings = [
       { daysBefore: 7, label: "1 week before", priority: "normal" },
@@ -13808,20 +13815,27 @@ async function createEventNotifications(event, scheduleId) {
       { hoursBefore: 0.5, label: "30 minutes before", priority: "urgent" }
     ];
     
+    const now = new Date();
+    
     for (const timing of notificationTimings) {
       let notifyAt;
       
       if (timing.daysBefore !== undefined) {
         notifyAt = new Date(eventDateTime);
-        notifyAt.setDate(notifyAt.getDate() - timing.daysBefore);
+        notifyAt.setUTCDate(notifyAt.getUTCDate() - timing.daysBefore);
       } else {
         notifyAt = new Date(eventDateTime);
-        notifyAt.setHours(notifyAt.getHours() - timing.hoursBefore);
+        notifyAt.setUTCHours(notifyAt.getUTCHours() - timing.hoursBefore);
       }
       
-      if (notifyAt && notifyAt > new Date()) {
+      // Only create future notifications
+      if (notifyAt && notifyAt > now) {
+        // Check if notification already exists to avoid duplicates
         const existing = await prisma.scheduledNotification.findFirst({
-          where: { eventId: event.id, notifyAt: notifyAt }
+          where: { 
+            eventId: event.id, 
+            notifyAt: notifyAt 
+          }
         });
         
         if (!existing) {
@@ -13836,14 +13850,115 @@ async function createEventNotifications(event, scheduleId) {
               isSent: false
             }
           });
+          console.log(`✅ Created ${timing.label} notification for ${event.title} at ${notifyAt.toISOString()}`);
         }
       }
     }
-    console.log(`✅ Created notifications for event: ${event.title}`);
+    console.log(`✅ Created all notifications for event: ${event.title}`);
   } catch (err) {
     console.error(`❌ Error creating notifications for event ${event.title}:`, err.message);
   }
 }
+
+// Add this to your server.js after the schedule creation route
+app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId } 
+    });
+    
+    if (!isAdminOrSecretary(user)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const { scheduleId } = req.params;
+    
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId },
+      include: { events: true }
+    });
+    
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+    
+    const debugInfo = {
+      schedule: {
+        id: schedule.id,
+        title: schedule.title,
+        isPublished: schedule.isPublished,
+        createdAt: schedule.createdAt
+      },
+      events: [],
+      notificationCreationLog: []
+    };
+    
+    for (const event of schedule.events) {
+      const eventDate = new Date(event.eventDate);
+      const [hours, minutes] = (event.eventTime || "16:30").split(":");
+      
+      // Calculate event datetime in UTC
+      const eventDateTime = new Date(Date.UTC(
+        eventDate.getUTCFullYear(),
+        eventDate.getUTCMonth(),
+        eventDate.getUTCDate(),
+        parseInt(hours),
+        parseInt(minutes),
+        0
+      ));
+      
+      const now = new Date();
+      const notifications = await prisma.scheduledNotification.findMany({
+        where: { eventId: event.id }
+      });
+      
+      const notificationTimings = [
+        { daysBefore: 7, label: "1 week before" },
+        { daysBefore: 3, label: "3 days before" },
+        { daysBefore: 1, label: "1 day before" },
+        { hoursBefore: 12, label: "12 hours before" },
+        { hoursBefore: 6, label: "6 hours before" },
+        { hoursBefore: 1, label: "1 hour before" },
+        { hoursBefore: 0.5, label: "30 minutes before" }
+      ];
+      
+      const wouldCreate = [];
+      for (const timing of notificationTimings) {
+        let notifyAt;
+        if (timing.daysBefore !== undefined) {
+          notifyAt = new Date(eventDateTime);
+          notifyAt.setUTCDate(notifyAt.getUTCDate() - timing.daysBefore);
+        } else {
+          notifyAt = new Date(eventDateTime);
+          notifyAt.setUTCHours(notifyAt.getUTCHours() - timing.hoursBefore);
+        }
+        
+        wouldCreate.push({
+          timing: timing.label,
+          notifyAt: notifyAt.toISOString(),
+          isFuture: notifyAt > now,
+          wouldCreate: notifyAt > now
+        });
+      }
+      
+      debugInfo.events.push({
+        id: event.id,
+        title: event.title,
+        eventDate: event.eventDate,
+        eventTime: event.eventTime,
+        eventDateTimeUTC: eventDateTime.toISOString(),
+        currentTimeUTC: now.toISOString(),
+        notificationsFound: notifications.length,
+        wouldCreateNotifications: wouldCreate
+      });
+    }
+    
+    res.json(debugInfo);
+  } catch (err) {
+    console.error("Debug error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Helper function to notify all users (OPTIMIZED - BATCH PROCESSING)
 async function notifyAllUsers(title, message, type, data = {}) {
@@ -14381,8 +14496,6 @@ app.delete("/api/admin/schedules/:id", authenticate, async (req, res) => {
 });
 
 // ==================== NOTIFICATION ROUTES (USER-FACING) ====================
-
-// Check and send pending notifications for current user
 app.post("/api/schedules/check-notifications", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -14405,10 +14518,14 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
     const notificationsSent = [];
     
     for (const notification of pendingNotifications) {
+      // Check if user already received this specific notification
       const alreadyReceived = await prisma.notification.findFirst({
-  where: {
-    userId: userId,
-    data: { path: [`notification_${notification.id}`] } 
+        where: {
+          userId: userId,
+          data: { 
+            path: ['notificationId'], 
+            equals: notification.id 
+          }
         }
       });
       
@@ -14427,7 +14544,17 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
           }
         });
         
+        // CRITICAL FIX: Mark this scheduled notification as sent
+        await prisma.scheduledNotification.update({
+          where: { id: notification.id },
+          data: { 
+            isSent: true,
+            sentAt: new Date()
+          }
+        });
+        
         notificationsSent.push(notification);
+        console.log(`✅ Sent notification ${notification.id} to user ${userId}`);
       }
     }
     

@@ -1,4 +1,4 @@
-// Prayer.jsx — Complete with Browse Prayers section + Rosary + Stations + Proper Formatting
+// Prayer.jsx — Complete with Browse Prayers + Rosary + Stations + Favorites + Notes
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
@@ -13,13 +13,18 @@ const Prayer = () => {
   const [activeMainTab, setActiveMainTab] = useState('browse');
   const [selectedSet, setSelectedSet] = useState('sorrowful');
   const [currentStationIndex, setCurrentStationIndex] = useState(0);
-  const [expandedPrayer, setExpandedPrayer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showQuickPrayers, setShowQuickPrayers] = useState(true);
   const [selectedPrayer, setSelectedPrayer] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  
+  // Notes state
+  const [userNote, setUserNote] = useState('');
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   
   // API data states
   const [dailyPrayers, setDailyPrayers] = useState([]);
@@ -53,6 +58,12 @@ const Prayer = () => {
   const currentSet = mysteries[selectedSet] || [];
   const currentMystery = currentSet[currentMysteryIndex];
   const currentStation = stationsData[currentStationIndex];
+
+  // Show toast notification
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
 
   // Get day name
   const getDayName = () => {
@@ -89,25 +100,19 @@ const Prayer = () => {
     return cleaned.trim() || 'Prayer content available';
   };
 
-  // Enhanced prayer text formatting - properly structures the prayer for readability
+  // Enhanced prayer text formatting
   const formatPrayerText = (text) => {
-    if (!text) return <p>Prayer content not available</p>;
+    if (!text) return <p>Pray
+      er content not available</p>;
     
     let cleaned = cleanPrayerText(text);
-    
-    // Split into paragraphs
     const paragraphs = cleaned.split(/\n\s*\n/);
     
     return paragraphs.map((paragraph, idx) => {
       if (!paragraph.trim()) return null;
       
-      // Check if this is a title or heading (all caps or short)
       const isHeading = paragraph.length < 100 && paragraph === paragraph.toUpperCase() && paragraph.length > 10;
-      
-      // Check if this is a verse or response (starts with V/ or R/)
       const isVerse = paragraph.match(/^[VR]\//);
-      
-      // Check if this is a numbered section
       const isNumbered = paragraph.match(/^\d+\./);
       
       if (isHeading) {
@@ -134,7 +139,6 @@ const Prayer = () => {
         );
       }
       
-      // Regular paragraph - split into sentences for better flow
       const sentences = paragraph.split(/(?<=[.!?])\s+(?=[A-Z])/);
       
       return (
@@ -147,80 +151,124 @@ const Prayer = () => {
     }).filter(Boolean);
   };
 
- // Fetch all prayers
-useEffect(() => {
-  const fetchAllPrayers = async () => {
-    setLoading(true);
+  // Fetch user's note for a prayer
+  const fetchUserNote = async (prayerId) => {
     try {
-      const dailyRes = await api.get('/api/prayers?category=daily&limit=50');
-      setDailyPrayers(dailyRes.data.prayers || []);
-      
-      const marianRes = await api.get('/api/prayers?category=marian&limit=50');
-      setMarianPrayers(marianRes.data.prayers || []);
-      
-      const saintsRes = await api.get('/api/prayers?category=saints&limit=100');
-      setSaintsPrayers(saintsRes.data.prayers || []);
-      
-      const stations = saintsRes.data.prayers.filter(p => 
-        p.title?.toLowerCase().includes('station') || 
-        p.title?.toLowerCase().includes('stations of the cross')
-      );
-      setStationsData(stations.length > 0 ? stations : saintsRes.data.prayers.slice(0, 14));
-      
-      const rosaryRes = await api.get('/api/prayers?category=rosary&limit=100');
-      const rosaryPrayers = rosaryRes.data.prayers || [];
-      
-      const joyful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('joyful'));
-      const sorrowful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('sorrowful'));
-      const glorious = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('glorious'));
-      const luminous = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('luminous'));
-      
-      setMysteries({
-        joyful: joyful.length > 0 ? joyful : rosaryPrayers.slice(0, 5),
-        sorrowful: sorrowful.length > 0 ? sorrowful : rosaryPrayers.slice(5, 10),
-        glorious: glorious.length > 0 ? glorious : rosaryPrayers.slice(10, 15),
-        luminous: luminous.length > 0 ? luminous : rosaryPrayers.slice(15, 20)
-      });
-      
-      // Combine ALL prayers from all categories
-      const all = [
-        ...(dailyRes.data.prayers || []),
-        ...(marianRes.data.prayers || []),
-        ...(saintsRes.data.prayers || []),
-        ...(rosaryPrayers || [])
-      ].filter(p => {
-        // Only filter out prayers with images or empty content
-        if (p.prayer?.includes('<img') || p.prayer?.includes('.jpg')) return false;
-        if (!p.prayer) return false;
-        if (p.prayer?.includes('Share this Page')) return false;
-        return true;
-      });
-      
-      // Remove duplicates by title
-      const unique = [];
-      const titles = new Set();
-      for (const prayer of all) {
-        if (!titles.has(prayer.title)) {
-          titles.add(prayer.title);
-          unique.push(prayer);
-        }
+      const res = await api.get(`/api/prayers/${prayerId}/my-note?userId=${userId}`);
+      if (res.data.note) {
+        setUserNote(res.data.note.note);
+      } else {
+        setUserNote('');
       }
-      setAllPrayers(unique);
-      setFilteredPrayers(unique);
-      
-      const favoritesRes = await api.get(`/api/prayers/my/favorites?userId=${userId}`);
-      setFavorites(favoritesRes.data.favorites || []);
-      
     } catch (err) {
-      console.error('Error fetching prayers:', err);
-      setError('Failed to load prayers. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching note:', err);
+      setUserNote('');
     }
   };
-  
-  fetchAllPrayers();
-}, [userId]);
+
+  // Save note
+  const saveNote = async (prayerId) => {
+    if (!userNote.trim()) {
+      setShowNoteInput(false);
+      return;
+    }
+    setSavingNote(true);
+    try {
+      await api.post(`/api/prayers/${prayerId}/note`, { userId, note: userNote });
+      showToast('Note saved successfully!');
+      setShowNoteInput(false);
+    } catch (err) {
+      console.error('Error saving note:', err);
+      showToast('Failed to save note', 'error');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  // Delete note
+  const deleteNote = async (prayerId) => {
+    if (!window.confirm('Delete this note?')) return;
+    try {
+      await api.delete(`/api/prayers/${prayerId}/note`, { data: { userId } });
+      setUserNote('');
+      setShowNoteInput(false);
+      showToast('Note deleted');
+    } catch (err) {
+      console.error('Error deleting note:', err);
+    }
+  };
+
+  // Fetch all prayers
+  useEffect(() => {
+    const fetchAllPrayers = async () => {
+      setLoading(true);
+      try {
+        const dailyRes = await api.get('/api/prayers?category=daily&limit=50');
+        setDailyPrayers(dailyRes.data.prayers || []);
+        
+        const marianRes = await api.get('/api/prayers?category=marian&limit=50');
+        setMarianPrayers(marianRes.data.prayers || []);
+        
+        const saintsRes = await api.get('/api/prayers?category=saints&limit=100');
+        setSaintsPrayers(saintsRes.data.prayers || []);
+        
+        const stations = saintsRes.data.prayers.filter(p => 
+          p.title?.toLowerCase().includes('station') || 
+          p.title?.toLowerCase().includes('stations of the cross')
+        );
+        setStationsData(stations.length > 0 ? stations : saintsRes.data.prayers.slice(0, 14));
+        
+        const rosaryRes = await api.get('/api/prayers?category=rosary&limit=100');
+        const rosaryPrayers = rosaryRes.data.prayers || [];
+        
+        const joyful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('joyful'));
+        const sorrowful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('sorrowful'));
+        const glorious = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('glorious'));
+        const luminous = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('luminous'));
+        
+        setMysteries({
+          joyful: joyful.length > 0 ? joyful : rosaryPrayers.slice(0, 5),
+          sorrowful: sorrowful.length > 0 ? sorrowful : rosaryPrayers.slice(5, 10),
+          glorious: glorious.length > 0 ? glorious : rosaryPrayers.slice(10, 15),
+          luminous: luminous.length > 0 ? luminous : rosaryPrayers.slice(15, 20)
+        });
+        
+        const all = [
+          ...(dailyRes.data.prayers || []),
+          ...(marianRes.data.prayers || []),
+          ...(saintsRes.data.prayers || []),
+          ...(rosaryPrayers || [])
+        ].filter(p => {
+          if (p.prayer?.includes('<img') || p.prayer?.includes('.jpg')) return false;
+          if (!p.prayer) return false;
+          if (p.prayer?.includes('Share this Page')) return false;
+          return true;
+        });
+        
+        const unique = [];
+        const titles = new Set();
+        for (const prayer of all) {
+          if (!titles.has(prayer.title)) {
+            titles.add(prayer.title);
+            unique.push(prayer);
+          }
+        }
+        setAllPrayers(unique);
+        setFilteredPrayers(unique);
+        
+        const favoritesRes = await api.get(`/api/prayers/my/favorites?userId=${userId}`);
+        setFavorites(favoritesRes.data.favorites || []);
+        
+      } catch (err) {
+        console.error('Error fetching prayers:', err);
+        setError('Failed to load prayers. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllPrayers();
+  }, [userId]);
 
   // Filter prayers by category
   useEffect(() => {
@@ -263,8 +311,10 @@ useEffect(() => {
       const res = await api.post(`/api/prayers/${prayerId}/favorite`, { userId });
       if (res.data.favorited) {
         setFavorites([...favorites, { prayerId }]);
+        showToast('Added to favorites!');
       } else {
         setFavorites(favorites.filter(f => f.prayerId !== prayerId));
+        showToast('Removed from favorites');
       }
     } catch (err) {
       console.error('Favorite error:', err);
@@ -347,13 +397,20 @@ useEffect(() => {
 
   return (
     <div className="prayer-container">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`toast ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Header with Back Button */}
       <div className="prayer-header">
         <button className="back-button" onClick={() => navigate(-1)}>
           ← Back
         </button>
         <div className="header-title">
-          <h1>{firstName}'s Prayer Space</h1>
+          <h1>YOUR PRAYER SPACE</h1>
           <p>Today is {getDayName()} • Suggested: {getSuggestedMystery().toUpperCase()} Mysteries</p>
         </div>
       </div>
@@ -409,53 +466,20 @@ useEffect(() => {
       {/* ========== BROWSE PRAYERS SECTION ========== */}
       {activeMainTab === 'browse' && (
         <div className="browse-section">
-          {/* Category Filters */}
           <div className="category-filters">
-            <button 
-              className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveFilter('all')}
-            >
-              All
-            </button>
-            <button 
-              className={`filter-chip ${activeFilter === 'daily' ? 'active' : ''}`}
-              onClick={() => setActiveFilter('daily')}
-            >
-              Daily
-            </button>
-            <button 
-              className={`filter-chip ${activeFilter === 'marian' ? 'active' : ''}`}
-              onClick={() => setActiveFilter('marian')}
-            >
-              Marian
-            </button>
-            <button 
-              className={`filter-chip ${activeFilter === 'saints' ? 'active' : ''}`}
-              onClick={() => setActiveFilter('saints')}
-            >
-              Saints
-            </button>
-            <button 
-              className={`filter-chip ${activeFilter === 'rosary' ? 'active' : ''}`}
-              onClick={() => setActiveFilter('rosary')}
-            >
-              Rosary
-            </button>
+            <button className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All</button>
+            <button className={`filter-chip ${activeFilter === 'daily' ? 'active' : ''}`} onClick={() => setActiveFilter('daily')}>Daily</button>
+            <button className={`filter-chip ${activeFilter === 'marian' ? 'active' : ''}`} onClick={() => setActiveFilter('marian')}>Marian</button>
+            <button className={`filter-chip ${activeFilter === 'saints' ? 'active' : ''}`} onClick={() => setActiveFilter('saints')}>Saints</button>
+            <button className={`filter-chip ${activeFilter === 'rosary' ? 'active' : ''}`} onClick={() => setActiveFilter('rosary')}>Rosary</button>
           </div>
 
-          {/* Prayer Grid */}
           <div className="prayer-grid">
             {filteredPrayers.map(prayer => (
               <div key={prayer.id} className="prayer-card" onClick={() => setSelectedPrayer(prayer)}>
                 <div className="prayer-card-header">
                   <h3>{prayer.title}</h3>
-                  <button 
-                    className="favorite-icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(prayer.id);
-                    }}
-                  >
+                  <button className="favorite-icon" onClick={(e) => { e.stopPropagation(); toggleFavorite(prayer.id); }}>
                     {isFavorited(prayer.id) ? '★' : '☆'}
                   </button>
                 </div>
@@ -466,9 +490,7 @@ useEffect(() => {
           </div>
 
           {filteredPrayers.length === 0 && (
-            <div className="empty-state">
-              <p>No prayers found</p>
-            </div>
+            <div className="empty-state">No prayers found</div>
           )}
         </div>
       )}
@@ -637,20 +659,75 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Prayer Modal for viewing full prayer */}
+      {/* ========== PRAYER MODAL WITH FAVORITES AND NOTES ========== */}
       {selectedPrayer && (
-        <div className="modal-overlay" onClick={() => setSelectedPrayer(null)}>
+        <div className="modal-overlay" onClick={() => {
+          setSelectedPrayer(null);
+          setShowNoteInput(false);
+          setUserNote('');
+        }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{selectedPrayer.title}</h2>
-              <button className="modal-close" onClick={() => setSelectedPrayer(null)}>✕</button>
+              <button className="modal-close" onClick={() => {
+                setSelectedPrayer(null);
+                setShowNoteInput(false);
+                setUserNote('');
+              }}>✕</button>
             </div>
+            
             <div className="modal-category">
               <span className="category-badge">{selectedPrayer.category}</span>
               <button className="modal-favorite" onClick={() => toggleFavorite(selectedPrayer.id)}>
                 {isFavorited(selectedPrayer.id) ? '★ Remove from favorites' : '☆ Add to favorites'}
               </button>
             </div>
+            
+            {/* Notes Section */}
+            <div className="modal-notes-section">
+              <div className="notes-header">
+                <span>📝 Personal Notes</span>
+                {!showNoteInput && userNote && (
+                  <button className="edit-note-btn" onClick={() => setShowNoteInput(true)}>Edit</button>
+                )}
+              </div>
+              
+              {showNoteInput ? (
+                <div className="note-input-area">
+                  <textarea
+                    className="note-textarea"
+                    placeholder="Write your personal reflection or note about this prayer..."
+                    value={userNote}
+                    onChange={(e) => setUserNote(e.target.value)}
+                    rows={4}
+                  />
+                  <div className="note-actions">
+                    <button className="note-save-btn" onClick={() => saveNote(selectedPrayer.id)} disabled={savingNote}>
+                      {savingNote ? 'Saving...' : 'Save Note'}
+                    </button>
+                    {userNote && (
+                      <button className="note-delete-btn" onClick={() => deleteNote(selectedPrayer.id)}>Delete</button>
+                    )}
+                    <button className="note-cancel-btn" onClick={() => {
+                      setShowNoteInput(false);
+                      if (!userNote) fetchUserNote(selectedPrayer.id);
+                    }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="note-display" onClick={() => {
+                  fetchUserNote(selectedPrayer.id);
+                  setShowNoteInput(true);
+                }}>
+                  {userNote ? (
+                    <p className="note-text">{userNote}</p>
+                  ) : (
+                    <p className="note-placeholder">Tap to add a personal note...</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
             <div className="modal-body">
               {formatPrayerText(selectedPrayer.prayer)}
             </div>
@@ -696,20 +773,29 @@ useEffect(() => {
         }
 
         .header-title p {
-          font-size: 0.75rem;
+          font-size: 0.5rem;
           opacity: 0.9;
         }
 
+        /* Toast */
+        .toast {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 10px 20px;
+          border-radius: 8px;
+          color: white;
+          font-size: 14px;
+          z-index: 1100;
+        }
+
+        .toast.success { background: #22c55e; }
+        .toast.error { background: #ef4444; }
+
         /* Search */
-        .search-section {
-          margin-bottom: 20px;
-        }
-
-        .search-bar {
-          display: flex;
-          gap: 8px;
-        }
-
+        .search-section { margin-bottom: 20px; }
+        .search-bar { display: flex; gap: 8px; }
         .search-bar input {
           flex: 1;
           padding: 12px 16px;
@@ -718,7 +804,6 @@ useEffect(() => {
           font-size: 14px;
           background: white;
         }
-
         .search-btn, .clear-btn {
           padding: 0 20px;
           background: #1e3a32;
@@ -727,10 +812,7 @@ useEffect(() => {
           border-radius: 30px;
           cursor: pointer;
         }
-
-        .clear-btn {
-          background: #ef4444;
-        }
+        .clear-btn { background: #ef4444; }
 
         /* Search Results */
         .search-results {
@@ -739,26 +821,19 @@ useEffect(() => {
           padding: 20px;
           margin-bottom: 20px;
         }
-
         .search-results-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 16px;
           margin-top: 16px;
         }
-
         .search-result-card {
           padding: 16px;
           border: 1px solid #e0d6c8;
           border-radius: 12px;
           cursor: pointer;
         }
-
-        .search-result-card h4 {
-          margin: 0 0 8px;
-          color: #1e3a32;
-        }
-
+        .search-result-card h4 { margin: 0 0 8px; color: #1e3a32; }
         .result-category {
           display: inline-block;
           padding: 2px 8px;
@@ -774,7 +849,6 @@ useEffect(() => {
           gap: 12px;
           margin-bottom: 24px;
         }
-
         .main-tab, .main-tab-active {
           flex: 1;
           padding: 12px;
@@ -784,16 +858,8 @@ useEffect(() => {
           font-weight: 600;
           cursor: pointer;
         }
-
-        .main-tab {
-          background: white;
-          color: #1e3a32;
-        }
-
-        .main-tab-active {
-          background: #1e3a32;
-          color: white;
-        }
+        .main-tab { background: white; color: #1e3a32; }
+        .main-tab-active { background: #1e3a32; color: white; }
 
         /* Browse Section */
         .browse-section {
@@ -801,14 +867,12 @@ useEffect(() => {
           border-radius: 20px;
           padding: 20px;
         }
-
         .category-filters {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
           margin-bottom: 24px;
         }
-
         .filter-chip {
           padding: 8px 20px;
           background: #f0ebe3;
@@ -817,17 +881,15 @@ useEffect(() => {
           cursor: pointer;
           font-size: 14px;
         }
-
-        .filter-chip.active {
-          background: #1e3a32;
-          color: white;
-        }
+        .filter-chip.active { background: #1e3a32; color: white; }
 
         .prayer-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-          gap: 20px;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
         }
+        @media (min-width: 768px) { .prayer-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; } }
+        @media (min-width: 1024px) { .prayer-grid { grid-template-columns: repeat(4, 1fr); } }
 
         .prayer-card {
           background: #f9f6f0;
@@ -836,25 +898,14 @@ useEffect(() => {
           cursor: pointer;
           transition: transform 0.2s;
         }
-
-        .prayer-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
+        .prayer-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .prayer-card-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           margin-bottom: 8px;
         }
-
-        .prayer-card-header h3 {
-          font-size: 1rem;
-          color: #1e3a32;
-          margin: 0;
-        }
-
+        .prayer-card-header h3 { font-size: 1rem; color: #1e3a32; margin: 0; }
         .favorite-icon {
           background: none;
           border: none;
@@ -862,7 +913,6 @@ useEffect(() => {
           cursor: pointer;
           color: #c9b78b;
         }
-
         .prayer-category {
           display: inline-block;
           padding: 2px 10px;
@@ -871,26 +921,11 @@ useEffect(() => {
           font-size: 11px;
           margin-bottom: 12px;
         }
-
-        .prayer-preview {
-          font-size: 13px;
-          color: #666;
-          line-height: 1.4;
-        }
+        .prayer-preview { font-size: 13px; color: #666; line-height: 1.4; }
 
         /* Two Columns Layout */
-        .two-columns {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .two-columns {
-            grid-template-columns: 1fr 0.9fr;
-          }
-        }
-
+        .two-columns { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .two-columns { grid-template-columns: 1fr 0.9fr; } }
         .devotion-column, .prayers-column {
           background: white;
           border-radius: 20px;
@@ -904,13 +939,7 @@ useEffect(() => {
           gap: 8px;
           margin-bottom: 20px;
         }
-
-        @media (min-width: 500px) {
-          .mystery-selector {
-            grid-template-columns: repeat(4, 1fr);
-          }
-        }
-
+        @media (min-width: 500px) { .mystery-selector { grid-template-columns: repeat(4, 1fr); } }
         .set-btn, .set-active {
           padding: 10px;
           border: none;
@@ -919,23 +948,10 @@ useEffect(() => {
           cursor: pointer;
           text-align: center;
         }
+        .set-btn { background: #f0ebe3; color: #1e3a32; }
+        .set-active { background: #1e3a32; color: white; }
+        .set-btn span, .set-active span { font-size: 10px; display: block; }
 
-        .set-btn {
-          background: #f0ebe3;
-          color: #1e3a32;
-        }
-
-        .set-active {
-          background: #1e3a32;
-          color: white;
-        }
-
-        .set-btn span, .set-active span {
-          font-size: 10px;
-          display: block;
-        }
-
-        /* Mystery Card */
         .mystery-card h2 {
           font-size: 1.2rem;
           color: #1e3a32;
@@ -943,7 +959,6 @@ useEffect(() => {
           border-left: 3px solid #c9b78b;
           padding-left: 12px;
         }
-
         .details-toggle {
           background: none;
           border: 1px solid #c9b78b;
@@ -952,7 +967,6 @@ useEffect(() => {
           cursor: pointer;
           font-size: 12px;
         }
-
         .mystery-details, .station-details {
           background: #f9f6f0;
           padding: 15px;
@@ -962,18 +976,14 @@ useEffect(() => {
           overflow-y: auto;
         }
 
-        /* ========== PRAYER TEXT FORMATTING ========== */
-        .prayer-paragraph {
-          margin-bottom: 20px;
-        }
-
+        /* Prayer Text Formatting */
+        .prayer-paragraph { margin-bottom: 20px; }
         .prayer-sentence {
           margin-bottom: 8px;
           line-height: 1.7;
           font-size: 15px;
           color: #2c3e2f;
         }
-
         .prayer-heading {
           font-size: 1.2rem;
           font-weight: 600;
@@ -983,7 +993,6 @@ useEffect(() => {
           padding-bottom: 8px;
           border-bottom: 2px solid #c9b78b;
         }
-
         .prayer-verse {
           display: flex;
           gap: 12px;
@@ -993,64 +1002,11 @@ useEffect(() => {
           border-radius: 8px;
           font-style: italic;
         }
-
-        .verse-label {
-          font-weight: 700;
-          color: #8b5a2b;
-          min-width: 30px;
-        }
-
-        .verse-content {
-          flex: 1;
-          color: #4a4a4a;
-        }
-
-        .prayer-numbered {
-          margin: 12px 0;
-          padding-left: 20px;
-        }
-
-        .numbered-line {
-          margin-bottom: 8px;
-          position: relative;
-        }
-
-        .prayer-line {
-          margin-bottom: 12px;
-          line-height: 1.6;
-          font-size: 15px;
-        }
-
-        /* Scrollbar for modal */
-        .modal-body {
-          max-height: calc(85vh - 120px);
-          overflow-y: auto;
-          padding-right: 8px;
-        }
-
-        .modal-body::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .modal-body::-webkit-scrollbar-track {
-          background: #f0ebe3;
-          border-radius: 10px;
-        }
-
-        .modal-body::-webkit-scrollbar-thumb {
-          background: #c9b78b;
-          border-radius: 10px;
-        }
-
-        /* Drop cap for first letter */
-        .prayer-paragraph:first-of-type .prayer-sentence:first-child::first-letter {
-          font-size: 2.5rem;
-          font-weight: 700;
-          color: #1e3a32;
-          float: left;
-          margin-right: 8px;
-          line-height: 1;
-        }
+        .verse-label { font-weight: 700; color: #8b5a2b; min-width: 30px; }
+        .verse-content { flex: 1; color: #4a4a4a; }
+        .prayer-numbered { margin: 12px 0; padding-left: 20px; }
+        .numbered-line { margin-bottom: 8px; }
+        .prayer-line { margin-bottom: 12px; line-height: 1.6; font-size: 15px; }
 
         /* Rosary Counter */
         .rosary-counter-section {
@@ -1059,19 +1015,13 @@ useEffect(() => {
           border-radius: 15px;
           margin: 15px 0;
         }
-
-        .prayer-row {
-          padding: 8px 0;
-          border-bottom: 1px solid #e0d6c8;
-        }
-
+        .prayer-row { padding: 8px 0; border-bottom: 1px solid #e0d6c8; }
         .counter-controls {
           display: flex;
           align-items: center;
           gap: 12px;
           margin: 8px 0;
         }
-
         .counter-btn {
           width: 40px;
           height: 40px;
@@ -1081,31 +1031,16 @@ useEffect(() => {
           font-size: 20px;
           cursor: pointer;
         }
-
-        .beads {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-          margin-top: 8px;
-        }
-
+        .beads { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
         .bead {
           width: 24px;
           height: 24px;
           border-radius: 50%;
           background: #e0d6c8;
         }
+        .bead.prayed { background: #c9b78b; }
 
-        .bead.prayed {
-          background: #c9b78b;
-        }
-
-        .action-buttons {
-          display: flex;
-          gap: 12px;
-          margin-top: 15px;
-        }
-
+        .action-buttons { display: flex; gap: 12px; margin-top: 15px; }
         .next-btn, .reset-btn {
           flex: 1;
           padding: 10px;
@@ -1114,17 +1049,8 @@ useEffect(() => {
           font-weight: 600;
           cursor: pointer;
         }
-
-        .next-btn {
-          background: #1e3a32;
-          color: white;
-        }
-
-        .reset-btn {
-          background: #8b5a2b;
-          color: white;
-        }
-
+        .next-btn { background: #1e3a32; color: white; }
+        .reset-btn { background: #8b5a2b; color: white; }
         .decade-complete {
           background: #d4edda;
           padding: 10px;
@@ -1133,21 +1059,13 @@ useEffect(() => {
           font-size: 13px;
           margin: 12px 0;
         }
-
         .completed-tracker {
           margin-top: 15px;
           padding: 12px;
           background: #e8f0e8;
           border-radius: 12px;
         }
-
-        .completed-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 8px;
-        }
-
+        .completed-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .completed-item {
           background: #1e3a32;
           color: white;
@@ -1157,11 +1075,7 @@ useEffect(() => {
         }
 
         /* Prayers Column */
-        .prayers-panel h3 {
-          color: #1e3a32;
-          margin-bottom: 15px;
-        }
-
+        .prayers-panel h3 { color: #1e3a32; margin-bottom: 15px; }
         .quick-prayers-toggle {
           display: flex;
           justify-content: space-between;
@@ -1171,14 +1085,12 @@ useEffect(() => {
           margin-bottom: 15px;
           cursor: pointer;
         }
-
         .quick-prayers-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
           gap: 8px;
           margin-bottom: 20px;
         }
-
         .quick-prayer-btn {
           padding: 10px;
           background: #f0ebe3;
@@ -1187,7 +1099,6 @@ useEffect(() => {
           cursor: pointer;
           font-size: 12px;
         }
-
         .prayer-section h4 {
           color: #1e3a32;
           font-size: 14px;
@@ -1195,7 +1106,6 @@ useEffect(() => {
           border-left: 3px solid #c9b78b;
           padding-left: 10px;
         }
-
         .prayer-card-compact {
           margin-bottom: 8px;
           border: 1px solid #f0ebe3;
@@ -1203,7 +1113,6 @@ useEffect(() => {
           overflow: hidden;
           cursor: pointer;
         }
-
         .prayer-title {
           display: flex;
           justify-content: space-between;
@@ -1211,7 +1120,6 @@ useEffect(() => {
           padding: 12px;
           background: #f9f6f0;
         }
-
         .favorite-star {
           background: none;
           border: none;
@@ -1225,12 +1133,7 @@ useEffect(() => {
           border-radius: 20px;
           padding: 20px;
         }
-
-        .stations-progress {
-          margin-bottom: 20px;
-          text-align: center;
-        }
-
+        .stations-progress { margin-bottom: 20px; text-align: center; }
         .progress-bar {
           height: 6px;
           background: #e0d6c8;
@@ -1238,19 +1141,8 @@ useEffect(() => {
           margin-top: 8px;
           overflow: hidden;
         }
-
-        .progress-fill {
-          height: 100%;
-          background: #1e3a32;
-          border-radius: 3px;
-        }
-
-        .station-card h2 {
-          font-size: 1.2rem;
-          color: #1e3a32;
-          margin: 12px 0;
-        }
-
+        .progress-fill { height: 100%; background: #1e3a32; border-radius: 3px; }
+        .station-card h2 { font-size: 1.2rem; color: #1e3a32; margin: 12px 0; }
         .station-number {
           display: inline-block;
           background: #c9b78b;
@@ -1258,20 +1150,13 @@ useEffect(() => {
           border-radius: 20px;
           font-size: 12px;
         }
-
         .station-response {
           background: #f9f6f0;
           padding: 12px;
           border-radius: 12px;
           margin: 12px 0;
         }
-
-        .station-navigation {
-          display: flex;
-          gap: 12px;
-          margin-top: 20px;
-        }
-
+        .station-navigation { display: flex; gap: 12px; margin-top: 20px; }
         .nav-prev, .nav-next {
           flex: 1;
           padding: 10px;
@@ -1279,21 +1164,9 @@ useEffect(() => {
           border-radius: 25px;
           cursor: pointer;
         }
-
-        .nav-prev {
-          background: #8b5a2b;
-          color: white;
-        }
-
-        .nav-next {
-          background: #1e3a32;
-          color: white;
-        }
-
-        .nav-prev:disabled {
-          background: #ccc;
-          cursor: not-allowed;
-        }
+        .nav-prev { background: #8b5a2b; color: white; }
+        .nav-next { background: #1e3a32; color: white; }
+        .nav-prev:disabled { background: #ccc; cursor: not-allowed; }
 
         /* Modal */
         .modal-overlay {
@@ -1309,7 +1182,6 @@ useEffect(() => {
           z-index: 1000;
           padding: 20px;
         }
-
         .modal-content {
           background: white;
           border-radius: 20px;
@@ -1319,7 +1191,6 @@ useEffect(() => {
           overflow-y: auto;
           padding: 24px;
         }
-
         .modal-header {
           display: flex;
           justify-content: space-between;
@@ -1328,20 +1199,8 @@ useEffect(() => {
           padding-bottom: 16px;
           border-bottom: 2px solid #f0ebe3;
         }
-
-        .modal-header h2 {
-          font-size: 1.3rem;
-          color: #1e3a32;
-          margin: 0;
-        }
-
-        .modal-close {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-        }
-
+        .modal-header h2 { font-size: 1.3rem; color: #1e3a32; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; }
         .modal-category {
           display: flex;
           justify-content: space-between;
@@ -1350,14 +1209,12 @@ useEffect(() => {
           flex-wrap: wrap;
           gap: 12px;
         }
-
         .category-badge {
           background: #f0ebe3;
           padding: 6px 14px;
           border-radius: 20px;
           font-size: 12px;
         }
-
         .modal-favorite {
           background: none;
           border: none;
@@ -1365,23 +1222,92 @@ useEffect(() => {
           color: #c9b78b;
         }
 
-        .devotion-complete {
+        /* Notes Section */
+        .modal-notes-section {
+          background: #f9f6f0;
+          border-radius: 12px;
+          margin-bottom: 20px;
+          overflow: hidden;
+        }
+        .notes-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 16px;
+          background: #f0ebe3;
+          font-weight: 500;
+        }
+        .edit-note-btn {
+          background: none;
+          border: none;
+          color: #1e3a32;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .note-display {
+          padding: 16px;
+          cursor: pointer;
+        }
+        .note-text {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.5;
+          color: #333;
+        }
+        .note-placeholder {
+          margin: 0;
+          font-size: 14px;
+          color: #999;
+          font-style: italic;
+        }
+        .note-input-area {
+          padding: 16px;
+        }
+        .note-textarea {
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #e0d6c8;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          resize: vertical;
+        }
+        .note-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .note-save-btn, .note-delete-btn, .note-cancel-btn {
+          padding: 6px 12px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .note-save-btn { background: #1e3a32; color: white; }
+        .note-delete-btn { background: #ef4444; color: white; }
+        .note-cancel-btn { background: #e0e0e0; color: #333; }
+
+        .modal-body {
+          max-height: calc(85vh - 320px);
+          overflow-y: auto;
+          padding-right: 8px;
+        }
+        .modal-body::-webkit-scrollbar { width: 4px; }
+        .modal-body::-webkit-scrollbar-track { background: #f0ebe3; border-radius: 10px; }
+        .modal-body::-webkit-scrollbar-thumb { background: #c9b78b; border-radius: 10px; }
+
+        .devotion-complete, .stations-complete {
           text-align: center;
           padding: 40px;
         }
-
-        .complete-icon {
-          font-size: 48px;
-          margin-bottom: 15px;
-        }
-
+        .complete-icon { font-size: 48px; margin-bottom: 15px; }
         .loading-screen, .error-screen {
           text-align: center;
           padding: 60px;
           background: white;
           border-radius: 20px;
         }
-
         .spinner {
           width: 50px;
           height: 50px;
@@ -1391,105 +1317,18 @@ useEffect(() => {
           animation: spin 1s linear infinite;
           margin: 0 auto 20px;
         }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 40px;
-          color: #666;
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 40px; color: #666; }
 
         @media (max-width: 768px) {
-          .prayer-container {
-            padding: 12px;
-          }
-
-          .prayer-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .modal-content {
-            padding: 20px;
-          }
-
-          .back-button {
-            top: 12px;
-            left: 12px;
-            padding: 6px 12px;
-            font-size: 12px;
-          }
-
-          .prayer-sentence {
-            font-size: 14px;
-          }
+          .prayer-container { padding: 12px; }
+          .modal-content { padding: 20px; }
+          .back-button { top: 12px; left: 12px; padding: 6px 12px; font-size: 12px; }
+          .prayer-sentence { font-size: 14px; }
+          .prayer-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .prayer-card { padding: 12px; }
+          .prayer-card-header h3 { font-size: 0.85rem; }
         }
-          /* Prayer Grid - Responsive */
-.prayer-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-/* Search results grid - also 2 columns on mobile */
-.search-results-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-/* For smaller phones, keep 2 columns but adjust padding */
-@media (max-width: 480px) {
-  .prayer-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  
-  .prayer-card {
-    padding: 12px;
-  }
-  
-  .prayer-card-header h3 {
-    font-size: 0.85rem;
-  }
-  
-  .prayer-preview {
-    font-size: 11px;
-  }
-  
-  .search-results-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-  
-  .search-result-card h4 {
-    font-size: 0.85rem;
-  }
-}
-
-/* For tablets and up, use more columns */
-@media (min-width: 768px) {
-  .prayer-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-  }
-  
-  .search-results-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .prayer-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  
-  .search-results-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
       `}</style>
     </div>
   );

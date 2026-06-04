@@ -593,11 +593,11 @@ const createAttendanceSheet = async (req, res) => {
       return res.status(400).json({ error: "Title and event date are required" });
     }
 
-    // Handle executive-team as a special value
-    let targetJumuiaId = jumuiaId;
-    if (jumuiaId === 'executive-team') {
-      targetJumuiaId = 'executive-team';
-    }
+  // Handle executive-team as a special value
+let targetJumuiaId = jumuiaId;
+if (jumuiaId === 'executive-team') {
+  targetJumuiaId = null;  
+}
 
   const sheet = await prisma.attendanceSheet.create({
   data: {
@@ -623,22 +623,23 @@ const createAttendanceSheet = async (req, res) => {
       try {
         let targetUsers = [];
         
-        if (sheet.jumuiaId === 'executive-team') {
-          const executives = await prisma.executive.findMany({
-            where: { isActive: true },
-            select: { userId: true }
-          });
-          targetUsers = executives.map(exec => ({ id: exec.userId }));
-        } else if (sheet.jumuiaId) {
-          targetUsers = await prisma.user.findMany({
-            where: { jumuiaId: sheet.jumuiaId },
-            select: { id: true }
-          });
-        } else {
-          targetUsers = await prisma.user.findMany({
-            select: { id: true }
-          });
-        }
+if (sheet.jumuiaId === null) {
+  // Executive meeting - notify all active executives
+  const executives = await prisma.executive.findMany({
+    where: { isActive: true },
+    select: { userId: true }
+  });
+  targetUsers = executives.map(exec => ({ id: exec.userId }));
+} else if (sheet.jumuiaId) {
+  targetUsers = await prisma.user.findMany({
+    where: { jumuiaId: sheet.jumuiaId },
+    select: { id: true }
+  });
+} else {
+  targetUsers = await prisma.user.findMany({
+    select: { id: true }
+  });
+}
         
         const meetingDate = new Date(sheet.eventDate).toLocaleDateString();
         const meetingTime = sheet.eventTime || "TBD";
@@ -708,7 +709,7 @@ const getActiveSheets = async (req, res) => {
   }
 };
 
-// Get single sheet with entries (including absent members)
+/// Get single sheet with entries (including absent members)
 const getSheetById = async (req, res) => {
   try {
     const { sheetId } = req.params;
@@ -742,12 +743,39 @@ const getSheetById = async (req, res) => {
       return res.status(404).json({ error: "Attendance sheet not found" });
     }
 
+    // ============ GET EXECUTIVE POSITIONS FOR PRESENT MEMBERS ============
+    const presentUserIdsArray = sheet.entries.map(e => e.userId).filter(id => id);
+    
+    const presentExecutives = await prisma.executive.findMany({
+      where: { 
+        userId: { in: presentUserIdsArray },
+        isActive: true 
+      },
+      include: {
+        position: {
+          select: { title: true, category: true, level: true }
+        }
+      }
+    });
+    
+    const presentExecutiveMap = new Map();
+    presentExecutives.forEach(exec => {
+      presentExecutiveMap.set(exec.userId, {
+        executivePosition: exec.position?.title || null,
+        executiveCategory: exec.position?.category || null
+      });
+    });
+    
+    const entriesWithExecutive = sheet.entries.map(entry => ({
+      ...entry,
+      executivePosition: presentExecutiveMap.get(entry.userId)?.executivePosition || null,
+      executiveCategory: presentExecutiveMap.get(entry.userId)?.executiveCategory || null
+    }));
+    
     // ============ GET ALL TARGET MEMBERS BASED ON SHEET TYPE ============
     let allTargetMembers = [];
     
-    // Check if this sheet is for executive team only
-    if (sheet.jumuiaId === 'executive-team') {
-      // Get all active executives from the executive table
+    if (sheet.jumuiaId === null) {
       const executives = await prisma.executive.findMany({
         where: { isActive: true },
         include: {
@@ -758,7 +786,6 @@ const getSheetById = async (req, res) => {
               email: true,
               phone: true,
               role: true,
-              specialRole: true,
               membership_number: true,
               homeJumuia: { select: { name: true } }
             }
@@ -773,7 +800,6 @@ const getSheetById = async (req, res) => {
         }
       });
       
-      // Extract just the user objects
       allTargetMembers = executives.map(exec => ({
         ...exec.user,
         executivePosition: exec.position?.title || null,
@@ -782,9 +808,8 @@ const getSheetById = async (req, res) => {
       
       console.log(`📊 Executive team sheet: Found ${allTargetMembers.length} executives`);
     } 
-    // Check if sheet is for a specific Jumuia
     else if (sheet.jumuiaId) {
-      allTargetMembers = await prisma.user.findMany({
+      const users = await prisma.user.findMany({
         where: { jumuiaId: sheet.jumuiaId },
         select: {
           id: true,
@@ -792,33 +817,84 @@ const getSheetById = async (req, res) => {
           email: true,
           phone: true,
           role: true,
-          specialRole: true,
           membership_number: true,
           homeJumuia: { select: { name: true } }
         }
       });
+      
+      const executives = await prisma.executive.findMany({
+        where: { isActive: true },
+        include: {
+          position: {
+            select: {
+              title: true,
+              category: true,
+              level: true
+            }
+          }
+        }
+      });
+      
+      const executiveMap = new Map();
+      executives.forEach(exec => {
+        executiveMap.set(exec.userId, {
+          executivePosition: exec.position?.title || null,
+          executiveCategory: exec.position?.category || null
+        });
+      });
+      
+      allTargetMembers = users.map(user => ({
+        ...user,
+        executivePosition: executiveMap.get(user.id)?.executivePosition || null,
+        executiveCategory: executiveMap.get(user.id)?.executiveCategory || null
+      }));
     } 
-    // All ZUCA members
     else {
-      allTargetMembers = await prisma.user.findMany({
+      const users = await prisma.user.findMany({
         select: {
           id: true,
           fullName: true,
           email: true,
           phone: true,
           role: true,
-          specialRole: true,
           membership_number: true,
           homeJumuia: { select: { name: true } }
         }
       });
+      
+      const executives = await prisma.executive.findMany({
+        where: { isActive: true },
+        include: {
+          position: {
+            select: {
+              title: true,
+              category: true,
+              level: true
+            }
+          }
+        }
+      });
+      
+      const executiveMap = new Map();
+      executives.forEach(exec => {
+        executiveMap.set(exec.userId, {
+          executivePosition: exec.position?.title || null,
+          executiveCategory: exec.position?.category || null
+        });
+      });
+      
+      allTargetMembers = users.map(user => ({
+        ...user,
+        executivePosition: executiveMap.get(user.id)?.executivePosition || null,
+        executiveCategory: executiveMap.get(user.id)?.executiveCategory || null
+      }));
     }
-
-    // Get IDs of members who have checked in
-    const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
-
+    
+    // Create a Set from the array of present user IDs
+    const presentUserIdsSet = new Set(presentUserIdsArray);
+    
     // Calculate absent members (target members who haven't checked in)
-    const absentMembers = allTargetMembers.filter(member => !presentUserIds.has(member.id));
+    const absentMembers = allTargetMembers.filter(member => !presentUserIdsSet.has(member.id));
 
     // Add totalMembers count to response
     const totalMembers = allTargetMembers.length;
@@ -827,6 +903,7 @@ const getSheetById = async (req, res) => {
       success: true, 
       sheet: {
         ...sheet,
+        entries: entriesWithExecutive,
         totalMembers,
         absentMembers
       }
@@ -836,7 +913,6 @@ const getSheetById = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 // Self check-in (user adds themselves)
 const selfCheckin = async (req, res) => {
   try {

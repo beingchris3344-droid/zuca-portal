@@ -144,7 +144,6 @@ const adminMessagingRoutes = require('./routes/admin-messaging');
 app.use('/api/admin/messenger', adminMessagingRoutes);
 
 
-
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -258,6 +257,11 @@ app.get("/api/game-test", authenticate, (req, res) => {
   res.json({ message: "Game auth works!", userId: req.user.userId });
 });
 
+
+
+// Prayer routes
+const prayerRoutes = require('./routes/prayers');
+app.use('/api/prayers', prayerRoutes);
 
 
 

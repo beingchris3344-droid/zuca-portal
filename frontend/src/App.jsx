@@ -83,6 +83,7 @@ import AdminSchedules from "./pages/admin/AdminSchedules";
 import AdminMessenger from './pages/admin/AdminMessenger';
 import AdminAttendance from './components/admin/attendance/AdminAttendance';
 import AdminAttendanceDetails from './pages/admin/AdminAttendanceDetails';
+import AdminPrayers from './pages/admin/AdminPrayers';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -459,6 +460,7 @@ useEffect(() => {
           <Route path="/admin/messenger" element={<AdminMessenger />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
+          <Route path="/admin/prayers" element={<AdminPrayers />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />

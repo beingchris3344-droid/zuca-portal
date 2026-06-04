@@ -136,22 +136,27 @@ export default function AdminAttendance() {
   
   // ============ EXPORT FUNCTION ============
   const exportToWord = async (sheet, type) => {
-    try {
-      showToast('Generating report...', 'info');
-      
-      const response = await api.get(`/api/attendance/sheet/${sheet.id}`, { headers: getHeaders() });
-      const sheetData = response.data.sheet;
-      
-      const presentMembers = sheetData.entries || [];
-      const absentMembers = sheetData.absentMembers || [];
-      const totalExpected = sheetData.totalMembers || presentMembers.length + absentMembers.length;
-      const attendanceRate = totalExpected > 0 ? ((presentMembers.length / totalExpected) * 100).toFixed(1) : 0;
-      
-      const selfCount = presentMembers.filter(e => e.signMethod === 'SELF').length;
-      const qrCount = presentMembers.filter(e => e.signMethod === 'QR_CODE').length;
-      const manualCount = presentMembers.filter(e => e.signMethod === 'MANUAL').length;
-      
-      let htmlContent = `<!DOCTYPE html>
+  try {
+    showToast('Generating report...', 'info');
+    
+    const response = await api.get(`/api/attendance/sheet/${sheet.id}`, { headers: getHeaders() });
+    const sheetData = response.data.sheet;
+    
+    const presentMembers = sheetData.entries || [];
+    const absentMembers = sheetData.absentMembers || [];
+
+    // Filter out admin users
+    const presentNonAdmin = presentMembers.filter(m => m.role !== 'admin');
+    const absentNonAdmin = absentMembers.filter(m => m.role !== 'admin');
+    const totalNonAdmin = presentNonAdmin.length + absentNonAdmin.length;
+    const attendanceRate = totalNonAdmin > 0 ? ((presentNonAdmin.length / totalNonAdmin) * 100).toFixed(1) : 0;
+    
+    // Calculate method counts using filtered presentNonAdmin
+    const selfCount = presentNonAdmin.filter(e => e.signMethod === 'SELF').length;
+    const qrCount = presentNonAdmin.filter(e => e.signMethod === 'QR_CODE').length;
+    const manualCount = presentNonAdmin.filter(e => e.signMethod === 'MANUAL').length;
+    
+    let htmlContent = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -161,15 +166,14 @@ export default function AdminAttendance() {
     h1 { font-size: 18pt; text-align: center; }
     h2 { font-size: 14pt; border-bottom: 1px solid #000; margin-top: 20px; }
     .event-details { margin-bottom: 20px; padding: 10px; background: #f5f5f5; }
-    .stats-grid { display: flex; justify-content: space-between; margin-bottom: 20px; }
-    .stat-card { text-align: center; padding: 10px; border: 1px solid #ccc; flex: 1; margin: 0 5px; }
-    .stat-number { font-size: 24pt; font-weight: bold; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { border: 1px solid #999; padding: 8px; text-align: left; }
     th { background: #e0e0e0; font-weight: bold; }
     tr:nth-child(even) { background: #f9f9f9; }
     .footer { margin-top: 30px; text-align: center; font-size: 9pt; border-top: 1px solid #ccc; padding-top: 10px; }
     .signature { margin-top: 30px; display: flex; justify-content: space-between; }
+    .summary { margin-top: 20px; padding: 10px; background: #f5f5f5; border: 1px solid #ccc; }
+    .summary p { margin: 5px 0; }
   </style>
 </head>
 <body>
@@ -183,56 +187,97 @@ export default function AdminAttendance() {
     <strong>Location:</strong> ${sheet.location || 'ZUCA'}<br>
     <strong>Status:</strong> ${sheet.isActive ? 'ACTIVE' : 'CLOSED'}
   </div>`;
+    
+    if (type === 'full' || type === 'present') {
+      htmlContent += `<h2>PRESENT MEMBERS (${presentNonAdmin.length})</h2>
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Membership #</th>
+      <th>Name</th>
+      <th>Phone</th>
+      <th>Position</th>
+      <th>Method</th>
+      <th>Time</th>
+    </tr>
+  </thead>
+  <tbody>`;
       
-      if (type === 'full' || type === 'present') {
-        htmlContent += `<h2>PRESENT MEMBERS (${presentMembers.length})</h2>
-        <table>
-          <thead><tr><th>#</th><th>Membership #</th><th>Name</th><th>Phone</th><th>Role</th><th>Method</th><th>Time</th></tr></thead>
-          <tbody>`;
-        presentMembers.forEach((member, index) => {
-          htmlContent += `<tr>
-            <td>${index + 1}</td>
-            <td>${member.user?.membership_number || '-'}</td>
-            <td>${member.fullName}</td>
-            <td>${member.phoneNumber || '-'}</td>
-            <td>${member.role}</td>
-            <td>${member.signMethod === 'SELF' ? 'Self' : member.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}</td>
-            <td>${new Date(member.signTime).toLocaleTimeString()}</td>
-          </tr>`;
-        });
-        htmlContent += `</tbody></table>`;
-      }
+      presentNonAdmin.forEach((member, index) => {
+        const position = member.executivePosition || member.role || 'Member';
+        let methodText = '';
+        if (member.signMethod === 'SELF') methodText = 'Self';
+        else if (member.signMethod === 'QR_CODE') methodText = 'QR Code';
+        else if (member.signMethod === 'MANUAL') methodText = 'Manual';
+        else methodText = '-';
+        
+        htmlContent += `<tr>
+          <td>${index + 1}</td>
+          <td>${member.user?.membership_number || '-'}</td>
+          <td>${member.fullName}</td>
+          <td>${member.phoneNumber || '-'}</td>
+          <td>${position}</td>
+          <td>${methodText}</td>
+          <td>${member.signTime ? new Date(member.signTime).toLocaleTimeString() : '-'}</td>
+        </tr>`;
+      });
       
-      if (type === 'full') {
-        htmlContent += `<h2>SIGN METHOD BREAKDOWN</h2>
-        </table>
-          <thead><tr><th>Method</th><th>Count</th><th>Percentage</th></tr></thead>
-          <tbody>
-            <tr><td>Self Check-in</td><td>${selfCount}</td><td>${presentMembers.length > 0 ? ((selfCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
-            <tr><td>QR Code</td><td>${qrCount}</td><td>${presentMembers.length > 0 ? ((qrCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
-            <tr><td>Manual (Admin)</td><td>${manualCount}</td><td>${presentMembers.length > 0 ? ((manualCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
-          </tbody>
-        </table>`;
-      }
+      htmlContent += `</tbody>
+</table>`;
+    }
+    
+    if (type === 'full') {
+      htmlContent += `<h2>SIGN METHOD BREAKDOWN</h2>
+<table>
+  <thead>
+    <tr><th>Method</th><th>Count</th><th>Percentage</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Self Check-in</td><td>${selfCount}</td><td>${presentNonAdmin.length > 0 ? ((selfCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
+    <tr><td>QR Code</td><td>${qrCount}</td><td>${presentNonAdmin.length > 0 ? ((qrCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
+    <tr><td>Manual (Admin)</td><td>${manualCount}</td><td>${presentNonAdmin.length > 0 ? ((manualCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
+  </tbody>
+</table>`;
+    }
+    
+    if (type === 'full' || type === 'absent') {
+      htmlContent += `<h2>ABSENT MEMBERS (${absentNonAdmin.length})</h2>
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Membership #</th>
+      <th>Name</th>
+      <th>Phone</th>
+      <th>Position</th>
+    </tr>
+  </thead>
+  <tbody>`;
       
-      if (type === 'full' || type === 'absent') {
-        htmlContent += `<h2>ABSENT MEMBERS (${absentMembers.length})</h2>
-        <table>
-          <thead><tr><th>#</th><th>Membership #</th><th>Name</th><th>Phone</th><th>Role</th></tr></thead>
-          <tbody>`;
-        absentMembers.forEach((member, index) => {
-          htmlContent += `<tr>
-            <td>${index + 1}</td>
-            <td>${member.membership_number || '-'}</td>
-            <td>${member.fullName}</td>
-            <td>${member.phone || '-'}</td>
-            <td>${member.role}</td>
-          </tr>`;
-        });
-        htmlContent += `</tbody></table>`;
-      }
+      absentNonAdmin.forEach((member, index) => {
+        const position = member.executivePosition || member.role || 'Member';
+        htmlContent += `<tr>
+          <td>${index + 1}</td>
+          <td>${member.membership_number || '-'}</td>
+          <td>${member.fullName}</td>
+          <td>${member.phone || '-'}</td>
+          <td>${position}</td>
+        </tr>`;
+      });
       
-      htmlContent += `
+      htmlContent += `</tbody>
+</table>`;
+    }
+    
+    htmlContent += `
+  <div class="summary">
+    <p><strong>SUMMARY</strong></p>
+    <p>• Total Members: ${totalNonAdmin}</p>
+    <p>• Present: ${presentNonAdmin.length}</p>
+    <p>• Absent: ${absentNonAdmin.length}</p>
+    <p>• Attendance Rate: ${attendanceRate}%</p>
+  </div>
   <div class="signature">
     <div>Recorded by: ZUCA ADMIN</div>
     <div>Date: ${new Date().toLocaleDateString()}</div>
@@ -240,18 +285,17 @@ export default function AdminAttendance() {
   <div class="footer">ZUCA - Zetech University Catholic Action</div>
 </body>
 </html>`;
-      
-      const blob = new Blob([htmlContent], { type: 'application/msword' });
-      const fileName = `Attendance_${type}_${sheet.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.doc`;
-      saveAs(blob, fileName);
-      showToast('Report exported successfully!', 'success');
-      
-    } catch (error) {
-      console.error('Export error:', error);
-      showToast('Failed to export report', 'error');
-    }
-  };
-
+    
+    const blob = new Blob([htmlContent], { type: 'application/msword' });
+    const fileName = `Attendance_${type}_${sheet.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.doc`;
+    saveAs(blob, fileName);
+    showToast('Report exported successfully!', 'success');
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    showToast('Failed to export report', 'error');
+  }
+};
   const handleDeletePastSheet = async (sheetId, sheetTitle) => {
     if (!window.confirm(`Delete "${sheetTitle}" permanently? This cannot be undone.`)) return;
     try {

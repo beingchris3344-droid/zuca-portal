@@ -637,18 +637,20 @@ function AdminDashboard() {
           <div className="section-header">
             <h3>📊 QUICK ACTIONS</h3>
           </div>
-          <div className="actions-grid">
-            <button className="action-btn" onClick={() => navigate('/admin/users')}><FiUsers /> Users Management</button>
-            <button className="action-btn" onClick={() => navigate('/admin/announcements')}><FiBell /> Announcements</button>
-            <button className="action-btn" onClick={() => navigate('/admin/mass-programs')}><GiPrayer /> Mass Programs</button>
-            <button className="action-btn" onClick={() => navigate('/admin/contributions')}><FaDonate /> Pledges Management</button>
-            <button className="action-btn" onClick={() => navigate('/admin/songs')}><FiMusic /> Hymns Management</button>
-            <button className="action-btn" onClick={() => navigate('/admin/gallery')}><FiImage /> Gallery Management</button>
-            <button className="action-btn" onClick={() => navigate('/executive')}><GiCrown /> Executive Team</button>
-            <button className="action-btn" onClick={() => navigate('/join-jumuia')}><FaChurch /> Jumuia Groups</button>
-            <button className="action-btn" onClick={() => navigate('/liturgical-calendar')}><FiCalendar /> Calendar Admin</button>
-            <button className="action-btn" onClick={() => navigate('/admin/settings')}><FiSettings /> System Settings</button>
-          </div>
+        
+<div className="actions-grid">
+  <button className="action-btn" onClick={() => navigate('/admin/users')}><FiUsers /> Users Management</button>
+  <button className="action-btn" onClick={() => navigate('/admin/announcements')}><FiBell /> Announcements</button>
+  <button className="action-btn" onClick={() => navigate('/admin/mass-programs')}><GiPrayer /> Mass Programs</button>
+  <button className="action-btn" onClick={() => navigate('/admin/contributions')}><FaDonate /> Pledges Management</button>
+  <button className="action-btn" onClick={() => navigate('/admin/songs')}><FiMusic /> Hymns Management</button>
+  <button className="action-btn" onClick={() => navigate('/admin/gallery')}><FiImage /> Gallery Management</button>
+  <button className="action-btn" onClick={() => navigate('/executive')}><GiCrown /> Executive Team</button>
+  <button className="action-btn" onClick={() => navigate('/join-jumuia')}><FaChurch /> Jumuia Groups</button>
+  <button className="action-btn" onClick={() => navigate('/liturgical-calendar')}><FiCalendar /> Calendar Admin</button>
+  <button className="action-btn" onClick={() => navigate('/admin/prayers')}><GiPrayer /> Prayer Management</button> {/* ← ADD THIS */}
+  <button className="action-btn" onClick={() => navigate('/admin/settings')}><FiSettings /> System Settings</button>
+</div>
         </div>
         
         {/* Two Column Layout */}

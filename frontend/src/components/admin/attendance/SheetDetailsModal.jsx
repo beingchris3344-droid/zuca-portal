@@ -214,14 +214,20 @@ const handleMarkAbsent = async (entryId, memberName) => {
     member.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
-  // ============ STATS ============
-  const totalPresent = presentEntries.length;
-  const totalExpected = sheetData?.totalMembers || (totalPresent + absentEntries.length);
-  const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
-  
-  const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
-   const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
-  const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
+ // ============ STATS ============
+const presentEntries = sheetData?.entries || [];
+const absentEntries = sheetData?.absentMembers || [];
+
+// Use backend's totalMembers as the source of truth
+const totalExpected = sheetData?.totalMembers || 0;
+const totalPresent = presentEntries.length;
+const totalAbsent = totalExpected - totalPresent;
+
+const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
+
+const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
+const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
+const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
   
   // ============ LOADING STATE ============
   if (loading) {
@@ -269,25 +275,25 @@ const handleMarkAbsent = async (entryId, memberName) => {
           </div>
         </div>
         
-        {/* Stats Cards */}
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-value">{totalExpected}</div>
-            <div className="stat-label">Total Expected</div>
-          </div>
-          <div className="stat-card success">
-            <div className="stat-value">{totalPresent}</div>
-            <div className="stat-label">Present</div>
-          </div>
-          <div className="stat-card danger">
-            <div className="stat-value">{totalExpected - totalPresent}</div>
-            <div className="stat-label">Absent</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">{attendanceRate}%</div>
-            <div className="stat-label">Attendance Rate</div>
-          </div>
-        </div>
+       {/* Stats Cards */}
+<div className="stats-grid">
+  <div className="stat-card">
+    <div className="stat-value">{totalExpected}</div>
+    <div className="stat-label">Total Expected</div>
+  </div>
+  <div className="stat-card success">
+    <div className="stat-value">{totalPresent}</div>
+    <div className="stat-label">Present</div>
+  </div>
+  <div className="stat-card danger">
+    <div className="stat-value">{totalAbsent}</div>
+    <div className="stat-label">Absent</div>
+  </div>
+  <div className="stat-card">
+    <div className="stat-value">{attendanceRate}%</div>
+    <div className="stat-label">Attendance Rate</div>
+  </div>
+</div>
         
         {/* Method Breakdown */}
              <div className="methods-breakdown">
@@ -347,120 +353,135 @@ const handleMarkAbsent = async (entryId, memberName) => {
         
         {/* Tabs */}
         <div className="tabs">
-          <button 
-            className={`tab ${activeTab === 'present' ? 'active' : ''}`}
-            onClick={() => setActiveTab('present')}
-          >
-            <CheckCircle size={14} /> Present ({filteredPresent.length})
-          </button>
-          <button 
-            className={`tab ${activeTab === 'absent' ? 'active' : ''}`}
-            onClick={() => setActiveTab('absent')}
-          >
-            <XCircle size={14} /> Absent ({filteredAbsent.length})
-          </button>
-        </div>
+  <button 
+    className={`tab ${activeTab === 'present' ? 'active' : ''}`}
+    onClick={() => setActiveTab('present')}
+  >
+    <CheckCircle size={14} /> Present ({filteredPresent.length})
+  </button>
+  <button 
+    className={`tab ${activeTab === 'absent' ? 'active' : ''}`}
+    onClick={() => setActiveTab('absent')}
+  >
+    <XCircle size={14} /> Absent ({filteredAbsent.length})
+  </button>
+</div>
         
         {/* Present Members List */}
-        {activeTab === 'present' && (
-          <div className="members-list">
-            {filteredPresent.length === 0 ? (
-              <div className="empty-state">No present members found</div>
-            ) : (
-              <table className="members-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Phone</th>
-                    <th>Role</th>
-                    <th>Method</th>
-                    <th>Time</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPresent.map(entry => (
-                    <tr key={entry.id}>
-                      <td><strong>{entry.fullName}</strong></td>
-                      <td>{entry.phoneNumber || '-'}</td>
-                      <td>{entry.role}</td>
-                      <td>
-                        <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
-                                                   {entry.signMethod === 'SELF' ? 'Self' : 
-                           entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
-                        </span>
-                      </td>
-                      <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
-                      <td className="actions">
-                        <button 
-                          className="icon-btn edit"
-                          onClick={() => {
-                            setSelectedEntry(entry);
-                            setShowEditMember(true);
-                          }}
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      <button 
-  className="icon-btn absent"
-  onClick={() => handleMarkAbsent(entry.id, entry.fullName)}
-  title="Mark as Absent"
->
-  <XCircle size={14} />
-</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-        
-        {/* Absent Members List */}
-        {activeTab === 'absent' && (
-          <div className="members-list">
-            {filteredAbsent.length === 0 ? (
-              <div className="empty-state">No absent members found</div>
-            ) : (
-              <table className="members-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Phone</th>
-                    <th>Role</th>
-                    <th>Jumuia</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAbsent.map(member => (
-                    <tr key={member.id}>
-                      <td><strong>{member.fullName}</strong></td>
-                      <td>{member.phone || '-'}</td>
-                      <td>{member.role}</td>
-                      <td>{member.homeJumuia?.name || '-'}</td>
-                      <td className="actions">
-                        <button 
-                          className="btn-small"
-                          onClick={() => handleSendReminder(member.id)}
-                        >
-                          <Send size={12} /> Remind
-                        </button>
-                        <button 
-                          className="btn-small success"
-                          onClick={() => handleMarkPresent(member.id, member.fullName)}
-                        >
-                          <CheckCircle size={12} /> Mark Present
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+{activeTab === 'present' && (
+  <div className="members-list">
+    {filteredPresent.length === 0 ? (
+      <div className="empty-state">No present members found</div>
+    ) : (
+      <table className="members-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Executive Position</th>
+            <th>Method</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredPresent.map(entry => (
+            <tr key={entry.id}>
+              <td><strong>{entry.fullName}</strong></td>
+              <td>{entry.phoneNumber || '-'}</td>
+              <td>{entry.role || '-'}</td>
+              <td>
+                {entry.executivePosition ? (
+                  <span className="executive-badge">{entry.executivePosition}</span>
+                ) : (
+                  <span className="no-role">-</span>
+                )}
+              </td>
+              <td>
+                <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
+                  {entry.signMethod === 'SELF' ? 'Self' : 
+                   entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
+                </span>
+              </td>
+              <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
+              <td className="actions">
+                <button 
+                  className="icon-btn edit"
+                  onClick={() => {
+                    setSelectedEntry(entry);
+                    setShowEditMember(true);
+                  }}
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button 
+                  className="icon-btn absent"
+                  onClick={() => handleMarkAbsent(entry.id, entry.fullName)}
+                  title="Mark as Absent"
+                >
+                  <XCircle size={14} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
+     {/* Absent Members List */}
+{activeTab === 'absent' && (
+  <div className="members-list">
+    {filteredAbsent.length === 0 ? (
+      <div className="empty-state">No absent members found</div>
+    ) : (
+      <table className="members-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Executive Position</th>
+            <th>Jumuia</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredAbsent.map(member => (
+            <tr key={member.id}>
+              <td><strong>{member.fullName}</strong></td>
+              <td>{member.phone || '-'}</td>
+              <td>{member.role || '-'}</td>
+              <td>
+                {member.executivePosition ? (
+                  <span className="executive-badge">{member.executivePosition}</span>
+                ) : (
+                  <span className="no-role">-</span>
+                )}
+              </td>
+              <td>{member.homeJumuia?.name || '-'}</td>
+              <td className="actions">
+                <button 
+                  className="btn-small"
+                  onClick={() => handleSendReminder(member.id)}
+                >
+                  <Send size={12} /> Remind
+                </button>
+                <button 
+                  className="btn-small success"
+                  onClick={() => handleMarkPresent(member.id, member.fullName)}
+                >
+                  <CheckCircle size={12} /> Mark Present
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
         
         {/* Modals */}
         {showAddMember && (
@@ -898,6 +919,8 @@ const handleMarkAbsent = async (entryId, memberName) => {
 .icon-btn.absent:hover {
   background: #fef3c7;
 }
+
+
       `}</style>
     </div>
   );

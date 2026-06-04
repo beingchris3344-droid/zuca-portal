@@ -216,27 +216,34 @@ export default function AdminAttendanceDetails() {
     }
   };
   
-  // ============ FILTER DATA ============
-  const presentEntries = sheetData?.entries || [];
-  const absentEntries = sheetData?.absentMembers || [];
-  
-  const filteredPresent = presentEntries.filter(entry =>
-    entry.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.phoneNumber?.includes(searchTerm)
-  );
-  
-  const filteredAbsent = absentEntries.filter(member =>
-    member.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // ============ STATS ============
-  const totalPresent = presentEntries.length;
-  const totalExpected = sheetData?.totalMembers || (totalPresent + absentEntries.length);
-  const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
-  
-  const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
+// ============ FILTER DATA ============
+const presentEntries = sheetData?.entries || [];
+const absentEntries = sheetData?.absentMembers || [];
+
+const filteredPresent = presentEntries.filter(entry =>
+  entry.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  entry.phoneNumber?.includes(searchTerm)
+);
+
+const filteredAbsent = absentEntries.filter(member =>
+  member.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+// ============ STATS ============
+const totalExpected = sheetData?.totalMembers || 0;
+
+const presentMembers = presentEntries.filter(entry => entry.userId && entry.role !== 'Guest');
+const guestEntries = presentEntries.filter(entry => !entry.userId || entry.role === 'Guest');
+
+const totalPresent = presentMembers.length;
+const totalGuests = guestEntries.length;
+const totalAbsent = totalExpected - totalPresent;
+
+const attendanceRate = totalExpected > 0 ? ((totalPresent / totalExpected) * 100).toFixed(1) : 0;
+
+const selfCount = presentEntries.filter(e => e.signMethod === 'SELF').length;
 const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
-  const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
+const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length;
   
   // ============ SKELETON LOADER ============
   const SkeletonLoader = () => (
@@ -560,25 +567,29 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
         </div>
       </div>
       
-      {/* Stats Cards */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-value">{totalExpected}</div>
-          <div className="stat-label">Total Expected</div>
-        </div>
-        <div className="stat-card success">
-          <div className="stat-value">{totalPresent}</div>
-          <div className="stat-label">Present</div>
-        </div>
-        <div className="stat-card danger">
-          <div className="stat-value">{totalExpected - totalPresent}</div>
-          <div className="stat-label">Absent</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{attendanceRate}%</div>
-          <div className="stat-label">Attendance Rate</div>
-        </div>
-      </div>
+{/* Stats Cards */}
+<div className="stats-grid">
+  <div className="stat-card">
+    <div className="stat-value">{totalExpected}</div>
+    <div className="stat-label">Total Expected</div>
+  </div>
+  <div className="stat-card success">
+    <div className="stat-value">{totalPresent}</div>
+    <div className="stat-label">Present (Members)</div>
+  </div>
+  <div className="stat-card">
+    <div className="stat-value">{totalGuests}</div>
+    <div className="stat-label">Guests</div>
+  </div>
+  <div className="stat-card danger">
+    <div className="stat-value">{totalAbsent >= 0 ? totalAbsent : 0}</div>
+    <div className="stat-label">Absent</div>
+  </div>
+  <div className="stat-card">
+    <div className="stat-value">{attendanceRate}%</div>
+    <div className="stat-label">Attendance Rate</div>
+  </div>
+</div>
       
       {/* Method Breakdown */}
       <div className="methods-breakdown">
@@ -653,105 +664,121 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
       </div>
       
       {/* Present Members List */}
-      {activeTab === 'present' && (
-        <div className="members-list">
-          {filteredPresent.length === 0 ? (
-            <div className="empty-state">No present members found</div>
-          ) : (
-            <table className="members-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Role</th>
-                  <th>Method</th>
-                  <th>Time</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPresent.map(entry => (
-                  <tr key={entry.id}>
-                    <td><strong>{entry.fullName}</strong></td>
-                    <td>{entry.phoneNumber || '-'}</td>
-                    <td>{entry.role}</td>
-                    <td>
-                     <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
-  {entry.signMethod === 'SELF' ? 'Self' : 
-   entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
-</span>
-                    </td>
-                    <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
-                   <td className="actions">
-  <button 
-    className="icon-btn edit"
-    onClick={() => {
-      setSelectedEntry(entry);
-      setShowEditMember(true);
-    }}
-  >
-    <Edit2 size={14} />
-  </button>
-  <button 
-    className="icon-btn absent"
-    onClick={() => handleMarkAbsent(entry.id, entry.fullName)}
-    title="Mark as Absent"
-  >
-    <XCircle size={14} />
-  </button>
-</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+{activeTab === 'present' && (
+  <div className="members-list">
+    {filteredPresent.length === 0 ? (
+      <div className="empty-state">No present members found</div>
+    ) : (
+      <table className="members-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Executive Position</th>
+            <th>Method</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredPresent.map(entry => (
+            <tr key={entry.id}>
+              <td><strong>{entry.fullName}</strong></td>
+              <td>{entry.phoneNumber || '-'}</td>
+              <td>{entry.role || '-'}</td>
+              <td>
+                {entry.executivePosition ? (
+                  <span className="executive-badge">{entry.executivePosition}</span>
+                ) : (
+                  <span className="no-role">-</span>
+                )}
+              </td>
+              <td>
+                <span className={`method-badge ${entry.signMethod?.toLowerCase()}`}>
+                  {entry.signMethod === 'SELF' ? 'Self' : 
+                   entry.signMethod === 'QR_CODE' ? 'QR Code' : 'Manual'}
+                </span>
+              </td>
+              <td>{new Date(entry.signTime).toLocaleTimeString()}</td>
+              <td className="actions">
+                <button 
+                  className="icon-btn edit"
+                  onClick={() => {
+                    setSelectedEntry(entry);
+                    setShowEditMember(true);
+                  }}
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button 
+                  className="icon-btn absent"
+                  onClick={() => handleMarkAbsent(entry.id, entry.fullName)}
+                  title="Mark as Absent"
+                >
+                  <XCircle size={14} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
       
-      {/* Absent Members List */}
-      {activeTab === 'absent' && (
-        <div className="members-list">
-          {filteredAbsent.length === 0 ? (
-            <div className="empty-state">No absent members found</div>
-          ) : (
-            <table className="members-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Role</th>
-                  <th>Jumuia</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAbsent.map(member => (
-                  <tr key={member.id}>
-                    <td><strong>{member.fullName}</strong></td>
-                    <td>{member.phone || '-'}</td>
-                    <td>{member.role}</td>
-                    <td>{member.homeJumuia?.name || '-'}</td>
-                    <td className="actions">
-                      <button 
-                        className="btn-small"
-                        onClick={() => handleSendReminder(member.id)}
-                      >
-                        <Send size={12} /> Remind
-                      </button>
-                      <button 
-                        className="btn-small success"
-                        onClick={() => handleMarkPresent(member.id, member.fullName)}
-                      >
-                        <CheckCircle size={12} /> Mark Present
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+     {/* Absent Members List */}
+{activeTab === 'absent' && (
+  <div className="members-list">
+    {filteredAbsent.length === 0 ? (
+      <div className="empty-state">No absent members found</div>
+    ) : (
+      <table className="members-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Executive Position</th>
+            <th>Jumuia</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredAbsent.map(member => (
+            <tr key={member.id}>
+              <td><strong>{member.fullName}</strong></td>
+              <td>{member.phone || '-'}</td>
+              <td>{member.role || '-'}</td>
+              <td>
+                {member.executivePosition ? (
+                  <span className="executive-badge">{member.executivePosition}</span>
+                ) : (
+                  <span className="no-role">-</span>
+                )}
+              </td>
+              <td>{member.homeJumuia?.name || '-'}</td>
+              <td className="actions">
+                <button 
+                  className="btn-small"
+                  onClick={() => handleSendReminder(member.id)}
+                >
+                  <Send size={12} /> Remind
+                </button>
+                <button 
+                  className="btn-small success"
+                  onClick={() => handleMarkPresent(member.id, member.fullName)}
+                >
+                  <CheckCircle size={12} /> Mark Present
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
       
       {/* Modals */}
       {showAddMember && (
@@ -1143,6 +1170,7 @@ const qrCount = presentEntries.filter(e => e.signMethod === 'QR_CODE').length;
   background: #7c3aed;
   transform: translateY(-1px);
 }
+  
       `}</style>
     </div>
   );

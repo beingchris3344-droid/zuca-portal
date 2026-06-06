@@ -322,7 +322,7 @@ export default function JumuiaManagement() {
       <div className="header-section">
         <div>
           <h1 className="page-title">Jumuia Management</h1>
-          <p className="page-description">Manage church communities and members with full control</p>
+          <p className="page-description">All Jumuia management</p>
         </div>
         <div className="header-actions">
           <button className="btn-secondary" onClick={handleExport} disabled={showSkeleton}>

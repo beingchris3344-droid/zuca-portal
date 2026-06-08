@@ -214,13 +214,20 @@ useEffect(() => {
           vibrate: [200, 100, 200],
           requireInteraction: notification.type === 'game_invite' || notification.type === 'event_reminder',
           renotify: true,
-          data: {
-            url: notification.data?.url || `/dashboard`,
-            id: notification.id,
-            type: notification.type,
-            entityId: notification.entityId,
-            timestamp: Date.now()
-          },
+              data: {
+      url: notification.data?.url || 
+           (notification.type === 'attendance_reminder' ? '/member/attendance' :
+            notification.type === 'game_invite' ? '/games' :
+            notification.type === 'event_reminder' ? '/mass-programs' :
+            notification.type === 'announcement' ? '/announcements' :
+            notification.type === 'message' ? '/messenger' :
+            notification.type === 'contribution_reminder' ? '/contributions' :
+            '/dashboard'),
+      id: notification.id,
+      type: notification.type,
+      entityId: notification.entityId,
+      timestamp: Date.now()
+    },
           actions: []
         };
         

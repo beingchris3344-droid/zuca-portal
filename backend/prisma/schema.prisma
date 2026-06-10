@@ -153,7 +153,15 @@ model User {
   dmBroadcastReceipts DMBroadcastReceipt[] // Broadcasts I received
   
   // Settings
-  dmSettings         DMSettings?          // My messaging preferences
+  dmSettings         DMSettings?         
+
+  // Meeting Minutes relations
+minutesCreated   MeetingMinutes[] @relation("MinutesCreator")
+minutesPublished MeetingMinutes[] @relation("MinutesPublisher")
+actionItems      MeetingActionItem[]
+minutesViewed    MeetingMinutesView[]
+excuses          MeetingExcuse[]
+minutesComments  MeetingComment[]
 
 }
 
@@ -385,6 +393,8 @@ model Jumuia {
   notifications Notification[]
 
   broadcastTarget DMBroadcast[]
+
+  meetingMinutes MeetingMinutes[]
 }
 
 model Notification {
@@ -1363,6 +1373,8 @@ model AttendanceSheet {
   @@index([eventDate])
   @@index([isActive])
   @@map("attendance_sheets")
+
+  meetingMinutes MeetingMinutes[]
 }
 
 model AttendanceEntry {
@@ -1499,4 +1511,146 @@ model UserPrayerNote {
   prayer Prayer @relation(fields: [prayerId], references: [id], onDelete: Cascade)
   
   @@unique([userId, prayerId])
+}
+
+// ==================== MEETING MINUTES SYSTEM ====================
+
+enum MeetingType {
+  EXECUTIVE
+  JUMUIA
+}
+
+enum MinuteStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model MeetingMinutes {
+  id                String      @id @default(uuid())
+  title             String
+  meetingDate       DateTime
+  meetingTime       String?
+  venue             String?
+  type              MeetingType @default(EXECUTIVE)
+  jumuiaId          String?
+  attendanceSheetId String
+  presentMembers    Json
+  presentGuests     Json
+  absentMembers     Json
+  agenda            Json?
+  preliminaries     String?
+  sections          Json?
+  aob               Json?
+  adjournment       String?
+  actionItems       Json?
+  chairpersonSigned Boolean     @default(false)
+  chairpersonSignDate DateTime?
+  secretarySigned   Boolean     @default(false)
+  secretarySignDate DateTime?
+  status            MinuteStatus @default(DRAFT)
+  publishedAt       DateTime?
+  publishedBy       String?
+  createdBy         String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  jumuia            Jumuia?     @relation(fields: [jumuiaId], references: [id])
+  attendanceSheet   AttendanceSheet @relation(fields: [attendanceSheetId], references: [id])
+  creator           User        @relation("MinutesCreator", fields: [createdBy], references: [id])
+  publisher         User?       @relation("MinutesPublisher", fields: [publishedBy], references: [id])
+  assignedActions   MeetingActionItem[]
+  views             MeetingMinutesView[]
+   excuses          MeetingExcuse[]
+  comments         MeetingComment[]
+
+  @@index([type])
+  @@index([jumuiaId])
+  @@index([attendanceSheetId])
+  @@index([status])
+  @@index([meetingDate])
+  @@index([createdBy])
+  @@map("meeting_minutes")
+
+ 
+}
+
+model MeetingActionItem {
+  id                String       @id @default(uuid())
+  minutesId         String
+  task              String       @db.Text
+  assignedToUserId  String
+  assignedToName    String
+  dueDate           DateTime?
+  status            ActionStatus @default(PENDING)
+  completedAt       DateTime?
+  completedNotes    String?      @db.Text
+  notifiedAt        DateTime?
+
+  minutes           MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  assignedTo        User           @relation(fields: [assignedToUserId], references: [id])
+
+  @@index([minutesId])
+  @@index([assignedToUserId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("meeting_action_items")
+}
+
+model MeetingMinutesView {
+  id                String   @id @default(uuid())
+  minutesId         String
+  userId            String
+  viewedAt          DateTime @default(now())
+
+  minutes           MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@unique([minutesId, userId])
+  @@index([minutesId])
+  @@index([userId])
+  @@map("meeting_minutes_views")
+}
+
+model MeetingExcuse {
+  id                String   @id @default(uuid())
+  minutesId         String
+  userId            String
+  reason            String?  @db.Text
+  excused           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  minutes           MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@unique([minutesId, userId])
+  @@index([minutesId])
+  @@index([userId])
+  @@map("meeting_excuses")
+}
+
+model MeetingComment {
+  id                String   @id @default(uuid())
+  minutesId         String
+  userId            String
+  comment           String   @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  minutes           MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@index([minutesId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("meeting_comments")
 }

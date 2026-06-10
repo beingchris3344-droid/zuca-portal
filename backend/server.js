@@ -137,6 +137,10 @@ app.use((req, res, next) => {
 });
 
 
+const meetingMinutesRoutes = require("./routes/meetingMinutes");
+app.use("/api/minutes", meetingMinutesRoutes);
+
+
 // Direct Messaging System Routes
 app.use('/api/messenger', messengerRoutes);
 // Add this line with your other route registrations

@@ -1,16 +1,15 @@
-// ================== ZUCA SERVICE WORKER - PRODUCTION READY ==================
-const CACHE_NAME = 'zuca-v6';
+// ================== ZUCA SERVICE WORKER - WITH OFFLINE SUPPORT ==================
+const CACHE_NAME = 'zuca-v7';
 const SYNC_TAG = 'sync-checkins';
+const API_CACHE_NAME = 'zuca-api-v1';
 
-// Only cache these static assets
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest'
 ];
 
-// File extensions to cache (static assets only)
-const CACHEABLE_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico', '.woff', '.woff2'];
+const CACHEABLE_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico'];
 
 // ================== HELPER FUNCTIONS ==================
 function isStaticAsset(url) {
@@ -18,35 +17,29 @@ function isStaticAsset(url) {
 }
 
 function isApiCall(url) {
-  // Skip ALL API calls - never intercept
   return url.pathname.includes('/api/');
 }
 
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  
-  // Activate immediately
   self.skipWaiting();
 });
 
 // ================== ACTIVATE ==================
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
-  
-  // Clean up old caches
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
             console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -54,22 +47,59 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  
-  // Take control of all clients immediately
   event.waitUntil(self.clients.claim());
 });
 
-// ================== FETCH - MAIN HANDLER ==================
+// ================== FETCH - WITH FIXED API HANDLING ==================
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // CRITICAL: NEVER intercept API calls
+  // FIXED: Handle API calls properly without breaking responses
   if (isApiCall(url)) {
-    // Let browser handle all API requests directly
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Clone BEFORE reading or doing anything
+          const responseToCache = response.clone();
+          
+          // Only cache GET requests for offline use
+          if (event.request.method === 'GET') {
+            caches.open(API_CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          
+          // Return the ORIGINAL response immediately
+          return response;
+        })
+        .catch(async () => {
+          // Only serve from cache for GET requests when offline
+          if (event.request.method === 'GET') {
+            const cachedResponse = await caches.match(event.request);
+            if (cachedResponse) {
+              console.log('[SW] Serving cached API response');
+              return cachedResponse;
+            }
+          }
+          
+          // For POST/PUT/DELETE, return offline error
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'You are offline. Please check your connection.',
+              offline: true 
+            }),
+            {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+        })
+    );
     return;
   }
   
-  // Handle navigation (HTML pages) with offline fallback
+  // Handle navigation (HTML pages)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -81,12 +111,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle static assets (JS, CSS, images)
+  // Handle static assets
   if (event.request.method === 'GET' && isStaticAsset(url)) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         return cachedResponse || fetch(event.request).then((response) => {
-          // Only cache successful responses
           if (response.status === 200) {
             return caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, response.clone());
@@ -101,10 +130,9 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// ================== BACKGROUND SYNC ==================
+// ================== BACKGROUND SYNC (FIXED) ==================
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
-  
   if (event.tag === SYNC_TAG) {
     event.waitUntil(syncPendingCheckins());
   }
@@ -124,7 +152,8 @@ async function syncPendingCheckins() {
     
     console.log(`[SW] Syncing ${pending.length} pending check-ins...`);
     
-    const token = await getTokenFromCache();
+    // Get token from localStorage via client communication
+    const token = await getTokenFromClients();
     if (!token) {
       console.log('[SW] No auth token available');
       return;
@@ -159,7 +188,6 @@ async function syncPendingCheckins() {
     
     console.log(`[SW] Background sync complete: ${synced} synced`);
     
-    // Notify all open windows
     const clients = await self.clients.matchAll();
     clients.forEach(client => {
       client.postMessage({
@@ -176,6 +204,41 @@ async function syncPendingCheckins() {
     console.error('[SW] Background sync failed:', error);
   }
 }
+
+async function getTokenFromClients() {
+  return new Promise((resolve) => {
+    // Ask all clients for their token
+    self.clients.matchAll().then(clients => {
+      if (clients.length === 0) {
+        resolve(null);
+        return;
+      }
+      
+      // Send message to first client asking for token
+      const client = clients[0];
+      const messageChannel = new MessageChannel();
+      
+      messageChannel.port1.onmessage = (event) => {
+        resolve(event.data.token);
+      };
+      
+      client.postMessage({ type: 'GET_TOKEN' }, [messageChannel.port2]);
+      
+      // Timeout after 1 second
+      setTimeout(() => resolve(null), 1000);
+    });
+  });
+}
+
+// Listen for messages from clients
+self.addEventListener('message', (event) => {
+  if (event.data.type === 'SET_TOKEN') {
+    // Store token in cache for background sync
+    caches.open(CACHE_NAME).then(cache => {
+      cache.put('/auth-token', new Response(JSON.stringify({ token: event.data.token })));
+    });
+  }
+});
 
 // ================== INDEXEDDB HELPERS ==================
 function openDB() {
@@ -206,32 +269,14 @@ function removePendingCheckinFromDB(db, id) {
   });
 }
 
-async function getTokenFromCache() {
-  try {
-    const cache = await caches.open(CACHE_NAME);
-    const response = await cache.match('/auth-token');
-    if (response && response.ok) {
-      const data = await response.json();
-      return data.token;
-    }
-  } catch (error) {
-    console.error('[SW] Failed to get token from cache:', error);
-  }
-  return null;
-}
-
 async function showSyncNotification(synced, total) {
-  try {
-    await self.registration.showNotification('✅ ZUCA Attendance Synced', {
-      body: `${synced} of ${total} offline check-in(s) have been synced.`,
-      icon: '/android-chrome-192x192.png',
-      badge: '/favicon.ico',
-      vibrate: [200, 100, 200],
-      data: { url: '/member/attendance' }
-    });
-  } catch (error) {
-    console.error('[SW] Failed to show notification:', error);
-  }
+  await self.registration.showNotification('✅ ZUCA Attendance Synced', {
+    body: `${synced} of ${total} offline check-in(s) have been synced.`,
+    icon: '/android-chrome-192x192.png',
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    data: { url: '/member/attendance' }
+  });
 }
 
 // ================== PUSH NOTIFICATIONS ==================
@@ -245,7 +290,6 @@ self.addEventListener('push', (event) => {
     badge: '/favicon.ico',
     vibrate: [200, 100, 200],
     requireInteraction: true,
-    silent: false,
     data: { url: '/' }
   };
   
@@ -263,30 +307,23 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// ================== NOTIFICATION CLICK ==================
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked');
   event.notification.close();
-  
   const url = event.notification.data?.url || '/';
-  
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientsArr) => {
-        // Try to focus an existing window/tab
         for (const client of clientsArr) {
           if (client.url.includes(url) && 'focus' in client) {
             return client.focus();
           }
         }
-        // Open new window if none exists
         return self.clients.openWindow(url);
       })
   );
 });
 
-// ================== PUSH SUBSCRIPTION CHANGE ==================
 self.addEventListener('pushsubscriptionchange', (event) => {
   console.log('[SW] Push subscription changed');
-  // Optionally re-subscribe or update subscription on server
 });

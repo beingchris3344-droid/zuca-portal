@@ -50,6 +50,8 @@ import { MessengerProvider } from './contexts/MessengerContext';
 import MemberAttendance from './pages/member/MemberAttendance';
 import MemberAttendanceHistory from './pages/member/MemberAttendanceHistory';
 import LinkCheckin from './components/admin/attendance/LinkCheckin';
+import MinutesList from './pages/admin/minutes/MinutesList';
+import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -84,6 +86,8 @@ import AdminMessenger from './pages/admin/AdminMessenger';
 import AdminAttendance from './components/admin/attendance/AdminAttendance';
 import AdminAttendanceDetails from './pages/admin/AdminAttendanceDetails';
 import AdminPrayers from './pages/admin/AdminPrayers';
+import MinutesCreatePage from './pages/admin/minutes/MinutesCreatePage';
+import MinutesEditPage from './pages/admin/minutes/MinutesEditPage';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -262,6 +266,20 @@ useEffect(() => {
       console.log("📦 Batch notifications received:", notifications?.length);
       badgeManager.loadCount();
     });
+
+     socket.on("minutes_published", (data) => {
+    console.log("📋 New minutes published:", data);
+    badgeManager.increment();
+    
+    if (window.showInAppToast) {
+      window.showInAppToast({
+        title: "📋 New Minutes Published",
+        message: data.title,
+        type: "minutes",
+        data: { minutesId: data.id }
+      });
+    }
+  });
     
     // Listen for FCM subscription refresh events
     socket.on("push_subscription_refresh", async (data) => {
@@ -275,6 +293,7 @@ useEffect(() => {
     return () => {
       socket.off("new_notification");
       socket.off("new_notification_batch");
+       socket.off("minutes_published");
       socket.off("push_subscription_refresh");
     };
   }, []);
@@ -416,11 +435,13 @@ useEffect(() => {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
+      
 
           {/* GAMES */}
           <Route path="/games/tictactoe" element={<TicTacToe />} />
           <Route path="/games/snake" element={<Snake />} />
           <Route path="/games/trivia" element={<BibleTrivia />} />
+           <Route path="/minutes" element={<MinutesList />} />
         </Route>
 
         {/* ================= JUMUIA DETAIL PAGE ================= */}
@@ -449,6 +470,7 @@ useEffect(() => {
           <Route path="messenger" element={<AdminMessenger />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="/admin/analytics" element={<YoutubeAnalyticsPage />} />
+          <Route path="minutes" element={<MinutesList />} />
           <Route path="songs" element={<SongsPage />} />
           <Route path="/admin/hymns" element={<AdminHymns />} />
           <Route path="/admin/hymns/edit/:id" element={<AddHymn />} />
@@ -467,7 +489,10 @@ useEffect(() => {
           <Route path="/admin/messenger" element={<AdminMessenger />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
+            <Route path="minutes/:id" element={<MinutesViewPage />} />
           <Route path="/admin/prayers" element={<AdminPrayers />} />
+          <Route path="minutes/create" element={<MinutesCreatePage />} />
+          <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />

@@ -7,7 +7,7 @@ import {
   FiEdit2, FiClock, FiCheckCircle, FiRefreshCw,
   FiArrowUp, FiArrowDown, FiGrid, FiImage, FiHome,
   FiLogOut, FiSettings, FiEye, FiTrendingUp, FiPieChart,
-  FiBarChart2
+  FiBarChart2, FiFileText  
 } from "react-icons/fi";
 import { RiAdminLine } from "react-icons/ri";
 import { useNavigate } from "react-router-dom"; 
@@ -639,6 +639,7 @@ function AdminDashboard() {
           </div>
         
 <div className="actions-grid">
+  <button className="action-btn" onClick={() => navigate('/admin/minutes')}><FiFileText /> Meeting Minutes</button>
   <button className="action-btn" onClick={() => navigate('/admin/users')}><FiUsers /> Users Management</button>
   <button className="action-btn" onClick={() => navigate('/admin/announcements')}><FiBell /> Announcements</button>
   <button className="action-btn" onClick={() => navigate('/admin/mass-programs')}><GiPrayer /> Mass Programs</button>

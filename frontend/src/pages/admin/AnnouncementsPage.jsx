@@ -12,6 +12,7 @@ import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 import BASE_URL from "../../api";
 import AdminSchedules from "./AdminSchedules";
+import MinutesList from "./minutes/MinutesList"; 
 
 export default function AdminAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
@@ -373,7 +374,13 @@ export default function AdminAnnouncements() {
         >
           📅 Schedules
         </button>
-      </div>
+     <button
+    className={`tab-btn ${activeTab === "minutes" ? "active" : ""}`}
+    onClick={() => setActiveTab("minutes")}
+  >
+    📋 Minutes
+  </button>
+</div>
 
       {/* ANNOUNCEMENTS TAB CONTENT - shows when "announcements" tab is clicked */}
       {activeTab === "announcements" && (
@@ -655,6 +662,13 @@ export default function AdminAnnouncements() {
       {activeTab === "schedules" && (
         <AdminSchedules />
       )}
+
+      {/* MINUTES TAB CONTENT */}
+{activeTab === "minutes" && (
+  <div className="minutes-tab-content">
+    <MinutesList />
+  </div>
+)}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -1401,7 +1415,12 @@ export default function AdminAnnouncements() {
           .card-meta {
             width: 100%;
           }
+
+          .minutes-tab-content {
+  margin-top: 20px;
+}
         }
+          
       `}</style>
     </div>
   );

@@ -184,22 +184,27 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
   // Cache auth token when user logs in
-  if (url.pathname.includes('/api/login') && event.request.method === 'POST') {
-    event.respondWith(
-      fetch(event.request).then(async (response) => {
+if (url.pathname.includes('/api/login') && event.request.method === 'POST') {
+  event.respondWith(
+    fetch(event.request).then(async (response) => {
+      // ✅ ADD THIS TRY-CATCH (3 lines)
+      try {
         const clone = response.clone();
         const data = await clone.json();
         if (data.token) {
           const cache = await caches.open(CACHE_NAME);
           await cache.put('/auth-token', new Response(JSON.stringify({ token: data.token })));
         }
-        return response;
-      })
-    );
-    return;
-  }
+      } catch (err) {
+        // If JSON parsing fails (like HTML error page), just log and continue
+        console.log('[SW] Could not cache auth token (not JSON response)');
+      }
+      return response;
+    })
+  );
+  return;
+}
   
   // Cache attendance API requests for offline use
   if (url.pathname.includes('/api/attendance/active') || 

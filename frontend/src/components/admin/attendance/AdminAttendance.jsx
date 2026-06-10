@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../../api';
+import io from 'socket.io-client';
+import BASE_URL from '../../../api';  // ← ADD THIS LINE
 import { useNavigate } from 'react-router-dom';
 import { saveAs } from 'file-saver';
 import SettingsModal from './SettingsModal';
@@ -110,6 +112,48 @@ export default function AdminAttendance() {
     setRefreshing(false);
     showToast('Data refreshed', 'success');
   };
+
+    // ============ LIVE UPDATES FOR SHEETS LIST ============
+  useEffect(() => {
+    const socket = io(BASE_URL, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      console.log('📡 Socket connected for attendance list');
+    });
+
+    socket.on('attendance_checkin', () => {
+      fetchActiveSheets();
+      fetchAdminStats();
+      fetchAllEntries();
+    });
+
+    socket.on('attendance_sheet_closed', () => {
+      fetchActiveSheets();
+      fetchAdminStats();
+    });
+
+    socket.on('attendance_entry_added', () => {
+      fetchActiveSheets();
+      fetchAdminStats();
+      fetchAllEntries();
+    });
+
+    socket.on('attendance_entry_deleted', () => {
+      fetchActiveSheets();
+      fetchAdminStats();
+      fetchAllEntries();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [fetchActiveSheets, fetchAdminStats, fetchAllEntries]);  
+
+  
   
   // ============ FILTER ENTRIES ============
   useEffect(() => {
@@ -319,6 +363,8 @@ export default function AdminAttendance() {
       showToast(error.response?.data?.error || 'Failed to reopen sheet', 'error');
     }
   };
+
+  
   
   // ============ ACTIONS ============
   const handleCreateSheet = async (sheetData) => {
@@ -398,7 +444,7 @@ export default function AdminAttendance() {
       {toast.show && (<div className={`toast-notification ${toast.type}`}><span>{toast.message}</span></div>)}
       
       <div className="attendance-header">
-        <h1>Attendance Management</h1>
+        <h1>Attendance Manageent</h1>
         <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? 'spinning' : ''} /> Refresh
         </button>

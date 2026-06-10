@@ -58,7 +58,24 @@ export default function AdminAttendanceDetails() {
     await fetchSheetData();
   }, [fetchSheetData]);
   
-  // ============ INITIAL LOAD ============
+  // ============ SUPER FAST AUTO-REFRESH (1 SECOND) ============
+  useEffect(() => {
+    // Only auto-refresh if sheet is active (meeting in progress)
+    if (!sheetData?.isActive) return;
+    
+    console.log('⚡ SUPER FAST auto-refresh every 1 second');
+    
+    const intervalId = setInterval(() => {
+      fetchSheetData();
+    }, 1000); // 1 SECOND!
+    
+    return () => {
+      console.log('⏹️ Stopping auto-refresh');
+      clearInterval(intervalId);
+    };
+  }, [sheetData?.isActive, fetchSheetData]);
+  
+  // ============ INITIAL LOAD & SOCKET ============
   useEffect(() => {
     fetchSheetData();
     
@@ -116,8 +133,6 @@ export default function AdminAttendanceDetails() {
       socket.disconnect();
     };
   }, [sheetId, fetchSheetData, showToast]);
-  
-
   
   // ============ ACTIONS ============
   const handleAddMember = async (memberData) => {
@@ -318,6 +333,14 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
           </div>
         ))}
       </div>
+    </div>
+  );
+  
+  // ============ LIVE INDICATOR ============
+  const LiveIndicator = () => (
+    <div className="live-indicator">
+      <span className="pulse-ring"></span>
+      <span>LIVE (updates every 1s)</span>
     </div>
   );
   
@@ -536,6 +559,9 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
   // ============ RENDER ============
   return (
     <div className="attendance-details-page">
+      {/* Live Indicator */}
+      {sheetData?.isActive && <LiveIndicator />}
+      
       {/* Toast */}
       {toast.show && (
         <div className={`toast ${toast.type}`}>
@@ -663,7 +689,7 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
         </button>
       </div>
       
-      {/* Present Members List */}
+        {/* Present Members List */}
 {activeTab === 'present' && (
   <div className="members-list">
     {filteredPresent.length === 0 ? (
@@ -950,7 +976,8 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
         }
         
         .method-dot.self { background: #3b82f6; }
-.method-dot.qr { background: #059669; }        .method-dot.manual { background: #f59e0b; }
+        .method-dot.qr { background: #059669; }
+        .method-dot.manual { background: #f59e0b; }
         
         .method-count {
           font-weight: 600;
@@ -958,17 +985,18 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
         }
         
         .action-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 20px;
+        }
 
-@media (max-width: 480px) {
-  .action-buttons {
-    grid-template-columns: 1fr;
-  }
-}
+        @media (max-width: 480px) {
+          .action-buttons {
+            grid-template-columns: 1fr;
+          }
+        }
+        
         .btn-primary, .btn-secondary, .btn-danger {
           display: flex;
           align-items: center;
@@ -1015,11 +1043,11 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
         }
 
         .icon-btn.absent { 
-  color: #f59e0b; 
-}
-.icon-btn.absent:hover { 
-  background: #fef3c7; 
-}
+          color: #f59e0b; 
+        }
+        .icon-btn.absent:hover { 
+          background: #fef3c7; 
+        }
         
         .tab {
           display: flex;
@@ -1075,14 +1103,10 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
           color: #0284c7;
         }
         
-              .method-badge.qr_code {
+        .method-badge.qr_code {
           background: #dcfce7;
-          color: #22c55e;
+          color: #059669;
         }
-          .method-badge.qr_code {
-  background: #dcfce7;
-  color: #059669;
-}
         
         .method-badge.manual {
           background: #fef3c7;
@@ -1154,23 +1178,69 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
         }
 
         .btn-share {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #026602;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-}
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: #026602;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 13px;
+        }
 
-.btn-share:hover {
-  background: #7c3aed;
-  transform: translateY(-1px);
-}
-  
+        .btn-share:hover {
+          background: #7c3aed;
+          transform: translateY(-1px);
+        }
+
+        /* Live Indicator Styles */
+        .live-indicator {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: #1a1a1a;
+          color: #22c55e;
+          padding: 8px 16px;
+          border-radius: 40px;
+          font-size: 12px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          z-index: 1000;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .pulse-ring {
+          width: 10px;
+          height: 10px;
+          background: #22c55e;
+          border-radius: 50%;
+          position: relative;
+        }
+
+        .pulse-ring::before {
+          content: '';
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          background: #22c55e;
+          border-radius: 50%;
+          animation: pulse-ring 1.5s infinite;
+        }
+
+        @keyframes pulse-ring {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(3);
+            opacity: 0;
+          }
+        }
       `}</style>
     </div>
   );

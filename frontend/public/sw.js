@@ -1,45 +1,38 @@
-// ================== ZUCA SERVICE WORKER - WITH OFFLINE SUPPORT ==================
-const CACHE_NAME = 'zuca-v7';
+// ================== ZUCA SERVICE WORKER ==================
+const CACHE_NAME = 'zuca-v5';
 const SYNC_TAG = 'sync-checkins';
-const API_CACHE_NAME = 'zuca-api-v1';
 
-const STATIC_ASSETS = [
+// URLs to cache on install
+const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.webmanifest'
 ];
 
-const CACHEABLE_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico'];
-
-// ================== HELPER FUNCTIONS ==================
-function isStaticAsset(url) {
-  return CACHEABLE_EXTENSIONS.some(ext => url.pathname.endsWith(ext));
-}
-
-function isApiCall(url) {
-  return url.pathname.includes('/api/');
-}
-
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
+  
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      console.log('[SW] Caching app shell');
+      return cache.addAll(urlsToCache);
     })
   );
+  
   self.skipWaiting();
 });
 
 // ================== ACTIVATE ==================
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
+  
+  // Clean up old caches
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
+          if (cacheName !== CACHE_NAME) {
             console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -47,92 +40,14 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  
   event.waitUntil(self.clients.claim());
 });
 
-// ================== FETCH - WITH FIXED API HANDLING ==================
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // FIXED: Handle API calls properly without breaking responses
-  if (isApiCall(url)) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Clone BEFORE reading or doing anything
-          const responseToCache = response.clone();
-          
-          // Only cache GET requests for offline use
-          if (event.request.method === 'GET') {
-            caches.open(API_CACHE_NAME).then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          
-          // Return the ORIGINAL response immediately
-          return response;
-        })
-        .catch(async () => {
-          // Only serve from cache for GET requests when offline
-          if (event.request.method === 'GET') {
-            const cachedResponse = await caches.match(event.request);
-            if (cachedResponse) {
-              console.log('[SW] Serving cached API response');
-              return cachedResponse;
-            }
-          }
-          
-          // For POST/PUT/DELETE, return offline error
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: 'You are offline. Please check your connection.',
-              offline: true 
-            }),
-            {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' }
-            }
-          );
-        })
-    );
-    return;
-  }
-  
-  // Handle navigation (HTML pages)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          return cache.match('/index.html');
-        });
-      })
-    );
-    return;
-  }
-  
-  // Handle static assets
-  if (event.request.method === 'GET' && isStaticAsset(url)) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        return cachedResponse || fetch(event.request).then((response) => {
-          if (response.status === 200) {
-            return caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, response.clone());
-              return response;
-            });
-          }
-          return response;
-        });
-      })
-    );
-    return;
-  }
-});
-
-// ================== BACKGROUND SYNC (FIXED) ==================
+// ================== BACKGROUND SYNC ==================
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
+  
   if (event.tag === SYNC_TAG) {
     event.waitUntil(syncPendingCheckins());
   }
@@ -152,8 +67,7 @@ async function syncPendingCheckins() {
     
     console.log(`[SW] Syncing ${pending.length} pending check-ins...`);
     
-    // Get token from localStorage via client communication
-    const token = await getTokenFromClients();
+    const token = await getTokenFromCache();
     if (!token) {
       console.log('[SW] No auth token available');
       return;
@@ -188,6 +102,7 @@ async function syncPendingCheckins() {
     
     console.log(`[SW] Background sync complete: ${synced} synced`);
     
+    // Notify all open windows
     const clients = await self.clients.matchAll();
     clients.forEach(client => {
       client.postMessage({
@@ -205,42 +120,7 @@ async function syncPendingCheckins() {
   }
 }
 
-async function getTokenFromClients() {
-  return new Promise((resolve) => {
-    // Ask all clients for their token
-    self.clients.matchAll().then(clients => {
-      if (clients.length === 0) {
-        resolve(null);
-        return;
-      }
-      
-      // Send message to first client asking for token
-      const client = clients[0];
-      const messageChannel = new MessageChannel();
-      
-      messageChannel.port1.onmessage = (event) => {
-        resolve(event.data.token);
-      };
-      
-      client.postMessage({ type: 'GET_TOKEN' }, [messageChannel.port2]);
-      
-      // Timeout after 1 second
-      setTimeout(() => resolve(null), 1000);
-    });
-  });
-}
-
-// Listen for messages from clients
-self.addEventListener('message', (event) => {
-  if (event.data.type === 'SET_TOKEN') {
-    // Store token in cache for background sync
-    caches.open(CACHE_NAME).then(cache => {
-      cache.put('/auth-token', new Response(JSON.stringify({ token: event.data.token })));
-    });
-  }
-});
-
-// ================== INDEXEDDB HELPERS ==================
+// ================== INDEXEDDB HELPERS FOR SW ==================
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('zuca_offline', 1);
@@ -269,6 +149,16 @@ function removePendingCheckinFromDB(db, id) {
   });
 }
 
+async function getTokenFromCache() {
+  const cache = await caches.open(CACHE_NAME);
+  const response = await cache.match('/auth-token');
+  if (response) {
+    const data = await response.json();
+    return data.token;
+  }
+  return null;
+}
+
 async function showSyncNotification(synced, total) {
   await self.registration.showNotification('✅ ZUCA Attendance Synced', {
     body: `${synced} of ${total} offline check-in(s) have been synced.`,
@@ -278,6 +168,93 @@ async function showSyncNotification(synced, total) {
     data: { url: '/member/attendance' }
   });
 }
+
+// ================== FETCH (Offline Support) ==================
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // 🔴 ADD THIS: For HTML pages - allow offline loading
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          return cache.match('/index.html');
+        });
+      })
+    );
+    return;
+  }
+  
+  // Cache auth token when user logs in
+  if (url.pathname.includes('/api/login') && event.request.method === 'POST') {
+    event.respondWith(
+      fetch(event.request).then(async (response) => {
+        const clone = response.clone();
+        const data = await clone.json();
+        if (data.token) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put('/auth-token', new Response(JSON.stringify({ token: data.token })));
+        }
+        return response;
+      })
+    );
+    return;
+  }
+  
+  // Cache attendance API requests for offline use
+  if (url.pathname.includes('/api/attendance/active') || 
+      url.pathname.includes('/api/attendance/sheet/')) {
+    
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        try {
+          const response = await fetch(event.request);
+          cache.put(event.request, response.clone());
+          return response;
+        } catch (error) {
+          const cachedResponse = await cache.match(event.request);
+          if (cachedResponse) {
+            console.log('[SW] Serving cached attendance data');
+            return cachedResponse;
+          }
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'You are offline. Please check your connection.',
+            offline: true 
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      })
+    );
+    return;
+  }
+  
+  // For static assets (JS, CSS, images)
+  if (event.request.method === 'GET' && 
+      (url.pathname.includes('.js') || 
+       url.pathname.includes('.css') || 
+       url.pathname.includes('.png') || 
+       url.pathname.includes('.jpg') ||
+       url.pathname.includes('.jpeg') ||
+       url.pathname.includes('.svg') ||
+       url.pathname.includes('.webp') ||
+       url.pathname.includes('.ico'))) {
+    
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        return cachedResponse || fetch(event.request).then((response) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, response.clone());
+            return response;
+          });
+        });
+      })
+    );
+    return;
+  }
+});
 
 // ================== PUSH NOTIFICATIONS ==================
 self.addEventListener('push', (event) => {
@@ -290,6 +267,7 @@ self.addEventListener('push', (event) => {
     badge: '/favicon.ico',
     vibrate: [200, 100, 200],
     requireInteraction: true,
+    silent: false,
     data: { url: '/' }
   };
   
@@ -307,6 +285,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// ================== NOTIFICATION CLICK ==================
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked');
   event.notification.close();
@@ -324,6 +303,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
+// ================== PUSH SUBSCRIPTION CHANGE ==================
 self.addEventListener('pushsubscriptionchange', (event) => {
   console.log('[SW] Push subscription changed');
 });

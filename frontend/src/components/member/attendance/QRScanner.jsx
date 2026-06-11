@@ -22,9 +22,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const streamRef = useRef(null);
   const isProcessing = useRef(false);
   const lastScanTime = useRef(0);
-  const animationFrameRef = useRef(null);
   const successTimeoutRef = useRef(null);
-  const containerRef = useRef(null);
   
   // Headers for API calls
   const getHeaders = () => {
@@ -51,8 +49,10 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setSuccessMessage(isOfflineMode ? '📱 Saved Offline! Will sync automatically' : message);
     setShowSuccess(true);
     
-    // Vibrate if supported
-    if (navigator.vibrate) navigator.vibrate(200);
+    // Vibrate if supported (mobile only)
+    if (navigator.vibrate) {
+      navigator.vibrate(200);
+    }
     
     // Auto close after success
     if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
@@ -74,7 +74,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     isProcessing.current = true;
     
     // Quick validation - check format without full parse
-    if (!decodedText.includes('"type":"attendance_checkin"')) {
+    if (!decodedText || !decodedText.includes('"type":"attendance_checkin"')) {
       isProcessing.current = false;
       return;
     }
@@ -127,14 +127,14 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         return;
       }
       
-      // Online check-in
+      // Online check-in with timeout
       const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
         token: qrData.token,
         deviceId: getDeviceId(),
         deviceName: getDeviceName()
       }, {
         headers: getHeaders(),
-        timeout: 5000 // 5 second timeout for faster failure
+        timeout: 5000
       });
       
       if (response.data.success) {
@@ -144,7 +144,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       }
       
     } catch (error) {
-      const errorMsg = error.response?.data;
+      console.error('Check-in error:', error);
       
       // Handle network errors with offline fallback
       if (error.message === 'Network Error' || !navigator.onLine) {
@@ -163,14 +163,14 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           // Fall through
         }
         setError('No internet connection. Please check your network.');
-      } else if (errorMsg?.error === 'Invalid or expired QR code') {
+      } else if (error.response?.data?.error === 'Invalid or expired QR code') {
         setError('QR code is invalid or has expired');
-      } else if (errorMsg?.error === 'Already checked in') {
+      } else if (error.response?.data?.error === 'Already checked in') {
         setError('You have already checked in for this meeting');
-      } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
+      } else if (error.response?.data?.error === 'DEVICE_ALREADY_USED') {
         setError('This device has already been used for check-in');
       } else {
-        setError(errorMsg?.error || 'Check-in failed');
+        setError(error.response?.data?.error || 'Check-in failed');
       }
       
       // Resume scanner after error
@@ -191,14 +191,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
   };
 
-  // Silent error handler - only log critical errors
+  // Silent error handler
   const onScanError = useCallback((err) => {
     // Ignore common scanning errors for performance
-    if (err && err.message && 
-        !err.message.includes('No MultiFormat Readers') &&
-        !err.message.includes('NotFoundException') &&
-        !err.message.includes('getVideoFrame') &&
-        !err.message.includes('video element')) {
+    if (err && typeof err === 'string' && 
+        !err.includes('NotFoundException') &&
+        !err.includes('MultiFormat') &&
+        !err.includes('video element')) {
       console.debug('Scan debug:', err);
     }
   }, []);
@@ -221,10 +220,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
 
   // Stop scanner completely
   const stopScanner = async () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -237,10 +232,15 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     stopCameraTracks();
   };
 
-  // Request camera with optimized settings
+  // Check if mediaDevices is supported
+  const isMediaDevicesSupported = () => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+
+  // Request camera with mobile optimization
   const requestCameraPermission = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError('Your browser does not support camera access');
+    if (!isMediaDevicesSupported()) {
+      setError('Your browser does not support camera access. Please use Chrome, Firefox, or Safari.');
       setPermissionDenied(true);
       return false;
     }
@@ -248,25 +248,27 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       stopCameraTracks();
       
-      // Request with optimal settings for speed
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: { exact: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        } 
-      }).catch(async (err) => {
-        if (err.name === 'OverconstrainedError') {
-          return await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            } 
-          });
-        }
-        throw err;
-      });
+      // Try to get back camera first (environment)
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: { exact: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          } 
+        });
+      } catch (err) {
+        // If back camera fails, try any camera
+        console.debug('Back camera failed, trying any camera:', err);
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+      }
       
       streamRef.current = stream;
       // Don't stop tracks - keep for scanner
@@ -276,9 +278,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermissionDenied(true);
-        setError('Camera access denied. Please allow camera access.');
+        setError('Camera access denied. Please allow camera access in your browser settings.');
       } else if (err.name === 'NotFoundError') {
         setError('No camera found on this device.');
+      } else if (err.name === 'NotSupportedError') {
+        setError('Camera access is not supported on this browser.');
+      } else if (err.name === 'OverconstrainedError') {
+        setError('Could not access the camera. Please make sure your device has a working camera.');
       } else {
         setError(`Camera error: ${err.message || 'Unknown error'}`);
       }
@@ -286,16 +292,17 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
   };
 
-  // Initialize scanner with optimizations
+  // Initialize scanner with mobile optimizations
   const initializeScanner = async () => {
     const element = document.getElementById("qr-reader");
     if (!element) {
-      setError("Scanner element not found");
+      console.error("qr-reader element not found");
+      setError("Scanner element not found. Please refresh the page.");
       return false;
     }
     
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError('Your browser does not support camera access');
+    if (!isMediaDevicesSupported()) {
+      setError('Your browser does not support camera access. Please use Chrome, Firefox, or Safari.');
       setPermissionDenied(true);
       return false;
     }
@@ -309,24 +316,26 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
     
     try {
-      const scanner = new Html5Qrcode("qr-reader", {
-        verbose: false,
-        formatsToSupport: [Html5Qrcode.SupportedFormats.QR_CODE]
-      });
+      // Clear any existing content
+      element.innerHTML = '';
+      
+      const scanner = new Html5Qrcode("qr-reader");
+      
+      // Mobile-optimized configuration
+      const config = {
+        fps: 30,
+        qrbox: { width: 280, height: 280 },
+        aspectRatio: 1.0,
+        showTorchButtonIfSupported: true,
+        rememberLastCameraUsed: true,
+        supportedScanTypes: [
+          Html5Qrcode.ScanType.SCAN_TYPE_CAMERA
+        ]
+      };
       
       await scanner.start(
         { facingMode: "environment" },
-        {
-          fps: 30,
-          qrbox: { width: 280, height: 280 },
-          aspectRatio: 1.0,
-          disableFlip: false,
-          showTorchButtonIfSupported: true,
-          defaultZoomValueIfSupported: 2,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
-        },
+        config,
         onScanSuccess,
         onScanError
       );
@@ -341,7 +350,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       console.error("Failed to start scanner:", err);
       setIsInitializing(false);
       
-      // Try front camera as fallback
+      // Try with front camera as fallback
       try {
         const scanner = new Html5Qrcode("qr-reader");
         await scanner.start(
@@ -358,17 +367,18 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         scannerRef.current = scanner;
         setIsScanning(true);
         setError(null);
+        setPermissionDenied(false);
         setIsInitializing(false);
         return true;
       } catch (fallbackErr) {
+        console.error("Failed with front camera too:", fallbackErr);
         setError(`Could not start camera: ${err.message || 'Unknown error'}`);
         setPermissionDenied(true);
         return false;
       }
     }
   };
-
-  // Retry handler
+  
   const handleRetry = async () => {
     setError(null);
     setPermissionDenied(false);
@@ -387,10 +397,10 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       initializeScanner();
     }, 300);
   };
-
-  // Initialize on mount
+  
   useEffect(() => {
     let mounted = true;
+    let initTimeout = null;
     
     const init = async () => {
       if (mounted) {
@@ -398,24 +408,25 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       }
     };
     
-    if (!window.isSecureContext) {
-      setError('Camera requires HTTPS connection');
+    if (!window.isSecureContext && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      setError('Camera access requires a secure connection (HTTPS).');
       setPermissionDenied(true);
       return;
     }
     
-    init();
+    initTimeout = setTimeout(init, 100);
     
     return () => {
       mounted = false;
+      if (initTimeout) clearTimeout(initTimeout);
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       stopScanner();
     };
   }, []);
-
+  
   return (
     <div className="qr-scanner-overlay" onClick={onClose}>
-      <div className="qr-scanner-container" ref={containerRef} onClick={e => e.stopPropagation()}>
+      <div className="qr-scanner-container" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="qr-scanner-header">
           <h3>
@@ -452,17 +463,18 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             </div>
           )}
           
-          {/* Error States */}
-          {(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) && (
+          {/* Browser Support Error */}
+          {!isMediaDevicesSupported() && (
             <div className="qr-scanner-error">
               <div className="error-icon">🌐</div>
               <h4>Browser Not Supported</h4>
-              <p>Please use Chrome, Firefox, or Safari for camera access</p>
+              <p>Your browser does not support camera access. Please use Chrome, Firefox, or Safari.</p>
               <button onClick={onClose} className="close-btn">Close</button>
             </div>
           )}
           
-          {(permissionDenied || error) && navigator.mediaDevices?.getUserMedia && (
+          {/* Permission/Error State */}
+          {(permissionDenied || error) && isMediaDevicesSupported() && (
             <div className="qr-scanner-error">
               <div className="error-icon">{permissionDenied ? "📷" : "⚠️"}</div>
               <h4>{permissionDenied ? "Camera Access Denied" : "Scan Failed"}</h4>
@@ -479,7 +491,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           )}
           
           {/* Scanner View */}
-          {!error && !permissionDenied && navigator.mediaDevices?.getUserMedia && (
+          {!error && !permissionDenied && isMediaDevicesSupported() && (
             <>
               <div className="scanner-wrapper">
                 <div id="qr-reader" className="scanner-view"></div>
@@ -683,6 +695,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           object-fit: cover;
         }
         
+        /* Hide html5-qrcode dashboard */
         #qr-reader__dashboard_section_csr,
         #qr-reader__dashboard_section_fsr,
         #qr-reader__dashboard_section {
@@ -902,7 +915,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           animation: spin 1s linear infinite;
         }
         
-        /* Responsive */
+        /* Mobile Responsive */
         @media (max-width: 640px) {
           .qr-scanner-container {
             width: 95%;
@@ -916,6 +929,22 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           .scan-frame {
             width: 240px;
             height: 240px;
+          }
+          
+          .scan-corner {
+            width: 24px;
+            height: 24px;
+          }
+        }
+        
+        /* iOS specific fixes */
+        @supports (-webkit-touch-callout: none) {
+          .qr-scanner-container {
+            margin: 20px;
+          }
+          
+          #qr-reader video {
+            min-height: 300px;
           }
         }
       `}</style>

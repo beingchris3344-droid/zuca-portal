@@ -88,6 +88,7 @@ import AdminAttendanceDetails from './pages/admin/AdminAttendanceDetails';
 import AdminPrayers from './pages/admin/AdminPrayers';
 import MinutesCreatePage from './pages/admin/minutes/MinutesCreatePage';
 import MinutesEditPage from './pages/admin/minutes/MinutesEditPage';
+import TreasurerReports from './pages/treasurer/TreasurerReports';
 
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
@@ -528,6 +529,7 @@ useEffect(() => {
         >
           <Route index element={<Navigate to="contributions" replace />} />
           <Route path="contributions" element={<ContributionsPage />} />
+          <Route path="reports" element={<TreasurerReports />} />
         </Route>
 
         {/* ================= CHOIR MODERATOR ================= */}

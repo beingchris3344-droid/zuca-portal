@@ -2,6 +2,7 @@
 import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 
+
 export default function RoleLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -10,7 +11,12 @@ export default function RoleLayout() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -19,10 +25,36 @@ export default function RoleLayout() {
     if (!user.role && !user.specialRole) {
       navigate("/login");
     }
-  }, []);
+  }, [navigate, user.role, user.specialRole]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
+
+  const getBasePath = () => {
+    const role = user.specialRole || user.role;
+    switch(role) {
+      case "secretary": return "/secretary";
+      case "treasurer": return "/treasurer";
+      case "choir_moderator": return "/choir";
+      case "jumuia_leader": return "/leader";
+      case "media_moderator": return "/media-moderator";
+      default: return "";
+    }
+  };
 
   const getRoleInfo = () => {
     const role = user.specialRole || user.role;
+    const basePath = getBasePath();
+    
     switch(role) {
       case "secretary":
         return { 
@@ -31,14 +63,14 @@ export default function RoleLayout() {
           color: "#10b981",
           description: "Manage announcements, schedules & minutes",
           modules: [
-            { path: "announcements", icon: "📢", label: "Announcements" },
-            { path: "schedules", icon: "📅", label: "Schedules" },
-            { path: "minutes", icon: "📝", label: "Minutes" }
+            { path: `${basePath}/announcements`, icon: "📢", label: "Announcements" },
+            { path: `${basePath}/schedules`, icon: "📅", label: "Schedules" },
+            { path: `${basePath}/minutes`, icon: "📝", label: "Minutes" }
           ],
           quickActions: [
-            { action: "announcements", label: "New Announcement", icon: "➕" },
-            { action: "schedules", label: "Create Schedule", icon: "📅" },
-            { action: "minutes/create", label: "New Minutes", icon: "📝" }
+            { action: `${basePath}/announcements`, label: "New Announcement", icon: "➕" },
+            { action: `${basePath}/schedules`, label: "Create Schedule", icon: "📅" },
+            { action: `${basePath}/minutes/create`, label: "New Minutes", icon: "📝" }
           ]
         };
       case "treasurer":
@@ -48,29 +80,31 @@ export default function RoleLayout() {
           color: "#f59e0b",
           description: "Manage contributions & financial reports",
           modules: [
-            { path: "contributions", icon: "💰", label: "Contributions" },
-            { path: "reports", icon: "📊", label: "Reports" }
+            { path: `${basePath}/contributions`, icon: "💰", label: "Contributions" },
+            { path: `${basePath}/reports`, icon: "📊", label: "Reports" }
           ],
           quickActions: [
-            { action: "contributions", label: "Add Contribution", icon: "➕" },
-            { action: "reports", label: "Generate Report", icon: "📊" }
+            { action: `${basePath}/contributions`, label: "Add Contribution", icon: "➕" },
+            { action: `${basePath}/reports`, label: "Generate Report", icon: "📊" }
           ]
         };
       case "choir_moderator":
-        return { 
-          icon: "🎵", 
-          name: "Choir Moderator", 
-          color: "#ec4899",
-          description: "Manage mass programs & songs",
-          modules: [
-            { path: "songs", icon: "🎵", label: "Songs" },
-            { path: "programs", icon: "📅", label: "Programs" }
-          ],
-          quickActions: [
-            { action: "songs", label: "Add Song", icon: "➕" },
-            { action: "programs", label: "Create Program", icon: "📅" }
-          ]
-        };
+  return { 
+    icon: "🎵", 
+    name: "Choir Moderator", 
+    color: "#ec4899",
+    description: "Manage mass programs & songs",
+    modules: [
+      { path: `${basePath}/songs`, icon: "🎵", label: "Programs" },
+      // ADD THIS LINE 👇
+      { path: `${basePath}/hymns`, icon: "📖", label: "Hymns" }
+    ],
+    quickActions: [
+      { action: `${basePath}/songs`, label: "Add Song", icon: "➕" },
+      // ADD THIS LINE 👇
+      { action: `${basePath}/hymns`, label: "View Hymns", icon: "📖" }
+    ]
+  };
       case "jumuia_leader":
         return { 
           icon: "👑", 
@@ -78,12 +112,10 @@ export default function RoleLayout() {
           color: "#8b5cf6",
           description: "Manage your jumuia members & activities",
           modules: [
-            { path: "members", icon: "👥", label: "Members" },
-            { path: "activities", icon: "🎯", label: "Activities" }
+            { path: `${basePath}`, icon: "👥", label: "Dashboard" }
           ],
           quickActions: [
-            { action: "members", label: "Add Member", icon: "➕" },
-            { action: "activities", label: "Plan Activity", icon: "🎯" }
+            { action: `${basePath}`, label: "View Dashboard", icon: "📊" }
           ]
         };
       case "media_moderator":
@@ -93,12 +125,10 @@ export default function RoleLayout() {
           color: "#3b82f6",
           description: "Manage gallery & media content",
           modules: [
-            { path: "gallery", icon: "🖼️", label: "Gallery" },
-            { path: "videos", icon: "📹", label: "Videos" }
+            { path: `${basePath}/media`, icon: "🖼️", label: "Gallery" }
           ],
           quickActions: [
-            { action: "gallery", label: "Upload Photo", icon: "📸" },
-            { action: "videos", label: "Upload Video", icon: "📹" }
+            { action: `${basePath}/media`, label: "Upload Media", icon: "📸" }
           ]
         };
       default:
@@ -125,34 +155,61 @@ export default function RoleLayout() {
     setIsMobileMenuOpen(false);
   };
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="role-layout">
-      {/* Minimal Top Bar */}
+      {/* Mobile Bottom Navigation - Only on Mobile */}
+      {isMobile && (
+        <div className="mobile-bottom-nav">
+          {roleInfo.modules.slice(0, 4).map((module, idx) => (
+            <NavLink
+              key={module.path}
+              to={module.path}
+              className={({ isActive }) => 
+                `bottom-nav-item ${isActive ? 'active' : ''}`
+              }
+            >
+              <span className="bottom-nav-icon">{module.icon}</span>
+              <span className="bottom-nav-label">{module.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+
+      {/* Top Bar */}
       <div className="top-bar">
         <div className="top-bar-left">
+          {isMobile && (
+            <button 
+              className="mobile-menu-btn"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+          )}
           <div className="role-badge-mini" style={{ background: `${roleInfo.color}15`, color: roleInfo.color }}>
             <span>{roleInfo.icon}</span>
             <span>{roleInfo.name}</span>
           </div>
-          <span className="role-desc-mini">{roleInfo.description}</span>
+          {!isMobile && <span className="role-desc-mini">{roleInfo.description}</span>}
         </div>
         <div className="top-bar-right">
-          <span className="user-name-mini">{user.fullName || user.name || "User"}</span>
+          {!isMobile && <span className="user-name-mini">{user.fullName || user.name || "User"}</span>}
           <button className="logout-btn-mini" onClick={handleLogout}>
             <span>🚪</span>
-            <span>Logout</span>
+            {!isMobile && <span>Logout</span>}
           </button>
-          {isMobile && (
-            <button className="mobile-menu-toggle" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-              ☰
-            </button>
-          )}
         </div>
       </div>
 
       {/* Main Layout */}
       <div className="layout-container">
-        {/* Desktop Sidebar - Compact */}
+        {/* Desktop Sidebar */}
         {!isMobile && (
           <aside className="sidebar-compact">
             <nav className="sidebar-nav-compact">
@@ -170,21 +227,23 @@ export default function RoleLayout() {
               ))}
             </nav>
 
-            <div className="quick-actions-compact">
-              <div className="quick-actions-header">
-                <span>⚡ Quick Actions</span>
+            {roleInfo.quickActions.length > 0 && (
+              <div className="quick-actions-compact">
+                <div className="quick-actions-header">
+                  <span>⚡ Quick Actions</span>
+                </div>
+                {roleInfo.quickActions.map((action, idx) => (
+                  <button
+                    key={idx}
+                    className="quick-action-btn"
+                    onClick={() => handleQuickAction(action.action)}
+                  >
+                    <span>{action.icon}</span>
+                    <span>{action.label}</span>
+                  </button>
+                ))}
               </div>
-              {roleInfo.quickActions.map((action, idx) => (
-                <button
-                  key={idx}
-                  className="quick-action-btn"
-                  onClick={() => handleQuickAction(action.action)}
-                >
-                  <span>{action.icon}</span>
-                  <span>{action.label}</span>
-                </button>
-              ))}
-            </div>
+            )}
           </aside>
         )}
 
@@ -194,15 +253,28 @@ export default function RoleLayout() {
         </main>
       </div>
 
-      {/* Mobile Menu */}
-      {isMobile && isMobileMenuOpen && (
+      {/* Mobile Slide-out Menu */}
+      {isMobile && (
         <>
-          <div className="mobile-overlay" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="mobile-menu">
+          <div 
+            className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} 
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <div className={`mobile-menu ${isMobileMenuOpen ? 'open' : ''}`}>
             <div className="mobile-menu-header">
+              <button 
+                className="mobile-menu-close"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                ✕
+              </button>
+              <div className="mobile-user-avatar" style={{ background: roleInfo.color }}>
+                {roleInfo.icon}
+              </div>
               <span className="mobile-user-name">{user.fullName || user.name || "User"}</span>
-              <span className="mobile-user-role">{roleInfo.name}</span>
+              <span className="mobile-user-role" style={{ color: roleInfo.color }}>{roleInfo.name}</span>
             </div>
+            
             <nav className="mobile-nav">
               {roleInfo.modules.map((module) => (
                 <NavLink
@@ -213,26 +285,31 @@ export default function RoleLayout() {
                   }
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <span>{module.icon}</span>
-                  <span>{module.label}</span>
+                  <span className="mobile-nav-icon">{module.icon}</span>
+                  <span className="mobile-nav-label">{module.label}</span>
                 </NavLink>
               ))}
             </nav>
-            <div className="mobile-quick-actions">
-              <h4>Quick Actions</h4>
-              {roleInfo.quickActions.map((action, idx) => (
-                <button
-                  key={idx}
-                  className="mobile-action-btn"
-                  onClick={() => handleQuickAction(action.action)}
-                >
-                  <span>{action.icon}</span>
-                  <span>{action.label}</span>
-                </button>
-              ))}
-            </div>
+            
+            {roleInfo.quickActions.length > 0 && (
+              <div className="mobile-quick-actions">
+                <div className="mobile-quick-header">Quick Actions</div>
+                {roleInfo.quickActions.map((action, idx) => (
+                  <button
+                    key={idx}
+                    className="mobile-action-btn"
+                    onClick={() => handleQuickAction(action.action)}
+                  >
+                    <span>{action.icon}</span>
+                    <span>{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            
             <button className="mobile-logout-btn" onClick={handleLogout}>
-              🚪 Logout
+              <span>🚪</span>
+              <span>Logout</span>
             </button>
           </div>
         </>
@@ -248,33 +325,37 @@ export default function RoleLayout() {
         .role-layout {
           min-height: 100vh;
           background: #f8fafc;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          width: 100%;
+          overflow-x: hidden;
         }
 
-        /* Top Bar - Compact */
+        /* Top Bar */
         .top-bar {
           background: white;
           border-bottom: 1px solid #e2e8f0;
-          padding: 12px 24px;
+          padding: 12px 16px;
           display: flex;
           justify-content: space-between;
           align-items: center;
           position: sticky;
           top: 0;
           z-index: 100;
+          width: 100%;
         }
 
         .top-bar-left {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 12px;
+          flex: 1;
         }
 
         .role-badge-mini {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 6px 14px;
+          gap: 6px;
+          padding: 6px 12px;
           border-radius: 20px;
           font-size: 13px;
           font-weight: 600;
@@ -288,7 +369,7 @@ export default function RoleLayout() {
         .top-bar-right {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 12px;
         }
 
         .user-name-mini {
@@ -301,7 +382,7 @@ export default function RoleLayout() {
           display: flex;
           align-items: center;
           gap: 6px;
-          padding: 6px 14px;
+          padding: 6px 12px;
           background: #f1f5f9;
           border: none;
           border-radius: 8px;
@@ -311,9 +392,29 @@ export default function RoleLayout() {
           transition: all 0.2s;
         }
 
-        .logout-btn-mini:hover {
-          background: #fee2e2;
-          color: #ef4444;
+        .logout-btn-mini:active {
+          background: #e2e8f0;
+          transform: scale(0.95);
+        }
+
+        /* Mobile Menu Button */
+        .mobile-menu-btn {
+          background: #f1f5f9;
+          border: none;
+          font-size: 22px;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 500;
+        }
+
+        .mobile-menu-btn:active {
+          background: #e2e8f0;
+          transform: scale(0.95);
         }
 
         /* Layout Container */
@@ -321,9 +422,10 @@ export default function RoleLayout() {
           display: flex;
           max-width: 1600px;
           margin: 0 auto;
+          width: 100%;
         }
 
-        /* Compact Sidebar - Desktop */
+        /* Desktop Sidebar */
         .sidebar-compact {
           width: 260px;
           background: white;
@@ -357,9 +459,9 @@ export default function RoleLayout() {
           font-weight: 500;
         }
 
-        .nav-item-compact:hover {
+        .nav-item-compact:active {
           background: #f8fafc;
-          color: #1e293b;
+          transform: scale(0.98);
         }
 
         .nav-item-compact.active {
@@ -403,32 +505,70 @@ export default function RoleLayout() {
           transition: all 0.2s;
         }
 
-        .quick-action-btn:hover {
+        .quick-action-btn:active {
           background: ${roleInfo.color}10;
-          border-color: ${roleInfo.color}30;
-          color: ${roleInfo.color};
+          transform: scale(0.98);
         }
 
-        /* Main Content - Full Width */
+        /* Main Content */
         .main-content-compact {
           flex: 1;
-          padding: 24px 32px;
+          padding: 20px;
           min-height: calc(100vh - 57px);
           background: #f8fafc;
+          width: 100%;
+          overflow-x: hidden;
         }
 
-        /* Mobile Styles */
-        .mobile-menu-toggle {
-          display: none;
-          background: #f1f5f9;
-          border: none;
-          font-size: 20px;
-          width: 36px;
-          height: 36px;
+        /* Mobile Bottom Navigation */
+        .mobile-bottom-nav {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: white;
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          padding: 8px 12px;
+          border-top: 1px solid #e2e8f0;
+          z-index: 100;
+          box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+
+        .bottom-nav-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+ padding: 8px 12px;
+          text-decoration: none;
+          color: #94a3b8;
+          transition: all 0.2s;
           border-radius: 8px;
-          cursor: pointer;
+          flex: 1;
+          max-width: 80px;
         }
 
+        .bottom-nav-item.active {
+          color: ${roleInfo.color};
+          background: ${roleInfo.color}10;
+        }
+
+        .bottom-nav-item:active {
+          transform: scale(0.95);
+        }
+
+        .bottom-nav-icon {
+          font-size: 22px;
+        }
+
+        .bottom-nav-label {
+          font-size: 11px;
+          font-weight: 500;
+        }
+
+        /* Mobile Overlay & Menu */
         .mobile-overlay {
           position: fixed;
           top: 0;
@@ -437,32 +577,74 @@ export default function RoleLayout() {
           bottom: 0;
           background: rgba(0,0,0,0.5);
           z-index: 200;
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.3s ease;
+        }
+
+        .mobile-overlay.open {
+          opacity: 1;
+          visibility: visible;
         }
 
         .mobile-menu {
           position: fixed;
           top: 0;
-          right: 0;
-          width: 280px;
+          left: 0;
+          width: 85%;
+          max-width: 320px;
           height: 100vh;
           background: white;
           z-index: 201;
           padding: 20px;
           display: flex;
           flex-direction: column;
-          animation: slideIn 0.3s ease;
+          transform: translateX(-100%);
+          transition: transform 0.3s ease;
+          box-shadow: 2px 0 20px rgba(0,0,0,0.1);
         }
 
-        @keyframes slideIn {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
+        .mobile-menu.open {
+          transform: translateX(0);
         }
 
         .mobile-menu-header {
+          position: relative;
           text-align: center;
-          padding-bottom: 16px;
+          padding-bottom: 20px;
           border-bottom: 1px solid #e2e8f0;
-          margin-bottom: 16px;
+          margin-bottom: 20px;
+        }
+
+        .mobile-menu-close {
+          position: absolute;
+          top: 0;
+          right: 0;
+          background: #f1f5f9;
+          border: none;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          font-size: 18px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .mobile-menu-close:active {
+          background: #e2e8f0;
+        }
+
+        .mobile-user-avatar {
+          width: 60px;
+          height: 60px;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          margin: 0 auto 12px;
         }
 
         .mobile-user-name {
@@ -475,8 +657,8 @@ export default function RoleLayout() {
         .mobile-user-role {
           display: block;
           font-size: 12px;
-          color: #64748b;
           margin-top: 4px;
+          font-weight: 500;
         }
 
         .mobile-nav {
@@ -486,13 +668,19 @@ export default function RoleLayout() {
         .mobile-nav-item {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
+          gap: 14px;
+          padding: 14px 16px;
           margin: 4px 0;
-          border-radius: 10px;
+          border-radius: 12px;
           color: #475569;
           text-decoration: none;
           transition: all 0.2s;
+          font-weight: 500;
+        }
+
+        .mobile-nav-item:active {
+          background: #f1f5f9;
+          transform: scale(0.98);
         }
 
         .mobile-nav-item.active {
@@ -500,48 +688,76 @@ export default function RoleLayout() {
           color: ${roleInfo.color};
         }
 
+        .mobile-nav-icon {
+          font-size: 20px;
+        }
+
+        .mobile-nav-label {
+          font-size: 15px;
+        }
+
         .mobile-quick-actions {
-          margin-top: 16px;
-          padding-top: 16px;
+          margin-top: 20px;
+          padding-top: 20px;
           border-top: 1px solid #e2e8f0;
         }
 
-        .mobile-quick-actions h4 {
+        .mobile-quick-header {
           font-size: 12px;
-          color: #64748b;
-          margin-bottom: 8px;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 12px;
         }
 
         .mobile-action-btn {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 12px;
           width: 100%;
-          padding: 10px;
-          margin: 4px 0;
+          padding: 12px 14px;
+          margin: 6px 0;
           background: #f8fafc;
           border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          border-radius: 10px;
           cursor: pointer;
-          font-size: 13px;
+          font-size: 14px;
+          color: #475569;
+          transition: all 0.2s;
+        }
+
+        .mobile-action-btn:active {
+          background: ${roleInfo.color}10;
+          transform: scale(0.98);
         }
 
         .mobile-logout-btn {
-          margin-top: 16px;
-          padding: 12px;
+          margin-top: 20px;
+          margin-bottom: 50px;
+          padding: 14px;
           background: #fee2e2;
           color: #ef4444;
           border: none;
-          border-radius: 8px;
+          border-radius: 10px;
           cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
+          font-size: 15px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
         }
 
-        /* Responsive */
+        .mobile-logout-btn:active {
+          background: #fecaca;
+          transform: scale(0.98);
+        }
+
+        /* Responsive Breakpoints */
         @media (max-width: 768px) {
           .top-bar {
-            padding: 10px 16px;
+            padding: 10px 12px;
           }
 
           .role-desc-mini {
@@ -557,32 +773,41 @@ export default function RoleLayout() {
           }
 
           .logout-btn-mini {
-            padding: 8px 12px;
-          }
-
-          .mobile-menu-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding: 8px 10px;
           }
 
           .main-content-compact {
             padding: 16px;
+            margin-bottom: 70px;
+          }
+
+          .layout-container {
+            flex-direction: column;
           }
         }
 
         @media (min-width: 769px) and (max-width: 1024px) {
           .main-content-compact {
-            padding: 20px 24px;
+            padding: 20px;
           }
 
           .sidebar-compact {
             width: 240px;
           }
+        }
 
-          .nav-label-compact {
-            font-size: 13px;
-          }
+        /* Touch-friendly tap highlights removal */
+        .nav-item-compact,
+        .quick-action-btn,
+        .logout-btn-mini,
+        .mobile-nav-item,
+        .mobile-action-btn,
+        .mobile-logout-btn,
+        .mobile-menu-btn,
+        .mobile-menu-close,
+        .bottom-nav-item {
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
         }
 
         /* Scrollbar */
@@ -597,6 +822,11 @@ export default function RoleLayout() {
         .sidebar-compact::-webkit-scrollbar-thumb {
           background: #cbd5e1;
           border-radius: 4px;
+        }
+
+        /* Smooth scrolling */
+        .main-content-compact {
+          -webkit-overflow-scrolling: touch;
         }
       `}</style>
     </div>

@@ -1591,7 +1591,51 @@ router.get("/my-history", authenticate, getUserAttendanceHistory);
 
 // Leader/Admin routes
 router.post("/sheet", authenticate, requireLeaderOrAdmin, createAttendanceSheet);
-router.get("/sheet/:sheetId", authenticate, requireLeaderOrAdmin, getSheetById);
+router.get("/sheet/:sheetId", authenticate, async (req, res) => {
+  try {
+    const { sheetId } = req.params;
+    const userId = req.user.userId;
+    
+    // Get user info to check permissions
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = currentUser.role === 'admin';
+    const isSecretary = currentUser.role === 'secretary' || currentUser.specialRole === 'secretary';
+    
+    // Allow admin or secretary to view any sheet
+    if (isAdmin || isSecretary) {
+      // Call the existing getSheetById function
+      return getSheetById(req, res);
+    }
+    
+    // For regular members, check if they are part of the sheet's target audience
+    const sheet = await prisma.attendanceSheet.findUnique({
+      where: { id: sheetId },
+      select: { jumuiaId: true }
+    });
+    
+    if (sheet?.jumuiaId) {
+      const userJumuia = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { jumuiaId: true }
+      });
+      
+      if (userJumuia?.jumuiaId !== sheet.jumuiaId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      return getSheetById(req, res);
+    }
+    
+    return res.status(403).json({ error: "Access denied" });
+    
+  } catch (err) {
+    console.error("Get sheet error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 router.post("/sheet/:sheetId/entry", authenticate, requireLeaderOrAdmin, adminAddEntry);
 router.put("/sheet/:sheetId/entry/:entryId", authenticate, requireLeaderOrAdmin, updateEntry);
 router.delete("/sheet/:sheetId/entry/:entryId", authenticate, requireAdmin, deleteEntry);

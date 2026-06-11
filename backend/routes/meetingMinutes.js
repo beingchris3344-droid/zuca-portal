@@ -14,22 +14,40 @@ let executiveUsersCache = null;
 let executiveUsersCacheTime = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Helper: Check if user is an executive (cached)
 async function isExecutive(userId) {
-  const executive = await prisma.executive.findFirst({
-    where: { userId: userId, isActive: true },
-    select: { id: true } // Only select what we need
-  });
-  return executive !== null;
+  try {
+    const executive = await prisma.executive.findFirst({
+      where: { userId: userId, isActive: true },
+      select: { id: true }
+    });
+    return executive !== null;
+  } catch (err) {
+    console.error("isExecutive error:", err);
+    return false;
+  }
 }
 
-// Helper: Check if user is admin (optimized)
+// Helper: Check if user is admin - ADD THIS
 async function isAdmin(userId) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    return user?.role === "admin";
+  } catch (err) {
+    console.error("isAdmin error:", err);
+    return false;
+  }
+}
+
+// Helper: Check if user is admin OR secretary
+async function isAdminOrSecretary(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true }
+    select: { role: true, specialRole: true }
   });
-  return user?.role === "admin";
+  return user?.role === "admin" || user?.specialRole === "secretary" || user?.role === "secretary";
 }
 
 // Helper: Get all executive users (with caching)
@@ -353,10 +371,10 @@ router.put("/:id", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Minutes not found" });
     }
 
-    const isAdminUser = await isAdmin(userId);
-    if (minutes.createdBy !== userId && !isAdminUser) {
-      return res.status(403).json({ error: "Only the creator or admin can edit minutes" });
-    }
+   const isAdminOrSec = await isAdminOrSecretary(userId);
+if (minutes.createdBy !== userId && !isAdminOrSec) {
+  return res.status(403).json({ error: "Only the creator, admin, or secretary can edit minutes" });
+}
 
     const updated = await prisma.meetingMinutes.update({
       where: { id: id },
@@ -474,10 +492,10 @@ router.post("/:id/publish", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Minutes not found" });
     }
 
-    const isAdminUser = await isAdmin(userId);
-    if (minutes.createdBy !== userId && !isAdminUser) {
-      return res.status(403).json({ error: "Only the creator or admin can publish minutes" });
-    }
+    const isAdminOrSec = await isAdminOrSecretary(userId);
+if (minutes.createdBy !== userId && !isAdminOrSec) {
+  return res.status(403).json({ error: "Only the creator, admin, or secretary can publish minutes" });
+}
 
     const published = await prisma.meetingMinutes.update({
       where: { id: id },
@@ -547,11 +565,10 @@ router.delete("/:id", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Minutes not found" });
     }
 
-    const isAdminUser = await isAdmin(userId);
-    if (minutes.createdBy !== userId && !isAdminUser) {
-      return res.status(403).json({ error: "Only the creator or admin can delete minutes" });
-    }
-
+    const isAdminOrSec = await isAdminOrSecretary(userId);
+if (minutes.createdBy !== userId && !isAdminOrSec) {
+  return res.status(403).json({ error: "Only the creator, admin, or secretary can delete minutes" });
+}
     await prisma.$transaction([
       prisma.meetingActionItem.deleteMany({ where: { minutesId: id } }),
       prisma.meetingMinutesView.deleteMany({ where: { minutesId: id } }),
@@ -719,10 +736,10 @@ router.post("/:id/refresh-attendance", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Minutes not found" });
     }
 
-    const isAdminUser = await isAdmin(userId);
-    if (minutes.createdBy !== userId && !isAdminUser) {
-      return res.status(403).json({ error: "Only the creator can refresh attendance" });
-    }
+   const isAdminOrSec = await isAdminOrSecretary(userId);
+if (minutes.createdBy !== userId && !isAdminOrSec) {
+  return res.status(403).json({ error: "Only the creator, admin, or secretary can refresh attendance" });
+}
 
     const attendanceData = await getAttendanceData(minutes.attendanceSheetId);
     if (!attendanceData) {

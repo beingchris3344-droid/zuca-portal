@@ -14,11 +14,14 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [shouldContinueScanning, setShouldContinueScanning] = useState(true);
+  
   const scannerRef = useRef(null);
   const scannerInitialized = useRef(false);
   const isProcessing = useRef(false);
   const streamRef = useRef(null);
   const lastScanTime = useRef(0);
+  const successTimeoutRef = useRef(null);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -39,104 +42,64 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     };
   }, []);
 
-  // ANIMATION 1: Screen Flash + Checkmark
-  const showFlashAnimation = () => {
-    const overlay = document.querySelector('.qr-scanner-overlay');
-    if (overlay) {
-      overlay.style.animation = 'none';
-      overlay.offsetHeight; // Trigger reflow
-      overlay.style.animation = 'flashGreen 0.5s ease';
-      setTimeout(() => {
-        overlay.style.animation = '';
-      }, 500);
-    }
-  };
-
-  // ANIMATION 2: Particle Burst Effect
-  const showParticleAnimation = () => {
-    const scannerView = document.querySelector('#qr-reader');
-    if (!scannerView) return;
-    
-    const rect = scannerView.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    for (let i = 0; i < 30; i++) {
-      const particle = document.createElement('div');
-      particle.className = 'success-particle';
-      const angle = Math.random() * Math.PI * 2;
-      const velocity = 50 + Math.random() * 150;
-      const vx = Math.cos(angle) * velocity;
-      const vy = Math.sin(angle) * velocity;
-      
-      particle.style.left = centerX + 'px';
-      particle.style.top = centerY + 'px';
-      particle.style.backgroundColor = `hsl(${120 + Math.random() * 60}, 80%, 60%)`;
-      particle.style.setProperty('--vx', vx + 'px');
-      particle.style.setProperty('--vy', vy + 'px');
-      
-      document.body.appendChild(particle);
-      setTimeout(() => particle.remove(), 1000);
-    }
-  };
-
-  // ANIMATION 3: QR Frame Pulse
-  const showPulseAnimation = () => {
-    const scanFrame = document.querySelector('.scan-frame-overlay');
-    if (scanFrame) {
-      scanFrame.style.animation = 'pulseSuccess 0.5s ease';
-      setTimeout(() => {
-        scanFrame.style.animation = '';
-      }, 500);
-    }
-  };
-
-  // ANIMATION 4: Confetti Celebration
-  const showConfettiAnimation = () => {
-    for (let i = 0; i < 50; i++) {
-      const confetti = document.createElement('div');
-      confetti.className = 'success-confetti';
-      confetti.style.left = Math.random() * 100 + '%';
-      confetti.style.animationDelay = Math.random() * 0.5 + 's';
-      confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-      confetti.style.width = Math.random() * 8 + 4 + 'px';
-      confetti.style.height = Math.random() * 8 + 4 + 'px';
-      document.body.appendChild(confetti);
-      setTimeout(() => confetti.remove(), 2000);
-    }
-  };
-
-  // ANIMATION 5: Ripple Effect
-  const showRippleAnimation = () => {
-    const scannerView = document.querySelector('#qr-reader');
-    if (!scannerView) return;
-    
-    const ripple = document.createElement('div');
-    ripple.className = 'success-ripple';
-    scannerView.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 1000);
-  };
-
-  // Combined Success Animation
-  const triggerSuccessAnimations = (message) => {
+  // Show success animation
+  const showSuccessAnimation = (message) => {
     setSuccessMessage(message);
     setShowSuccess(true);
     
-    // Trigger all animations
-    showFlashAnimation();
-    showParticleAnimation();
-    showPulseAnimation();
-    showConfettiAnimation();
-    showRippleAnimation();
-    
     // Vibrate on mobile
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    if (navigator.vibrate) navigator.vibrate(200);
     
-    // Auto close after animation
-    setTimeout(() => {
+    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+    successTimeoutRef.current = setTimeout(() => {
       setShowSuccess(false);
-      onClose();
-    }, 2000);
+      
+      // Don't close immediately if we want to continue scanning
+      if (!shouldContinueScanning) {
+        onClose();
+      }
+    }, 1500);
+  };
+
+  // Reset and restart scanner after success
+  const restartScannerAfterSuccess = async () => {
+    // Reset processing flag
+    isProcessing.current = false;
+    
+    // Resume scanner if it exists
+    if (scannerRef.current && !isScanning) {
+      try {
+        await scannerRef.current.resume();
+        setIsScanning(true);
+        setError(null);
+        console.log('Scanner resumed successfully');
+      } catch (err) {
+        console.error('Error resuming scanner:', err);
+        // If resume fails, reinitialize
+        await reinitializeScanner();
+      }
+    } else if (!scannerRef.current) {
+      // If scanner was destroyed, reinitialize
+      await reinitializeScanner();
+    }
+  };
+
+  // Complete reinitialization of scanner
+  const reinitializeScanner = async () => {
+    console.log('Reinitializing scanner...');
+    await stopScanner();
+    
+    // Clear the reader element
+    const readerElement = document.getElementById("qr-reader");
+    if (readerElement) {
+      readerElement.innerHTML = '';
+    }
+    
+    // Small delay to ensure cleanup
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Reinitialize
+    await initializeScanner();
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
@@ -149,15 +112,17 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     isProcessing.current = true;
     
     // Quick validation
-    if (!decodedText.includes('"type":"attendance_checkin"')) {
+    if (!decodedText || !decodedText.includes('"type":"attendance_checkin"')) {
       isProcessing.current = false;
       return;
     }
     
+    // Pause scanner immediately to prevent multiple scans
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.pause();
         setIsScanning(false);
+        console.log('Scanner paused for processing');
       } catch (err) {
         console.error('Error pausing scanner:', err);
       }
@@ -169,21 +134,15 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         qrData = JSON.parse(decodedText);
       } catch (e) {
         setError('Invalid QR code format');
+        await restartScannerAfterSuccess();
         isProcessing.current = false;
-        if (scannerRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
-        }
         return;
       }
       
       if (qrData.type !== 'attendance_checkin') {
         setError('Not a valid attendance QR code');
+        await restartScannerAfterSuccess();
         isProcessing.current = false;
-        if (scannerRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
-        }
         return;
       }
       
@@ -196,16 +155,16 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           const newCount = await getPendingCount();
           console.log('📱 Offline QR check-in saved! Pending:', newCount);
           setError(null);
-          triggerSuccessAnimations('✓ Saved Offline!');
+          showSuccessAnimation('✓ Saved Offline!');
           onSuccess && onSuccess({ offline: true, message: 'QR check-in saved offline' });
+          
+          // Restart scanner for next scan
+          await restartScannerAfterSuccess();
         } else {
           setError('Failed to save offline check-in');
-          isProcessing.current = false;
-          if (scannerRef.current) {
-            await scannerRef.current.resume();
-            setIsScanning(true);
-          }
+          await restartScannerAfterSuccess();
         }
+        isProcessing.current = false;
         return;
       }
       
@@ -220,9 +179,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       });
       
       if (response.data.success) {
-        triggerSuccessAnimations('✓ Check-in Successful!');
+        showSuccessAnimation('✓ Check-in Successful!');
         onSuccess && onSuccess(response.data.entry);
+        
+        // Restart scanner for next scan
+        await restartScannerAfterSuccess();
       }
+      
     } catch (error) {
       const errorMsg = error.response?.data;
       
@@ -233,11 +196,10 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           const scannedSheetId = qrData.sheetId;
           const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline Fallback)');
           if (saved) {
-            setError('📱 Internet connection lost. QR check-in saved offline. Will sync when online.');
-            setTimeout(() => {
-              triggerSuccessAnimations('✓ Saved Offline!');
-              onSuccess && onSuccess({ offline: true });
-            }, 1000);
+            setError('📱 Internet lost. Saved offline.');
+            showSuccessAnimation('✓ Saved Offline');
+            onSuccess && onSuccess({ offline: true });
+            await restartScannerAfterSuccess();
             return;
           }
         } catch (e) {}
@@ -252,16 +214,9 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         setError(errorMsg?.error || 'Check-in failed');
       }
       
+      // Restart scanner after error
+      await restartScannerAfterSuccess();
       isProcessing.current = false;
-      
-      if (scannerRef.current) {
-        try {
-          await scannerRef.current.resume();
-          setIsScanning(true);
-        } catch (err) {
-          console.error('Error resuming scanner:', err);
-        }
-      }
     }
   };
   
@@ -329,8 +284,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       });
       
       streamRef.current = stream;
-      stream.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+      // Keep the stream for the scanner
       return true;
     } catch (err) {
       console.error('Camera permission error:', err);
@@ -374,12 +328,18 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
     
     try {
+      // Clear any existing scanner
+      if (scannerRef.current) {
+        await scannerRef.current.clear();
+      }
+      element.innerHTML = '';
+      
       const scanner = new Html5Qrcode("qr-reader");
       
       await scanner.start(
         { facingMode: "environment" },
         {
-          fps: 30, // Increased for faster scanning
+          fps: 30,
           qrbox: { width: 280, height: 280 },
           aspectRatio: 1.0,
         },
@@ -392,6 +352,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       setError(null);
       setPermissionDenied(false);
       setIsInitializing(false);
+      console.log('Scanner initialized successfully');
       return true;
     } catch (err) {
       console.error("Failed to start scanner:", err);
@@ -471,6 +432,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     return () => {
       mounted = false;
       if (initTimeout) clearTimeout(initTimeout);
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       stopScanner();
       scannerInitialized.current = false;
     };
@@ -492,13 +454,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         </div>
         
         <div className="qr-scanner-body">
-          {/* Success Modal */}
+          {/* Success Animation */}
           {showSuccess && (
-            <div className="success-modal">
-              <div className="success-icon">
-                <CheckCircle size={60} />
+            <div className="success-animation">
+              <div className="success-circle">
+                <CheckCircle size={48} />
               </div>
-              <div className="success-text">{successMessage}</div>
+              <p className="success-message">{successMessage}</p>
             </div>
           )}
           
@@ -531,32 +493,32 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             <>
               <div className="scanner-wrapper">
                 <div id="qr-reader" className="scanner-view"></div>
-                <div className="scan-frame-overlay">
-                  <div className="scan-corner top-left"></div>
-                  <div className="scan-corner top-right"></div>
-                  <div className="scan-corner bottom-left"></div>
-                  <div className="scan-corner bottom-right"></div>
-                  <div className="scan-line"></div>
-                </div>
+                {isInitializing && (
+                  <div className="scanner-loading">
+                    <div className="spinner"></div>
+                    <p>Starting camera...</p>
+                  </div>
+                )}
+                {!isInitializing && isScanning && (
+                  <>
+                    <div className="scan-frame">
+                      <div className="scan-corner top-left"></div>
+                      <div className="scan-corner top-right"></div>
+                      <div className="scan-corner bottom-left"></div>
+                      <div className="scan-corner bottom-right"></div>
+                      <div className="scan-line"></div>
+                    </div>
+                    <p className="scanner-instruction">
+                      📱 Point your camera at the QR code
+                    </p>
+                    <p className="scanner-hint">
+                      {isOffline 
+                        ? "⚠️ You are offline. QR check-in will be saved and synced when online."
+                        : "Make sure the QR code is well lit and centered"}
+                    </p>
+                  </>
+                )}
               </div>
-              {isInitializing && (
-                <div className="scanner-loading">
-                  <div className="spinner"></div>
-                  <p>Starting camera...</p>
-                </div>
-              )}
-              {!isInitializing && isScanning && (
-                <>
-                  <p className="scanner-instruction">
-                    📱 Point your camera at the QR code
-                  </p>
-                  <p className="scanner-hint">
-                    {isOffline 
-                      ? "⚠️ You are offline. QR check-in will be saved and synced when online."
-                      : "Make sure the QR code is well lit and centered"}
-                  </p>
-                </>
-              )}
             </>
           )}
         </div>
@@ -580,12 +542,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
-        }
-        
-        @keyframes flashGreen {
-          0% { background-color: rgba(0, 0, 0, 0.95); }
-          50% { background-color: rgba(16, 185, 129, 0.95); }
-          100% { background-color: rgba(0, 0, 0, 0.95); }
         }
         
         .qr-scanner-container {
@@ -652,57 +608,49 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           min-height: 450px;
         }
         
-        /* Success Modal */
-        .success-modal {
+        /* Success Animation */
+        .success-animation {
           position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(16, 185, 129, 0.95);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border-radius: 20px;
+          z-index: 10;
+          animation: fadeIn 0.3s ease;
+        }
+        
+        .success-circle {
           background: white;
-          border-radius: 24px;
-          padding: 30px;
-          text-align: center;
-          z-index: 100;
-          animation: modalPop 0.5s ease;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-        
-        @keyframes modalPop {
-          0% {
-            transform: translate(-50%, -50%) scale(0);
-            opacity: 0;
-          }
-          50% {
-            transform: translate(-50%, -50%) scale(1.1);
-          }
-          100% {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 1;
-          }
-        }
-        
-        .success-icon {
+          border-radius: 50%;
+          width: 80px;
+          height: 80px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           color: #10b981;
-          animation: iconSpin 0.5s ease;
+          animation: successPop 0.5s ease;
         }
         
-        @keyframes iconSpin {
-          0% {
-            transform: rotate(0deg) scale(0);
-          }
-          100% {
-            transform: rotate(360deg) scale(1);
-          }
+        @keyframes successPop {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); opacity: 1; }
         }
         
-        .success-text {
-          margin-top: 16px;
+        .success-message {
+          color: white;
           font-size: 18px;
           font-weight: 600;
-          color: #1e293b;
+          margin-top: 20px;
+          text-align: center;
         }
         
-        /* Scanner Wrapper */
         .scanner-wrapper {
           position: relative;
         }
@@ -716,15 +664,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           position: relative;
         }
         
-        .scan-frame-overlay {
+        .scan-frame {
           position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 280px;
+          height: 280px;
           pointer-events: none;
         }
         
@@ -736,142 +682,50 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         }
         
         .top-left {
-          top: 50%;
-          left: 50%;
-          transform: translate(-140px, -140px);
+          top: 0;
+          left: 0;
           border-right: none;
           border-bottom: none;
           border-radius: 8px 0 0 0;
         }
         
         .top-right {
-          top: 50%;
-          right: 50%;
-          transform: translate(140px, -140px);
+          top: 0;
+          right: 0;
           border-left: none;
           border-bottom: none;
           border-radius: 0 8px 0 0;
         }
         
         .bottom-left {
-          bottom: 50%;
-          left: 50%;
-          transform: translate(-140px, 140px);
+          bottom: 0;
+          left: 0;
           border-right: none;
           border-top: none;
           border-radius: 0 0 0 8px;
         }
         
         .bottom-right {
-          bottom: 50%;
-          right: 50%;
-          transform: translate(140px, 140px);
+          bottom: 0;
+          right: 0;
           border-left: none;
           border-top: none;
           border-radius: 0 0 8px 0;
         }
         
-        @keyframes pulseSuccess {
-          0% {
-            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-            border-color: #10b981;
-          }
-          70% {
-            box-shadow: 0 0 0 20px rgba(16, 185, 129, 0);
-            border-color: #10b981;
-          }
-          100% {
-            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-            border-color: #10b981;
-          }
-        }
-        
         .scan-line {
           position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 280px;
+          top: 0;
+          left: 10px;
+          right: 10px;
           height: 2px;
           background: linear-gradient(90deg, transparent, #10b981, transparent);
           animation: scanLine 2s linear infinite;
         }
         
         @keyframes scanLine {
-          0% {
-            transform: translate(-50%, -150px);
-          }
-          100% {
-            transform: translate(-50%, 150px);
-          }
-        }
-        
-        /* Particle Animation */
-        .success-particle {
-          position: fixed;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 10000;
-          animation: particleFly 1s ease-out forwards;
-        }
-        
-        @keyframes particleFly {
-          0% {
-            transform: translate(0, 0) scale(1);
-            opacity: 1;
-          }
-          100% {
-            transform: translate(var(--vx), var(--vy)) scale(0);
-            opacity: 0;
-          }
-        }
-        
-        /* Confetti Animation */
-        .success-confetti {
-          position: fixed;
-          top: -10px;
-          width: 6px;
-          height: 6px;
-          pointer-events: none;
-          z-index: 10000;
-          animation: confettiFall 2s linear forwards;
-        }
-        
-        @keyframes confettiFall {
-          to {
-            transform: translateY(100vh) rotate(360deg);
-            opacity: 0;
-          }
-        }
-        
-        /* Ripple Effect */
-        .success-ripple {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 0;
-          height: 0;
-          border-radius: 50%;
-          background: rgba(16, 185, 129, 0.4);
-          transform: translate(-50%, -50%);
-          animation: rippleExpand 1s ease-out;
-          pointer-events: none;
-          z-index: 10;
-        }
-        
-        @keyframes rippleExpand {
-          0% {
-            width: 0;
-            height: 0;
-            opacity: 0.8;
-          }
-          100% {
-            width: 400px;
-            height: 400px;
-            opacity: 0;
-          }
+          0% { transform: translateY(-140px); }
+          100% { transform: translateY(140px); }
         }
         
         #qr-reader {

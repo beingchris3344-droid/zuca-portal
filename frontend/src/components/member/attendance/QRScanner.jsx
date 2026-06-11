@@ -16,15 +16,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const scannerInitialized = useRef(false);
   const isProcessing = useRef(false);
   const streamRef = useRef(null);
+  const lastScanTime = useRef(0); // Debounce scans
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
 
-
-  
-  
   // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -39,7 +37,16 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     };
   }, []);
   
+  // OPTIMIZATION 1: Debounce scanning to prevent double-processing
   const onScanSuccess = async (decodedText, decodedResult) => {
+    // Debounce - prevent multiple scans within 2 seconds
+    const now = Date.now();
+    if (now - lastScanTime.current < 2000) {
+      console.log('Debounced: Too fast');
+      return;
+    }
+    lastScanTime.current = now;
+    
     if (isProcessing.current) {
       console.log('Already processing a scan, ignoring...');
       return;
@@ -47,6 +54,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     
     isProcessing.current = true;
     
+    // Pause scanner immediately to prevent more scans
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.pause();
@@ -80,12 +88,10 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         return;
       }
       
-      // Get the sheet ID from QR data
       const scannedSheetId = qrData.sheetId;
       
-      // Check if offline
+      // OPTIMIZATION 2: Check offline first (no network call)
       if (isOffline) {
-        // Save offline check-in
         const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
         if (saved) {
           const newCount = await getPendingCount();
@@ -104,47 +110,57 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         return;
       }
       
-      // Online - normal QR check-in
-      const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
-        token: qrData.token,
-        deviceId: getDeviceId(),
-        deviceName: getDeviceName()
-      }, {
-        headers: getHeaders()
-      });
+      // OPTIMIZATION 3: AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      if (response.data.success) {
-        onSuccess && onSuccess(response.data.entry);
-        onClose();
+      try {
+        const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
+          token: qrData.token,
+          deviceId: getDeviceId(),
+          deviceName: getDeviceName()
+        }, {
+          headers: getHeaders(),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.data.success) {
+          onSuccess && onSuccess(response.data.entry);
+          onClose();
+        }
+      } catch (axiosError) {
+        clearTimeout(timeoutId);
+        throw axiosError;
       }
+      
     } catch (error) {
       const errorMsg = error.response?.data;
       
-      // Handle offline error during online attempt
-      if (error.message === 'Network Error' || !navigator.onLine) {
-        // Try to extract sheetId from QR data if possible
+      if (error.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else if (error.message === 'Network Error' || !navigator.onLine) {
         try {
           const qrData = JSON.parse(decodedText);
           const scannedSheetId = qrData.sheetId;
           const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline Fallback)');
           if (saved) {
-            setError('📱 Internet connection lost. QR check-in saved offline. Will sync when online.');
+            setError('📱 Internet lost. Check-in saved offline.');
             setTimeout(() => {
               onSuccess && onSuccess({ offline: true });
               onClose();
-            }, 2000);
+            }, 1500);
             return;
           }
-        } catch (e) {
-          // Fall through to normal error
-        }
-        setError('No internet connection. Please check your network and try again.');
+        } catch (e) {}
+        setError('No internet connection. Please check your network.');
       } else if (errorMsg?.error === 'Invalid or expired QR code') {
         setError('QR code is invalid or has expired');
       } else if (errorMsg?.error === 'Already checked in') {
         setError('You have already checked in for this meeting');
       } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
-        setError('This device has already been used to check someone into this meeting');
+        setError('This device has already been used');
       } else {
         setError(errorMsg?.error || 'Check-in failed');
       }
@@ -163,10 +179,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   };
   
   const onScanError = (err) => {
-    // Only log critical errors
+    // Only log critical errors - ignore common scanning noise
     if (err && err.message && 
         !err.message.includes('No MultiFormat Readers') &&
-        !err.message.includes('NotFoundException')) {
+        !err.message.includes('NotFoundException') &&
+        !err.message.includes('try starting')) {
       console.error('Scan error:', err);
     }
   };
@@ -199,14 +216,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     stopCameraTracks();
   };
   
-  // Check if mediaDevices is supported
   const isMediaDevicesSupported = () => {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   };
   
   const requestCameraPermission = async () => {
     if (!isMediaDevicesSupported()) {
-      setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+      setError('Your browser does not support camera access.');
       setPermissionDenied(true);
       return false;
     }
@@ -214,15 +230,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       stopCameraTracks();
       
+      // OPTIMIZATION 4: Try back camera first, fallback quickly
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: { exact: "environment" } 
-        } 
-      }).catch(async (err) => {
-        if (err.name === 'OverconstrainedError') {
-          return await navigator.mediaDevices.getUserMedia({ video: true });
-        }
-        throw err;
+        video: { facingMode: { exact: "environment" } } 
+      }).catch(async () => {
+        // Quick fallback to any camera
+        return await navigator.mediaDevices.getUserMedia({ video: true });
       });
       
       streamRef.current = stream;
@@ -234,13 +247,9 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermissionDenied(true);
-        setError('Camera access denied. Please allow camera access and try again.');
+        setError('Camera access denied. Please allow camera access.');
       } else if (err.name === 'NotFoundError') {
         setError('No camera found on this device.');
-      } else if (err.name === 'NotSupportedError') {
-        setError('Camera access is not supported on this device/browser.');
-      } else if (err.name === 'OverconstrainedError') {
-        setError('Could not access the back camera. Please make sure your device has a camera.');
       } else {
         setError(`Camera error: ${err.message || 'Unknown error'}`);
       }
@@ -252,12 +261,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     const element = document.getElementById("qr-reader");
     if (!element) {
       console.error("qr-reader element not found");
-      setError("Scanner element not found. Please refresh the page.");
+      setError("Scanner element not found.");
       return false;
     }
     
     if (!isMediaDevicesSupported()) {
-      setError('Your browser does not support camera access. Please use Chrome, Firefox, or Safari.');
+      setError('Your browser does not support camera access.');
       setPermissionDenied(true);
       return false;
     }
@@ -273,14 +282,17 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       const scanner = new Html5Qrcode("qr-reader");
       
-      let cameraConstraints = { facingMode: "environment" };
-      
+      // OPTIMIZATION 5: Faster scanner config
       await scanner.start(
-        cameraConstraints,
+        { facingMode: "environment" },
         {
-          fps: 10,
-          qrbox: { width: 280, height: 280 },
+          fps: 15, // Increased from 10 to 15 for faster detection
+          qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
+          disableFlip: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Use native barcode detector if available
+          }
         },
         onScanSuccess,
         onScanError
@@ -296,29 +308,28 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       console.error("Failed to start scanner:", err);
       setIsInitializing(false);
       
-      if (err.message && err.message.includes('facingMode')) {
-        try {
-          const scanner = new Html5Qrcode("qr-reader");
-          await scanner.start(
-            { facingMode: "user" },
-            {
-              fps: 10,
-              qrbox: { width: 280, height: 280 },
-              aspectRatio: 1.0,
-            },
-            onScanSuccess,
-            onScanError
-          );
-          
-          scannerRef.current = scanner;
-          setIsScanning(true);
-          setError(null);
-          setPermissionDenied(false);
-          setIsInitializing(false);
-          return true;
-        } catch (fallbackErr) {
-          console.error("Failed with front camera too:", fallbackErr);
-        }
+      // OPTIMIZATION 6: Quick fallback to front camera without retry delay
+      try {
+        const scanner = new Html5Qrcode("qr-reader");
+        await scanner.start(
+          { facingMode: "user" },
+          {
+            fps: 15,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          onScanSuccess,
+          onScanError
+        );
+        
+        scannerRef.current = scanner;
+        setIsScanning(true);
+        setError(null);
+        setPermissionDenied(false);
+        setIsInitializing(false);
+        return true;
+      } catch (fallbackErr) {
+        console.error("Fallback also failed:", fallbackErr);
       }
       
       setError(`Could not start camera: ${err.message || 'Unknown error'}`);
@@ -337,20 +348,19 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     
     scannerInitialized.current = false;
     isProcessing.current = false;
+    lastScanTime.current = 0; // Reset debounce
     
     const readerElement = document.getElementById("qr-reader");
     if (readerElement) {
       readerElement.innerHTML = '';
     }
     
-    setTimeout(() => {
-      initializeScanner();
-    }, 300);
+    // OPTIMIZATION 7: No delay - initialize immediately
+    initializeScanner();
   };
   
   useEffect(() => {
     let mounted = true;
-    let initTimeout = null;
     
     const init = async () => {
       if (mounted) {
@@ -359,16 +369,16 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     };
     
     if (!window.isSecureContext) {
-      setError('Camera access requires a secure connection (HTTPS). Please use HTTPS or localhost.');
+      setError('Camera access requires HTTPS.');
       setPermissionDenied(true);
       return;
     }
     
-    initTimeout = setTimeout(init, 100);
+    // OPTIMIZATION 8: Initialize immediately (no delay)
+    init();
     
     return () => {
       mounted = false;
-      if (initTimeout) clearTimeout(initTimeout);
       stopScanner();
       scannerInitialized.current = false;
     };
@@ -394,7 +404,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             <div className="qr-scanner-error">
               <div className="error-icon">🌐</div>
               <h4>Browser Not Supported</h4>
-              <p>Your browser does not support camera access. Please use Chrome, Firefox, Safari, or another modern browser.</p>
+              <p>Please use Chrome, Firefox, or Safari.</p>
               <button onClick={onClose} className="close-btn">Close</button>
             </div>
           )}
@@ -403,7 +413,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             <div className="qr-scanner-error">
               <div className="error-icon">{permissionDenied ? "📷" : "⚠️"}</div>
               <h4>{permissionDenied ? "Camera Access Denied" : "Scan Failed"}</h4>
-              <p>{error || (permissionDenied ? "Please allow camera access to scan QR codes." : "An error occurred while scanning.")}</p>
+              <p>{error || "Please allow camera access to scan QR codes."}</p>
               <div className="error-buttons">
                 <button onClick={handleRetry} className="retry-btn">
                   Try Again
@@ -427,12 +437,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
               {!isInitializing && isScanning && (
                 <>
                   <p className="scanner-instruction">
-                    📱 Point your camera at the QR code
+                    📱 Point camera at QR code
                   </p>
                   <p className="scanner-hint">
                     {isOffline 
-                      ? "⚠️ You are offline. QR check-in will be saved and synced when online."
-                      : "Make sure the QR code is well lit and centered"}
+                      ? "⚠️ Offline mode - check-ins will be saved"
+                      : "Center the QR code in the frame"}
                   </p>
                 </>
               )}
@@ -453,7 +463,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           align-items: center;
           justify-content: center;
           z-index: 2000;
-          animation: fadeIn 0.2s ease;
+          animation: fadeIn 0.15s ease;
         }
         
         @keyframes fadeIn {
@@ -468,11 +478,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           max-width: 500px;
           overflow: hidden;
           box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-          animation: slideUp 0.3s ease;
+          animation: slideUp 0.2s ease;
         }
         
         @keyframes slideUp {
-          from { transform: translateY(50px); opacity: 0; }
+          from { transform: translateY(30px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
         

@@ -304,31 +304,33 @@ function getMessageTone(userRole, specialRole) {
 
 }
 
-// Send check-in confirmation to member
+// Send check-in confirmation to member - FIRE AND FORGET
 const sendCheckinConfirmation = async (userId, sheetTitle, entry) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-    
-    if (!user) return;
-    
-    // In-app notification
-    await createAndSendNotification({
-      userId: userId,
-      type: "attendance_checkin",
-      title: "✅ Check-in Successful!",
-      message: `You have been checked in for "${sheetTitle}" at ${new Date(entry.signTime).toLocaleTimeString()}`,
-      data: { sheetId: entry.sheetId, entryId: entry.id }
-    });
-    
-    // Send email confirmation
-    if (user.email) {
-      await sendPersonalizedEmail(
-  { email: user.email, fullName: user.fullName },
-  "attendance_checkin",
-  `Check-in Confirmation: ${sheetTitle}`,
-  `Dear ${user.fullName},
+  // Don't await anything here - just fire and forget
+  (async () => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+      
+      if (!user) return;
+      
+      // In-app notification - fire and forget
+      createAndSendNotification({
+        userId: userId,
+        type: "attendance_checkin",
+        title: "✅ Check-in Successful!",
+        message: `You have been checked in for "${sheetTitle}" at ${new Date(entry.signTime).toLocaleTimeString()}`,
+        data: { sheetId: entry.sheetId, entryId: entry.id }
+      }).catch(err => console.error("Check-in notif failed:", err.message));
+      
+      // Send email confirmation - fire and forget (no await)
+      if (user.email) {
+        sendPersonalizedEmail(
+          { email: user.email, fullName: user.fullName },
+          "attendance_checkin",
+          `Check-in Confirmation: ${sheetTitle}`,
+          `Dear ${user.fullName},
 
 This is to confirm that you have been successfully checked in for "${sheetTitle}".
 
@@ -340,12 +342,13 @@ Check-in Details:
 Thank you for your attendance.
 
 Zetech University Catholic Action (ZUCA)`,
-  { sheetTitle, signTime: entry.signTime, signMethod: entry.signMethod }
-);
+          { sheetTitle, signTime: entry.signTime, signMethod: entry.signMethod }
+        ).catch(err => console.error("Check-in email failed:", err.message));
+      }
+    } catch (err) {
+      console.error("Failed to send check-in confirmation:", err.message);
     }
-  } catch (err) {
-    console.error("Failed to send check-in confirmation:", err.message);
-  }
+  })(); // Immediately invoked - runs in background
 };
 
 // Send notification for attendance sheet opened/created
@@ -379,78 +382,84 @@ const sendSheetOpenedNotification = async (sheet) => {
     console.error("Failed to send sheet opened notifications:", err.message);
   }
 };
-
-// Send notification for attendance sheet closed
+// Send notification for attendance sheet closed - BATCHED & FIRE-AND-FORGET
 const sendSheetClosedNotification = async (sheetId) => {
-  try {
-    const sheet = await prisma.attendanceSheet.findUnique({
-      where: { id: sheetId },
-      include: {
-        entries: {
-          include: {
-            user: true
+  (async () => {
+    try {
+      const sheet = await prisma.attendanceSheet.findUnique({
+        where: { id: sheetId },
+        include: {
+          entries: {
+            include: { user: true }
+          },
+          creator: {
+            select: { id: true, fullName: true, email: true }
           }
-        },
-        creator: {
-          select: { id: true, fullName: true, email: true }
         }
+      });
+      
+      if (!sheet) return;
+      
+      let allMembers = [];
+      if (sheet.jumuiaId) {
+        allMembers = await prisma.user.findMany({
+          where: { jumuiaId: sheet.jumuiaId }
+        });
+      } else {
+        allMembers = await prisma.user.findMany();
       }
-    });
-    
-    if (!sheet) return;
-    
-    let allMembers = [];
-    if (sheet.jumuiaId) {
-      allMembers = await prisma.user.findMany({
-        where: { jumuiaId: sheet.jumuiaId }
-      });
-    } else {
-      allMembers = await prisma.user.findMany();
-    }
-    
-    const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
-    const presentMembers = allMembers.filter(m => presentUserIds.has(m.id));
-    const absentMembers = allMembers.filter(m => !presentUserIds.has(m.id));
-    
-    const meetingSummary = `Meeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\nTotal Expected: ${allMembers.length}\nPresent: ${presentMembers.length}\nAbsent: ${absentMembers.length}\nAttendance Rate: ${((presentMembers.length / allMembers.length) * 100).toFixed(1)}%`;
-    
-    // 1. Notify present members (thank you)
-    for (const member of presentMembers) {
-      await createAndSendNotification({
-        userId: member.id,
-        type: "attendance_thankyou",
-        title: "🙏 Thank You for Attending!",
-        message: `Thank you for attending "${sheet.title}". Your presence is appreciated! Tumsifu Yesu Kristu! 🙏`,
-        data: { sheetId: sheet.id, title: sheet.title }
-      });
-    }
-    
-    // 2. Notify absent members with role-based messages
-    for (const member of absentMembers) {
-      const tone = getMessageTone(member.role, member.specialRole);
       
-      await createAndSendNotification({
-        userId: member.id,
-        type: "attendance_missed",
-        title: tone.missedTitle,
-        message: tone.missedMessage,
-        data: { 
-          sheetId: sheet.id, 
-          title: sheet.title,
-          style: tone.style,
-          actionRequired: tone.actionRequired
-        }
-      });
+      const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
+      const presentMembers = allMembers.filter(m => presentUserIds.has(m.id));
+      const absentMembers = allMembers.filter(m => !presentUserIds.has(m.id));
       
-      // Send email to absent members
-      if (member.email) {
-        const emailSubject = tone.actionRequired ? `⚠️ URGENT: ${tone.missedTitle}` : tone.missedTitle;
-        
-       await sendPersonalizedEmail(
-  { email: member.email, fullName: member.fullName },
-  "attendance_missed",
-  `Notice of Absence: ${sheet.title}`,
-  `Dear ${member.fullName},
+      const meetingSummary = `Meeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\nTotal Expected: ${allMembers.length}\nPresent: ${presentMembers.length}\nAbsent: ${absentMembers.length}\nAttendance Rate: ${((presentMembers.length / allMembers.length) * 100).toFixed(1)}%`;
+      
+      // 1. Notify present members (thank you) - BATCHED
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < presentMembers.length; i += BATCH_SIZE) {
+        const batch = presentMembers.slice(i, i + BATCH_SIZE);
+        Promise.allSettled(
+          batch.map(member => 
+            createAndSendNotification({
+              userId: member.id,
+              type: "attendance_thankyou",
+              title: "🙏 Thank You for Attending!",
+              message: `Thank you for attending "${sheet.title}". Your presence is appreciated! Tumsifu Yesu Kristu! 🙏`,
+              data: { sheetId: sheet.id, title: sheet.title }
+            }).catch(err => console.error(`Notif failed for ${member.id}:`, err.message))
+          )
+        );
+      }
+      
+      // 2. Notify absent members with role-based messages - BATCHED + FIRE-AND-FORGET
+      for (let i = 0; i < absentMembers.length; i += BATCH_SIZE) {
+        const batch = absentMembers.slice(i, i + BATCH_SIZE);
+        Promise.allSettled(
+          batch.map(async (member) => {
+            const tone = getMessageTone(member.role, member.specialRole);
+            
+            // Notification - fire and forget
+            createAndSendNotification({
+              userId: member.id,
+              type: "attendance_missed",
+              title: tone.missedTitle,
+              message: tone.missedMessage,
+              data: { 
+                sheetId: sheet.id, 
+                title: sheet.title,
+                style: tone.style,
+                actionRequired: tone.actionRequired
+              }
+            }).catch(err => console.error(`Missed notif failed for ${member.id}:`, err.message));
+            
+            // Send email - fire and forget (no await)
+            if (member.email) {
+              sendPersonalizedEmail(
+                { email: member.email, fullName: member.fullName },
+                "attendance_missed",
+                `Notice of Absence: ${sheet.title}`,
+                `Dear ${member.fullName},
 
 This is to notify you that your attendance was not recorded for the following meeting:
 
@@ -463,31 +472,33 @@ ${tone.actionRequired ? 'Please contact the meeting organizer to discuss any out
 For any questions, please contact ZUCA administration.
 
 Zetech University Catholic Action (ZUCA)`,
-  { sheetTitle: sheet.title, meetingDate: sheet.eventDate }
-);
+                { sheetTitle: sheet.title, meetingDate: sheet.eventDate }
+              ).catch(err => console.error(`Email failed for ${member.email}:`, err.message));
+            }
+          })
+        );
       }
-    }
-    
-    // 3. Notify admin/creator with summary report
-    if (sheet.creator) {
-      await createAndSendNotification({
-        userId: sheet.creator.id,
-        type: "attendance_summary",
-        title: "📊 Attendance Summary Report",
-        message: `${sheet.title}\nPresent: ${presentMembers.length}/${allMembers.length}\nAbsent: ${absentMembers.length}\nRate: ${((presentMembers.length / allMembers.length) * 100).toFixed(1)}%\n\nTap to view full report.`,
-        data: { sheetId: sheet.id, summary: { present: presentMembers.length, absent: absentMembers.length, total: allMembers.length } }
-      });
       
-      // Send email report to admin
-      if (sheet.creator.email) {
-        const absentList = absentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
-        const presentList = presentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
+      // 3. Notify admin/creator with summary report
+      if (sheet.creator) {
+        createAndSendNotification({
+          userId: sheet.creator.id,
+          type: "attendance_summary",
+          title: "📊 Attendance Summary Report",
+          message: `${sheet.title}\nPresent: ${presentMembers.length}/${allMembers.length}\nAbsent: ${absentMembers.length}\nRate: ${((presentMembers.length / allMembers.length) * 100).toFixed(1)}%\n\nTap to view full report.`,
+          data: { sheetId: sheet.id, summary: { present: presentMembers.length, absent: absentMembers.length, total: allMembers.length } }
+        }).catch(err => console.error("Summary notif failed:", err.message));
         
-      await sendPersonalizedEmail(
-  { email: sheet.creator.email, fullName: sheet.creator.fullName },
-  "attendance_admin_report",
-  `Attendance Report: ${sheet.title}`,
-  `Dear ${sheet.creator.fullName},
+        // Send email report - fire and forget
+        if (sheet.creator.email) {
+          const absentList = absentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
+          const presentList = presentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
+          
+          sendPersonalizedEmail(
+            { email: sheet.creator.email, fullName: sheet.creator.fullName },
+            "attendance_admin_report",
+            `Attendance Report: ${sheet.title}`,
+            `Dear ${sheet.creator.fullName},
 
 Here is the official attendance report for "${sheet.title}":
 
@@ -509,15 +520,16 @@ ${absentList || "None"}
 This report is automatically generated by ZUCA attendance system.
 
 Zetech University Catholic Action (ZUCA)`,
-  { sheetTitle: sheet.title, presentCount: presentMembers.length, absentCount: absentMembers.length, presentList, absentList }
-);
+            { sheetTitle: sheet.title, presentCount: presentMembers.length, absentCount: absentMembers.length, presentList, absentList }
+          ).catch(err => console.error("Admin email failed:", err.message));
+        }
       }
+      
+      console.log(`✅ Sent notifications for sheet ${sheet.id} (background)`);
+    } catch (err) {
+      console.error("Failed to send sheet closed notifications:", err.message);
     }
-    
-    console.log(`✅ Sent notifications for sheet ${sheet.id}: ${presentMembers.length} thank you, ${absentMembers.length} missed alerts`);
-  } catch (err) {
-    console.error("Failed to send sheet closed notifications:", err.message);
-  }
+  })();
 };
 
 // Send reminder to specific user
@@ -1299,7 +1311,7 @@ const getUserAttendanceHistory = async (req, res) => {
 };
 
 // Delete entire attendance sheet (admin only)
-router.delete("/sheet/:sheetId", authenticate, requireAdmin, async (req, res) => {
+router.delete("/sheet/:sheetId", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {
     const { sheetId } = req.params;
     
@@ -1321,7 +1333,7 @@ router.delete("/sheet/:sheetId", authenticate, requireAdmin, async (req, res) =>
 });
 
 // Reopen a closed sheet (admin only)
-router.post("/sheet/:sheetId/reopen", authenticate, requireAdmin, async (req, res) => {
+router.post("/sheet/:sheetId/reopen", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {
     const { sheetId } = req.params;
 
@@ -1401,7 +1413,7 @@ const sendReminder = async (req, res) => {
   }
 };
 
-// Send bulk reminders to all absent members
+// Send bulk reminders to all absent members - FIRE AND FORGET
 const sendBulkReminders = async (req, res) => {
   try {
     const { sheetId } = req.params;
@@ -1427,19 +1439,33 @@ const sendBulkReminders = async (req, res) => {
     const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
     const absentMembers = allMembers.filter(m => !presentUserIds.has(m.id));
     
-    let sentCount = 0;
-    for (const member of absentMembers) {
-      const success = await sendReminderToUser(member.id, sheetId);
-      if (success) sentCount++;
-    }
+    // Send response immediately
+    res.json({ success: true, message: `Sending reminders to ${absentMembers.length} members in background` });
     
-    res.json({ success: true, message: `Reminders sent to ${sentCount} members` });
+    // Process reminders in background (fire and forget)
+    (async () => {
+      let sentCount = 0;
+      const BATCH_SIZE = 10;
+      
+      for (let i = 0; i < absentMembers.length; i += BATCH_SIZE) {
+        const batch = absentMembers.slice(i, i + BATCH_SIZE);
+        await Promise.allSettled(
+          batch.map(member => sendReminderToUser(member.id, sheetId))
+        );
+        sentCount += batch.length;
+        console.log(`📧 Sent ${sentCount}/${absentMembers.length} reminders`);
+      }
+      
+      console.log(`✅ Bulk reminders completed: ${sentCount} sent`);
+    })();
+    
   } catch (err) {
     console.error("Bulk reminder error:", err);
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 };
-
 
 
 // ==================== AUTOMATIC NOTIFICATION SYSTEM ====================
@@ -1636,9 +1662,25 @@ router.get("/sheet/:sheetId", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.post("/sheet/:sheetId/entry", authenticate, requireLeaderOrAdmin, adminAddEntry);
+router.post("/sheet/:sheetId/entry", authenticate, async (req, res, next) => {
+  // Check if user is admin, secretary, or leader
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.userId },
+    select: { role: true, specialRole: true }
+  });
+  
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.role === "secretary" || user.specialRole === "secretary";
+  const isLeader = user.specialRole === "jumuia_leader";
+  
+  if (isAdmin || isSecretary || isLeader) {
+    return next();
+  }
+  
+  return res.status(403).json({ error: "Not authorized" });
+}, adminAddEntry);
 router.put("/sheet/:sheetId/entry/:entryId", authenticate, requireLeaderOrAdmin, updateEntry);
-router.delete("/sheet/:sheetId/entry/:entryId", authenticate, requireAdmin, deleteEntry);
+router.delete("/sheet/:sheetId/entry/:entryId", authenticate, requireLeaderOrAdmin, deleteEntry);
 router.put("/sheet/:sheetId/settings", authenticate, requireLeaderOrAdmin, updateSheetSettings);
 router.post("/sheet/:sheetId/close", authenticate, requireLeaderOrAdmin, closeSheet);
 
@@ -1780,7 +1822,7 @@ router.delete("/link/:linkId", authenticate, requireLeaderOrAdmin, async (req, r
 // Add this after getAdminStats and before module.exports
 
 // Get all entries across all sheets (for admin All Entries tab)
-router.get("/all-entries", authenticate, requireAdmin, async (req, res) => {
+router.get("/all-entries", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {
     const { limit = 200, page = 1 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);

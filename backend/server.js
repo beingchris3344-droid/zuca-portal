@@ -10322,8 +10322,22 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
 });
 
 // ================== USER MANAGEMENT ==================
-app.get("/api/users", requireAdmin, async (req, res) => {
+app.get("/api/users", authenticate, async (req, res) => {
   try {
+    // Get current user to check permissions
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = currentUser.role === "admin";
+    const isSecretary = currentUser.role === "secretary" || currentUser.specialRole === "secretary";
+    
+    if (!isAdmin && !isSecretary) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // Rest of your existing code...
     const users = await prisma.user.findMany({
       select: { 
         id: true, 
@@ -10359,7 +10373,6 @@ app.get("/api/users", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.delete("/api/users/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;

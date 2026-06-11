@@ -26,9 +26,10 @@ function requireAdmin(req, res, next) {
 function requireLeaderOrAdmin(req, res, next) {
   const isAdmin = req.user.role === "admin";
   const isLeader = req.user.specialRole === "jumuia_leader";
+  const isSecretary = req.user.role === "secretary" || req.user.specialRole === "secretary";
   
-  if (!isAdmin && !isLeader) {
-    return res.status(403).json({ error: "Leader or Admin access required" });
+  if (!isAdmin && !isLeader && !isSecretary) {
+    return res.status(403).json({ error: "Leader, Secretary, or Admin access required" });
   }
   next();
 }

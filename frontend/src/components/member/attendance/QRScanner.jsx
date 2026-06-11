@@ -309,7 +309,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     const element = document.getElementById("qr-reader");
     if (!element) {
       console.error("qr-reader element not found");
-      setError("Scanner element not found. Please refresh the page.");
+      setError("you have already checked in for this meeting.");
       return false;
     }
     

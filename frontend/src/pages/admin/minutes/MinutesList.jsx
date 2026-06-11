@@ -29,7 +29,7 @@ export default function MinutesList() {
     window.addEventListener('resize', handleResize);
     
     const isAdmin = user.role === 'admin';
-    const isSecretary = user.specialRole === 'secretary';
+   const isSecretary = user.specialRole === 'secretary' || user.role === 'secretary';
     setCanEdit(isAdmin || isSecretary);
     
     return () => window.removeEventListener('resize', handleResize);

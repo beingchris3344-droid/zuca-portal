@@ -141,6 +141,12 @@ const meetingMinutesRoutes = require("./routes/meetingMinutes");
 app.use("/api/minutes", meetingMinutesRoutes);
 
 
+const treasurerReportsRoutes = require("./routes/treasurerReports");
+
+
+app.use("/api/treasurer", treasurerReportsRoutes);
+
+
 // Direct Messaging System Routes
 app.use('/api/messenger', messengerRoutes);
 // Add this line with your other route registrations

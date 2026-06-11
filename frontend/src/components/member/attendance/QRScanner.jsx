@@ -82,7 +82,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         if (onSuccess) onSuccess(entry);
         onClose();
       }
-    }, 1200);
+    }, 3000);
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {

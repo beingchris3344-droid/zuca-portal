@@ -510,7 +510,12 @@ useEffect(() => {
           <Route index element={<Navigate to="announcements" replace />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="schedules" element={<AdminSchedules />} />
-        </Route>
+          <Route path="minutes" element={<MinutesList />} />
+  <Route path="minutes/:id" element={<MinutesViewPage />} />
+  <Route path="minutes/create" element={<MinutesCreatePage />} />
+  <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
+</Route>
+        
 
         {/* ================= TREASURER ================= */}
         <Route

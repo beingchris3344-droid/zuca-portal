@@ -23,6 +23,7 @@ export default function MinutesList() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
+  const basePath = (user.role === 'secretary' || user.specialRole === 'secretary') ? '/secretary' : '/admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -163,7 +164,7 @@ export default function MinutesList() {
           </div>
         </div>
         {canEdit && (
-          <button className="create-btn" onClick={() => navigate('/admin/minutes/create')}>
+          <button className="btn-primary" onClick={() => navigate(`${basePath}/minutes/create`)}>
             <Plus size={18} /> New Minutes
           </button>
         )}
@@ -271,9 +272,7 @@ export default function MinutesList() {
                         </span>
                         <div className="card-actions">
                           {/* View Button - Always visible */}
-                          <button 
-                            className="icon-btn view"
-                            onClick={() => navigate(`/admin/minutes/${minute.id}`)}
+                         <button className="icon-btn view" onClick={() => navigate(`${basePath}/minutes/${minute.id}`)}
                             title="View Minutes"
                           >
                             <Eye size={16} />
@@ -281,9 +280,7 @@ export default function MinutesList() {
                           
                           {/* Edit Button - Only for drafts and authorized users */}
                           {canEdit && isDraft && (
-                            <button 
-                              className="icon-btn edit"
-                              onClick={() => navigate(`/admin/minutes/edit/${minute.id}`)}
+                            <button className="icon-btn edit" onClick={() => navigate(`${basePath}/minutes/edit/${minute.id}`)}
                               title="Edit Minutes"
                             >
                               <Edit2 size={16} />

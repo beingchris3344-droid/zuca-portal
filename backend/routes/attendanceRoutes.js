@@ -1341,9 +1341,21 @@ router.post("/sheet/:sheetId/reopen", authenticate, requireAdmin, async (req, re
   }
 });
 
-// Get admin stats (all sheets)
+// Get admin stats (all sheets)// Get admin stats (all sheets) - Allow admin and secretary
 const getAdminStats = async (req, res) => {
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = user.role === 'admin';
+    const isSecretary = user.role === 'secretary' || user.specialRole === 'secretary';
+    
+    if (!isAdmin && !isSecretary) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
     const sheets = await prisma.attendanceSheet.findMany({
       include: {
         _count: { select: { entries: true } }
@@ -1370,7 +1382,6 @@ const getAdminStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 // Send reminder to specific user (leader/admin only)
 const sendReminder = async (req, res) => {
   try {
@@ -1539,9 +1550,21 @@ router.post("/trigger-automatic-reminders", authenticate, requireAdmin, async (r
   }
 });
 
-// Get all sheets (both active and closed) for admin
-router.get("/all-sheets", authenticate, requireAdmin, async (req, res) => {
+// Get all sheets (both active and closed) for admin and secretary
+router.get("/all-sheets", authenticate, async (req, res) => {
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = user.role === 'admin';
+    const isSecretary = user.role === 'secretary' || user.specialRole === 'secretary';
+    
+    if (!isAdmin && !isSecretary) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
     const sheets = await prisma.attendanceSheet.findMany({
       include: {
         _count: {
@@ -1580,7 +1603,7 @@ router.post("/sheet/:sheetId/remind/:userId", authenticate, requireLeaderOrAdmin
 router.post("/sheet/:sheetId/remind-all", authenticate, requireLeaderOrAdmin, sendBulkReminders);
 
 // Admin only routes
-router.get("/admin/stats", authenticate, requireAdmin, getAdminStats);
+router.get("/admin/stats", authenticate, getAdminStats);
 
 // ==================== ATTENDANCE LINK ROUTES ====================
 

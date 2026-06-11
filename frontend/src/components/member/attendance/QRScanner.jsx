@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Camera, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../../api';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -12,20 +12,19 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
   const scannerRef = useRef(null);
   const scannerInitialized = useRef(false);
   const isProcessing = useRef(false);
   const streamRef = useRef(null);
-  const lastScanTime = useRef(0);
-  const successTimeoutRef = useRef(null);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
 
+
+  
+  
   // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -39,37 +38,14 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  // Show success animation
-  const showSuccessAnimation = (message) => {
-    setSuccessMessage(message);
-    setShowSuccess(true);
-    
-    // Vibrate on mobile
-    if (navigator.vibrate) navigator.vibrate(200);
-    
-    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-    successTimeoutRef.current = setTimeout(() => {
-      setShowSuccess(false);
-      onClose();
-    }, 1500);
-  };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
-    // Throttle scans - prevent duplicates
-    const now = Date.now();
-    if (isProcessing.current || (now - lastScanTime.current) < 500) {
+    if (isProcessing.current) {
+      console.log('Already processing a scan, ignoring...');
       return;
     }
     
-    lastScanTime.current = now;
     isProcessing.current = true;
-    
-    // Quick validation before pausing
-    if (!decodedText.includes('"type":"attendance_checkin"')) {
-      isProcessing.current = false;
-      return;
-    }
     
     if (scannerRef.current && isScanning) {
       try {
@@ -104,17 +80,19 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         return;
       }
       
+      // Get the sheet ID from QR data
       const scannedSheetId = qrData.sheetId;
       
       // Check if offline
       if (isOffline) {
+        // Save offline check-in
         const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
         if (saved) {
           const newCount = await getPendingCount();
           console.log('📱 Offline QR check-in saved! Pending:', newCount);
           setError(null);
-          showSuccessAnimation('✓ Check-in Saved Offline');
           onSuccess && onSuccess({ offline: true, message: 'QR check-in saved offline' });
+          onClose();
         } else {
           setError('Failed to save offline check-in');
           isProcessing.current = false;
@@ -126,38 +104,40 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         return;
       }
       
-      // Online - normal QR check-in with timeout
+      // Online - normal QR check-in
       const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
         token: qrData.token,
         deviceId: getDeviceId(),
         deviceName: getDeviceName()
       }, {
-        headers: getHeaders(),
-        timeout: 5000
+        headers: getHeaders()
       });
       
       if (response.data.success) {
-        showSuccessAnimation('✓ Check-in Successful!');
         onSuccess && onSuccess(response.data.entry);
+        onClose();
       }
     } catch (error) {
       const errorMsg = error.response?.data;
       
       // Handle offline error during online attempt
       if (error.message === 'Network Error' || !navigator.onLine) {
+        // Try to extract sheetId from QR data if possible
         try {
           const qrData = JSON.parse(decodedText);
           const scannedSheetId = qrData.sheetId;
           const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline Fallback)');
           if (saved) {
-            setError('📱 Internet lost. Saved offline.');
+            setError('📱 Internet connection lost. QR check-in saved offline. Will sync when online.');
             setTimeout(() => {
-              showSuccessAnimation('✓ Saved Offline');
               onSuccess && onSuccess({ offline: true });
-            }, 1000);
+              onClose();
+            }, 2000);
             return;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Fall through to normal error
+        }
         setError('No internet connection. Please check your network and try again.');
       } else if (errorMsg?.error === 'Invalid or expired QR code') {
         setError('QR code is invalid or has expired');
@@ -293,10 +273,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       const scanner = new Html5Qrcode("qr-reader");
       
+      let cameraConstraints = { facingMode: "environment" };
+      
       await scanner.start(
-        { facingMode: "environment" },
+        cameraConstraints,
         {
-          fps: 30, // Increased from 10 to 30 for faster scanning
+          fps: 10,
           qrbox: { width: 280, height: 280 },
           aspectRatio: 1.0,
         },
@@ -320,7 +302,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           await scanner.start(
             { facingMode: "user" },
             {
-              fps: 30, // Increased FPS
+              fps: 10,
               qrbox: { width: 280, height: 280 },
               aspectRatio: 1.0,
             },
@@ -350,7 +332,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setPermissionDenied(false);
     setIsScanning(false);
     setIsInitializing(false);
-    setShowSuccess(false);
     
     await stopScanner();
     
@@ -388,7 +369,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     return () => {
       mounted = false;
       if (initTimeout) clearTimeout(initTimeout);
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       stopScanner();
       scannerInitialized.current = false;
     };
@@ -410,16 +390,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         </div>
         
         <div className="qr-scanner-body">
-          {/* Success Animation */}
-          {showSuccess && (
-            <div className="success-animation">
-              <div className="success-circle">
-                <CheckCircle size={48} />
-              </div>
-              <p className="success-message">{successMessage}</p>
-            </div>
-          )}
-          
           {!isMediaDevicesSupported() && (
             <div className="qr-scanner-error">
               <div className="error-icon">🌐</div>
@@ -506,12 +476,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           to { transform: translateY(0); opacity: 1; }
         }
         
-        @keyframes successPop {
-          0% { transform: scale(0); opacity: 0; }
-          50% { transform: scale(1.2); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        
         .qr-scanner-header {
           display: flex;
           justify-content: space-between;
@@ -557,45 +521,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         
         .qr-scanner-body {
           padding: 24px;
-          position: relative;
-          min-height: 450px;
-        }
-        
-        /* Success Animation Styles */
-        .success-animation {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(16, 185, 129, 0.95);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          border-radius: 20px;
-          z-index: 10;
-          animation: fadeIn 0.3s ease;
-        }
-        
-        .success-circle {
-          background: white;
-          border-radius: 50%;
-          width: 80px;
-          height: 80px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #10b981;
-          animation: successPop 0.5s ease;
-        }
-        
-        .success-message {
-          color: white;
-          font-size: 18px;
-          font-weight: 600;
-          margin-top: 20px;
-          text-align: center;
         }
         
         .scanner-view {

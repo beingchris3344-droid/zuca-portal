@@ -15,11 +15,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const scannerRef = useRef(null);
-  const scannerInitialized = useRef(false);
   const isProcessing = useRef(false);
   const streamRef = useRef(null);
   const lastScanTime = useRef(0);
   const successTimeoutRef = useRef(null);
+  const mountedRef = useRef(true);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -40,37 +40,55 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     };
   }, []);
   
-  // Cleanup timeout on unmount
+  // Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (successTimeoutRef.current) {
         clearTimeout(successTimeoutRef.current);
       }
+      stopScanner();
     };
   }, []);
   
   // Show success animation and auto-close
   const handleSuccess = (entry) => {
+    if (!mountedRef.current) return;
+    
     setSuccessMessage(entry?.message || '✓ Check-in successful!');
     setShowSuccess(true);
     
     // Stop scanner immediately
     if (scannerRef.current) {
-      scannerRef.current.pause().catch(console.error);
+      scannerRef.current.stop().catch(console.error);
+      scannerRef.current = null;
     }
     setIsScanning(false);
     
-    // Close after animation completes (1.5 seconds)
+    // Stop camera tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        if (track && track.readyState === 'live') {
+          track.stop();
+        }
+      });
+      streamRef.current = null;
+    }
+    
+    // Close after animation completes
     successTimeoutRef.current = setTimeout(() => {
-      if (onSuccess) onSuccess(entry);
-      onClose();
-    }, 1500);
+      if (mountedRef.current) {
+        if (onSuccess) onSuccess(entry);
+        onClose();
+      }
+    }, 1200);
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
     // Debounce - prevent multiple scans within 1.5 seconds
     const now = Date.now();
-    if (now - lastScanTime.current < 1500 || showSuccess) {
+    if (now - lastScanTime.current < 1500 || showSuccess || !mountedRef.current) {
       return;
     }
     lastScanTime.current = now;
@@ -98,7 +116,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       } catch (e) {
         setError('Invalid QR code format');
         isProcessing.current = false;
-        if (scannerRef.current) {
+        if (scannerRef.current && mountedRef.current) {
           await scannerRef.current.resume();
           setIsScanning(true);
         }
@@ -108,7 +126,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       if (qrData.type !== 'attendance_checkin') {
         setError('Not a valid attendance QR code');
         isProcessing.current = false;
-        if (scannerRef.current) {
+        if (scannerRef.current && mountedRef.current) {
           await scannerRef.current.resume();
           setIsScanning(true);
         }
@@ -125,7 +143,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         } else {
           setError('Failed to save offline check-in');
           isProcessing.current = false;
-          if (scannerRef.current) {
+          if (scannerRef.current && mountedRef.current) {
             await scannerRef.current.resume();
             setIsScanning(true);
           }
@@ -149,7 +167,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         
         clearTimeout(timeoutId);
         
-        if (response.data.success) {
+        if (response.data.success && mountedRef.current) {
           handleSuccess(response.data.entry);
         }
       } catch (axiosError) {
@@ -158,6 +176,8 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       }
       
     } catch (error) {
+      if (!mountedRef.current) return;
+      
       const errorMsg = error.response?.data;
       
       if (error.name === 'AbortError') {
@@ -185,7 +205,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       
       isProcessing.current = false;
       
-      if (scannerRef.current) {
+      if (scannerRef.current && mountedRef.current) {
         try {
           await scannerRef.current.resume();
           setIsScanning(true);
@@ -254,8 +274,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       });
       
       streamRef.current = stream;
-      stream.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+      // Don't stop the stream here - keep it for the scanner
       return true;
     } catch (err) {
       console.error('Camera permission error:', err);
@@ -274,9 +293,8 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   
   const initializeScanner = async () => {
     const element = document.getElementById("qr-reader");
-    if (!element) {
+    if (!element || !mountedRef.current) {
       console.error("qr-reader element not found");
-      setError("Scanner element not found.");
       return false;
     }
     
@@ -289,7 +307,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setIsInitializing(true);
     
     const hasPermission = await requestCameraPermission();
-    if (!hasPermission) {
+    if (!hasPermission || !mountedRef.current) {
       setIsInitializing(false);
       return false;
     }
@@ -310,6 +328,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         onScanSuccess,
         onScanError
       );
+      
+      if (!mountedRef.current) {
+        await scanner.stop();
+        return false;
+      }
       
       scannerRef.current = scanner;
       setIsScanning(true);
@@ -335,6 +358,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           onScanError
         );
         
+        if (!mountedRef.current) {
+          await scanner.stop();
+          return false;
+        }
+        
         scannerRef.current = scanner;
         setIsScanning(true);
         setError(null);
@@ -352,6 +380,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   };
   
   const handleRetry = async () => {
+    // Reset all states
     setError(null);
     setPermissionDenied(false);
     setIsScanning(false);
@@ -359,41 +388,28 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setShowSuccess(false);
     setSuccessMessage('');
     
+    // Clean up existing scanner
     await stopScanner();
     
-    scannerInitialized.current = false;
     isProcessing.current = false;
     lastScanTime.current = 0;
     
+    // Clear the reader element
     const readerElement = document.getElementById("qr-reader");
     if (readerElement) {
       readerElement.innerHTML = '';
     }
     
+    // Reinitialize scanner
     initializeScanner();
   };
   
   useEffect(() => {
-    let mounted = true;
-    
-    const init = async () => {
-      if (mounted) {
-        await initializeScanner();
-      }
-    };
-    
-    if (!window.isSecureContext) {
-      setError('Camera access requires HTTPS.');
-      setPermissionDenied(true);
-      return;
-    }
-    
-    init();
+    initializeScanner();
     
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       stopScanner();
-      scannerInitialized.current = false;
     };
   }, []);
   
@@ -413,7 +429,6 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             </div>
             <h2 className="success-title">Welcome!</h2>
             <p className="success-message">{successMessage}</p>
-            <p className="success-subtitle">Tumsifu Yesu Kristu 🙏</p>
             <div className="confetti">
               <div className="confetti-piece"></div>
               <div className="confetti-piece"></div>
@@ -618,15 +633,8 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         .success-message {
           font-size: 16px;
           color: #94a3b8;
-          margin: 0 0 8px 0;
-          animation: fadeInUp 0.5s ease 0.4s both;
-        }
-        
-        .success-subtitle {
-          font-size: 14px;
-          color: #10b981;
           margin: 0;
-          animation: fadeInUp 0.5s ease 0.6s both;
+          animation: fadeInUp 0.5s ease 0.4s both;
         }
         
         @keyframes fadeInUp {

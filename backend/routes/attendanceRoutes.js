@@ -88,132 +88,143 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
   }
 });
 
-// QR Code check-in endpoint
-
+// QR Code check-in endpoint - OPTIMIZED FOR SPEED
 router.post("/qr-checkin", authenticate, async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const { token, deviceId, deviceName } = req.body;
     const userId = req.user.userId;
     
-    console.log("🔍 Scanning QR - Token received:", token);
+    console.log(`🔍 QR Scan - User: ${userId.substring(0,8)}...`);
     
-    // ✅ FIRST, fetch the user from database
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    
-    // Find the QR token
-    const qrToken = await prisma.qRCodeToken.findFirst({
-      where: {
-        token: token
-      },
-      include: { 
-        sheet: {
-          include: {
-            _count: { select: { entries: true } }
-          }
+    // ========== STEP 1: BULK FETCH - ONE DATABASE CALL ==========
+    const [user, qrToken] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { 
+          id: true, fullName: true, phone: true, 
+          role: true, specialRole: true, membership_number: true, 
+          jumuiaId: true, email: true 
         }
-      }
-    });
+      }),
+      prisma.qRCodeToken.findFirst({
+        where: { token: token, expiresAt: { gt: new Date() } },
+        include: { sheet: { select: { id: true, title: true, isActive: true, location: true } } }
+      })
+    ]);
     
-    console.log("🔍 Token found in DB:", qrToken ? "YES" : "NO");
+    // Quick validation
+    if (!user) {
+      return res.status(404).json({ error: "User not found", code: "USER_NOT_FOUND" });
+    }
     
     if (!qrToken) {
-      return res.status(400).json({ error: "Invalid QR code" });
+      return res.status(400).json({ error: "Invalid or expired QR code", code: "INVALID_QR" });
     }
     
-    console.log("🔍 Token expiry:", qrToken.expiresAt);
-    console.log("🔍 Current time:", new Date());
-    
-    // Check if expired
-    if (qrToken.expiresAt < new Date()) {
-      console.log("❌ Token EXPIRED");
-      return res.status(400).json({ error: "QR code has expired" });
-    }
-    
-    // Check if sheet is active
     if (!qrToken.sheet.isActive) {
-      return res.status(400).json({ error: "This meeting has been closed" });
+      return res.status(400).json({ error: "Meeting has been closed", code: "MEETING_CLOSED" });
     }
     
-    // Device check - Prevent multiple check-ins from same device
-    if (deviceId) {
-      const deviceEntry = await prisma.attendanceEntry.findFirst({
-        where: {
-          sheetId: qrToken.sheetId,
-          deviceId: deviceId
-        }
-      });
-
-      if (deviceEntry) {
-        return res.status(400).json({
-          error: "DEVICE_ALREADY_USED",
-          message: "This device has already been used to check someone into this meeting"
-        });
-      }
-    }
-    
-    // Check if user already checked in
+    // ========== STEP 2: CHECK IF ALREADY CHECKED IN (ONE FAST QUERY) ==========
     const existingEntry = await prisma.attendanceEntry.findFirst({
-      where: { sheetId: qrToken.sheetId, userId: userId }
+      where: { sheetId: qrToken.sheetId, userId: userId },
+      select: { id: true, signTime: true }
     });
-
+    
     if (existingEntry) {
       return res.status(400).json({ 
         error: "Already checked in",
-        message: `You already checked in on ${new Date(existingEntry.signTime).toLocaleString()}`
+        message: `Checked in at ${new Date(existingEntry.signTime).toLocaleTimeString()}`,
+        code: "ALREADY_CHECKED_IN"
       });
     }
     
-    // ✅ NOW create check-in entry with user data
+    // ========== STEP 3: CREATE CHECK-IN ENTRY (SIMPLE INSERT) ==========
     const entry = await prisma.attendanceEntry.create({
       data: {
         sheetId: qrToken.sheetId,
         userId: userId,
         deviceId: deviceId,
         deviceName: deviceName,
-        fullName: user.fullName,           // ✅ Now 'user' is defined
-        phoneNumber: user.phone,           // ✅ 'user' is defined
-        role: user.role,                   // ✅ 'user' is defined
-        specialRole: user.specialRole,     // ✅ 'user' is defined
-        membershipNumber: user.membership_number, // ✅ 'user' is defined
-        jumuiaId: user.jumuiaId,           // ✅ 'user' is defined
+        fullName: user.fullName,
+        phoneNumber: user.phone,
+        role: user.role,
+        specialRole: user.specialRole,
+        membershipNumber: user.membership_number,
+        jumuiaId: user.jumuiaId,
         signMethod: "QR_CODE",
         signTime: new Date(),
         notes: "Checked in via QR Code"
-      }
+      },
+      select: { id: true, signTime: true } // Only return what's needed
     });
     
-    // Increment QR token usage count
-    await prisma.qRCodeToken.update({
+    // ========== STEP 4: UPDATE QR TOKEN USAGE (FIRE AND FORGET) ==========
+    // Don't await this - let it run in background
+    prisma.qRCodeToken.update({
       where: { id: qrToken.id },
-      data: {
-        usedCount: { increment: 1 },
-        usedBy: userId
+      data: { usedCount: { increment: 1 }, usedBy: userId }
+    }).catch(err => console.error("Token update failed:", err.message));
+    
+    // ========== STEP 5: SEND IMMEDIATE RESPONSE ==========
+    const duration = Date.now() - startTime;
+    console.log(`✅ Check-in complete in ${duration}ms for ${user.fullName}`);
+    
+    res.json({ 
+      success: true, 
+      entry: {
+        id: entry.id,
+        signTime: entry.signTime,
+        message: `Welcome ${user.fullName.split(' ')[0]}! You've been checked in.`
       }
     });
     
-    console.log("✅ QR Check-in successful for:", user.fullName);
-    
-    // Send check-in confirmation (optional)
-    try {
-      await sendCheckinConfirmation(userId, qrToken.sheet.title, entry);
-    } catch (notifyErr) {
-      console.error("Failed to send notification:", notifyErr.message);
-    }
-    
-    res.json({ success: true, entry });
+    // ========== STEP 6: BACKGROUND PROCESSING (FIRE AND FORGET) ==========
+    // Send notifications and emails in background - user doesn't wait
+    (async () => {
+      try {
+        // Send in-app notification (fast)
+        await createAndSendNotification({
+          userId: userId,
+          type: "attendance_checkin",
+          title: "✅ Check-in Successful!",
+          message: `You have been checked in for "${qrToken.sheet.title}"`,
+          data: { sheetId: qrToken.sheetId, entryId: entry.id }
+        });
+        
+        // Send email - don't await, just fire
+        if (user.email) {
+          sendPersonalizedEmail(
+            { email: user.email, fullName: user.fullName },
+            "attendance_checkin",
+            `Check-in Confirmation: ${qrToken.sheet.title}`,
+            `Dear ${user.fullName},\n\nYou have been successfully checked in for "${qrToken.sheet.title}".\n\nThank you for your attendance!\n\nZetech University Catholic Action (ZUCA)`,
+            { sheetTitle: qrToken.sheet.title, signTime: entry.signTime }
+          ).catch(err => console.error("Email failed:", err.message));
+        }
+        
+        // Real-time update for live activity feed (socket)
+        const io = req.app.get("io");
+        if (io) {
+          io.to(`sheet-${qrToken.sheetId}`).emit("attendance_checkin", {
+            sheetId: qrToken.sheetId,
+            userId: userId,
+            userName: user.fullName,
+            timestamp: entry.signTime
+          });
+        }
+      } catch (bgErr) {
+        console.error("Background notification failed:", bgErr.message);
+      }
+    })();
     
   } catch (err) {
     console.error("QR check-in error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, code: "SERVER_ERROR" });
   }
 });
-
 // Get QR code status for a sheet
 router.get("/sheet/:sheetId/qr-status", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {

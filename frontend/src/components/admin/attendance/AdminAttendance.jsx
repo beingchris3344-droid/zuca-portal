@@ -21,6 +21,12 @@ import QRCodeModal from './QRCodeModal';
 
 export default function AdminAttendance() {
   // ============ STATE ============
+  // Add this at the top of the component (after getting user)
+const user = JSON.parse(localStorage.getItem("user") || "{}");
+const basePath = user?.role === "admin" ? "/admin" : "/secretary";
+
+// Then in the View button, use:
+
   const [activeTab, setActiveTab] = useState('sheets');
   const [activeSheets, setActiveSheets] = useState([]);
   const [completedSheets, setCompletedSheets] = useState([]);
@@ -473,7 +479,7 @@ export default function AdminAttendance() {
                 <div className="sheet-details"><span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span><span><Clock size={14} /> {sheet.eventTime || '4:30 PM'}</span><span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span></div>
                 <div className="sheet-progress"><div className="progress-bar"><div className="progress-fill" style={{ width: `${((sheet._count?.entries || 0) / (sheet.totalMembers || 100)) * 100}%` }}></div></div><span>{sheet._count?.entries || 0} checked in</span></div>
                <div className="sheet-actions">
-                  <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}><Eye size={16} /> View</button>
+                  <button onClick={() => navigate(`${basePath}/attendance/sheet/${sheet.id}`)}><Eye size={16} /> View</button>
                   <button onClick={() => handleCloseSheet(sheet.id)}><Lock size={16} /> Close</button>
                   <button onClick={() => openQRModal(sheet)}><QrCode size={16} /> QR Code</button>  
                   <button onClick={() => openSettingsModal(sheet)}><Settings size={16} /> Settings</button>
@@ -500,7 +506,7 @@ export default function AdminAttendance() {
                       <span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span>
                     </div>
                     <div className="sheet-actions">
-                      <button onClick={() => navigate(`/admin/attendance/sheet/${sheet.id}`)}>
+                      <button onClick={() => navigate(`${basePath}/attendance/sheet/${sheet.id}`)}>
                         <Eye size={16} /> View Report
                       </button>
                       <button onClick={() => handleReopenSheet(sheet.id, sheet.title)} className="reopen-btn">

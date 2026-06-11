@@ -65,7 +65,8 @@ export default function RoleLayout() {
           modules: [
             { path: `${basePath}/announcements`, icon: "📢", label: "Announcements" },
             { path: `${basePath}/schedules`, icon: "📅", label: "Schedules" },
-            { path: `${basePath}/minutes`, icon: "📝", label: "Minutes" }
+            { path: `${basePath}/minutes`, icon: "📝", label: "Minutes" },
+            { path: `${basePath}/attendance`, icon: "✅", label: "Attendance" }
           ],
           quickActions: [
             { action: `${basePath}/announcements`, label: "New Announcement", icon: "➕" },

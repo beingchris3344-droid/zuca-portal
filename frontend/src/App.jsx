@@ -90,6 +90,7 @@ import MinutesCreatePage from './pages/admin/minutes/MinutesCreatePage';
 import MinutesEditPage from './pages/admin/minutes/MinutesEditPage';
 import TreasurerReports from './pages/treasurer/TreasurerReports';
 
+
 /* ===== ROLE LAYOUT ===== */
 import RoleLayout from "./pages/role/RoleLayout";
 
@@ -515,6 +516,8 @@ useEffect(() => {
   <Route path="minutes/:id" element={<MinutesViewPage />} />
   <Route path="minutes/create" element={<MinutesCreatePage />} />
   <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
+   <Route path="attendance" element={<AdminAttendance />} />
+     <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
 </Route>
         
 
@@ -543,6 +546,7 @@ useEffect(() => {
         >
           <Route index element={<Navigate to="songs" replace />} />
           <Route path="songs" element={<SongsPage />} />
+           <Route path="hymns" element={<AdminHymns />} />
         </Route>
 
         {/* ================= JUMUIA LEADER ================= */}

@@ -111,14 +111,7 @@ export default function AdminHymns() {
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const isAdmin = user?.role === "admin" || user?.specialRole === "secretary" || user?.specialRole === "choir_moderator";
 
-  // Redirect if not admin
-  useEffect(() => {
-    if (!isAdmin) {
-      navigate("/dashboard");
-    }
-  }, [isAdmin, navigate]);
 
   // Auto-open add modal when coming from pending songs
   useEffect(() => {

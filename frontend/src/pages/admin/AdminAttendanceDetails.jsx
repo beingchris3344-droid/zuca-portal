@@ -15,6 +15,8 @@ export default function AdminAttendanceDetails() {
   const navigate = useNavigate();
   
   // ============ STATE ============
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+const basePath = user?.role === "admin" ? "/admin" : "/secretary";
   const [sheetData, setSheetData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -571,9 +573,9 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
       
       {/* Header with Back Button */}
       <div className="page-header">
-        <button className="back-btn" onClick={() => navigate('/admin/attendance')}>
-          <ArrowLeft size={20} /> Back to Attendance
-        </button>
+       <button className="back-btn" onClick={() => navigate(`${basePath}/attendance`)}>
+  <ArrowLeft size={20} /> Back to Attendance
+</button>
         <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
           Refresh

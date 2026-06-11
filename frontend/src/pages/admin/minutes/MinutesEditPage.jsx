@@ -138,9 +138,9 @@ export default function MinutesEditPage() {
   return (
     <div className="edit-minutes-page">
       <div className="page-header">
-        <button className="back-btn" onClick={() => navigate('/admin/minutes')}>
-          <ArrowLeft size={18} /> Back to Minutes
-        </button>
+        <button className="back-btn" onClick={() => navigate(-1)}>
+  <ArrowLeft size={18} /> Back to Minutes
+</button>
         <h1>Edit Meeting Minutes</h1>
         <button className="submit-btn" onClick={handleSubmit} disabled={saving}>
           {saving ? <><Loader size={16} className="spin" /> Saving...</> : <><Save size={16} /> Save Changes</>}

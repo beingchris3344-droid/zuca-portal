@@ -3,10 +3,11 @@ import { Plus, Search, Filter, Calendar as CalendarIcon, Eye, Edit2, Trash2, Sen
 import { api } from '../../../api';
 import io from 'socket.io-client';
 import BASE_URL from '../../../api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function MinutesList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [minutes, setMinutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,21 +19,20 @@ export default function MinutesList() {
   const [actionLoading, setActionLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [toast, setToast] = useState(null);
-  const [canEdit, setCanEdit] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
-  const basePath = (user.role === 'secretary' || user.specialRole === 'secretary') ? '/secretary' : '/admin';
+  
+  // ALWAYS ALLOW EDIT FOR SECRETARY AND ADMIN - NO CONDITIONS
+  const canEdit = true; // FORCE TRUE
+  
+  const currentPath = location.pathname;
+  const basePath = currentPath.includes('/secretary') ? '/secretary' : '/admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
-    
-    const isAdmin = user.role === 'admin';
-   const isSecretary = user.specialRole === 'secretary' || user.role === 'secretary';
-    setCanEdit(isAdmin || isSecretary);
-    
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -152,7 +152,6 @@ export default function MinutesList() {
     <div className="minutes-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
-      {/* Header */}
       <div className="page-header">
         <div className="header-left">
           <div className="title-icon">
@@ -163,11 +162,10 @@ export default function MinutesList() {
             <p className="subtitle">View, edit, publish and manage all meeting minutes</p>
           </div>
         </div>
-        {canEdit && (
-          <button className="btn-primary" onClick={() => navigate(`${basePath}/minutes/create`)}>
-            <Plus size={18} /> New Minutes
-          </button>
-        )}
+        {/* ALWAYS SHOW NEW MINUTES BUTTON */}
+        <button className="btn-primary" onClick={() => navigate(`${basePath}/minutes/create`)}>
+          <Plus size={18} /> New Minutes
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -236,11 +234,9 @@ export default function MinutesList() {
           <div className="empty-icon">📋</div>
           <h3>No minutes found</h3>
           <p>Create your first meeting minutes from an attendance sheet</p>
-          {canEdit && (
-            <button className="btn-primary" onClick={() => navigate('/admin/minutes/create')}>
-              Create Minutes
-            </button>
-          )}
+          <button className="btn-primary" onClick={() => navigate(`${basePath}/minutes/create`)}>
+            Create Minutes
+          </button>
         </div>
       ) : (
         <div className="minutes-list">
@@ -271,49 +267,41 @@ export default function MinutesList() {
                           {statusStyle.text}
                         </span>
                         <div className="card-actions">
-                          {/* View Button - Always visible */}
-                         <button className="icon-btn view" onClick={() => navigate(`${basePath}/minutes/${minute.id}`)}
-                            title="View Minutes"
-                          >
+                          {/* View Button */}
+                          <button className="icon-btn view" onClick={() => navigate(`${basePath}/minutes/${minute.id}`)}
+                            title="View Minutes">
                             <Eye size={16} />
                           </button>
                           
-                          {/* Edit Button - Only for drafts and authorized users */}
-                          {canEdit && isDraft && (
+                          {/* Edit Button - ALWAYS SHOW FOR DRAFTS */}
+                          {isDraft && (
                             <button className="icon-btn edit" onClick={() => navigate(`${basePath}/minutes/edit/${minute.id}`)}
-                              title="Edit Minutes"
-                            >
+                              title="Edit Minutes">
                               <Edit2 size={16} />
                             </button>
                           )}
                           
-                          {/* Publish Button - Only for drafts and authorized users */}
-                          {canEdit && isDraft && (
-                            <button 
-                              className="icon-btn publish"
+                          {/* Publish Button - ALWAYS SHOW FOR DRAFTS */}
+                          {isDraft && (
+                            <button className="icon-btn publish"
                               onClick={() => {
                                 setSelectedMinute(minute);
                                 setShowPublishConfirm(true);
                               }}
-                              title="Publish Minutes"
-                            >
+                              title="Publish Minutes">
                               <Send size={16} />
                             </button>
                           )}
                           
-                          {/* Delete Button - Only for authorized users */}
-                          {canEdit && (
-                            <button 
-                              className="icon-btn delete"
-                              onClick={() => {
-                                setSelectedMinute(minute);
-                                setShowDeleteConfirm(true);
-                              }}
-                              title="Delete Minutes"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                          {/* Delete Button - ALWAYS SHOW */}
+                          <button className="icon-btn delete"
+                            onClick={() => {
+                              setSelectedMinute(minute);
+                              setShowDeleteConfirm(true);
+                            }}
+                            title="Delete Minutes">
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -409,20 +397,6 @@ export default function MinutesList() {
           margin: 4px 0 0;
           font-size: 14px;
           color: #64748b;
-        }
-
-        .create-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: #1a1a1a;
-          color: white;
-          border: none;
-          border-radius: 12px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
         }
 
         .stats-grid {
@@ -606,6 +580,13 @@ export default function MinutesList() {
           gap: 8px;
         }
 
+        /* FORCE BUTTONS TO BE VISIBLE */
+        .card-actions button {
+          display: flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+
         .icon-btn {
           width: 32px;
           height: 32px;
@@ -766,6 +747,22 @@ export default function MinutesList() {
           .page-header { flex-direction: column; align-items: flex-start; }
           .card-actions { opacity: 1; }
         }
+          /* OVERRIDE - Make minutes card actions always visible */
+.minutes-card .card-actions {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.minutes-card .card-actions button {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+
+/* Also make sure they show without hover */
+.minutes-card:hover .card-actions {
+  opacity: 1 !important;
+}
       `}</style>
     </div>
   );

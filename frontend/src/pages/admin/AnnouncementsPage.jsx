@@ -663,10 +663,10 @@ export default function AdminAnnouncements() {
         <AdminSchedules />
       )}
 
-      {/* MINUTES TAB CONTENT */}
+    {/* MINUTES TAB CONTENT */}
 {activeTab === "minutes" && (
   <div className="minutes-tab-content">
-    <MinutesList />
+    <MinutesList userRole="secretary" />
   </div>
 )}
 

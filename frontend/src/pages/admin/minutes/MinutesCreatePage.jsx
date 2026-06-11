@@ -131,8 +131,8 @@ export default function MinutesCreatePage() {
         adjournment: formData.adjournment
       };
 
-      await api.post('/api/minutes', submitData, { headers });
-      navigate('/admin/minutes');
+     await api.post('/api/minutes', submitData, { headers });
+navigate(-1); // Go back to secretary dashboard
     } catch (error) {
       console.error('Error creating minutes:', error);
     } finally {
@@ -145,9 +145,9 @@ export default function MinutesCreatePage() {
     return (
       <div className="create-minutes-page">
         <div className="page-header">
-          <button className="back-btn" onClick={() => navigate('/admin/minutes')}>
-            <ArrowLeft size={18} /> Back to Minutes
-          </button>
+         <button className="back-btn" onClick={() => navigate(-1)}>
+  <ArrowLeft size={18} /> Back to Minutes
+</button>
           <h1>Create Meeting Minutes</h1>
         </div>
         <div className="loading-container">
@@ -176,7 +176,7 @@ export default function MinutesCreatePage() {
     return (
       <div className="create-minutes-page">
         <div className="page-header">
-          <button className="back-btn" onClick={() => navigate('/admin/minutes')}>
+          <button className="back-btn" onClick={() => navigate(-1)}>
             <ArrowLeft size={18} /> Back to Minutes
           </button>
           <h1>Create Meeting Minutes</h1>
@@ -562,7 +562,7 @@ export default function MinutesCreatePage() {
           </div>
 
           <div className="form-actions">
-            <button className="cancel-btn" onClick={() => navigate('/admin/minutes')}>Cancel</button>
+            <button className="cancel-btn" onClick={() => navigate(-1)}>Cancel</button>
             <button className="submit-btn" onClick={handleSubmit} disabled={loading}>
               {loading ? 'Creating...' : 'Create Minutes'}
             </button>

@@ -316,7 +316,7 @@ export default function MinutesViewPage() {
       <div className="minutes-view-page">
         <div className="error-container">
           <p>Minutes not found</p>
-          <button onClick={() => navigate('/admin/minutes')} className="back-btn">Back to Minutes</button>
+          <button onClick={() => navigate(-1)} className="back-btn">Back to Minutes</button>
         </div>
       </div>
     );
@@ -333,7 +333,7 @@ export default function MinutesViewPage() {
   return (
     <div className="minutes-view-page">
       <div className="action-bar no-print">
-        <button className="back-btn" onClick={() => navigate('/admin/minutes')}>
+        <button className="back-btn" onClick={() => navigate(-1)}>
           <ArrowLeft size={18} /> Back to Minutes
         </button>
         <div className="action-buttons">

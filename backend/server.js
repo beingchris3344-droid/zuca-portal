@@ -5863,6 +5863,10 @@ app.use("/", mpesaRoutes); // For the /pay/:slug route
 const aiRoutes = require("./routes/ai");
 app.use("/api", aiRoutes);
 
+// Attendance registrations
+const attendanceRoutes = require("./routes/attendanceRoutes");
+app.use("/api/attendance", attendanceRoutes);
+
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
 
@@ -11808,9 +11812,7 @@ global.io = io;
 global.prisma = prisma;
 
 
-// Attendance registrations
-const attendanceRoutes = require("./routes/attendanceRoutes");
-app.use("/api/attendance", attendanceRoutes);
+
 
 // ============================================
 // THIRD: Define Express routes

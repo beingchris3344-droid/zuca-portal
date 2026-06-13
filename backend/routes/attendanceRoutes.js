@@ -12,6 +12,50 @@ const createAndSendNotification = global.createAndSendNotification || (async () 
   return null;
 });
 
+router.get("/scan/verify/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const qrToken = await prisma.qRCodeToken.findFirst({
+      where: { 
+        token: token, 
+        expiresAt: { gt: new Date() }
+      },
+      include: { 
+        sheet: {
+          select: {
+            id: true,
+            title: true,
+            eventDate: true,
+            eventTime: true,
+            location: true,
+            isActive: true
+          }
+        }
+      }
+    });
+    
+    if (!qrToken) {
+      return res.status(404).json({ error: "Invalid or expired QR code" });
+    }
+    
+    if (!qrToken.sheet.isActive) {
+      return res.status(400).json({ error: "Meeting has been closed" });
+    }
+    
+    res.json({ 
+      success: true, 
+      sheetId: qrToken.sheetId,
+      sheet: qrToken.sheet,
+      token: qrToken.token
+    });
+    
+  } catch (err) {
+    console.error("Verify scan error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Generate QR code for a sheet (admin only)
 router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {
@@ -25,12 +69,10 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
       return res.status(404).json({ error: "Sheet not found" });
     }
     
-    // Check if sheet is active or reopened
     if (!sheet.isActive) {
       return res.status(400).json({ error: "Sheet is closed. Reopen it to generate QR code." });
     }
     
-    // Find or create QR token
     let qrToken = await prisma.qRCodeToken.findFirst({
       where: { 
         sheetId: sheetId,
@@ -39,41 +81,31 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
     });
     
     if (!qrToken) {
-  const qrTokenValue = crypto.randomBytes(32).toString('hex');
-  // Set expiry to 30 days from now
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + 30);
-  
-  qrToken = await prisma.qRCodeToken.create({
-    data: {
-      token: qrTokenValue,
-      sheetId: sheetId,
-      expiresAt: expiryDate,
-      createdBy: req.user.userId
+      const qrTokenValue = crypto.randomBytes(32).toString('hex');
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+      
+      qrToken = await prisma.qRCodeToken.create({
+        data: {
+          token: qrTokenValue,
+          sheetId: sheetId,
+          expiresAt: expiryDate,
+          createdBy: req.user.userId
+        }
+      });
     }
-  });
-  console.log("✅ Created new QR token, expires:", expiryDate);
-}
     
-    // Create QR data payload
-    const qrData = JSON.stringify({
-      type: 'attendance_checkin',
-      token: qrToken.token,
-      sheetId: sheetId,
-      meeting: sheet.title,
-      venue: sheet.location || 'ZUCA',
-      date: sheet.eventDate
-    });
+    const baseUrl = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const scanUrl = `${baseUrl}/scan/${qrToken.token}`;
     
-    // Generate QR code as base64
     const QRCode = require('qrcode');
-    const qrCodeUrl = await QRCode.toDataURL(qrData);
+    const qrCodeUrl = await QRCode.toDataURL(scanUrl);
     
     res.json({ 
       success: true, 
       qrCodeUrl,
-      qrData,
       token: qrToken.token,
+      scanUrl: scanUrl,
       expiresAt: qrToken.expiresAt,
       sheet: {
         id: sheet.id,
@@ -87,6 +119,8 @@ router.get("/sheet/:sheetId/qr", authenticate, requireLeaderOrAdmin, async (req,
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 // QR Code check-in endpoint - OPTIMIZED FOR SPEED
 router.post("/qr-checkin", authenticate, async (req, res) => {

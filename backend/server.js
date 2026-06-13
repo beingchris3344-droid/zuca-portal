@@ -43,6 +43,41 @@ async function getNextMembershipNumber() {
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
+// ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================
+// Put these BEFORE your authenticate middleware!
+
+// Debug: Check Kenyan time (public - no token needed)
+app.get("/api/debug/kenyan-time", (req, res) => {
+  const now = new Date();
+  const kenyanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }));
+  
+  res.json({
+    success: true,
+    kenyanTime: kenyanTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }),
+    isoString: now.toISOString(),
+    serverTime: now.toString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+  });
+});
+
+// Debug: Simple health check (public)
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// ================== KENYAN TIME HELPER (ADD THIS) ==================
+const KENYA_TIMEZONE = 'Africa/Nairobi'; // UTC+3
+
+// Helper: Get current Kenyan time
+function getKenyanTime() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: KENYA_TIMEZONE }));
+}
+
+// Helper: Convert any date to Kenyan time
+function toKenyanTime(date) {
+  return new Date(date.toLocaleString('en-US', { timeZone: KENYA_TIMEZONE }));
+}
+
 // ================== RESET ATTEMPTS ==================
 const resetAttempts = new Map();
 
@@ -13820,19 +13855,23 @@ function getNotificationMessage(event, timing) {
 // Helper function to create scheduled notifications for an event (OPTIMIZED)
 async function createEventNotifications(event, scheduleId) {
   try {
+    // ✅ Use the date as-is (no conversion needed)
     const eventDate = new Date(event.eventDate);
     const eventTime = event.eventTime || "16:30";
     const [hours, minutes] = eventTime.split(":");
     
-    // Create a UTC-based datetime to avoid timezone issues
-    const eventDateTime = new Date(Date.UTC(
-      eventDate.getUTCFullYear(),
-      eventDate.getUTCMonth(),
-      eventDate.getUTCDate(),
+    // Create datetime using local components
+    const eventDateTime = new Date(
+      eventDate.getFullYear(),
+      eventDate.getMonth(),
+      eventDate.getDate(),
       parseInt(hours),
       parseInt(minutes),
       0
-    ));
+    );
+    
+    console.log(`📅 Event: ${event.title}`);
+    console.log(`   Correct Kenyan Time: ${eventDateTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
     
     const notificationTimings = [
       { daysBefore: 7, label: "1 week before", priority: "normal" },
@@ -13844,26 +13883,26 @@ async function createEventNotifications(event, scheduleId) {
       { hoursBefore: 0.5, label: "30 minutes before", priority: "urgent" }
     ];
     
-    const now = new Date();
+    const now = new Date(); // ← Use regular Date, not getKenyanTime()
     
     for (const timing of notificationTimings) {
-      let notifyAt;
+      let notifyAt = new Date(eventDateTime);
       
       if (timing.daysBefore !== undefined) {
-        notifyAt = new Date(eventDateTime);
-        notifyAt.setUTCDate(notifyAt.getUTCDate() - timing.daysBefore);
+        notifyAt.setDate(notifyAt.getDate() - timing.daysBefore);
       } else {
-        notifyAt = new Date(eventDateTime);
-        notifyAt.setUTCHours(notifyAt.getUTCHours() - timing.hoursBefore);
+        notifyAt.setHours(notifyAt.getHours() - timing.hoursBefore);
       }
       
       // Only create future notifications
-      if (notifyAt && notifyAt > now) {
-        // Check if notification already exists to avoid duplicates
+      if (notifyAt > now) {
         const existing = await prisma.scheduledNotification.findFirst({
           where: { 
             eventId: event.id, 
-            notifyAt: notifyAt 
+            notifyAt: {
+              gte: new Date(notifyAt.setHours(0,0,0)),
+              lt: new Date(notifyAt.setHours(23,59,59))
+            }
           }
         });
         
@@ -13879,13 +13918,13 @@ async function createEventNotifications(event, scheduleId) {
               isSent: false
             }
           });
-          console.log(`✅ Created ${timing.label} notification for ${event.title} at ${notifyAt.toISOString()}`);
+          console.log(`✅ Created ${timing.label} for ${notifyAt.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
         }
       }
     }
     console.log(`✅ Created all notifications for event: ${event.title}`);
   } catch (err) {
-    console.error(`❌ Error creating notifications for event ${event.title}:`, err.message);
+    console.error(`❌ Error:`, err.message);
   }
 }
 
@@ -14528,7 +14567,9 @@ app.delete("/api/admin/schedules/:id", authenticate, async (req, res) => {
 app.post("/api/schedules/check-notifications", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const now = new Date();
+    const now = getKenyanTime();
+    
+    console.log(`🔍 Checking at Kenyan time: ${now.toLocaleString('en-US', { timeZone: KENYA_TIMEZONE })}`);
     
     const pendingNotifications = await prisma.scheduledNotification.findMany({
       where: {
@@ -14544,13 +14585,18 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
       }
     });
     
+    console.log(`📬 Found ${pendingNotifications.length} pending`);
+    
     const notificationsSent = [];
     
     for (const notification of pendingNotifications) {
-      // Check if user already received this specific notification
       const alreadyReceived = await prisma.notification.findFirst({
         where: {
           userId: userId,
+          type: "event_reminder",
+          createdAt: {
+            gte: new Date(now.setHours(0,0,0))
+          },
           data: { 
             path: ['notificationId'], 
             equals: notification.id 
@@ -14559,7 +14605,6 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
       });
       
       if (!alreadyReceived) {
-        // Send push notification
         await createAndSendNotification({
           userId: userId,
           type: "event_reminder",
@@ -14573,30 +14618,30 @@ app.post("/api/schedules/check-notifications", authenticate, async (req, res) =>
           }
         });
         
-        // CRITICAL FIX: Mark this scheduled notification as sent
         await prisma.scheduledNotification.update({
           where: { id: notification.id },
           data: { 
             isSent: true,
-            sentAt: new Date()
+            sentAt: now
           }
         });
         
         notificationsSent.push(notification);
-        console.log(`✅ Sent notification ${notification.id} to user ${userId}`);
       }
     }
     
     res.json({ 
       success: true, 
       newNotifications: notificationsSent.length,
-      notifications: notificationsSent 
+      kenyanTime: now.toLocaleString('en-US', { timeZone: KENYA_TIMEZONE })
     });
   } catch (err) {
-    console.error("Error checking notifications:", err);
+    console.error("Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 // Get upcoming events for current user
 app.get("/api/schedules/my-upcoming-events", authenticate, async (req, res) => {

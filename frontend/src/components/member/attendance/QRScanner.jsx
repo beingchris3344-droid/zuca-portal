@@ -110,38 +110,50 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
     
     try {
-      let qrData;
+      let token;
+      let scannedSheetId;
+      
+      // Try to parse as JSON first (old format)
       try {
-        qrData = JSON.parse(decodedText);
+        const qrData = JSON.parse(decodedText);
+        if (qrData.type === 'attendance_checkin') {
+          token = qrData.token;
+          scannedSheetId = qrData.sheetId;
+        } else {
+          throw new Error('Not attendance QR');
+        }
       } catch (e) {
-        setError('Invalid QR code format');
-        isProcessing.current = false;
-        if (scannerRef.current && mountedRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
+        // Not JSON - treat as URL (new format)
+        const urlMatch = decodedText.match(/\/scan\/([a-f0-9]+)/);
+        if (urlMatch && urlMatch[1]) {
+          token = urlMatch[1];
+        } else {
+          setError('Invalid QR code format');
+          isProcessing.current = false;
+          if (scannerRef.current && mountedRef.current) {
+            await scannerRef.current.resume();
+            setIsScanning(true);
+          }
+          return;
         }
-        return;
       }
-      
-      if (qrData.type !== 'attendance_checkin') {
-        setError('Not a valid attendance QR code');
-        isProcessing.current = false;
-        if (scannerRef.current && mountedRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
-        }
-        return;
-      }
-      
-      const scannedSheetId = qrData.sheetId;
       
       // Offline mode
       if (isOffline) {
-        const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
-        if (saved) {
-          handleSuccess({ offline: true, message: '✓ Saved offline!' });
+        if (scannedSheetId) {
+          const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
+          if (saved) {
+            handleSuccess({ offline: true, message: '✓ Saved offline!' });
+          } else {
+            setError('Failed to save offline check-in');
+            isProcessing.current = false;
+            if (scannerRef.current && mountedRef.current) {
+              await scannerRef.current.resume();
+              setIsScanning(true);
+            }
+          }
         } else {
-          setError('Failed to save offline check-in');
+          setError('Offline check-in not supported for this QR type');
           isProcessing.current = false;
           if (scannerRef.current && mountedRef.current) {
             await scannerRef.current.resume();
@@ -157,7 +169,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       
       try {
         const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
-          token: qrData.token,
+          token: token,
           deviceId: getDeviceId(),
           deviceName: getDeviceName()
         }, {

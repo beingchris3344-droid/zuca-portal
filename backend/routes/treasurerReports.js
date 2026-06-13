@@ -13,6 +13,64 @@ async function isTreasurerOrAdmin(userId) {
   return user?.role === "admin" || user?.specialRole === "treasurer";
 }
 
+// Helper: Log all ledger actions for audit trail
+async function logAuditAction(transactionId, action, oldData, newData, userId, userName, req) {
+  try {
+    // Calculate what changed (for UPDATE actions)
+    let changedFields = null;
+    if (action === "UPDATE" && oldData && newData) {
+      const fields = ['amount', 'description', 'category', 'type', 'date', 'reference', 'notes'];
+      changedFields = [];
+      
+      fields.forEach(field => {
+        let oldValue = oldData[field];
+        let newValue = newData[field];
+        
+        // Handle date objects specially
+        if (field === 'date' && oldValue && newValue) {
+          oldValue = new Date(oldValue).toISOString().split('T')[0];
+          newValue = new Date(newValue).toISOString().split('T')[0];
+        }
+        
+        if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+          changedFields.push({
+            field: field,
+            oldValue: oldValue,
+            newValue: newValue
+          });
+        }
+      });
+      
+      if (changedFields.length === 0) changedFields = null;
+    }
+    
+    // Get IP address
+    const ipAddress = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || null;
+    const userAgent = req.headers['user-agent'] || null;
+    
+    // Create audit log
+    await prisma.treasurerAuditLog.create({
+      data: {
+        transactionId: transactionId,
+        action: action,
+        oldData: oldData,
+        newData: newData,
+        changedFields: changedFields,
+        performedBy: userId,
+        performedByName: userName,
+        ipAddress: ipAddress,
+        userAgent: userAgent,
+        timestamp: new Date()
+      }
+    });
+    
+    console.log(`✅ Audit log created: ${action} on transaction ${transactionId} by ${userName}`);
+  } catch (err) {
+    console.error("❌ Failed to create audit log:", err);
+    // Don't throw - audit logging shouldn't break the main operation
+  }
+}
+
 // ==================== 1. CAMPAIGN SUMMARY ====================
 router.get("/campaign-summary", authenticate, async (req, res) => {
   try {
@@ -223,7 +281,8 @@ router.get("/member-summary", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// ==================== 3. LEDGER TRANSACTIONS ====================
+
+// ==================== 3. LEDGER TRANSACTIONS (FIXED) ====================
 router.get("/ledger", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -252,28 +311,38 @@ router.get("/ledger", authenticate, async (req, res) => {
     
     const transactions = await prisma.treasurerTransaction.findMany({
       where: whereClause,
-      orderBy: { date: "desc" },
+      orderBy: { date: "asc" },
       include: {
         user: { select: { id: true, fullName: true } }
       }
     });
     
-    // Calculate running balance (oldest to newest)
+    // Calculate running balance correctly (oldest to newest)
     let balance = 0;
-    const transactionsWithBalance = [...transactions].reverse().map(t => {
-      if (t.type === "IN") balance += t.amount;
-      else balance -= t.amount;
-      return { ...t, runningBalance: balance };
-    }).reverse();
+    const transactionsWithBalance = transactions.map(t => {
+      if (t.type === "IN") {
+        balance += Number(t.amount);
+      } else if (t.type === "OUT") {
+        balance -= Number(t.amount);
+      }
+      return { 
+        ...t, 
+        runningBalance: balance,
+        amount: Number(t.amount)
+      };
+    });
+    
+    // Reverse for display (newest first)
+    const transactionsNewestFirst = transactionsWithBalance.reverse();
     
     // Calculate totals
     const totalIn = transactions
       .filter(t => t.type === "IN")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const totalOut = transactions
       .filter(t => t.type === "OUT")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
     
     // Group by category
     const byCategory = {};
@@ -281,13 +350,13 @@ router.get("/ledger", authenticate, async (req, res) => {
       if (!byCategory[t.category]) {
         byCategory[t.category] = { in: 0, out: 0 };
       }
-      if (t.type === "IN") byCategory[t.category].in += t.amount;
-      else byCategory[t.category].out += t.amount;
+      if (t.type === "IN") byCategory[t.category].in += Number(t.amount);
+      else byCategory[t.category].out += Number(t.amount);
     });
     
     res.json({
       success: true,
-      transactions: transactionsWithBalance,
+      transactions: transactionsNewestFirst,
       summary: {
         totalIn,
         totalOut,
@@ -303,10 +372,11 @@ router.get("/ledger", authenticate, async (req, res) => {
   }
 });
 
-// ==================== 4. CREATE LEDGER TRANSACTION ====================
+// ==================== 4. CREATE LEDGER TRANSACTION (WITH AUDIT) ====================
 router.post("/ledger", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const userName = req.user.fullName || req.user.email || "Unknown";
     const isAuthorized = await isTreasurerOrAdmin(userId);
     
     if (!isAuthorized) {
@@ -339,6 +409,9 @@ router.post("/ledger", authenticate, async (req, res) => {
       }
     });
     
+    // 🔒 AUDIT: Log the creation
+    await logAuditAction(transaction.id, "CREATE", null, transaction, userId, userName, req);
+    
     res.status(201).json({ success: true, transaction });
     
   } catch (err) {
@@ -347,11 +420,12 @@ router.post("/ledger", authenticate, async (req, res) => {
   }
 });
 
-// ==================== 5. UPDATE LEDGER TRANSACTION ====================
+// ==================== 5. UPDATE LEDGER TRANSACTION (WITH AUDIT) ====================
 router.put("/ledger/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userName = req.user.fullName || req.user.email || "Unknown";
     const isAuthorized = await isTreasurerOrAdmin(userId);
     
     if (!isAuthorized) {
@@ -360,14 +434,28 @@ router.put("/ledger/:id", authenticate, async (req, res) => {
     
     const { date, description, category, type, amount, reference, notes } = req.body;
     
-    const existingTransaction = await prisma.treasurerTransaction.findUnique({
+    // Get OLD data BEFORE update
+    const oldTransaction = await prisma.treasurerTransaction.findUnique({
       where: { id }
     });
     
-    if (!existingTransaction) {
+    if (!oldTransaction) {
       return res.status(404).json({ error: "Transaction not found" });
     }
     
+    // Create snapshot of old data
+    const oldDataSnapshot = {
+      id: oldTransaction.id,
+      date: oldTransaction.date,
+      description: oldTransaction.description,
+      category: oldTransaction.category,
+      type: oldTransaction.type,
+      amount: oldTransaction.amount,
+      reference: oldTransaction.reference,
+      notes: oldTransaction.notes
+    };
+    
+    // Perform update
     const transaction = await prisma.treasurerTransaction.update({
       where: { id },
       data: {
@@ -385,6 +473,21 @@ router.put("/ledger/:id", authenticate, async (req, res) => {
       }
     });
     
+    // Create snapshot of new data
+    const newDataSnapshot = {
+      id: transaction.id,
+      date: transaction.date,
+      description: transaction.description,
+      category: transaction.category,
+      type: transaction.type,
+      amount: transaction.amount,
+      reference: transaction.reference,
+      notes: transaction.notes
+    };
+    
+    // 🔒 AUDIT: Log the update with before/after
+    await logAuditAction(id, "UPDATE", oldDataSnapshot, newDataSnapshot, userId, userName, req);
+    
     res.json({ success: true, transaction });
     
   } catch (err) {
@@ -393,28 +496,46 @@ router.put("/ledger/:id", authenticate, async (req, res) => {
   }
 });
 
-// ==================== 6. DELETE LEDGER TRANSACTION ====================
+// ==================== 6. DELETE LEDGER TRANSACTION (WITH AUDIT) ====================
 router.delete("/ledger/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userName = req.user.fullName || req.user.email || "Unknown";
     const isAuthorized = await isTreasurerOrAdmin(userId);
     
     if (!isAuthorized) {
       return res.status(403).json({ error: "Not authorized" });
     }
     
-    const existingTransaction = await prisma.treasurerTransaction.findUnique({
+    // Get transaction BEFORE deleting
+    const oldTransaction = await prisma.treasurerTransaction.findUnique({
       where: { id }
     });
     
-    if (!existingTransaction) {
+    if (!oldTransaction) {
       return res.status(404).json({ error: "Transaction not found" });
     }
     
+    // Create snapshot of deleted data
+    const deletedDataSnapshot = {
+      id: oldTransaction.id,
+      date: oldTransaction.date,
+      description: oldTransaction.description,
+      category: oldTransaction.category,
+      type: oldTransaction.type,
+      amount: oldTransaction.amount,
+      reference: oldTransaction.reference,
+      notes: oldTransaction.notes
+    };
+    
+    // Delete the transaction
     await prisma.treasurerTransaction.delete({
       where: { id }
     });
+    
+    // 🔒 AUDIT: Log the deletion
+    await logAuditAction(id, "DELETE", deletedDataSnapshot, null, userId, userName, req);
     
     res.json({ success: true, message: "Transaction deleted" });
     
@@ -505,6 +626,37 @@ router.get("/dashboard-summary", authenticate, async (req, res) => {
     
   } catch (err) {
     console.error("Error fetching dashboard summary:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== 8. GET AUDIT TRAIL ====================
+router.get("/audit-trail", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const isAuthorized = await isTreasurerOrAdmin(userId);
+    
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    const { limit = 100, transactionId } = req.query;
+    
+    let whereClause = {};
+    if (transactionId) {
+      whereClause.transactionId = transactionId;
+    }
+    
+    const auditLogs = await prisma.treasurerAuditLog.findMany({
+      where: whereClause,
+      orderBy: { timestamp: "desc" },
+      take: parseInt(limit)
+    });
+    
+    res.json({ success: true, auditLogs });
+    
+  } catch (err) {
+    console.error("Error fetching audit trail:", err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -66,7 +66,7 @@ async function login() {
   // Try different credentials
   const loginAttempts = [
     { email: "zucaportal2025@gmail.com", password: "adminzuca", role: "admin" },
-    { email: "treasurer@zuca.com", password: "treasurer123", role: "treasurer" }
+    { email: "munioteresia21@gmail.com", password: "treasurerZ#006", role: "treasurer" }
   ];
   
   for (const attempt of loginAttempts) {

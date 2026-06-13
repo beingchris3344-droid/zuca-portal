@@ -1679,3 +1679,34 @@ model TreasurerTransaction {
   @@index([createdBy])
   @@map("treasurer_transactions")
 }
+
+// Add this AFTER the TreasurerTransaction model
+model TreasurerAuditLog {
+  id              String   @id @default(uuid())
+  transactionId   String   // The transaction that was changed
+  action          String   // "CREATE", "UPDATE", "DELETE"
+  
+  // Store BEFORE and AFTER snapshots
+  oldData         Json?    // Complete transaction data before change
+  newData         Json?    // Complete transaction data after change
+  
+  // Track exactly what changed (for UPDATE actions)
+  changedFields   Json?    // Example: [{"field":"amount","old":50000,"new":55000}]
+  
+  // Who did it
+  performedBy     String   // User ID
+  performedByName String   // User name for display
+  
+  // Where from
+  ipAddress       String?
+  userAgent       String?
+  
+  // When
+  timestamp       DateTime @default(now())
+  
+  @@index([transactionId])
+  @@index([performedBy])
+  @@index([action])
+  @@index([timestamp])
+  @@map("treasurer_audit_logs")
+}

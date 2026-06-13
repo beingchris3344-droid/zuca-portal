@@ -162,7 +162,7 @@ export default function TreasurerNotes() {
   // List View
   if (view === 'list') {
     return (
-      <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px', marginTop: '60px' }}>
+      <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px', marginTop: '0px' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>

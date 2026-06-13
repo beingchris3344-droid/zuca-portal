@@ -1159,9 +1159,12 @@ useEffect(() => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
       className="contributions-page"
+      
     >
+      
       {/* Background Image with Overlay */}
       <div className="background" style={{ backgroundImage: `url(${backgroundImg})` }} />
+      
       <div className="background-overlay" />
 
       {/* Notification */}
@@ -1221,22 +1224,7 @@ useEffect(() => {
   📝 Notes& Calculator
 </button>
 
-     <button 
-  onClick={() => navigate('/treasurer/reports')}
-  style={{
-    padding: '10px 20px',
-    background: '#36ad26',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-        fontWeight: 'bold',
-
-    cursor: 'pointer'
-  }}
->
-  📃 Reports
-</button>
-
+    
           {/* Export Button with Dropdown */}
           <div className="export-dropdown" ref={exportMenuRef}>
             <button 
@@ -1332,6 +1320,7 @@ useEffect(() => {
                     <button className="export-confirm-btn" onClick={handleExport}>
                       Export Now
                     </button>
+                    
                   </div>
                 </motion.div>
               )}
@@ -1339,6 +1328,8 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+    
 
       {/* Stats Grid */}
       <div className="stats-grid">
@@ -1349,6 +1340,25 @@ useEffect(() => {
             <span className="stat-label">Campaigns</span>
           </div>
         </div>
+           <button 
+  onClick={() => navigate('/treasurer/reports')}
+  style={{
+    padding: '10px 20px',
+    background: '#36ad26',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+        fontWeight: 'bold',
+        marginbottom: '90px',
+
+    cursor: 'pointer'
+  }}
+>
+  📃 <p1>For Reports?</p1>      
+ 🫵 <p2 >(press here)</p2>
+  
+</button>
+
         <div className="stat-card">
           <span className="stat-icon">👥</span>
           <div>
@@ -1376,15 +1386,19 @@ useEffect(() => {
             <span className="stat-value">{summaryStats.completedCount}</span>
             <span className="stat-label">Completed</span>
           </div>
+          
         </div>
+        
         <div className="stat-card">
           <span className="stat-icon">💰</span>
           <div>
             <span className="stat-value">KES {summaryStats.totalCollected.toLocaleString()}</span>
             <span className="stat-label">Collected</span>
           </div>
+          
         </div>
       </div>
+      
 
 
       {/* Payment Link Modal */}
@@ -2175,7 +2189,7 @@ useEffect(() => {
     margin-top: 8px;
     width: 400px;
 
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 132px);
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
@@ -2317,7 +2331,7 @@ useEffect(() => {
   .stat-card {
     background: white;
     border-radius: 12px;
-    padding: 20px;
+    padding: 2px;
     display: flex;
     align-items: center;
     gap: 16px;

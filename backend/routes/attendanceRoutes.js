@@ -127,8 +127,8 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { token, deviceId, deviceName } = req.body;
-    const userId = req.user.userId;
+     const { token, deviceId, deviceName, userId: specifiedUserId } = req.body;
+    const userId = specifiedUserId || req.user.userId;
     
     console.log(`🔍 QR Scan - User: ${userId.substring(0,8)}...`);
     
@@ -254,10 +254,27 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
       }
     })();
     
-  } catch (err) {
-    console.error("QR check-in error:", err);
-    res.status(500).json({ error: err.message, code: "SERVER_ERROR" });
+ } catch (err) {
+  if (err.code === 'P2002' && err.meta?.target?.includes('deviceId')) {
+    const existingEntry = await prisma.attendanceEntry.findFirst({
+      where: { deviceId: req.body.deviceId },
+      include: { user: true }
+    });
+    const userName = existingEntry?.user?.fullName || 'someone';
+    return res.status(400).json({ 
+      error: `This device has already been used to check in ${userName}`,
+      code: "DEVICE_ALREADY_USED"
+    });
   }
+  if (err.code === 'P2002' && err.meta?.target?.includes('sheetId') && err.meta?.target?.includes('userId')) {
+    return res.status(400).json({ 
+      error: "Already checked in",
+      code: "ALREADY_CHECKED_IN"
+    });
+  }
+  console.error("QR check-in error:", err);
+  res.status(500).json({ error: "Check-in failed. Please try again.", code: "SERVER_ERROR" });
+}
 });
 // Get QR code status for a sheet
 router.get("/sheet/:sheetId/qr-status", authenticate, requireLeaderOrAdmin, async (req, res) => {

@@ -463,11 +463,22 @@ const sendSheetClosedNotification = async (sheetId) => {
       if (!sheet) return;
       
       let allMembers = [];
-      if (sheet.jumuiaId) {
+      
+      // ✅ FIX: Check for executive-team FIRST
+      if (sheet.jumuiaId === 'executive-team') {
+        // Executive meeting - only executives
+        const executives = await prisma.executive.findMany({
+          where: { isActive: true },
+          include: { user: true }
+        });
+        allMembers = executives.map(exec => exec.user);
+      } else if (sheet.jumuiaId) {
+        // Jumuia meeting - only that jumuia's members
         allMembers = await prisma.user.findMany({
           where: { jumuiaId: sheet.jumuiaId }
         });
       } else {
+        // Global meeting - everyone
         allMembers = await prisma.user.findMany();
       }
       
@@ -475,9 +486,15 @@ const sendSheetClosedNotification = async (sheetId) => {
       const presentMembers = allMembers.filter(m => presentUserIds.has(m.id));
       const absentMembers = allMembers.filter(m => !presentUserIds.has(m.id));
       
+      // If no members (empty executive list, etc.), don't send notifications
+      if (allMembers.length === 0) {
+        console.log(`⚠️ No target members found for sheet ${sheet.id} - skipping notifications`);
+        return;
+      }
+      
       const meetingSummary = `Meeting: ${sheet.title}\nDate: ${new Date(sheet.eventDate).toLocaleString()}\nTotal Expected: ${allMembers.length}\nPresent: ${presentMembers.length}\nAbsent: ${absentMembers.length}\nAttendance Rate: ${((presentMembers.length / allMembers.length) * 100).toFixed(1)}%`;
       
-      // 1. Notify present members (thank you) - BATCHED
+      // 1. Notify present members (thank you)
       const BATCH_SIZE = 20;
       for (let i = 0; i < presentMembers.length; i += BATCH_SIZE) {
         const batch = presentMembers.slice(i, i + BATCH_SIZE);
@@ -494,14 +511,13 @@ const sendSheetClosedNotification = async (sheetId) => {
         );
       }
       
-      // 2. Notify absent members with role-based messages - BATCHED + FIRE-AND-FORGET
+      // 2. Notify absent members
       for (let i = 0; i < absentMembers.length; i += BATCH_SIZE) {
         const batch = absentMembers.slice(i, i + BATCH_SIZE);
         Promise.allSettled(
           batch.map(async (member) => {
             const tone = getMessageTone(member.role, member.specialRole);
             
-            // Notification - fire and forget
             createAndSendNotification({
               userId: member.id,
               type: "attendance_missed",
@@ -515,7 +531,6 @@ const sendSheetClosedNotification = async (sheetId) => {
               }
             }).catch(err => console.error(`Missed notif failed for ${member.id}:`, err.message));
             
-            // Send email - fire and forget (no await)
             if (member.email) {
               sendPersonalizedEmail(
                 { email: member.email, fullName: member.fullName },
@@ -551,7 +566,6 @@ Zetech University Catholic Action (ZUCA)`,
           data: { sheetId: sheet.id, summary: { present: presentMembers.length, absent: absentMembers.length, total: allMembers.length } }
         }).catch(err => console.error("Summary notif failed:", err.message));
         
-        // Send email report - fire and forget
         if (sheet.creator.email) {
           const absentList = absentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
           const presentList = presentMembers.map(m => `• ${m.fullName}${m.specialRole ? ` (${m.specialRole})` : ''}`).join('\n');
@@ -693,90 +707,93 @@ if (jumuiaId === 'executive-team') {
     res.status(201).json({ success: true, sheet });
     
     // ✅ SEND NOTIFICATIONS IN BACKGROUND (don't await)
-    (async () => {
-      try {
-        let targetUsers = [];
-        
-if (sheet.jumuiaId === null) {
-  // Executive meeting - notify all active executives
-  const executives = await prisma.executive.findMany({
-    where: { isActive: true },
-    select: { userId: true }
-  });
-  targetUsers = executives.map(exec => ({ id: exec.userId }));
-} else if (sheet.jumuiaId) {
-  targetUsers = await prisma.user.findMany({
-    where: { jumuiaId: sheet.jumuiaId },
-    select: { id: true }
-  });
-} else {
-  targetUsers = await prisma.user.findMany({
-    select: { id: true }
-  });
-}
-        
-        const meetingDate = new Date(sheet.eventDate).toLocaleDateString();
-        const meetingTime = sheet.eventTime || "TBD";
-        
-        // Send in batches
-        const batchSize = 50;
-        for (let i = 0; i < targetUsers.length; i += batchSize) {
-          const batch = targetUsers.slice(i, i + batchSize);
-          await Promise.allSettled(
-            batch.map(user => 
-              createAndSendNotification({
-                userId: user.id,
-                type: "attendance_sheet_opened",
-                title: `📋 Attendance Open: ${sheet.title}`,
-                message: `A new attendance sheet has been opened for "${sheet.title}" on ${meetingDate} at ${meetingTime} at ${sheet.location || "ZUCA"}. Please check in when you arrive.`,
-                data: { sheetId: sheet.id, title: sheet.title, eventDate: sheet.eventDate }
-              })
-            )
-          );
-        }
-        
-        console.log(`✅ Sent ${targetUsers.length} notifications for sheet opening: ${sheet.title}`);
-      } catch (err) {
-        console.error("Failed to send sheet notifications:", err.message);
-      }
-    })();
+   // INSIDE createAttendanceSheet - replace the background notification section
+(async () => {
+  try {
+    let targetUsers = [];
     
+    if (sheet.jumuiaId === 'executive-team') {
+      const executives = await prisma.executive.findMany({
+        where: { isActive: true },
+        select: { userId: true }
+      });
+      targetUsers = executives.map(exec => ({ id: exec.userId }));
+    } else if (sheet.jumuiaId) {
+      targetUsers = await prisma.user.findMany({
+        where: { jumuiaId: sheet.jumuiaId },
+        select: { id: true }
+      });
+    } else {
+      targetUsers = await prisma.user.findMany({ select: { id: true } });
+    }
+    
+    const meetingDate = new Date(sheet.eventDate).toLocaleDateString();
+    
+    for (const user of targetUsers) {
+      await createAndSendNotification({
+        userId: user.id,
+        type: "attendance_sheet_opened",
+        title: `📋 Attendance Open: ${sheet.title}`,
+        message: `Attendance sheet for "${sheet.title}" on ${meetingDate} is now open.`,
+        data: { sheetId: sheet.id }
+      });
+    }
+  } catch (err) {
+    console.error("Failed to send sheet notifications:", err.message);
+  }
+})();
   } catch (err) {
     console.error("Create attendance sheet error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 // Get active sheets (for members)
+// Get active sheets (for members)
 const getActiveSheets = async (req, res) => {
   try {
-    const sheets = await prisma.attendanceSheet.findMany({
+    const userId = req.user.userId;
+    
+    // Get user's info
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { jumuiaId: true, role: true, specialRole: true }
+    });
+    
+    // Check if user is executive
+    const isExecutive = await prisma.executive.findFirst({
+      where: { userId: userId, isActive: true }
+    });
+    
+    // Get all active sheets
+    const allSheets = await prisma.attendanceSheet.findMany({
       where: {
         isActive: true,
-        eventDate: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0))
-        }
+        eventDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
       },
-      include: {
-        _count: {
-          select: { entries: true }
-        }
-      },
+      include: { _count: { select: { entries: true } } },
       orderBy: { eventDate: "asc" }
     });
-
-    // Filter to ensure we only return sheets that are truly active
-    // Also filter out sheets where eventDate is in the past (more than 1 day ago)
-    const now = new Date();
-    const activeSheetsOnly = sheets.filter(sheet => {
-      // Check if sheet is active AND not too old
-      const eventDate = new Date(sheet.eventDate);
-      const daysSinceEvent = (now - eventDate) / (1000 * 60 * 60 * 24);
-      return sheet.isActive === true && daysSinceEvent <= 7; // Only show sheets from last 7 days
-    });
-
-    console.log(`📋 Found ${activeSheetsOnly.length} active sheets out of ${sheets.length} total`);
     
-    res.json({ success: true, sheets: activeSheetsOnly });
+    // Filter sheets based on user's access
+    const visibleSheets = allSheets.filter(sheet => {
+      // Executive sheet - only executives + admins + secretaries
+      if (sheet.jumuiaId === 'executive-team') {
+        return isExecutive || user.role === 'admin' || user.specialRole === 'secretary';
+      }
+      
+      // Jumuia sheet - only members of that Jumuia + admins + secretaries
+      if (sheet.jumuiaId && sheet.jumuiaId !== 'executive-team') {
+        return user.jumuiaId === sheet.jumuiaId || user.role === 'admin' || user.specialRole === 'secretary';
+      }
+      
+      // Global sheet (jumuiaId = null) - everyone can see
+      return true;
+    });
+    
+    console.log(`📋 User ${userId} can see ${visibleSheets.length} of ${allSheets.length} sheets`);
+    
+    res.json({ success: true, sheets: visibleSheets });
+    
   } catch (err) {
     console.error("Get active sheets error:", err);
     res.status(500).json({ error: err.message });

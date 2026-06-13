@@ -21,6 +21,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [redirectAfterLogin, setRedirectAfterLogin] = useState(null);
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [emailError, setEmailError] = useState("");
@@ -76,6 +77,13 @@ function Login() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  useEffect(() => {
+  const redirect = localStorage.getItem('redirectAfterLogin');
+  if (redirect) {
+    setRedirectAfterLogin(redirect);
+  }
+}, []);
 
   // CRITICAL: Check for saved session and AUTO-LOGIN
   useEffect(() => {

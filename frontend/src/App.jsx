@@ -52,6 +52,9 @@ import MemberAttendanceHistory from './pages/member/MemberAttendanceHistory';
 import LinkCheckin from './components/admin/attendance/LinkCheckin';
 import MinutesList from './pages/admin/minutes/MinutesList';
 import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
+import ScanPage from './pages/ScanPage';
+
+
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -408,6 +411,7 @@ useEffect(() => {
         <Route path="/payment-success" element={<PaymentSuccess />} />
         <Route path="/pay/campaign/:campaignId" element={<PaymentPage />} /> 
                   <Route path="/attendance/link/:token" element={<LinkCheckin />} />
+                  <Route path="/scan/:token" element={<ScanPage />} />
 
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}

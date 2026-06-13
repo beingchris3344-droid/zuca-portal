@@ -1209,15 +1209,32 @@ useEffect(() => {
           <button 
   onClick={() => navigate('/treasurer/notes')}
   style={{
-    padding: '10px 20px',
-    background: '#8b5cf6',
+    padding: '5px 5px',
+    background: '#f11a1a',
     color: 'white',
     border: 'none',
+    fontWeight: 'bold',
     borderRadius: '8px',
     cursor: 'pointer'
   }}
 >
-  📝 Notes & Calculator
+  📝 Notes& Calculator
+</button>
+
+     <button 
+  onClick={() => navigate('/treasurer/reports')}
+  style={{
+    padding: '10px 20px',
+    background: '#36ad26',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+        fontWeight: 'bold',
+
+    cursor: 'pointer'
+  }}
+>
+  📃 Reports
 </button>
 
           {/* Export Button with Dropdown */}
@@ -2051,7 +2068,7 @@ useEffect(() => {
     position: relative;
     margin-left: 0px;
 
-    margin-top: 50px;
+    margin-top: -20px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow-x: visible; /* Changed from overflow-y: auto to allow horizontal scroll if needed */
     background: #f4f4f475;

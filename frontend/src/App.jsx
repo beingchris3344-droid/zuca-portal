@@ -392,6 +392,8 @@ useEffect(() => {
     <>
       <Routes>
         <Route path="/treasurer/notes" element={<TreasurerNotes />} />
+                  <Route path="/treasurer/reports" element={<TreasurerReports />} />
+
         {/* ================= LANDING PAGE ================= */}
         <Route path="/" element={<Landing2 />} />
         

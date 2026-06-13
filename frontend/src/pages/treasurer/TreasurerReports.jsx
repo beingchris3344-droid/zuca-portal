@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
 import BASE_URL from "../../api";
 
 export default function TreasurerReports() {
@@ -12,6 +11,7 @@ export default function TreasurerReports() {
   const [transactions, setTransactions] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [members, setMembers] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
@@ -44,13 +44,17 @@ export default function TreasurerReports() {
     notes: ""
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [inAmount, setInAmount] = useState("");
+  const [outAmount, setOutAmount] = useState("");
+
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
   
-  const inCategories = ["Contributions", "Donations", "Fundraising", "Events", "Other Income"];
+  const inCategories = ["Contributions", "Registration", "Sponsors", "Events", "Other Income"];
   const outCategories = ["Choir Expenses", "Events", "Maintenance", "Supplies", "Other Expense"];
 
-  // Handle window resize
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
@@ -62,7 +66,6 @@ export default function TreasurerReports() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Fetch all data
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -97,6 +100,11 @@ export default function TreasurerReports() {
         });
       }
       
+      const auditRes = await axios.get(`${BASE_URL}/api/treasurer/audit-trail`, { headers });
+      if (auditRes.data.success) {
+        setAuditLogs(auditRes.data.auditLogs || []);
+      }
+      
       setLoading(false);
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -109,14 +117,13 @@ export default function TreasurerReports() {
     fetchData();
   }, []);
 
-  // Calculate running balance
   const getRunningBalance = () => {
     let balance = 0;
     return [...transactions]
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .map(t => {
-        if (t.type === "IN") balance += t.amount;
-        else balance -= t.amount;
+        if (t.type === "IN") balance += Number(t.amount);
+        else balance -= Number(t.amount);
         return { ...t, runningBalance: balance };
       });
   };
@@ -130,25 +137,35 @@ export default function TreasurerReports() {
     return true;
   });
 
-  const totalMoneyIn = filteredTransactions.filter(t => t.type === "IN").reduce((sum, t) => sum + t.amount, 0);
-  const totalMoneyOut = filteredTransactions.filter(t => t.type === "OUT").reduce((sum, t) => sum + t.amount, 0);
+  const totalMoneyIn = filteredTransactions.filter(t => t.type === "IN").reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalMoneyOut = filteredTransactions.filter(t => t.type === "OUT").reduce((sum, t) => sum + Number(t.amount), 0);
   const currentBalance = filteredTransactions.length > 0 ? filteredTransactions[filteredTransactions.length - 1].runningBalance : ledgerSummary.balance;
 
-  const campaignStats = campaigns.map(campaign => ({
-    id: campaign.id,
-    title: campaign.title,
-    target: campaign.target,
-    collected: campaign.collected,
-    pending: campaign.pending,
-    paidMembers: campaign.paidMembers,
-    totalMembers: campaign.totalMembers,
-    completion: campaign.completion,
-    status: campaign.status
-  }));
+  const handleAmountChange = (value) => {
+    if (newTransaction.type === "IN") {
+      setInAmount(value);
+      setNewTransaction({ ...newTransaction, amount: value });
+    } else {
+      setOutAmount(value);
+      setNewTransaction({ ...newTransaction, amount: value });
+    }
+  };
 
-  const grandTotalCollected = campaignStats.reduce((sum, c) => sum + c.collected, 0);
-  const grandTotalPending = campaignStats.reduce((sum, c) => sum + c.pending, 0);
-  const overallCompletion = campaignSummary.totalTarget > 0 ? (campaignSummary.totalCollected / campaignSummary.totalTarget) * 100 : 0;
+  const handleTypeChange = (type) => {
+    let amount = "";
+    if (type === "IN") {
+      amount = inAmount;
+    } else {
+      amount = outAmount;
+    }
+    
+    setNewTransaction({ 
+      ...newTransaction, 
+      type: type, 
+      category: type === "IN" ? inCategories[0] : outCategories[0],
+      amount: amount 
+    });
+  };
 
   const handleAddTransaction = async () => {
     if (!newTransaction.description || !newTransaction.amount || !newTransaction.category) {
@@ -156,35 +173,61 @@ export default function TreasurerReports() {
       return;
     }
 
+    const amountNum = parseFloat(newTransaction.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      showToast("Please enter a valid amount greater than 0", "error");
+      return;
+    }
+
+    setIsSaving(true);
+
     try {
-      const response = await axios.post(`${BASE_URL}/api/treasurer/ledger`, newTransaction, { headers });
+      const response = await axios.post(`${BASE_URL}/api/treasurer/ledger`, {
+        ...newTransaction,
+        amount: amountNum
+      }, { headers });
+      
       if (response.data.success) {
         await fetchData();
         setNewTransaction({
           date: new Date().toISOString().split('T')[0],
           description: "",
-          category: "",
-          type: "IN",
+          category: newTransaction.type === "IN" ? inCategories[0] : outCategories[0],
+          type: newTransaction.type,
           amount: "",
           reference: "",
           notes: ""
         });
+        setInAmount("");
+        setOutAmount("");
         setShowAddTransaction(false);
         showToast("Transaction added successfully");
       }
     } catch (err) {
       showToast(err.response?.data?.error || "Failed to add transaction", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleEditTransaction = (transaction) => {
     setEditingTransaction(transaction);
+    const amount = transaction.amount.toString();
+    
+    if (transaction.type === "IN") {
+      setInAmount(amount);
+      setOutAmount("");
+    } else {
+      setOutAmount(amount);
+      setInAmount("");
+    }
+    
     setNewTransaction({
       date: transaction.date.split('T')[0] || transaction.date,
       description: transaction.description,
       category: transaction.category,
       type: transaction.type,
-      amount: transaction.amount,
+      amount: amount,
       reference: transaction.reference || "",
       notes: transaction.notes || ""
     });
@@ -193,8 +236,20 @@ export default function TreasurerReports() {
 
   const handleUpdateTransaction = async () => {
     if (!editingTransaction) return;
+    
+    if (!newTransaction.amount || parseFloat(newTransaction.amount) <= 0) {
+      showToast("Please enter a valid amount", "error");
+      return;
+    }
+
+    setIsUpdating(true);
+    
     try {
-      const response = await axios.put(`${BASE_URL}/api/treasurer/ledger/${editingTransaction.id}`, newTransaction, { headers });
+      const response = await axios.put(`${BASE_URL}/api/treasurer/ledger/${editingTransaction.id}`, {
+        ...newTransaction,
+        amount: parseFloat(newTransaction.amount)
+      }, { headers });
+      
       if (response.data.success) {
         await fetchData();
         setEditingTransaction(null);
@@ -202,16 +257,20 @@ export default function TreasurerReports() {
         setNewTransaction({
           date: new Date().toISOString().split('T')[0],
           description: "",
-          category: "",
+          category: "Contributions",
           type: "IN",
           amount: "",
           reference: "",
           notes: ""
         });
+        setInAmount("");
+        setOutAmount("");
         showToast("Transaction updated successfully");
       }
     } catch (err) {
       showToast(err.response?.data?.error || "Failed to update transaction", "error");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -237,30 +296,30 @@ export default function TreasurerReports() {
 
   const exportLedger = () => {
     const exportData = filteredTransactions.map(t => ({
-      Date: new Date(t.date).toLocaleDateString(),
-      Description: t.description,
-      Category: t.category,
+      "Date": new Date(t.date).toLocaleDateString(),
+      "Description": t.description,
+      "Category": t.category,
       "Money IN": t.type === "IN" ? t.amount : "-",
       "Money OUT": t.type === "OUT" ? t.amount : "-",
-      Balance: t.runningBalance,
-      Reference: t.reference || ""
+      "Balance": t.runningBalance,
+      "Reference": t.reference || ""
     }));
     exportToExcel(exportData, `treasurer_ledger_${new Date().toISOString().split('T')[0]}`, "Ledger");
     showToast("Ledger exported successfully");
   };
 
   const exportCampaigns = () => {
-    const exportData = campaignStats.map(c => ({
-      Campaign: c.title,
-      "Target (KES)": c.target,
-      "Collected (KES)": c.collected,
-      "Pending (KES)": c.pending,
-      "Paid Members": c.paidMembers,
-      "Total Members": c.totalMembers,
-      "Completion %": c.completion?.toFixed(1) || 0,
-      Status: c.status
+    const campaignStats = campaigns.map(campaign => ({
+      Campaign: campaign.title,
+      "Target (KES)": campaign.target,
+      "Collected (KES)": campaign.collected,
+      "Pending (KES)": campaign.pending,
+      "Paid Members": campaign.paidMembers,
+      "Total Members": campaign.totalMembers,
+      "Completion %": campaign.completion?.toFixed(1) || 0,
+      Status: campaign.status
     }));
-    exportToExcel(exportData, `campaign_report_${new Date().toISOString().split('T')[0]}`, "Campaigns");
+    exportToExcel(campaignStats, `campaign_report_${new Date().toISOString().split('T')[0]}`, "Campaigns");
     showToast("Campaign report exported successfully");
   };
 
@@ -296,7 +355,6 @@ export default function TreasurerReports() {
         <p>Manage cash flow, track campaigns, and view member contributions</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card in">
           <div className="stat-icon">💰</div>
@@ -319,16 +377,8 @@ export default function TreasurerReports() {
             <span className="stat-label">Current Balance</span>
           </div>
         </div>
-        <div className="stat-card collected">
-          <div className="stat-icon">🎯</div>
-          <div className="stat-info">
-            <span className="stat-value">KES {grandTotalCollected.toLocaleString()}</span>
-            <span className="stat-label">Total Campaign Collections</span>
-          </div>
-        </div>
       </div>
 
-      {/* Tab Navigation */}
       <div className="tab-navigation">
         <button className={`tab-btn ${activeTab === "ledger" ? "active" : ""}`} onClick={() => setActiveTab("ledger")}>
           <span>📒</span>
@@ -336,7 +386,7 @@ export default function TreasurerReports() {
         </button>
         <button className={`tab-btn ${activeTab === "campaigns" ? "active" : ""}`} onClick={() => setActiveTab("campaigns")}>
           <span>📊</span>
-          <span>Campaign Summary</span>
+          <span>Activity & Audit Trail</span>
         </button>
         <button className={`tab-btn ${activeTab === "members" ? "active" : ""}`} onClick={() => setActiveTab("members")}>
           <span>👥</span>
@@ -362,7 +412,6 @@ export default function TreasurerReports() {
 
           <div className="ledger-table-container">
             {isMobile ? (
-              // Mobile Card View
               <div className="mobile-cards">
                 {filteredTransactions.length === 0 ? (
                   <div className="empty-row">No transactions found</div>
@@ -393,19 +442,9 @@ export default function TreasurerReports() {
                 )}
               </div>
             ) : (
-              // Desktop Table View
               <table className="ledger-table">
                 <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th>Money IN</th>
-                    <th>Money OUT</th>
-                    <th>Balance</th>
-                    <th>Reference</th>
-                    <th>Actions</th>
-                  </tr>
+                  <tr><th>Date</th><th>Description</th><th>Category</th><th>Money IN</th><th>Money OUT</th><th>Balance</th><th>Reference</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {filteredTransactions.length === 0 ? (
@@ -443,95 +482,133 @@ export default function TreasurerReports() {
         </div>
       )}
 
-      {/* CAMPAIGN TAB */}
+      {/* ACTIVITY & AUDIT TRAIL TAB (Formerly Campaign Summary) */}
       {activeTab === "campaigns" && (
-        <div className="campaigns-tab">
-          <div className="campaign-actions">
-            <button className="btn-export" onClick={exportCampaigns}>📎 Export Campaign Report</button>
+        <div className="audit-tab">
+          <div className="audit-header">
+            <h2>📝 Ledger Activity & Audit Trail</h2>
+            <p>Complete history of all transactions, edits, and deletions</p>
           </div>
 
-          <div className="campaign-summary-cards">
-            <div className="summary-card">
-              <span className="summary-value">{campaignSummary.totalCampaigns}</span>
-              <span className="summary-label">Total Campaigns</span>
+          {/* Overall Summary Card */}
+          <div className="overall-summary-card">
+            <h3>💰 Overall Financial Health</h3>
+            <div className="summary-stats">
+              <div className="stat-badge in">Total Money IN: KES {totalMoneyIn.toLocaleString()}</div>
+              <div className="stat-badge out">Total Money OUT: KES {totalMoneyOut.toLocaleString()}</div>
+              <div className="stat-badge balance">Current Balance: KES {currentBalance.toLocaleString()}</div>
             </div>
-            <div className="summary-card">
-              <span className="summary-value">KES {campaignSummary.totalCollected.toLocaleString()}</span>
-              <span className="summary-label">Total Collected</span>
-            </div>
-            <div className="summary-card">
-              <span className="summary-value">KES {campaignSummary.totalPending.toLocaleString()}</span>
-              <span className="summary-label">Total Pending</span>
-            </div>
-            <div className="summary-card">
-              <span className="summary-value">{overallCompletion.toFixed(1)}%</span>
-              <span className="summary-label">Overall Completion</span>
-            </div>
+            <p className="overall-text">
+              As of today, the treasury has received a total of <strong>KES {totalMoneyIn.toLocaleString()}</strong> in income 
+              and spent <strong>KES {totalMoneyOut.toLocaleString()}</strong> on expenses. 
+              The current available balance is <strong>KES {currentBalance.toLocaleString()}</strong>.
+              {totalMoneyIn > totalMoneyOut 
+                ? " 🎉 ZUCA is in a positive financial position." 
+                : " ⚠️ Expenses have exceeded income. Please review spending."}
+            </p>
           </div>
 
-          <div className="campaign-table-container">
-            {isMobile ? (
-              <div className="mobile-cards">
-                {campaignStats.map((c) => (
-                  <div key={c.id} className="campaign-mobile-card">
-                    <div className="campaign-title">{c.title}</div>
-                    <div className="campaign-stats">
-                      <div>🎯 Target: KES {c.target?.toLocaleString()}</div>
-                      <div className="amount-in">💰 Collected: KES {c.collected?.toLocaleString()}</div>
-                      <div className="amount-out">⏳ Pending: KES {c.pending?.toLocaleString()}</div>
-                      <div>👥 Paid Members: {c.paidMembers} / {c.totalMembers}</div>
-                    </div>
-                    <div className="progress-cell">
-                      <div className="progress-bar-small">
-                        <div className="progress-fill" style={{ width: `${c.completion}%` }}></div>
+          {/* Audit Trail - All Changes */}
+          <div className="audit-trail-card">
+            <h3>🔒 Audit Trail - Every Change Tracked</h3>
+            <p className="audit-warning">
+              ⚠️ Every create, edit, and delete operation is logged below. This prevents Inconveniences and maintains transparency.
+            </p>
+            
+            {auditLogs.length === 0 ? (
+              <div className="audit-empty">No changes recorded yet. Adding/editing transactions will appear here.</div>
+            ) : (
+              <div className="audit-timeline">
+                {auditLogs.map((log, index) => (
+                  <motion.div 
+                    key={log.id} 
+                    className={`audit-item audit-${log.action?.toLowerCase()}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                  >
+                    <div className="audit-header">
+                      <div className="audit-action">
+                        {log.action === "CREATE" && "➕ CREATED"}
+                        {log.action === "UPDATE" && "✏️ UPDATED"}
+                        {log.action === "DELETE" && "🗑️ DELETED"}
                       </div>
-                      <span>{c.completion?.toFixed(1)}%</span>
+                      <div className="audit-time">{new Date(log.timestamp).toLocaleString()}</div>
                     </div>
-                    <div className="status-container">
-                      <span className={`status-badge ${c.status?.toLowerCase().replace(" ", "-")}`}>{c.status}</span>
+                    
+                    <div className="audit-details">
+                      <div className="audit-performed-by">
+                        👤 By: <strong>{log.performedByName || "Unknown"}</strong>
+                        {log.ipAddress && <span className="audit-ip">📍 IP: {log.ipAddress}</span>}
+                      </div>
+                      
+                      {log.action === "CREATE" && log.newData && (
+                        <div className="audit-changes">
+                          <div className="change-highlight">
+                            Added new transaction: <strong>{log.newData.description}</strong>
+                          </div>
+                          <div className="change-details">
+                            Amount: KES {log.newData.amount?.toLocaleString()} | 
+                            Type: {log.newData.type} | 
+                            Category: {log.newData.category}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {log.action === "UPDATE" && log.changedFields && (
+                        <div className="audit-changes">
+                          <div className="change-warning">⚠️ Changes detected:</div>
+                          {log.changedFields.map((change, i) => (
+                            <div key={i} className="change-diff">
+                              <span className="field-name">{change.field}:</span>
+                              <span className="old-value">"{change.oldValue}"</span>
+                              <span className="arrow">→</span>
+                              <span className="new-value">"{change.newValue}"</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {log.action === "DELETE" && log.oldData && (
+                        <div className="audit-changes">
+                          <div className="change-critical">⚠️ DELETED TRANSACTION:</div>
+                          <div className="change-details">
+                            Description: {log.oldData.description}<br/>
+                            Amount: KES {log.oldData.amount?.toLocaleString()}<br/>
+                            Type: {log.oldData.type}<br/>
+                            Category: {log.oldData.category}<br/>
+                            Date: {log.oldData.date ? new Date(log.oldData.date).toLocaleDateString() : "Unknown"}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            ) : (
-              <table className="campaign-table">
-                <thead>
-                  <tr>
-                    <th>Campaign</th>
-                    <th>Target (KES)</th>
-                    <th>Collected (KES)</th>
-                    <th>Pending (KES)</th>
-                    <th>Paid Members</th>
-                    <th>Total Members</th>
-                    <th>Completion</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaignStats.map((c) => (
-                    <tr key={c.id}>
-                      <td className="campaign-title">{c.title}</td>
-                      <td>KES {c.target?.toLocaleString()}</td>
-                      <td className="amount-in">KES {c.collected?.toLocaleString()}</td>
-                      <td className="amount-out">KES {c.pending?.toLocaleString()}</td>
-                      <td>{c.paidMembers}</td>
-                      <td>{c.totalMembers}</td>
-                      <td>
-                        <div className="progress-cell">
-                          <div className="progress-bar-small">
-                            <div className="progress-fill" style={{ width: `${c.completion}%` }}></div>
-                          </div>
-                          <span>{c.completion?.toFixed(1)}%</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${c.status?.toLowerCase().replace(" ", "-")}`}>{c.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             )}
+          </div>
+
+          {/* Recent Activity Summary */}
+          <div className="recent-activity-card">
+            <h3>📊 Recent Activity Summary</h3>
+            <div className="recent-stats">
+              <div className="recent-stat">
+                <span className="recent-number">{auditLogs.length}</span>
+                <span className="recent-label">Total Actions Logged</span>
+              </div>
+              <div className="recent-stat">
+                <span className="recent-number">{auditLogs.filter(l => l.action === "CREATE").length}</span>
+                <span className="recent-label">Transactions Created</span>
+              </div>
+              <div className="recent-stat">
+                <span className="recent-number">{auditLogs.filter(l => l.action === "UPDATE").length}</span>
+                <span className="recent-label">Edits Made</span>
+              </div>
+              <div className="recent-stat">
+                <span className="recent-number">{auditLogs.filter(l => l.action === "DELETE").length}</span>
+                <span className="recent-label">Transactions Deleted</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -540,45 +617,27 @@ export default function TreasurerReports() {
       {activeTab === "members" && (
         <div className="members-tab">
           <div className="member-actions">
-            <input type="text" className="search-input" placeholder="Search member by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            <button className="btn-export" onClick={exportMembers}>📎 Export Member Report</button>
+            <input type="text" placeholder="Search members..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <button className="btn-export" onClick={exportMembers}>📎 Export Members</button>
           </div>
-
           <div className="member-table-container">
             {isMobile ? (
               <div className="mobile-cards">
                 {members.filter(m => m.name?.toLowerCase().includes(searchTerm.toLowerCase())).map((m) => (
                   <div key={m.id} className="member-mobile-card">
                     <div className="member-name">{m.name}</div>
-                    <div className="member-detail">🆔 Membership: {m.membershipNumber || "Not assigned"}</div>
-                    <div className="member-detail">🏠 Jumuia: {m.jumuia}</div>
-                    <div className="member-detail">📧 Email: {m.email || "N/A"}</div>
-                    <div className="member-detail">📱 Phone: {m.phone || "N/A"}</div>
-                    <div className="member-amounts">
-                      <span className="amount-in">💰 Paid: KES {m.total_paid?.toLocaleString()}</span>
-                      <span className="amount-out">⏳ Pending: KES {m.total_pending?.toLocaleString()}</span>
-                    </div>
-                    <div className="member-detail">📊 Campaigns Participated: {m.campaigns_participated}</div>
-                    <div className="status-container">
-                      <span className={`status-badge ${m.status?.toLowerCase().replace(" ", "-")}`}>{m.status}</span>
-                    </div>
+                    <div>🆔 {m.membershipNumber || "No membership"}</div>
+                    <div>🏠 {m.jumuia}</div>
+                    <div className="amount-in">💰 Paid: KES {m.total_paid?.toLocaleString()}</div>
+                    <div className="amount-out">⏳ Pending: KES {m.total_pending?.toLocaleString()}</div>
+                    <span className={`status-badge ${m.status?.toLowerCase()}`}>{m.status}</span>
                   </div>
                 ))}
               </div>
             ) : (
               <table className="member-table">
                 <thead>
-                  <tr>
-                    <th>Member Name</th>
-                    <th>Membership #</th>
-                    <th>Jumuia</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Total Paid (KES)</th>
-                    <th>Total Pending (KES)</th>
-                    <th>Campaigns</th>
-                    <th>Status</th>
-                  </tr>
+                  <tr><th>Name</th><th>Membership</th><th>Jumuia</th><th>Paid</th><th>Pending</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {members.filter(m => m.name?.toLowerCase().includes(searchTerm.toLowerCase())).map((m) => (
@@ -586,14 +645,9 @@ export default function TreasurerReports() {
                       <td>{m.name}</td>
                       <td>{m.membershipNumber || "-"}</td>
                       <td>{m.jumuia}</td>
-                      <td>{m.email || "-"}</td>
-                      <td>{m.phone || "-"}</td>
                       <td className="amount-in">KES {m.total_paid?.toLocaleString()}</td>
                       <td className="amount-out">KES {m.total_pending?.toLocaleString()}</td>
-                      <td>{m.campaigns_participated}</td>
-                      <td>
-                        <span className={`status-badge ${m.status?.toLowerCase().replace(" ", "-")}`}>{m.status}</span>
-                      </td>
+                      <td><span className={`status-badge ${m.status?.toLowerCase()}`}>{m.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -603,23 +657,11 @@ export default function TreasurerReports() {
         </div>
       )}
 
-      {/* Add/Edit Transaction Modal */}
+      {/* Modal */}
       <AnimatePresence>
         {showAddTransaction && (
-          <motion.div 
-            className="modal-overlay" 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            onClick={() => { setShowAddTransaction(false); setEditingTransaction(null); }}
-          >
-            <motion.div 
-              className="modal-content" 
-              initial={{ scale: 0.9 }} 
-              animate={{ scale: 1 }} 
-              exit={{ scale: 0.9 }} 
-              onClick={(e) => e.stopPropagation()}
-            >
+          <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setShowAddTransaction(false); setEditingTransaction(null); }}>
+            <motion.div className="modal-content" initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} onClick={(e) => e.stopPropagation()}>
               <h3>{editingTransaction ? "Edit Transaction" : "Add New Transaction"}</h3>
               
               <div className="form-group">
@@ -630,16 +672,10 @@ export default function TreasurerReports() {
               <div className="form-group">
                 <label>Transaction Type</label>
                 <div className="type-buttons">
-                  <button 
-                    className={`type-btn ${newTransaction.type === "IN" ? "active-in" : ""}`} 
-                    onClick={() => setNewTransaction({ ...newTransaction, type: "IN", category: inCategories[0] })}
-                  >
+                  <button className={`type-btn ${newTransaction.type === "IN" ? "active-in" : ""}`} onClick={() => handleTypeChange("IN")}>
                     💰 Money IN
                   </button>
-                  <button 
-                    className={`type-btn ${newTransaction.type === "OUT" ? "active-out" : ""}`} 
-                    onClick={() => setNewTransaction({ ...newTransaction, type: "OUT", category: outCategories[0] })}
-                  >
+                  <button className={`type-btn ${newTransaction.type === "OUT" ? "active-out" : ""}`} onClick={() => handleTypeChange("OUT")}>
                     💸 Money OUT
                   </button>
                 </div>
@@ -662,7 +698,7 @@ export default function TreasurerReports() {
 
               <div className="form-group">
                 <label>Amount (KES)</label>
-                <input type="number" placeholder="Enter amount" value={newTransaction.amount} onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })} />
+                <input type="number" placeholder="Enter amount" value={newTransaction.amount} onChange={(e) => handleAmountChange(e.target.value)} />
               </div>
 
               <div className="form-group">
@@ -672,19 +708,17 @@ export default function TreasurerReports() {
 
               <div className="form-group">
                 <label>Notes (Optional)</label>
-                <textarea 
-                  placeholder="Additional notes..." 
-                  value={newTransaction.notes} 
-                  onChange={(e) => setNewTransaction({ ...newTransaction, notes: e.target.value })} 
-                  rows={3} 
-                  className="form-textarea" 
-                />
+                <textarea placeholder="Additional notes..." value={newTransaction.notes} onChange={(e) => setNewTransaction({ ...newTransaction, notes: e.target.value })} rows={3} />
               </div>
 
               <div className="modal-actions">
-                <button className="btn-cancel" onClick={() => { setShowAddTransaction(false); setEditingTransaction(null); }}>Cancel</button>
-                <button className="btn-save" onClick={editingTransaction ? handleUpdateTransaction : handleAddTransaction}>
-                  {editingTransaction ? "Update" : "Save"}
+                <button className="btn-cancel" onClick={() => { setShowAddTransaction(false); setEditingTransaction(null); }} disabled={isSaving || isUpdating}>
+                  Cancel
+                </button>
+                <button className="btn-save" onClick={editingTransaction ? handleUpdateTransaction : handleAddTransaction} disabled={isSaving || isUpdating}>
+                  {(isSaving || isUpdating) ? (
+                    <><span className="spinner-small"></span>{editingTransaction ? "Updating..." : "Saving..."}</>
+                  ) : (editingTransaction ? "Update" : "Save")}
                 </button>
               </div>
             </motion.div>
@@ -693,821 +727,109 @@ export default function TreasurerReports() {
       </AnimatePresence>
 
       <style>{`
-        .treasurer-reports {
-          padding: 16px;
-          max-width: 1400px;
-          margin: 0 auto;
-          background: #f8fafc;
-          min-height: 100vh;
-        }
-
-        @media (min-width: 768px) {
-          .treasurer-reports {
-            padding: 24px;
-          }
-        }
-
-        .reports-header {
-          margin-bottom: 20px;
-          text-align: center;
-        }
-
-        @media (min-width: 768px) {
-          .reports-header {
-            text-align: left;
-            margin-bottom: 24px;
-          }
-        }
-
-        .reports-header h1 {
-          font-size: 22px;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0 0 4px 0;
-        }
-
-        @media (min-width: 768px) {
-          .reports-header h1 {
-            font-size: 28px;
-          }
-        }
-
-        .reports-header p {
-          font-size: 13px;
-          color: #64748b;
-          margin: 0;
-        }
-
-        /* Stats Grid - Mobile First */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-          }
-        }
-
-        .stat-card {
-          background: white;
-          border-radius: 12px;
-          padding: 12px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        @media (min-width: 768px) {
-          .stat-card {
-            padding: 20px;
-            gap: 16px;
-          }
-        }
-
-        .stat-icon {
-          font-size: 24px;
-          width: 40px;
-          height: 40px;
-          background: #f1f5f9;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        @media (min-width: 768px) {
-          .stat-icon {
-            font-size: 32px;
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
-          }
-        }
-
-        .stat-info {
-          flex: 1;
-        }
-
-        .stat-value {
-          display: block;
-          font-size: 16px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-
-        @media (min-width: 768px) {
-          .stat-value {
-            font-size: 24px;
-          }
-        }
-
-        .stat-label {
-          display: block;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        @media (min-width: 768px) {
-          .stat-label {
-            font-size: 13px;
-          }
-        }
-
-        .stat-card.in .stat-icon { background: #dcfce7; color: #10b981; }
-        .stat-card.out .stat-icon { background: #fee2e2; color: #ef4444; }
-        .stat-card.balance .stat-icon { background: #eff6ff; color: #3b82f6; }
-        .stat-card.collected .stat-icon { background: #fef3c7; color: #f59e0b; }
-
-        /* Tab Navigation */
-        .tab-navigation {
-          display: flex;
-          gap: 6px;
-          margin-bottom: 20px;
-          background: white;
-          padding: 6px;
-          border-radius: 40px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        @media (min-width: 768px) {
-          .tab-navigation {
-            gap: 12px;
-            background: none;
-            padding: 0;
-            border-radius: 0;
-            border-bottom: 2px solid #e2e8f0;
-            box-shadow: none;
-          }
-        }
-
-        .tab-btn {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          padding: 10px 8px;
-          background: none;
-          border: none;
-          font-size: 14px;
-          font-weight: 500;
-          color: #64748b;
-          cursor: pointer;
-          border-radius: 30px;
-          transition: all 0.2s;
-        }
-
-        @media (min-width: 768px) {
-          .tab-btn {
-            flex: none;
-            padding: 12px 24px;
-            font-size: 15px;
-            border-radius: 8px 8px 0 0;
-          }
-        }
-
-        .tab-btn.active {
-          background: #3b82f6;
-          color: white;
-        }
-
-        @media (min-width: 768px) {
-          .tab-btn.active {
-            background: none;
-            color: #3b82f6;
-            border-bottom: 2px solid #3b82f6;
-          }
-        }
-
-        /* Ledger Actions */
-        .ledger-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-
-        @media (min-width: 768px) {
-          .ledger-actions {
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-          }
-        }
-
-        .ledger-filters {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .filter-input {
-          padding: 8px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-          flex: 1;
-          min-width: 100px;
-        }
-
-        .ledger-buttons {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-
-        .btn-add, .btn-export {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 8px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        @media (min-width: 768px) {
-          .btn-add, .btn-export {
-            padding: 10px 20px;
-            font-size: 14px;
-          }
-        }
-
-        .btn-add {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .btn-add:hover {
-          background: #2563eb;
-        }
-
-        .btn-export {
-          background: #10b981;
-          color: white;
-        }
-
-        .btn-export:hover {
-          background: #059669;
-        }
-
-        /* Mobile Cards */
-        .mobile-cards {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .mobile-card {
-          background: white;
-          border-radius: 12px;
-          padding: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .in-card {
-          border-left: 4px solid #10b981;
-        }
-
-        .out-card {
-          border-left: 4px solid #ef4444;
-        }
-
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-
-        .card-date {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        .card-actions-mobile {
-          display: flex;
-          gap: 8px;
-        }
-
-        .card-description {
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 4px;
-          font-size: 14px;
-        }
-
-        .card-category {
-          font-size: 11px;
-          color: #64748b;
-          margin-bottom: 8px;
-        }
-
-        .card-amounts {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-top: 8px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .card-balance {
-          font-size: 12px;
-          color: #475569;
-        }
-
-        .card-reference, .card-notes {
-          font-size: 11px;
-          color: #64748b;
-          margin-top: 6px;
-          padding-top: 6px;
-          border-top: 1px solid #f1f5f9;
-        }
-
-        /* Campaign Mobile Cards */
-        .campaign-mobile-card, .member-mobile-card {
-          background: white;
-          border-radius: 12px;
-          padding: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          margin-bottom: 8px;
-        }
-
-        .campaign-title {
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 8px;
-          font-size: 15px;
-        }
-
-        .campaign-stats {
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-
-        .campaign-stats div {
-          margin: 4px 0;
-        }
-
-        .member-name {
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 6px;
-          font-size: 15px;
-        }
-
-        .member-detail {
-          font-size: 12px;
-          color: #64748b;
-          margin: 3px 0;
-        }
-
-        .member-amounts {
-          display: flex;
-          justify-content: space-between;
-          margin: 8px 0;
-          font-size: 13px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .status-container {
-          margin-top: 8px;
-        }
-
-        /* Tables - Desktop */
-        .ledger-table-container,
-        .campaign-table-container,
-        .member-table-container {
-          overflow-x: auto;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .ledger-table,
-        .campaign-table,
-        .member-table {
-          width: 100%;
-          border-collapse: collapse;
-          min-width: 800px;
-        }
-
-        .ledger-table th,
-        .ledger-table td,
-        .campaign-table th,
-        .campaign-table td,
-        .member-table th,
-        .member-table td {
-          padding: 12px 16px;
-          text-align: left;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .ledger-table th,
-        .campaign-table th,
-        .member-table th {
-          background: #f8fafc;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .in-row {
-          background: #f0fdf4;
-        }
-
-        .out-row {
-          background: #fef2f2;
-        }
-
-        .amount-in {
-          color: #10b981;
-          font-weight: 500;
-        }
-
-        .amount-out {
-          color: #ef4444;
-          font-weight: 500;
-        }
-
-        .amount-balance {
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .totals-row {
-          background: #f1f5f9;
-          font-weight: 600;
-        }
-
-        .actions {
-          display: flex;
-          gap: 8px;
-        }
-
-        .edit-btn, .delete-btn {
-          padding: 4px 8px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 12px;
-        }
-
-        @media (min-width: 768px) {
-          .edit-btn, .delete-btn {
-            padding: 4px 12px;
-            font-size: 13px;
-          }
-        }
-
-        .edit-btn {
-          background: #eff6ff;
-          color: #3b82f6;
-        }
-
-        .delete-btn {
-          background: #fee2e2;
-          color: #ef4444;
-        }
-
-        .campaign-actions {
-          display: flex;
-          justify-content: flex-end;
-          margin-bottom: 16px;
-        }
-
-        .campaign-summary-cards {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .campaign-summary-cards {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-          }
-        }
-
-        .summary-card {
-          background: white;
-          border-radius: 12px;
-          padding: 12px;
-          text-align: center;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        @media (min-width: 768px) {
-          .summary-card {
-            padding: 16px;
-          }
-        }
-
-        .summary-value {
-          display: block;
-          font-size: 18px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-
-        @media (min-width: 768px) {
-          .summary-value {
-            font-size: 24px;
-          }
-        }
-
-        .summary-label {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        @media (min-width: 768px) {
-          .summary-label {
-            font-size: 13px;
-          }
-        }
-
-        .progress-cell {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .progress-bar-small {
-          width: 80px;
-          height: 6px;
-          background: #e2e8f0;
-          border-radius: 3px;
-          overflow: hidden;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: #10b981;
-          transition: width 0.3s;
-        }
-
-        .member-actions {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 16px;
-          flex-direction: column;
-        }
-
-        @media (min-width: 768px) {
-          .member-actions {
-            flex-direction: row;
-            justify-content: space-between;
-          }
-        }
-
-        .search-input {
-          flex: 1;
-          padding: 10px 16px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-
-        .status-badge {
-          display: inline-block;
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 600;
-        }
-
-        .status-badge.completed {
-          background: #dcfce7;
-          color: #10b981;
-        }
-
-        .status-badge.partial {
-          background: #fef3c7;
-          color: #f59e0b;
-        }
-
-        .status-badge.active {
-          background: #eff6ff;
-          color: #3b82f6;
-        }
-
-        .status-badge.not-started,
-        .status-badge.no-pledge {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        /* Modal */
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 16px;
-        }
-
-        .modal-content {
-          background: white;
-          border-radius: 20px;
-          padding: 20px;
-          width: 100%;
-          max-width: 500px;
-          max-height: 90vh;
-          overflow-y: auto;
-        }
-
-        @media (min-width: 768px) {
-          .modal-content {
-            padding: 24px;
-          }
-        }
-
-        .modal-content h3 {
-          margin: 0 0 16px 0;
-          font-size: 20px;
-          font-weight: 600;
-        }
-
-        .form-group {
-          margin-bottom: 14px;
-        }
-
-        @media (min-width: 768px) {
-          .form-group {
-            margin-bottom: 16px;
-          }
-        }
-
-        .form-group label {
-          display: block;
-          font-size: 12px;
-          font-weight: 600;
-          color: #475569;
-          margin-bottom: 4px;
-        }
-
-        @media (min-width: 768px) {
-          .form-group label {
-            font-size: 13px;
-          }
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 14px;
-          font-family: inherit;
-        }
-
-        .form-textarea {
-          resize: vertical;
-        }
-
-        .type-buttons {
-          display: flex;
-          gap: 10px;
-        }
-
-        .type-btn {
-          flex: 1;
-          padding: 10px;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          background: white;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-
-        .type-btn.active-in {
-          background: #dcfce7;
-          border-color: #10b981;
-          color: #10b981;
-        }
-
-        .type-btn.active-out {
-          background: #fee2e2;
-          border-color: #ef4444;
-          color: #ef4444;
-        }
-
-        .modal-actions {
-          display: flex;
-          gap: 12px;
-          margin-top: 20px;
-        }
-
-        .btn-cancel {
-          flex: 1;
-          padding: 10px;
-          background: #f1f5f9;
-          border: none;
-          border-radius: 10px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        .btn-save {
-          flex: 1;
-          padding: 10px;
-          background: #3b82f6;
-          border: none;
-          border-radius: 10px;
-          color: white;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        /* Toast */
-        .toast {
-          position: fixed;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 10px 20px;
-          border-radius: 8px;
-          color: white;
-          z-index: 1100;
-          font-size: 13px;
-          white-space: nowrap;
-          max-width: 90%;
-          text-align: center;
-        }
-
-        @media (min-width: 768px) {
-          .toast {
-            left: auto;
-            right: 20px;
-            transform: none;
-            white-space: normal;
-          }
-        }
-
-        .toast.success {
-          background: #10b981;
-        }
-
-        .toast.error {
-          background: #ef4444;
-        }
-
-        /* Loading */
-        .reports-loading {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 50vh;
-        }
-
-        .spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid #e2e8f0;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .empty-row {
-          text-align: center;
-          padding: 40px;
-          color: #64748b;
-        }
-
-        .campaign-title {
-          font-weight: 600;
-          color: #1e293b;
-        }
+        .treasurer-reports { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .stat-icon { font-size: 32px; width: 60px; height: 60px; background: #f0fdf4; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .stat-value { font-size: 24px; font-weight: bold; display: block; }
+        .stat-label { font-size: 14px; color: #666; }
+        .tab-navigation { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+        .tab-btn { padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .tab-btn.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; margin-bottom: -2px; }
+        .ledger-actions { display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .ledger-filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .filter-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; }
+        .btn-add, .btn-export { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn-add { background: #3b82f6; color: white; }
+        .btn-export { background: #10b981; color: white; }
+        .ledger-table, .campaign-table, .member-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        .ledger-table th, .campaign-table th, .member-table th { background: #f8fafc; padding: 12px; text-align: left; font-weight: 600; }
+        .ledger-table td, .campaign-table td, .member-table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+        .in-row { background: #f0fdf4; }
+        .out-row { background: #fef2f2; }
+        .amount-in { color: #10b981; font-weight: 600; }
+        .amount-out { color: #ef4444; font-weight: 600; }
+        .edit-btn, .delete-btn { padding: 4px 8px; margin: 0 4px; border: none; border-radius: 4px; cursor: pointer; }
+        .edit-btn { background: #dbeafe; color: #2563eb; }
+        .delete-btn { background: #fee2e2; color: #dc2626; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; border-radius: 12px; padding: 24px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; }
+        .type-buttons { display: flex; gap: 10px; }
+        .type-btn { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; }
+        .type-btn.active-in { background: #10b981; color: white; border-color: #10b981; }
+        .type-btn.active-out { background: #ef4444; color: white; border-color: #ef4444; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-cancel, .btn-save { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-cancel { background: #e5e7eb; }
+        .btn-save { background: #3b82f6; color: white; }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 8px; color: white; z-index: 1100; animation: slideIn 0.3s ease; }
+        .toast.success { background: #10b981; }
+        .toast.error { background: #ef4444; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .status-badge.completed { background: #d1fae5; color: #065f46; }
+        .status-badge.active { background: #dbeafe; color: #1e40af; }
+        .status-badge.partial { background: #fed7aa; color: #92400e; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: 1fr; } .ledger-actions { flex-direction: column; } }
+
+        .spinner-small { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-save:disabled, .btn-cancel:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        input:disabled, select:disabled, textarea:disabled, button:disabled { cursor: not-allowed; opacity: 0.7; }
+
+        /* Audit Trail Styles */
+        .audit-tab { padding: 20px; }
+        .audit-header { text-align: center; margin-bottom: 30px; }
+        .audit-header h2 { color: #1e293b; margin-bottom: 10px; }
+        .audit-header p { color: #64748b; }
+        
+        .overall-summary-card, .audit-trail-card, .recent-activity-card {
+          background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .overall-summary-card h3, .audit-trail-card h3, .recent-activity-card h3 { margin-bottom: 15px; color: #1e293b; }
+        
+        .summary-stats { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
+        .stat-badge { padding: 8px 16px; border-radius: 20px; font-weight: 600; }
+        .stat-badge.in { background: #dcfce7; color: #10b981; }
+        .stat-badge.out { background: #fee2e2; color: #ef4444; }
+        .stat-badge.balance { background: #eff6ff; color: #3b82f6; }
+        .overall-text { line-height: 1.6; color: #334155; }
+        
+        .audit-warning { background: #fef3c7; padding: 10px; border-radius: 8px; color: #92400e; margin-bottom: 20px; }
+        .audit-timeline { max-height: 500px; overflow-y: auto; }
+        
+        .audit-item { padding: 15px; margin-bottom: 15px; border-radius: 8px; border-left: 4px solid; background: #f8fafc; }
+        .audit-create { border-left-color: #10b981; background: #f0fdf4; }
+        .audit-update { border-left-color: #f59e0b; background: #fffbeb; }
+        .audit-delete { border-left-color: #ef4444; background: #fef2f2; }
+        
+        .audit-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .audit-action { font-weight: bold; font-size: 14px; }
+        .audit-create .audit-action { color: #10b981; }
+        .audit-update .audit-action { color: #f59e0b; }
+        .audit-delete .audit-action { color: #ef4444; }
+        .audit-time { font-size: 12px; color: #64748b; }
+        .audit-performed-by { font-size: 13px; margin-bottom: 10px; color: #475569; }
+        .audit-ip { margin-left: 10px; font-size: 11px; color: #94a3b8; }
+        
+        .audit-changes { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+        .change-warning, .change-critical { font-weight: bold; margin-bottom: 8px; color: #dc2626; }
+        .change-highlight { font-weight: bold; margin-bottom: 8px; color: #10b981; }
+        .change-diff { font-size: 13px; padding: 5px 0; font-family: monospace; }
+        .field-name { font-weight: bold; color: #3b82f6; margin-right: 8px; }
+        .old-value { color: #dc2626; text-decoration: line-through; margin-right: 8px; }
+        .arrow { margin-right: 8px; }
+        .new-value { color: #10b981; font-weight: bold; }
+        .change-details { font-size: 13px; line-height: 1.6; color: #334155; }
+        .audit-empty { text-align: center; padding: 40px; color: #64748b; background: #f8fafc; border-radius: 8px; }
+        
+        .recent-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; }
+        .recent-stat { text-align: center; padding: 15px; background: #f8fafc; border-radius: 8px; }
+        .recent-number { display: block; font-size: 28px; font-weight: bold; color: #3b82f6; }
+        .recent-label { font-size: 12px; color: #64748b; }
       `}</style>
     </div>
   );

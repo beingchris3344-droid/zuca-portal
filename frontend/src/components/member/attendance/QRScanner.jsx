@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Camera } from 'lucide-react';
+import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../../api';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getDeviceId, getDeviceName } from '../../../utils/deviceId';
-import { saveOfflineCheckin } from '../../../utils/offlineStorage';
+import { saveOfflineCheckin, getPendingCount } from '../../../utils/offlineStorage';
 
 export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) {
   const [error, setError] = useState(null);
@@ -76,19 +76,19 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       streamRef.current = null;
     }
     
-    // Close after animation completes - FASTER: 2000ms instead of 5000ms
+    // Close after animation completes
     successTimeoutRef.current = setTimeout(() => {
       if (mountedRef.current) {
         if (onSuccess) onSuccess(entry);
         onClose();
       }
-    }, 2000);
+    }, 5000);
   };
   
   const onScanSuccess = async (decodedText, decodedResult) => {
-    // FASTER DEBOUNCE: 500ms instead of 1500ms
+    // Debounce - prevent multiple scans within 1.5 seconds
     const now = Date.now();
-    if (now - lastScanTime.current < 500 || showSuccess || !mountedRef.current) {
+    if (now - lastScanTime.current < 1500 || showSuccess || !mountedRef.current) {
       return;
     }
     lastScanTime.current = now;
@@ -111,28 +111,54 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     
     try {
       let token;
+      let scannedSheetId;
       
-      // DIRECT URL EXTRACTION - NO JSON PARSE OVERHEAD
-      const urlMatch = decodedText.match(/\/scan\/([a-f0-9]+)/);
-      if (urlMatch && urlMatch[1]) {
-        token = urlMatch[1];
-      } else {
-        setError('Invalid QR code format');
-        isProcessing.current = false;
-        if (scannerRef.current && mountedRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
+      // Try to parse as JSON first (old format)
+      try {
+        const qrData = JSON.parse(decodedText);
+        if (qrData.type === 'attendance_checkin') {
+          token = qrData.token;
+          scannedSheetId = qrData.sheetId;
+        } else {
+          throw new Error('Not attendance QR');
         }
-        return;
+      } catch (e) {
+        // Not JSON - treat as URL (new format)
+        const urlMatch = decodedText.match(/\/scan\/([a-f0-9]+)/);
+        if (urlMatch && urlMatch[1]) {
+          token = urlMatch[1];
+        } else {
+          setError('Invalid QR code format');
+          isProcessing.current = false;
+          if (scannerRef.current && mountedRef.current) {
+            await scannerRef.current.resume();
+            setIsScanning(true);
+          }
+          return;
+        }
       }
       
       // Offline mode
       if (isOffline) {
-        setError('No internet connection. Please check your network.');
-        isProcessing.current = false;
-        if (scannerRef.current && mountedRef.current) {
-          await scannerRef.current.resume();
-          setIsScanning(true);
+        if (scannedSheetId) {
+          const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
+          if (saved) {
+            handleSuccess({ offline: true, message: '✓ Saved offline!' });
+          } else {
+            setError('Failed to save offline check-in');
+            isProcessing.current = false;
+            if (scannerRef.current && mountedRef.current) {
+              await scannerRef.current.resume();
+              setIsScanning(true);
+            }
+          }
+        } else {
+          setError('Offline check-in not supported for this QR type');
+          isProcessing.current = false;
+          if (scannerRef.current && mountedRef.current) {
+            await scannerRef.current.resume();
+            setIsScanning(true);
+          }
         }
         return;
       }
@@ -169,6 +195,15 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       if (error.name === 'AbortError') {
         setError('Request timed out. Please try again.');
       } else if (error.message === 'Network Error' || !navigator.onLine) {
+        try {
+          const qrData = JSON.parse(decodedText);
+          const scannedSheetId = qrData.sheetId;
+          const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline Fallback)');
+          if (saved) {
+            handleSuccess({ offline: true, message: '✓ Saved offline' });
+            return;
+          }
+        } catch (e) {}
         setError('No internet connection. Please check your network.');
       } else if (errorMsg?.error === 'Invalid or expired QR code') {
         setError('QR code is invalid or has expired');
@@ -251,6 +286,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       });
       
       streamRef.current = stream;
+      // Don't stop the stream here - keep it for the scanner
       return true;
     } catch (err) {
       console.error('Camera permission error:', err);
@@ -291,18 +327,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       const scanner = new Html5Qrcode("qr-reader");
       
-      // FASTEST CONFIGURATION
       await scanner.start(
         { facingMode: "environment" },
         {
-          fps: 30,  // MAX FPS
-          qrbox: { width: 150, height: 150 },  // MINIMAL BOX SIZE
+          fps: 20,
+          qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
-          disableFlip: true,  // DISABLE MIRRORING
-          videoConstraints: {  // LOWER RESOLUTION FOR SPEED
-            width: { ideal: 480 },
-            height: { ideal: 480 }
-          },
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true
           }
@@ -325,6 +355,36 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     } catch (err) {
       console.error("Failed to start scanner:", err);
       setIsInitializing(false);
+      
+      // Fallback to front camera
+      try {
+        const scanner = new Html5Qrcode("qr-reader");
+        await scanner.start(
+          { facingMode: "user" },
+          {
+            fps: 15,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          onScanSuccess,
+          onScanError
+        );
+        
+        if (!mountedRef.current) {
+          await scanner.stop();
+          return false;
+        }
+        
+        scannerRef.current = scanner;
+        setIsScanning(true);
+        setError(null);
+        setPermissionDenied(false);
+        setIsInitializing(false);
+        return true;
+      } catch (fallbackErr) {
+        console.error("Fallback also failed:", fallbackErr);
+      }
+      
       setError(`Could not start camera: ${err.message || 'Unknown error'}`);
       setPermissionDenied(true);
       return false;
@@ -445,7 +505,9 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
                         📱 Point camera at QR code
                       </p>
                       <p className="scanner-hint">
-                        Center the QR code in the frame
+                        {isOffline 
+                          ? "⚠️ Offline mode - check-ins will be saved"
+                          : "Center the QR code in the frame"}
                       </p>
                     </>
                   )}

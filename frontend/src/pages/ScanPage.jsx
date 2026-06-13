@@ -34,7 +34,9 @@ export default function ScanPage() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [touchStart, setTouchStart] = useState(null);
   const slideIntervalRef = useRef(null);
-  
+  const [userName, setUserName] = useState('');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+const firstName = user.fullName ? user.fullName.split(' ')[0] : '';
   const slides = [
     { id: 2, image: slide2 },
     { id: 3, image: slide3 },
@@ -77,6 +79,14 @@ export default function ScanPage() {
   };
 
   useEffect(() => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.fullName) {
+    const firstName = user.fullName.split(' ')[0];
+    setUserName(firstName);
+  }
+}, []);
+
+  useEffect(() => {
     if (isPlaying) {
       slideIntervalRef.current = setInterval(() => {
         setCurrentSlide((prev) => (prev + 1) % slides.length);
@@ -92,6 +102,9 @@ export default function ScanPage() {
 hasRun.current = true;
     const checkin = async () => {
       try {
+         const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const firstName = user.fullName ? user.fullName.split(' ')[0] : '';
+      setUserName(firstName);
         const verifyRes = await axios.get(`${BASE_URL}/api/attendance/scan/verify/${token}`);
         
         if (!verifyRes.data.success) {
@@ -121,27 +134,30 @@ hasRun.current = true;
         if (response.data.success) {
           setStatus('success');
           setMessage(response.data.entry?.message || 'Check-in successful!');
-          setTimeout(() => navigate('/member/dashboard'), 2500);
+          setTimeout(() => window.close(), 5000);
         }
         
       } catch (error) {
-        const errorMsg = error.response?.data;
-        
-        if (errorMsg?.error === 'Already checked in') {
-          setStatus('success');
-          setMessage('You have already checked in for this meeting');
-          setTimeout(() => navigate('/member/dashboard'), 2000);
-        } else if (errorMsg?.error === 'Meeting has been closed') {
-          setStatus('error');
-          setMessage('This meeting has been closed');
-        } else if (errorMsg?.error === 'Invalid or expired QR code') {
-          setStatus('error');
-          setMessage('QR code is invalid or has expired');
-        } else {
-          setStatus('error');
-          setMessage(errorMsg?.error || 'Check-in failed. Please try again.');
-        }
-      }
+  const errorMsg = error.response?.data;
+  
+  if (errorMsg?.error === 'Already checked in') {
+    setStatus('success');
+    setMessage(`Hey ${firstName || 'there'}, you have already checked in for this meeting.`);
+    setTimeout(() => window.close(), 5000);
+  } else if (errorMsg?.error === 'Meeting has been closed') {
+    setStatus('error');
+    setMessage(`Sorry ${firstName || 'there'}, this meeting has been closed.`);
+  } else if (errorMsg?.error === 'Invalid or expired QR code') {
+    setStatus('error');
+    setMessage(`Sorry ${firstName || 'there'}, the QR code is invalid or has expired.`);
+  } else if (errorMsg?.error === 'Device already used') {
+    setStatus('error');
+    setMessage(errorMsg.message || `Sorry ${firstName || 'there'}, this device has already been used.`);
+  } else {
+    setStatus('error');
+    setMessage(errorMsg?.error || 'Check-in failed. Please try again.');
+  }
+}
     };
     
     checkin();
@@ -253,7 +269,7 @@ hasRun.current = true;
 
           {/* Redirecting hint */}
           {status === 'success' && (
-            <p style={styles.redirectHint}>Redirecting to dashboard...</p>
+            <p style={styles.redirectHint}>Closing page thank you {userName || 'there'}...</p>
           )}
         </motion.div>
       </div>

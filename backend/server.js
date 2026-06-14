@@ -40,6 +40,9 @@ async function getNextMembershipNumber() {
 }
 
 
+
+
+
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
@@ -162,6 +165,394 @@ app.options('*', cors());
 
 app.use(express.json({ limit: '2gb' }));
 app.use(express.urlencoded({ extended: true, limit: '2gb' }));
+
+
+// ================== PUBLIC FEATURED MEDIA ENDPOINT ==================
+// This is PUBLIC - no authentication required
+app.get("/api/public/featured-media", async (req, res) => {
+  try {
+    const { limit = 6 } = req.query;
+    
+    const media = await prisma.media.findMany({
+      where: { 
+        isPublic: true, 
+        isFeatured: true 
+      },
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        url: true,
+        thumbnailUrl: true,
+        type: true,
+        createdAt: true,
+        uploadedBy: {
+          select: {
+            id: true,
+            fullName: true,
+            profileImage: true
+          }
+        },
+        _count: {
+          select: {
+            likes: true,
+            views: true
+          }
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      count: media.length,
+      media: media
+    });
+  } catch (err) {
+    console.error("Featured media error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== PUBLIC UPCOMING EVENTS ==================
+app.get("/api/public/upcoming-events", async (req, res) => {
+  try {
+    const { limit = 6 } = req.query;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const events = await prisma.scheduleEvent.findMany({
+      where: {
+        eventDate: { gte: today },
+        schedule: { isPublished: true }
+      },
+      include: {
+        schedule: {
+          select: {
+            id: true,
+            title: true,
+            isPublished: true
+          }
+        }
+      },
+      orderBy: { eventDate: 'asc' },
+      take: parseInt(limit)
+    });
+    
+    res.json({
+      success: true,
+      count: events.length,
+      events: events
+    });
+  } catch (err) {
+    console.error("Error fetching upcoming events:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
+// Cache for YouTube data
+let youtubeCache = {
+  data: null,
+  timestamp: null,
+  cacheDuration: 3600000 // 1 hour in milliseconds
+};
+
+// ================== PUBLIC TOP WATCHED YOUTUBE VIDEOS ==================
+app.get("/api/public/youtube-top", async (req, res) => {
+  try {
+    const { limit = 3 } = req.query;
+    
+    // Check cache first
+    const now = Date.now();
+    if (youtubeCache.data && youtubeCache.timestamp && (now - youtubeCache.timestamp) < youtubeCache.cacheDuration) {
+      console.log('📦 Returning cached YouTube data');
+      return res.json(youtubeCache.data);
+    }
+    
+    const channelId = process.env.YOUTUBE_CHANNEL_ID || "UCJ7NvR5_ZUwhtM16sJY4anQ";
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    
+    if (!apiKey) {
+      return res.json({
+        success: false,
+        error: "YouTube API not configured",
+        channelUrl: "https://www.youtube.com/@zetechUniversityCatholic",
+        videos: []
+      });
+    }
+    
+    // Get recent videos
+    const videosResponse = await axios.get(
+      `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet&order=date&maxResults=30&type=video`
+    );
+    
+    if (!videosResponse.data.items || videosResponse.data.items.length === 0) {
+      return res.json({
+        success: false,
+        message: "No videos found",
+        channelUrl: "https://www.youtube.com/@zetechUniversityCatholic",
+        videos: []
+      });
+    }
+    
+    const videoIds = videosResponse.data.items.map(v => v.id.videoId).filter(id => id).join(',');
+    
+    if (!videoIds) {
+      return res.json({
+        success: false,
+        message: "No video IDs found",
+        channelUrl: "https://www.youtube.com/@zetechUniversityCatholic",
+        videos: []
+      });
+    }
+    
+    const videoStats = await axios.get(
+      `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&id=${videoIds}&part=statistics,contentDetails,snippet`
+    );
+    
+    // Process all videos and sort by view count
+    const allVideos = videosResponse.data.items.map(video => {
+      const stats = videoStats.data.items.find(v => v.id === video.id.videoId) || {};
+      const snippet = video.snippet;
+      const viewCount = parseInt(stats.statistics?.viewCount || 0);
+      
+      return {
+        id: video.id.videoId,
+        title: snippet.title,
+        description: snippet.description,
+        thumbnail: snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url,
+        publishedAt: snippet.publishedAt,
+        views: viewCount,
+        likes: parseInt(stats.statistics?.likeCount || 0),
+        comments: parseInt(stats.statistics?.commentCount || 0),
+        duration: stats.contentDetails?.duration || "PT0S",
+        channelTitle: snippet.channelTitle
+      };
+    });
+    
+    // Sort by views (most watched first)
+    const topWatched = allVideos
+      .sort((a, b) => b.views - a.views)
+      .slice(0, parseInt(limit));
+    
+    // Get channel info
+    let channel = {};
+    try {
+      const channelResponse = await axios.get(
+        `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${apiKey}`
+      );
+      channel = channelResponse.data.items?.[0] || {};
+    } catch (err) {
+      console.log('Could not fetch channel info');
+    }
+    
+    const responseData = {
+      success: true,
+      channel: {
+        name: channel.snippet?.title || "ZUCA Channel",
+        subscribers: parseInt(channel.statistics?.subscriberCount || 0),
+        totalViews: parseInt(channel.statistics?.viewCount || 0),
+        totalVideos: parseInt(channel.statistics?.videoCount || 0),
+        thumbnail: channel.snippet?.thumbnails?.default?.url,
+        description: channel.snippet?.description
+      },
+      videos: topWatched,
+      count: topWatched.length,
+      cached: false,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Update cache
+    youtubeCache = {
+      data: responseData,
+      timestamp: now,
+      cacheDuration: youtubeCache.cacheDuration
+    };
+    
+    res.json(responseData);
+    
+  } catch (error) {
+    console.error("YouTube API error:", error.message);
+    
+    // Return cached data if available, even if expired
+    if (youtubeCache.data) {
+      console.log('⚠️ API error but returning cached data');
+      return res.json({
+        ...youtubeCache.data,
+        cached: true,
+        stale: true
+      });
+    }
+    
+    res.json({
+      success: false,
+      error: error.message,
+      channelUrl: "https://www.youtube.com/@zetechUniversityCatholic",
+      videos: []
+    });
+  }
+});
+
+
+// ================== PUBLIC HYMNS ENDPOINTS ==================
+
+// Get all hymns (public)
+app.get("/api/public/hymns", async (req, res) => {
+  try {
+    const { page = 1, limit = 12, search = '' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const where = search ? {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {};
+    
+    const [songs, total] = await Promise.all([
+      prisma.song.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          reference: true,
+          lyrics: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.song.count({ where })
+    ]);
+    
+    // Add preview (first line of lyrics)
+    const songsWithPreview = songs.map(song => {
+      let preview = '';
+      if (song.lyrics) {
+        const firstLine = song.lyrics.split('\n').find(line => line.trim());
+        preview = firstLine ? firstLine.substring(0, 100) : '';
+      }
+      return {
+        id: song.id,
+        title: song.title,
+        reference: song.reference,
+        preview: preview,
+        createdAt: song.createdAt
+      };
+    });
+    
+    res.json({
+      success: true,
+      hymns: songsWithPreview,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      hasMore: skip + songsWithPreview.length < total
+    });
+  } catch (err) {
+    console.error("Error fetching hymns:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get single hymn by ID (public)
+app.get("/api/public/hymns/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const hymn = await prisma.song.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+    
+    if (!hymn) {
+      return res.status(404).json({ success: false, error: "Hymn not found" });
+    }
+    
+    res.json({
+      success: true,
+      hymn: hymn
+    });
+  } catch (err) {
+    console.error("Error fetching hymn:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Search hymns (public)
+app.get("/api/public/hymns/search/:query", async (req, res) => {
+  try {
+    const { query } = req.params;
+    const { limit = 20 } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({ success: true, hymns: [] });
+    }
+    
+    const hymns = await prisma.song.findMany({
+      where: {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { reference: { contains: query, mode: 'insensitive' } },
+          { lyrics: { contains: query, mode: 'insensitive' } }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true
+      },
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    const results = hymns.map(hymn => {
+      let preview = '';
+      if (hymn.lyrics) {
+        const lines = hymn.lyrics.split('\n');
+        preview = lines.find(line => 
+          line.toLowerCase().includes(query.toLowerCase())
+        ) || lines[0] || '';
+        preview = preview.substring(0, 120);
+      }
+      
+      return {
+        id: hymn.id,
+        title: hymn.title,
+        reference: hymn.reference,
+        preview: preview
+      };
+    });
+    
+    res.json({
+      success: true,
+      query: query,
+      count: results.length,
+      hymns: results
+    });
+  } catch (err) {
+    console.error("Error searching hymns:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
 
 
 

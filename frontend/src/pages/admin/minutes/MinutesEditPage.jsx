@@ -25,32 +25,46 @@ export default function MinutesEditPage() {
   }, [id]);
 
   const fetchMinutes = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(`/api/minutes/${id}`, { headers });
-      const minutes = response.data.minutes;
-      setFormData({
-        agenda: minutes.agenda || [''],
-        preliminaries: minutes.preliminaries || '',
-        sections: minutes.sections || [{ number: 'MIN 01/25', title: '', content: '', decisions: [''] }],
-        aob: minutes.aob || [{ title: '', content: '' }],
-        adjournment: minutes.adjournment || ''
-      });
-    } catch (error) {
-      console.error('Error fetching minutes:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addSection = () => {
-    const newNumber = `MIN ${String(formData.sections.length + 1).padStart(2, '0')}/${new Date().getFullYear().toString().slice(-2)}`;
-    setFormData(prev => ({
-      ...prev,
-      sections: [...prev.sections, { number: newNumber, title: '', content: '', decisions: [''] }]
-    }));
-    setExpandedSections(prev => ({ ...prev, [formData.sections.length]: true }));
-  };
+  setLoading(true);
+  try {
+    const response = await api.get(`/api/minutes/${id}`, { headers });
+    const minutes = response.data.minutes;
+    
+    // Convert any year-based section numbers to month format
+    const currentMonth = new Date().getMonth() + 1;
+    const monthFormatted = String(currentMonth).padStart(2, '0');
+    const updatedSections = (minutes.sections || []).map((section, idx) => {
+      // If section number has /25, /26 (year), replace with current month
+      if (section.number && section.number.match(/\/(\d{2})$/)) {
+        const newNumber = `MIN ${String(idx + 1).padStart(2, '0')}/${monthFormatted}`;
+        return { ...section, number: newNumber };
+      }
+      return section;
+    });
+    
+    setFormData({
+      agenda: minutes.agenda || [''],
+      preliminaries: minutes.preliminaries || '',
+      sections: updatedSections.length ? updatedSections : [{ number: `MIN 01/${monthFormatted}`, title: '', content: '', decisions: [''] }],
+      aob: minutes.aob || [{ title: '', content: '' }],
+      adjournment: minutes.adjournment || ''
+    });
+  } catch (error) {
+    console.error('Error fetching minutes:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+ const addSection = () => {
+  const currentMonth = new Date().getMonth() + 1;
+  const monthFormatted = String(currentMonth).padStart(2, '0');
+  const newNumber = `MIN ${String(formData.sections.length + 1).padStart(2, '0')}/${monthFormatted}`;
+  setFormData(prev => ({
+    ...prev,
+    sections: [...prev.sections, { number: newNumber, title: '', content: '', decisions: [''] }]
+  }));
+  setExpandedSections(prev => ({ ...prev, [formData.sections.length]: true }));
+};
 
   const removeSection = (index) => {
     setFormData(prev => ({ ...prev, sections: prev.sections.filter((_, i) => i !== index) }));

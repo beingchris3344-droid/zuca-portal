@@ -32,6 +32,27 @@ export default function MinutesViewPage() {
     }
   };
 
+  // A helper function to get the rank of a position for sorting purposes
+const getPositionRank = (position) => {
+  const hierarchy = {
+    'Chairperson': 1,
+    'Vice Chairperson': 2,
+    'Secretary': 3,
+    'Vice Secretary': 4,
+    'Treasurer': 5,
+    'Organising Secretary': 6,
+    'Choir Moderator': 7,
+    'Vice Choir Moderator': 8,
+    'Media Moderator': 9,
+    'St. Gregory Moderator': 10,
+    'St. Peregrine Moderator': 11,
+    'Welfare': 12,
+    'ALTO Voice Rep': 13,
+    'Member': 99
+  };
+  return hierarchy[position] || 98;
+};
+
   const getOrdinalSuffix = (day) => {
     if (day > 3 && day < 21) return 'th';
     switch (day % 10) {
@@ -216,15 +237,55 @@ export default function MinutesViewPage() {
             <h1>MINUTES OF MEETING HELD ON ${formattedDate}<br/>AT ${venue} AT ${time}</h1>
             
             <h2>Members present</h2>
-            <div class="members-list">
-              ${minutes?.presentMembers?.map((member, idx) => `<div class="member-item">${idx + 1}. ${member.fullName}${member.role ? ` <span class="role-tag">(${member.role})</span>` : ''}</div>`).join('') || '<div class="member-item">None</div>'}
-            </div>
-            
-            ${minutes?.absentMembers?.filter(m => m.excused).length > 0 ? `
-            <h2>Absent with Apology</h2>
-            <div class="members-list">
-              ${minutes.absentMembers.filter(m => m.excused).map((member, idx) => `<div class="member-item">${idx + 1}. ${member.fullName}</div>`).join('')}
-            </div>` : ''}
+<div class="members-list">
+  ${(() => {
+    const getPositionRank = (position) => {
+      const hierarchy = {
+        'Chairperson': 1,
+        'Vice Chairperson': 2,
+        'Secretary': 3,
+        'Vice Secretary': 4,
+        'Treasurer': 5,
+        'Organising Secretary': 6,
+        'Choir Moderator': 7,
+        'Vice Choir Moderator': 8,
+        'Media Moderator': 9,
+        'St. Gregory Moderator': 10,
+        'St. Peregrine Moderator': 11,
+        'Welfare': 12,
+        'ALTO Voice Rep': 13,
+        'Member': 99
+      };
+      return hierarchy[position] || 98;
+    };
+
+    const sortedMembers = [...(minutes?.presentMembers || [])].sort((a, b) => {
+      const roleA = a.executivePosition || 'Member';
+      const roleB = b.executivePosition || 'Member';
+      return getPositionRank(roleA) - getPositionRank(roleB);
+    });
+
+    return sortedMembers.map((member, idx) => {
+      let displayRole = member.executivePosition || 'Member';
+      return `<div class="member-item">${idx + 1}. ${member.fullName} <span class="role-tag">(${displayRole})</span></div>`;
+    }).join('');
+  })()}
+</div>     
+          ${minutes?.absentMembers?.length > 0 ? `
+<h2>Absent Members</h2>
+<div class="members-list">
+  ${minutes.absentMembers.map((member, idx) => {
+    let displayRole = member.role || member.executivePosition;
+    if (!displayRole) displayRole = "Member";
+    return `<div class="member-item">${idx + 1}. ${member.fullName} <span class="role-tag">(${displayRole})</span>${member.excused ? ` <span class="excused-tag">(Excused)</span>` : ''}</div>`;
+  }).join('')}
+</div>` : ''}
+
+${minutes?.absentMembers?.filter(m => m.excused).length > 0 ? `
+<h2>Absent with Apology</h2>
+<div class="members-list">
+  ${minutes.absentMembers.filter(m => m.excused).map((member, idx) => `<div class="member-item">${idx + 1}. ${member.fullName}</div>`).join('')}
+</div>` : ''}
             
             ${minutes?.presentGuests?.length > 0 ? `
             <h2>In-Attendance</h2>
@@ -237,9 +298,9 @@ export default function MinutesViewPage() {
               ${minutes?.agenda?.map((item, idx) => `<div class="member-item">${idx + 1}. ${item}</div>`).join('') || '<div class="member-item">None</div>'}
             </div>
             
-            ${minutes?.preliminaries ? `
-            <h2>MIN 01/${new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: PRELIMINARIES</h2>
-            <p class="section-content">${minutes.preliminaries}</p>` : ''}
+           ${minutes?.preliminaries ? `
+<h2>MIN 01/${String(new Date().getMonth() + 1).padStart(2, '0')}: PRELIMINARIES</h2>
+<p class="section-content">${minutes.preliminaries}</p>` : ''}
             
             ${minutes?.sections?.map(section => `
               <h2>${section.number}: ${section.title}</h2>
@@ -254,12 +315,12 @@ export default function MinutesViewPage() {
             `).join('')}
             
             ${minutes?.aob?.length > 0 ? `
-            <h2>MIN ${String(minutes.sections?.length + 1).padStart(2, '0')}/${new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: AOB</h2>
-            ${minutes.aob.map(item => `<div class="aob-item"><p><strong>${item.title}</strong></p>${item.content ? `<p>${item.content}</p>` : ''}</div>`).join('')}` : ''}
-            
-            ${minutes?.adjournment ? `
-            <h2>MIN ${String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/${new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: ADJOURNMENT</h2>
-            <p class="section-content">${minutes.adjournment}</p>` : ''}
+<h2>MIN ${String(minutes.sections?.length + 1).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
+${minutes.aob.map(item => `<div class="aob-item"><p><strong>${item.title}</strong></p>${item.content ? `<p>${item.content}</p>` : ''}</div>`).join('')}` : ''}
+
+${minutes?.adjournment ? `
+<h2>MIN ${String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
+<p class="section-content">${minutes.adjournment}</p>` : ''}
             
             <div class="signatures">
               <div class="signature-line">
@@ -353,26 +414,81 @@ export default function MinutesViewPage() {
       <div className="official-document" ref={minutesRef}>
         <h1>MINUTES OF MEETING HELD ON {formattedDate}<br/>AT {venue} AT {time}</h1>
         
-        <h2>Members present</h2>
-        <div className="members-list">
-          {minutes.presentMembers?.map((member, idx) => (
-            <div key={idx} className="member-item">
-              {idx + 1}. {member.fullName}
-              {member.role && <span className="role-tag"> ({member.role})</span>}
-            </div>
-          ))}
-        </div>
+       
+       <h2>Members present</h2>
+<div className="members-list">
+  {(() => {
+    const getPositionRank = (position) => {
+      const hierarchy = {
+        'Chairperson': 1,
+        'Vice Chairperson': 2,
+        'Secretary': 3,
+        'Vice Secretary': 4,
+        'Treasurer': 5,
+        'Organising Secretary': 6,
+        'Choir Moderator': 7,
+        'Vice Choir Moderator': 8,
+        'Media Moderator': 9,
+        'St. Gregory Moderator': 10,
+        'St. Peregrine Moderator': 11,
+        'Welfare': 12,
+        'ALTO Voice Rep': 13,
+        'Member': 99
+      };
+      return hierarchy[position] || 98;
+    };
 
-        {minutes.absentMembers?.filter(m => m.excused).length > 0 && (
-          <>
-            <h2>Absent with Apology</h2>
-            <div className="members-list">
-              {minutes.absentMembers.filter(m => m.excused).map((member, idx) => (
-                <div key={idx} className="member-item">{idx + 1}. {member.fullName}</div>
-              ))}
-            </div>
-          </>
-        )}
+    const sortedMembers = [...(minutes.presentMembers || [])].sort((a, b) => {
+      const roleA = a.executivePosition || 'Member';
+      const roleB = b.executivePosition || 'Member';
+      return getPositionRank(roleA) - getPositionRank(roleB);
+    });
+
+    return sortedMembers.map((member, idx) => {
+      let displayRole = member.executivePosition || 'Member';
+      return (
+        <div key={member.userId || idx} className="member-item">
+          {idx + 1}. {member.fullName}
+          <span className="role-tag"> ({displayRole})</span>
+        </div>
+      );
+    });
+  })()}
+</div>
+       
+
+ {/* All Absent Members */}
+{minutes.absentMembers?.length > 0 && (
+  <>
+    <h2>Absent Members</h2>
+    <div className="members-list">
+      {minutes.absentMembers.map((member, idx) => {
+        // ONLY show executivePosition, never role or specialRole
+        let displayRole = member.executivePosition || null;
+        
+        return (
+          <div key={idx} className="member-item">
+            {idx + 1}. {member.fullName}
+            {displayRole && <span className="role-tag"> ({displayRole})</span>}
+            {member.excused && <span className="excused-tag"> (Excused)</span>}
+          </div>
+        );
+      })}
+    </div>
+  </>
+)}
+
+{/* Only Absent with Apology (if you want separate section) */}
+{minutes.absentMembers?.filter(m => m.excused).length > 0 && (
+  <>
+    <h2>Absent with Apology</h2>
+    <div className="members-list">
+      {minutes.absentMembers.filter(m => m.excused).map((member, idx) => (
+        <div key={idx} className="member-item">{idx + 1}. {member.fullName}</div>
+      ))}
+    </div>
+  </>
+)}
 
         {minutes.presentGuests?.length > 0 && (
           <>
@@ -393,11 +509,11 @@ export default function MinutesViewPage() {
         </div>
 
         {minutes.preliminaries && (
-          <>
-            <h2>MIN 01/{new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: PRELIMINARIES</h2>
-            <p className="section-content">{minutes.preliminaries}</p>
-          </>
-        )}
+  <>
+    <h2>MIN 01/{String(new Date().getMonth() + 1).padStart(2, '0')}: PRELIMINARIES</h2>
+    <p className="section-content">{minutes.preliminaries}</p>
+  </>
+)}
 
         {minutes.sections?.map((section, idx) => (
           <div key={idx}>
@@ -414,24 +530,24 @@ export default function MinutesViewPage() {
           </div>
         ))}
 
-        {minutes.aob?.length > 0 && (
-          <>
-            <h2>MIN {String(minutes.sections?.length + 1).padStart(2, '0')}/{new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: AOB</h2>
-            {minutes.aob.map((item, idx) => (
-              <div key={idx} className="aob-item">
-                <p><strong>{item.title}</strong></p>
-                {item.content && <p>{item.content}</p>}
-              </div>
-            ))}
-          </>
-        )}
+      {minutes.aob?.length > 0 && (
+  <>
+    <h2>MIN {String(minutes.sections?.length + 1).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
+    {minutes.aob.map((item, idx) => (
+      <div key={idx} className="aob-item">
+        <p><strong>{item.title}</strong></p>
+        {item.content && <p>{item.content}</p>}
+      </div>
+    ))}
+  </>
+)}
 
-        {minutes.adjournment && (
-          <>
-            <h2>MIN {String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/{new Date(minutes.meetingDate).getFullYear().toString().slice(-2)}: ADJOURNMENT</h2>
-            <p className="section-content">{minutes.adjournment}</p>
-          </>
-        )}
+{minutes.adjournment && (
+  <>
+    <h2>MIN {String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
+    <p className="section-content">{minutes.adjournment}</p>
+  </>
+)}
 
         <div className="signatures">
           <div className="signature-line">
@@ -677,6 +793,13 @@ export default function MinutesViewPage() {
           .signature-line { flex-direction: column; gap: 8px; }
           .signature-placeholder { width: 100%; margin-left: 0; margin-top: 5px; }
         }
+
+        .excused-tag {
+  font-size: 11px;
+  color: #f59e0b;
+  font-style: italic;
+  margin-left: 5px;
+}
       `}</style>
     </div>
   );

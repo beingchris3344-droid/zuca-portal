@@ -315,11 +315,11 @@ ${minutes?.absentMembers?.filter(m => m.excused).length > 0 ? `
             `).join('')}
             
             ${minutes?.aob?.length > 0 ? `
-<h2>MIN ${String(minutes.sections?.length + 1).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
+<h2>MIN ${String((minutes.sections?.length || 0) + 2).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
 ${minutes.aob.map(item => `<div class="aob-item"><p><strong>${item.title}</strong></p>${item.content ? `<p>${item.content}</p>` : ''}</div>`).join('')}` : ''}
 
 ${minutes?.adjournment ? `
-<h2>MIN ${String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
+<h2>MIN ${String((minutes.sections?.length || 0) + (minutes.aob?.length > 0 ? 3 : 2)).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
 <p class="section-content">${minutes.adjournment}</p>` : ''}
             
             <div class="signatures">
@@ -532,7 +532,7 @@ ${minutes?.adjournment ? `
 
       {minutes.aob?.length > 0 && (
   <>
-    <h2>MIN {String(minutes.sections?.length + 1).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
+    <h2>MIN {String((minutes.sections?.length || 0) + 2).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
     {minutes.aob.map((item, idx) => (
       <div key={idx} className="aob-item">
         <p><strong>{item.title}</strong></p>
@@ -544,7 +544,7 @@ ${minutes?.adjournment ? `
 
 {minutes.adjournment && (
   <>
-    <h2>MIN {String(minutes.sections?.length + (minutes.aob?.length > 0 ? 2 : 1)).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
+    <h2>MIN {String((minutes.sections?.length || 0) + (minutes.aob?.length > 0 ? 3 : 2)).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
     <p className="section-content">{minutes.adjournment}</p>
   </>
 )}

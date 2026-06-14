@@ -63,6 +63,10 @@ function Landing2() {
   const massRef = useRef(null);
   const connectRef = useRef(null);
   const contactRef = useRef(null);
+  const mediaRef = useRef(null);      
+const eventsRef = useRef(null);    
+const hymnsRef = useRef(null);      
+const youtubeRef = useRef(null);
   const slideIntervalRef = useRef(null);
   const slideshowRef = useRef(null);
   const [featuredMedia, setFeaturedMedia] = useState([]);
@@ -393,14 +397,18 @@ useEffect(() => {
     };
   }, []);
 
-  const updateActiveSection = () => {
-    const sections = [
-      { id: 'home', ref: heroRef },
-      { id: 'about', ref: aboutRef },
-      { id: 'mass', ref: massRef },
-      { id: 'connect', ref: connectRef },
-      { id: 'contact', ref: contactRef }
-    ];
+ const updateActiveSection = () => {
+  const sections = [
+    { id: 'home', ref: heroRef },
+    { id: 'media', ref: mediaRef },
+    { id: 'youtube', ref: youtubeRef },
+    { id: 'events', ref: eventsRef },
+    { id: 'hymns', ref: hymnsRef },
+    { id: 'about', ref: aboutRef },
+    { id: 'connect', ref: connectRef },
+    { id: 'mass', ref: massRef },
+    { id: 'contact', ref: contactRef }
+  ];
 
     const scrollPosition = window.scrollY + 100;
 
@@ -415,14 +423,18 @@ useEffect(() => {
     }
   };
 
-  const scrollToSection = (sectionId) => {
-    const sectionRef = {
-      home: heroRef,
-      about: aboutRef,
-      mass: massRef,
-      connect: connectRef,
-      contact: contactRef
-    }[sectionId];
+ const scrollToSection = (sectionId) => {
+  const sectionRef = {
+    home: heroRef,
+    media: mediaRef,
+    youtube: youtubeRef,
+    events: eventsRef,
+    hymns: hymnsRef,
+    about: aboutRef,
+    connect: connectRef,
+    mass: massRef,
+    contact: contactRef
+  }[sectionId];
 
     if (sectionRef?.current) {
       const offset = 70;
@@ -529,13 +541,17 @@ const formatEventDate = (dateString) => {
             <span className="logo-text">ZUCA</span>
           </div>
           
-          {/* Desktop Navigation */}
-          <div className="nav-links-desktop">
-            <button onClick={() => scrollToSection('home')} className={`nav-link ${activeSection === 'home' ? 'active' : ''}`}>Home</button>
-            <button onClick={() => scrollToSection('about')} className={`nav-link ${activeSection === 'about' ? 'active' : ''}`}>About</button>
-            <button onClick={() => scrollToSection('connect')} className={`nav-link ${activeSection === 'connect' ? 'active' : ''}`}>Connect</button>
-            <button onClick={() => scrollToSection('mass')} className={`nav-link ${activeSection === 'mass' ? 'active' : ''}`}>Mass</button>
-          </div>
+         <div className="nav-links-desktop">
+  <button onClick={() => scrollToSection('home')} className={`nav-link ${activeSection === 'home' ? 'active' : ''}`}>Home</button>
+  <button onClick={() => scrollToSection('media')} className={`nav-link ${activeSection === 'media' ? 'active' : ''}`}>Media</button>
+  <button onClick={() => scrollToSection('youtube')} className={`nav-link ${activeSection === 'youtube' ? 'active' : ''}`}>Videos</button>
+  <button onClick={() => scrollToSection('events')} className={`nav-link ${activeSection === 'events' ? 'active' : ''}`}>Events</button>
+  <button onClick={() => scrollToSection('hymns')} className={`nav-link ${activeSection === 'hymns' ? 'active' : ''}`}>Hymns</button>
+  <button onClick={() => scrollToSection('about')} className={`nav-link ${activeSection === 'about' ? 'active' : ''}`}>About</button>
+  <button onClick={() => scrollToSection('connect')} className={`nav-link ${activeSection === 'connect' ? 'active' : ''}`}>Connect</button>
+  <button onClick={() => scrollToSection('mass')} className={`nav-link ${activeSection === 'mass' ? 'active' : ''}`}>Mass</button>
+  <button onClick={() => scrollToSection('contact')} className={`nav-link ${activeSection === 'contact' ? 'active' : ''}`}>Contact</button>
+</div>
           
           {/* Mobile Menu Button */}
           <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -543,13 +559,17 @@ const formatEventDate = (dateString) => {
           </button>
         </div>
         
-        {/* Mobile Navigation */}
-        <div className={`nav-links-mobile ${mobileMenuOpen ? 'open' : ''}`}>
-          <button onClick={() => scrollToSection('home')} className="nav-link-mobile">Home</button>
-          <button onClick={() => scrollToSection('about')} className="nav-link-mobile">About</button>
-          <button onClick={() => scrollToSection('connect')} className="nav-link-mobile">Connect</button>
-          <button onClick={() => scrollToSection('mass')} className="nav-link-mobile">Mass</button>
-        </div>
+     <div className={`nav-links-mobile ${mobileMenuOpen ? 'open' : ''}`}>
+  <button onClick={() => scrollToSection('home')} className="nav-link-mobile">Home</button>
+  <button onClick={() => scrollToSection('media')} className="nav-link-mobile">Media</button>
+  <button onClick={() => scrollToSection('youtube')} className="nav-link-mobile">Videos</button>
+  <button onClick={() => scrollToSection('events')} className="nav-link-mobile">Events</button>
+  <button onClick={() => scrollToSection('hymns')} className="nav-link-mobile">Hymns</button>
+  <button onClick={() => scrollToSection('about')} className="nav-link-mobile">About</button>
+  <button onClick={() => scrollToSection('connect')} className="nav-link-mobile">Connect</button>
+  <button onClick={() => scrollToSection('mass')} className="nav-link-mobile">Mass</button>
+  <button onClick={() => scrollToSection('contact')} className="nav-link-mobile">Contact</button>
+</div>
       </nav>
 
       {/* Hero Section with Slideshow */}
@@ -653,7 +673,7 @@ const formatEventDate = (dateString) => {
       </section>
 
        {/* Featured Media Section */}
-      <section className="section featured-media-section fade-section">
+     <section ref={mediaRef} id="media" className="section featured-media-section fade-section">
         <div className="container">
           <div className="section-header">
             <FaImage className="section-icon" />
@@ -764,7 +784,7 @@ const formatEventDate = (dateString) => {
 
 
      {/* Top Watched YouTube Videos Section */}
-<section className="section youtube-section fade-section">
+<section ref={youtubeRef} id="youtube" className="section youtube-section fade-section">
   <div className="container">
     <div className="section-header">
       <FaYoutube className="section-icon youtube-icon" />
@@ -834,7 +854,7 @@ const formatEventDate = (dateString) => {
 
 
             {/* Upcoming Events Section */}
-      <section className="section events-section fade-section">
+      <section ref={eventsRef} id="events" className="section events-section fade-section">
         <div className="container">
           <div className="section-header">
             <FaCalendarAlt className="section-icon" />
@@ -921,7 +941,7 @@ const formatEventDate = (dateString) => {
 
 
             {/* Hymn Browser Section */}
-      <section className="section hymns-section fade-section">
+      <section ref={hymnsRef} id="hymns" className="section hymns-section fade-section">
         <div className="container">
           <div className="section-header">
             <FaMusic className="section-icon" />
@@ -1790,7 +1810,7 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
           display: inline-flex;
           align-items: center;
           gap: 12px;
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(59, 171, 199, 0.4);
           backdrop-filter: blur(5px);
           padding: 12px 24px;
           border-radius: 50px;
@@ -2314,7 +2334,7 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
 
                 /* Featured Media Section */
         .featured-media-section {
-          background: linear-gradient(135deg, #ffffff70, #ffffff);
+          background: linear-gradient(135deg, #b5d114cc, #ffffff);
         }
 
         .media-grid {

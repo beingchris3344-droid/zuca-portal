@@ -1,5 +1,6 @@
 // frontend/src/pages/Landing2.jsx
 import { useNavigate } from "react-router-dom";
+import BASE_URL from "../api";
 import { 
   FaInstagram, 
   FaFacebookF, 
@@ -25,6 +26,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaPause,
+  FaImage,
+  FaCalendarAlt,
   FaPlay
 } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
@@ -42,6 +45,7 @@ import slide10 from "../assets/10.jpg";
 import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
 import NotificationPrompt from '../components/NotificationPrompt';
+import axios from 'axios';
 
 function Landing2() {
   const navigate = useNavigate();
@@ -61,6 +65,26 @@ function Landing2() {
   const contactRef = useRef(null);
   const slideIntervalRef = useRef(null);
   const slideshowRef = useRef(null);
+  const [featuredMedia, setFeaturedMedia] = useState([]);
+const [loadingMedia, setLoadingMedia] = useState(true);
+const [selectedMedia, setSelectedMedia] = useState(null);
+const [isModalOpen, setIsModalOpen] = useState(false);
+const [latestVideo, setLatestVideo] = useState([]);
+const [loadingVideo, setLoadingVideo] = useState(true);
+const [upcomingEvents, setUpcomingEvents] = useState([]);
+const [loadingEvents, setLoadingEvents] = useState(true);
+const [hymns, setHymns] = useState([]);
+const [loadingHymns, setLoadingHymns] = useState(true);
+const [hymnSearch, setHymnSearch] = useState('');
+const [searchResults, setSearchResults] = useState([]);
+const [isSearching, setIsSearching] = useState(false);
+const [selectedHymn, setSelectedHymn] = useState(null);
+const [showHymnModal, setShowHymnModal] = useState(false);
+const [hymnsPage, setHymnsPage] = useState(1);
+const [hasMoreHymns, setHasMoreHymns] = useState(false);
+const [searchSuggestions, setSearchSuggestions] = useState([]);
+const [showSuggestions, setShowSuggestions] = useState(false);
+const [isSearchingLive, setIsSearchingLive] = useState(false);
 
   // Slideshow images array
   const slides = [
@@ -114,6 +138,210 @@ function Landing2() {
     setTouchStart(null);
   };
 
+  const openMediaModal = (media) => {
+  setSelectedMedia(media);
+  setIsModalOpen(true);
+  document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+};
+
+const closeMediaModal = () => {
+  setIsModalOpen(false);
+  setSelectedMedia(null);
+  document.body.style.overflow = 'auto'; // Restore scrolling
+};
+
+
+
+ // Fetch hymns
+const fetchHymns = async (page = 1, search = '') => {
+  try {
+    if (search) {
+      const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(search)}?limit=20`);
+      if (response.data.success) {
+        setSearchResults(response.data.hymns);
+        setIsSearching(true);
+      }
+    } else {
+      const response = await axios.get(`${BASE_URL}/api/public/hymns?page=${page}&limit=12`);
+      if (response.data.success) {
+        if (page === 1) {
+          setHymns(response.data.hymns);
+        } else {
+          setHymns(prev => [...prev, ...response.data.hymns]);
+        }
+        setHasMoreHymns(response.data.hasMore);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching hymns:', err);
+  } finally {
+    setLoadingHymns(false);
+  }
+};
+
+// View hymn details
+const viewHymn = async (id) => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/public/hymns/${id}`);
+    if (response.data.success) {
+      setSelectedHymn(response.data.hymn);
+      setShowHymnModal(true);
+      document.body.style.overflow = 'hidden';
+    }
+  } catch (err) {
+    console.error('Error fetching hymn details:', err);
+  }
+};
+
+const closeHymnModal = () => {
+  setShowHymnModal(false);
+  setSelectedHymn(null);
+  document.body.style.overflow = 'auto';
+};
+
+const handleHymnSearch = (e) => {
+  e.preventDefault();
+  if (hymnSearch.trim().length >= 2) {
+    setLoadingHymns(true);
+    setIsSearching(true);
+    fetchHymns(1, hymnSearch);
+  }
+};
+
+const clearSearch = () => {
+  setHymnSearch('');
+  setIsSearching(false);
+  setSearchResults([]);
+  setLoadingHymns(true);
+  fetchHymns(1, '');
+};
+
+const loadMoreHymns = () => {
+  if (hasMoreHymns && !isSearching) {
+    const nextPage = hymnsPage + 1;
+    setHymnsPage(nextPage);
+    fetchHymns(nextPage, '');
+  }
+};
+
+// Live search as user types
+const handleSearchInput = async (e) => {
+  const value = e.target.value;
+  setHymnSearch(value);
+  
+  if (value.trim().length >= 2) {
+    setIsSearchingLive(true);
+    setShowSuggestions(true);
+    
+    try {
+      const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(value)}?limit=8`);
+      if (response.data.success) {
+        setSearchSuggestions(response.data.hymns);
+      }
+    } catch (err) {
+      console.error('Live search error:', err);
+      setSearchSuggestions([]);
+    } finally {
+      setIsSearchingLive(false);
+    }
+  } else {
+    setShowSuggestions(false);
+    setSearchSuggestions([]);
+  }
+};
+
+// Select suggestion from dropdown
+const selectSuggestion = (suggestion) => {
+  setHymnSearch(suggestion.title);
+  setShowSuggestions(false);
+  // Optionally trigger search immediately
+  setLoadingHymns(true);
+  setIsSearching(true);
+  fetchHymns(1, suggestion.title);
+};
+
+
+
+// Fetch featured media
+useEffect(() => {
+  const fetchFeaturedMedia = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/public/featured-media?limit=10`);
+      // Handle both response formats (with or without wrapper)
+      const mediaData = response.data.media || response.data;
+      setFeaturedMedia(mediaData);
+    } catch (err) {
+      console.error('Error fetching featured media:', err);
+      setFeaturedMedia([]);
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+  
+  fetchFeaturedMedia();
+}, []);
+
+
+
+// Fetch upcoming events
+useEffect(() => {
+  const fetchUpcomingEvents = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/public/upcoming-events?limit=4`);
+      console.log('Events response:', response.data);
+      
+      // Access the events array from the response
+      if (response.data && response.data.events) {
+        setUpcomingEvents(response.data.events);
+      } else if (Array.isArray(response.data)) {
+        setUpcomingEvents(response.data);
+      } else {
+        setUpcomingEvents([]);
+      }
+    } catch (err) {
+      console.error('Error fetching upcoming events:', err);
+      setUpcomingEvents([]);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+  
+  fetchUpcomingEvents();
+}, []);
+
+
+
+
+
+
+// Fetch top watched YouTube videos
+useEffect(() => {
+  const fetchTopVideos = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/public/youtube-top?limit=3`);
+      console.log('YouTube response:', response.data);
+      
+      if (response.data.success && response.data.videos && response.data.videos.length > 0) {
+        setLatestVideo(response.data.videos); // Store all videos, not just first
+      } else {
+        setLatestVideo([]);
+      }
+    } catch (err) {
+      console.error('YouTube API error:', err.message);
+      setLatestVideo([]);
+    } finally {
+      setLoadingVideo(false);
+    }
+  };
+  
+  fetchTopVideos();
+}, []);
+
+// Load hymns on mount
+useEffect(() => {
+  fetchHymns(1, '');
+}, []);
+
   // Auto-play slideshow
   useEffect(() => {
     if (isPlaying) {
@@ -135,6 +363,9 @@ function Landing2() {
     };
     
     window.addEventListener("scroll", handleScroll);
+
+
+   
     
     // Fade-in on scroll observer
     const observer = new IntersectionObserver(
@@ -203,6 +434,22 @@ function Landing2() {
     }
     setMobileMenuOpen(false);
   };
+
+  // Helper to format Kenyan date
+const formatEventDate = (dateString) => {
+  const date = new Date(dateString);
+  return {
+    day: date.getDate(),
+    month: date.toLocaleString('default', { month: 'short' }),
+    weekday: date.toLocaleString('default', { weekday: 'short' }),
+    full: date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+  };
+};
 
   // PWA Install Prompt Handler
   useEffect(() => {
@@ -391,6 +638,9 @@ function Landing2() {
             </div>
           </div>
 
+
+               
+
           {/* Mass Info Card */}
           <div className="mass-info-card">
             <FaChurch className="mass-info-icon" />
@@ -401,6 +651,437 @@ function Landing2() {
           </div>
         </div>
       </section>
+
+       {/* Featured Media Section */}
+      <section className="section featured-media-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <FaImage className="section-icon" />
+            <h2 className="section-title">Featured Media</h2>
+            <p className="section-subtitle">Check out our latest photos and videos</p>
+          </div>
+
+          {loadingMedia ? (
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading featured media...</p>
+            </div>
+          ) : featuredMedia.length === 0 ? (
+            <div className="no-media">
+              <p>No featured media available yet.</p>
+            </div>
+          ) : (
+            <div className="media-grid">
+              {featuredMedia.map((media) => (
+               <div 
+  key={media.id} 
+  className="media-card"
+  onClick={() => openMediaModal(media)}  // ← Add this
+>
+  {media.type === 'image' ? (
+    <img 
+      src={media.url} 
+      alt={media.title || 'Featured media'} 
+      className="media-image"
+    />
+  ) : (
+    <video 
+      src={media.url} 
+      className="media-video"
+      controls
+      preload="metadata"
+      onClick={(e) => e.stopPropagation()} // Prevent opening modal when clicking video controls
+    />
+  )}
+  <div className="media-overlay">
+    <h3 className="media-title">{media.title}</h3>
+    <div className="media-stats">
+      <span>❤️ {media._count?.likes || 0}</span>
+      <span>👁️ {media._count?.views || 0}</span>
+    </div>
+  </div>
+</div>
+              ))}
+            </div>
+          )}
+          
+          <div className="view-all-container">
+            <button 
+              onClick={() => navigate("/gallery")} 
+              className="view-all-btn"
+            >
+              View All Media →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Full Screen Media Modal */}
+{isModalOpen && selectedMedia && (
+  <div className="media-modal" onClick={closeMediaModal}>
+    <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
+      <button className="modal-close-btn" onClick={closeMediaModal}>
+        &times;
+      </button>
+      {selectedMedia.type === 'image' ? (
+        <img 
+          src={selectedMedia.url} 
+          alt={selectedMedia.title} 
+          className="modal-image"
+        />
+      ) : (
+        <video 
+          src={selectedMedia.url} 
+          className="modal-video"
+          controls
+          autoPlay
+          preload="metadata"
+        />
+      )}
+      <div className="modal-info">
+        <h3 className="modal-title">{selectedMedia.title}</h3>
+        {selectedMedia.description && (
+          <p className="modal-description">{selectedMedia.description}</p>
+        )}
+        <div className="modal-stats">
+          <span>❤️ {selectedMedia._count?.likes || 0}</span>
+          <span>👁️ {selectedMedia._count?.views || 0}</span>
+          <span>📅 {new Date(selectedMedia.createdAt).toLocaleDateString()}</span>
+        </div>
+        <button 
+          className="modal-gallery-btn"
+          onClick={() => {
+            closeMediaModal();
+            navigate("/gallery");
+          }}
+        >
+          View Full Gallery →
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+     {/* Top Watched YouTube Videos Section */}
+<section className="section youtube-section fade-section">
+  <div className="container">
+    <div className="section-header">
+      <FaYoutube className="section-icon youtube-icon" />
+      <h2 className="section-title">Top Watched Videos</h2>
+      <p className="section-subtitle">Our community's favorite content</p>
+    </div>
+
+    {loadingVideo ? (
+      <div className="loading-spinner">
+        <div className="spinner"></div>
+        <p>Loading videos...</p>
+      </div>
+    ) : latestVideo.length > 0 ? (
+      <div className="youtube-grid">
+        {latestVideo.map((video, index) => (
+          <div key={video.id} className="youtube-card" style={{ animationDelay: `${index * 0.1}s` }}>
+            <a 
+              href={`https://www.youtube.com/watch?v=${video.id}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="youtube-link"
+            >
+              <div className="youtube-thumbnail-container">
+                <img 
+                  src={video.thumbnail} 
+                  alt={video.title} 
+                  className="youtube-thumbnail"
+                />
+                <div className="youtube-play-overlay">
+                  <div className="play-button">▶</div>
+                </div>
+              </div>
+            </a>
+            <div className="youtube-info">
+              <h3 className="youtube-title">{video.title}</h3>
+              <div className="youtube-stats">
+                <span>👁️ {video.views?.toLocaleString() || 0} views</span>
+                <span>❤️ {video.likes?.toLocaleString() || 0} likes</span>
+              </div>
+              <a 
+                href={`https://www.youtube.com/watch?v=${video.id}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="watch-btn"
+              >
+                Watch on YouTube <FaYoutube style={{ marginLeft: '8px' }} />
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="no-video">
+        <p>No videos available yet. Check back soon!</p>
+        <a 
+          href="https://www.youtube.com/@zetechUniversityCatholic" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="subscribe-btn"
+        >
+          Subscribe to our Channel <FaYoutube />
+        </a>
+      </div>
+    )}
+  </div>
+</section>
+
+
+            {/* Upcoming Events Section */}
+      <section className="section events-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <FaCalendarAlt className="section-icon" />
+            <h2 className="section-title">Upcoming Events</h2>
+            <p className="section-subtitle">Join us in fellowship and service</p>
+          </div>
+
+          {loadingEvents ? (
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading upcoming events...</p>
+            </div>
+          ) : upcomingEvents.length > 0 ? (
+            <div className="events-grid">
+              {upcomingEvents.map((event, index) => {
+                const eventDate = formatEventDate(event.eventDate);
+                return (
+                  <div key={event.id} className="event-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                    <div className="event-date">
+                      <div className="event-day">{eventDate.day}</div>
+                      <div className="event-month">{eventDate.month}</div>
+                    </div>
+                    <div className="event-details">
+                      <h3 className="event-title">{event.title}</h3>
+                      <div className="event-meta">
+                        <div className="event-meta-item">
+                          <FaClock className="meta-icon" />
+                          <span>{event.eventTime || '4:30 PM'}</span>
+                        </div>
+                        <div className="event-meta-item">
+                          <FaLocationArrow className="meta-icon" />
+                          <span>{event.location || 'Annex Building 002'}</span>
+                        </div>
+                        <div className="event-meta-item">
+                          <FaCalendarAlt className="meta-icon" />
+                          <span>{eventDate.weekday}, {eventDate.full}</span>
+                        </div>
+                      </div>
+                      {event.description && (
+                        <p className="event-description">{event.description}</p>
+                      )}
+                      <div className="event-actions">
+                        <button 
+                          className="event-reminder-btn"
+                          onClick={() => {
+                            // Add to calendar functionality
+                            const eventData = {
+                              title: event.title,
+                              start: event.eventDate,
+                              end: event.eventDate,
+                              location: event.location || 'Annex Building 002',
+                              description: event.description || ''
+                            };
+                            // You can implement calendar download here
+                            alert(`📅 Event: ${event.title}\n📆 Date: ${eventDate.full}\n⏰ Time: ${event.eventTime || '4:30 PM'}\n📍 Location: ${event.location || 'Annex Building 002'}\n\nAdd to your calendar!`);
+                          }}
+                        >
+                          <FaClock /> Set Reminder
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="no-events">
+              <FaCalendarAlt className="no-events-icon" />
+              <p>No upcoming events at the moment.</p>
+              <p className="no-events-sub">Check back soon for updates!</p>
+            </div>
+          )}
+          
+          <div className="view-all-events">
+            <button 
+              onClick={() => navigate("/mass-programs")} 
+              className="view-all-events-btn"
+            >
+              View All Events →
+            </button>
+          </div>
+        </div>
+      </section>
+
+
+            {/* Hymn Browser Section */}
+      <section className="section hymns-section fade-section">
+        <div className="container">
+          <div className="section-header">
+            <FaMusic className="section-icon" />
+            <h2 className="section-title">Hymn Browser</h2>
+            <p className="section-subtitle">Browse our collection of hymns and songs</p>
+          </div>
+
+          {/* Search Bar */}
+          <form onSubmit={handleHymnSearch} className="hymn-search-form">
+            <div className="search-input-wrapper" style={{ position: 'relative' }}>
+  <input
+    type="text"
+    placeholder="Search hymns by title or lyrics..."
+    value={hymnSearch}
+    onChange={handleSearchInput}
+    onFocus={() => hymnSearch.trim().length >= 2 && setShowSuggestions(true)}
+    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+    className="hymn-search-input"
+  />
+  <button type="submit" className="hymn-search-btn" onClick={handleHymnSearch}>
+    🔍 Search
+  </button>
+  {isSearching && (
+    <button type="button" onClick={clearSearch} className="hymn-clear-btn">
+      ✕ Clear
+    </button>
+  )}
+  
+  {/* Suggestions Dropdown */}
+  {showSuggestions && searchSuggestions.length > 0 && (
+    <div className="search-suggestions">
+      {searchSuggestions.map((suggestion, index) => (
+        <div
+          key={suggestion.id}
+          className="suggestion-item"
+          onClick={() => selectSuggestion(suggestion)}
+          style={{ animationDelay: `${index * 0.03}s` }}
+        >
+          <div className="suggestion-icon">🎵</div>
+          <div className="suggestion-content">
+            <div className="suggestion-title">{suggestion.title}</div>
+            {suggestion.preview && (
+              <div className="suggestion-preview">{suggestion.preview.substring(0, 60)}...</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+  
+  {/* Loading indicator for live search */}
+  {isSearchingLive && (
+    <div className="search-loading">
+      <div className="search-spinner"></div>
+      <span>Searching...</span>
+    </div>
+  )}
+</div>
+          </form>
+
+          {loadingHymns ? (
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading hymns...</p>
+            </div>
+          ) : (
+            <>
+              <div className="hymns-grid">
+                {(isSearching ? searchResults : hymns).map((hymn, index) => (
+                  <div 
+                    key={hymn.id} 
+                    className="hymn-card"
+                    onClick={() => viewHymn(hymn.id)}
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="hymn-icon">
+                      <FaMusic />
+                    </div>
+                    <div className="hymn-content">
+                      <h3 className="hymn-title">{hymn.title}</h3>
+                      {hymn.reference && (
+                        <span className="hymn-reference">{hymn.reference}</span>
+                      )}
+                      {hymn.preview && (
+                        <p className="hymn-preview">{hymn.preview}...</p>
+                      )}
+                      <div className="hymn-read-more">
+                        Read Lyrics →
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {!isSearching && hasMoreHymns && (
+                <div className="load-more-container">
+                  <button onClick={loadMoreHymns} className="load-more-btn">
+                    Load More Hymns
+                  </button>
+                </div>
+              )}
+
+              {(isSearching ? searchResults : hymns).length === 0 && !loadingHymns && (
+                <div className="no-hymns">
+                  <FaMusic className="no-hymns-icon" />
+                  <p>No hymns found</p>
+                  {isSearching && (
+                    <button onClick={clearSearch} className="clear-search-btn">
+                      Browse All Hymns
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="view-all-hymns">
+            <button 
+              onClick={() => navigate("/hymns")} 
+              className="view-all-hymns-btn"
+            >
+              View Full Hymn Book →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Hymn Detail Modal */}
+      {showHymnModal && selectedHymn && (
+        <div className="hymn-modal" onClick={closeHymnModal}>
+          <div className="hymn-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="hymn-modal-close" onClick={closeHymnModal}>×</button>
+            <div className="hymn-modal-header">
+              <FaMusic className="hymn-modal-icon" />
+              <h2>{selectedHymn.title}</h2>
+              {selectedHymn.reference && (
+                <span className="hymn-modal-reference">{selectedHymn.reference}</span>
+              )}
+            </div>
+            <div className="hymn-modal-lyrics">
+              {selectedHymn.lyrics ? (
+                selectedHymn.lyrics.split('\n').map((line, i) => (
+                  <p key={i}>{line || <br />}</p>
+                ))
+              ) : (
+                <p className="no-lyrics">Lyrics not available yet.</p>
+              )}
+            </div>
+            <button 
+              className="hymn-modal-view-all"
+              onClick={() => {
+                closeHymnModal();
+                navigate("/hymns");
+              }}
+            >
+              View All Hymns →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mass Schedule Section */}
       <section id="mass" ref={massRef} className="section mass-section fade-section">
@@ -1185,7 +1866,7 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
         .section-subtitle,
         .section-subtitle-light {
           font-size: 16px;
-          color: #94a3b8;
+          color: #000000;
         }
 
         /* Mass Section */
@@ -1630,6 +2311,1192 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
             width: 20px;
           }
         }
+
+                /* Featured Media Section */
+        .featured-media-section {
+          background: linear-gradient(135deg, #ffffff70, #ffffff);
+        }
+
+        .media-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 25px;
+          margin-top: 40px;
+        }
+
+        .media-card {
+          position: relative;
+          border-radius: 16px;
+          overflow: hidden;
+          cursor: pointer;
+          background: rgba(255, 255, 255, 0.05);
+          aspect-ratio: 16/9;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .media-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 10px 30px rgba(0, 198, 255, 0.2);
+        }
+
+        .media-image,
+        .media-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .media-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+          padding: 20px 15px 10px;
+          transform: translateY(100%);
+          transition: transform 0.3s ease;
+        }
+
+        .media-card:hover .media-overlay {
+          transform: translateY(0);
+        }
+
+        .media-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: white;
+          margin-bottom: 5px;
+        }
+
+        .media-stats {
+          display: flex;
+          gap: 12px;
+          font-size: 12px;
+          color: #cbd5e1;
+        }
+
+        .loading-spinner {
+          text-align: center;
+          padding: 60px 20px;
+        }
+
+        .spinner {
+          width: 50px;
+          height: 50px;
+          border: 3px solid rgba(255, 255, 255, 0.1);
+          border-top-color: #00c6ff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .no-media {
+          text-align: center;
+          padding: 60px 20px;
+          color: #94a3b8;
+        }
+
+        .view-all-container {
+          text-align: center;
+          margin-top: 50px;
+        }
+
+        .view-all-btn {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          padding: 12px 32px;
+          border-radius: 30px;
+          color: white;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.3s ease;
+        }
+
+        .view-all-btn:hover {
+          transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+          .media-grid {
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 15px;
+          }
+        }
+
+        /* Full Screen Modal */
+.media-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease;
+}
+
+.media-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  background: #1e293b;
+  border-radius: 20px;
+  overflow: hidden;
+  animation: scaleIn 0.3s ease;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  color: white;
+  font-size: 32px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+}
+
+.modal-video {
+  max-width: 100%;
+  max-height: 70vh;
+  width: 100%;
+}
+
+.modal-info {
+  padding: 20px;
+  background: #1e293b;
+  color: white;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #00c6ff;
+}
+
+.modal-description {
+  font-size: 14px;
+  color: #cbd5e1;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.modal-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.modal-gallery-btn {
+  background: linear-gradient(135deg, #00c6ff, #007bff);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 30px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  width: 100%;
+}
+
+.modal-gallery-btn:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { 
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to { 
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Mobile modal adjustments */
+@media (max-width: 768px) {
+  .media-modal-content {
+    max-width: 95vw;
+    max-height: 95vh;
+    border-radius: 16px;
+  }
+  
+  .modal-image,
+  .modal-video {
+    max-height: 60vh;
+  }
+  
+  .modal-info {
+    padding: 16px;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+  }
+  
+  .modal-close-btn {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    font-size: 28px;
+  }
+}
+
+        /* YouTube Section */
+        .youtube-section {
+          background: linear-gradient(135deg, #0f172a, #1e1b4b);
+        }
+
+        .youtube-icon {
+          color: #FF0000;
+        }
+
+        .youtube-card {
+          max-width: 800px;
+          margin: 0 auto;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
+          overflow: hidden;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .youtube-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .youtube-link {
+          display: block;
+          position: relative;
+          cursor: pointer;
+        }
+
+        .youtube-thumbnail-container {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 16/9;
+          overflow: hidden;
+        }
+
+        .youtube-thumbnail {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s ease;
+        }
+
+        .youtube-card:hover .youtube-thumbnail {
+          transform: scale(1.05);
+        }
+
+        .youtube-play-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.3s ease;
+        }
+
+        .youtube-card:hover .youtube-play-overlay {
+          background: rgba(0, 0, 0, 0.6);
+        }
+
+        .play-button {
+          width: 80px;
+          height: 80px;
+          background: rgba(255, 0, 0, 0.9);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 36px;
+          color: white;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .youtube-card:hover .play-button {
+          transform: scale(1.1);
+          background: #FF0000;
+          box-shadow: 0 8px 30px rgba(255, 0, 0, 0.4);
+        }
+
+        .youtube-info {
+          padding: 24px;
+        }
+
+        .youtube-title {
+          font-size: 20px;
+          font-weight: 600;
+          color: white;
+          margin-bottom: 12px;
+          line-height: 1.4;
+        }
+
+        .youtube-stats {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 16px;
+          font-size: 14px;
+          color: #94a3b8;
+          flex-wrap: wrap;
+        }
+
+        .youtube-description {
+          font-size: 14px;
+          color: #cbd5e1;
+          line-height: 1.6;
+          margin-bottom: 20px;
+        }
+
+        .watch-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #FF0000, #cc0000);
+          border: none;
+          border-radius: 30px;
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          text-decoration: none;
+        }
+
+        .watch-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
+        }
+
+        .subscribe-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 28px;
+          background: linear-gradient(135deg, #FF0000, #cc0000);
+          border-radius: 30px;
+          color: white;
+          text-decoration: none;
+          font-weight: 600;
+          margin-top: 20px;
+          transition: all 0.3s ease;
+        }
+
+        .subscribe-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
+        }
+
+        .no-video {
+          text-align: center;
+          padding: 60px 20px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
+        }
+
+        .no-video p {
+          color: #94a3b8;
+          margin-bottom: 20px;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+          .play-button {
+            width: 60px;
+            height: 60px;
+            font-size: 28px;
+          }
+
+          .youtube-info {
+            padding: 20px;
+          }
+
+          .youtube-title {
+            font-size: 18px;
+          }
+
+          .youtube-stats {
+            gap: 12px;
+            font-size: 12px;
+          }
+
+          .watch-btn {
+            padding: 10px 20px;
+            font-size: 13px;
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .play-button {
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+          }
+
+          .youtube-info {
+            padding: 16px;
+          }
+        }
+
+                /* Upcoming Events Section */
+        .events-section {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+        }
+
+        .events-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+          gap: 25px;
+          margin-top: 40px;
+        }
+
+        .event-card {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 16px;
+          overflow: hidden;
+          display: flex;
+          transition: all 0.3s ease;
+          animation: fadeInUp 0.6s ease backwards;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .event-card:hover {
+          transform: translateY(-5px);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(0, 198, 255, 0.3);
+          box-shadow: 0 10px 30px rgba(0, 198, 255, 0.1);
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .event-date {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          padding: 20px 15px;
+          text-align: center;
+          min-width: 80px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        .event-day {
+          font-size: 32px;
+          font-weight: 800;
+          color: white;
+          line-height: 1;
+        }
+
+        .event-month {
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+          text-transform: uppercase;
+          margin-top: 5px;
+        }
+
+        .event-details {
+          flex: 1;
+          padding: 20px;
+        }
+
+        .event-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 12px;
+          line-height: 1.4;
+        }
+
+        .event-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+
+        .event-meta-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          color: #cbd5e1;
+        }
+
+        .meta-icon {
+          font-size: 12px;
+          color: #00c6ff;
+        }
+
+        .event-description {
+          font-size: 13px;
+          color: #94a3b8;
+          line-height: 1.5;
+          margin-bottom: 15px;
+        }
+
+        .event-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .event-reminder-btn {
+          background: rgba(0, 198, 255, 0.1);
+          border: 1px solid rgba(0, 198, 255, 0.3);
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #00c6ff;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.3s ease;
+        }
+
+        .event-reminder-btn:hover {
+          background: rgba(0, 198, 255, 0.2);
+          transform: translateY(-2px);
+        }
+
+        .view-all-events {
+          text-align: center;
+          margin-top: 50px;
+        }
+
+        .view-all-events-btn {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          padding: 12px 32px;
+          border-radius: 30px;
+          color: white;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.3s ease;
+        }
+
+        .view-all-events-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
+        }
+
+        .no-events {
+          text-align: center;
+          padding: 60px 20px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
+        }
+
+        .no-events-icon {
+          font-size: 48px;
+          color: #64748b;
+          margin-bottom: 20px;
+        }
+
+        .no-events p {
+          color: #94a3b8;
+          font-size: 16px;
+        }
+
+        .no-events-sub {
+          font-size: 14px;
+          margin-top: 8px;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+          .events-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+
+          .event-card {
+            flex-direction: column;
+          }
+
+          .event-date {
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+          }
+
+          .event-day {
+            font-size: 24px;
+          }
+
+          .event-month {
+            font-size: 12px;
+            margin-top: 0;
+          }
+
+          .event-details {
+            padding: 16px;
+          }
+
+          .event-title {
+            font-size: 16px;
+          }
+
+          .event-meta-item {
+            font-size: 12px;
+          }
+
+          .view-all-events-btn {
+            padding: 10px 24px;
+            font-size: 14px;
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .event-date {
+            padding: 10px;
+          }
+
+          .event-day {
+            font-size: 20px;
+          }
+
+          .event-details {
+            padding: 14px;
+          }
+
+          .event-reminder-btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+                  /* Hymn Browser Section */
+        .hymns-section {
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+        }
+
+        .hymn-search-form {
+          max-width: 600px;
+          margin: 0 auto 40px;
+        }
+
+        .search-input-wrapper {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .hymn-search-input {
+          flex: 1;
+          padding: 14px 20px;
+          border-radius: 50px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          transition: all 0.3s ease;
+        }
+
+        .hymn-search-input:focus {
+          border-color: #00c6ff;
+          background: rgba(255, 255, 255, 0.15);
+        }
+
+        .hymn-search-input::placeholder {
+          color: #94a3b8;
+        }
+
+        .hymn-search-btn {
+          padding: 12px 28px;
+          border-radius: 50px;
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.3s ease;
+        }
+
+        .hymn-search-btn:hover {
+          transform: translateY(-2px);
+        }
+
+        .hymn-clear-btn {
+          padding: 12px 24px;
+          border-radius: 50px;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: white;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .hymn-clear-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hymns-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 20px;
+          margin-top: 20px;
+        }
+
+        .hymn-card {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 16px;
+          padding: 20px;
+          display: flex;
+          gap: 15px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          animation: fadeInUp 0.5s ease backwards;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hymn-card:hover {
+          transform: translateY(-3px);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(0, 198, 255, 0.3);
+        }
+
+        .hymn-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          color: white;
+          flex-shrink: 0;
+        }
+
+        .hymn-content {
+          flex: 1;
+        }
+
+        .hymn-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 5px;
+        }
+
+        .hymn-reference {
+          font-size: 11px;
+          color: #00c6ff;
+          display: inline-block;
+          margin-bottom: 8px;
+        }
+
+        .hymn-preview {
+          font-size: 13px;
+          color: #94a3b8;
+          line-height: 1.5;
+          margin-bottom: 10px;
+        }
+
+        .hymn-read-more {
+          font-size: 12px;
+          color: #00c6ff;
+          font-weight: 500;
+        }
+
+        .load-more-container {
+          text-align: center;
+          margin-top: 40px;
+        }
+
+        .load-more-btn {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 12px 32px;
+          border-radius: 30px;
+          color: white;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .load-more-btn:hover {
+          background: rgba(0, 198, 255, 0.2);
+          border-color: #00c6ff;
+        }
+
+        .no-hymns {
+          text-align: center;
+          padding: 60px 20px;
+        }
+
+        .no-hymns-icon {
+          font-size: 48px;
+          color: #64748b;
+          margin-bottom: 20px;
+        }
+
+        .no-hymns p {
+          color: #94a3b8;
+          margin-bottom: 20px;
+        }
+
+        .clear-search-btn {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          padding: 10px 24px;
+          border-radius: 30px;
+          color: white;
+          cursor: pointer;
+        }
+
+        .view-all-hymns {
+          text-align: center;
+          margin-top: 50px;
+        }
+
+        .view-all-hymns-btn {
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          padding: 12px 32px;
+          border-radius: 30px;
+          color: white;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.3s ease;
+        }
+
+        .view-all-hymns-btn:hover {
+          transform: translateY(-2px);
+        }
+
+        /* Hymn Modal */
+        .hymn-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.95);
+          z-index: 10001;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          backdrop-filter: blur(10px);
+        }
+
+        .hymn-modal-content {
+          max-width: 700px;
+          width: 90%;
+          max-height: 85vh;
+          background: #1e293b;
+          border-radius: 20px;
+          overflow: hidden;
+          animation: scaleIn 0.3s ease;
+        }
+
+        .hymn-modal-close {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: rgba(0, 0, 0, 0.7);
+          border: none;
+          color: white;
+          font-size: 28px;
+          cursor: pointer;
+          z-index: 10;
+        }
+
+        .hymn-modal-header {
+          text-align: center;
+          padding: 30px 20px 20px;
+          background: linear-gradient(135deg, #0f172a, #1e293b);
+        }
+
+        .hymn-modal-icon {
+          font-size: 48px;
+          color: #00c6ff;
+          margin-bottom: 15px;
+        }
+
+        .hymn-modal-header h2 {
+          color: white;
+          font-size: 24px;
+          margin-bottom: 8px;
+        }
+
+        .hymn-modal-reference {
+          font-size: 14px;
+          color: #00c6ff;
+        }
+
+        .hymn-modal-lyrics {
+          padding: 30px;
+          max-height: 55vh;
+          overflow-y: auto;
+          color: #cbd5e1;
+          line-height: 1.8;
+          white-space: pre-wrap;
+        }
+
+        .hymn-modal-lyrics p {
+          margin-bottom: 8px;
+        }
+
+        .no-lyrics {
+          text-align: center;
+          color: #94a3b8;
+          font-style: italic;
+        }
+
+        .hymn-modal-view-all {
+          display: block;
+          width: calc(100% - 40px);
+          margin: 0 20px 20px;
+          padding: 14px;
+          background: linear-gradient(135deg, #00c6ff, #007bff);
+          border: none;
+          border-radius: 30px;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+          .hymns-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .hymn-modal-content {
+            width: 95%;
+          }
+          
+          .hymn-modal-lyrics {
+            padding: 20px;
+            font-size: 14px;
+          }
+        }
+          /* Search Suggestions */
+.search-input-wrapper {
+  position: relative;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1e293b;
+  border-radius: 16px;
+  margin-top: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  animation: fadeInUp 0.3s ease backwards;
+}
+
+.suggestion-item:hover {
+  background: rgba(0, 198, 255, 0.1);
+}
+
+.suggestion-icon {
+  font-size: 20px;
+  min-width: 32px;
+}
+
+.suggestion-content {
+  flex: 1;
+}
+
+.suggestion-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 4px;
+}
+
+.suggestion-preview {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.search-loading {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1e293b;
+  border-radius: 12px;
+  margin-top: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #00c6ff;
+  font-size: 14px;
+}
+
+.search-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 198, 255, 0.2);
+  border-top-color: #00c6ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Scrollbar styling */
+.search-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+  background: #00c6ff;
+  border-radius: 3px;
+}
+
+/* YouTube Grid Layout */
+.youtube-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 25px;
+  margin-top: 20px;
+}
+
+.youtube-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  animation: fadeInUp 0.5s ease backwards;
+}
+
+.youtube-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Adjust play button size for cards */
+.youtube-card .play-button {
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+}
+
+.youtube-card .youtube-title {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.youtube-card .youtube-stats {
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.youtube-card .watch-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  width: 100%;
+  justify-content: center;
+}
+
+.youtube-card .youtube-info {
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .youtube-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
       `}</style>
     </div>
   );

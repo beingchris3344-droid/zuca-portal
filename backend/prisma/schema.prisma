@@ -1710,3 +1710,13 @@ model TreasurerAuditLog {
   @@index([timestamp])
   @@map("treasurer_audit_logs")
 }
+
+model History {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String
+  content   String   @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

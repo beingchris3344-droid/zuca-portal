@@ -579,6 +579,10 @@ app.use('/api/messenger', messengerRoutes);
 const adminMessagingRoutes = require('./routes/admin-messaging');
 app.use('/api/admin/messenger', adminMessagingRoutes);
 
+// Import history routes
+const historyRoutes = require('./routes/historyRoutes');
+app.use('/api/history', historyRoutes);
+
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 

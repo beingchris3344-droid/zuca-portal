@@ -24,7 +24,7 @@ const [formData, setFormData] = useState({
   agenda: [''],
   preliminaries: '',
   sections: [{ 
-    number: `MIN 01/${String(new Date().getMonth() + 1).padStart(2, '0')}`, 
+    number: `MIN 02/${String(new Date().getMonth() + 1).padStart(2, '0')}`, 
     title: '', 
     content: '', 
     decisions: ['']
@@ -227,7 +227,7 @@ const [formData, setFormData] = useState({
   const addSection = () => {
   const currentMonth = new Date().getMonth() + 1; // January = 1, February = 2, etc.
   const monthFormatted = String(currentMonth).padStart(2, '0');
-  const newNumber = `MIN ${String(formData.sections.length + 1).padStart(2, '0')}/${monthFormatted}`;
+  const newNumber = `MIN ${String(formData.sections.length + 2).padStart(2, '0')}/${monthFormatted}`;
   setFormData(prev => ({
     ...prev,
     sections: [...prev.sections, { number: newNumber, title: '', content: '', decisions: [''] }]

@@ -275,9 +275,9 @@ const getPositionRank = (position) => {
 <h2>Absent Members</h2>
 <div class="members-list">
   ${minutes.absentMembers.map((member, idx) => {
-    let displayRole = member.role || member.executivePosition;
-    if (!displayRole) displayRole = "Member";
-    return `<div class="member-item">${idx + 1}. ${member.fullName} <span class="role-tag">(${displayRole})</span>${member.excused ? ` <span class="excused-tag">(Excused)</span>` : ''}</div>`;
+    // ONLY show executivePosition, never role or specialRole
+    let displayRole = member.executivePosition || null;
+    return `<div class="member-item">${idx + 1}. ${member.fullName}${displayRole ? ` <span class="role-tag">(${displayRole})</span>` : ''}${member.excused ? ` <span class="excused-tag">(Excused)</span>` : ''}</div>`;
   }).join('')}
 </div>` : ''}
 

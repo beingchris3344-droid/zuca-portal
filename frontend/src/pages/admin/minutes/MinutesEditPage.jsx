@@ -36,7 +36,10 @@ export default function MinutesEditPage() {
     const updatedSections = (minutes.sections || []).map((section, idx) => {
       // If section number has /25, /26 (year), replace with current month
       if (section.number && section.number.match(/\/(\d{2})$/)) {
-        const newNumber = `MIN ${String(idx + 1).padStart(2, '0')}/${monthFormatted}`;
+        // Extract original section number to preserve it
+const originalNumberMatch = section.number.match(/MIN (\d+)/);
+const originalNumber = originalNumberMatch ? originalNumberMatch[1] : String(idx + 1).padStart(2, '0');
+const newNumber = `MIN ${originalNumber}/${monthFormatted}`;
         return { ...section, number: newNumber };
       }
       return section;
@@ -55,17 +58,18 @@ export default function MinutesEditPage() {
     setLoading(false);
   }
 };
- const addSection = () => {
+const addSection = () => {
   const currentMonth = new Date().getMonth() + 1;
   const monthFormatted = String(currentMonth).padStart(2, '0');
-  const newNumber = `MIN ${String(formData.sections.length + 1).padStart(2, '0')}/${monthFormatted}`;
+  // Start from 2 because MIN 01 is PRELIMINARIES
+  const nextNumber = formData.sections.length + 2;
+  const newNumber = `MIN ${String(nextNumber).padStart(2, '0')}/${monthFormatted}`;
   setFormData(prev => ({
     ...prev,
     sections: [...prev.sections, { number: newNumber, title: '', content: '', decisions: [''] }]
   }));
   setExpandedSections(prev => ({ ...prev, [formData.sections.length]: true }));
 };
-
   const removeSection = (index) => {
     setFormData(prev => ({ ...prev, sections: prev.sections.filter((_, i) => i !== index) }));
   };

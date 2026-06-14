@@ -66,12 +66,14 @@ export default function RoleLayout() {
             { path: `${basePath}/announcements`, icon: "📢", label: "Announcements" },
             { path: `${basePath}/schedules`, icon: "📅", label: "Schedules" },
             { path: `${basePath}/minutes`, icon: "📝", label: "Minutes" },
-            { path: `${basePath}/attendance`, icon: "✅", label: "Attendance" }
+            { path: `${basePath}/attendance`, icon: "✅", label: "Attendance" },
+             { path: `${basePath}/history`, icon: "📜", label: "History" } 
           ],
           quickActions: [
             { action: `${basePath}/announcements`, label: "New Announcement", icon: "➕" },
             { action: `${basePath}/schedules`, label: "Create Schedule", icon: "📅" },
-            { action: `${basePath}/minutes/create`, label: "New Minutes", icon: "📝" }
+            { action: `${basePath}/minutes/create`, label: "New Minutes", icon: "📝" },
+             { action: `${basePath}/history`, label: "Manage History", icon: "📜" }
           ]
         };
       case "treasurer":

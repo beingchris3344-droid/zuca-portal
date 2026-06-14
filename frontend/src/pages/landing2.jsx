@@ -89,6 +89,13 @@ const [hasMoreHymns, setHasMoreHymns] = useState(false);
 const [searchSuggestions, setSearchSuggestions] = useState([]);
 const [showSuggestions, setShowSuggestions] = useState(false);
 const [isSearchingLive, setIsSearchingLive] = useState(false);
+const [downloading, setDownloading] = useState(false);
+const [loadingHymnDetails, setLoadingHymnDetails] = useState(false);
+const [selectedVideo, setSelectedVideo] = useState(null);
+const [showVideoModal, setShowVideoModal] = useState(false);
+
+const [historyEntries, setHistoryEntries] = useState([]);
+const [loadingHistory, setLoadingHistory] = useState(true);
 
   // Slideshow images array
   const slides = [
@@ -186,6 +193,7 @@ const fetchHymns = async (page = 1, search = '') => {
 // View hymn details
 const viewHymn = async (id) => {
   try {
+    setLoadingHymnDetails(true);
     const response = await axios.get(`${BASE_URL}/api/public/hymns/${id}`);
     if (response.data.success) {
       setSelectedHymn(response.data.hymn);
@@ -194,6 +202,9 @@ const viewHymn = async (id) => {
     }
   } catch (err) {
     console.error('Error fetching hymn details:', err);
+    alert('Failed to load hymn details. Please try again.');
+  } finally {
+    setLoadingHymnDetails(false);
   }
 };
 
@@ -254,14 +265,181 @@ const handleSearchInput = async (e) => {
   }
 };
 
-// Select suggestion from dropdown
-const selectSuggestion = (suggestion) => {
+const selectSuggestion = async (suggestion) => {
   setHymnSearch(suggestion.title);
   setShowSuggestions(false);
-  // Optionally trigger search immediately
-  setLoadingHymns(true);
   setIsSearching(true);
-  fetchHymns(1, suggestion.title);
+  setLoadingHymns(true);
+  
+  // Fetch the hymn immediately
+  try {
+    const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(suggestion.title)}?limit=20`);
+    if (response.data.success) {
+      setSearchResults(response.data.hymns);
+    }
+  } catch (err) {
+    console.error('Error fetching suggested hymn:', err);
+  } finally {
+    setLoadingHymns(false);
+  }
+};
+
+
+// Download hymn as Image
+const downloadHymnAsImage = async (hymn) => {
+  try {
+    setDownloading(true);
+    
+    // Create a temporary container for the hymn content
+    const element = document.createElement('div');
+    element.style.cssText = `
+      padding: 40px;
+      background: white;
+      font-family: 'Georgia', 'Times New Roman', serif;
+      max-width: 600px;
+      margin: 0 auto;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    `;
+    
+    // Format lyrics with proper line breaks
+    const lyricsHtml = hymn.lyrics ? hymn.lyrics.split('\n').map(line => 
+      `<p style="margin: 8px 0; text-align: center; font-size: 16px; line-height: 1.6;">${line || ' '}</p>`
+    ).join('') : '<p style="text-align: center; color: #999;">Lyrics not available</p>';
+    
+    element.innerHTML = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #4f46e5; font-size: 28px; margin-bottom: 10px;">${hymn.title}</h1>
+        ${hymn.reference ? `<p style="color: #64748b; font-size: 14px;">${hymn.reference}</p>` : ''}
+        <div style="width: 60px; height: 3px; background: linear-gradient(90deg, #4f46e5, #7c3aed); margin: 20px auto;"></div>
+      </div>
+      <div style="margin-bottom: 30px;">
+        ${lyricsHtml}
+      </div>
+      <div style="text-align: center; margin-top: 40px; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+        ZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}
+      </div>
+    `;
+    
+    document.body.appendChild(element);
+    
+    // Use html2canvas to convert to image
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+    
+    document.body.removeChild(element);
+    
+    // Download as PNG
+    const link = document.createElement('a');
+    link.download = `${hymn.title.replace(/[^a-z0-9]/gi, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    alert('✅ Image downloaded successfully!');
+  } catch (error) {
+    console.error('Image download failed:', error);
+    alert('❌ Failed to download image. Please try again.');
+  } finally {
+    setDownloading(false);
+  }
+};
+
+// Download hymn as PDF
+const downloadHymnAsPDF = async (hymn) => {
+  try {
+    setDownloading(true);
+    
+    // Dynamically import jspdf
+    const { jsPDF } = await import('jspdf');
+    
+    const pdf = new jsPDF({
+      unit: 'pt',
+      format: 'a4',
+    });
+    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 40;
+    const contentWidth = pageWidth - (margin * 2);
+    
+    let y = margin + 20;
+    
+    // Title
+    pdf.setFontSize(24);
+    pdf.setTextColor(79, 70, 229);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(hymn.title, pageWidth / 2, y, { align: 'center' });
+    y += 30;
+    
+    // Reference
+    if (hymn.reference) {
+      pdf.setFontSize(14);
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(hymn.reference, pageWidth / 2, y, { align: 'center' });
+      y += 40;
+    } else {
+      y += 20;
+    }
+    
+    // Divider line
+    pdf.setDrawColor(79, 70, 229);
+    pdf.line(margin + 100, y - 10, pageWidth - margin - 100, y - 10);
+    
+    // Lyrics
+    pdf.setFontSize(14);
+    pdf.setTextColor(30, 41, 59);
+    pdf.setFont('helvetica', 'normal');
+    
+    if (hymn.lyrics) {
+      const cleanLyrics = hymn.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
+      const lines = cleanLyrics.split('\n');
+      
+      for (const line of lines) {
+        if (line.trim() === '') {
+          y += 12;
+        } else {
+          if (y > pdf.internal.pageSize.getHeight() - margin) {
+            pdf.addPage();
+            y = margin + 20;
+          }
+          pdf.text(line, pageWidth / 2, y, { align: 'center' });
+          y += 20;
+        }
+      }
+    }
+    
+    // Footer
+    y = pdf.internal.pageSize.getHeight() - margin;
+    pdf.setFontSize(10);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text('ZUCA Hymn Book', margin, y);
+    pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth - margin - 150, y);
+    
+    // Save PDF
+    pdf.save(`${hymn.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    alert('✅ PDF downloaded successfully!');
+  } catch (error) {
+    console.error('PDF download failed:', error);
+    alert('❌ Failed to download PDF. Please try again.');
+  } finally {
+    setDownloading(false);
+  }
+};
+
+const openVideoModal = (video) => {
+  setSelectedVideo(video);
+  setShowVideoModal(true);
+  document.body.style.overflow = 'hidden';
+};
+
+const closeVideoModal = () => {
+  setShowVideoModal(false);
+  setSelectedVideo(null);
+  document.body.style.overflow = 'auto';
 };
 
 
@@ -285,7 +463,19 @@ useEffect(() => {
   fetchFeaturedMedia();
 }, []);
 
-
+// Format YouTube duration (PT1H2M10S -> 1:02:10)
+const formatDuration = (duration) => {
+  if (!duration) return '';
+  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+  const hours = match[1] ? parseInt(match[1]) : 0;
+  const minutes = match[2] ? parseInt(match[2]) : 0;
+  const seconds = match[3] ? parseInt(match[3]) : 0;
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
 
 // Fetch upcoming events
 useEffect(() => {
@@ -315,7 +505,23 @@ useEffect(() => {
 
 
 
-
+// Fetch history content
+useEffect(() => {
+  const fetchHistory = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/history/public`);
+      if (response.data.success) {
+        setHistoryEntries(response.data.history);
+      }
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+  
+  fetchHistory();
+}, []);
 
 
 // Fetch top watched YouTube videos
@@ -800,40 +1006,34 @@ const formatEventDate = (dateString) => {
     ) : latestVideo.length > 0 ? (
       <div className="youtube-grid">
         {latestVideo.map((video, index) => (
-          <div key={video.id} className="youtube-card" style={{ animationDelay: `${index * 0.1}s` }}>
-            <a 
-              href={`https://www.youtube.com/watch?v=${video.id}`} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="youtube-link"
-            >
-              <div className="youtube-thumbnail-container">
-                <img 
-                  src={video.thumbnail} 
-                  alt={video.title} 
-                  className="youtube-thumbnail"
-                />
-                <div className="youtube-play-overlay">
-                  <div className="play-button">▶</div>
-                </div>
-              </div>
-            </a>
-            <div className="youtube-info">
-              <h3 className="youtube-title">{video.title}</h3>
-              <div className="youtube-stats">
-                <span>👁️ {video.views?.toLocaleString() || 0} views</span>
-                <span>❤️ {video.likes?.toLocaleString() || 0} likes</span>
-              </div>
-              <a 
-                href={`https://www.youtube.com/watch?v=${video.id}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="watch-btn"
-              >
-                Watch on YouTube <FaYoutube style={{ marginLeft: '8px' }} />
-              </a>
-            </div>
-          </div>
+         <div key={video.id} className="youtube-card" style={{ animationDelay: `${index * 0.1}s` }}>
+  <div className="video-thumbnail-container" onClick={() => openVideoModal(video)}>
+    <img 
+      src={video.thumbnail} 
+      alt={video.title} 
+      className="youtube-thumbnail"
+    />
+    <div className="youtube-play-overlay">
+      <div className="play-button">▶</div>
+    </div>
+    <div className="video-duration-badge">
+      {formatDuration(video.duration)}
+    </div>
+  </div>
+  <div className="youtube-info">
+    <h3 className="youtube-title">{video.title}</h3>
+    <div className="youtube-stats">
+      <span>👁️ {video.views?.toLocaleString() || 0} views</span>
+      <span>❤️ {video.likes?.toLocaleString() || 0} likes</span>
+    </div>
+    <button 
+      onClick={() => openVideoModal(video)} 
+      className="watch-now-btn"
+    >
+      🎬 Watch Now
+    </button>
+  </div>
+</div>
         ))}
       </div>
     ) : (
@@ -952,15 +1152,22 @@ const formatEventDate = (dateString) => {
           {/* Search Bar */}
           <form onSubmit={handleHymnSearch} className="hymn-search-form">
             <div className="search-input-wrapper" style={{ position: 'relative' }}>
-  <input
-    type="text"
-    placeholder="Search hymns by title or lyrics..."
-    value={hymnSearch}
-    onChange={handleSearchInput}
-    onFocus={() => hymnSearch.trim().length >= 2 && setShowSuggestions(true)}
-    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-    className="hymn-search-input"
-  />
+ <input
+  type="text"
+  placeholder="Search hymns by title or lyrics..."
+  value={hymnSearch}
+  onChange={handleSearchInput}
+  onFocus={() => {
+    if (hymnSearch.trim().length >= 2) {
+      setShowSuggestions(true);
+    }
+  }}
+  onBlur={() => {
+    // Delay hiding so click on suggestion registers
+    setTimeout(() => setShowSuggestions(false), 200);
+  }}
+  className="hymn-search-input"
+/>
   <button type="submit" className="hymn-search-btn" onClick={handleHymnSearch}>
     🔍 Search
   </button>
@@ -974,20 +1181,21 @@ const formatEventDate = (dateString) => {
   {showSuggestions && searchSuggestions.length > 0 && (
     <div className="search-suggestions">
       {searchSuggestions.map((suggestion, index) => (
-        <div
-          key={suggestion.id}
-          className="suggestion-item"
-          onClick={() => selectSuggestion(suggestion)}
-          style={{ animationDelay: `${index * 0.03}s` }}
-        >
-          <div className="suggestion-icon">🎵</div>
-          <div className="suggestion-content">
-            <div className="suggestion-title">{suggestion.title}</div>
-            {suggestion.preview && (
-              <div className="suggestion-preview">{suggestion.preview.substring(0, 60)}...</div>
-            )}
-          </div>
-        </div>
+       <div
+  key={suggestion.id}
+  className="suggestion-item"
+  onClick={() => selectSuggestion(suggestion)}
+  onMouseDown={(e) => e.preventDefault()}  // Add this to prevent input blur
+  style={{ animationDelay: `${index * 0.03}s` }}
+>
+  <div className="suggestion-icon">🎵</div>
+  <div className="suggestion-content">
+    <div className="suggestion-title">{suggestion.title}</div>
+    {suggestion.preview && (
+      <div className="suggestion-preview">{suggestion.preview.substring(0, 60)}...</div>
+    )}
+  </div>
+</div>
       ))}
     </div>
   )}
@@ -1012,27 +1220,31 @@ const formatEventDate = (dateString) => {
               <div className="hymns-grid">
                 {(isSearching ? searchResults : hymns).map((hymn, index) => (
                   <div 
-                    key={hymn.id} 
-                    className="hymn-card"
-                    onClick={() => viewHymn(hymn.id)}
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <div className="hymn-icon">
-                      <FaMusic />
-                    </div>
-                    <div className="hymn-content">
-                      <h3 className="hymn-title">{hymn.title}</h3>
-                      {hymn.reference && (
-                        <span className="hymn-reference">{hymn.reference}</span>
-                      )}
-                      {hymn.preview && (
-                        <p className="hymn-preview">{hymn.preview}...</p>
-                      )}
-                      <div className="hymn-read-more">
-                        Read Lyrics →
-                      </div>
-                    </div>
-                  </div>
+  key={hymn.id} 
+  className={`hymn-card ${loadingHymnDetails ? 'loading' : ''}`}
+  onClick={() => viewHymn(hymn.id)}
+  style={{ animationDelay: `${index * 0.05}s` }}
+>
+  <div className="hymn-icon">
+    {loadingHymnDetails ? (
+      <div className="mini-spinner"></div>
+    ) : (
+      <FaMusic />
+    )}
+  </div>
+  <div className="hymn-content">
+    <h3 className="hymn-title">{hymn.title}</h3>
+    {hymn.reference && (
+      <span className="hymn-reference">{hymn.reference}</span>
+    )}
+    {hymn.preview && (
+      <p className="hymn-preview">{hymn.preview}...</p>
+    )}
+    <div className="hymn-read-more">
+      {loadingHymnDetails ? 'Loading...' : 'Read Lyrics →'}
+    </div>
+  </div>
+</div>
                 ))}
               </div>
 
@@ -1043,6 +1255,8 @@ const formatEventDate = (dateString) => {
                   </button>
                 </div>
               )}
+
+              
 
               {(isSearching ? searchResults : hymns).length === 0 && !loadingHymns && (
                 <div className="no-hymns">
@@ -1069,39 +1283,115 @@ const formatEventDate = (dateString) => {
         </div>
       </section>
 
-      {/* Hymn Detail Modal */}
-      {showHymnModal && selectedHymn && (
-        <div className="hymn-modal" onClick={closeHymnModal}>
-          <div className="hymn-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="hymn-modal-close" onClick={closeHymnModal}>×</button>
-            <div className="hymn-modal-header">
-              <FaMusic className="hymn-modal-icon" />
-              <h2>{selectedHymn.title}</h2>
-              {selectedHymn.reference && (
-                <span className="hymn-modal-reference">{selectedHymn.reference}</span>
-              )}
-            </div>
-            <div className="hymn-modal-lyrics">
-              {selectedHymn.lyrics ? (
-                selectedHymn.lyrics.split('\n').map((line, i) => (
-                  <p key={i}>{line || <br />}</p>
-                ))
-              ) : (
-                <p className="no-lyrics">Lyrics not available yet.</p>
-              )}
-            </div>
+     {/* Hymn Detail Modal */}
+{(showHymnModal || loadingHymnDetails) && (
+  <div className="hymn-modal" onClick={closeHymnModal}>
+    <div className="hymn-modal-content" onClick={(e) => e.stopPropagation()}>
+      <button className="hymn-modal-close" onClick={closeHymnModal}>×</button>
+      
+      {loadingHymnDetails ? (
+        // Loading State
+        <div className="hymn-modal-loading">
+          <div className="hymn-loading-spinner"></div>
+          <p>Loading hymn lyrics...</p>
+        </div>
+      ) : (
+        // Content State
+        <>
+          <div className="hymn-modal-header">
+            <FaMusic className="hymn-modal-icon" />
+            <h2>{selectedHymn?.title}</h2>
+            {selectedHymn?.reference && (
+              <span className="hymn-modal-reference">{selectedHymn.reference}</span>
+            )}
+          </div>
+          
+          <div className="hymn-modal-lyrics">
+            {selectedHymn?.lyrics ? (
+              selectedHymn.lyrics.split('\n').map((line, i) => (
+                <p key={i}>{line || <br />}</p>
+              ))
+            ) : (
+              <p className="no-lyrics">Lyrics not available yet.</p>
+            )}
+          </div>
+          
+          <div className="hymn-download-buttons">
             <button 
-              className="hymn-modal-view-all"
-              onClick={() => {
-                closeHymnModal();
-                navigate("/hymns");
-              }}
+              className="hymn-download-btn image-btn"
+              onClick={() => downloadHymnAsImage(selectedHymn)}
+              disabled={downloading}
             >
-              View All Hymns →
+              📸 Download as Image
+            </button>
+            <button 
+              className="hymn-download-btn pdf-btn"
+              onClick={() => downloadHymnAsPDF(selectedHymn)}
+              disabled={downloading}
+            >
+              📄 Download as PDF
             </button>
           </div>
-        </div>
+          
+          <button 
+            className="hymn-modal-view-all"
+            onClick={() => {
+              closeHymnModal();
+              navigate("/hymns");
+            }}
+          >
+            🎵 View All Hymns →
+          </button>
+        </>
       )}
+    </div>
+  </div>
+)}
+
+{/* YouTube Video Modal */}
+{showVideoModal && selectedVideo && (
+  <div className="video-modal" onClick={closeVideoModal}>
+    <div className="video-modal-content" onClick={(e) => e.stopPropagation()}>
+      <button className="video-modal-close" onClick={closeVideoModal}>×</button>
+      
+      <div className="video-container">
+        <iframe
+          src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1`}
+          title={selectedVideo.title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="video-iframe"
+        ></iframe>
+      </div>
+      
+      <div className="video-modal-info">
+        <h3 className="video-modal-title">{selectedVideo.title}</h3>
+        <div className="video-modal-stats">
+          <span>👁️ {selectedVideo.views?.toLocaleString() || 0} views</span>
+          <span>❤️ {selectedVideo.likes?.toLocaleString() || 0} likes</span>
+          <span>💬 {selectedVideo.comments?.toLocaleString() || 0} comments</span>
+        </div>
+        {selectedVideo.description && (
+          <p className="video-modal-description">{selectedVideo.description.substring(0, 200)}...</p>
+        )}
+        <div className="video-modal-buttons">
+          <a 
+            href={`https://www.youtube.com/watch?v=${selectedVideo.id}`} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="video-open-youtube"
+          >
+            Open on YouTube <FaYoutube />
+          </a>
+          <button onClick={closeVideoModal} className="video-close-btn">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Mass Schedule Section */}
       <section id="mass" ref={massRef} className="section mass-section fade-section">
@@ -1189,67 +1479,54 @@ const formatEventDate = (dateString) => {
         </div>
       </section>
 
-      {/* About Section */}
-      <section id="about" ref={aboutRef} className="section about-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <img src={logo} alt="ZUCA Logo" className="about-logo" />
-            <h2 className="section-title-dark">Our History</h2>
-          </div>
+     {/* About Section - Dynamic from Database */}
+<section id="about" ref={aboutRef} className="section about-section fade-section">
+  <div className="container">
+    <div className="section-header">
+      <img src={logo} alt="ZUCA Logo" className="about-logo" />
+      <h2 className="section-title-dark">Our History</h2>
+    </div>
 
-          <div className="about-content">
-            <p className="about-text">
-             <strong>St. Kizito ZUCA</strong> was established in <strong>October 2018</strong> by a 
-group of Catholic students who met at school and decided to recite the Holy Rosary in the evenings. When Madam 
-Veronica happened to pass by, she noticed them and helped formalize the initiative into a structured group. The students continued with their practice until July, when the group was officially launched as a club at Zetech University.
-</p>
-
-<p className="about-text">
-Madam Veronica became the group's matron, and Mr. Martin Butita became the patron. The first leadership team was composed of <strong>Magige Brian</strong> as chairperson, <strong>Shiru</strong> as vice moderator, <strong>Nick</strong> as secretary, and <strong>Petronila</strong> as organizing secretary.
-</p>
-
-<p className="about-text">
-The second chairperson was <strong>Collins Nalwa</strong>, with <strong>Daisy Chepngetich</strong> serving as his vice. Thereafter, <strong>Faustine</strong> assumed the role of chairperson, with <strong>Josephine Owuor</strong> as vice. Josephine later took over as chairperson for a period of about two months, during which <strong>Cheru</strong> served as her vice. Following further consultations and a challenging term of leadership, their roles were exchanged: <strong>Cheru</strong> became chairperson, and <strong>Josephine</strong> became vice. Shortly afterward, <strong>Josephine</strong> stepped down from the vice chair position, and <strong>Phelister</strong> took over the role.
-</p>
-
-<p className="about-text">
-After their tenure, <strong>Raphael Kamura</strong> was appointed chairperson, with <strong>Brighet</strong> as his assistant. Due to other commitments, <strong>Raphael</strong> stepped down, leading to the appointment of <strong>Sylvester</strong> as chairperson 
-while <strong>Brighet</strong> remained as assistant chairperson. Subsequently, <strong>Brighet</strong> stepped down upon 
-completing her studies, and <strong>Cecilia</strong> was appointed as vice moderator. Currently, <strong>Tonny</strong> serves as the chairperson and to day <strong>ZUCA</strong> is still growing.
-</p>
-
-
-
-            
-            
-            <div className="activities-grid">
-              <div className="activity-item">
-                <FaChurch className="activity-icon" />
-                
-                <p1>OUR ACTIVITIES</p1>
-               
-                
-       
-              </div>
-
-              
-              <div className="activity-item">
-                <FaMusic className="activity-icon" />
-                <span>Choir Practice/Mass Animations</span>
-              </div>
-              <div className="activity-item">
-                <FaUsers className="activity-icon" />
-                <span>Jumuia Groups</span>
-              </div>
-              <div className="activity-item">
-                <FaHandsHelping className="activity-icon" />
-                <span>Outdoor and Indoor functions</span>
-              </div>
-            </div>
-          </div>
+    <div className="about-content">
+      {loadingHistory ? (
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+          <p>Loading history...</p>
         </div>
-      </section>
-
+      ) : historyEntries.length > 0 ? (
+        <>
+          {historyEntries.map((entry) => (
+            <div key={entry.id} className="history-entry">
+              <h3 className="history-title">{entry.title}</h3>
+              <p className="about-text">{entry.content}</p>
+            </div>
+          ))}
+        </>
+      ) : (
+        <p className="about-text">History content coming soon...</p>
+      )}
+      
+      <div className="activities-grid">
+        <div className="activity-item">
+          <FaChurch className="activity-icon" />
+          <span>OUR ACTIVITIES</span>
+        </div>
+        <div className="activity-item">
+          <FaMusic className="activity-icon" />
+          <span>Choir Practice/Mass Animations</span>
+        </div>
+        <div className="activity-item">
+          <FaUsers className="activity-icon" />
+          <span>Jumuia Groups</span>
+        </div>
+        <div className="activity-item">
+          <FaHandsHelping className="activity-icon" />
+          <span>Outdoor and Indoor functions</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
       {/* Contact Section */}
       <section className="section contact-section fade-section" ref={contactRef}>
         <div className="container">
@@ -1886,7 +2163,7 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
         .section-subtitle,
         .section-subtitle-light {
           font-size: 16px;
-          color: #000000;
+          color: #ffffff;
         }
 
         /* Mass Section */
@@ -3251,115 +3528,142 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
           transform: translateY(-2px);
         }
 
-        /* Hymn Modal */
-        .hymn-modal {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.95);
-          z-index: 10001;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          backdrop-filter: blur(10px);
-        }
+      /* Hymn Modal */
+.hymn-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+}
 
-        .hymn-modal-content {
-          max-width: 700px;
-          width: 90%;
-          max-height: 85vh;
-          background: #1e293b;
-          border-radius: 20px;
-          overflow: hidden;
-          animation: scaleIn 0.3s ease;
-        }
+.hymn-modal-content {
+  max-width: 700px;
+  width: 90%;
+  max-height: 85vh;
+  background: #000000;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: scaleIn 0.3s ease;
+}
 
-        .hymn-modal-close {
-          position: absolute;
-          top: 20px;
-          right: 20px;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: rgba(0, 0, 0, 0.7);
-          border: none;
-          color: white;
-          font-size: 28px;
-          cursor: pointer;
-          z-index: 10;
-        }
+.hymn-modal-header {
+  text-align: center;
+  padding: 30px 20px 20px;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  flex-shrink: 0;
+}
 
-        .hymn-modal-header {
-          text-align: center;
-          padding: 30px 20px 20px;
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-        }
+.hymn-modal-lyrics {
+  padding: 30px;
+  overflow-y: auto;
+  color: #cbd5e1;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  flex: 1;
+}
 
-        .hymn-modal-icon {
-          font-size: 48px;
-          color: #00c6ff;
-          margin-bottom: 15px;
-        }
+/* Download Buttons */
+.hymn-download-buttons {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 15px 20px;
+  flex-shrink: 0;
+}
 
-        .hymn-modal-header h2 {
-          color: white;
-          font-size: 24px;
-          margin-bottom: 8px;
-        }
+.hymn-download-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: none;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
 
-        .hymn-modal-reference {
-          font-size: 14px;
-          color: #00c6ff;
-        }
+.hymn-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-        .hymn-modal-lyrics {
-          padding: 30px;
-          max-height: 55vh;
-          overflow-y: auto;
-          color: #cbd5e1;
-          line-height: 1.8;
-          white-space: pre-wrap;
-        }
+.hymn-download-btn.image-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
 
-        .hymn-modal-lyrics p {
-          margin-bottom: 8px;
-        }
+.hymn-download-btn.image-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
 
-        .no-lyrics {
-          text-align: center;
-          color: #94a3b8;
-          font-style: italic;
-        }
+.hymn-download-btn.pdf-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
 
-        .hymn-modal-view-all {
-          display: block;
-          width: calc(100% - 40px);
-          margin: 0 20px 20px;
-          padding: 14px;
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          border-radius: 30px;
-          color: white;
-          font-weight: 600;
-          cursor: pointer;
-        }
+.hymn-download-btn.pdf-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
 
-        @media (max-width: 768px) {
-          .hymns-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .hymn-modal-content {
-            width: 95%;
-          }
-          
-          .hymn-modal-lyrics {
-            padding: 20px;
-            font-size: 14px;
-          }
-        }
+.hymn-modal-view-all {
+  display: block;
+  margin: 0 20px 20px;
+  padding: 14px;
+  background: linear-gradient(135deg, #00c6ff, #007bff);
+  border: none;
+  border-radius: 30px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hymn-modal-view-all:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
+}
+
+@media (max-width: 768px) {
+  .hymn-modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .hymn-modal-lyrics {
+    padding: 20px;
+    font-size: 14px;
+  }
+  
+  .hymn-download-buttons {
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 16px 12px 16px;
+  }
+  
+  .hymn-download-btn {
+    padding: 10px;
+    font-size: 13px;
+  }
+  
+  .hymn-modal-view-all {
+    margin: 0 16px 16px;
+    padding: 12px;
+  }
+}
           /* Search Suggestions */
 .search-input-wrapper {
   position: relative;
@@ -3515,6 +3819,347 @@ completing her studies, and <strong>Cecilia</strong> was appointed as vice moder
   .youtube-grid {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+}
+
+/* Hymn Download Buttons */
+.hymn-download-buttons {
+  display: flex;
+  gap: 12px;
+  margin: 0 20px 15px;
+}
+
+.hymn-download-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: none;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.hymn-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hymn-download-btn.image-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.hymn-download-btn.image-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.hymn-download-btn.pdf-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.hymn-download-btn.pdf-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+@media (max-width: 768px) {
+  .hymn-download-buttons {
+    flex-direction: column;
+    margin: 0 16px 12px;
+  }
+  
+  .hymn-download-btn {
+    padding: 10px;
+    font-size: 13px;
+  }
+}
+
+/* Hymn Modal Loading State */
+.hymn-modal-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.hymn-loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(0, 198, 255, 0.1);
+  border-top-color: #00c6ff;
+  border-radius: 50%;
+  animation: hymnSpin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes hymnSpin {
+  to { transform: rotate(360deg); }
+}
+
+.hymn-modal-loading p {
+  color: #94a3b8;
+  font-size: 16px;
+}
+
+/* Also add a loading state for the hymn cards when clicked */
+.hymn-card.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+  .mini-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: hymnSpin 0.8s linear infinite;
+}
+
+/* YouTube Video Modal */
+.video-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10002;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease;
+}
+
+.video-modal-content {
+  max-width: 900px;
+  width: 90%;
+  max-height: 90vh;
+  background: #1e293b;
+  border-radius: 20px;
+  overflow: hidden;
+  animation: scaleIn 0.3s ease;
+}
+
+.video-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.video-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  background: #000;
+}
+
+.video-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.video-modal-info {
+  padding: 24px;
+  color: white;
+}
+
+.video-modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #00c6ff;
+}
+
+.video-modal-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #94a3b8;
+  flex-wrap: wrap;
+}
+
+.video-modal-description {
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.video-modal-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.video-open-youtube {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #FF0000, #cc0000);
+  border: none;
+  border-radius: 30px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.video-open-youtube:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
+}
+
+.video-close-btn {
+  flex: 1;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 30px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.video-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.video-duration-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: white;
+  z-index: 5;
+}
+
+.video-thumbnail-container {
+  position: relative;
+  cursor: pointer;
+}
+
+.watch-now-btn {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #00c6ff, #007bff);
+  border: none;
+  border-radius: 30px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 12px;
+}
+
+.watch-now-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
+}
+
+@media (max-width: 768px) {
+  .video-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+  
+  .video-modal-info {
+    padding: 16px;
+  }
+  
+  .video-modal-title {
+    font-size: 18px;
+  }
+  
+  .video-modal-stats {
+    gap: 12px;
+    font-size: 12px;
+  }
+  
+  .video-modal-buttons {
+    flex-direction: column;
+  }
+  
+  .video-modal-close {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+  }
+}
+
+/* History Section */
+.history-entry {
+  margin-bottom: 35px;
+}
+
+.history-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid #00c6ff;
+  display: inline-block;
+}
+
+.about-text {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #1e293b;
+  text-align: left;
+  margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+  .history-title {
+    font-size: 18px;
+  }
+  .about-text {
+    font-size: 14px;
   }
 }
       `}</style>

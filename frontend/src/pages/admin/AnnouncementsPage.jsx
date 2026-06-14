@@ -12,7 +12,8 @@ import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 import BASE_URL from "../../api";
 import AdminSchedules from "./AdminSchedules";
-import MinutesList from "./minutes/MinutesList"; 
+import MinutesList from "./minutes/MinutesList";
+import AdminHistory from '../admin/AdminHistory'; 
 
 export default function AdminAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
@@ -360,28 +361,39 @@ export default function AdminAnnouncements() {
         </div>
       </div>
 
-      {/* TAB BUTTONS - ADD THIS */}
-      <div className="tab-navigation">
-        <button
-          className={`tab-btn ${activeTab === "announcements" ? "active" : ""}`}
-          onClick={() => setActiveTab("announcements")}
-        >
-          📢 Announcements
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "schedules" ? "active" : ""}`}
-          onClick={() => setActiveTab("schedules")}
-        >
-          📅 Schedules
-        </button>
-     <button
+    {/* TAB BUTTONS */}
+<div className="tab-navigation">
+  <button
+    className={`tab-btn ${activeTab === "announcements" ? "active" : ""}`}
+    onClick={() => setActiveTab("announcements")}
+  >
+    📢 Announcements
+  </button>
+  <button
+    className={`tab-btn ${activeTab === "schedules" ? "active" : ""}`}
+    onClick={() => setActiveTab("schedules")}
+  >
+    📅 Schedules
+  </button>
+  <button
     className={`tab-btn ${activeTab === "minutes" ? "active" : ""}`}
     onClick={() => setActiveTab("minutes")}
   >
     📋 Minutes
   </button>
+  <button
+    className={`tab-btn ${activeTab === "history" ? "active" : ""}`}
+    onClick={() => setActiveTab("history")}
+  >
+    📜 History
+  </button>
 </div>
 
+{activeTab === "history" && (
+  <div className="tab-content">
+    <AdminHistory />
+  </div>
+)}
       {/* ANNOUNCEMENTS TAB CONTENT - shows when "announcements" tab is clicked */}
       {activeTab === "announcements" && (
         <>
@@ -684,7 +696,7 @@ export default function AdminAnnouncements() {
         .announcements-page {
           min-height: 100vh;
           background: #f8fafc;
-          margin-top: 50px;
+          margin-top: 0px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           padding: 24px;
         }
@@ -761,8 +773,8 @@ export default function AdminAnnouncements() {
         }
 
              .tab-navigation {
-        display: flex;
-        gap: 12px;
+        display: grid;
+        gap: 6px;
         margin-bottom: 24px;
         border-bottom: 1px solid #e2e8f0;
         padding-bottom: 0;
@@ -861,7 +873,7 @@ export default function AdminAnnouncements() {
           background: white;
           border: 1px solid #e2e8f0;
           border-radius: 16px;
-          padding: 20px;
+          padding: 6px;
           display: flex;
           align-items: center;
           gap: 16px;
@@ -1420,6 +1432,15 @@ export default function AdminAnnouncements() {
   margin-top: 20px;
 }
         }
+
+        .minutes-tab-content {
+  margin-top: 0;
+  padding: 0;
+}
+
+.tab-content {
+  margin-top: 20px;
+}
           
       `}</style>
     </div>

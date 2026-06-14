@@ -68,6 +68,7 @@ import AdminExecutivePage from "./pages/admin/AdminExecutivePage";
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminHealthCentre from './pages/admin/AdminHealthCentre';
+import AdminHistory from './pages/admin/AdminHistory';
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminMediaPage from "./pages/admin/MediaPage";
 import UsersPage from "./pages/admin/UsersPage";
@@ -501,6 +502,7 @@ useEffect(() => {
           <Route path="/admin/prayers" element={<AdminPrayers />} />
           <Route path="minutes/create" element={<MinutesCreatePage />} />
           <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
+          <Route path="/admin/history" element={<AdminHistory />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />
@@ -524,6 +526,7 @@ useEffect(() => {
   <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
    <Route path="attendance" element={<AdminAttendance />} />
      <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
+     <Route path="history" element={<AdminHistory />} />
 </Route>
         
 

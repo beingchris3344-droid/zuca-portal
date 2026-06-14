@@ -59,22 +59,65 @@ async function getAllExecutiveUsers() {
   
   const executives = await prisma.executive.findMany({
     where: { isActive: true },
-    include: { user: { select: { id: true, fullName: true, email: true } } }
+    include: { 
+      user: { 
+        select: { 
+          id: true, 
+          fullName: true, 
+          email: true,
+          role: true,
+          specialRole: true
+        } 
+      },
+      position: {
+        select: { title: true }
+      }
+    }
   });
   
-  executiveUsersCache = executives.map(exec => exec.user);
+  executiveUsersCache = executives.map(exec => ({
+    ...exec.user,
+    executivePosition: exec.position?.title || null
+  }));
   executiveUsersCacheTime = now;
   return executiveUsersCache;
 }
 
 // Helper: Get jumuia members (optimized with select)
 async function getJumuiaMembers(jumuiaId) {
-  return await prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where: { jumuiaId: jumuiaId },
-    select: { id: true, fullName: true, email: true, role: true }
+    select: { 
+      id: true, 
+      fullName: true, 
+      email: true, 
+      role: true,
+      specialRole: true
+    }
   });
+  
+  // Get executive positions for these users
+  const userIds = users.map(u => u.id);
+  const executives = await prisma.executive.findMany({
+    where: { 
+      userId: { in: userIds },
+      isActive: true
+    },
+    include: {
+      position: { select: { title: true } }
+    }
+  });
+  
+  const executiveMap = new Map();
+  executives.forEach(exec => {
+    executiveMap.set(exec.userId, exec.position?.title);
+  });
+  
+  return users.map(user => ({
+    ...user,
+    executivePosition: executiveMap.get(user.id) || null
+  }));
 }
-
 // Helper: Get attendance data from sheet (optimized - single query)
 async function getAttendanceData(sheetId) {
   const sheet = await prisma.attendanceSheet.findUnique({
@@ -135,15 +178,16 @@ async function getAttendanceData(sheetId) {
   }
 
   // Filter absent members efficiently
-  const absentMembers = targetMembers
-    .filter(m => !presentUserIds.has(m.id))
-    .map(m => ({
-      userId: m.id,
-      fullName: m.fullName,
-      role: m.specialRole || m.role,
-      excuse: null,
-      excused: false
-    }));
+ const absentMembers = targetMembers
+  .filter(m => !presentUserIds.has(m.id))
+  .map(m => ({
+    userId: m.id,
+    fullName: m.fullName,
+    role: m.specialRole || m.role,
+    executivePosition: m.executivePosition || null,  
+    excuse: null,
+    excused: false
+  }));
 
   return {
     sheet,
@@ -159,6 +203,7 @@ router.post("/", authenticate, async (req, res) => {
   try {
     const {
       attendanceSheetId,
+      presentMembers: frontendPresentMembers,
       agenda,
       preliminaries,
       sections,
@@ -175,7 +220,8 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Attendance sheet not found" });
     }
 
-    const { sheet, presentMembers, presentGuests, absentMembers } = attendanceData;
+    // ✅ FIX: Remove presentMembers from attendanceData destructuring
+    const { sheet, presentGuests, absentMembers } = attendanceData;
     const type = sheet.jumuiaId === null ? "EXECUTIVE" : "JUMUIA";
 
     const minutes = await prisma.meetingMinutes.create({
@@ -187,7 +233,8 @@ router.post("/", authenticate, async (req, res) => {
         type: type,
         jumuiaId: sheet.jumuiaId || null,
         attendanceSheetId: attendanceSheetId,
-        presentMembers: presentMembers,
+        // ✅ FIX: Use the frontend presentMembers (with executive positions)
+        presentMembers: frontendPresentMembers || [],
         presentGuests: presentGuests,
         absentMembers: absentMembers,
         agenda: agenda || null,
@@ -207,7 +254,6 @@ router.post("/", authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // ==================== GET ALL MINUTES (optimized) ====================
 router.get("/", authenticate, async (req, res) => {
   try {

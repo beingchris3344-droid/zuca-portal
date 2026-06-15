@@ -11,7 +11,7 @@ export default function TreasurerNotes() {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('list'); // 'list' or 'editor'
+  const [view, setView] = useState('list');
   const [display, setDisplay] = useState('0');
   const [prevValue, setPrevValue] = useState(null);
   const [operation, setOperation] = useState(null);
@@ -25,12 +25,21 @@ export default function TreasurerNotes() {
     fetchNotes();
   }, []);
 
+  useEffect(() => {
+    if (window.location.search.includes('new=true')) {
+      openEditor();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    if (window.location.search.includes('calculator=true')) {
+      setShowCalculator(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const fetchNotes = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/treasurer/notes`, { headers });
       setNotes(res.data.notes || []);
-    } catch (err) {
-      console.error('Error loading notes:', err);
     } finally {
       setLoading(false);
     }
@@ -97,10 +106,8 @@ export default function TreasurerNotes() {
     setSelectedNote(null);
     setTitle('');
     setContent('');
-    setShowCalculator(false);
   };
 
-  // Calculator functions
   const handleNumber = (num) => {
     if (waitingForOperand) {
       setDisplay(String(num));
@@ -159,110 +166,20 @@ export default function TreasurerNotes() {
     setContent(prev => prev + `\n[📊 Calculation Result: ${display}]\n`);
   };
 
-  // List View
-  if (view === 'list') {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px', marginTop: '0px' }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-            <div>
-              <h1 style={{ fontSize: '28px', margin: 0, color: '#1e293b' }}>💰 Treasurer Notes</h1>
-              <p style={{ color: '#64748b', marginTop: '8px' }}>Manage your financial notes and calculations</p>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                onClick={() => navigate(-1)}
-                style={{ padding: '10px 20px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-              >
-                ← Back
-              </button>
-              <button 
-                onClick={() => openEditor()}
-                style={{ padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
-              >
-                + New Note
-              </button>
-            </div>
-          </div>
+  const btnStyle = {
+    padding: '14px',
+    fontSize: '16px',
+    border: '1px solid #e2e8f0',
+    background: 'white',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  };
 
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{notes.length}</div>
-              <div style={{ color: '#64748b' }}>Total Notes</div>
-            </div>
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
-                {notes.filter(n => new Date(n.createdAt).toDateString() === new Date().toDateString()).length}
-              </div>
-              <div style={{ color: '#64748b' }}>Created Today</div>
-            </div>
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
-                {notes.filter(n => n.content?.length > 0).length}
-              </div>
-              <div style={{ color: '#64748b' }}>With Notes</div>
-            </div>
-          </div>
-
-          {/* Notes List */}
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>Loading notes...</div>
-          ) : notes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📝</div>
-              <h3>No notes yet</h3>
-              <p style={{ color: '#64748b' }}>Click "New Note" to create your first financial note</p>
-              <button 
-                onClick={() => openEditor()}
-                style={{ marginTop: '16px', padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-              >
-                Create First Note
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {notes.map(note => (
-                <div key={note.id} style={{ background: 'white', borderRadius: '12px', padding: '20px', transition: 'all 0.2s', cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div onClick={() => openEditor(note)} style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>{note.title}</h3>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(note.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      <p style={{ color: '#475569', margin: 0, fontSize: '14px', lineHeight: '1.5' }}>
-                        {note.content ? (note.content.length > 150 ? note.content.substring(0, 150) + '...' : note.content) : 'No content'}
-                      </p>
-                    </div>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
-                      style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
-                    >
-                      🗑 Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Editor View - Full Page
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px', marginTop: '60px' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <button 
-            onClick={goBackToList}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            ← Back to Notes
-          </button>
+        {/* Calculator Toggle Button - Always visible */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
           <button 
             onClick={() => setShowCalculator(!showCalculator)}
             style={{ padding: '10px 20px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -271,7 +188,7 @@ export default function TreasurerNotes() {
           </button>
         </div>
 
-        {/* Calculator (collapsible) */}
+        {/* Calculator Panel - Shows when showCalculator is true */}
         {showCalculator && (
           <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <h3 style={{ marginBottom: '16px' }}>🧮 Calculator</h3>
@@ -301,70 +218,154 @@ export default function TreasurerNotes() {
               
               <button onClick={handleClear} style={{ gridColumn: 'span 4', ...btnStyle, background: '#ef4444', color: 'white' }}>Clear All</button>
             </div>
-            <button 
-              onClick={insertCalculation}
-              style={{ marginTop: '16px', width: '100%', padding: '12px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
-            >
-              📋 Insert Calculation Result ({display}) into Note
-            </button>
-          </div>
-        )}
-
-        {/* Note Editor */}
-        <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ marginBottom: '24px' }}>{selectedNote ? '✏️ Edit Note' : '📝 Create New Note'}</h2>
-          
-          <input
-            type="text"
-            placeholder="Note title..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={{ width: '100%', padding: '14px', fontSize: '18px', marginBottom: '20px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', '&:focus': { borderColor: '#10b981' } }}
-          />
-          
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows="12"
-            style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '24px', fontFamily: 'monospace', resize: 'vertical', outline: 'none' }}
-            placeholder="Write your notes here...
-            
-Examples:
-• Total collected this month: KES 45,000
-• Pending approvals: KES 12,500
-• Building Fund: 350,000 / 500,000 = 70%
-• Choir Fund: 180,000 / 200,000 = 90%"
-          />
-          
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button 
-              onClick={saveNote} 
-              disabled={saving}
-              style={{ flex: 1, padding: '14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '500' }}
-            >
-              {saving ? 'Saving...' : '💾 Save Note'}
-            </button>
-            {selectedNote && (
+            {view === 'editor' && (
               <button 
-                onClick={() => deleteNote(selectedNote.id)}
-                style={{ padding: '14px 24px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                onClick={insertCalculation}
+                style={{ marginTop: '16px', width: '100%', padding: '12px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
               >
-                🗑 Delete
+                📋 Insert Calculation Result ({display}) into Note
               </button>
             )}
           </div>
-        </div>
+        )}
+
+        {/* List View */}
+        {view === 'list' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+              <div>
+                <h1 style={{ fontSize: '28px', margin: 0, color: '#1e293b' }}>💰 Treasurer Notes</h1>
+                <p style={{ color: '#64748b', marginTop: '8px' }}>Manage your financial notes and calculations</p>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={() => navigate(-1)}
+                  style={{ padding: '10px 20px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  ← Back
+                </button>
+                <button 
+                  onClick={() => openEditor()}
+                  style={{ padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  + New Note
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
+              <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{notes.length}</div>
+                <div style={{ color: '#64748b' }}>Total Notes</div>
+              </div>
+              <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
+                  {notes.filter(n => new Date(n.createdAt).toDateString() === new Date().toDateString()).length}
+                </div>
+                <div style={{ color: '#64748b' }}>Created Today</div>
+              </div>
+              <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
+                  {notes.filter(n => n.content?.length > 0).length}
+                </div>
+                <div style={{ color: '#64748b' }}>With Notes</div>
+              </div>
+            </div>
+
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>Loading notes...</div>
+            ) : notes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📝</div>
+                <h3>No notes yet</h3>
+                <p style={{ color: '#64748b' }}>Click "New Note" to create your first financial note</p>
+                <button 
+                  onClick={() => openEditor()}
+                  style={{ marginTop: '16px', padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  Create First Note
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {notes.map(note => (
+                  <div key={note.id} style={{ background: 'white', borderRadius: '12px', padding: '20px', cursor: 'pointer', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div onClick={() => openEditor(note)} style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>{note.title}</h3>
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(note.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p style={{ color: '#475569', margin: 0, fontSize: '14px' }}>
+                          {note.content ? (note.content.length > 150 ? note.content.substring(0, 150) + '...' : note.content) : 'No content'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                        style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+                      >
+                        🗑 Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Editor View */}
+        {view === 'editor' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <button 
+                onClick={goBackToList}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                ← Back to Notes
+              </button>
+            </div>
+
+            <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <h2 style={{ marginBottom: '24px' }}>{selectedNote ? '✏️ Edit Note' : '📝 Create New Note'}</h2>
+              
+              <input
+                type="text"
+                placeholder="Note title..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                style={{ width: '100%', padding: '14px', fontSize: '18px', marginBottom: '20px', borderRadius: '8px', border: '1px solid #ddd' }}
+              />
+              
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows="12"
+                style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '24px', fontFamily: 'monospace', resize: 'vertical' }}
+                placeholder="Write your notes here..."
+              />
+              
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={saveNote} 
+                  disabled={saving}
+                  style={{ flex: 1, padding: '14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '500' }}
+                >
+                  {saving ? 'Saving...' : '💾 Save Note'}
+                </button>
+                {selectedNote && (
+                  <button 
+                    onClick={() => deleteNote(selectedNote.id)}
+                    style={{ padding: '14px 24px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    🗑 Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
-
-const btnStyle = {
-  padding: '14px',
-  fontSize: '16px',
-  border: '1px solid #e2e8f0',
-  background: 'white',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  transition: 'all 0.2s'
-};

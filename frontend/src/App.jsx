@@ -542,6 +542,7 @@ useEffect(() => {
           <Route index element={<Navigate to="contributions" replace />} />
           <Route path="contributions" element={<ContributionsPage />} />
           <Route path="reports" element={<TreasurerReports />} />
+          <Route path="/treasurer/notes/new" element={<TreasurerNotes />} />
         </Route>
 
         {/* ================= CHOIR MODERATOR ================= */}

@@ -84,9 +84,12 @@ export default function RoleLayout() {
           description: "Manage contributions & financial reports",
           modules: [
             { path: `${basePath}/contributions`, icon: "💰", label: "Contributions" },
-            { path: `${basePath}/reports`, icon: "📊", label: "Reports" }
+            { path: `${basePath}/reports`, icon: "📊", label: "Reports" },
+             { path: `${basePath}/notes`, icon: "📝", label: "Notes" }
           ],
           quickActions: [
+              { action: `${basePath}/notes?new=true`, label: "New Note", icon: "+" },
+               { action: `${basePath}/notes?calculator=true`, label: "Calculator", icon: "🧮" },  
             { action: `${basePath}/contributions`, label: "Add Contribution", icon: "➕" },
             { action: `${basePath}/reports`, label: "Generate Report", icon: "📊" }
           ]

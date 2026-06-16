@@ -14720,18 +14720,22 @@ app.post("/api/admin/schedules", authenticate, async (req, res) => {
       console.log(`📝 Creating ${events.length} events...`);
       
       for (const event of events) {
-        const createdEvent = await prisma.scheduleEvent.create({
-          data: {
-            scheduleId: schedule.id,
-            title: event.title,
-            description: event.description || event.title,
-            eventDate: new Date(event.eventDate),
-            eventTime: event.eventTime || "16:30",
-            location: event.location || "Room 002",
-            groupName: event.groupName,
-            reminderDays: event.reminderDays || [7, 1, 0]
-          }
-        });
+        // Parse the date without timezone shifting
+const [year, month, day] = event.eventDate.split('T')[0].split('-').map(Number);
+const correctEventDate = new Date(year, month - 1, day, 12, 0, 0); // Noon to avoid DST issues
+
+const createdEvent = await prisma.scheduleEvent.create({
+  data: {
+    scheduleId: schedule.id,
+    title: event.title,
+    description: event.description || event.title,
+    eventDate: correctEventDate,
+    eventTime: event.eventTime || "16:30",
+    location: event.location || "Room 002",
+    groupName: event.groupName,
+    reminderDays: event.reminderDays || [7, 1, 0]
+  }
+});
         createdEvents.push(createdEvent);
         console.log(`  ✅ Event created: ${event.title}`);
       }
@@ -14901,33 +14905,41 @@ app.put("/api/admin/schedules/:id", authenticate, async (req, res) => {
     
     // Update events if provided
     if (events !== undefined) {
-      // Delete old events and their scheduled notifications
-      const oldEvents = await prisma.scheduleEvent.findMany({ where: { scheduleId: id } });
-      for (const oldEvent of oldEvents) {
-        await prisma.scheduledNotification.deleteMany({ where: { eventId: oldEvent.id } });
+    // Delete old events and their scheduled notifications
+const oldEvents = await prisma.scheduleEvent.findMany({ where: { scheduleId: id } });
+for (const oldEvent of oldEvents) {
+  await prisma.scheduledNotification.deleteMany({ where: { eventId: oldEvent.id } });
+}
+await prisma.scheduleEvent.deleteMany({ where: { scheduleId: id } });
+
+// Create new events
+const newEvents = [];
+if (events.length > 0) {
+  for (const event of events) {
+    // Parse date correctly to avoid timezone shifting
+    let correctDate;
+    if (event.eventDate) {
+      const [year, month, day] = event.eventDate.split('T')[0].split('-').map(Number);
+      correctDate = new Date(year, month - 1, day, 12, 0, 0);
+    } else {
+      correctDate = new Date();
+    }
+    
+    const newEvent = await prisma.scheduleEvent.create({
+      data: {
+        scheduleId: id,
+        title: event.title,
+        description: event.description || event.title,
+        eventDate: correctDate,
+        eventTime: event.eventTime || "16:30",
+        location: event.location || "Room 002",
+        groupName: event.groupName,
+        reminderDays: event.reminderDays || [7, 1, 0]
       }
-      await prisma.scheduleEvent.deleteMany({ where: { scheduleId: id } });
-      
-      // Create new events
-      const newEvents = [];
-      if (events.length > 0) {
-        for (const event of events) {
-          const newEvent = await prisma.scheduleEvent.create({
-            data: {
-              scheduleId: id,
-              title: event.title,
-              description: event.description || event.title,
-              eventDate: new Date(event.eventDate),
-              eventTime: event.eventTime || "16:30",
-              location: event.location || "Room 002",
-              groupName: event.groupName,
-              reminderDays: event.reminderDays || [7, 1, 0]
-            }
-          });
-          newEvents.push(newEvent);
-        }
-      }
-      
+    });
+    newEvents.push(newEvent);
+  }
+}
       // Create notification schedules for new events in background
       if (isPublished) {
         for (const newEvent of newEvents) {

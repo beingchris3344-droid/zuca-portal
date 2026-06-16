@@ -532,6 +532,219 @@ router.delete("/admin/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// Add these to your prayers.js route file
+
+// ==================== ROSARY SPECIFIC ROUTES ====================
+
+// GET Rosary mysteries based on day of week
+router.get("/rosary/mysteries", async (req, res) => {
+  try {
+    const { day } = req.query;
+    let dayOfWeek;
+    
+    if (day !== undefined) {
+      dayOfWeek = parseInt(day);
+    } else {
+      dayOfWeek = new Date().getDay();
+    }
+    
+    const mysteriesMap = {
+      0: {
+        name: "Glorious Mysteries",
+        mysteries: [
+          { name: "The Resurrection", description: "Jesus rises from the dead", fruit: "Faith" },
+          { name: "The Ascension", description: "Jesus ascends into Heaven", fruit: "Hope" },
+          { name: "The Descent of the Holy Spirit", description: "The Holy Spirit descends", fruit: "Love of God" },
+          { name: "The Assumption of Mary", description: "Mary is taken into Heaven", fruit: "Grace of a Happy Death" },
+          { name: "The Coronation of Mary", description: "Mary is crowned Queen", fruit: "Trust in Mary" }
+        ]
+      },
+      1: {
+        name: "Joyful Mysteries",
+        mysteries: [
+          { name: "The Annunciation", description: "Angel Gabriel announces to Mary", fruit: "Humility" },
+          { name: "The Visitation", description: "Mary visits Elizabeth", fruit: "Love of Neighbor" },
+          { name: "The Nativity", description: "Jesus is born", fruit: "Poverty of Spirit" },
+          { name: "The Presentation", description: "Jesus is presented in the Temple", fruit: "Obedience" },
+          { name: "The Finding in the Temple", description: "Jesus is found teaching", fruit: "Joy in Finding Jesus" }
+        ]
+      },
+      2: {
+        name: "Sorrowful Mysteries",
+        mysteries: [
+          { name: "The Agony in the Garden", description: "Jesus prays in Gethsemane", fruit: "Sorrow for Sin" },
+          { name: "The Scourging at the Pillar", description: "Jesus is whipped", fruit: "Purity" },
+          { name: "The Crowning with Thorns", description: "Jesus is crowned with thorns", fruit: "Courage" },
+          { name: "The Carrying of the Cross", description: "Jesus carries His cross", fruit: "Patience" },
+          { name: "The Crucifixion", description: "Jesus dies on the cross", fruit: "Perseverance" }
+        ]
+      },
+      3: {
+        name: "Glorious Mysteries",
+        mysteries: [
+          { name: "The Resurrection", description: "Jesus rises from the dead", fruit: "Faith" },
+          { name: "The Ascension", description: "Jesus ascends into Heaven", fruit: "Hope" },
+          { name: "The Descent of the Holy Spirit", description: "The Holy Spirit descends", fruit: "Love of God" },
+          { name: "The Assumption of Mary", description: "Mary is taken into Heaven", fruit: "Grace of a Happy Death" },
+          { name: "The Coronation of Mary", description: "Mary is crowned Queen", fruit: "Trust in Mary" }
+        ]
+      },
+      4: {
+        name: "Luminous Mysteries",
+        mysteries: [
+          { name: "The Baptism of Jesus", description: "Jesus is baptized", fruit: "Openness to the Holy Spirit" },
+          { name: "The Wedding at Cana", description: "Jesus turns water into wine", fruit: "Trust in Mary" },
+          { name: "The Proclamation of the Kingdom", description: "Jesus calls for conversion", fruit: "Repentance" },
+          { name: "The Transfiguration", description: "Jesus is transfigured", fruit: "Desire for Holiness" },
+          { name: "The Institution of the Eucharist", description: "Jesus gives us the Eucharist", fruit: "Love of the Eucharist" }
+        ]
+      },
+      5: {
+        name: "Sorrowful Mysteries",
+        mysteries: [
+          { name: "The Agony in the Garden", description: "Jesus prays in Gethsemane", fruit: "Sorrow for Sin" },
+          { name: "The Scourging at the Pillar", description: "Jesus is whipped", fruit: "Purity" },
+          { name: "The Crowning with Thorns", description: "Jesus is crowned with thorns", fruit: "Courage" },
+          { name: "The Carrying of the Cross", description: "Jesus carries His cross", fruit: "Patience" },
+          { name: "The Crucifixion", description: "Jesus dies on the cross", fruit: "Perseverance" }
+        ]
+      },
+      6: {
+        name: "Joyful Mysteries",
+        mysteries: [
+          { name: "The Annunciation", description: "Angel Gabriel announces to Mary", fruit: "Humility" },
+          { name: "The Visitation", description: "Mary visits Elizabeth", fruit: "Love of Neighbor" },
+          { name: "The Nativity", description: "Jesus is born", fruit: "Poverty of Spirit" },
+          { name: "The Presentation", description: "Jesus is presented in the Temple", fruit: "Obedience" },
+          { name: "The Finding in the Temple", description: "Jesus is found teaching", fruit: "Joy in Finding Jesus" }
+        ]
+      }
+    };
+    
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const mysteries = mysteriesMap[dayOfWeek];
+    
+    if (!mysteries) {
+      return res.status(400).json({ error: "Invalid day" });
+    }
+    
+    res.json({
+      success: true,
+      day: dayNames[dayOfWeek],
+      dayNumber: dayOfWeek,
+      mysteries: mysteries
+    });
+    
+  } catch (err) {
+    console.error("Error fetching Rosary mysteries:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Rosary guide with all prayers
+router.get("/rosary/guide", async (req, res) => {
+  try {
+    const dayOfWeek = new Date().getDay();
+    const mysteriesMap = {
+      0: "Glorious Mysteries",
+      1: "Joyful Mysteries",
+      2: "Sorrowful Mysteries",
+      3: "Glorious Mysteries",
+      4: "Luminous Mysteries",
+      5: "Sorrowful Mysteries",
+      6: "Joyful Mysteries"
+    };
+    
+    // Fetch prayers from database
+    const ourFather = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Our Father', mode: 'insensitive' } }
+    });
+    
+    const hailMary = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Hail Mary', mode: 'insensitive' } }
+    });
+    
+    const gloryBe = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Glory Be', mode: 'insensitive' } }
+    });
+    
+    const apostlesCreed = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Apostles Creed', mode: 'insensitive' } }
+    });
+    
+    const fatimaPrayer = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Fatima', mode: 'insensitive' } }
+    });
+    
+    const hailHolyQueen = await prisma.prayer.findFirst({
+      where: { title: { contains: 'Hail Holy Queen', mode: 'insensitive' } }
+    });
+    
+    res.json({
+      success: true,
+      dayMystery: mysteriesMap[dayOfWeek],
+      prayers: {
+        ourFather: ourFather?.prayer || "Our Father...",
+        hailMary: hailMary?.prayer || "Hail Mary...",
+        gloryBe: gloryBe?.prayer || "Glory be...",
+        apostlesCreed: apostlesCreed?.prayer || "I believe...",
+        fatimaPrayer: fatimaPrayer?.prayer || "O my Jesus...",
+        hailHolyQueen: hailHolyQueen?.prayer || "Hail Holy Queen..."
+      }
+    });
+    
+  } catch (err) {
+    console.error("Error fetching Rosary guide:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET specific mystery details
+router.get("/rosary/mystery/:mysteryName", async (req, res) => {
+  try {
+    const { mysteryName } = req.params;
+    
+    const allMysteries = {
+      "annunciation": { name: "The Annunciation", description: "Angel Gabriel announces to Mary that she will conceive Jesus", fruit: "Humility" },
+      "visitation": { name: "The Visitation", description: "Mary visits her cousin Elizabeth", fruit: "Love of Neighbor" },
+      "nativity": { name: "The Nativity", description: "Jesus is born in Bethlehem", fruit: "Poverty of Spirit" },
+      "presentation": { name: "The Presentation", description: "Jesus is presented in the Temple", fruit: "Obedience" },
+      "finding": { name: "The Finding in the Temple", description: "Mary and Joseph find Jesus teaching", fruit: "Joy in Finding Jesus" },
+      "baptism": { name: "The Baptism of Jesus", description: "Jesus is baptized by John in the Jordan", fruit: "Openness to the Holy Spirit" },
+      "cana": { name: "The Wedding at Cana", description: "Jesus turns water into wine", fruit: "Trust in Mary" },
+      "kingdom": { name: "The Proclamation of the Kingdom", description: "Jesus calls for conversion", fruit: "Repentance" },
+      "transfiguration": { name: "The Transfiguration", description: "Jesus is transfigured before Peter, James, and John", fruit: "Desire for Holiness" },
+      "eucharist": { name: "The Institution of the Eucharist", description: "Jesus gives us the Eucharist at the Last Supper", fruit: "Love of the Eucharist" },
+      "agony": { name: "The Agony in the Garden", description: "Jesus prays in Gethsemane", fruit: "Sorrow for Sin" },
+      "scourging": { name: "The Scourging at the Pillar", description: "Jesus is whipped", fruit: "Purity" },
+      "crowning": { name: "The Crowning with Thorns", description: "Jesus is crowned with thorns", fruit: "Courage" },
+      "carrying": { name: "The Carrying of the Cross", description: "Jesus carries His cross", fruit: "Patience" },
+      "crucifixion": { name: "The Crucifixion", description: "Jesus dies on the cross", fruit: "Perseverance" },
+      "resurrection": { name: "The Resurrection", description: "Jesus rises from the dead", fruit: "Faith" },
+      "ascension": { name: "The Ascension", description: "Jesus ascends into Heaven", fruit: "Hope" },
+      "descent": { name: "The Descent of the Holy Spirit", description: "The Holy Spirit descends on Mary and the apostles", fruit: "Love of God" },
+      "assumption": { name: "The Assumption of Mary", description: "Mary is taken body and soul into Heaven", fruit: "Grace of a Happy Death" },
+      "coronation": { name: "The Coronation of Mary", description: "Mary is crowned Queen of Heaven and Earth", fruit: "Trust in Mary's Intercession" }
+    };
+    
+    const key = mysteryName.toLowerCase().replace(/^the\s+/, '');
+    const mystery = allMysteries[key];
+    
+    if (!mystery) {
+      return res.status(404).json({ error: "Mystery not found" });
+    }
+    
+    res.json({
+      success: true,
+      mystery: mystery
+    });
+    
+  } catch (err) {
+    console.error("Error fetching mystery:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET all prayers - ADMIN ONLY
 router.get("/admin/all", requireAdmin, async (req, res) => {
   try {

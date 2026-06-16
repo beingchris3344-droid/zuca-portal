@@ -40,4 +40,28 @@ async function testNotification() {
   await prisma.$disconnect();
 }
 
-testNotification();
+testNotification();a// backend/scripts/cleanup-test-notification.js
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const fs = require('fs');
+
+async function cleanup() {
+  console.log('\n🧹 Cleaning up test notification data...');
+  
+  try {
+    const testInfo = JSON.parse(fs.readFileSync('./test-notification-info.json', 'utf8'));
+    
+    await prisma.scheduledNotification.deleteMany({ where: { eventId: testInfo.eventId } });
+    await prisma.scheduleEvent.delete({ where: { id: testInfo.eventId } });
+    await prisma.schedule.delete({ where: { id: testInfo.scheduleId } });
+    
+    fs.unlinkSync('./test-notification-info.json');
+    console.log('✅ Test data cleaned up successfully!');
+  } catch (err) {
+    console.log('No test data found or already cleaned up');
+  }
+  
+  await prisma.$disconnect();
+}
+
+cleanup();

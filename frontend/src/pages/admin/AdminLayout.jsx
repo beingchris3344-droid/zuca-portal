@@ -343,7 +343,7 @@ export default function AdminLayout() {
     justifyContent: "center",
     gap: "8px",
     cursor: "pointer",
-    marginBottom: "20px",
+    marginBottom: "40px",
   };
 
   const logoutIconStyle = { fontSize: "16px" };
@@ -366,26 +366,47 @@ export default function AdminLayout() {
     flex: 1,
     overflowY: "auto",
     overflowX: "hidden",
-    padding: "20px",
+    padding: "0px",
     position: "relative",
+    marginBottom: "30px",
   };
 
-  const headerStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "#ffffff",
-    borderRadius: "0px",
-    padding: "0px 20px",
-    marginBottom: "0px",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-    borderBottom: "1px solid #e2e8f0",
-    position: "sticky",
-    top: 0,
-    zIndex: 30,
-    flexShrink: 0,
+ const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  background: "#ffffff",
+  borderRadius: "0px",
+  marginBottom: "0px",
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+  borderBottom: "1px solid #e2e8f0",
+  position: "sticky",
+  top: 0,
+  zIndex: 30,
+  flexShrink: 0,
+  
+  // Mobile first - default for small devices
+  padding: "0 12px",
+  height: "56px",
+  
+  // Tablet
+  "@media (min-width: 768px)": {
+    padding: "0 24px",
     height: "60px",
-  };
+  },
+  
+  // Desktop
+  "@media (min-width: 1024px)": {
+    padding: "0 32px",
+    height: "68px",
+  },
+  
+  // Large Desktop
+  "@media (min-width: 1280px)": {
+    padding: "0 40px",
+    height: "72px",
+  },
+};
 
   const headerLeftStyle = {
     display: "flex",
@@ -536,7 +557,7 @@ export default function AdminLayout() {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-            <span style={pageTitleStyle}>Admin Console</span>
+            <span style={                          pageTitleStyle}>ZUCA(M/S)</span>
           </div>
 
           <div style={headerRightStyle}>

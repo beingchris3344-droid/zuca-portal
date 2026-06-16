@@ -7,10 +7,130 @@ const crypto = require('crypto');
 
 const { sendPersonalizedEmail } = require("../services/mailer");
 // Use global notification function from server.js
-const createAndSendNotification = global.createAndSendNotification || (async () => {
-  console.log("⚠️ createAndSendNotification not available globally");
-  return null;
-});
+// ==================== LOCAL NOTIFICATION FUNCTION (SELF-CONTAINED) ====================
+// This handles emails + push notifications without depending on server.js globals
+
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  try {
+    console.log(`🔔 Creating notification: ${title} for user ${userId}`);
+    
+    // 1. Create notification in database
+    const notification = await prisma.notification.create({
+      data: {
+        id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId,
+        type,
+        title,
+        message,
+        read: false,
+        createdAt: new Date(),
+        data: data || {}
+      }
+    });
+
+    // 2. Send real-time via Socket.IO
+    try {
+      const io = global.io;
+      if (io) {
+        io.to(userId).emit('new_notification', {
+          ...notification,
+          createdAt: notification.createdAt.toISOString()
+        });
+      }
+    } catch (err) {
+      // Socket not available, continue
+    }
+
+    // 3. Send PUSH NOTIFICATION
+    try {
+      const subscription = await prisma.pushSubscription.findUnique({
+        where: { userId }
+      });
+
+      if (subscription) {
+        const webpush = require('web-push');
+        
+        // Set VAPID details
+        webpush.setVapidDetails(
+          'mailto:zucaportal2025@gmail.com',
+          process.env.VAPID_PUBLIC_KEY,
+          process.env.VAPID_PRIVATE_KEY
+        );
+
+        const unreadCount = await prisma.notification.count({
+          where: { userId, read: false }
+        });
+
+        const pushSubscription = JSON.parse(subscription.subscription);
+        
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title,
+            body: message,
+            icon: '/android-chrome-192x192.png',
+            badge: '/favicon.ico',
+            badgeCount: unreadCount + 1,
+            data: { type, ...data },
+            timestamp: Date.now()
+          }),
+          { urgency: 'high' }
+        );
+        
+        console.log(`📱 Push notification sent to user ${userId}`);
+      } else {
+        console.log(`⚠️ No push subscription for user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Push notification failed for user ${userId}:`, err.message);
+    }
+
+    // 4. Send EMAIL
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { homeJumuia: true }
+      });
+      
+      if (user?.email) {
+        const { sendPersonalizedEmail } = require("../services/mailer");
+        
+        // Format email based on type
+        let emailSubject = title;
+        let emailBody = message;
+        
+        // Add extra details for specific types
+        if (type === "attendance_missed") {
+          emailBody = `${message}\n\nPlease make sure to attend future meetings.`;
+        } else if (type === "attendance_thankyou") {
+          emailBody = `${message}\n\nYour attendance is valued!`;
+        } else if (type === "attendance_summary") {
+          emailBody = `${message}\n\nView full report in the app.`;
+        }
+        
+        await sendPersonalizedEmail(
+          { email: user.email, fullName: user.fullName },
+          type,
+          emailSubject,
+          emailBody,
+          data
+        );
+        
+        console.log(`✅ Email sent to ${user.email}`);
+      } else {
+        console.log(`⚠️ No email for user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Email failed for user ${userId}:`, err.message);
+    }
+
+    return notification;
+  } catch (err) {
+    console.error('❌ createAndSendNotification error:', err.message);
+    return null;
+  }
+}
+
 
 router.get("/scan/verify/:token", async (req, res) => {
   try {

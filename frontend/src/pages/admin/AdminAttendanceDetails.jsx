@@ -29,7 +29,112 @@ const basePath = user?.role === "admin" ? "/admin" : "/secretary";
   const [showShareModal, setShowShareModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  // bulk actions state
+const [selectedMembers, setSelectedMembers] = useState([]);
+const [selectAll, setSelectAll] = useState(false);
+const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   
+
+// Toggle individual member selection
+const toggleMemberSelection = (memberId) => {
+  setSelectedMembers(prev => 
+    prev.includes(memberId) 
+      ? prev.filter(id => id !== memberId)
+      : [...prev, memberId]
+  );
+};
+
+// Toggle select all
+const toggleSelectAll = () => {
+  if (selectAll) {
+    setSelectedMembers([]);
+  } else {
+    setSelectedMembers(filteredAbsent.map(m => m.id));
+  }
+  setSelectAll(!selectAll);
+};
+
+// Bulk mark present
+const handleBulkMarkPresent = async () => {
+  if (selectedMembers.length === 0) {
+    showToast('No members selected', 'error');
+    return;
+  }
+
+  if (!window.confirm(`Mark ${selectedMembers.length} members as present?`)) return;
+
+  setIsBulkProcessing(true);
+
+  // 1. OPTIMISTIC UPDATE - Move all selected users to present list immediately
+  const tempEntries = selectedMembers.map(memberId => {
+    const member = filteredAbsent.find(m => m.id === memberId);
+    return {
+      id: 'temp-' + Date.now() + '-' + memberId,
+      fullName: member?.fullName || 'Unknown',
+      phoneNumber: member?.phone || '-',
+      role: member?.role || '-',
+      executivePosition: member?.executivePosition || null,
+      signMethod: 'MANUAL',
+      signTime: new Date().toISOString(),
+      isPending: true,
+      userId: memberId
+    };
+  });
+
+  // Update UI immediately
+  setSheetData(prev => {
+    if (!prev) return prev;
+    return {
+      ...prev,
+      entries: [...prev.entries, ...tempEntries],
+      absentMembers: prev.absentMembers?.filter(m => !selectedMembers.includes(m.id)) || []
+    };
+  });
+
+  // Clear selection
+  setSelectedMembers([]);
+  setSelectAll(false);
+
+  try {
+    // 2. BULK API CALL - Send all selected members at once
+    const membersData = filteredAbsent
+      .filter(m => selectedMembers.includes(m.id))
+      .map(m => ({
+        fullName: m.fullName,
+        phoneNumber: m.phone,
+        role: m.role,
+        specialRole: m.specialRole,
+        membershipNumber: m.membership_number,
+        jumuiaId: m.jumuiaId,
+        notes: 'Bulk marked present by admin'
+      }));
+
+    await api.post(`/api/attendance/sheet/${sheetId}/entries/batch`, 
+      { users: membersData }, 
+      { headers: getHeaders() }
+    );
+
+    showToast(`✅ ${selectedMembers.length} members marked present!`);
+    
+    // 3. Refresh to get real data
+    await fetchSheetData();
+
+  } catch (error) {
+    // 4. ROLLBACK on error
+    setSheetData(prev => {
+      if (!prev) return prev;
+      const rolledBackMembers = filteredAbsent.filter(m => selectedMembers.includes(m.id));
+      return {
+        ...prev,
+        entries: prev.entries.filter(e => !e.isPending),
+        absentMembers: [...(prev.absentMembers || []), ...rolledBackMembers]
+      };
+    });
+    showToast(error.response?.data?.error || 'Failed to mark members present', 'error');
+  } finally {
+    setIsBulkProcessing(false);
+  }
+};
   // ============ HELPER FUNCTIONS ============
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -761,49 +866,99 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
     {filteredAbsent.length === 0 ? (
       <div className="empty-state">No absent members found</div>
     ) : (
-      <table className="members-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>Role</th>
-            <th>Executive Position</th>
-            <th>Jumuia</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredAbsent.map(member => (
-            <tr key={member.id}>
-              <td><strong>{member.fullName}</strong></td>
-              <td>{member.phone || '-'}</td>
-              <td>{member.role || '-'}</td>
-              <td>
-                {member.executivePosition ? (
-                  <span className="executive-badge">{member.executivePosition}</span>
-                ) : (
-                  <span className="no-role">-</span>
-                )}
-              </td>
-              <td>{member.homeJumuia?.name || '-'}</td>
-              <td className="actions">
-                <button 
-                  className="btn-small"
-                  onClick={() => handleSendReminder(member.id)}
-                >
-                  <Send size={12} /> Remind
-                </button>
-                <button 
-                  className="btn-small success"
-                  onClick={() => handleMarkPresent(member.id, member.fullName)}
-                >
-                  <CheckCircle size={12} /> Mark Present
-                </button>
-              </td>
+      <>
+        {/* Bulk Actions Bar */}
+        <div className="bulk-actions-bar">
+          <div className="bulk-select-all">
+            <input
+              type="checkbox"
+              checked={selectAll}
+              onChange={toggleSelectAll}
+              disabled={isBulkProcessing}
+            />
+            <label>Select All</label>
+            <span className="selected-count">
+              {selectedMembers.length} selected
+            </span>
+          </div>
+          {selectedMembers.length > 0 && (
+            <button
+              className="btn-bulk-mark"
+              onClick={handleBulkMarkPresent}
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? (
+                <span className="loading-spinner-small"></span>
+              ) : (
+                <CheckCircle size={14} />
+              )}
+              {isBulkProcessing ? 'Processing...' : `Mark ${selectedMembers.length} Present`}
+            </button>
+          )}
+        </div>
+
+        <table className="members-table">
+          <thead>
+            <tr>
+              <th style={{ width: '40px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={toggleSelectAll}
+                  disabled={isBulkProcessing}
+                />
+              </th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Role</th>
+              <th>Executive Position</th>
+              <th>Jumuia</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filteredAbsent.map(member => (
+              <tr key={member.id} className={selectedMembers.includes(member.id) ? 'selected' : ''}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedMembers.includes(member.id)}
+                    onChange={() => toggleMemberSelection(member.id)}
+                    disabled={isBulkProcessing}
+                  />
+                </td>
+                <td><strong>{member.fullName}</strong></td>
+                <td>{member.phone || '-'}</td>
+                <td>{member.role || '-'}</td>
+                <td>
+                  {member.executivePosition ? (
+                    <span className="executive-badge">{member.executivePosition}</span>
+                  ) : (
+                    <span className="no-role">-</span>
+                  )}
+                </td>
+                <td>{member.homeJumuia?.name || '-'}</td>
+                <td className="actions">
+                  <button 
+                    className="btn-small"
+                    onClick={() => handleSendReminder(member.id)}
+                    disabled={isBulkProcessing}
+                  >
+                    <Send size={12} /> Remind
+                  </button>
+                  <button 
+                    className="btn-small success"
+                    onClick={() => handleMarkPresent(member.id, member.fullName, member)}
+                    disabled={isBulkProcessing}
+                  >
+                    <CheckCircle size={12} /> Mark Present
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
     )}
   </div>
 )}
@@ -1243,6 +1398,120 @@ const manualCount = presentEntries.filter(e => e.signMethod === 'MANUAL').length
             opacity: 0;
           }
         }
+
+        /* Bulk Actions Bar */
+.bulk-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bulk-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-select-all input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.selected-count {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 8px;
+}
+
+.btn-bulk-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-bulk-mark:hover:not(:disabled) {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+.btn-bulk-mark:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Selected row highlight */
+.members-table tr.selected {
+  background: #f0fdf4;
+}
+
+.members-table tr.selected td:first-child {
+  border-left: 3px solid #22c55e;
+}
+
+/* Loading spinner small */
+.loading-spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+/* Pending state for bulk actions */
+.members-table tr.pending {
+  opacity: 0.6;
+  background: #fef3c7;
+  animation: pulse-pending 1s ease-in-out infinite;
+}
+
+@keyframes pulse-pending {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.pending-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #d97706;
+  animation: pulse-pending 1s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .bulk-actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .bulk-select-all {
+    justify-content: space-between;
+  }
+  
+  .btn-bulk-mark {
+    justify-content: center;
+  }
+}
       `}</style>
     </div>
   );

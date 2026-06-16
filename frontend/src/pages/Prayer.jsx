@@ -84,34 +84,29 @@ const dmPrayerSteps = [
   
   // Decade 1
   { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity...' },
-  { title: 'For the sake (1st Decade)', description: 'For the sake of His sorrowful Passion, have mercy on us... (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us... (Repeat 3 times)' },
+  { title: 'For the sake (1st Decade)', description: 'For the sake of His sorrowful Passion, have mercy on us... (Repeat 10 times)', showCounter: true },
   
   // Decade 2
   { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (2nd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  { title: 'For the sake (2nd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
   
   // Decade 3
   { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (3rd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  { title: 'For the sake (3rd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
   
   // Decade 4
   { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (4th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  { title: 'For the sake (4th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
   
   // Decade 5
   { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (5th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  { title: 'For the sake (5th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
   
   // Closing
+  { title: 'Holy God (3 times)', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us... (Repeat 3 times)' },
   { title: 'Closing Prayer', description: 'You expired, Jesus, but the source of life gushed forth for souls...' },
   { title: 'Sign of the Cross', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' }
 ];
-
   // Show toast notification
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -134,6 +129,7 @@ const dmPrayerSteps = [
   };
 
   // Get image path for a mystery
+// Get image path for a mystery
 const getMysteryImage = (set, index) => {
   const imagePaths = {
     sorrowful: [
@@ -144,40 +140,23 @@ const getMysteryImage = (set, index) => {
       '/sorrow/5th.jpg'
     ],
     divineMercy: [
-      // Opening prayers
-      '/divine mercy/in the name of the father.jpg',  // 0: Sign of Cross
-      '/divine mercy/our father.jpg',                 // 1: Our Father
-      '/divine mercy/hail mary.jpg',                  // 2: Hail Mary
-      '/divine mercy/creed.jpg',                      // 3: Apostles Creed
-      
-      // Decade 1
-      '/divine mercy/eternal father.jpg',             // 4: Eternal Father
-      '/divine mercy/fro the sake x10.jpg',           // 5: For the sake x10
-      '/divine mercy/holy god x3.jpg',                // 6: Holy God x3
-      
-      // Decade 2
-      '/divine mercy/eternal father (2).jpg',         // 7: Eternal Father
-      '/divine mercy/fro the sake x10.jpg',           // 8: For the sake x10
-      '/divine mercy/holy god x3.jpg',                // 9: Holy God x3
-      
-      // Decade 3
-      '/divine mercy/eternal father.jpg',             // 10: Eternal Father
-      '/divine mercy/fro the sake x10.jpg',           // 11: For the sake x10
-      '/divine mercy/holy god x3.jpg',                // 12: Holy God x3
-      
-      // Decade 4
-      '/divine mercy/eternal father (2).jpg',         // 13: Eternal Father
-      '/divine mercy/fro the sake x10.jpg',           // 14: For the sake x10
-      '/divine mercy/holy god x3.jpg',                // 15: Holy God x3
-      
-      // Decade 5
-      '/divine mercy/eternal father.jpg',             // 16: Eternal Father
-      '/divine mercy/fro the sake x10.jpg',           // 17: For the sake x10
-      '/divine mercy/holy god x3.jpg',                // 18: Holy God x3
-      
-      // Closing
-      '/divine mercy/boold and water.jpg',            // 19: Closing Prayer
-      '/divine mercy/in the name.jpg'                 // 20: Sign of Cross
+      '/divine mercy/in the name of the father.jpg',
+      '/divine mercy/our father.jpg',
+      '/divine mercy/hail mary.jpg',
+      '/divine mercy/creed.jpg',
+      '/divine mercy/eternal father.jpg',
+      '/divine mercy/fro the sake x10.jpg',
+      '/divine mercy/eternal father (2).jpg',
+      '/divine mercy/fro the sake x10.jpg',
+      '/divine mercy/eternal father.jpg',
+      '/divine mercy/fro the sake x10.jpg',
+      '/divine mercy/eternal father (2).jpg',
+      '/divine mercy/fro the sake x10.jpg',
+      '/divine mercy/eternal father.jpg',
+      '/divine mercy/fro the sake x10.jpg',
+      '/divine mercy/holy god x3.jpg',
+      '/divine mercy/boold and water.jpg',
+      '/divine mercy/in the name.jpg'
     ],
     joyful: [],
     glorious: [],

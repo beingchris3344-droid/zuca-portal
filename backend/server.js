@@ -1,3 +1,10 @@
+// ================== SET TIMEZONE FIRST ==================
+// This MUST be the first thing before any other code
+process.env.TZ = 'Africa/Nairobi';
+console.log(`Server timezone set to: ${process.env.TZ}`);
+console.log(`Current server time: ${new Date().toString()}`);
+
+
 // ================== ENV & CORE MODULES ==================
 require("dotenv").config();
 const path = require("path");
@@ -14247,26 +14254,28 @@ function getNotificationMessage(event, timing) {
   
   return messages[timing] || `📢 "${event.title}" is scheduled for ${eventDateFormatted} at ${eventTime} in ${location}.`;
 }
-// Helper function to create scheduled notifications for an event (OPTIMIZED)
+// Helper function to create scheduled notifications for an event (FIXED)
 async function createEventNotifications(event, scheduleId) {
   try {
-    // ✅ Use the date as-is (no conversion needed)
+    // Parse the event date and time
     const eventDate = new Date(event.eventDate);
     const eventTime = event.eventTime || "16:30";
-    const [hours, minutes] = eventTime.split(":");
+    const [hours, minutes] = eventTime.split(":").map(Number);
     
-    // Create datetime using local components
-    const eventDateTime = new Date(
-      eventDate.getFullYear(),
-      eventDate.getMonth(),
-      eventDate.getDate(),
-      parseInt(hours),
-      parseInt(minutes),
-      0
-    );
+    // Create the exact event date-time (when the event actually happens)
+    // Use UTC to avoid timezone shifting issues
+   const eventDateTime = new Date(
+  eventDate.getFullYear(),
+  eventDate.getMonth(),
+  eventDate.getDate(),
+  hours,
+  minutes,
+  0
+  );
     
     console.log(`📅 Event: ${event.title}`);
-    console.log(`   Correct Kenyan Time: ${eventDateTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
+    console.log(`   Event Date-Time (UTC): ${eventDateTime.toISOString()}`);
+    console.log(`   Event Date-Time (Kenyan): ${eventDateTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
     
     const notificationTimings = [
       { daysBefore: 7, label: "1 week before", priority: "normal" },
@@ -14275,29 +14284,35 @@ async function createEventNotifications(event, scheduleId) {
       { hoursBefore: 12, label: "12 hours before", priority: "high" },
       { hoursBefore: 6, label: "6 hours before", priority: "high" },
       { hoursBefore: 1, label: "1 hour before", priority: "urgent" },
-      { hoursBefore: 0.5, label: "30 minutes before", priority: "urgent" }
+      { minutesBefore: 30, label: "30 minutes before", priority: "urgent" }  // ← CHANGED to minutesBefore
     ];
     
-    const now = new Date(); // ← Use regular Date, not getKenyanTime()
+    const now = new Date();
+    let createdCount = 0;
+    let skippedCount = 0;
     
     for (const timing of notificationTimings) {
-      let notifyAt = new Date(eventDateTime);
+      // Create a copy of the event date-time using milliseconds
+      let notifyAt = new Date(eventDateTime.getTime());
       
       if (timing.daysBefore !== undefined) {
-        notifyAt.setDate(notifyAt.getDate() - timing.daysBefore);
-      } else {
-        notifyAt.setHours(notifyAt.getHours() - timing.hoursBefore);
+        // Subtract days using milliseconds (24 * 60 * 60 * 1000)
+        notifyAt = new Date(notifyAt.getTime() - (timing.daysBefore * 24 * 60 * 60 * 1000));
+      } else if (timing.hoursBefore !== undefined) {
+        // Subtract hours using milliseconds
+        notifyAt = new Date(notifyAt.getTime() - (timing.hoursBefore * 60 * 60 * 1000));
+      } else if (timing.minutesBefore !== undefined) {
+        // Subtract minutes using milliseconds
+        notifyAt = new Date(notifyAt.getTime() - (timing.minutesBefore * 60 * 1000));
       }
       
       // Only create future notifications
       if (notifyAt > now) {
+        // Check if notification already exists (by title pattern to avoid duplicates)
         const existing = await prisma.scheduledNotification.findFirst({
           where: { 
-            eventId: event.id, 
-            notifyAt: {
-              gte: new Date(notifyAt.setHours(0,0,0)),
-              lt: new Date(notifyAt.setHours(23,59,59))
-            }
+            eventId: event.id,
+            title: { contains: timing.label }
           }
         });
         
@@ -14313,17 +14328,24 @@ async function createEventNotifications(event, scheduleId) {
               isSent: false
             }
           });
-          console.log(`✅ Created ${timing.label} for ${notifyAt.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
+          createdCount++;
+          console.log(`   ✅ Created ${timing.label} for ${notifyAt.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
+        } else {
+          console.log(`   ⏭️ ${timing.label} already exists`);
+          skippedCount++;
         }
+      } else {
+        console.log(`   ⏭️ Skipping ${timing.label} (already passed - would have been ${notifyAt.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })})`);
+        skippedCount++;
       }
     }
-    console.log(`✅ Created all notifications for event: ${event.title}`);
+    console.log(`📊 Event "${event.title}": Created ${createdCount} new notifications, Skipped ${skippedCount}`);
   } catch (err) {
-    console.error(`❌ Error:`, err.message);
+    console.error(`❌ Error creating notifications for ${event.title}:`, err.message);
   }
 }
 
-// Add this to your server.js after the schedule creation route
+// Add this to your server.js - FIXED DEBUG ENDPOINT
 app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ 
@@ -14356,21 +14378,22 @@ app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async
       notificationCreationLog: []
     };
     
+    const now = new Date();
+    
     for (const event of schedule.events) {
       const eventDate = new Date(event.eventDate);
-      const [hours, minutes] = (event.eventTime || "16:30").split(":");
+      const [hours, minutes] = (event.eventTime || "16:30").split(":").map(Number);
       
-      // Calculate event datetime in UTC
-      const eventDateTime = new Date(Date.UTC(
-        eventDate.getUTCFullYear(),
-        eventDate.getUTCMonth(),
-        eventDate.getUTCDate(),
-        parseInt(hours),
-        parseInt(minutes),
+      // Use LOCAL time (not UTC) - this matches your fixed createEventNotifications
+      const eventDateTime = new Date(
+        eventDate.getFullYear(),
+        eventDate.getMonth(),
+        eventDate.getDate(),
+        hours,
+        minutes,
         0
-      ));
+      );
       
-      const now = new Date();
       const notifications = await prisma.scheduledNotification.findMany({
         where: { eventId: event.id }
       });
@@ -14382,23 +14405,25 @@ app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async
         { hoursBefore: 12, label: "12 hours before" },
         { hoursBefore: 6, label: "6 hours before" },
         { hoursBefore: 1, label: "1 hour before" },
-        { hoursBefore: 0.5, label: "30 minutes before" }
+        { minutesBefore: 30, label: "30 minutes before" }
       ];
       
       const wouldCreate = [];
       for (const timing of notificationTimings) {
-        let notifyAt;
+        let notifyAt = new Date(eventDateTime.getTime());
+        
         if (timing.daysBefore !== undefined) {
-          notifyAt = new Date(eventDateTime);
-          notifyAt.setUTCDate(notifyAt.getUTCDate() - timing.daysBefore);
-        } else {
-          notifyAt = new Date(eventDateTime);
-          notifyAt.setUTCHours(notifyAt.getUTCHours() - timing.hoursBefore);
+          notifyAt = new Date(notifyAt.getTime() - (timing.daysBefore * 24 * 60 * 60 * 1000));
+        } else if (timing.hoursBefore !== undefined) {
+          notifyAt = new Date(notifyAt.getTime() - (timing.hoursBefore * 60 * 60 * 1000));
+        } else if (timing.minutesBefore !== undefined) {
+          notifyAt = new Date(notifyAt.getTime() - (timing.minutesBefore * 60 * 1000));
         }
         
         wouldCreate.push({
           timing: timing.label,
           notifyAt: notifyAt.toISOString(),
+          notifyAtKenyan: notifyAt.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }),
           isFuture: notifyAt > now,
           wouldCreate: notifyAt > now
         });
@@ -14409,9 +14434,10 @@ app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async
         title: event.title,
         eventDate: event.eventDate,
         eventTime: event.eventTime,
-        eventDateTimeUTC: eventDateTime.toISOString(),
-        currentTimeUTC: now.toISOString(),
+        eventDateTimeKenyan: eventDateTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }),
+        currentTimeKenyan: now.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }),
         notificationsFound: notifications.length,
+        expectedNotifications: notificationTimings.length,
         wouldCreateNotifications: wouldCreate
       });
     }

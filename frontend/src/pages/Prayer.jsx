@@ -1,11 +1,12 @@
 // Prayer.jsx — Complete with Browse Prayers + Rosary + Stations + Favorites + Notes
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, publicApi } from '../api';
 import './Prayer.css';
 
 const Prayer = () => {
-  const navigate = useNavigate();
+
+const navigate = (path) => { window.location.href = path; };
   
   // State
   const [loading, setLoading] = useState(true);
@@ -20,8 +21,10 @@ const Prayer = () => {
   const [selectedPrayer, setSelectedPrayer] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  // Divine Mercy state
+
   
-  // Notes state
+  // Notes states
   const [userNote, setUserNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
@@ -47,6 +50,9 @@ const Prayer = () => {
   const [completedDecades, setCompletedDecades] = useState([]);
   const [showMysteryDetails, setShowMysteryDetails] = useState(false);
   const [showStationDetails, setShowStationDetails] = useState(false);
+  
+  // Image view state
+  const [showImage, setShowImage] = useState(false);
 
   // Get user info
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -58,6 +64,26 @@ const Prayer = () => {
   const currentSet = mysteries[selectedSet] || [];
   const currentMystery = currentSet[currentMysteryIndex];
   const currentStation = stationsData[currentStationIndex];
+
+  // Divine Mercy state
+const [showDivineMercyDetails, setShowDivineMercyDetails] = useState(false);
+const [currentDMIndex, setCurrentDMIndex] = useState(0);
+
+// Divine Mercy prayer steps with descriptions
+const dmPrayerSteps = [
+  { title: 'Opening Prayer', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' },
+  { title: 'Apostles Creed', description: 'I believe in God, the Father almighty, Creator of heaven and earth...' },
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.' },
+  { title: 'For the sake of His sorrowful Passion', description: 'For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us and on the whole world. (Repeat 3 times)' },
+  { title: 'Our Father', description: 'Our Father, who art in heaven, hallowed be thy name...' },
+  { title: 'Hail Mary', description: 'Hail Mary, full of grace, the Lord is with thee...' },
+  { title: 'Closing Prayer', description: 'You expired, Jesus, but the source of life gushed forth for souls, and the ocean of mercy opened up for the whole world. O Fount of Life, unfathomable Divine Mercy, envelop the whole world and empty Yourself out upon us.' },
+  { title: 'Eternal Father (continued)', description: 'Eternal Father, I offer You the Body and Blood...' },
+  { title: 'In the name... (continued)', description: 'In the name of the Father, and of the Son...' },
+  { title: 'Screenshot 1', description: 'Divine Mercy Chaplet' },
+  { title: 'Screenshot 2', description: 'Divine Mercy Chaplet' }
+];
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -80,6 +106,40 @@ const Prayer = () => {
     return 'sorrowful';
   };
 
+  // Get image path for a mystery
+ // Get image path for a mystery
+// Get image path for a mystery
+const getMysteryImage = (set, index) => {
+  const imagePaths = {
+    sorrowful: [
+      '/sorrow/1stmystry.jpg',
+      '/sorrow/2nd.jpg',
+      '/sorrow/3rd.jpg',
+      '/sorrow/4th.jpg',
+      '/sorrow/5th.jpg'
+    ],
+    divineMercy: [
+      '/divine mercy/in the name of the father.jpg',   // Opening
+      '/divine mercy/creed.jpg',                        // Creed
+      '/divine mercy/eternal father.jpg',              // Eternal Father
+      '/divine mercy/fro the sake x10.jpg',            // For the sake
+      '/divine mercy/holy god x3.jpg',                 // Holy God
+      '/divine mercy/our father.jpg',                  // Our Father
+      '/divine mercy/hail mary.jpg',                   // Hail Mary
+      '/divine mercy/boold and water.jpg',             // Closing
+      '/divine mercy/eternal father (2).jpg',          // Optional/Extra
+      '/divine mercy/in the name.jpg',                 // Optional/Extra
+      '/divine mercy/Screenshot_2026-06-16-05-49-18-573_app.rosario.it.jpg',
+      '/divine mercy/Screenshot_2026-06-16-05-49-41-887_app.rosario.it.jpg'
+    ],
+    joyful: [],
+    glorious: [],
+    luminous: []
+  };
+  
+  const images = imagePaths[set] || [];
+  return images[index] || null;
+};
   // Clean prayer text
   const cleanPrayerText = (text) => {
     if (!text) return 'Prayer content not available';
@@ -102,8 +162,7 @@ const Prayer = () => {
 
   // Enhanced prayer text formatting
   const formatPrayerText = (text) => {
-    if (!text) return <p>Pray
-      er content not available</p>;
+    if (!text) return <p>Prayer content not available</p>;
     
     let cleaned = cleanPrayerText(text);
     const paragraphs = cleaned.split(/\n\s*\n/);
@@ -211,34 +270,54 @@ const Prayer = () => {
         
         const saintsRes = await api.get('/api/prayers?category=saints&limit=100');
         setSaintsPrayers(saintsRes.data.prayers || []);
-        
-        const stations = saintsRes.data.prayers.filter(p => 
+                const stations = saintsRes.data.prayers.filter(p => 
           p.title?.toLowerCase().includes('station') || 
           p.title?.toLowerCase().includes('stations of the cross')
         );
         setStationsData(stations.length > 0 ? stations : saintsRes.data.prayers.slice(0, 14));
         
-        const rosaryRes = await api.get('/api/prayers?category=rosary&limit=100');
-        const rosaryPrayers = rosaryRes.data.prayers || [];
-        
-        const joyful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('joyful'));
-        const sorrowful = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('sorrowful'));
-        const glorious = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('glorious'));
-        const luminous = rosaryPrayers.filter(p => p.title?.toLowerCase().includes('luminous'));
-        
+        // Use publicApi for Rosary (no auth needed)
+        // Fetch ALL mystery sets separately
+        const formatMysteries = (mysteriesArray) => {
+          return mysteriesArray.map(mystery => ({
+            id: mystery.name.toLowerCase().replace(/\s/g, '-'),
+            title: mystery.name,
+            prayer: `Meditation on the ${mystery.name}\n\n${mystery.description}\n\nSpiritual Fruit: ${mystery.fruit}`,
+            category: 'rosary'
+          }));
+        };
+
+        // Fetch all 4 mystery sets in parallel
+        const [joyfulRes, sorrowfulRes, gloriousRes, luminousRes] = await Promise.all([
+          publicApi.get('/api/prayers/rosary/mysteries?day=1'),  // Joyful (Monday)
+          publicApi.get('/api/prayers/rosary/mysteries?day=2'),  // Sorrowful (Tuesday)
+          publicApi.get('/api/prayers/rosary/mysteries?day=0'),  // Glorious (Sunday)
+          publicApi.get('/api/prayers/rosary/mysteries?day=4')   // Luminous (Thursday)
+        ]);
+
+        // Set each mystery set with its own unique data
         setMysteries({
-          joyful: joyful.length > 0 ? joyful : rosaryPrayers.slice(0, 5),
-          sorrowful: sorrowful.length > 0 ? sorrowful : rosaryPrayers.slice(5, 10),
-          glorious: glorious.length > 0 ? glorious : rosaryPrayers.slice(10, 15),
-          luminous: luminous.length > 0 ? luminous : rosaryPrayers.slice(15, 20)
+          joyful: formatMysteries(joyfulRes.data.mysteries.mysteries),
+          sorrowful: formatMysteries(sorrowfulRes.data.mysteries.mysteries),
+          glorious: formatMysteries(gloriousRes.data.mysteries.mysteries),
+          luminous: formatMysteries(luminousRes.data.mysteries.mysteries)
         });
-        
+
+        // Combine all mysteries for the all prayers list
+        const rosaryPrayers = [
+          ...formatMysteries(joyfulRes.data.mysteries.mysteries),
+          ...formatMysteries(sorrowfulRes.data.mysteries.mysteries),
+          ...formatMysteries(gloriousRes.data.mysteries.mysteries),
+          ...formatMysteries(luminousRes.data.mysteries.mysteries)
+        ];
+
         const all = [
           ...(dailyRes.data.prayers || []),
           ...(marianRes.data.prayers || []),
           ...(saintsRes.data.prayers || []),
           ...(rosaryPrayers || [])
         ].filter(p => {
+
           if (p.prayer?.includes('<img') || p.prayer?.includes('.jpg')) return false;
           if (!p.prayer) return false;
           if (p.prayer?.includes('Share this Page')) return false;
@@ -338,6 +417,7 @@ const Prayer = () => {
       setCurrentMysteryIndex(currentMysteryIndex + 1);
       setHailMaryCount(0);
       setShowMysteryDetails(false);
+      setShowImage(false);
     }
   };
 
@@ -346,6 +426,7 @@ const Prayer = () => {
     setHailMaryCount(0);
     setCompletedDecades([]);
     setShowMysteryDetails(false);
+    setShowImage(false);
   };
 
   const isDecadeComplete = hailMaryCount === 10;
@@ -406,11 +487,11 @@ const Prayer = () => {
 
       {/* Header with Back Button */}
       <div className="prayer-header">
-        <button className="back-button" onClick={() => navigate(-1)}>
+       <button className="back-button" onClick={() => window.history.back()}>
           ← Back
         </button>
         <div className="header-title">
-          <h1>YOUR PRAYER SPACE</h1>
+          <h1> {fullName.split(' ')[0]}'s PRAYER SPACE</h1>
           <p>Today is {getDayName()} • Suggested: {getSuggestedMystery().toUpperCase()} Mysteries</p>
         </div>
       </div>
@@ -450,18 +531,20 @@ const Prayer = () => {
         </div>
       )}
 
-      {/* Main Tabs */}
-      <div className="main-tabs">
-        <button className={activeMainTab === 'browse' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('browse')}>
-          Browse Prayers
-        </button>
-        <button className={activeMainTab === 'rosary' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('rosary')}>
-          Holy Rosary
-        </button>
-        <button className={activeMainTab === 'stations' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('stations')}>
-          Stations of the Cross
-        </button>
-      </div>
+     <div className="main-tabs">
+  <button className={activeMainTab === 'browse' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('browse')}>
+    Browse Prayers
+  </button>
+  <button className={activeMainTab === 'rosary' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('rosary')}>
+    Holy Rosary
+  </button>
+  <button className={activeMainTab === 'divine-mercy' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('divine-mercy')}>
+    Divine Mercy
+  </button>
+  <button className={activeMainTab === 'stations' ? 'main-tab-active' : 'main-tab'} onClick={() => setActiveMainTab('stations')}>
+    Stations of the Cross
+  </button>
+</div>
 
       {/* ========== BROWSE PRAYERS SECTION ========== */}
       {activeMainTab === 'browse' && (
@@ -532,8 +615,31 @@ const Prayer = () => {
                   </div>
                   <h2>{currentMystery.title}</h2>
                   
-                  {showMysteryDetails && (
-                    <div className="mystery-details">
+                                      {showMysteryDetails && (
+                    <div className="mystery-details" style={{ maxHeight: 'none', overflow: 'visible' }}>
+                      {/* Show image if available - full size */}
+                      {getMysteryImage(selectedSet, currentMysteryIndex) && (
+                        <img 
+                          src={getMysteryImage(selectedSet, currentMysteryIndex)}
+                          alt={currentMystery.title}
+                          style={{ 
+                            width: '100%', 
+                            height: 'auto',
+                            maxHeight: '600px',
+                            objectFit: 'fill',
+                            borderRadius: '8px',
+                            marginBottom: '15px',
+                            display: 'block'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      )}
+                      
+                      {/* Always show meditation text */}
+                      <p><strong>Description:</strong> {currentMystery.description}</p>
+                      <p><strong>Spiritual Fruit:</strong> {currentMystery.fruit}</p>
                       {formatPrayerText(currentMystery.prayer)}
                     </div>
                   )}
@@ -616,6 +722,57 @@ const Prayer = () => {
           </div>
         </div>
       )}
+{/* ========== DIVINE MERCY SECTION ========== */}
+{activeMainTab === 'divine-mercy' && (
+  <div className="divine-mercy-section">
+    <div className="devotion-header">
+      <h2>Divine Mercy Chaplet</h2>
+      <p>{dmPrayerSteps[currentDMIndex]?.title || 'Divine Mercy'} ({currentDMIndex + 1} of {dmPrayerSteps.length})</p>
+    </div>
+    
+    <div className="dm-card">
+      <div className="dm-header">
+        <span className="dm-badge">{dmPrayerSteps[currentDMIndex]?.title || 'Prayer'}</span>
+        <button className="details-toggle" onClick={() => setShowDivineMercyDetails(!showDivineMercyDetails)}>
+          {showDivineMercyDetails ? 'Hide Image' : 'Show Image'}
+        </button>
+      </div>
+      
+      {/* Prayer Text */}
+      <div className="dm-prayer-text">
+        <p className="dm-description">{dmPrayerSteps[currentDMIndex]?.description || 'Pray the Divine Mercy Chaplet'}</p>
+      </div>
+      
+      {showDivineMercyDetails && getMysteryImage('divineMercy', currentDMIndex) && (
+        <div className="dm-details">
+          <img 
+            src={getMysteryImage('divineMercy', currentDMIndex)}
+            alt={dmPrayerSteps[currentDMIndex]?.title || 'Divine Mercy'}
+            className="mystery-image-full"
+          />
+        </div>
+      )}
+      
+      <div className="dm-navigation">
+        <button 
+          className="nav-prev" 
+          onClick={() => setCurrentDMIndex(Math.max(0, currentDMIndex - 1))}
+          disabled={currentDMIndex === 0}
+        >
+          ← Previous
+        </button>
+        <span className="dm-counter">{currentDMIndex + 1} / {dmPrayerSteps.length}</span>
+        <button 
+          className="nav-next" 
+          onClick={() => setCurrentDMIndex(Math.min(dmPrayerSteps.length - 1, currentDMIndex + 1))}
+          disabled={currentDMIndex >= dmPrayerSteps.length - 1}
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* ========== STATIONS SECTION ========== */}
       {activeMainTab === 'stations' && stationsData.length > 0 && (
@@ -770,11 +927,14 @@ const Prayer = () => {
         .header-title h1 {
           font-size: 1.4rem;
           margin: 0 0 5px;
+                              margin-top: 30px;
+
         }
 
         .header-title p {
           font-size: 0.5rem;
           opacity: 0.9;
+
         }
 
         /* Toast */
@@ -968,13 +1128,48 @@ const Prayer = () => {
           font-size: 12px;
         }
         .mystery-details, .station-details {
-          background: #f9f6f0;
-          padding: 15px;
-          border-radius: 12px;
-          margin: 12px 0;
-          max-height: 300px;
-          overflow-y: auto;
+  background: #f9f6f0;
+  padding: 15px;
+  border-radius: 12px;
+  margin: 12px 0;
+  /* Remove this line: max-height: 300px; */
+  overflow: visible;
+}
+
+        .view-toggle {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 12px;
         }
+        .view-toggle button {
+          padding: 6px 16px;
+          border: 1px solid #c9b78b;
+          border-radius: 20px;
+          background: white;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .view-toggle button.active {
+          background: #1e3a32;
+          color: white;
+          border-color: #1e3a32;
+        }
+
+        .mystery-image {
+          width: 100%;
+          border-radius: 8px;
+          margin-bottom: 12px;
+        }
+
+        .mystery-image-full {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  display: block;
+}
 
         /* Prayer Text Formatting */
         .prayer-paragraph { margin-bottom: 20px; }
@@ -1329,6 +1524,123 @@ const Prayer = () => {
           .prayer-card { padding: 12px; }
           .prayer-card-header h3 { font-size: 0.85rem; }
         }
+
+        /* Divine Mercy Styles */
+.divine-mercy-section {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.devotion-header {
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0ebe3;
+}
+
+.devotion-header h2 {
+  color: #1e3a32;
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.devotion-header p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.dm-card {
+  background: #f9f6f0;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 15px;
+}
+
+.dm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.dm-badge {
+  background: #1e3a32;
+  color: white;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.dm-details {
+  background: #f9f6f0;
+  padding: 15px;
+  border-radius: 12px;
+  margin: 12px 0;
+  overflow: visible;
+}
+
+.mystery-image-full {
+  width: 100%;
+  height: auto;
+  max-height: 600px;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+  background: #f5f0e8;
+}
+
+.dm-navigation {
+  display: flex;
+  gap: 12px;
+  margin-top: 15px;
+  justify-content: center;
+}
+
+.dm-navigation button {
+  padding: 10px 30px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dm-navigation .nav-prev {
+  background: #8b5a2b;
+  color: white;
+}
+
+.dm-navigation .nav-next {
+  background: #1e3a32;
+  color: white;
+}
+
+.dm-navigation .nav-prev:disabled,
+.dm-navigation .nav-next:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.dm-prayer-text {
+  background: #f9f6f0;
+  padding: 15px;
+  border-radius: 12px;
+  margin: 10px 0;
+}
+
+.dm-description {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #2c3e2f;
+  margin: 0;
+}
+
+.dm-counter {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+}
       `}</style>
     </div>
   );

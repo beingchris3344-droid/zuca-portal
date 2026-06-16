@@ -1352,6 +1352,7 @@ model AttendanceSheet {
 
 
     jumuiaId    String?
+    isExecutiveOnly Boolean @default(false)
   
   // Check-in settings
   allowSelfCheckin  Boolean @default(false)

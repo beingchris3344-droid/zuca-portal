@@ -462,26 +462,25 @@ const sendSheetClosedNotification = async (sheetId) => {
       
       if (!sheet) return;
       
-      let allMembers = [];
-      
-      // ✅ FIX: Check for executive-team FIRST
-      if (sheet.jumuiaId === 'executive-team') {
-        // Executive meeting - only executives
-        const executives = await prisma.executive.findMany({
-          where: { isActive: true },
-          include: { user: true }
-        });
-        allMembers = executives.map(exec => exec.user);
-      } else if (sheet.jumuiaId) {
-        // Jumuia meeting - only that jumuia's members
-        allMembers = await prisma.user.findMany({
-          where: { jumuiaId: sheet.jumuiaId }
-        });
-      } else {
-        // Global meeting - everyone
-        allMembers = await prisma.user.findMany();
-      }
-      
+    let allMembers = [];
+
+// ✅ FIX: Use isExecutiveOnly flag
+if (sheet.isExecutiveOnly) {
+  // Executive meeting - only executives
+  const executives = await prisma.executive.findMany({
+    where: { isActive: true },
+    include: { user: true }
+  });
+  allMembers = executives.map(exec => exec.user);
+} else if (sheet.jumuiaId) {
+  // Jumuia meeting - only that jumuia's members
+  allMembers = await prisma.user.findMany({
+    where: { jumuiaId: sheet.jumuiaId }
+  });
+} else {
+  // Global meeting - everyone
+  allMembers = await prisma.user.findMany();
+}
       const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
       const presentMembers = allMembers.filter(m => presentUserIds.has(m.id));
       const absentMembers = allMembers.filter(m => !presentUserIds.has(m.id));
@@ -683,11 +682,14 @@ const createAttendanceSheet = async (req, res) => {
 
   // Handle executive-team as a special value
 let targetJumuiaId = jumuiaId;
+let isExecutiveOnly = false;
+
 if (jumuiaId === 'executive-team') {
-  targetJumuiaId = null;  
+  targetJumuiaId = null;
+  isExecutiveOnly = true;  
 }
 
-  const sheet = await prisma.attendanceSheet.create({
+const sheet = await prisma.attendanceSheet.create({
   data: {
     title,
     description,
@@ -698,6 +700,7 @@ if (jumuiaId === 'executive-team') {
     enableWifiCheckin: enableWifiCheckin || false,
     wifiSSID: enableWifiCheckin ? wifiSSID : null,
     jumuiaId: targetJumuiaId,
+    isExecutiveOnly: isExecutiveOnly, 
     createdBy: req.user.userId,
     isActive: true
   }
@@ -712,7 +715,7 @@ if (jumuiaId === 'executive-team') {
   try {
     let targetUsers = [];
     
-    if (sheet.jumuiaId === 'executive-team') {
+    if (sheet.isExecutiveOnly) {
       const executives = await prisma.executive.findMany({
         where: { isActive: true },
         select: { userId: true }
@@ -774,21 +777,21 @@ const getActiveSheets = async (req, res) => {
       orderBy: { eventDate: "asc" }
     });
     
-    // Filter sheets based on user's access
-    const visibleSheets = allSheets.filter(sheet => {
-      // Executive sheet - only executives + admins + secretaries
-      if (sheet.jumuiaId === 'executive-team') {
-        return isExecutive || user.role === 'admin' || user.specialRole === 'secretary';
-      }
-      
-      // Jumuia sheet - only members of that Jumuia + admins + secretaries
-      if (sheet.jumuiaId && sheet.jumuiaId !== 'executive-team') {
-        return user.jumuiaId === sheet.jumuiaId || user.role === 'admin' || user.specialRole === 'secretary';
-      }
-      
-      // Global sheet (jumuiaId = null) - everyone can see
-      return true;
-    });
+   // Filter sheets based on user's access
+const visibleSheets = allSheets.filter(sheet => {
+  // Executive sheet - only executives + admins + secretaries
+  if (sheet.isExecutiveOnly) {
+    return isExecutive || user.role === 'admin' || user.specialRole === 'secretary';
+  }
+  
+  // Jumuia sheet - only members of that Jumuia + admins + secretaries
+  if (sheet.jumuiaId) {
+    return user.jumuiaId === sheet.jumuiaId || user.role === 'admin' || user.specialRole === 'secretary';
+  }
+  
+  // Global sheet (jumuiaId = null, not executive) - everyone can see
+  return true;
+});
     
     console.log(`📋 User ${userId} can see ${visibleSheets.length} of ${allSheets.length} sheets`);
     
@@ -801,9 +804,46 @@ const getActiveSheets = async (req, res) => {
 };
 
 /// Get single sheet with entries (including absent members)
+/// Get single sheet with entries (including absent members)
 const getSheetById = async (req, res) => {
   try {
     const { sheetId } = req.params;
+    const userId = req.user.userId;
+    
+    // First, check if user has access to this sheet
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, specialRole: true, jumuiaId: true }
+    });
+    
+    const isExecutive = await prisma.executive.findFirst({
+      where: { userId: userId, isActive: true }
+    });
+    
+    // Get sheet basic info for access check
+    const sheetBasic = await prisma.attendanceSheet.findUnique({
+      where: { id: sheetId },
+      select: { isExecutiveOnly: true, jumuiaId: true }
+    });
+    
+    if (!sheetBasic) {
+      return res.status(404).json({ error: "Attendance sheet not found" });
+    }
+    
+    // Check access for executive sheets
+    if (sheetBasic.isExecutiveOnly) {
+      const hasAccess = isExecutive || currentUser.role === 'admin' || currentUser.specialRole === 'secretary';
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied - Executive meeting only" });
+      }
+    }
+    // Check access for jumuia sheets
+    else if (sheetBasic.jumuiaId) {
+      const hasAccess = currentUser.jumuiaId === sheetBasic.jumuiaId || currentUser.role === 'admin' || currentUser.specialRole === 'secretary';
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied - This meeting is for specific Jumuia only" });
+      }
+    }
 
     const sheet = await prisma.attendanceSheet.findUnique({
       where: { id: sheetId },
@@ -1574,17 +1614,24 @@ const sendAutomaticAbsentReminders = async () => {
     });
     
     console.log(`📋 Found ${activeSheets.length} active sheets from last 5 hours`);
-    
     for (const sheet of activeSheets) {
-      // Get all target members for this sheet
-      let targetMembers = [];
-      if (sheet.jumuiaId) {
-        targetMembers = await prisma.user.findMany({
-          where: { jumuiaId: sheet.jumuiaId }
-        });
-      } else {
-        targetMembers = await prisma.user.findMany();
-      }
+  // Get all target members for this sheet
+  let targetMembers = [];
+  
+  // ✅ FIX: Use isExecutiveOnly flag
+  if (sheet.isExecutiveOnly) {
+    const executives = await prisma.executive.findMany({
+      where: { isActive: true },
+      include: { user: true }
+    });
+    targetMembers = executives.map(exec => exec.user);
+  } else if (sheet.jumuiaId) {
+    targetMembers = await prisma.user.findMany({
+      where: { jumuiaId: sheet.jumuiaId }
+    });
+  } else {
+    targetMembers = await prisma.user.findMany();
+  }
       
       const presentUserIds = new Set(sheet.entries.map(e => e.userId).filter(id => id));
       const absentMembers = targetMembers.filter(m => !presentUserIds.has(m.id));
@@ -1704,43 +1751,48 @@ router.get("/sheet/:sheetId", authenticate, async (req, res) => {
     // Get user info to check permissions
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, specialRole: true }
+      select: { role: true, specialRole: true, jumuiaId: true }
     });
     
     const isAdmin = currentUser.role === 'admin';
     const isSecretary = currentUser.role === 'secretary' || currentUser.specialRole === 'secretary';
     
-    // Allow admin or secretary to view any sheet
-    if (isAdmin || isSecretary) {
-      // Call the existing getSheetById function
-      return getSheetById(req, res);
-    }
-    
-    // For regular members, check if they are part of the sheet's target audience
-    const sheet = await prisma.attendanceSheet.findUnique({
+    // Get sheet info to check access
+    const sheetInfo = await prisma.attendanceSheet.findUnique({
       where: { id: sheetId },
-      select: { jumuiaId: true }
+      select: { isExecutiveOnly: true, jumuiaId: true }
     });
     
-    if (sheet?.jumuiaId) {
-      const userJumuia = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { jumuiaId: true }
-      });
-      
-      if (userJumuia?.jumuiaId !== sheet.jumuiaId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      return getSheetById(req, res);
+    if (!sheetInfo) {
+      return res.status(404).json({ error: "Sheet not found" });
     }
     
-    return res.status(403).json({ error: "Access denied" });
+    // Check access for executive sheets
+    if (sheetInfo.isExecutiveOnly) {
+      const isExecutive = await prisma.executive.findFirst({
+        where: { userId: userId, isActive: true }
+      });
+      
+      if (!isExecutive && !isAdmin && !isSecretary) {
+        return res.status(403).json({ error: "Access denied - Executive meeting only" });
+      }
+    }
+    // Check access for jumuia sheets
+    else if (sheetInfo.jumuiaId) {
+      if (!isAdmin && !isSecretary && currentUser.jumuiaId !== sheetInfo.jumuiaId) {
+        return res.status(403).json({ error: "Access denied - This meeting is for specific Jumuia only" });
+      }
+    }
+    
+    // All checks passed, proceed to get sheet
+    return getSheetById(req, res);
     
   } catch (err) {
     console.error("Get sheet error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 router.post("/sheet/:sheetId/entry", authenticate, async (req, res, next) => {
   // Check if user is admin, secretary, or leader
   const user = await prisma.user.findUnique({

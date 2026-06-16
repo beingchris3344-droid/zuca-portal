@@ -65,24 +65,51 @@ const navigate = (path) => { window.location.href = path; };
   const currentMystery = currentSet[currentMysteryIndex];
   const currentStation = stationsData[currentStationIndex];
 
-  // Divine Mercy state
+ // Divine Mercy state
 const [showDivineMercyDetails, setShowDivineMercyDetails] = useState(false);
 const [currentDMIndex, setCurrentDMIndex] = useState(0);
+const [dmCount, setDmCount] = useState(0);
+// Reset Divine Mercy counter when changing steps
+const resetDMCount = () => {
+  setDmCount(0);
+};
 
 // Divine Mercy prayer steps with descriptions
 const dmPrayerSteps = [
-  { title: 'Opening Prayer', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' },
-  { title: 'Apostles Creed', description: 'I believe in God, the Father almighty, Creator of heaven and earth...' },
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.' },
-  { title: 'For the sake of His sorrowful Passion', description: 'For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)' },
-  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us and on the whole world. (Repeat 3 times)' },
+  // Opening Prayers
+  { title: 'Sign of the Cross', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' },
   { title: 'Our Father', description: 'Our Father, who art in heaven, hallowed be thy name...' },
   { title: 'Hail Mary', description: 'Hail Mary, full of grace, the Lord is with thee...' },
-  { title: 'Closing Prayer', description: 'You expired, Jesus, but the source of life gushed forth for souls, and the ocean of mercy opened up for the whole world. O Fount of Life, unfathomable Divine Mercy, envelop the whole world and empty Yourself out upon us.' },
-  { title: 'Eternal Father (continued)', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'In the name... (continued)', description: 'In the name of the Father, and of the Son...' },
-  { title: 'Screenshot 1', description: 'Divine Mercy Chaplet' },
-  { title: 'Screenshot 2', description: 'Divine Mercy Chaplet' }
+  { title: 'Apostles Creed', description: 'I believe in God, the Father almighty...' },
+  
+  // Decade 1
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity...' },
+  { title: 'For the sake (1st Decade)', description: 'For the sake of His sorrowful Passion, have mercy on us... (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us... (Repeat 3 times)' },
+  
+  // Decade 2
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
+  { title: 'For the sake (2nd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  
+  // Decade 3
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
+  { title: 'For the sake (3rd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  
+  // Decade 4
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
+  { title: 'For the sake (4th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  
+  // Decade 5
+  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
+  { title: 'For the sake (5th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)' },
+  { title: 'Holy God', description: 'Holy God, Holy Mighty One, Holy Immortal One... (Repeat 3 times)' },
+  
+  // Closing
+  { title: 'Closing Prayer', description: 'You expired, Jesus, but the source of life gushed forth for souls...' },
+  { title: 'Sign of the Cross', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' }
 ];
 
   // Show toast notification
@@ -107,8 +134,6 @@ const dmPrayerSteps = [
   };
 
   // Get image path for a mystery
- // Get image path for a mystery
-// Get image path for a mystery
 const getMysteryImage = (set, index) => {
   const imagePaths = {
     sorrowful: [
@@ -119,18 +144,40 @@ const getMysteryImage = (set, index) => {
       '/sorrow/5th.jpg'
     ],
     divineMercy: [
-      '/divine mercy/in the name of the father.jpg',   // Opening
-      '/divine mercy/creed.jpg',                        // Creed
-      '/divine mercy/eternal father.jpg',              // Eternal Father
-      '/divine mercy/fro the sake x10.jpg',            // For the sake
-      '/divine mercy/holy god x3.jpg',                 // Holy God
-      '/divine mercy/our father.jpg',                  // Our Father
-      '/divine mercy/hail mary.jpg',                   // Hail Mary
-      '/divine mercy/boold and water.jpg',             // Closing
-      '/divine mercy/eternal father (2).jpg',          // Optional/Extra
-      '/divine mercy/in the name.jpg',                 // Optional/Extra
-      '/divine mercy/Screenshot_2026-06-16-05-49-18-573_app.rosario.it.jpg',
-      '/divine mercy/Screenshot_2026-06-16-05-49-41-887_app.rosario.it.jpg'
+      // Opening prayers
+      '/divine mercy/in the name of the father.jpg',  // 0: Sign of Cross
+      '/divine mercy/our father.jpg',                 // 1: Our Father
+      '/divine mercy/hail mary.jpg',                  // 2: Hail Mary
+      '/divine mercy/creed.jpg',                      // 3: Apostles Creed
+      
+      // Decade 1
+      '/divine mercy/eternal father.jpg',             // 4: Eternal Father
+      '/divine mercy/fro the sake x10.jpg',           // 5: For the sake x10
+      '/divine mercy/holy god x3.jpg',                // 6: Holy God x3
+      
+      // Decade 2
+      '/divine mercy/eternal father (2).jpg',         // 7: Eternal Father
+      '/divine mercy/fro the sake x10.jpg',           // 8: For the sake x10
+      '/divine mercy/holy god x3.jpg',                // 9: Holy God x3
+      
+      // Decade 3
+      '/divine mercy/eternal father.jpg',             // 10: Eternal Father
+      '/divine mercy/fro the sake x10.jpg',           // 11: For the sake x10
+      '/divine mercy/holy god x3.jpg',                // 12: Holy God x3
+      
+      // Decade 4
+      '/divine mercy/eternal father (2).jpg',         // 13: Eternal Father
+      '/divine mercy/fro the sake x10.jpg',           // 14: For the sake x10
+      '/divine mercy/holy god x3.jpg',                // 15: Holy God x3
+      
+      // Decade 5
+      '/divine mercy/eternal father.jpg',             // 16: Eternal Father
+      '/divine mercy/fro the sake x10.jpg',           // 17: For the sake x10
+      '/divine mercy/holy god x3.jpg',                // 18: Holy God x3
+      
+      // Closing
+      '/divine mercy/boold and water.jpg',            // 19: Closing Prayer
+      '/divine mercy/in the name.jpg'                 // 20: Sign of Cross
     ],
     joyful: [],
     glorious: [],
@@ -743,6 +790,31 @@ const getMysteryImage = (set, index) => {
         <p className="dm-description">{dmPrayerSteps[currentDMIndex]?.description || 'Pray the Divine Mercy Chaplet'}</p>
       </div>
       
+      {/* Counter for "For the sake" steps */}
+      {currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17 ? (
+        <div className="dm-counter-section">
+          <p className="dm-counter-text">For the sake of His sorrowful Passion, have mercy on us and on the whole world.</p>
+          <div className="dm-counter-controls">
+            <button 
+              className="dm-counter-btn" 
+              onClick={() => setDmCount(Math.min(10, dmCount + 1))}
+            >
+              +
+            </button>
+            <span className="dm-count">{dmCount} / 10</span>
+            <button 
+              className="dm-counter-btn" 
+              onClick={() => setDmCount(Math.max(0, dmCount - 1))}
+            >
+              -
+            </button>
+          </div>
+          {dmCount === 10 && (
+            <div className="dm-decade-complete">✅ Decade complete! Click "Next" to continue.</div>
+          )}
+        </div>
+      ) : null}
+      
       {showDivineMercyDetails && getMysteryImage('divineMercy', currentDMIndex) && (
         <div className="dm-details">
           <img 
@@ -756,7 +828,10 @@ const getMysteryImage = (set, index) => {
       <div className="dm-navigation">
         <button 
           className="nav-prev" 
-          onClick={() => setCurrentDMIndex(Math.max(0, currentDMIndex - 1))}
+          onClick={() => {
+            setCurrentDMIndex(Math.max(0, currentDMIndex - 1));
+            resetDMCount();
+          }}
           disabled={currentDMIndex === 0}
         >
           ← Previous
@@ -764,8 +839,20 @@ const getMysteryImage = (set, index) => {
         <span className="dm-counter">{currentDMIndex + 1} / {dmPrayerSteps.length}</span>
         <button 
           className="nav-next" 
-          onClick={() => setCurrentDMIndex(Math.min(dmPrayerSteps.length - 1, currentDMIndex + 1))}
-          disabled={currentDMIndex >= dmPrayerSteps.length - 1}
+          onClick={() => {
+            // Only allow next if "For the sake" step is complete (10/10)
+            const isForTheSake = currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17;
+            if (isForTheSake && dmCount < 10) {
+              // Don't allow next if not all 10 are counted
+              return;
+            }
+            setCurrentDMIndex(Math.min(dmPrayerSteps.length - 1, currentDMIndex + 1));
+            resetDMCount();
+          }}
+          disabled={
+            currentDMIndex >= dmPrayerSteps.length - 1 || 
+            (currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17) && dmCount < 10
+          }
         >
           Next →
         </button>
@@ -1640,6 +1727,67 @@ const getMysteryImage = (set, index) => {
   align-items: center;
   font-size: 14px;
   color: #666;
+}
+
+/* Divine Mercy Counter */
+.dm-counter-section {
+  background: #f5f0e8;
+  border-radius: 12px;
+  padding: 15px;
+  margin: 10px 0;
+}
+
+.dm-counter-text {
+  font-size: 14px;
+  color: #2c3e2f;
+  text-align: center;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.dm-counter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.dm-counter-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #1e3a32;
+  color: white;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dm-counter-btn:hover {
+  background: #2c5a4a;
+}
+
+.dm-counter-btn:active {
+  transform: scale(0.95);
+}
+
+.dm-count {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1e3a32;
+  min-width: 60px;
+  text-align: center;
+}
+
+.dm-decade-complete {
+  background: #d4edda;
+  color: #155724;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
 }
       `}</style>
     </div>

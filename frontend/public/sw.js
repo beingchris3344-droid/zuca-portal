@@ -291,10 +291,68 @@ self.addEventListener('push', (event) => {
 });
 
 // ================== NOTIFICATION CLICK ==================
+const NOTIFICATION_URLS = {
+  // 📢 Announcements
+  'announcement': '/announcements',
+  
+  // 🎮 Games
+  'game_invite': '/games',
+  
+  // 💰 Contributions & Payments
+  'contribution': '/contributions',
+  'pledge_approved': '/contributions',
+  'payment_added': '/contributions',
+  'payment_success': '/contributions',
+  'payment_received': '/contributions',
+  'payment_failed': '/contributions',
+  'jumuia_payment': '/contributions',
+  
+  // ⛪ Mass Programs
+  'program': '/mass-programs',
+  
+  // 📅 Schedules & Events
+  'schedule': '/schedules',
+  'event_reminder': '/mass-programs',
+  
+  // 📋 Meeting Minutes
+  'meeting_minutes_published': '/minutes',
+  'meeting_minutes_comment': '/minutes',
+  
+  // 💬 Chat & Messenger
+  'chat_mention': '/chat',
+  'message': '/messenger',
+  
+  // 👑 Executive
+  'executive_appointment': '/executive',
+  'executive_removed': '/executive',
+  
+  // 📸 Gallery
+  'new_media': '/gallery',
+  'media_comment': '/gallery',
+  
+  // 👤 User
+  'user_login': '/dashboard',
+  'role_change': '/dashboard',
+  
+  // 📋 Treasurer
+  'treasurer_note': '/treasurer/notes',
+  'treasurer_report': '/treasurer/reports',
+  
+  // 🏠 Jumuia
+  'jumuia_announcement': '/announcements',
+  'jumuia_contribution': '/contributions',
+  
+  // 🔔 Test
+  'test': '/dashboard',
+  
+  // 🎯 Default (fallback)
+  'default': '/dashboard'
+};
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked');
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const notificationType = event.notification.data?.type;
+  const url = event.notification.data?.url || NOTIFICATION_URLS[notificationType] || '/dashboard';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientsArr) => {

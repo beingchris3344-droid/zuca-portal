@@ -563,6 +563,7 @@ app.get("/api/public/hymns/search/:query", async (req, res) => {
 
 
 
+
 // ================== MIDDLEWARE ==================
 app.use((req, res, next) => {
   console.log(req.method, req.path, req.body);
@@ -2025,6 +2026,11 @@ app.get("/api/calendar/month/:year/:month", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+
+
+
 
 /// ================== SEARCH ROUTES (COMPLETELY FIXED) ==================
 
@@ -6288,6 +6294,68 @@ app.post("/api/auth/resend-code", async (req, res) => {
 });
 
 
+// ==================== ULTRA-FAST LIGHTWEIGHT USERS ENDPOINT (WITH CACHE) ====================
+let cachedUsersAll = null;
+let cachedUsersTimestamp = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+app.get("/api/users/light", async (req, res) => {
+  try {
+    const startTime = Date.now();
+    
+    // 🔥 ALWAYS return cached data if available (ignore pagination params)
+    if (cachedUsersAll && cachedUsersTimestamp && (Date.now() - cachedUsersTimestamp < CACHE_TTL)) {
+      const duration = Date.now() - startTime;
+      console.log(`⚡ CACHED RESPONSE: ${cachedUsersAll.length} users in ${duration}ms`);
+      return res.json(cachedUsersAll); // Return full array, not paginated
+    }
+    
+    console.log('📡 First load - fetching all users...');
+    
+    // 🔥 Fetch ALL users in one query
+    const users = await prisma.$queryRaw`
+      SELECT 
+        u.id, 
+        u."fullName" AS "fullName", 
+        u.phone, 
+        u.role, 
+        u."specialRole" AS "specialRole", 
+        u."membership_number" AS "membership_number",
+        u."jumuiaId" AS "jumuiaId",
+        j.name AS "jumuiaName"
+      FROM "User" u
+      LEFT JOIN "Jumuia" j ON u."jumuiaId" = j.id
+      WHERE u.role != 'admin'
+      ORDER BY u."fullName" ASC
+    `;
+    
+    const formattedUsers = users.map(u => ({
+      id: u.id,
+      fullName: u.fullName,
+      phone: u.phone,
+      role: u.role,
+      specialRole: u.specialRole,
+      membership_number: u.membership_number,
+      jumuiaId: u.jumuiaId,
+      homeJumuia: u.jumuiaName ? { name: u.jumuiaName } : null
+    }));
+    
+    // 🔥 Cache it
+    cachedUsersAll = formattedUsers;
+    cachedUsersTimestamp = Date.now();
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ Loaded ${formattedUsers.length} users in ${duration}ms (cached for 5 min)`);
+    
+    res.json(formattedUsers);
+    
+  } catch (err) {
+    console.error("Error fetching lightweight users:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Import M-PESA routes
 const mpesaRoutes = require("./routes/mpesaRoutes");
 
@@ -6303,6 +6371,7 @@ app.use("/api", aiRoutes);
 // Attendance registrations
 const attendanceRoutes = require("./routes/attendanceRoutes");
 app.use("/api/attendance", attendanceRoutes);
+
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
@@ -12086,6 +12155,7 @@ app.get("/api/user/contribution-stats", authenticate, async (req, res) => {
 });
 
 
+
 // ================== GET VAPID PUBLIC KEY ==================
 app.get("/api/notifications/vapid-public-key", (req, res) => {
   try {
@@ -14008,6 +14078,9 @@ app.post("/api/ai/assistant", authenticate, async (req, res) => {
   }
 });
 
+
+
+
 // ================== PROFILE SETTINGS ENDPOINTS ==================
 
 // Update user profile (full name, email, phone, password)
@@ -14245,8 +14318,8 @@ function getNotificationMessage(event, timing) {
     "1 week before": `📅 REMINDER: "${event.title}" is in 1 week on ${eventDateFormatted} at ${eventTime} in ${location}. Please prepare and mark your calendar!`,
     "3 days before": `📅 REMINDER: "${event.title}" is in 3 days on ${eventDateFormatted} at ${eventTime} in ${location}. Don't forget to attend!`,
     "1 day before": `🔔 IMPORTANT: "${event.title}" is on ${eventDateFormatted} at ${eventTime} in ${location}. Please be punctual and prepared!`,
-    "12 hours before": `⏰ "${event.title}" is in 12 hours (Today at ${eventTime} in ${location}). Get ready!`,
-    "6 hours before": `⏰ "${event.title}" is in 6 hours at ${eventTime} in ${location}. Make your way to the venue.`,
+    "12 hours before": `⏰ "${event.title}" is in 12 hours (Today at ${eventTime} in ${location}). Get ready and lets all be punctual!`,
+    "6 hours before": `⏰ "${event.title}" is in 6 hours at ${eventTime} in ${location}. Make effort to be there!`,
     "1 hour before": `🚨 URGENT: "${event.title}" starts in 1 hour at ${eventTime} in ${location}. Please head to the venue now!`,
     "30 minutes before": `🚨 "${event.title}" starts in 30 minutes at ${location}. Please take your seats!`,
     "Event starting now": `🔴 LIVE: "${event.title}" is starting NOW at ${location}! Join us immediately!`

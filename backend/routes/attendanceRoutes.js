@@ -6,6 +6,30 @@ const prisma = new PrismaClient();
 const crypto = require('crypto');
 
 const { sendPersonalizedEmail } = require("../services/mailer");
+
+
+// ==================== SHEET CACHE ====================
+const sheetCache = new Map();
+const SHEET_CACHE_TTL = 60 * 1000; // 1 minute
+
+function getCachedSheet(sheetId) {
+  const cached = sheetCache.get(sheetId);
+  if (cached && (Date.now() - cached.timestamp < SHEET_CACHE_TTL)) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedSheet(sheetId, data) {
+  sheetCache.set(sheetId, {
+    data: data,
+    timestamp: Date.now()
+  });
+}
+
+function invalidateSheetCache(sheetId) {
+  sheetCache.delete(sheetId);
+}
 // Use global notification function from server.js
 // ==================== LOCAL NOTIFICATION FUNCTION (SELF-CONTAINED) ====================
 // This handles emails + push notifications without depending on server.js globals
@@ -487,9 +511,10 @@ function getMessageTone(userRole, specialRole) {
 }
 
 // Send check-in confirmation to member - FIRE AND FORGET
-const sendCheckinConfirmation = async (userId, sheetTitle, entry) => {
-  // Don't await anything here - just fire and forget
-  (async () => {
+// Send check-in confirmation to member - FIRE AND FORGET (NO AWAIT)
+const sendCheckinConfirmation = (userId, sheetTitle, entry) => {
+  // 🔥 Use setImmediate to run in background without blocking
+  setImmediate(async () => {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId }
@@ -530,7 +555,7 @@ Zetech University Catholic Action (ZUCA)`,
     } catch (err) {
       console.error("Failed to send check-in confirmation:", err.message);
     }
-  })(); // Immediately invoked - runs in background
+  });
 };
 
 const sendSheetOpenedNotification = async (sheet) => {
@@ -930,105 +955,143 @@ const visibleSheets = allSheets.filter(sheet => {
 };
 
 /// Get single sheet with entries (including absent members)
+/// Get single sheet with entries (including absent members) - WITH CACHE
 const getSheetById = async (req, res) => {
   try {
     const { sheetId } = req.params;
     const userId = req.user.userId;
+    const startTime = Date.now();
     
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true, specialRole: true, jumuiaId: true }
-    });
+    // ========== STEP 1: CHECK CACHE FIRST ==========
+    const cachedData = getCachedSheet(sheetId);
+    if (cachedData) {
+      const duration = Date.now() - startTime;
+      console.log(`⚡ CACHED sheet ${sheetId} returned in ${duration}ms`);
+      return res.json({ 
+        success: true, 
+        sheet: cachedData,
+        cached: true,
+        duration: `${duration}ms`
+      });
+    }
     
-    const isExecutive = await prisma.executive.findFirst({
-      where: { userId: userId, isActive: true }
-    });
+    console.log(`📡 Fetching sheet ${sheetId} from database...`);
     
+    // ========== STEP 2: FETCH SHEET BASIC INFO ==========
     const sheetBasic = await prisma.attendanceSheet.findUnique({
       where: { id: sheetId },
-      select: { isExecutiveOnly: true, jumuiaId: true }
+      select: { 
+        id: true,
+        title: true,
+        eventDate: true,
+        eventTime: true,
+        location: true,
+        isActive: true,
+        isExecutiveOnly: true, 
+        jumuiaId: true,
+        allowSelfCheckin: true,
+        enableWifiCheckin: true,
+        createdAt: true,
+        createdBy: true,
+        creator: {
+          select: { id: true, fullName: true, email: true }
+        }
+      }
     });
     
     if (!sheetBasic) {
       return res.status(404).json({ error: "Attendance sheet not found" });
     }
     
+    // ========== STEP 3: CHECK ACCESS (FAST) ==========
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, specialRole: true, jumuiaId: true }
+    });
+    
+    const isAdmin = currentUser.role === 'admin';
+    const isSecretary = currentUser.role === 'secretary' || currentUser.specialRole === 'secretary';
+    
     if (sheetBasic.isExecutiveOnly) {
-      const hasAccess = isExecutive || currentUser.role === 'admin' || currentUser.specialRole === 'secretary';
-      if (!hasAccess) {
+      const isExecutive = await prisma.executive.findFirst({
+        where: { userId: userId, isActive: true },
+        select: { id: true }
+      });
+      if (!isExecutive && !isAdmin && !isSecretary) {
         return res.status(403).json({ error: "Access denied - Executive meeting only" });
       }
-    }
-    else if (sheetBasic.jumuiaId) {
-      const hasAccess = currentUser.jumuiaId === sheetBasic.jumuiaId || currentUser.role === 'admin' || currentUser.specialRole === 'secretary';
-      if (!hasAccess) {
+    } else if (sheetBasic.jumuiaId) {
+      if (!isAdmin && !isSecretary && currentUser.jumuiaId !== sheetBasic.jumuiaId) {
         return res.status(403).json({ error: "Access denied - This meeting is for specific Jumuia only" });
       }
     }
-
-    const sheet = await prisma.attendanceSheet.findUnique({
-      where: { id: sheetId },
-      include: {
-        entries: {
-          orderBy: { signTime: "asc" },
-          include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                phone: true,
-                role: true,
-                specialRole: true,
-                membership_number: true,
-                homeJumuia: { select: { name: true } }
-              }
-            }
+    
+    // ========== STEP 4: FETCH ENTRIES (ONLY NEEDED FIELDS) ==========
+    const entries = await prisma.attendanceEntry.findMany({
+      where: { sheetId: sheetId },
+      select: {
+        id: true,
+        userId: true,
+        fullName: true,
+        phoneNumber: true,
+        role: true,
+        specialRole: true,
+        membershipNumber: true,
+        signMethod: true,
+        signTime: true,
+        notes: true,
+        verifiedBy: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            role: true,
+            specialRole: true,
+            membership_number: true,
+            homeJumuia: { select: { name: true } }
           }
-        },
-        creator: {
-          select: { id: true, fullName: true, email: true }
         }
-      }
-    });
-
-    if (!sheet) {
-      return res.status(404).json({ error: "Attendance sheet not found" });
-    }
-
-    const presentUserIdsArray = sheet.entries.map(e => e.userId).filter(id => id);
-    
-    const presentExecutives = await prisma.executive.findMany({
-      where: { 
-        userId: { in: presentUserIdsArray },
-        isActive: true 
       },
-      include: {
-        position: {
-          select: { title: true, category: true, level: true }
+      orderBy: { signTime: "asc" },
+      take: 500 // Limit entries
+    });
+    
+    // ========== STEP 5: GET EXECUTIVE POSITIONS ==========
+    const presentUserIds = entries.map(e => e.userId).filter(id => id);
+    let executiveMap = new Map();
+    
+    if (presentUserIds.length > 0) {
+      const executives = await prisma.executive.findMany({
+        where: { 
+          userId: { in: presentUserIds },
+          isActive: true 
+        },
+        select: {
+          userId: true,
+          position: {
+            select: { title: true, category: true, level: true }
+          }
         }
-      }
-    });
-    
-    const presentExecutiveMap = new Map();
-    presentExecutives.forEach(exec => {
-      presentExecutiveMap.set(exec.userId, {
-        executivePosition: exec.position?.title || null,
-        executiveCategory: exec.position?.category || null
       });
-    });
+      
+      executives.forEach(exec => {
+        executiveMap.set(exec.userId, {
+          executivePosition: exec.position?.title || null,
+          executiveCategory: exec.position?.category || null
+        });
+      });
+    }
     
-    const entriesWithExecutive = sheet.entries.map(entry => ({
-      ...entry,
-      executivePosition: presentExecutiveMap.get(entry.userId)?.executivePosition || null,
-      executiveCategory: presentExecutiveMap.get(entry.userId)?.executiveCategory || null
-    }));
-    
+    // ========== STEP 6: GET TARGET MEMBERS (LIMITED) ==========
     let allTargetMembers = [];
+    let totalMembers = 0;
     
-    if (sheet.isExecutiveOnly) {
+    if (sheetBasic.isExecutiveOnly) {
       const executives = await prisma.executive.findMany({
         where: { isActive: true },
-        include: {
+        select: {
+          userId: true,
           user: {
             select: {
               id: true,
@@ -1041,11 +1104,7 @@ const getSheetById = async (req, res) => {
             }
           },
           position: {
-            select: {
-              title: true,
-              category: true,
-              level: true
-            }
+            select: { title: true, category: true, level: true }
           }
         }
       });
@@ -1055,12 +1114,11 @@ const getSheetById = async (req, res) => {
         executivePosition: exec.position?.title || null,
         executiveCategory: exec.position?.category || null
       }));
+      totalMembers = allTargetMembers.length;
       
-      console.log(`📊 Executive team sheet: Found ${allTargetMembers.length} executives`);
-    } 
-    else if (sheet.jumuiaId) {
+    } else if (sheetBasic.jumuiaId) {
       const users = await prisma.user.findMany({
-        where: { jumuiaId: sheet.jumuiaId },
+        where: { jumuiaId: sheetBasic.jumuiaId },
         select: {
           id: true,
           fullName: true,
@@ -1069,37 +1127,33 @@ const getSheetById = async (req, res) => {
           role: true,
           membership_number: true,
           homeJumuia: { select: { name: true } }
-        }
+        },
+        orderBy: { fullName: 'asc' },
+        take: 300
       });
       
-      const executives = await prisma.executive.findMany({
-        where: { isActive: true },
-        include: {
-          position: {
-            select: {
-              title: true,
-              category: true,
-              level: true
-            }
+      const userIds = users.map(u => u.id);
+      let execMap = new Map();
+      
+      if (userIds.length > 0) {
+        const execs = await prisma.executive.findMany({
+          where: { userId: { in: userIds }, isActive: true },
+          select: {
+            userId: true,
+            position: { select: { title: true } }
           }
-        }
-      });
-      
-      const executiveMap = new Map();
-      executives.forEach(exec => {
-        executiveMap.set(exec.userId, {
-          executivePosition: exec.position?.title || null,
-          executiveCategory: exec.position?.category || null
         });
-      });
+        execs.forEach(e => execMap.set(e.userId, e.position?.title || null));
+      }
       
       allTargetMembers = users.map(user => ({
         ...user,
-        executivePosition: executiveMap.get(user.id)?.executivePosition || null,
-        executiveCategory: executiveMap.get(user.id)?.executiveCategory || null
+        executivePosition: execMap.get(user.id) || null
       }));
-    } 
-    else {
+      totalMembers = allTargetMembers.length;
+      
+    } else {
+      // Global meeting - limit to 200
       const users = await prisma.user.findMany({
         select: {
           id: true,
@@ -1109,50 +1163,63 @@ const getSheetById = async (req, res) => {
           role: true,
           membership_number: true,
           homeJumuia: { select: { name: true } }
-        }
+        },
+        orderBy: { fullName: 'asc' },
+        take: 200
       });
       
-      const executives = await prisma.executive.findMany({
-        where: { isActive: true },
-        include: {
-          position: {
-            select: {
-              title: true,
-              category: true,
-              level: true
-            }
+      const userIds = users.map(u => u.id);
+      let execMap = new Map();
+      
+      if (userIds.length > 0) {
+        const execs = await prisma.executive.findMany({
+          where: { userId: { in: userIds }, isActive: true },
+          select: {
+            userId: true,
+            position: { select: { title: true } }
           }
-        }
-      });
-      
-      const executiveMap = new Map();
-      executives.forEach(exec => {
-        executiveMap.set(exec.userId, {
-          executivePosition: exec.position?.title || null,
-          executiveCategory: exec.position?.category || null
         });
-      });
+        execs.forEach(e => execMap.set(e.userId, e.position?.title || null));
+      }
       
       allTargetMembers = users.map(user => ({
         ...user,
-        executivePosition: executiveMap.get(user.id)?.executivePosition || null,
-        executiveCategory: executiveMap.get(user.id)?.executiveCategory || null
+        executivePosition: execMap.get(user.id) || null
       }));
+      totalMembers = allTargetMembers.length;
     }
     
-    const presentUserIdsSet = new Set(presentUserIdsArray);
+    // ========== STEP 7: BUILD RESPONSE ==========
+    const presentUserIdsSet = new Set(presentUserIds);
+    
+    const entriesWithExecutive = entries.map(entry => ({
+      ...entry,
+      executivePosition: executiveMap.get(entry.userId)?.executivePosition || null,
+      executiveCategory: executiveMap.get(entry.userId)?.executiveCategory || null
+    }));
+    
     const absentMembers = allTargetMembers.filter(member => !presentUserIdsSet.has(member.id));
-    const totalMembers = allTargetMembers.length;
-
+    
+    const responseData = {
+      ...sheetBasic,
+      entries: entriesWithExecutive,
+      totalMembers,
+      absentMembers
+    };
+    
+    // ========== STEP 8: CACHE THE RESPONSE ==========
+    setCachedSheet(sheetId, responseData);
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ Sheet ${sheetId} loaded in ${duration}ms (cached)`);
+    
     res.json({ 
       success: true, 
-      sheet: {
-        ...sheet,
-        entries: entriesWithExecutive,
-        totalMembers,
-        absentMembers
-      }
+      sheet: responseData,
+      cached: false,
+      duration: `${duration}ms`
     });
+    
   } catch (err) {
     console.error("Get sheet error:", err);
     res.status(500).json({ error: err.message });
@@ -1340,6 +1407,7 @@ const wifiCheckin = async (req, res) => {
 };
 
 // Admin add entry (can add anyone)
+// Admin add entry (can add anyone)
 const adminAddEntry = async (req, res) => {
   try {
     const { sheetId } = req.params;
@@ -1390,18 +1458,19 @@ const adminAddEntry = async (req, res) => {
       }
     });
 
-    // Send notification to the person being added (if they have an account)
-    if (user?.id) {
-      await sendCheckinConfirmation(user.id, sheet.title, entry);
-    }
-
+    // ✅ Send response IMMEDIATELY - user doesn't wait for notifications
     res.status(201).json({ success: true, entry });
+    invalidateSheetCache(sheetId);
+
+    // ✅ Send notification in BACKGROUND (fire and forget)
+    if (user?.id) {
+      sendCheckinConfirmation(user.id, sheet.title, entry);
+    }
   } catch (err) {
     console.error("Admin add entry error:", err);
     res.status(500).json({ error: err.message });
   }
 };
-
 // Update entry (admin/leader)
 const updateEntry = async (req, res) => {
   try {
@@ -1427,6 +1496,7 @@ const updateEntry = async (req, res) => {
     });
 
     res.json({ success: true, entry: updated });
+    invalidateSheetCache(sheetId)
   } catch (err) {
     console.error("Update entry error:", err);
     res.status(500).json({ error: err.message });
@@ -1449,6 +1519,7 @@ const deleteEntry = async (req, res) => {
     await prisma.attendanceEntry.delete({ where: { id: entryId } });
 
     res.json({ success: true, message: "Entry deleted" });
+    invalidateSheetCache(sheetId);
   } catch (err) {
     console.error("Delete entry error:", err);
     res.status(500).json({ error: err.message });
@@ -1475,6 +1546,7 @@ const closeSheet = async (req, res) => {
     }
 
     res.json({ success: true, sheet: updated });
+    invalidateSheetCache(sheetId);
   } catch (err) {
     console.error("Close sheet error:", err);
     res.status(500).json({ error: err.message });
@@ -1497,11 +1569,15 @@ const updateSheetSettings = async (req, res) => {
     });
 
     res.json({ success: true, sheet: updated });
+    invalidateSheetCache(sheetId);
   } catch (err) {
     console.error("Update settings error:", err);
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
 
 // Get user's attendance history
 const getUserAttendanceHistory = async (req, res) => {
@@ -1586,7 +1662,109 @@ router.post("/sheet/:sheetId/reopen", authenticate, requireLeaderOrAdmin, async 
   }
 });
 
+
+// Bulk add entries (admin only) - FAST
+router.post("/sheet/:sheetId/entries/batch", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { sheetId } = req.params;
+    const { users } = req.body;
+    
+    if (!users || !Array.isArray(users) || users.length === 0) {
+      return res.status(400).json({ error: "Users array required" });
+    }
+    
+    const sheet = await prisma.attendanceSheet.findUnique({
+      where: { id: sheetId }
+    });
+    
+    if (!sheet) {
+      return res.status(404).json({ error: "Sheet not found" });
+    }
+    
+    // Create all entries in one batch
+    const entries = [];
+    const userIds = [];
+    
+    for (const userData of users) {
+      let user = null;
+      if (userData.phoneNumber) {
+        user = await prisma.user.findFirst({
+          where: { phone: userData.phoneNumber }
+        });
+      }
+      
+      const entry = await prisma.attendanceEntry.create({
+        data: {
+          sheetId,
+          userId: user?.id || null,
+          fullName: userData.fullName,
+          phoneNumber: userData.phoneNumber,
+          role: userData.role || (user?.role || "Guest"),
+          specialRole: userData.specialRole || user?.specialRole || null,
+          membershipNumber: userData.membershipNumber || user?.membership_number || null,
+          jumuiaId: userData.jumuiaId || user?.jumuiaId || null,
+          jumuiaName: userData.jumuiaName || null,
+          signMethod: "MANUAL",
+          verifiedBy: req.user.userId,
+          notes: userData.notes || "Bulk added"
+        }
+      });
+      entries.push(entry);
+      if (user?.id) userIds.push(user.id);
+    }
+    
+    // Send response immediately
+    res.json({ 
+      success: true, 
+      count: entries.length,
+      entries: entries
+    });
+    
+    // Send notifications in background (fire and forget)
+    (async () => {
+      for (const entry of entries) {
+        try {
+          const user = await prisma.user.findFirst({
+            where: { phone: entry.phoneNumber }
+          });
+          
+          if (user?.id) {
+            await createAndSendNotification({
+              userId: user.id,
+              type: "attendance_checkin",
+              title: "✅ Check-in Successful!",
+              message: `You have been checked in for "${sheet.title}"`,
+              data: { sheetId: sheet.id, entryId: entry.id }
+            });
+          }
+        } catch (err) {
+          console.error("Failed to send notification:", err.message);
+        }
+      }
+    })();
+    
+    // Emit socket event for real-time update
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`sheet-${sheetId}`).emit("attendance_bulk_checkin", {
+        sheetId: sheetId,
+        count: entries.length,
+        entries: entries
+      });
+      io.emit("attendance_updated", { 
+        sheetId: sheetId,
+        count: entries.length
+      });
+    }
+    
+  } catch (err) {
+    console.error("Bulk add error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get admin stats (all sheets)// Get admin stats (all sheets) - Allow admin and secretary
+// Get admin stats (all sheets) - OPTIMIZED WITH SELECT & PAGINATION
 const getAdminStats = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -1601,17 +1779,49 @@ const getAdminStats = async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
     
-    const sheets = await prisma.attendanceSheet.findMany({
-      include: {
-        _count: { select: { entries: true } }
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50
-    });
-
-    const totalSheets = await prisma.attendanceSheet.count();
-    const totalEntries = await prisma.attendanceEntry.count();
-    const activeSheets = await prisma.attendanceSheet.count({ where: { isActive: true } });
+    // ✅ Get pagination params from query
+    const { page = 1, limit = 20, status = 'all' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+    
+    // ✅ Build where clause
+    let where = {};
+    if (status === 'active') {
+      where.isActive = true;
+    } else if (status === 'closed') {
+      where.isActive = false;
+    }
+    
+    // ✅ Fetch ALL data in parallel (faster than sequential)
+    const [totalSheets, totalEntries, activeSheets, sheets] = await Promise.all([
+      prisma.attendanceSheet.count({ where }),
+      prisma.attendanceEntry.count(),
+      prisma.attendanceSheet.count({ where: { isActive: true } }),
+      
+      // ✅ Only fetch needed fields (not everything)
+      prisma.attendanceSheet.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          eventDate: true,
+          eventTime: true,
+          location: true,
+          isActive: true,
+          createdAt: true,
+          closedAt: true,
+          _count: {
+            select: { entries: true }
+          },
+          creator: {
+            select: { fullName: true }
+          }
+        },
+        orderBy: { eventDate: "desc" },
+        skip,
+        take
+      })
+    ]);
 
     res.json({
       success: true,
@@ -1620,7 +1830,13 @@ const getAdminStats = async (req, res) => {
         totalEntries,
         activeSheets
       },
-      sheets
+      sheets,
+      pagination: {
+        total: totalSheets,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(totalSheets / parseInt(limit))
+      }
     });
   } catch (err) {
     console.error("Get admin stats error:", err);
@@ -1821,7 +2037,7 @@ router.post("/trigger-automatic-reminders", authenticate, requireAdmin, async (r
 });
 
 // Get all sheets (both active and closed) for admin and secretary
-router.get("/all-sheets", authenticate, async (req, res) => {
+router.get("/all-sheets", authenticate, requireLeaderOrAdmin, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },

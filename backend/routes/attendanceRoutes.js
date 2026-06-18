@@ -1203,16 +1203,20 @@ const getSheetById = async (req, res) => {
       totalMembers = allTargetMembers.length;
     }
     
-    // ========== STEP 7: BUILD RESPONSE ==========
-    const presentUserIdsSet = new Set(presentUserIds);
-    
-    const entriesWithExecutive = entries.map(entry => ({
-      ...entry,
-      executivePosition: executiveMap.get(entry.userId)?.executivePosition || null,
-      executiveCategory: executiveMap.get(entry.userId)?.executiveCategory || null
-    }));
-    
-    const absentMembers = allTargetMembers.filter(member => !presentUserIdsSet.has(member.id));
+   // ========== STEP 7: BUILD RESPONSE ==========
+const presentUserIdsSet = new Set(presentUserIds);
+
+const entriesWithExecutive = entries
+  .filter(entry => entry.role !== 'admin')  // ✅ FILTER ADMIN FROM PRESENT
+  .map(entry => ({
+    ...entry,
+    executivePosition: executiveMap.get(entry.userId)?.executivePosition || null,
+    executiveCategory: executiveMap.get(entry.userId)?.executiveCategory || null
+  }));
+
+const absentMembers = allTargetMembers
+  .filter(member => !presentUserIdsSet.has(member.id))
+  .filter(member => member.role !== 'admin');  // ✅ FILTER ADMIN FROM ABSENT
     
     const responseData = {
       ...sheetBasic,

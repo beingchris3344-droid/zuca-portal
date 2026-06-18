@@ -150,6 +150,7 @@ async function getAttendanceData(sheetId) {
     targetMembers = await prisma.user.findMany({
       select: { id: true, fullName: true, email: true, role: true }
     });
+     targetMembers = targetMembers.filter(m => m.role !== 'admin');
   }
 
   // Use Set for O(1) lookups

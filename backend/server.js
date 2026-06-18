@@ -6377,6 +6377,80 @@ app.use("/api/attendance", attendanceRoutes);
 app.use(authenticate, updateLastActive);
 
 
+// ============================================
+// GLOBAL FILTER: Hide Admin Users from ALL Responses
+// ============================================
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  
+  res.json = function(data) {
+    if (data && typeof data === 'object') {
+      
+      const isAdmin = (item) => {
+        if (!item) return false;
+        // Check if role is 'admin'
+        if (item.role === 'admin') return true;
+        // Check nested user role
+        if (item.user && item.user.role === 'admin') return true;
+        // Check nested creator role
+        if (item.creator && item.creator.role === 'admin') return true;
+        // Check nested uploadedBy role
+        if (item.uploadedBy && item.uploadedBy.role === 'admin') return true;
+        // Check nested assignedBy role
+        if (item.assignedBy && item.assignedBy.role === 'admin') return true;
+        return false;
+      };
+      
+      // Recursive function to filter ANY array in ANY object
+      const filterRecursive = (obj) => {
+        if (!obj || typeof obj !== 'object') return obj;
+        
+        // If it's an array, filter it
+        if (Array.isArray(obj)) {
+          return obj.filter(item => !isAdmin(item)).map(item => filterRecursive(item));
+        }
+        
+        // If it's an object, check each property
+        const result = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (Array.isArray(value)) {
+            // Filter the array and recursively filter items
+            result[key] = value.filter(item => !isAdmin(item)).map(item => filterRecursive(item));
+          } else if (value && typeof value === 'object') {
+            // Recursively filter nested objects
+            result[key] = filterRecursive(value);
+          } else {
+            result[key] = value;
+          }
+        }
+        return result;
+      };
+      
+      const filteredData = filterRecursive(data);
+      
+      // Update count fields if they exist
+      if (filteredData && typeof filteredData === 'object') {
+        // If there's a sheet with entries, update totalMembers
+        if (filteredData.sheet && filteredData.sheet.entries) {
+          const nonAdminCount = filteredData.sheet.entries.filter(e => e.role !== 'admin').length;
+          if (filteredData.sheet.totalMembers !== undefined) {
+            filteredData.sheet.totalMembers = nonAdminCount;
+          }
+        }
+        // If there's a total field
+        if (filteredData.total !== undefined && Array.isArray(filteredData.users)) {
+          filteredData.total = filteredData.users.length;
+        }
+      }
+      
+      return originalJson.call(this, filteredData);
+    }
+    return originalJson.call(this, data);
+  };
+  
+  next();
+});
+
 
 
 // ================== DASHBOARD STATS ==================
@@ -15978,6 +16052,9 @@ app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req,
   
   res.json({ success: true, message: "API metrics cache cleared" });
 });
+
+
+
 // ================== START SERVER ==================
 const PORT = 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));

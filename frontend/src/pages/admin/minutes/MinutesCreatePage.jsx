@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Trash2, Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, ArrowLeft, Save, Eye, Loader, Download, FileText } from 'lucide-react';
+import { X, Plus, Trash2, Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, ArrowLeft, Save, Eye, Loader, Download, FileText, RefreshCw } from 'lucide-react';
 import { api } from '../../../api';
 import axios from 'axios';
 import BASE_URL from '../../../api';
+import { io } from 'socket.io-client';
 
 export default function MinutesCreatePage() {
   const navigate = useNavigate();
@@ -19,6 +20,11 @@ export default function MinutesCreatePage() {
   const [savedDrafts, setSavedDrafts] = useState([]);
   const [showDraftsList, setShowDraftsList] = useState(false);
 const [draftLoaded, setDraftLoaded] = useState(false);
+ const [socket, setSocket] = useState(null);
+  const [isLive, setIsLive] = useState(false);
+  const [liveCheckins, setLiveCheckins] = useState([]);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 const [formData, setFormData] = useState({
   attendanceSheetId: '',
   agenda: [''],
@@ -194,6 +200,90 @@ const [formData, setFormData] = useState({
     return () => window.removeEventListener('beforeunload', saveDraftOnUnload);
   }, [formData, sheetData, selectedSheet, step, expandedSections]);
 
+    // ========== WebSocket Connection for Live Updates ==========
+  useEffect(() => {
+    if (!selectedSheet?.id || step !== 2) return;
+    
+    console.log(`📡 Connecting to live updates for sheet: ${selectedSheet.id}`);
+    
+    // Connect to WebSocket
+    const socketInstance = io(BASE_URL, {
+      auth: { token: localStorage.getItem('token') },
+      transports: ['websocket']
+    });
+    
+    socketInstance.on('connect', () => {
+      console.log('✅ WebSocket connected for live attendance');
+      setIsLive(true);
+      
+      // Join room for this sheet
+      socketInstance.emit('join_sheet_room', { sheetId: selectedSheet.id });
+      socketInstance.emit('join_minutes_editor', { sheetId: selectedSheet.id });
+    });
+    
+    // Listen for live attendance updates
+    socketInstance.on('attendance_live_update', (data) => {
+      if (data.sheetId === selectedSheet.id) {
+        console.log('🔄 Live attendance update received:', data.newEntry.fullName);
+        
+        // Update sheetData with new entry
+        setSheetData(prev => {
+          if (!prev) return prev;
+          
+          // Check if user already exists
+          const alreadyPresent = prev.entries?.some(e => e.userId === data.newEntry.userId);
+          if (alreadyPresent) return prev;
+          
+          // Add to live checkins list
+          setLiveCheckins(prevCheckins => [...prevCheckins, data.newEntry]);
+          
+          // Update entries and remove from absent
+          return {
+            ...prev,
+            entries: [...(prev.entries || []), data.newEntry],
+            absentMembers: prev.absentMembers?.filter(m => m.userId !== data.newEntry.userId) || []
+          };
+        });
+        
+        setLastUpdate(new Date());
+        
+        // Show toast notification
+        // You can uncomment this if you have toast setup
+        // toast.success(`👤 ${data.newEntry.fullName} just checked in!`);
+      }
+    });
+    
+    socketInstance.on('disconnect', () => {
+      console.log('❌ WebSocket disconnected');
+      setIsLive(false);
+    });
+    
+    setSocket(socketInstance);
+    
+    return () => {
+      if (socketInstance) {
+        socketInstance.emit('leave_minutes_editor', { sheetId: selectedSheet.id });
+        socketInstance.emit('leave_sheet_room', { sheetId: selectedSheet.id });
+        socketInstance.disconnect();
+      }
+    };
+  }, [selectedSheet?.id, step]);
+
+ // ========== Auto-sync attendance every 30 seconds ==========
+useEffect(() => {
+  // Remove the previewMode check - sync in both views
+  if (!formData.attendanceSheetId) return;
+  
+  const syncInterval = setInterval(() => {
+    // Only sync if page is visible
+    if (!document.hidden) {
+      handleManualSync();
+    }
+  }, 30000); // 30 seconds
+  
+  return () => clearInterval(syncInterval);
+}, [formData.attendanceSheetId]); // Remove previewMode dependency
+
   const fetchSheets = async () => {
     setFetchingSheets(true);
     try {
@@ -316,6 +406,33 @@ const [formData, setFormData] = useState({
     setLoading(false);
   }
 };
+
+
+  // ========== Manual Sync Function ==========
+  const handleManualSync = async () => {
+    if (!formData.attendanceSheetId) return;
+    
+    setSyncing(true);
+    try {
+      const response = await axios.get(
+        `${BASE_URL}/api/attendance/sheet/${formData.attendanceSheetId}`,
+        { headers }
+      );
+      
+      if (response.data.success) {
+        setSheetData(response.data.sheet);
+        setLastUpdate(new Date());
+        // alert('✅ Attendance synced successfully');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      alert('Failed to sync attendance');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  
 
   // Loading state for step 1
   if (step === 1 && fetchingSheets) {
@@ -485,8 +602,33 @@ const [formData, setFormData] = useState({
 
       {loading && (<div className="loading-overlay"><div className="loading-popup"><Loader size={40} className="spin" /><p>Creating minutes...</p></div></div>)}
 
-      {previewMode ? (
+          {previewMode ? (
         <div className="preview-container">
+          {/* Live Indicator */}
+          <div className="preview-live-indicator">
+            <div className="live-status">
+              <span className={`live-dot ${isLive ? 'active' : 'inactive'}`}></span>
+              <span className="live-label">{isLive ? '🔴 LIVE' : '⏸️ Paused'}</span>
+              <span className="live-count">👥 {sheetData?.entries?.length || 0} checked in</span>
+              {lastUpdate && (
+                <span className="live-time">Updated: {lastUpdate.toLocaleTimeString()}</span>
+              )}
+              {liveCheckins.length > 0 && (
+                <span className="live-new">+{liveCheckins.length} new</span>
+              )}
+            </div>
+            <div className="live-actions">
+              <button 
+                className="sync-btn" 
+                onClick={handleManualSync}
+                disabled={syncing}
+              >
+                <RefreshCw size={14} className={syncing ? 'spin' : ''} />
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+          </div>
+          
           <div className="preview-header"><h1>MINUTES OF MEETING HELD ON {new Date(sheetData?.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()} AT {sheetData?.location?.toUpperCase() || 'THE COMPLEX BUILDING'} AT {sheetData?.eventTime || '1850HRS'}</h1></div>
          <div className="preview-section">
   <h2>Members present</h2>
@@ -561,12 +703,45 @@ const [formData, setFormData] = useState({
          {formData.adjournment && (<div className="preview-section"><h2>MIN {String((formData.sections.filter(s => s.title.trim()).length || 0) + (formData.aob.filter(a => a.title.trim()).length > 0 ? 3 : 2)).padStart(2, '0')}/{String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2><p>{formData.adjournment}</p></div>)}
           <div className="preview-signatures"><div>Date _________________</div><div>Chairperson _________________</div><div>Secretary _________________</div></div>
         </div>
-      ) : (
+          ) : (
         <>
+          {/* Live Indicator for Edit View */}
+          <div className="edit-live-indicator">
+            <div className="live-status">
+              <span className={`live-dot ${isLive ? 'active' : 'inactive'}`}></span>
+              <span className="live-label">{isLive ? '🔴 LIVE' : '⏸️ Paused'}</span>
+              <span className="live-count">👥 {sheetData?.entries?.length || 0} checked in</span>
+              {lastUpdate && (
+                <span className="live-time">Updated: {lastUpdate.toLocaleTimeString()}</span>
+              )}
+              {liveCheckins.length > 0 && (
+                <span className="live-new">+{liveCheckins.length} new</span>
+              )}
+            </div>
+            <div className="live-actions">
+              <button 
+                className="sync-btn" 
+                onClick={handleManualSync}
+                disabled={syncing}
+              >
+                <RefreshCw size={14} className={syncing ? 'spin' : ''} />
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+          </div>
+
           <div className="meeting-info-card">
             <h3>{sheetData?.title}</h3>
             <div className="info-meta"><span><Calendar size={14} /> {new Date(sheetData?.eventDate).toLocaleDateString()}</span><span><Clock size={14} /> {sheetData?.eventTime || '4:30 PM'}</span><span><MapPin size={14} /> {sheetData?.location || 'ZUCA'}</span></div>
-            <details className="attendance-summary"><summary>📋 Attendance ({sheetData?.entries?.length || 0} present, {sheetData?.absentMembers?.length || 0} absent)</summary><div className="present-list"><strong>Present:</strong> {sheetData?.entries?.map(e => e.fullName).join(', ')}</div><div className="absent-list"><strong>Absent:</strong> {sheetData?.absentMembers?.map(m => m.fullName).join(', ')}</div></details>
+            <details className="attendance-summary">
+              <summary>📋 Attendance ({sheetData?.entries?.length || 0} present, {sheetData?.absentMembers?.length || 0} absent)</summary>
+              <div className="present-list">
+                <strong>Present:</strong> {sheetData?.entries?.map(e => e.fullName).join(', ') || 'None yet'}
+              </div>
+              <div className="absent-list">
+                <strong>Absent:</strong> {sheetData?.absentMembers?.map(m => m.fullName).join(', ') || 'None'}
+              </div>
+            </details>
           </div>
 
           <div className="form-section"><label>Agenda Items</label>{formData.agenda.map((item, idx) => (<div key={idx} className="array-item"><textarea value={item} onChange={(e) => updateAgenda(idx, e.target.value)} placeholder={`Item ${idx + 1}`} rows={2} className="agenda-textarea" />{idx === formData.agenda.length - 1 && (<button type="button" className="add-btn" onClick={addAgenda}><Plus size={16} /></button>)}</div>))}</div>
@@ -645,6 +820,158 @@ const [formData, setFormData] = useState({
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) { .create-minutes-page { padding: 16px; } .page-header { flex-direction: column; align-items: stretch; } .header-actions { justify-content: flex-end; } .form-actions { flex-direction: column; } .cancel-btn, .submit-btn { width: 100%; justify-content: center; } .preview-signatures { flex-direction: column; gap: 16px; } .agenda-textarea, .decision-textarea, .large-textarea, .section-content-textarea, .aob-content-textarea { font-size: 16px; } }
+
+                /* Live indicator styles */
+        .preview-live-indicator {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 20px;
+          background: #f8fafc;
+          border-radius: 12px;
+          margin-bottom: 20px;
+          border: 1px solid #e2e8f0;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        
+        .live-status {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        
+        .live-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          display: inline-block;
+        }
+        
+        .live-dot.active {
+          background: #22c55e;
+          animation: pulse 1.5s infinite;
+        }
+        
+        .live-dot.inactive {
+          background: #94a3b8;
+        }
+        
+        @keyframes pulse {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.8); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .live-label {
+          font-weight: 600;
+          font-size: 13px;
+        }
+        
+        .live-label:has(.active) {
+          color: #22c55e;
+        }
+        
+        .live-count {
+          font-size: 13px;
+          color: #1e293b;
+          font-weight: 500;
+        }
+        
+        .live-time {
+          font-size: 12px;
+          color: #94a3b8;
+        }
+        
+        .live-new {
+          background: #3b82f6;
+          color: white;
+          padding: 2px 10px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        
+        .live-actions {
+          display: flex;
+          gap: 8px;
+        }
+        
+        .sync-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 12px;
+          cursor: pointer;
+          color: #475569;
+          transition: all 0.2s;
+        }
+        
+        .sync-btn:hover {
+          background: #f1f5f9;
+          border-color: #3b82f6;
+        }
+        
+        .sync-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+
+                /* Edit view live indicator */
+        .edit-live-indicator {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 16px;
+          background: #f8fafc;
+          border-radius: 12px;
+          margin-bottom: 16px;
+          border: 1px solid #e2e8f0;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        
+        .edit-live-indicator .live-status {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        
+        .edit-live-indicator .live-count {
+          font-size: 13px;
+          font-weight: 500;
+          color: #1e293b;
+        }
+        
+        .edit-live-indicator .live-new {
+          background: #3b82f6;
+          color: white;
+          padding: 2px 10px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+        
+        .edit-live-indicator .sync-btn {
+          padding: 4px 12px;
+          font-size: 12px;
+        }
       `}</style>
     </div>
   );

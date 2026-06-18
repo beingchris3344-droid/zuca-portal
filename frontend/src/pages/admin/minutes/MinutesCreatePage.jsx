@@ -279,7 +279,7 @@ useEffect(() => {
     if (!document.hidden) {
       handleManualSync();
     }
-  }, 3000); // 30 seconds
+  }, 10000); // 10 seconds
   
   return () => clearInterval(syncInterval);
 }, [formData.attendanceSheetId]); // Remove previewMode dependency

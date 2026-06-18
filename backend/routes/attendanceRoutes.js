@@ -383,14 +383,28 @@ router.post("/qr-checkin", authenticate, async (req, res) => {
           ).catch(err => console.error("Email failed:", err.message));
         }
         
-        // Real-time update for live activity feed (socket)
+                // Real-time update for live activity feed (socket)
         const io = req.app.get("io");
         if (io) {
+          // Existing event for live activity
           io.to(`sheet-${qrToken.sheetId}`).emit("attendance_checkin", {
             sheetId: qrToken.sheetId,
             userId: userId,
             userName: user.fullName,
             timestamp: entry.signTime
+          });
+          
+          // NEW: Dedicated event for minutes editor (real-time attendance updates)
+          io.to(`minutes-editor-${qrToken.sheetId}`).emit("attendance_live_update", {
+            sheetId: qrToken.sheetId,
+            newEntry: {
+              userId: user.id,
+              fullName: user.fullName,
+              executivePosition: null,
+              role: user.specialRole || user.role,
+              signTime: entry.signTime,
+              signMethod: entry.signMethod
+            }
           });
         }
       } catch (bgErr) {
@@ -2430,6 +2444,94 @@ router.get("/member/all-meetings", authenticate, async (req, res) => {
     
   } catch (err) {
     console.error("Get member meetings error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== GET LIVE ATTENDANCE FOR MINUTES ====================
+router.get("/:id/attendance-live", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    const minutes = await prisma.meetingMinutes.findUnique({
+      where: { id: id },
+      select: { 
+        attendanceSheetId: true,
+        createdBy: true,
+        type: true,
+        jumuiaId: true
+      }
+    });
+    
+    if (!minutes) {
+      return res.status(404).json({ error: "Minutes not found" });
+    }
+    
+    // Check if user has access to this minutes
+    const isAdminUser = await isAdmin(userId);
+    const isExecutiveUser = await isExecutive(userId);
+    const userJumuia = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { jumuiaId: true }
+    });
+    
+    let canAccess = false;
+    if (isAdminUser) canAccess = true;
+    else if (minutes.type === "EXECUTIVE" && isExecutiveUser) canAccess = true;
+    else if (minutes.type === "JUMUIA" && minutes.jumuiaId === userJumuia?.jumuiaId) canAccess = true;
+    
+    if (!canAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Get fresh attendance data
+    const attendanceData = await getAttendanceData(minutes.attendanceSheetId);
+    
+    if (!attendanceData) {
+      return res.status(404).json({ error: "Attendance sheet not found" });
+    }
+    
+    // Get executive positions for present members
+    const presentUserIds = attendanceData.presentMembers.map(m => m.userId).filter(id => id);
+    let executiveMap = new Map();
+    
+    if (presentUserIds.length > 0) {
+      const executives = await prisma.executive.findMany({
+        where: { 
+          userId: { in: presentUserIds },
+          isActive: true 
+        },
+        select: {
+          userId: true,
+          position: {
+            select: { title: true }
+          }
+        }
+      });
+      
+      executives.forEach(exec => {
+        executiveMap.set(exec.userId, exec.position?.title || null);
+      });
+    }
+    
+    // Enhance present members with executive positions
+    const enhancedPresentMembers = attendanceData.presentMembers.map(member => ({
+      ...member,
+      executivePosition: executiveMap.get(member.userId) || null
+    }));
+    
+    res.json({
+      success: true,
+      presentMembers: enhancedPresentMembers,
+      presentGuests: attendanceData.presentGuests,
+      absentMembers: attendanceData.absentMembers,
+      totalMembers: attendanceData.totalMembers,
+      lastUpdated: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error("Live attendance error:", err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -357,7 +357,9 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientsArr) => {
         for (const client of clientsArr) {
-          if (client.url.includes(url) && 'focus' in client) {
+          // ✅ CHANGE THIS ONE LINE
+          if (client.url && 'navigate' in client) {
+            client.navigate(url);  // Always navigate to the URL
             return client.focus();
           }
         }
@@ -365,7 +367,6 @@ self.addEventListener('notificationclick', (event) => {
       })
   );
 });
-
 // ================== PUSH SUBSCRIPTION CHANGE ==================
 self.addEventListener('pushsubscriptionchange', (event) => {
   console.log('[SW] Push subscription changed');

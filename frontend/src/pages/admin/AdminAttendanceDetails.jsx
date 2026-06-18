@@ -107,87 +107,114 @@ export default function AdminAttendanceDetails() {
     setSelectAll(!selectAll);
   };
 
-  // ============ Bulk mark present ============
-  const handleBulkMarkPresent = async () => {
-    if (selectedMembers.length === 0) {
-      showToast('No members selected', 'error');
-      return;
-    }
+ // ============ Bulk mark present ============
+const handleBulkMarkPresent = async () => {
+  if (selectedMembers.length === 0) {
+    showToast('No members selected', 'error');
+    return;
+  }
 
-    if (!window.confirm(`Mark ${selectedMembers.length} members as present?`)) return;
-
-    setIsBulkProcessing(true);
-
-    // 1. OPTIMISTIC UPDATE - Move all selected users to present list immediately
-    const tempEntries = selectedMembers.map(memberId => {
-      const member = filteredAbsent.find(m => m.id === memberId);
-      return {
-        id: 'temp-' + Date.now() + '-' + memberId,
-        fullName: member?.fullName || 'Unknown',
-        phoneNumber: member?.phone || '-',
-        role: member?.role || '-',
-        executivePosition: member?.executivePosition || null,
-        signMethod: 'MANUAL',
-        signTime: new Date().toISOString(),
-        isPending: true,
-        userId: memberId
-      };
-    });
-
-    // Update UI immediately
-    setSheetData(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        entries: [...prev.entries, ...tempEntries],
-        absentMembers: prev.absentMembers?.filter(m => !selectedMembers.includes(m.id)) || []
-      };
-    });
-
-    // Clear selection
+  // ✅ Get IDs of users already present
+  const presentUserIds = new Set(sheetData?.entries?.map(e => e.userId) || []);
+  
+  // ✅ Filter out already present users
+  const trulyAbsentMembers = selectedMembers.filter(id => !presentUserIds.has(id));
+  
+  // ✅ Check if any are already present
+  const alreadyPresentCount = selectedMembers.length - trulyAbsentMembers.length;
+  
+  if (trulyAbsentMembers.length === 0) {
+    showToast('All selected members are already present!', 'info');
     setSelectedMembers([]);
     setSelectAll(false);
+    return;
+  }
 
-    try {
-      // 2. BULK API CALL - Send all selected members at once
-      const membersData = filteredAbsent
-        .filter(m => selectedMembers.includes(m.id))
-        .map(m => ({
-          fullName: m.fullName,
-          phoneNumber: m.phone,
-          role: m.role,
-          specialRole: m.specialRole,
-          membershipNumber: m.membership_number,
-          jumuiaId: m.jumuiaId,
-          notes: 'Bulk marked present by admin'
-        }));
+  if (alreadyPresentCount > 0) {
+    showToast(`⚠️ ${alreadyPresentCount} member(s) already present. Marking ${trulyAbsentMembers.length} members.`, 'info');
+  }
 
-      await api.post(`/api/attendance/sheet/${sheetId}/entries/batch`, 
-        { users: membersData }, 
-        { headers: getHeaders() }
-      );
+  if (!window.confirm(`Mark ${trulyAbsentMembers.length} members as present?`)) return;
 
-      showToast(`✅ ${selectedMembers.length} members marked present!`);
-      
-      // 3. Refresh to get real data
-      await fetchSheetData();
+  setIsBulkProcessing(true);
 
-    } catch (error) {
-      // 4. ROLLBACK on error
-      setSheetData(prev => {
-        if (!prev) return prev;
-        const rolledBackMembers = filteredAbsent.filter(m => selectedMembers.includes(m.id));
-        return {
-          ...prev,
-          entries: prev.entries.filter(e => !e.isPending),
-          absentMembers: [...(prev.absentMembers || []), ...rolledBackMembers]
-        };
-      });
-      showToast(error.response?.data?.error || 'Failed to mark members present', 'error');
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  };
+  // Use trulyAbsentMembers for the bulk operation
+  const membersToProcess = trulyAbsentMembers;
+
+  // 1. OPTIMISTIC UPDATE
+  const tempEntries = membersToProcess.map(memberId => {
+    const member = filteredAbsent.find(m => m.id === memberId);
+    return {
+      id: 'temp-' + Date.now() + '-' + memberId,
+      fullName: member?.fullName || 'Unknown',
+      phoneNumber: member?.phone || '-',
+      role: member?.role || '-',
+      executivePosition: member?.executivePosition || null,
+      signMethod: 'MANUAL',
+      signTime: new Date().toISOString(),
+      isPending: true,
+      userId: memberId
+    };
+  });
+
+  // Update UI immediately
+  setSheetData(prev => {
+    if (!prev) return prev;
+    return {
+      ...prev,
+      entries: [...prev.entries, ...tempEntries],
+      absentMembers: prev.absentMembers?.filter(m => !membersToProcess.includes(m.id)) || []
+    };
+  });
+
+  // Clear selection
+  setSelectedMembers([]);
+  setSelectAll(false);
+
+  try {
+    // 2. BULK API CALL - Only send truly absent members
+    const membersData = filteredAbsent
+      .filter(m => membersToProcess.includes(m.id))
+      .map(m => ({
+        fullName: m.fullName,
+        phoneNumber: m.phone,
+        role: m.role || 'Member',
+        specialRole: m.specialRole || null,
+        membershipNumber: m.membership_number || null,
+        jumuiaId: m.jumuiaId || null,
+        notes: 'Bulk marked present by admin'
+      }));
+
+    console.log(`📤 Bulk marking ${membersData.length} members present`);
+
+    await api.post(`/api/attendance/sheet/${sheetId}/entries/batch`, 
+      { users: membersData }, 
+      { headers: getHeaders() }
+    );
+
+    showToast(`✅ ${membersData.length} members marked present!`);
+    
+    // 3. Refresh to get real data
+    await fetchSheetData();
+
+  } catch (error) {
+    console.error('Bulk mark error:', error);
+    
+    // 4. ROLLBACK on error
+    setSheetData(prev => {
+      if (!prev) return prev;
+      const rolledBackMembers = filteredAbsent.filter(m => membersToProcess.includes(m.id));
+      return {
+        ...prev,
+        entries: prev.entries.filter(e => !e.isPending),
+        absentMembers: [...(prev.absentMembers || []), ...rolledBackMembers]
+      };
+    });
+    showToast(error.response?.data?.error || 'Failed to mark members present', 'error');
+  } finally {
+    setIsBulkProcessing(false);
+  }
+};
 
   // ============ INITIAL LOAD & SOCKET ============
   useEffect(() => {

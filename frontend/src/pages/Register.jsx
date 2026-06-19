@@ -693,6 +693,7 @@ function Register() {
                 <h2 style={styles.modalTitle}>Verify Your Email</h2>
                 <p style={styles.modalSubtitle}>
                   We sent a 6-digit code to:
+                  please check your inbox or spam folder and enter it below to verify your email.
                   <br />
                   <strong style={styles.modalEmail}>{verificationEmail}</strong>
                 </p>

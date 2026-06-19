@@ -111,7 +111,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
           
           <p style={styles.message}>
             🙏<br />
-            You are now part of the Zetech University Catholic Action community.
+            You are now part of the Zetech University Catholic Action Club.
           </p>
           
           {/* Membership Number Section */}
@@ -141,8 +141,9 @@ export default function WelcomeModal({ isOpen, onClose }) {
               <div style={styles.importantTitle}>⭐ IMPORTANT - SAVE THIS NUMBER</div>
               <ul style={styles.importantList}>
                 <li>This is your official <strong>ZUCA Membership Number</strong></li>
-                <li>Use it to identify yourself within the ZUCA community</li>
-                <li><strong>Save this email or screenshot this page</strong> - you'll need it for your profile</li>
+                <li>It is used For special log-ins within ZUCA System</li>
+                <li><strong>Save this email or screenshot this page</strong> - you'll need it later</li>
+                <li>Each letter stands for; (Z-ZUCA) (#-NUMBER) and finally the number its self eg(001,002 etc.)</li>
                 <li>Your membership number format: <strong style={{color: "#4f46e5", fontSize: "14px"}}>{membershipNumber}</strong></li>
               </ul>
             </div>

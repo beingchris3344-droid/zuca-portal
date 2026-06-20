@@ -2367,13 +2367,30 @@ router.get("/all-entries", authenticate, requireLeaderOrAdmin, async (req, res) 
 
 // Add this to your attendance routes file (before module.exports)
 
-// Get ALL meetings/sheets for a member (their attendance history + all meetings)
 router.get("/member/all-meetings", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     
-    // Get ALL attendance sheets (both active and closed)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        role: true, 
+        specialRole: true,
+        jumuiaId: true,
+        createdAt: true
+      }
+    });
+    
+    const isExecutive = await prisma.executive.findFirst({
+      where: { userId: userId, isActive: true }
+    });
+    
     const allSheets = await prisma.attendanceSheet.findMany({
+      where: {
+        eventDate: {
+          gte: new Date(user.createdAt)
+        }
+      },
       orderBy: { eventDate: "desc" },
       include: {
         entries: {
@@ -2391,9 +2408,28 @@ router.get("/member/all-meetings", authenticate, async (req, res) => {
       }
     });
     
-    // Get user's attendance history
+    const visibleSheets = allSheets.filter(sheet => {
+      if (sheet.isExecutiveOnly) {
+        const isAdmin = user.role === 'admin';
+        const isSecretary = user.specialRole === 'secretary';
+        return isAdmin || isSecretary || isExecutive;
+      }
+      
+      if (sheet.jumuiaId) {
+        return user.jumuiaId === sheet.jumuiaId || 
+               user.role === 'admin' || 
+               user.specialRole === 'secretary';
+      }
+      
+      return true;
+    });
+    
+    const visibleSheetIds = new Set(visibleSheets.map(s => s.id));
     const userEntries = await prisma.attendanceEntry.findMany({
-      where: { userId: userId },
+      where: { 
+        userId: userId,
+        sheetId: { in: [...visibleSheetIds] }
+      },
       include: {
         sheet: {
           select: {
@@ -2408,41 +2444,57 @@ router.get("/member/all-meetings", authenticate, async (req, res) => {
       orderBy: { signTime: "desc" }
     });
     
-    // Calculate stats
-    const totalMeetings = allSheets.length;
+    const totalMeetings = visibleSheets.length;
     const attendedMeetings = userEntries.length;
     const attendanceRate = totalMeetings > 0 ? (attendedMeetings / totalMeetings) * 100 : 0;
     
-    // Get upcoming meetings
-    const upcomingMeetings = allSheets.filter(sheet => 
+    const upcomingMeetings = visibleSheets.filter(sheet => 
       new Date(sheet.eventDate) > new Date() && sheet.isActive
     ).length;
     
-    // Get missed meetings (sheets where user didn't check in)
     const attendedSheetIds = new Set(userEntries.map(e => e.sheetId));
-    const missedMeetings = allSheets.filter(sheet => !attendedSheetIds.has(sheet.id));
+    const missedMeetings = visibleSheets.filter(sheet => !attendedSheetIds.has(sheet.id));
+    
+    const formattedMeetings = visibleSheets.map(sheet => ({
+      id: sheet.id,
+      title: sheet.title,
+      eventDate: sheet.eventDate ? new Date(sheet.eventDate).toISOString() : null,
+      eventTime: sheet.eventTime || null,
+      location: sheet.location || 'ZUCA',
+      isActive: sheet.isActive,
+      isExecutiveOnly: sheet.isExecutiveOnly || false,
+      jumuiaId: sheet.jumuiaId,
+      totalAttendees: sheet._count.entries,
+      userAttended: sheet.entries.length > 0,
+      userSignTime: sheet.entries[0]?.signTime ? new Date(sheet.entries[0].signTime).toISOString() : null,
+      userSignMethod: sheet.entries[0]?.signMethod || null
+    }));
+    
+    const formattedHistory = userEntries.map(entry => ({
+      id: entry.id,
+      sheetId: entry.sheetId,
+      signTime: entry.signTime ? new Date(entry.signTime).toISOString() : null,
+      signMethod: entry.signMethod,
+      sheet: entry.sheet ? {
+        id: entry.sheet.id,
+        title: entry.sheet.title,
+        eventDate: entry.sheet.eventDate ? new Date(entry.sheet.eventDate).toISOString() : null,
+        eventTime: entry.sheet.eventTime,
+        location: entry.sheet.location
+      } : null
+    }));
     
     res.json({
       success: true,
-      allMeetings: allSheets.map(sheet => ({
-        id: sheet.id,
-        title: sheet.title,
-        eventDate: sheet.eventDate,
-        eventTime: sheet.eventTime,
-        location: sheet.location,
-        isActive: sheet.isActive,
-        totalAttendees: sheet._count.entries,
-        userAttended: sheet.entries.length > 0,
-        userSignTime: sheet.entries[0]?.signTime || null,
-        userSignMethod: sheet.entries[0]?.signMethod || null
-      })),
-      userHistory: userEntries,
+      allMeetings: formattedMeetings,
+      userHistory: formattedHistory,
       stats: {
         totalMeetings,
         attendedMeetings,
         missedMeetings: missedMeetings.length,
         attendanceRate: attendanceRate.toFixed(1),
-        upcomingMeetings
+        upcomingMeetings,
+        userJoinedDate: user.createdAt.toISOString()
       }
     });
     

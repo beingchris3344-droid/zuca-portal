@@ -580,6 +580,9 @@ const treasurerReportsRoutes = require("./routes/treasurerReports");
 
 app.use("/api/treasurer", treasurerReportsRoutes);
 
+const ibmRoutes = require("./routes/ibmRoutes");
+app.use("/api/ibm", ibmRoutes);
+
 
 // Direct Messaging System Routes
 app.use('/api/messenger', messengerRoutes);

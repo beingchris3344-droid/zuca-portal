@@ -95,6 +95,9 @@ model User {
 
     treasurerTransactions TreasurerTransaction[]
 
+    //bank
+    bankPayments BankPayment[]
+
 
      // For Attendance System
   attendanceSheetsCreated AttendanceSheet[]  @relation("UserAttendanceSheets")
@@ -241,6 +244,7 @@ model ContributionType {
   pledges        Pledge[]
   paymentSlug    String?   @unique
   payments       Payment[]
+  bankPayments BankPayment[]
 }
 model Pledge {
   id                 String           @id @default(uuid())
@@ -1720,4 +1724,26 @@ model History {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model BankPayment {
+  id                 String   @id @default(uuid())
+  mpesaCode          String   @unique
+  amount             Float
+  payerName          String?
+  payerPhone         String?
+  paymentDate        DateTime
+  paymentType        String   @default("MPESA")
+  status             String   @default("UNCLAIMED")
+  userId             String?
+  contributionTypeId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User?            @relation(fields: [userId], references: [id])
+  contributionType   ContributionType? @relation(fields: [contributionTypeId], references: [id])
+
+  @@index([mpesaCode])
+  @@index([status])
+  @@index([userId])
 }

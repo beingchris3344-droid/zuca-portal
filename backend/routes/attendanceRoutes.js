@@ -1425,7 +1425,6 @@ const wifiCheckin = async (req, res) => {
 };
 
 // Admin add entry (can add anyone)
-// Admin add entry (can add anyone)
 const adminAddEntry = async (req, res) => {
   try {
     const { sheetId } = req.params;
@@ -1453,37 +1452,97 @@ const adminAddEntry = async (req, res) => {
     }
 
     let user = null;
+    let existingEntry = null;
+
+    // ✅ Try to find user by phone number
     if (phoneNumber) {
+      const cleanPhone = phoneNumber.trim().replace(/[\s\-]/g, '');
+      
+      // Try ALL phone formats
+      let phoneFormats = [
+        cleanPhone,
+        cleanPhone.startsWith('0') ? cleanPhone.substring(1) : `0${cleanPhone}`,
+        cleanPhone.startsWith('+254') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`,
+        cleanPhone.startsWith('+254') ? cleanPhone.substring(1) : null,
+        cleanPhone.startsWith('+254') ? cleanPhone.substring(4) : null,
+        cleanPhone.startsWith('254') ? cleanPhone : `+${cleanPhone}`,
+        cleanPhone.startsWith('254') ? `0${cleanPhone.substring(3)}` : null,
+        cleanPhone.startsWith('254') ? cleanPhone.substring(3) : null,
+      ].filter(p => p);
+      
+      // Remove duplicates
+      phoneFormats = [...new Set(phoneFormats)];
+      
       user = await prisma.user.findFirst({
-        where: { phone: phoneNumber }
+        where: {
+          OR: phoneFormats.map(phone => ({
+            phone: phone
+          }))
+        }
+      });
+
+      // ✅ Check if user already checked in
+      if (user) {
+        existingEntry = await prisma.attendanceEntry.findFirst({
+          where: { sheetId, userId: user.id }
+        });
+
+        if (existingEntry) {
+          return res.status(400).json({ 
+            error: `${user.fullName} is already checked in`,
+            existingEntry 
+          });
+        }
+      }
+    }
+
+    // ✅ If user not found by phone, try membership number
+    if (!user && membershipNumber) {
+      user = await prisma.user.findFirst({
+        where: { membership_number: membershipNumber }
       });
     }
 
+    // ✅ If still no user, try by full name (exact match)
+    if (!user && fullName) {
+      user = await prisma.user.findFirst({
+        where: { 
+          fullName: {
+            equals: fullName,
+            mode: 'insensitive'
+          }
+        }
+      });
+    }
+
+    // ✅ Use user data if found, otherwise use provided data
+    const entryData = {
+      sheetId,
+      userId: user?.id || null,
+      fullName: user?.fullName || fullName,
+      phoneNumber: user?.phone || phoneNumber || null,
+      role: user?.role || role || "Guest",
+      specialRole: user?.specialRole || specialRole || null,
+      membershipNumber: user?.membership_number || membershipNumber || null,
+      jumuiaId: user?.jumuiaId || jumuiaId || null,
+      jumuiaName: jumuiaName || null,
+      signMethod: "MANUAL",
+      verifiedBy: req.user.userId,
+      notes: notes || (user ? `Auto-filled from existing user` : null)
+    };
+
     const entry = await prisma.attendanceEntry.create({
-      data: {
-        sheetId,
-        userId: user?.id || null,
-        fullName,
-        phoneNumber,
-        role: role || (user?.role || "Guest"),
-        specialRole: specialRole || user?.specialRole || null,
-        membershipNumber: membershipNumber || user?.membership_number || null,
-        jumuiaId: jumuiaId || user?.jumuiaId || null,
-        jumuiaName: jumuiaName || null,
-        signMethod: "MANUAL",
-        verifiedBy: req.user.userId,
-        notes
-      }
+      data: entryData
     });
 
-    // ✅ Send response IMMEDIATELY - user doesn't wait for notifications
     res.status(201).json({ success: true, entry });
     invalidateSheetCache(sheetId);
 
-    // ✅ Send notification in BACKGROUND (fire and forget)
+    // ✅ Send notification in BACKGROUND
     if (user?.id) {
       sendCheckinConfirmation(user.id, sheet.title, entry);
     }
+
   } catch (err) {
     console.error("Admin add entry error:", err);
     res.status(500).json({ error: err.message });
@@ -1699,79 +1758,210 @@ router.post("/sheet/:sheetId/entries/batch", authenticate, requireLeaderOrAdmin,
       return res.status(404).json({ error: "Sheet not found" });
     }
     
-    // Create all entries in one batch
     const entries = [];
-    const userIds = [];
+    const alreadyCheckedIn = [];
+    
+    // Get ALL existing users by phone in one query
+    const phoneNumbers = users
+      .map(u => u.phoneNumber)
+      .filter(p => p)
+      .map(p => p.trim().replace(/[\s\-]/g, ''));
+    
+    let existingUsers = [];
+    if (phoneNumbers.length > 0) {
+      // Build all phone format variations
+      const allPhoneFormats = [];
+      for (const phone of phoneNumbers) {
+        allPhoneFormats.push(phone);
+        if (phone.startsWith('0')) {
+          allPhoneFormats.push(phone.substring(1));
+          allPhoneFormats.push(`+254${phone.substring(1)}`);
+          allPhoneFormats.push(`254${phone.substring(1)}`);
+        }
+        if (phone.startsWith('+254')) {
+          allPhoneFormats.push(phone.substring(1));
+          allPhoneFormats.push(phone.substring(4));
+          allPhoneFormats.push(`0${phone.substring(4)}`);
+          allPhoneFormats.push(`254${phone.substring(4)}`);
+        }
+        if (phone.startsWith('254') && !phone.startsWith('+254')) {
+          allPhoneFormats.push(`+${phone}`);
+          allPhoneFormats.push(`0${phone.substring(3)}`);
+          allPhoneFormats.push(`+254${phone.substring(3)}`);
+        }
+      }
+      
+      // Remove duplicates
+      const uniquePhoneFormats = [...new Set(allPhoneFormats)];
+      
+      existingUsers = await prisma.user.findMany({
+        where: {
+          OR: uniquePhoneFormats.map(phone => ({
+            phone: phone
+          }))
+        }
+      });
+    }
+    
+    // Build map for phone lookups
+    const userMap = new Map();
+    existingUsers.forEach(u => {
+      if (u.phone) {
+        const clean = u.phone.trim().replace(/[\s\-]/g, '');
+        userMap.set(clean, u);
+        if (clean.startsWith('0')) {
+          userMap.set(clean.substring(1), u);
+          userMap.set(`+254${clean.substring(1)}`, u);
+          userMap.set(`254${clean.substring(1)}`, u);
+        }
+        if (clean.startsWith('+254')) {
+          userMap.set(clean.substring(1), u);
+          userMap.set(clean.substring(4), u);
+          userMap.set(`0${clean.substring(4)}`, u);
+          userMap.set(`254${clean.substring(4)}`, u);
+        }
+        if (clean.startsWith('254') && !clean.startsWith('+254')) {
+          userMap.set(`+${clean}`, u);
+          userMap.set(`0${clean.substring(3)}`, u);
+          userMap.set(`+254${clean.substring(3)}`, u);
+        }
+        // Also store by full name for name matching
+        if (u.fullName) {
+          userMap.set(u.fullName.toLowerCase().trim(), u);
+        }
+      }
+    });
+    
+    // Helper for name matching
+    const normalizeName = (name) => {
+      if (!name) return '';
+      return name.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^a-z\s]/g, '');
+    };
+    
+    const isNameMatch = (name1, name2) => {
+      if (!name1 || !name2) return false;
+      const n1 = normalizeName(name1);
+      const n2 = normalizeName(name2);
+      if (n1 === n2) return true;
+      const parts1 = n1.split(' ').filter(w => w.length > 1);
+      const parts2 = n2.split(' ').filter(w => w.length > 1);
+      if (parts1.length === 1 && parts2.length === 1) {
+        return parts1[0] === parts2[0];
+      }
+      let matches = 0;
+      for (const p1 of parts1) {
+        for (const p2 of parts2) {
+          if (p1 === p2) {
+            matches++;
+            break;
+          }
+        }
+      }
+      const minParts = Math.min(parts1.length, parts2.length);
+      return matches >= Math.min(2, minParts);
+    };
     
     for (const userData of users) {
       let user = null;
+      
+      // Try to find by phone
       if (userData.phoneNumber) {
-        user = await prisma.user.findFirst({
-          where: { phone: userData.phoneNumber }
-        });
+        const cleanPhone = userData.phoneNumber.trim().replace(/[\s\-]/g, '');
+        user = userMap.get(cleanPhone);
+        if (!user) user = userMap.get(cleanPhone.startsWith('0') ? cleanPhone.substring(1) : `0${cleanPhone}`);
+        if (!user) user = userMap.get(cleanPhone.startsWith('+254') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`);
+        if (!user) user = userMap.get(cleanPhone.startsWith('+254') ? cleanPhone.substring(1) : null);
+        if (!user) user = userMap.get(cleanPhone.startsWith('+254') ? cleanPhone.substring(4) : null);
       }
       
-      const entry = await prisma.attendanceEntry.create({
-        data: {
-          sheetId,
-          userId: user?.id || null,
-          fullName: userData.fullName,
-          phoneNumber: userData.phoneNumber,
-          role: userData.role || (user?.role || "Guest"),
-          specialRole: userData.specialRole || user?.specialRole || null,
-          membershipNumber: userData.membershipNumber || user?.membership_number || null,
-          jumuiaId: userData.jumuiaId || user?.jumuiaId || null,
-          jumuiaName: userData.jumuiaName || null,
-          signMethod: "MANUAL",
-          verifiedBy: req.user.userId,
-          notes: userData.notes || "Bulk added"
+      // Try name matching if phone failed
+      if (!user && userData.fullName) {
+        const allUsers = Array.from(userMap.values());
+        for (const u of allUsers) {
+          if (u.fullName && isNameMatch(userData.fullName, u.fullName)) {
+            user = u;
+            break;
+          }
         }
-      });
-      entries.push(entry);
-      if (user?.id) userIds.push(user.id);
+      }
+      
+      if (user) {
+        const existingEntry = await prisma.attendanceEntry.findFirst({
+          where: { sheetId, userId: user.id }
+        });
+        
+        if (existingEntry) {
+          alreadyCheckedIn.push({
+            fullName: user.fullName,
+            phone: user.phone,
+            existingEntry
+          });
+          continue;
+        }
+        
+        const entry = await prisma.attendanceEntry.create({
+          data: {
+            sheetId,
+            userId: user.id,
+            fullName: user.fullName,
+            phoneNumber: user.phone,
+            role: user.role,
+            specialRole: user.specialRole,
+            membershipNumber: user.membership_number,
+            jumuiaId: user.jumuiaId,
+            jumuiaName: null,
+            signMethod: "MANUAL",
+            verifiedBy: req.user.userId,
+            notes: `Auto-filled from existing user (${user.fullName})`
+          }
+        });
+        entries.push(entry);
+      } else {
+        const entry = await prisma.attendanceEntry.create({
+          data: {
+            sheetId,
+            userId: null,
+            fullName: userData.fullName,
+            phoneNumber: userData.phoneNumber || null,
+            role: userData.role || "Guest",
+            specialRole: userData.specialRole || null,
+            membershipNumber: userData.membershipNumber || null,
+            jumuiaId: userData.jumuiaId || null,
+            jumuiaName: userData.jumuiaName || null,
+            signMethod: "MANUAL",
+            verifiedBy: req.user.userId,
+            notes: userData.notes || "New user added"
+          }
+        });
+        entries.push(entry);
+      }
     }
     
-    // Send response immediately
     res.json({ 
       success: true, 
       count: entries.length,
-      entries: entries
+      entries: entries,
+      alreadyCheckedIn: alreadyCheckedIn.length > 0 ? alreadyCheckedIn : undefined
     });
     
-    // Send notifications in background (fire and forget)
-    (async () => {
-      for (const entry of entries) {
-        try {
-          const user = await prisma.user.findFirst({
-            where: { phone: entry.phoneNumber }
-          });
-          
-          if (user?.id) {
-            await createAndSendNotification({
-              userId: user.id,
-              type: "attendance_checkin",
-              title: "✅ Check-in Successful!",
-              message: `You have been checked in for "${sheet.title}"`,
-              data: { sheetId: sheet.id, entryId: entry.id }
-            });
-          }
-        } catch (err) {
-          console.error("Failed to send notification:", err.message);
-        }
+    for (const entry of entries) {
+      if (entry.userId) {
+        createAndSendNotification({
+          userId: entry.userId,
+          type: "attendance_checkin",
+          title: "✅ Check-in Successful!",
+          message: `You have been checked in for "${sheet.title}"`,
+          data: { sheetId: sheet.id, entryId: entry.id }
+        }).catch(() => {});
       }
-    })();
+    }
     
-    // Emit socket event for real-time update
     const io = req.app.get("io");
     if (io) {
       io.to(`sheet-${sheetId}`).emit("attendance_bulk_checkin", {
         sheetId: sheetId,
         count: entries.length,
         entries: entries
-      });
-      io.emit("attendance_updated", { 
-        sheetId: sheetId,
-        count: entries.length
       });
     }
     

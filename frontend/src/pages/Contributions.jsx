@@ -18,7 +18,11 @@ function Contributions() {
   const [expandedCard, setExpandedCard] = useState(null);
   const [filter, setFilter] = useState("all");
   // NEW: State for message modal
-  const [messageThread, setMessageThread] = useState(null);
+ const [messageThread, setMessageThread] = useState(null);
+const [claimInputs, setClaimInputs] = useState({});
+const [claiming, setClaiming] = useState({});
+const [claimStatus, setClaimStatus] = useState({});
+  
   
   const fetchAttempted = useRef(false);
   const token = localStorage.getItem("token");
@@ -159,6 +163,63 @@ function Contributions() {
   const handleOpenMessage = (pledgeId, pledgeTitle) => {
     setMessageThread({ pledgeId, pledgeTitle });
   };
+
+  const handleClaimInput = (contributionId, value) => {
+  setClaimInputs(prev => ({
+    ...prev,
+    [contributionId]: value
+  }));
+};
+
+const handleClaim = async (contributionId) => {
+  const code = claimInputs[contributionId]?.trim();
+  if (!code) {
+    showNotification("Please enter an M-PESA code", "error");
+    return;
+  }
+
+  setClaiming(prev => ({ ...prev, [contributionId]: true }));
+  setClaimStatus(prev => ({ ...prev, [contributionId]: { loading: true } }));
+
+  try {
+    const contribution = contributions.find(c => c.id === contributionId);
+    if (!contribution) {
+      setClaimStatus(prev => ({
+        ...prev,
+        [contributionId]: { error: "Contribution not found" }
+      }));
+      return;
+    }
+
+    // ONE API call - directly claim
+    const claimRes = await axios.post(`${BASE_URL}/api/ibm/claim`, {
+      code,
+      contributionTypeId: contribution.contributionTypeId
+    }, { headers });
+
+    if (claimRes.data.success) {
+      setClaimStatus(prev => ({
+        ...prev,
+        [contributionId]: { success: claimRes.data.message }
+      }));
+      setClaimInputs(prev => ({ ...prev, [contributionId]: "" }));
+      showNotification(claimRes.data.message, "success");
+      fetchContributions(true);
+    }
+  } catch (err) {
+    const msg = err.response?.data?.message || "Failed to claim payment";
+    setClaimStatus(prev => ({
+      ...prev,
+      [contributionId]: { error: msg }
+    }));
+    showNotification(msg, "error");
+  } finally {
+    setClaiming(prev => ({ ...prev, [contributionId]: false }));
+    setTimeout(() => {
+      setClaimStatus(prev => ({ ...prev, [contributionId]: null }));
+    }, 5000);
+  }
+};
 
   const optimisticUpdate = (contributionId, updates) => {
     setContributions(prev => 
@@ -403,24 +464,29 @@ function Contributions() {
       {!loading && !error && filteredContributions.length > 0 && (
         <div className="contributions-list">
           {filteredContributions.map((contribution) => (
-            <ContributionCard
-              key={contribution.id}
-              contribution={contribution}
-              pledgeInput={pledgeInputs[contribution.id] || {}}
-              onPledgeChange={(field, value) => 
-                handleInputChange(contribution.id, field, value)
-              }
-              onPledge={() => handlePledge(contribution.id)}
-              onPayNow={() => handlePayNow(contribution)} 
-              isSubmitting={submitting[contribution.id]}
-              remainingAmount={calculateRemaining(contribution)}
-              isExpanded={expandedCard === contribution.id}
-              onToggle={() => setExpandedCard(
-                expandedCard === contribution.id ? null : contribution.id
-              )}
-              onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
-               user={user}
-            />
+          <ContributionCard
+  key={contribution.id}
+  contribution={contribution}
+  pledgeInput={pledgeInputs[contribution.id] || {}}
+  onPledgeChange={(field, value) => 
+    handleInputChange(contribution.id, field, value)
+  }
+  onPledge={() => handlePledge(contribution.id)}
+  onPayNow={() => handlePayNow(contribution)} 
+  isSubmitting={submitting[contribution.id]}
+  remainingAmount={calculateRemaining(contribution)}
+  isExpanded={expandedCard === contribution.id}
+  onToggle={() => setExpandedCard(
+    expandedCard === contribution.id ? null : contribution.id
+  )}
+  onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
+  user={user}
+  claimInputs={claimInputs}
+  claimStatus={claimStatus}
+  claiming={claiming}
+  onClaimInput={handleClaimInput}
+  onClaim={handleClaim}
+/>
           ))}
         </div>
       )}
@@ -773,13 +839,18 @@ const ContributionCard = ({
   pledgeInput, 
   onPledgeChange, 
   onPledge, 
-   onPayNow,
+  onPayNow,
   isSubmitting,
   remainingAmount,
   isExpanded,
   onToggle,
   onOpenMessage,
-  user // NEW prop
+  user,
+  claimInputs,
+  claimStatus,
+  claiming,
+  onClaimInput,
+  onClaim
 }) => {
   const completed = contribution.amountPaid >= contribution.amountRequired;
   const status = completed ? "COMPLETED" : contribution.status;
@@ -998,6 +1069,35 @@ const ContributionCard = ({
                 </div>
               </div>
             )}
+
+            {/* Claim Bank Payment */}
+<div className="claim-section">
+  <div className="claim-divider">
+    <span>Claim Bank Payment</span>
+  </div>
+  <div className="claim-form">
+    <input
+      type="text"
+      placeholder="Paste M-PESA code (e.g. QK4T7X9Z2W)"
+      className="claim-input"
+      value={claimInputs[contribution.id] || ""}
+      onChange={(e) => onClaimInput(contribution.id, e.target.value)}
+disabled={claiming[contribution.id]}    />
+    <button
+      className="claim-btn"
+onClick={() => onClaim(contribution.id)}
+disabled={claiming[contribution.id]}    >
+      {claiming[contribution.id] ? "Checking..." : "Claim"}
+    </button>
+  </div>
+  {claimStatus[contribution.id]?.success && (
+    <div className="claim-success">{claimStatus[contribution.id].success}</div>
+  )}
+  {claimStatus[contribution.id]?.error && (
+    <div className="claim-error">{claimStatus[contribution.id].error}</div>
+  )}
+ 
+</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1306,7 +1406,111 @@ const ContributionCard = ({
           font-size: 13px;
           color: #475569;
           margin: 0;
-        }
+      }
+
+      /* Claim Section */
+.claim-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 2px solid #f1f5f9;
+}
+
+.claim-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.claim-divider span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.claim-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.claim-form {
+  display: flex;
+  gap: 10px;
+}
+
+.claim-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.claim-input:focus {
+  outline: none;
+  border-color: #0f172a;
+}
+
+.claim-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.claim-btn {
+  padding: 10px 20px;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.claim-btn:hover:not(:disabled) {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.claim-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.claim-success {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 14px;
+}
+
+.claim-error {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.claim-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #64748b;
+  font-style: italic;
+}
 
         @media (max-width: 480px) {
           .card-header {

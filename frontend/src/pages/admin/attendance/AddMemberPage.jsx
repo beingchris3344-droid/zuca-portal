@@ -123,42 +123,49 @@ const fetchAllUsers = useCallback(async () => {
 
 // ============ PROCESS USERS (BUILD PHONE MAP) ============
 const processUsers = useCallback((users) => {
-  // Filter out admin users (double safety)
   const nonAdminUsers = users.filter(u => u.role !== 'admin');
   setAllUsers(nonAdminUsers);
   
-  // Build phone map for O(1) lookups
   const map = new Map();
-  let matchCount = 0;
   
   for (const u of nonAdminUsers) {
     if (u.phone) {
       const phone = u.phone.trim();
-      // Store with exact phone
+      
+      // Store ALL formats
       map.set(phone, u);
-      matchCount++;
+      
+      // Remove spaces and dashes
+      const clean = phone.replace(/[\s\-]/g, '');
+      map.set(clean, u);
       
       // Store without leading 0
       if (phone.startsWith('0')) {
         map.set(phone.substring(1), u);
-      }
-      // Store with +254
-      if (phone.startsWith('0')) {
         map.set(`+254${phone.substring(1)}`, u);
-      } else if (phone.startsWith('+254')) {
-        map.set(phone.substring(4), u);
+        map.set(`254${phone.substring(1)}`, u);
       }
-      // Store without spaces or dashes
-      const cleanPhone = phone.replace(/[\s\-]/g, '');
-      if (cleanPhone !== phone) {
-        map.set(cleanPhone, u);
+      
+      // Store without +254
+      if (phone.startsWith('+254')) {
+        map.set(phone.substring(1), u);
+        map.set(phone.substring(4), u);
+        map.set(`0${phone.substring(4)}`, u);
+        map.set(`254${phone.substring(4)}`, u);
+      }
+      
+      // Store with +254
+      if (phone.startsWith('254') && !phone.startsWith('+254')) {
+        map.set(`+${phone}`, u);
+        map.set(`0${phone.substring(3)}`, u);
+        map.set(`+254${phone.substring(3)}`, u);
       }
     }
   }
   
   setPhoneMap(map);
   setUsersLoaded(true);
-  console.log(`✅ Phone map built with ${matchCount} non-admin phone numbers`);
+  console.log(`✅ Phone map built with ${map.size} entries`);
 }, []);
   
   // Load users once on mount
@@ -342,47 +349,74 @@ const processUsers = useCallback((users) => {
   
   // ============ PARSE BULK DATA (OPTIMIZED - NO API CALLS) ============
   const parseBulkData = useCallback(() => {
-    const lines = bulkData.split('\n').filter(line => line.trim());
+  const lines = bulkData.split('\n').filter(line => line.trim());
+  
+  if (lines.length === 0) {
+    setBulkPreview([]);
+    return;
+  }
+  
+  const parsed = [];
+  
+  for (const line of lines) {
+    const parts = line.split(',').map(p => p.trim());
     
-    if (lines.length === 0) {
-      setBulkPreview([]);
-      return;
-    }
+    const entry = {
+      fullName: parts[0] || '',
+      phoneNumber: parts[1] || null,
+      role: parts[2] || 'Guest',
+      membershipNumber: parts[3] || null,
+      signTime: parts[4] || null,
+      valid: !!parts[0],
+      existingUser: null,
+      isAutoFilled: false
+    };
     
-    const parsed = [];
-    
-    // 🔥 Use the pre-fetched phoneMap for instant matching
-    for (const line of lines) {
-      const parts = line.split(',').map(p => p.trim());
+    if (entry.phoneNumber && phoneMap.size > 0) {
+      const cleanPhone = entry.phoneNumber.trim().replace(/[\s\-]/g, '');
       
-      const entry = {
-        fullName: parts[0] || '',
-        phoneNumber: parts[1] || null,
-        role: parts[2] || 'Guest',
-        membershipNumber: parts[3] || null,
-        signTime: parts[4] || null,
-        valid: !!parts[0],
-        existingUser: null,
-        isAutoFilled: false
-      };
+      let existingUser = null;
       
-      // 🔥 INSTANT O(1) lookup - NO API CALL!
-      if (entry.phoneNumber && phoneMap.size > 0) {
-        const existingUser = phoneMap.get(entry.phoneNumber);
-        if (existingUser) {
-          entry.existingUser = existingUser;
-          entry.isAutoFilled = true;
-          entry.fullName = existingUser.fullName;
-          entry.role = existingUser.role || 'member';
-          entry.membershipNumber = existingUser.membership_number || null;
-        }
+      if (cleanPhone.startsWith('+254')) {
+        existingUser = phoneMap.get(cleanPhone);
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(1));
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(4));
+        if (!existingUser) existingUser = phoneMap.get(`0${cleanPhone.substring(4)}`);
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(4).replace(/^0+/, ''));
+      } else if (cleanPhone.startsWith('254')) {
+        existingUser = phoneMap.get(cleanPhone);
+        if (!existingUser) existingUser = phoneMap.get(`+${cleanPhone}`);
+        if (!existingUser) existingUser = phoneMap.get(`0${cleanPhone.substring(3)}`);
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(3));
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(3).replace(/^0+/, ''));
+      } else if (cleanPhone.startsWith('0')) {
+        existingUser = phoneMap.get(cleanPhone);
+        if (!existingUser) existingUser = phoneMap.get(`+254${cleanPhone.substring(1)}`);
+        if (!existingUser) existingUser = phoneMap.get(`254${cleanPhone.substring(1)}`);
+        if (!existingUser) existingUser = phoneMap.get(cleanPhone.substring(1));
+        if (!existingUser) existingUser = phoneMap.get(`+254${cleanPhone.substring(1).replace(/^0+/, '')}`);
+      } else {
+        existingUser = phoneMap.get(cleanPhone);
+        if (!existingUser) existingUser = phoneMap.get(`0${cleanPhone}`);
+        if (!existingUser) existingUser = phoneMap.get(`+254${cleanPhone}`);
+        if (!existingUser) existingUser = phoneMap.get(`254${cleanPhone}`);
+        if (!existingUser) existingUser = phoneMap.get(`+254${cleanPhone.replace(/^0+/, '')}`);
       }
       
-      parsed.push(entry);
+      if (existingUser) {
+        entry.existingUser = existingUser;
+        entry.isAutoFilled = true;
+        entry.fullName = existingUser.fullName;
+        entry.role = existingUser.role || 'member';
+        entry.membershipNumber = existingUser.membership_number || null;
+      }
     }
     
-    setBulkPreview(parsed);
-  }, [bulkData, phoneMap]);
+    parsed.push(entry);
+  }
+  
+  setBulkPreview(parsed);
+}, [bulkData, phoneMap]);
   
   // 🔥 DEBOUNCED preview update - only updates after typing stops
   useEffect(() => {
@@ -613,10 +647,11 @@ const handleBulkAdd = async () => {
             <p><strong>Format options:</strong></p>
             <ul>
               <li><code>Name, Phone, Role, Membership#, Time</code> - All fields</li>
-              <li><code>Tonnie Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30</code></li>
+              <li><code>Tonnie Kirimi, 0712345678, Guest, Z#001, 2024-01-15 14:30</code></li>
             </ul>
             <p><em>💡 Tip: Time format: YYYY-MM-DD HH:MM or leave empty for current time</em></p>
             <p><strong>📝 Enter one person per line. Separate with commas.</strong></p>
+            <p><strong>⚠️ STRICTLY USE THE PHONE NUMBER YOU USED TO CREATE YOUR ZUCA ACCOUNT WITH.</strong></p>
           </div>
           
           <textarea

@@ -96,17 +96,20 @@ const [claimStatus, setClaimStatus] = useState({});
     return () => clearInterval(interval);
   }, []);
 
-  const silentRefresh = useCallback(async () => {
-    if (!token || refreshing) return;
-    
-    try {
-      const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
-      setContributions(res.data);
-      console.log('Background refresh completed');
-    } catch (err) {
-      console.error("Background refresh error:", err);
-    }
-  }, [token, headers, refreshing]);
+const silentRefresh = useCallback(async () => {
+  if (!token || refreshing) return;
+  
+  try {
+    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { 
+      headers: headers,
+      params: { _t: Date.now() }
+    });
+    setContributions(res.data);
+    console.log('Background refresh completed');
+  } catch (err) {
+    console.error("Background refresh error:", err);
+  }
+}, [token, headers, refreshing]);
 
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
@@ -119,7 +122,8 @@ const [claimStatus, setClaimStatus] = useState({});
     }
   }, [token]);
 
-  const fetchContributions = useCallback(async (isRefresh = false) => {
+
+const fetchContributions = useCallback(async (isRefresh = false) => {
   if (!token) return;
   
   if (isRefresh) {
@@ -131,26 +135,29 @@ const [claimStatus, setClaimStatus] = useState({});
   setError(null);
   
   try {
-    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
+    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { 
+      headers: headers,  // Only your auth header
+      params: {
+        _t: Date.now()   // This prevents caching
+      }
+    });
     
-    // Filter out jumuia-specific contributions
     const userContributions = res.data.filter(c => !c.jumuiaId);
-    
     setContributions(userContributions);
   } catch (err) {
     setError(err.response?.data?.error || "Failed to fetch contributions");
   } finally {
     setLoading(false);
     setRefreshing(false);
-    fetchAttempted.current = true;
   }
 }, [token, headers]);
 
-  useEffect(() => {
-    if (token && !fetchAttempted.current) {
-      fetchContributions();
-    }
-  }, [token, fetchContributions]);
+useEffect(() => {
+  if (token && !fetchAttempted.current) {
+    fetchContributions();
+    fetchAttempted.current = true;
+  }
+}, [token, fetchContributions]);
 
   // FIXED: calculateRemaining now correctly shows what's left to pay
   const calculateRemaining = (contribution) => {

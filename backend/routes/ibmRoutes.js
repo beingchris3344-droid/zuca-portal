@@ -5,6 +5,23 @@ const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 
 const IBM_API_KEY = process.env.IBM_API_KEY || "your-secret-key-here";
+const { sendPersonalizedEmail } = require("../services/mailer");
+
+async function createNotification({ userId, type, title, message, data = {} }) {
+  const notif = await prisma.notification.create({
+    data: {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      createdAt: new Date(),
+      data: data
+    }
+  });
+  return notif;
+}
 
 function authenticateIBM(req, res, next) {
   const apiKey = req.headers["x-api-key"];
@@ -91,13 +108,57 @@ router.post("/webhook", authenticateIBM, async (req, res) => {
       if (user) {
         const io = req.app.get("io");
         if (io) {
-          io.to(userId).emit("new_notification", {
-            type: "payment_received",
-            title: "💰 Payment Received!",
-            message: `We received KES ${amount} from you. Go to Contributions page to claim it to a campaign.`,
-            data: { amount, code: mpesaCode },
-            createdAt: new Date().toISOString(),
-          });
+          setTimeout(() => {
+            try {
+              // Notify user
+              io.to(userId).emit("new_notification", {
+                type: "payment_received",
+                title: "💰 Payment Received!",
+                message: `We received KES ${amount} from you. Go to Contributions page to claim it to a campaign.`,
+                data: { amount, code: mpesaCode },
+                createdAt: new Date().toISOString(),
+              });
+
+              // Notify admins
+              const notifyAdmins = async () => {
+                const admins = await prisma.user.findMany({
+                  where: { role: "admin" },
+                  select: { id: true },
+                });
+                for (const admin of admins) {
+                  io.to(admin.id).emit("new_notification", {
+                    type: "payment_received_admin",
+                    title: "💰 New Payment Received",
+                    message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
+                    data: { amount, code: mpesaCode, userId, payerName: user.fullName },
+                    createdAt: new Date().toISOString(),
+                  });
+                }
+              };
+              notifyAdmins();
+
+              // Notify treasurers
+              const notifyTreasurers = async () => {
+                const treasurers = await prisma.user.findMany({
+                  where: { specialRole: "treasurer" },
+                  select: { id: true },
+                });
+                for (const treasurer of treasurers) {
+                  io.to(treasurer.id).emit("new_notification", {
+                    type: "payment_received_admin",
+                    title: "💰 New Payment Received",
+                    message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
+                    data: { amount, code: mpesaCode, userId, payerName: user.fullName },
+                    createdAt: new Date().toISOString(),
+                  });
+                }
+              };
+              notifyTreasurers();
+
+            } catch (err) {
+              console.error("Webhook notification error:", err);
+            }
+          }, 100);
         }
       }
     }
@@ -220,7 +281,6 @@ router.post("/claim", authenticateUser, async (req, res) => {
       });
     }
 
-    // Use a transaction for atomic operations
     const result = await prisma.$transaction(async (tx) => {
       const bankPayment = await tx.bankPayment.findFirst({
         where: {
@@ -316,23 +376,138 @@ router.post("/claim", authenticateUser, async (req, res) => {
         },
       });
 
-      return { updatedPledge, campaignTitle: campaign.title, amount: bankPayment.amount };
+      return { updatedPledge, campaignTitle: campaign.title, amount: bankPayment.amount, user: await tx.user.findUnique({ where: { id: userId } }) };
     });
 
-    // Send notifications in background (don't wait)
     const io = req.app.get("io");
+
+    // Get the user who claimed
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    // 1. Notify the user who claimed
+    await createNotification({
+      userId: userId,
+      type: "claim_success",
+      title: "✅ Payment Claimed!",
+      message: `KES ${result.amount} added to ${result.campaignTitle}`,
+      data: { amount: result.amount, campaign: result.campaignTitle }
+    });
+
     if (io) {
-      setImmediate(() => {
-        io.to(userId).emit("pledge_updated", result.updatedPledge);
-        io.to(userId).emit("new_notification", {
-          type: "claim_success",
-          title: "✅ Payment Claimed!",
-          message: `KES ${result.amount} added to ${result.campaignTitle}`,
-          data: { amount: result.amount, campaign: result.campaignTitle },
-          createdAt: new Date().toISOString(),
-        });
+      io.to(userId).emit("pledge_updated", result.updatedPledge);
+      io.to(userId).emit("new_notification", {
+        type: "claim_success",
+        title: "✅ Payment Claimed!",
+        message: `KES ${result.amount} added to ${result.campaignTitle}`,
+        data: { amount: result.amount, campaign: result.campaignTitle },
+        createdAt: new Date().toISOString(),
       });
     }
+
+    // Send email to user
+    if (user && user.email) {
+      (async () => {
+        try {
+          await sendPersonalizedEmail(
+            { email: user.email, fullName: user.fullName },
+            "payment_claimed",
+            `✅ Payment Claimed: ${result.campaignTitle}`,
+            `Dear ${user.fullName},\n\nYou have successfully claimed KES ${result.amount} for "${result.campaignTitle}".\n\nThank you for your contribution!\n\nTumsifu Yesu Kristu! 🙏`,
+            { amount: result.amount, campaign: result.campaignTitle }
+          );
+        } catch (err) {
+          console.error("Failed to send user email:", err.message);
+        }
+      })();
+    }
+
+    // 2. Notify all admins
+    const admins = await prisma.user.findMany({
+      where: { role: "admin" },
+      select: { id: true, fullName: true, email: true }
+    });
+
+    for (const admin of admins) {
+      await createNotification({
+        userId: admin.id,
+        type: "payment_claimed_admin",
+        title: "💰 Payment Claimed",
+        message: `${user?.fullName || 'A user'} claimed KES ${result.amount} for "${result.campaignTitle}"`,
+        data: { amount: result.amount, campaign: result.campaignTitle, userId: userId }
+      });
+
+      if (io) {
+        io.to(admin.id).emit("new_notification", {
+          type: "payment_claimed_admin",
+          title: "💰 Payment Claimed",
+          message: `${user?.fullName || 'A user'} claimed KES ${result.amount} for "${result.campaignTitle}"`,
+          data: { amount: result.amount, campaign: result.campaignTitle, userId: userId },
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // Send email to admin
+      if (admin.email) {
+        (async () => {
+          try {
+            await sendPersonalizedEmail(
+              { email: admin.email, fullName: admin.fullName },
+              "payment_claimed_admin",
+              `💰 Payment Claimed: ${result.campaignTitle}`,
+              `Dear ${admin.fullName},\n\n${user?.fullName || 'A user'} has claimed KES ${result.amount} for "${result.campaignTitle}".\n\nTumsifu Yesu Kristu! 🙏`,
+              { amount: result.amount, campaign: result.campaignTitle, user: user?.fullName || 'A user' }
+            );
+          } catch (err) {
+            console.error("Failed to send admin email:", err.message);
+          }
+        })();
+      }
+    }
+
+    // 3. Notify all treasurers
+    const treasurers = await prisma.user.findMany({
+      where: { specialRole: "treasurer" },
+      select: { id: true, fullName: true, email: true }
+    });
+
+    for (const treasurer of treasurers) {
+      await createNotification({
+        userId: treasurer.id,
+        type: "payment_claimed_treasurer",
+        title: "💰 Payment Claimed",
+        message: `${user?.fullName || 'A user'} claimed KES ${result.amount} for "${result.campaignTitle}"`,
+        data: { amount: result.amount, campaign: result.campaignTitle, userId: userId }
+      });
+
+      if (io) {
+        io.to(treasurer.id).emit("new_notification", {
+          type: "payment_claimed_treasurer",
+          title: "💰 Payment Claimed",
+          message: `${user?.fullName || 'A user'} claimed KES ${result.amount} for "${result.campaignTitle}"`,
+          data: { amount: result.amount, campaign: result.campaignTitle, userId: userId },
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // Send email to treasurer
+      if (treasurer.email) {
+        (async () => {
+          try {
+            await sendPersonalizedEmail(
+              { email: treasurer.email, fullName: treasurer.fullName },
+              "payment_claimed_treasurer",
+              `💰 Payment Claimed: ${result.campaignTitle}`,
+              `Dear ${treasurer.fullName},\n\n${user?.fullName || 'A user'} has claimed KES ${result.amount} for "${result.campaignTitle}".\n\nTumsifu Yesu Kristu! 🙏`,
+              { amount: result.amount, campaign: result.campaignTitle, user: user?.fullName || 'A user' }
+            );
+          } catch (err) {
+            console.error("Failed to send treasurer email:", err.message);
+          }
+        })();
+      }
+    }
+
+    console.log(`✅ All notifications sent for claim ${result.amount}`);
 
     res.json({
       success: true,
@@ -347,5 +522,4 @@ router.post("/claim", authenticateUser, async (req, res) => {
     });
   }
 });
-
 module.exports = router;

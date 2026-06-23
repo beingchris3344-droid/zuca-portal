@@ -21,6 +21,11 @@ const navigate = (path) => { window.location.href = path; };
   const [selectedPrayer, setSelectedPrayer] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  const [showOurFather, setShowOurFather] = useState(false);
+const [showHailMary, setShowHailMary] = useState(false);
+const [showGloryBe, setShowGloryBe] = useState(false);
+const [showOhMyJesus, setShowOhMyJesus] = useState(false);
   // Divine Mercy state
 
   
@@ -77,35 +82,103 @@ const resetDMCount = () => {
 // Divine Mercy prayer steps with descriptions
 const dmPrayerSteps = [
   // Opening Prayers
-  { title: 'Sign of the Cross', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' },
-  { title: 'Our Father', description: 'Our Father, who art in heaven, hallowed be thy name...' },
-  { title: 'Hail Mary', description: 'Hail Mary, full of grace, the Lord is with thee...' },
-  { title: 'Apostles Creed', description: 'I believe in God, the Father almighty...' },
+  { 
+    title: 'Sign of the Cross', 
+    description: `In the name of the Father, and of the Son, and of the Holy Spirit. Amen.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'Our Father', 
+    description: `Our Father, who art in heaven, hallowed be thy name; thy kingdom come; thy will be done on earth as it is in heaven. Give us this day our daily bread; and forgive us our trespasses as we forgive those who trespass against us; and lead us not into temptation, but deliver us from evil. Amen.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'Hail Mary', 
+    description: `Hail Mary, full of grace, the Lord is with thee; blessed art thou among women, and blessed is the fruit of thy womb, Jesus. Holy Mary, Mother of God, pray for us sinners, now and at the hour of our death. Amen.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'Apostles Creed', 
+    description: `I believe in God, the Father almighty, Creator of heaven and earth, and in Jesus Christ, his only Son, our Lord, who was conceived by the Holy Spirit, born of the Virgin Mary, suffered under Pontius Pilate, was crucified, died and was buried; he descended into hell; on the third day he rose again from the dead; he ascended into heaven, and is seated at the right hand of God the Father almighty; from there he will come to judge the living and the dead. I believe in the Holy Spirit, the holy catholic Church, the communion of saints, the forgiveness of sins, the resurrection of the body, and life everlasting. Amen.`, 
+    showCounter: false 
+  },
   
   // Decade 1
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity...' },
-  { title: 'For the sake (1st Decade)', description: 'For the sake of His sorrowful Passion, have mercy on us... (Repeat 10 times)', showCounter: true },
+  { 
+    title: 'Eternal Father (1st Decade)', 
+    description: `Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'For the sake (1st Decade)', 
+    description: `For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)`, 
+    showCounter: true 
+  },
   
   // Decade 2
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (2nd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
+  { 
+    title: 'Eternal Father (2nd Decade)', 
+    description: `Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'For the sake (2nd Decade)', 
+    description: `For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)`, 
+    showCounter: true 
+  },
   
   // Decade 3
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (3rd Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
+  { 
+    title: 'Eternal Father (3rd Decade)', 
+    description: `Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'For the sake (3rd Decade)', 
+    description: `For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)`, 
+    showCounter: true 
+  },
   
   // Decade 4
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (4th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
+  { 
+    title: 'Eternal Father (4th Decade)', 
+    description: `Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'For the sake (4th Decade)', 
+    description: `For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)`, 
+    showCounter: true 
+  },
   
   // Decade 5
-  { title: 'Eternal Father', description: 'Eternal Father, I offer You the Body and Blood...' },
-  { title: 'For the sake (5th Decade)', description: 'For the sake of His sorrowful Passion, have mercy... (Repeat 10 times)', showCounter: true },
+  { 
+    title: 'Eternal Father (5th Decade)', 
+    description: `Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'For the sake (5th Decade)', 
+    description: `For the sake of His sorrowful Passion, have mercy on us and on the whole world. (Repeat 10 times)`, 
+    showCounter: true 
+  },
   
   // Closing
-  { title: 'Holy God (3 times)', description: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us... (Repeat 3 times)' },
-  { title: 'Closing Prayer', description: 'You expired, Jesus, but the source of life gushed forth for souls...' },
-  { title: 'Sign of the Cross', description: 'In the name of the Father, and of the Son, and of the Holy Spirit. Amen.' }
+  { 
+    title: 'Holy God (3 times)', 
+    description: `Holy God, Holy Mighty One, Holy Immortal One, have mercy on us and on the whole world. (Repeat 3 times)`, 
+    showCounter: false 
+  },
+  { 
+    title: 'Closing Prayer', 
+    description: `You expired, Jesus, but the source of life gushed forth for souls, and the ocean of mercy opened up for the whole world. O Fount of Life, unfathomable Divine Mercy, envelop the whole world and empty Yourself out upon us. O Blood and Water, which gushed forth from the Heart of Jesus as a fountain of mercy for us, I trust in You.`, 
+    showCounter: false 
+  },
+  { 
+    title: 'Sign of the Cross', 
+    description: `In the name of the Father, and of the Son, and of the Holy Spirit. Amen.`, 
+    showCounter: false 
+  }
 ];
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -635,9 +708,31 @@ const getMysteryImage = (set, index) => {
                 <div className="mystery-card">
                   <div className="mystery-header">
                     <span className="mystery-badge">Mystery {currentMysteryIndex + 1} of 5</span>
-                    <button className="details-toggle" onClick={() => setShowMysteryDetails(!showMysteryDetails)}>
-                      {showMysteryDetails ? 'Hide' : 'Show Meditation'}
-                    </button>
+                  <div className="mystery-details" style={{ maxHeight: 'none', overflow: 'visible' }}>
+  {/* Show image if available */}
+  {getMysteryImage(selectedSet, currentMysteryIndex) && (
+    <img 
+      src={getMysteryImage(selectedSet, currentMysteryIndex)}
+      alt={currentMystery.title}
+      style={{ 
+        width: '100%', 
+        height: 'auto',
+        maxHeight: '600px',
+        objectFit: 'fill',
+        borderRadius: '8px',
+        marginBottom: '15px',
+        display: 'block'
+      }}
+      onError={(e) => {
+        e.target.style.display = 'none';
+      }}
+    />
+  )}
+  
+  <p><strong>Description:</strong> {currentMystery.description}</p>
+  <p><strong>Spiritual Fruit:</strong> {currentMystery.fruit}</p>
+  {formatPrayerText(currentMystery.prayer)}
+</div>
                   </div>
                   <h2>{currentMystery.title}</h2>
                   
@@ -670,23 +765,71 @@ const getMysteryImage = (set, index) => {
                     </div>
                   )}
                   
-                  <div className="rosary-counter-section">
-                    <div className="prayer-row"><span className="prayer-name">1. Our Father</span></div>
-                    <div className="prayer-row hail-mary-row">
-                      <span className="prayer-name">2. Ten Hail Marys</span>
-                      <div className="counter-controls">
-                        <button className="counter-btn" onClick={handleHailMaryClick}>+</button>
-                        <span className="counter-count">{hailMaryCount} / 10</span>
-                      </div>
-                      <div className="beads">
-                        {[...Array(10)].map((_, i) => (
-                          <div key={i} className={`bead ${i < hailMaryCount ? 'prayed' : ''}`} />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="prayer-row"><span className="prayer-name">3. Glory Be</span></div>
-                    <div className="prayer-row"><span className="prayer-name">4. Oh My Jesus</span></div>
-                  </div>
+                 <div className="rosary-counter-section">
+  <div className="prayer-row">
+    <span className="prayer-name">1. Our Father</span>
+    <button className="prayer-detail-toggle" onClick={() => setShowOurFather(!showOurFather)}>
+      {showOurFather ? 'Hide' : 'Show'}
+    </button>
+    {showOurFather && (
+      <div className="prayer-full-text">
+        Our Father, who art in heaven, hallowed be thy name; thy kingdom come; 
+        thy will be done on earth as it is in heaven. Give us this day our daily bread; 
+        and forgive us our trespasses as we forgive those who trespass against us; 
+        and lead us not into temptation, but deliver us from evil. Amen.
+      </div>
+    )}
+  </div>
+  
+  <div className="prayer-row hail-mary-row">
+    <span className="prayer-name">2. Ten Hail Marys</span>
+    <button className="prayer-detail-toggle" onClick={() => setShowHailMary(!showHailMary)}>
+      {showHailMary ? 'Hide' : 'Show'}
+    </button>
+    <div className="counter-controls">
+      <button className="counter-btn" onClick={handleHailMaryClick}>+</button>
+      <span className="counter-count">{hailMaryCount} / 10</span>
+    </div>
+    {showHailMary && (
+      <div className="prayer-full-text">
+        Hail Mary, full of grace, the Lord is with thee; blessed art thou among women, 
+        and blessed is the fruit of thy womb, Jesus. Holy Mary, Mother of God, 
+        pray for us sinners, now and at the hour of our death. Amen.
+      </div>
+    )}
+    <div className="beads">
+      {[...Array(10)].map((_, i) => (
+        <div key={i} className={`bead ${i < hailMaryCount ? 'prayed' : ''}`} />
+      ))}
+    </div>
+  </div>
+  
+  <div className="prayer-row">
+    <span className="prayer-name">3. Glory Be</span>
+    <button className="prayer-detail-toggle" onClick={() => setShowGloryBe(!showGloryBe)}>
+      {showGloryBe ? 'Hide' : 'Show'}
+    </button>
+    {showGloryBe && (
+      <div className="prayer-full-text">
+        Glory be to the Father, and to the Son, and to the Holy Spirit. 
+        As it was in the beginning, is now, and ever shall be, world without end. Amen.
+      </div>
+    )}
+  </div>
+  
+  <div className="prayer-row">
+    <span className="prayer-name">4. Oh My Jesus</span>
+    <button className="prayer-detail-toggle" onClick={() => setShowOhMyJesus(!showOhMyJesus)}>
+      {showOhMyJesus ? 'Hide' : 'Show'}
+    </button>
+    {showOhMyJesus && (
+      <div className="prayer-full-text">
+        O My Jesus, forgive us our sins, save us from the fires of hell; 
+        lead all souls to heaven, especially those in most need of Thy mercy. Amen.
+      </div>
+    )}
+  </div>
+</div>
                   
                   {isDecadeComplete && <div className="decade-complete">✅ Decade complete! Click "Next Mystery" to continue.</div>}
                   
@@ -764,26 +907,28 @@ const getMysteryImage = (set, index) => {
         </button>
       </div>
       
-      {/* Prayer Text */}
-      <div className="dm-prayer-text">
-        <p className="dm-description">{dmPrayerSteps[currentDMIndex]?.description || 'Pray the Divine Mercy Chaplet'}</p>
-      </div>
+    {/* Prayer Text - Full Description */}
+<div className="dm-prayer-text">
+  <p className="dm-description" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8' }}>
+    {dmPrayerSteps[currentDMIndex]?.description || 'Pray the Divine Mercy Chaplet'}
+  </p>
+</div>
       
-      {/* Counter for "For the sake" steps */}
-      {currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17 ? (
+      {/* Counter for "For the sake" steps - FIXED */}
+      {dmPrayerSteps[currentDMIndex]?.showCounter && (
         <div className="dm-counter-section">
           <p className="dm-counter-text">For the sake of His sorrowful Passion, have mercy on us and on the whole world.</p>
           <div className="dm-counter-controls">
             <button 
               className="dm-counter-btn" 
-              onClick={() => setDmCount(Math.min(10, dmCount + 1))}
+              onClick={() => setDmCount(prev => Math.min(10, prev + 1))}
             >
               +
             </button>
             <span className="dm-count">{dmCount} / 10</span>
             <button 
               className="dm-counter-btn" 
-              onClick={() => setDmCount(Math.max(0, dmCount - 1))}
+              onClick={() => setDmCount(prev => Math.max(0, prev - 1))}
             >
               -
             </button>
@@ -792,7 +937,7 @@ const getMysteryImage = (set, index) => {
             <div className="dm-decade-complete">✅ Decade complete! Click "Next" to continue.</div>
           )}
         </div>
-      ) : null}
+      )}
       
       {showDivineMercyDetails && getMysteryImage('divineMercy', currentDMIndex) && (
         <div className="dm-details">
@@ -808,8 +953,14 @@ const getMysteryImage = (set, index) => {
         <button 
           className="nav-prev" 
           onClick={() => {
-            setCurrentDMIndex(Math.max(0, currentDMIndex - 1));
-            resetDMCount();
+            if (currentDMIndex > 0) {
+              setCurrentDMIndex(currentDMIndex - 1);
+              // Reset counter when going back to a "For the sake" step
+              const prevIndex = currentDMIndex - 1;
+              if (dmPrayerSteps[prevIndex]?.showCounter) {
+                setDmCount(0);
+              }
+            }
           }}
           disabled={currentDMIndex === 0}
         >
@@ -819,19 +970,25 @@ const getMysteryImage = (set, index) => {
         <button 
           className="nav-next" 
           onClick={() => {
-            // Only allow next if "For the sake" step is complete (10/10)
-            const isForTheSake = currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17;
+            // Check if current step is a "For the sake" step and needs 10 count
+            const isForTheSake = dmPrayerSteps[currentDMIndex]?.showCounter;
+            
             if (isForTheSake && dmCount < 10) {
-              // Don't allow next if not all 10 are counted
+              // Show warning that they need to complete the decade
+              alert('Please complete all 10 prayers before proceeding to the next step.');
               return;
             }
-            setCurrentDMIndex(Math.min(dmPrayerSteps.length - 1, currentDMIndex + 1));
-            resetDMCount();
+            
+            if (currentDMIndex < dmPrayerSteps.length - 1) {
+              setCurrentDMIndex(currentDMIndex + 1);
+              // Reset counter for the next "For the sake" step
+              const nextIndex = currentDMIndex + 1;
+              if (dmPrayerSteps[nextIndex]?.showCounter) {
+                setDmCount(0);
+              }
+            }
           }}
-          disabled={
-            currentDMIndex >= dmPrayerSteps.length - 1 || 
-            (currentDMIndex === 5 || currentDMIndex === 8 || currentDMIndex === 11 || currentDMIndex === 14 || currentDMIndex === 17) && dmCount < 10
-          }
+          disabled={currentDMIndex >= dmPrayerSteps.length - 1}
         >
           Next →
         </button>
@@ -1767,6 +1924,76 @@ const getMysteryImage = (set, index) => {
   text-align: center;
   margin-top: 10px;
   font-size: 14px;
+}
+  .dm-prayer-text {
+  background: #f9f6f0;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 10px 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dm-description {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #2c3e2f;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.dm-description::-webkit-scrollbar {
+  width: 4px;
+}
+
+.dm-description::-webkit-scrollbar-track {
+  background: #f0ebe3;
+  border-radius: 10px;
+}
+
+.dm-description::-webkit-scrollbar-thumb {
+  background: #c9b78b;
+  border-radius: 10px;
+}
+  .prayer-full-text {
+  background: #f9f6f0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #2c3e2f;
+  border-left: 3px solid #c9b78b;
+}
+
+.prayer-detail-toggle {
+  background: none;
+  border: 1px solid #c9b78b;
+  padding: 2px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+.prayer-detail-toggle:hover {
+  background: #c9b78b;
+  color: white;
+}
+
+.prayer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0d6c8;
+  gap: 8px;
+}
+
+.prayer-row .prayer-name {
+  flex: 1;
+  min-width: 100px;
 }
       `}</style>
     </div>

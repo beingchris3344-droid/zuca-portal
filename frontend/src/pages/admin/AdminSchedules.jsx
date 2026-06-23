@@ -501,52 +501,55 @@ function AdminSchedules() {
     return html;
   }, [formData]);
 
-  const extractEventsFromSections = () => {
-    const events = [];
-    formData.sections.forEach(section => {
-      section.tableRows.forEach(row => {
-        if (row.event && row.event.trim()) {
-          let validDate = null;
-          if (row.dateValue && row.dateValue instanceof Date && !isNaN(row.dateValue)) {
-            validDate = row.dateValue;
-          } else if (row.date) {
-            const parsed = parseDateString(row.date);
-            validDate = parsed;
-          }
-          if (validDate && row.event) {
-            events.push({
-              title: `${section.title || "Event"} - ${row.event}`,
-              eventDate: validDate.toISOString(),
-              eventTime: "16:30",
-              location: "Room 002",
-              groupName: row.event,
-              reminderDays: [7, 1, 0]
-            });
-          }
+ const extractEventsFromSections = () => {
+  const events = [];
+  formData.sections.forEach(section => {
+    section.tableRows.forEach(row => {
+      if (row.event && row.event.trim()) {
+        let validDate = null;
+        if (row.dateValue && row.dateValue instanceof Date && !isNaN(row.dateValue)) {
+          validDate = row.dateValue;
+        } else if (row.date) {
+          const parsed = parseDateString(row.date);
+          validDate = parsed;
         }
-      });
-    });
-    return events;
-  };
-
-  const parseDateString = (dateStr) => {
-    if (!dateStr) return null;
-    const currentYear = new Date().getFullYear();
-    const monthMap = {
-      'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-    };
-    const parts = dateStr.split(' ');
-    if (parts.length === 2) {
-      let day = parseInt(parts[0]);
-      let month = monthMap[parts[1]];
-      if (!isNaN(day) && month !== undefined) {
-        return new Date(currentYear, month, day);
+        if (validDate && row.event) {
+          const year = validDate.getFullYear();
+          const month = String(validDate.getMonth() + 1).padStart(2, '0');
+          const day = String(validDate.getDate()).padStart(2, '0');
+          
+          events.push({
+            title: `${section.title || "Event"} - ${row.event}`,
+            eventDate: `${year}-${month}-${day}`,
+            eventTime: "16:30",
+            location: "Room 002",
+            groupName: row.event,
+            reminderDays: [7, 1, 0]
+          });
+        }
       }
-    }
-    return null;
+    });
+  });
+  return events;
+};
+const parseDateString = (dateStr) => {
+  if (!dateStr) return null;
+  const currentYear = new Date().getFullYear();
+  const monthMap = {
+    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
   };
-
+  const parts = dateStr.split(' ');
+  if (parts.length === 2) {
+    let day = parseInt(parts[0]);
+    let month = monthMap[parts[1]];
+    if (!isNaN(day) && month !== undefined) {
+      // ✅ Create date at 12:00 UTC to avoid timezone shift
+      return new Date(Date.UTC(currentYear, month, day, 12, 0, 0));
+    }
+  }
+  return null;
+};
   const saveAsDraft = async () => {
     setActionLoadingState("save_draft", true);
     

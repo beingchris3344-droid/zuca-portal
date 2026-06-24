@@ -545,6 +545,7 @@ app.get("/api/public/hymns/search/:query", async (req, res) => {
       };
     });
     
+    
     res.json({
       success: true,
       query: query,

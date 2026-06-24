@@ -640,7 +640,13 @@ function AdminDashboard() {
         
 <div className="actions-grid">
   <button className="action-btn" onClick={() => navigate('/admin/minutes')}><FiFileText /> Meeting Minutes</button>
-   <button className="action-btn" onClick={() => navigate('/admin/history')}><FiFileText /> History Management</button> 
+  <button className="action-btn" onClick={() => navigate('/admin/attendance/overview')}>
+  <FiBarChart2 /> Attendance Management
+</button>
+<button className="action-btn" onClick={() => navigate('/admin/attendance/overview')}>
+  <FiBarChart2 /> Attendance Overview
+</button>
+  
   <button className="action-btn" onClick={() => navigate('/admin/users')}><FiUsers /> Users Management</button>
   <button className="action-btn" onClick={() => navigate('/admin/announcements')}><FiBell /> Announcements</button>
   <button className="action-btn" onClick={() => navigate('/admin/mass-programs')}><GiPrayer /> Mass Programs</button>

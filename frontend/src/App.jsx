@@ -94,6 +94,9 @@ import MinutesCreatePage from './pages/admin/minutes/MinutesCreatePage';
 import MinutesEditPage from './pages/admin/minutes/MinutesEditPage';
 import TreasurerReports from './pages/treasurer/TreasurerReports';
 import AddMemberPage from './pages/admin/attendance/AddMemberPage';
+import AdminAttendanceOverview from './pages/admin/attendance/AdminAttendanceOverview';
+import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
+
 
 
 /* ===== ROLE LAYOUT ===== */
@@ -505,6 +508,8 @@ useEffect(() => {
           <Route path="minutes/edit/:id" element={<MinutesEditPage />} />
           <Route path="/admin/history" element={<AdminHistory />} />
           <Route path="/admin/attendance/add-member/:sheetId" element={<AddMemberPage />} />
+          <Route path="/admin/attendance/overview" element={<AdminAttendanceOverview />} />
+          <Route path="attendance/member/:userId" element={<AdminMemberDetail />} />
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}
           <Route path="executive" element={<AdminExecutivePage />} />
@@ -530,6 +535,7 @@ useEffect(() => {
      <Route path="attendance/sheet/:sheetId" element={<AdminAttendanceDetails />} />
      <Route path="history" element={<AdminHistory />} />
       <Route path="attendance/add-member/:sheetId" element={<AddMemberPage />} />
+     
 </Route>
 
         

@@ -2782,4 +2782,711 @@ router.get("/:id/attendance-live", authenticate, async (req, res) => {
   }
 });
 
+// ==================== ADMIN: VIEW ALL MEMBERS ATTENDANCE ====================
+router.get("/admin/all-members-attendance", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    console.log("📊 Admin attendance overview request received");
+    
+    const { 
+      page = 1, 
+      limit = 50, 
+      search = '',
+      role = 'all',
+      jumuiaId = 'all',
+      fromDate = '',
+      toDate = '',
+      sortBy = 'fullName',
+      sortOrder = 'asc'
+    } = req.query;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+    
+    // Build user filter
+    let userWhere = {};
+    
+    if (search) {
+      userWhere.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { membership_number: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    // Filter by role
+    if (role === 'executive') {
+      const executiveUsers = await prisma.executive.findMany({
+        where: { isActive: true },
+        select: { userId: true }
+      });
+      const executiveIds = executiveUsers.map(e => e.userId);
+      if (executiveIds.length > 0) {
+        userWhere.id = { in: executiveIds };
+      } else {
+        return res.json({
+          success: true,
+          users: [],
+          pagination: { total: 0, page: parseInt(page), limit: take, totalPages: 0 },
+          filters: { jumuias: [] }
+        });
+      }
+    } else if (role === 'member') {
+      const executiveUsers = await prisma.executive.findMany({
+        where: { isActive: true },
+        select: { userId: true }
+      });
+      const executiveIds = executiveUsers.map(e => e.userId);
+      if (executiveIds.length > 0) {
+        userWhere.NOT = { id: { in: executiveIds } };
+      }
+      userWhere.role = 'member';
+    } else if (role !== 'all') {
+      userWhere.role = role;
+    }
+    
+    if (jumuiaId && jumuiaId !== 'all') {
+      userWhere.jumuiaId = jumuiaId;
+    }
+    
+    console.log("📋 User filter:", JSON.stringify(userWhere, null, 2));
+    
+    // Determine valid sort field
+    const validSortFields = ['fullName', 'email', 'role', 'membership_number', 'createdAt'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'fullName';
+    
+    // Get all users - simplified query
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        role: true,
+        specialRole: true,
+        membership_number: true,
+        jumuiaId: true,
+        createdAt: true,
+        homeJumuia: {
+          select: { 
+            id: true,
+            name: true 
+          }
+        }
+      },
+      orderBy: { [sortField]: sortOrder === 'desc' ? 'desc' : 'asc' },
+      skip,
+      take
+    });
+    
+    console.log(`✅ Found ${users.length} users`);
+    
+    const totalUsers = await prisma.user.count({ where: userWhere });
+    console.log(`📊 Total users: ${totalUsers}`);
+    
+    // Get executive positions separately
+    const userIds = users.map(u => u.id);
+    let executiveMap = new Map();
+    
+    if (userIds.length > 0) {
+      try {
+        const executives = await prisma.executive.findMany({
+          where: { 
+            userId: { in: userIds },
+            isActive: true 
+          },
+          select: {
+            userId: true,
+            position: {
+              select: { title: true }
+            }
+          }
+        });
+        
+        executives.forEach(exec => {
+          if (exec.position) {
+            executiveMap.set(exec.userId, exec.position.title);
+          }
+        });
+        console.log(`✅ Found ${executives.length} executives`);
+      } catch (err) {
+        console.log("⚠️ Executive query error:", err.message);
+      }
+    }
+    
+    // Get ALL attendance entries for ALL users in ONE query
+    let allEntries = [];
+    try {
+      const entryWhere = {
+        userId: { in: userIds }
+      };
+      
+      if (fromDate && toDate) {
+        entryWhere.signTime = {
+          gte: new Date(fromDate),
+          lte: new Date(toDate)
+        };
+      } else if (fromDate) {
+        entryWhere.signTime = { gte: new Date(fromDate) };
+      } else if (toDate) {
+        entryWhere.signTime = { lte: new Date(toDate) };
+      }
+      
+      allEntries = await prisma.attendanceEntry.findMany({
+        where: entryWhere,
+        select: {
+          id: true,
+          userId: true,
+          signTime: true,
+          signMethod: true,
+          sheetId: true,
+          sheet: {
+            select: {
+              id: true,
+              title: true,
+              eventDate: true,
+              eventTime: true,
+              location: true,
+              isActive: true,
+              isExecutiveOnly: true,
+              jumuiaId: true
+            }
+          }
+        },
+        orderBy: { signTime: 'desc' }
+      });
+      console.log(`✅ Found ${allEntries.length} total attendance entries`);
+    } catch (err) {
+      console.log("⚠️ Attendance entries query error:", err.message);
+    }
+    
+    // Group entries by userId
+    const entriesByUser = new Map();
+    allEntries.forEach(entry => {
+      if (!entriesByUser.has(entry.userId)) {
+        entriesByUser.set(entry.userId, []);
+      }
+      entriesByUser.get(entry.userId).push(entry);
+    });
+    
+    // Get ALL sheets for eligibility calculation
+    let allSheets = [];
+    try {
+      const sheetWhere = {};
+      
+      if (fromDate && toDate) {
+        sheetWhere.eventDate = {
+          gte: new Date(fromDate),
+          lte: new Date(toDate)
+        };
+      } else if (fromDate) {
+        sheetWhere.eventDate = { gte: new Date(fromDate) };
+      } else if (toDate) {
+        sheetWhere.eventDate = { lte: new Date(toDate) };
+      }
+      
+      allSheets = await prisma.attendanceSheet.findMany({
+        where: sheetWhere,
+        select: {
+          id: true,
+          jumuiaId: true,
+          isExecutiveOnly: true
+        },
+        orderBy: { eventDate: 'desc' }
+      });
+      console.log(`✅ Found ${allSheets.length} total sheets`);
+    } catch (err) {
+      console.log("⚠️ Sheets query error:", err.message);
+    }
+    
+    // Group sheets by type
+    const globalSheets = allSheets.filter(s => s.jumuiaId === null && !s.isExecutiveOnly);
+    const executiveSheets = allSheets.filter(s => s.isExecutiveOnly);
+    const jumuiaSheetsMap = new Map();
+    allSheets.forEach(s => {
+      if (s.jumuiaId && !s.isExecutiveOnly) {
+        if (!jumuiaSheetsMap.has(s.jumuiaId)) {
+          jumuiaSheetsMap.set(s.jumuiaId, []);
+        }
+        jumuiaSheetsMap.get(s.jumuiaId).push(s);
+      }
+    });
+    
+    // Build users with stats - COMPLETELY FIXED
+    const usersWithStats = users.map(user => {
+      const entries = entriesByUser.get(user.id) || [];
+      const isExecutive = executiveMap.has(user.id);
+      const userJumuiaId = user.jumuiaId;
+      
+      // Get all eligible meetings
+      let eligibleSheets = [];
+      
+      // 1. Global meetings - everyone invited
+      eligibleSheets = [...globalSheets];
+      
+      // 2. Jumuia meetings - only their jumuia
+      if (userJumuiaId && jumuiaSheetsMap.has(userJumuiaId)) {
+        eligibleSheets = [...eligibleSheets, ...jumuiaSheetsMap.get(userJumuiaId)];
+      }
+      
+      // 3. Executive meetings - only executives
+      if (isExecutive) {
+        eligibleSheets = [...eligibleSheets, ...executiveSheets];
+      }
+      
+      // Remove duplicates by sheet id
+      const uniqueSheetsMap = new Map();
+      eligibleSheets.forEach(sheet => {
+        if (!uniqueSheetsMap.has(sheet.id)) {
+          uniqueSheetsMap.set(sheet.id, sheet);
+        }
+      });
+      let uniqueEligibleSheets = Array.from(uniqueSheetsMap.values());
+      
+      // ⭐ CRITICAL FIX: Add ANY meeting the user attended, even if not in eligible list
+      const attendedSheetIds = new Set(entries.map(e => e.sheetId));
+      
+      // Check if any attended sheet is missing from eligible sheets
+      entries.forEach(entry => {
+        if (entry.sheet && !uniqueSheetsMap.has(entry.sheet.id)) {
+          console.log(`⚠️ User ${user.fullName} attended a meeting not in eligible list: ${entry.sheet.title}`);
+          // Add it to eligible sheets
+          uniqueSheetsMap.set(entry.sheet.id, entry.sheet);
+        }
+      });
+      
+      // Rebuild unique eligible sheets after adding attended sheets
+      uniqueEligibleSheets = Array.from(uniqueSheetsMap.values());
+      
+      const totalMeetings = uniqueEligibleSheets.length;
+      const attendedMeetings = entries.length;
+      
+      // ⭐ FIX: Ensure total is at least attended
+      const finalTotalMeetings = Math.max(totalMeetings, attendedMeetings);
+      const finalMissedMeetings = Math.max(0, finalTotalMeetings - attendedMeetings);
+      const finalAttendanceRate = finalTotalMeetings > 0 ? (attendedMeetings / finalTotalMeetings) * 100 : 0;
+      
+      return {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        specialRole: user.specialRole,
+        membership_number: user.membership_number,
+        jumuiaId: user.jumuiaId,
+        createdAt: user.createdAt,
+        homeJumuia: user.homeJumuia,
+        executivePosition: executiveMap.get(user.id) || null,
+        totalMeetings: finalTotalMeetings,
+        attendedMeetings: attendedMeetings,
+        missedMeetings: finalMissedMeetings,
+        attendanceRate: Math.round(finalAttendanceRate),
+        recentAttendances: entries.slice(0, 5).map(entry => ({
+          id: entry.id,
+          title: entry.sheet?.title || 'Unknown',
+          date: entry.signTime,
+          method: entry.signMethod
+        })),
+        attendanceHistory: entries.slice(0, 20).map(entry => ({
+          id: entry.id,
+          sheetTitle: entry.sheet?.title || 'Unknown',
+          eventDate: entry.sheet?.eventDate,
+          signTime: entry.signTime,
+          signMethod: entry.signMethod
+        }))
+      };
+    });
+    
+    // Get all Jumuia for filter dropdown
+    let jumuias = [];
+    try {
+      jumuias = await prisma.jumuia.findMany({
+        select: { 
+          id: true, 
+          name: true 
+        },
+        orderBy: { name: 'asc' }
+      });
+    } catch (err) {
+      console.log("⚠️ Could not fetch jumuias:", err.message);
+    }
+    
+    console.log(`✅ Sending ${usersWithStats.length} users to frontend`);
+    
+    res.json({
+      success: true,
+      users: usersWithStats,
+      pagination: {
+        total: totalUsers,
+        page: parseInt(page),
+        limit: take,
+        totalPages: Math.ceil(totalUsers / take)
+      },
+      filters: {
+        jumuias: jumuias || []
+      }
+    });
+    
+  } catch (err) {
+    console.error("❌ Admin all members attendance error:", err);
+    console.error("Stack:", err.stack);
+    res.status(500).json({ 
+      success: false,
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// ==================== ADMIN: GET MEMBER DETAILED HISTORY ====================
+router.get("/admin/member/:userId/history", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`📊 Fetching member history for user: ${userId}`);
+    
+    // Get user details
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        role: true,
+        specialRole: true,
+        membership_number: true,
+        jumuiaId: true,
+        createdAt: true,
+        homeJumuia: {
+          select: { name: true }
+        }
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    console.log(`✅ Found user: ${user.fullName}`);
+    
+    // Get executive position separately
+    let execPosition = null;
+    let isExecutive = false;
+    try {
+      const executive = await prisma.executive.findFirst({
+        where: { 
+          userId: userId,
+          isActive: true 
+        },
+        include: {
+          position: {
+            select: { title: true }
+          }
+        }
+      });
+      if (executive && executive.position) {
+        execPosition = executive.position.title;
+        isExecutive = true;
+      }
+    } catch (err) {
+      console.log("⚠️ Could not fetch executive position:", err.message);
+    }
+    
+    // Get all attendance entries
+    const entries = await prisma.attendanceEntry.findMany({
+      where: { userId },
+      include: {
+        sheet: {
+          select: {
+            id: true,
+            title: true,
+            eventDate: true,
+            eventTime: true,
+            location: true,
+            isActive: true,
+            isExecutiveOnly: true,
+            jumuiaId: true
+          }
+        }
+      },
+      orderBy: { signTime: 'desc' }
+    });
+    
+    console.log(`✅ Found ${entries.length} attendance entries`);
+    
+    const userJumuiaId = user.jumuiaId;
+    
+    // ⭐ FIX: Get ALL meetings where the user COULD have attended
+    // Instead of filtering by jumuia/executive, get ALL meetings
+    // that are either global OR match the user's jumuia OR executive meetings
+    const allSheets = await prisma.attendanceSheet.findMany({
+      where: {
+        OR: [
+          // Global meetings (not assigned to any jumuia, not executive only)
+          { jumuiaId: null, isExecutiveOnly: false },
+          // Meetings for this user's jumuia
+          { jumuiaId: userJumuiaId },
+          // Executive meetings (if user is executive)
+          ...(isExecutive ? [{ isExecutiveOnly: true }] : [])
+        ]
+      },
+      orderBy: { eventDate: 'desc' }
+    });
+    
+    // ⭐ FIX: Remove duplicates
+    const uniqueSheetMap = new Map();
+    allSheets.forEach(sheet => {
+      if (!uniqueSheetMap.has(sheet.id)) {
+        uniqueSheetMap.set(sheet.id, sheet);
+      }
+    });
+    const uniqueEligibleSheets = Array.from(uniqueSheetMap.values());
+    
+    console.log(`✅ Found ${uniqueEligibleSheets.length} eligible meetings`);
+    console.log(`📋 Eligible meeting IDs:`, uniqueEligibleSheets.map(s => s.id).join(', '));
+    
+    // ⭐ FIX: Also include any meetings that the user has attended
+    // (in case they attended a meeting they weren't technically eligible for)
+    const attendedSheetIds = new Set(entries.map(e => e.sheetId));
+    const allEligibleSheetIds = new Set(uniqueEligibleSheets.map(s => s.id));
+    
+    // Add any attended sheets that aren't already in the eligible list
+    entries.forEach(entry => {
+      if (entry.sheet && !allEligibleSheetIds.has(entry.sheet.id)) {
+        console.log(`⚠️ User attended a meeting they weren't eligible for: ${entry.sheet.title} (${entry.sheet.id})`);
+        uniqueEligibleSheets.push(entry.sheet);
+        allEligibleSheetIds.add(entry.sheet.id);
+      }
+    });
+    
+    // Recalculate with all sheets
+    const finalTotalSheets = uniqueEligibleSheets;
+    const totalMeetings = finalTotalSheets.length;
+    const attendedMeetings = entries.length;
+    
+    // ⭐ FIX: Calculate missed meetings from eligible sheets
+    const missedSheets = finalTotalSheets.filter(sheet => !attendedSheetIds.has(sheet.id));
+    
+    // ⭐ FIX: Ensure total is at least attended (defensive)
+    const finalTotalMeetings = Math.max(totalMeetings, attendedMeetings);
+    const finalMissedMeetings = Math.max(0, finalTotalMeetings - attendedMeetings);
+    const finalAttendanceRate = finalTotalMeetings > 0 ? (attendedMeetings / finalTotalMeetings) * 100 : 0;
+    
+    console.log(`📊 Final Stats - Total: ${finalTotalMeetings}, Attended: ${attendedMeetings}, Missed: ${finalMissedMeetings}, Rate: ${finalAttendanceRate}%`);
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        specialRole: user.specialRole,
+        membershipNumber: user.membership_number,
+        jumuiaName: user.homeJumuia?.name,
+        executivePosition: execPosition
+      },
+      stats: {
+        totalMeetings: finalTotalMeetings,
+        attendedMeetings: attendedMeetings,
+        missedMeetings: finalMissedMeetings,
+        attendanceRate: Math.round(finalAttendanceRate)
+      },
+      attendanceHistory: entries.map(entry => ({
+        id: entry.id,
+        sheetTitle: entry.sheet.title,
+        sheetId: entry.sheet.id,
+        eventDate: entry.sheet.eventDate,
+        eventTime: entry.sheet.eventTime,
+        location: entry.sheet.location,
+        signTime: entry.signTime,
+        signMethod: entry.signMethod,
+        isActive: entry.sheet.isActive
+      })),
+      missedMeetings: missedSheets.map(sheet => ({
+        id: sheet.id,
+        title: sheet.title,
+        eventDate: sheet.eventDate,
+        eventTime: sheet.eventTime,
+        location: sheet.location
+      }))
+    });
+    
+  } catch (err) {
+    console.error("❌ Get member history error:", err);
+    console.error("Stack:", err.stack);
+    res.status(500).json({ 
+      success: false,
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// ==================== ADMIN: EXPORT ATTENDANCE DATA ====================
+router.get("/admin/export-attendance", authenticate, requireLeaderOrAdmin, async (req, res) => {
+  try {
+    const { 
+      format = 'csv',
+      search = '',
+      role = 'all',
+      jumuiaId = 'all',
+      fromDate = '',
+      toDate = ''
+    } = req.query;
+    
+    // Build filters (same as above)
+    let userWhere = {};
+    
+    if (search) {
+      userWhere.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { membership_number: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    if (role === 'executive') {
+      const executiveUsers = await prisma.executive.findMany({
+        where: { isActive: true },
+        select: { userId: true }
+      });
+      const executiveIds = executiveUsers.map(e => e.userId);
+      if (executiveIds.length > 0) {
+        userWhere.id = { in: executiveIds };
+      } else {
+        return res.json({ success: true, data: [], total: 0 });
+      }
+    } else if (role !== 'all') {
+      userWhere.role = role;
+    }
+    
+    if (jumuiaId && jumuiaId !== 'all') {
+      userWhere.jumuiaId = jumuiaId;
+    }
+    
+    // Date filter
+    let dateFilter = {};
+    if (fromDate && toDate) {
+      dateFilter = {
+        signTime: {
+          gte: new Date(fromDate),
+          lte: new Date(toDate)
+        }
+      };
+    } else if (fromDate) {
+      dateFilter = {
+        signTime: {
+          gte: new Date(fromDate)
+        }
+      };
+    } else if (toDate) {
+      dateFilter = {
+        signTime: {
+          lte: new Date(toDate)
+        }
+      };
+    }
+    
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      include: {
+        homeJumuia: { select: { name: true } },
+        attendanceEntries: {
+          where: dateFilter,
+          include: {
+            sheet: {
+              select: {
+                title: true,
+                eventDate: true,
+                eventTime: true,
+                location: true
+              }
+            }
+          },
+          orderBy: { signTime: 'desc' }
+        }
+      },
+      orderBy: { fullName: 'asc' }
+    });
+    
+    // Get executive positions
+    const userIds = users.map(u => u.id);
+    let executiveMap = new Map();
+    
+    if (userIds.length > 0) {
+      try {
+        const executives = await prisma.executive.findMany({
+          where: { 
+            userId: { in: userIds },
+            isActive: true 
+          },
+          select: {
+            userId: true,
+            position: {
+              select: { title: true }
+            }
+          }
+        });
+        
+        executives.forEach(exec => {
+          if (exec.position) {
+            executiveMap.set(exec.userId, exec.position.title);
+          }
+        });
+      } catch (err) {
+        console.log("⚠️ Executive query error:", err.message);
+      }
+    }
+    
+    // Format for export
+    const exportData = users.map(user => {
+      const entries = user.attendanceEntries || [];
+      const execPosition = executiveMap.get(user.id) || null;
+      
+      return {
+        'Full Name': user.fullName,
+        'Membership #': user.membership_number || 'N/A',
+        'Email': user.email || 'N/A',
+        'Phone': user.phone || 'N/A',
+        'Role': user.role || 'N/A',
+        'Special Role': user.specialRole || 'N/A',
+        'Executive Position': execPosition || 'N/A',
+        'Jumuia': user.homeJumuia?.name || 'N/A',
+        'Total Attendances': entries.length,
+        'Last Attendance': entries.length > 0 ? new Date(entries[0].signTime).toLocaleDateString() : 'Never'
+      };
+    });
+    
+    if (format === 'csv') {
+      try {
+        const { Parser } = require('json2csv');
+        const parser = new Parser();
+        const csv = parser.parse(exportData);
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=attendance_report_${new Date().toISOString().split('T')[0]}.csv`);
+        return res.send(csv);
+      } catch (err) {
+        console.error("CSV parsing error:", err);
+        return res.status(500).json({ error: "Failed to generate CSV" });
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: exportData,
+      total: exportData.length,
+      exportedAt: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error("Export attendance error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

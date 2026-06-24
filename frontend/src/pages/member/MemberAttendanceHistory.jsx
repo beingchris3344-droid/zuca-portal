@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
-import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle, Calendar as CalendarIcon,  Download  } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadialBarChart, RadialBar
@@ -18,6 +18,9 @@ export default function MemberAttendanceHistory() {
   const [activeChart, setActiveChart] = useState('trend');
   const [userName, setUserName] = useState('');
   const [currentSemester, setCurrentSemester] = useState(null);
+
+  const [downloading, setDownloading] = useState(false);
+const [userSemester, setUserSemester] = useState(null);
   const [semesters, setSemesters] = useState([]);
 const [selectedSemester, setSelectedSemester] = useState('current');
   
@@ -80,6 +83,51 @@ const fetchData = async () => {
     }
   } catch (error) {
     console.error('Error fetching semester:', error);
+  }
+};
+
+const downloadMyReport = async () => {
+  try {
+    setDownloading(true);
+    
+    // Get current semester
+    const semesterRes = await axios.get(`${BASE_URL}/api/semesters/current`, {
+      headers: getHeaders()
+    });
+    
+    if (!semesterRes.data.semester) {
+      alert('No active semester found.');
+      setDownloading(false);
+      return;
+    }
+    
+    const semester = semesterRes.data.semester;
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    // Download the report
+    const response = await axios.get(
+      `${BASE_URL}/api/semesters/${semester.id}/report/${user.id}/download`,
+      {
+        headers: getHeaders(),
+        responseType: 'blob'
+      }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `semester_report_${semester.title.replace(/\s/g, '_')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error downloading report:', error);
+    alert('Failed to download report. Please try again.');
+  } finally {
+    setDownloading(false);
   }
 };
 
@@ -362,6 +410,16 @@ const fetchAllSemesters = async () => {
         <span className="semester-status">Current</span>
       </div>
     )}
+
+     <button 
+    className="download-report-btn" 
+    onClick={downloadMyReport}
+    disabled={downloading}
+    title="Download your semester attendance report"
+  >
+    <Download size={16} />
+    {downloading ? 'Downloading...' : 'Download Report'}
+  </button>
 
     <div className="semester-filter-section">
   <div className="filter-group">
@@ -1150,6 +1208,46 @@ const fetchAllSemesters = async () => {
   .semester-select {
     width: 100%;
     min-width: unset;
+  }
+}
+
+  /* Download Report Button */
+.download-report-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.download-report-btn:hover:not(:disabled) {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.download-report-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.download-report-btn svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .download-report-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
   }
 }
       `}</style>

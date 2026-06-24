@@ -4,18 +4,14 @@ const prisma = new PrismaClient();
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const { sendSemesterReportEmail: sendSemesterReportEmailViaMailer } = require('./mailer');
 
-/**
- * Generate semester report for a user
- * @param {string} userId - User ID
- * @param {object} semester - Semester schedule object
- * @param {Array} attendanceData - User's attendance data for the semester
- * @returns {object} - Report data
- */
+// ZUCA Logo URL
+const ZUCA_LOGO_URL = "https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/profiles/profile_c2dd6c54-4576-41b1-a85d-1af90d88254a_1777067617594.jpg";
+
 async function generateUserSemesterReport(userId, semester, attendanceData) {
   try {
-    // Get user details
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -38,7 +34,6 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
 
     if (!user) return null;
 
-    // Calculate stats
     const totalMeetings = attendanceData.length;
     const attendedMeetings = attendanceData.filter(e => e.attended).length;
     const missedMeetings = totalMeetings - attendedMeetings;
@@ -48,10 +43,12 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
       ? user.executiveAssignments[0].position?.title
       : null;
 
-    // Get meeting details
+    // FIX: Create meetings with proper data
     const meetings = attendanceData.map(entry => ({
-      title: entry.sheet?.title || 'Unknown Meeting',
-      date: entry.sheet?.eventDate || entry.signTime,
+      title: entry.title || 'Unknown Meeting',
+      date: entry.eventDate || entry.signTime || new Date(),
+      time: entry.eventTime || 'TBD',
+      location: entry.location || 'ZUCA',
       status: entry.attended ? 'Attended' : 'Missed',
       signMethod: entry.signMethod || 'N/A'
     }));
@@ -60,6 +57,8 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
       user: {
         fullName: user.fullName,
         email: user.email,
+        phone: user.phone || 'N/A',
+        profileImage: user.profileImage || null,
         membershipNumber: user.membership_number,
         jumuia: user.homeJumuia?.name || 'N/A',
         executivePosition: execPosition
@@ -68,7 +67,7 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
         title: semester.title,
         startDate: semester.startDate,
         endDate: semester.endDate,
-        period: `${new Date(semester.startDate).toLocaleDateString()} - ${new Date(semester.endDate).toLocaleDateString()}`
+        period: `${new Date(semester.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} - ${new Date(semester.endDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
       },
       stats: {
         totalMeetings,
@@ -79,7 +78,7 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
                    attendanceRate >= 60 ? 'Good' :
                    attendanceRate >= 40 ? 'Fair' : 'Needs Improvement'
       },
-      meetings,
+      meetings: meetings,
       generatedAt: new Date().toISOString()
     };
   } catch (error) {
@@ -88,16 +87,14 @@ async function generateUserSemesterReport(userId, semester, attendanceData) {
   }
 }
 
-/**
- * Generate PDF report for a user
- * @param {object} reportData - Report data from generateUserSemesterReport
- * @param {string} outputPath - Path to save the PDF (optional)
- * @returns {Promise<Buffer>} - PDF buffer
- */
-async function generatePDFReport(reportData, outputPath = null) {
-  return new Promise((resolve, reject) => {
+async function generatePDFReport(reportData, userObj = null, outputPath = null) {
+  return new Promise(async (resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const doc = new PDFDocument({ 
+        margin: 50, 
+        size: 'A4',
+        bufferPages: true
+      });
       const buffers = [];
 
       doc.on('data', buffers.push.bind(buffers));
@@ -106,13 +103,37 @@ async function generatePDFReport(reportData, outputPath = null) {
         resolve(pdfData);
       });
 
-      // Header
+      // ==================== PAGE 1: HEADER & SUMMARY ====================
+      
+      // Logo
+      let logoLoaded = false;
+      try {
+        const imageResponse = await axios.get(ZUCA_LOGO_URL, { 
+          responseType: 'arraybuffer',
+          timeout: 3000
+        });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+        doc.image(imageBuffer, 50, 30, { width: 60 });
+        logoLoaded = true;
+      } catch (err) {
+        console.log('⚠️ Could not load logo:', err.message);
+      }
+
+      const headerX = logoLoaded ? 120 : 50;
       doc.fontSize(18)
          .font('Helvetica-Bold')
          .fillColor('#003366')
-         .text('ZUCA ATTENDANCE REPORT', { align: 'center' });
+         .text('ZETECH UNIVERSITY CATHOLIC ACTION', headerX, 40, { 
+           align: logoLoaded ? 'left' : 'center',
+           width: logoLoaded ? 400 : 500
+         });
 
       doc.moveDown(0.5);
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('#1e293b')
+         .text('SEMESTER ATTENDANCE REPORT', { align: 'center' });
+
       doc.fontSize(12)
          .font('Helvetica')
          .fillColor('#666666')
@@ -125,43 +146,95 @@ async function generatePDFReport(reportData, outputPath = null) {
       doc.moveDown(1.5);
 
       // User Info
-      doc.fontSize(12)
+      const startY = doc.y;
+      let profileImageLoaded = false;
+      
+      if (userObj && userObj.profileImage) {
+        try {
+          const profileResponse = await axios.get(userObj.profileImage, {
+            responseType: 'arraybuffer',
+            timeout: 3000
+          });
+          const profileBuffer = Buffer.from(profileResponse.data, 'binary');
+          
+          const imageX = 50;
+          const imageY = startY;
+          const imageSize = 80;
+          
+          doc.save();
+          doc.circle(imageX + imageSize/2, imageY + imageSize/2, imageSize/2)
+             .clip();
+          doc.image(profileBuffer, imageX, imageY, { 
+            width: imageSize, 
+            height: imageSize,
+            fit: [imageSize, imageSize]
+          });
+          doc.restore();
+          doc.circle(imageX + imageSize/2, imageY + imageSize/2, imageSize/2)
+             .stroke('#003366', 2);
+          
+          profileImageLoaded = true;
+        } catch (err) {
+          console.log('⚠️ Could not load profile image:', err.message);
+        }
+      }
+
+      const infoX = profileImageLoaded ? 150 : 50;
+      const infoY = profileImageLoaded ? startY + 10 : startY;
+      
+      doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor('#1e293b')
-         .text('Member Information', { underline: true });
+         .text(reportData.user.fullName, infoX, infoY);
 
-      doc.moveDown(0.5);
       doc.fontSize(10)
          .font('Helvetica')
          .fillColor('#475569');
 
       const userInfo = [
-        ['Name:', reportData.user.fullName],
         ['Membership #:', reportData.user.membershipNumber || 'N/A'],
         ['Jumuia:', reportData.user.jumuia],
-        ['Executive Position:', reportData.user.executivePosition || 'N/A']
+        ['Executive Position:', reportData.user.executivePosition || 'N/A'],
+        ['Email:', reportData.user.email || 'N/A'],
+        ['Phone:', reportData.user.phone || 'N/A']
       ];
 
+      let yPos = infoY + 25;
       userInfo.forEach(([label, value]) => {
-        doc.text(`${label} ${value}`, { continued: false });
+        doc.font('Helvetica-Bold')
+           .fillColor('#64748b')
+           .text(`${label} `, infoX, yPos, { continued: true });
+        doc.font('Helvetica')
+           .fillColor('#1e293b')
+           .text(value, { continued: false });
+        yPos += 18;
       });
 
-      doc.moveDown(1.5);
+      if (reportData.user.executivePosition) {
+        const badgeX = profileImageLoaded ? 150 : 50;
+        const badgeY = yPos + 5;
+        doc.rect(badgeX, badgeY, 200, 22)
+           .fill('#dbeafe');
+        doc.fillColor('#2563eb')
+           .fontSize(9)
+           .font('Helvetica-Bold')
+           .text(`Executive: ${reportData.user.executivePosition}`, badgeX + 10, badgeY + 6);
+        yPos += 35;
+      }
 
-      // Stats Summary
-      doc.fontSize(12)
+      doc.y = Math.max(yPos + 10, startY + 120);
+
+      // Attendance Summary
+      doc.moveDown(1);
+      doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor('#1e293b')
-         .text('Attendance Summary', { underline: true });
+         .text('ATTENDANCE SUMMARY', { underline: true });
 
       doc.moveDown(0.5);
-      doc.fontSize(10)
-         .font('Helvetica')
-         .fillColor('#475569');
 
-      // Stats in a box
       const statsStartY = doc.y;
-      const stats = [
+      const statsData = [
         ['Total Meetings', reportData.stats.totalMeetings],
         ['Attended', reportData.stats.attendedMeetings],
         ['Missed', reportData.stats.missedMeetings],
@@ -169,14 +242,13 @@ async function generatePDFReport(reportData, outputPath = null) {
         ['Performance', reportData.stats.performance]
       ];
 
-      // Draw stats box
-      const boxWidth = 400;
-      const boxHeight = stats.length * 25 + 20;
+      const boxWidth = 450;
+      const boxHeight = statsData.length * 25 + 20;
       doc.rect(50, statsStartY, boxWidth, boxHeight)
          .stroke('#e2e8f0');
 
-      stats.forEach(([label, value], index) => {
-        const y = statsStartY + 10 + (index * 25);
+      statsData.forEach(([label, value], index) => {
+        const y = statsStartY + 12 + (index * 25);
         doc.font('Helvetica-Bold')
            .fillColor('#64748b')
            .text(label, 60, y);
@@ -187,93 +259,258 @@ async function generatePDFReport(reportData, outputPath = null) {
 
       doc.moveDown(6);
 
-      // Color code performance
+      // Performance
       const rate = reportData.stats.attendanceRate;
       let color = '#10b981';
-      let emoji = '🌟';
-      if (rate < 40) { color = '#ef4444'; emoji = '📉'; }
-      else if (rate < 60) { color = '#f59e0b'; emoji = '📊'; }
-      else if (rate < 80) { color = '#3b82f6'; emoji = '📈'; }
+      let label = 'Excellent';
+      let message = 'Outstanding commitment! Your dedication to ZUCA is exemplary.';
+      
+      if (rate >= 90) {
+        color = '#10b981';
+        label = 'Excellent';
+        message = 'Outstanding commitment! Your dedication to ZUCA is exemplary.';
+      } else if (rate >= 80) {
+        color = '#10b981';
+        label = 'Excellent';
+        message = 'Excellent participation! Keep up the great work.';
+      } else if (rate >= 70) {
+        color = '#3b82f6';
+        label = 'Good';
+        message = 'Good effort! Try to attend a few more meetings.';
+      } else if (rate >= 60) {
+        color = '#3b82f6';
+        label = 'Fair';
+        message = 'Fair attendance. Aim to attend more meetings next semester.';
+      } else if (rate >= 50) {
+        color = '#f59e0b';
+        label = 'Needs Improvement';
+        message = 'Room for improvement. Set a goal to attend more meetings.';
+      } else {
+        color = '#ef4444';
+        label = 'Needs Improvement';
+        message = 'We encourage you to participate more in ZUCA activities.';
+      }
 
-      doc.fontSize(12)
+      doc.rect(50, doc.y, 450, 45)
+         .fill(color);
+      doc.fillColor('#ffffff')
+         .fontSize(12)
          .font('Helvetica-Bold')
-         .fillColor(color)
-         .text(`${emoji} ${reportData.stats.performance} Performance (${reportData.stats.attendanceRate}%)`, { align: 'center' });
+         .text(`${label} Performance (${reportData.stats.attendanceRate}%)`, 60, doc.y + 10);
+      doc.fontSize(9)
+         .font('Helvetica')
+         .text(message, 60, doc.y + 28);
 
-      doc.moveDown(1.5);
+      // ==================== MEETING DETAILS ====================
+      const meetings = reportData.meetings || [];
+      
+      if (meetings.length > 0) {
+        doc.addPage();
 
-      // Meetings List
-      if (reportData.meetings.length > 0) {
-        doc.fontSize(11)
+        // Meeting Details Header
+        doc.fontSize(14)
            .font('Helvetica-Bold')
            .fillColor('#1e293b')
-           .text('Meeting Details', { underline: true });
+           .text('MEETING DETAILS', { underline: true });
 
         doc.moveDown(0.5);
 
-        // Table headers
+        // Table Header
         const tableTop = doc.y;
+        
         doc.fontSize(9)
            .font('Helvetica-Bold')
            .fillColor('#ffffff');
-
-        doc.rect(50, tableTop, 400, 20).fill('#003366');
+        doc.rect(50, tableTop, 450, 20).fill('#003366');
+        
         doc.text('Meeting', 55, tableTop + 5);
         doc.text('Date', 250, tableTop + 5);
-        doc.text('Status', 350, tableTop + 5);
+        doc.text('Time', 330, tableTop + 5);
+        doc.text('Status', 410, tableTop + 5);
 
         let y = tableTop + 25;
         doc.fontSize(8)
-           .font('Helvetica')
-           .fillColor('#1e293b');
+           .font('Helvetica');
 
-        const displayMeetings = reportData.meetings.slice(0, 20);
-        displayMeetings.forEach((meeting, index) => {
-          if (y > 700) {
+        // Meeting Rows
+        let rowCount = 0;
+        meetings.forEach((meeting, index) => {
+          if (!meeting.title || meeting.title === 'Unknown Meeting') return;
+          
+          if (y > 750) {
             doc.addPage();
             y = 50;
+            
+            doc.fontSize(9)
+               .font('Helvetica-Bold')
+               .fillColor('#ffffff');
+            doc.rect(50, y - 20, 450, 20).fill('#003366');
+            doc.text('Meeting', 55, y - 15);
+            doc.text('Date', 250, y - 15);
+            doc.text('Time', 330, y - 15);
+            doc.text('Status', 410, y - 15);
+            doc.fontSize(8)
+               .font('Helvetica');
           }
 
-          const bgColor = index % 2 === 0 ? '#f8fafc' : '#ffffff';
-          doc.rect(50, y - 2, 400, 16).fill(bgColor);
-          doc.text(meeting.title.substring(0, 30), 55, y);
-          doc.text(new Date(meeting.date).toLocaleDateString(), 250, y);
+          // Row background
+          const bgColor = rowCount % 2 === 0 ? '#f8fafc' : '#ffffff';
+          doc.rect(50, y - 2, 450, 16).fill(bgColor);
+          
+          // ✅ FIX: Set text color to DARK for visibility
+          doc.fillColor('#1e293b');
+          
+          const title = meeting.title.length > 25 ? meeting.title.substring(0, 22) + '...' : meeting.title;
+          doc.text(title, 55, y);
+          
+          const dateStr = meeting.date ? new Date(meeting.date).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+          }) : 'N/A';
+          doc.text(dateStr, 250, y);
+          
+          doc.text(meeting.time || 'TBD', 330, y);
 
+          // ✅ Status with color - GREEN for Attended, RED for Missed
           const statusColor = meeting.status === 'Attended' ? '#10b981' : '#ef4444';
           doc.fillColor(statusColor)
-             .text(meeting.status, 350, y);
+             .text(meeting.status, 410, y);
+          
+          // Reset color for next row
           doc.fillColor('#1e293b');
 
           y += 18;
+          rowCount++;
         });
-
-        if (reportData.meetings.length > 20) {
-          doc.fontSize(8)
-             .fillColor('#94a3b8')
-             .text(`... and ${reportData.meetings.length - 20} more meetings`, 55, y + 5);
-        }
       }
 
-      // Footer
-      doc.moveDown(2);
-      doc.fontSize(8)
-         .font('Helvetica')
-         .fillColor('#94a3b8')
-         .text(`Report generated on ${new Date().toLocaleString()}`, 50, doc.y, { align: 'center', continued: false });
-      doc.text('© ZUCA Portal - All Rights Reserved', 50, doc.y + 10, { align: 'center' });
+      // ==================== CERTIFICATE ====================
+      if (reportData.stats.attendanceRate >= 80) {
+        doc.addPage();
+        
+        doc.rect(40, 40, 520, 750)
+           .stroke('#003366', 2);
+        
+        const cornerSize = 20;
+        const corners = [
+          [40, 40, 40 + cornerSize, 40, 40, 40 + cornerSize],
+          [560, 40, 560 - cornerSize, 40, 560, 40 + cornerSize],
+          [40, 790, 40 + cornerSize, 790, 40, 790 - cornerSize],
+          [560, 790, 560 - cornerSize, 790, 560, 790 - cornerSize]
+        ];
+        corners.forEach(([x1, y1, x2, y2, x3, y3]) => {
+          doc.moveTo(x1, y1)
+             .lineTo(x2, y2)
+             .lineTo(x3, y3)
+             .stroke('#003366', 2);
+        });
+        
+        doc.fontSize(24)
+           .font('Helvetica-Bold')
+           .fillColor('#003366')
+           .text('CERTIFICATE OF EXCELLENCE', 50, 100, { align: 'center' });
+        
+        doc.moveDown(1);
+        doc.fontSize(14)
+           .font('Helvetica')
+           .fillColor('#1e293b')
+           .text('This certifies that', 50, 160, { align: 'center' });
+        
+        doc.fontSize(22)
+           .font('Helvetica-Bold')
+           .fillColor('#003366')
+           .text(reportData.user.fullName, 50, 200, { align: 'center' });
+        
+        doc.fontSize(12)
+           .font('Helvetica')
+           .fillColor('#1e293b')
+           .text(
+             'has demonstrated outstanding commitment to Zetech University Catholic Action',
+             50, 250, { align: 'center' }
+           );
+        doc.text(
+          `by achieving ${reportData.stats.attendanceRate}% attendance during the`,
+          50, 270, { align: 'center' }
+        );
+        doc.text(
+          `${reportData.semester.title} semester.`,
+          50, 290, { align: 'center' }
+        );
+        
+        doc.moveDown(2);
+        doc.fontSize(12)
+           .font('Helvetica-Bold')
+           .fillColor('#003366')
+           .text(`Attendance Rate: ${reportData.stats.attendanceRate}%`, 50, 350, { align: 'center' });
+        doc.text(`Meetings Attended: ${reportData.stats.attendedMeetings}/${reportData.stats.totalMeetings}`, 50, 370, { align: 'center' });
+        
+        doc.moveDown(3);
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#64748b')
+           .text('Presented on this day', 50, 430, { align: 'center' });
+        doc.text(new Date().toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }), 50, 450, { align: 'center' });
+        
+        doc.moveDown(1);
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#64748b')
+           .text('ZUCA - Zetech University Catholic Action', 50, 490, { align: 'center' });
+      }
+
+      // ==================== FOOTER ====================
+      const pageCount = doc.bufferedPageRange().count;
+      
+      for (let i = 0; i < pageCount; i++) {
+        doc.switchToPage(i);
+        
+        const footerY = doc.page.height - 30;
+        
+        doc.fontSize(8)
+           .font('Helvetica')
+           .fillColor('#94a3b8');
+        
+        doc.text(
+          `Report generated on ${new Date().toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}`,
+          50, footerY
+        );
+        
+        doc.text(
+          `Page ${i + 1} of ${pageCount}`,
+          doc.page.width - 50, footerY, { align: 'right' }
+        );
+        
+        doc.text(
+          '© ZUCA Portal - All Rights Reserved',
+          50, footerY + 15
+        );
+        
+        doc.text(
+          'Contact: zucaportal2025@gmail.com',
+          doc.page.width - 50, footerY + 15, { align: 'right' }
+        );
+      }
 
       doc.end();
     } catch (error) {
+      console.error('PDF generation error:', error);
       reject(error);
     }
   });
 }
 
-/**
- * Send semester report email to a user
- * @param {string} userId - User ID
- * @param {object} semester - Semester schedule object
- */
+// ==================== SEND SEMESTER REPORT EMAIL ====================
 async function sendSemesterReportEmail(userId, semester) {
   try {
     // Get user's attendance data for the semester
@@ -302,7 +539,7 @@ async function sendSemesterReportEmail(userId, semester) {
     // Get eligible meetings (for missed meetings)
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { jumuiaId: true }
+      select: { jumuiaId: true, profileImage: true, phone: true }
     });
 
     const isExecutive = await prisma.executive.findFirst({
@@ -327,16 +564,22 @@ async function sendSemesterReportEmail(userId, semester) {
         eventDate: true,
         eventTime: true,
         location: true
-      }
+      },
+      orderBy: { eventDate: 'asc' }
     });
 
     const attendedSheetIds = new Set(attendanceData.map(e => e.sheetId));
-    const allMeetings = eligibleSheets.map(sheet => ({
-      ...sheet,
-      attended: attendedSheetIds.has(sheet.id)
-    }));
+    
+    const allMeetings = eligibleSheets.map(sheet => {
+      const entry = attendanceData.find(e => e.sheetId === sheet.id);
+      return {
+        ...sheet,
+        attended: attendedSheetIds.has(sheet.id),
+        signMethod: entry?.signMethod || 'N/A',
+        signTime: entry?.signTime || null
+      };
+    });
 
-    // Generate report data
     const reportData = await generateUserSemesterReport(userId, semester, allMeetings);
 
     if (!reportData) {
@@ -344,13 +587,14 @@ async function sendSemesterReportEmail(userId, semester) {
       return false;
     }
 
-    // Generate PDF
-    const pdfBuffer = await generatePDFReport(reportData);
-
-    // Get user object for email
     const userObj = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, fullName: true }
+      select: { 
+        email: true, 
+        fullName: true,
+        profileImage: true,
+        phone: true
+      }
     });
 
     if (!userObj) {
@@ -358,7 +602,8 @@ async function sendSemesterReportEmail(userId, semester) {
       return false;
     }
 
-    // Send email with PDF attachment
+    const pdfBuffer = await generatePDFReport(reportData, userObj);
+
     await sendSemesterReportEmailViaMailer(userObj, reportData, pdfBuffer, semester);
 
     console.log(`✅ Semester report sent to ${userObj.email}`);
@@ -370,15 +615,11 @@ async function sendSemesterReportEmail(userId, semester) {
   }
 }
 
-/**
- * Send semester reports to all eligible users
- * @param {object} semester - Semester schedule object
- */
+// ==================== SEND REPORTS TO ALL ====================
 async function sendSemesterReportsToAll(semester) {
   try {
     console.log(`📧 Sending semester reports to all users for: ${semester.title}`);
 
-    // Get all users with email using raw SQL to avoid Prisma issues
     const users = await prisma.$queryRaw`
       SELECT id, email, "fullName" 
       FROM "User" 
@@ -396,7 +637,6 @@ async function sendSemesterReportsToAll(semester) {
     let successCount = 0;
     let failCount = 0;
 
-    // Process in batches
     const BATCH_SIZE = 10;
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       const batch = users.slice(i, i + BATCH_SIZE);

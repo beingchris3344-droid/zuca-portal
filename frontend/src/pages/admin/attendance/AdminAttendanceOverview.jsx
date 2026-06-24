@@ -2360,7 +2360,7 @@ const exportToWord = async () => {
   color: #1e293b;
   background: #eff6ff;
   padding: 2px 12px;
-  border-radius: 12px;
+  border-radius: 11px;
   border: 1px solid #dbeafe;
 }
       `}</style>

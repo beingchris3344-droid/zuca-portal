@@ -134,9 +134,139 @@ function isDateInSemester(date, semester) {
   return checkDate >= start && checkDate <= end;
 }
 
+// ==================== SEMESTER END DETECTION ====================
+
+/**
+ * Check if a semester has ended (end date has passed)
+ * @param {Object} semester - Semester schedule object
+ * @returns {boolean} - True if semester has ended
+ */
+function isSemesterEnded(semester) {
+  if (!semester || !semester.endDate) return false;
+  const endDate = new Date(semester.endDate);
+  const today = new Date();
+  // Set to end of day for comparison
+  endDate.setHours(23, 59, 59, 999);
+  return today >= endDate;
+}
+
+/**
+ * Check if semester just ended (within the last 24 hours)
+ * @param {Object} semester - Semester schedule object
+ * @returns {boolean} - True if semester just ended
+ */
+function isSemesterJustEnded(semester) {
+  if (!semester || !semester.endDate) return false;
+  const endDate = new Date(semester.endDate);
+  const today = new Date();
+  const diffTime = today - endDate;
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  // Within 1 day after end date
+  return diffDays >= 0 && diffDays <= 1;
+}
+
+/**
+ * Check if today is the exact end date of the semester
+ * @param {Object} semester - Semester schedule object
+ * @returns {boolean} - True if today is the end date
+ */
+function isSemesterEndDate(semester) {
+  if (!semester || !semester.endDate) return false;
+  const endDate = new Date(semester.endDate);
+  const today = new Date();
+  return today.getFullYear() === endDate.getFullYear() &&
+         today.getMonth() === endDate.getMonth() &&
+         today.getDate() === endDate.getDate();
+}
+
+/**
+ * Get the next semester (the one that starts after the current one ends)
+ * @param {PrismaClient} prisma - Prisma client instance
+ * @param {Object} currentSemester - Current semester schedule
+ * @returns {Promise<Object|null>} - Next semester schedule or null
+ */
+async function getNextSemester(prisma, currentSemester) {
+  if (!currentSemester) return null;
+  
+  try {
+    const currentEnd = new Date(currentSemester.endDate);
+    
+    const nextSemester = await prisma.schedule.findFirst({
+      where: {
+        isPublished: true,
+        startDate: { gt: currentEnd },
+        startDate: { not: null },
+        endDate: { not: null }
+      },
+      orderBy: { startDate: 'asc' }
+    });
+    
+    return nextSemester;
+  } catch (error) {
+    console.error('Error getting next semester:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if a new semester should start (based on today's date)
+ * @param {PrismaClient} prisma - Prisma client instance
+ * @param {Object} currentSemester - Current semester schedule
+ * @returns {Promise<Object|null>} - New semester schedule if found
+ */
+async function checkForNewSemester(prisma, currentSemester) {
+  try {
+    // If there's no current semester, check if any schedule started today
+    if (!currentSemester) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const newSemester = await prisma.schedule.findFirst({
+        where: {
+          isPublished: true,
+          startDate: {
+            gte: today,
+            lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+          },
+          endDate: { not: null }
+        }
+      });
+      
+      return newSemester;
+    }
+    
+    // If current semester exists, check if it's over and a new one has started
+    if (isSemesterEnded(currentSemester)) {
+      const nextSemester = await getNextSemester(prisma, currentSemester);
+      
+      if (nextSemester) {
+        const nextStart = new Date(nextSemester.startDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // If the next semester has started today or earlier
+        if (nextStart <= today) {
+          return nextSemester;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error checking for new semester:', error);
+    return null;
+  }
+}
+
 module.exports = {
   getCurrentSemester,
   getAllSemesters,
   getSemesterPeriod,
-  isDateInSemester
+  isDateInSemester,
+  isSemesterEnded,
+  isSemesterJustEnded,
+  isSemesterEndDate,
+  getNextSemester,
+  checkForNewSemester
 };
+

@@ -798,6 +798,7 @@ model Schedule {
   endDate     DateTime? @map("end_date")
   isActive    Boolean   @default(true) @map("is_active")
   isPublished Boolean   @default(false) @map("is_published")
+   isActiveSemester Boolean @default(false) @map("is_active_semester")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   createdBy   String    @map("created_by")

@@ -888,6 +888,319 @@ async function sendBulkEmails(users, notificationType, title, message, data = {}
   return { sent, failed };
 }
 
+// ==================== SEMESTER REPORT EMAIL ====================
+/**
+ * Send semester report email with PDF attachment
+ * @param {Object} user - User object with email and fullName
+ * @param {Object} reportData - Report data from generateUserSemesterReport
+ * @param {Buffer} pdfBuffer - PDF buffer attachment
+ * @param {Object} semester - Semester schedule object
+ */
+async function sendSemesterReportEmail(user, reportData, pdfBuffer, semester) {
+  try {
+    if (!user || !user.email) {
+      console.log('❌ No email provided for user');
+      return false;
+    }
+
+    const greeting = getFormalGreeting();
+    const firstName = user.fullName?.split(' ')[0] || 'Member';
+    const currentDateTime = getCurrentDateTime();
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://zetechcatholicaction.com'
+      : 'https://zetechcatholic.vercel.app';
+
+    // Determine performance emoji and color
+    const rate = reportData.stats.attendanceRate;
+    let emoji = '📊';
+    let color = '#f59e0b';
+    let message = 'Keep pushing for better attendance next semester!';
+    
+    if (rate >= 80) {
+      emoji = '🌟';
+      color = '#10b981';
+      message = 'Excellent work! Your dedication is inspiring! Keep it up!';
+    } else if (rate >= 60) {
+      emoji = '📈';
+      color = '#3b82f6';
+      message = 'Good effort! Try to attend even more meetings next semester.';
+    } else if (rate >= 40) {
+      emoji = '📊';
+      color = '#f59e0b';
+      message = 'Room for improvement. Aim to attend more meetings next semester.';
+    } else {
+      emoji = '📉';
+      color = '#ef4444';
+      message = 'Let\'s make next semester better! Set a goal to attend more meetings.';
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Semester Attendance Report - ZUCA</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            line-height: 1.5;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+          }
+          .header {
+            background: #2c5f2d;
+            padding: 24px 30px;
+            border-bottom: 3px solid #ffd700;
+            text-align: center;
+          }
+          .logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+          }
+          .title {
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 8px 0 0;
+          }
+          .subtitle {
+            color: #ffd700;
+            font-size: 14px;
+            margin: 4px 0 0;
+          }
+          .content {
+            padding: 30px;
+          }
+          .greeting {
+            font-size: 16px;
+            color: #333333;
+            margin-bottom: 20px;
+          }
+          .report-header {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 6px;
+          }
+          .report-header strong {
+            color: #2c5f2d;
+          }
+          .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 20px 0;
+          }
+          .stat-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            text-align: center;
+            border-radius: 6px;
+          }
+          .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c5f2d;
+          }
+          .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            display: block;
+            margin-top: 4px;
+          }
+          .stat-number.green { color: #10b981; }
+          .stat-number.red { color: #ef4444; }
+          .stat-number.blue { color: #3b82f6; }
+          .stat-number.gold { color: #f59e0b; }
+          
+          .performance-box {
+            background: ${color};
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin: 20px 0;
+          }
+          .performance-emoji {
+            font-size: 40px;
+          }
+          .performance-label {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 8px 0;
+          }
+          .performance-message {
+            font-size: 14px;
+            opacity: 0.9;
+          }
+          .button {
+            display: inline-block;
+            background: #2c5f2d;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 25px;
+            border-radius: 4px;
+            font-weight: 500;
+            margin: 15px 0;
+          }
+          .button:hover {
+            background: #1e4420;
+          }
+          .footer {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            font-size: 11px;
+            color: #6c757d;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+          }
+          hr {
+            border: none;
+            border-top: 1px solid #e9ecef;
+            margin: 20px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo" class="logo">
+            <div class="title">Zetech University Catholic Action</div>
+            <div class="subtitle">Semester Attendance Report</div>
+          </div>
+          
+          <div class="content">
+            <div class="greeting">
+              ${greeting}, ${firstName}.
+            </div>
+            
+            <p>Your semester attendance report is ready. Here is your performance summary for <strong>${semester.title}</strong>.</p>
+            
+            <div class="report-header">
+              <strong>📅 Semester Period:</strong> ${reportData.semester.period}
+            </div>
+            
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-number">${reportData.stats.totalMeetings}</div>
+                <span class="stat-label">Total Meetings</span>
+              </div>
+              <div class="stat-box">
+                <div class="stat-number green">${reportData.stats.attendedMeetings}</div>
+                <span class="stat-label">✅ Attended</span>
+              </div>
+              <div class="stat-box">
+                <div class="stat-number red">${reportData.stats.missedMeetings}</div>
+                <span class="stat-label">❌ Missed</span>
+              </div>
+              <div class="stat-box">
+                <div class="stat-number blue">${reportData.stats.attendanceRate}%</div>
+                <span class="stat-label">📊 Attendance Rate</span>
+              </div>
+            </div>
+            
+            <div class="performance-box">
+              <div class="performance-emoji">${emoji}</div>
+              <div class="performance-label">${reportData.stats.performance} Performance</div>
+              <div class="performance-message">${message}</div>
+            </div>
+            
+            <p style="font-size: 13px; color: #666; text-align: center;">
+              A detailed PDF report with all your meeting records is attached to this email.
+            </p>
+            
+            <div style="text-align: center;">
+              <a href="${frontendUrl}/attendance/history" class="button">View Full History</a>
+            </div>
+            
+            <hr>
+            
+            <p style="font-size: 12px; color: #6c757d;">
+              If you have any questions about this report, please contact ZUCA administration.
+            </p>
+          </div>
+          
+          <div class="footer">
+            ZUCA - Zetech University Catholic Action<br>
+            ${currentDateTime}<br>
+            This is an official communication from ZUCA.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const textContent = `
+ZUCA SEMESTER ATTENDANCE REPORT
+
+${greeting}, ${firstName}.
+
+Semester: ${semester.title}
+Period: ${reportData.semester.period}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ATTENDANCE SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Total Meetings: ${reportData.stats.totalMeetings}
+Attended: ${reportData.stats.attendedMeetings}
+Missed: ${reportData.stats.missedMeetings}
+Attendance Rate: ${reportData.stats.attendanceRate}%
+Performance: ${reportData.stats.performance}
+
+${message}
+
+A detailed PDF report is attached to this email.
+
+View your full history: ${frontendUrl}/attendance/history
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Zetech University Catholic Action (ZUCA)
+${currentDateTime}
+This is an official communication from ZUCA.
+    `;
+
+    // Create attachment for Brevo
+    const attachment = {
+      name: `semester_report_${semester.title.replace(/\s/g, '_')}.pdf`,
+      content: pdfBuffer.toString('base64')
+    };
+
+    // Send via Brevo with attachment
+    let sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.to = [{ email: user.email }];
+    sendSmtpEmail.sender = { 
+      email: process.env.EMAIL_USER || "zucaportal2025@gmail.com", 
+      name: "ZUCA"
+    };
+    sendSmtpEmail.subject = `📊 Your Semester Attendance Report - ${semester.title}`;
+    sendSmtpEmail.htmlContent = htmlContent;
+    sendSmtpEmail.textContent = textContent;
+    sendSmtpEmail.attachment = [attachment];
+    
+    const response = await brevoApi.sendTransacEmail(sendSmtpEmail);
+    
+    console.log(`✅ Semester report email sent to ${user.email}, MessageId: ${response.messageId}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`❌ Semester report email failed to ${user?.email}:`, error.message);
+    return false;
+  }
+}
+
 // Helper exports
 function getTimeBasedGreeting() { return getFormalGreeting(); }
 function getCurrentTime() { return getCurrentDateTime(); }
@@ -900,6 +1213,7 @@ module.exports = {
   sendVerificationEmail,
   sendBulkEmails,
   sendSms,
+  sendSemesterReportEmail,
   getTimeBasedGreeting,
   getCurrentTime,
   getNotificationEmoji

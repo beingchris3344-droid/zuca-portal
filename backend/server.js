@@ -24,6 +24,7 @@ const multer = require("multer");
 
 const app = express();
 const messengerRoutes = require('./routes/messenger');
+const { checkSemesterEndAndSendReports } = require('./services/semesterScheduler');
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -586,13 +587,16 @@ app.use("/api/ibm", ibmRoutes);
 
 // Direct Messaging System Routes
 app.use('/api/messenger', messengerRoutes);
-// Add this line with your other route registrations
 const adminMessagingRoutes = require('./routes/admin-messaging');
 app.use('/api/admin/messenger', adminMessagingRoutes);
 
 // Import history routes
 const historyRoutes = require('./routes/historyRoutes');
 app.use('/api/history', historyRoutes);
+
+//semister
+const semesterRoutes = require("./routes/semesterRoutes");
+app.use("/api/semesters", semesterRoutes);
 
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
@@ -968,6 +972,7 @@ app.get("/api/public/test-gemini", async (req, res) => {
 
 
 // ==================== CRON JOB ENDPOINT ====================
+// ==================== CRON JOB ENDPOINT ====================
 // This endpoint is called by cron-job.org every hour
 app.post("/api/cron/check", async (req, res) => {
   try {
@@ -986,17 +991,17 @@ app.post("/api/cron/check", async (req, res) => {
     
     const executed = [];
     
-    // ========== RUN EVENT REMINDERS EVERY TIME ==========
-    // This will check for ALL pending notifications including:
-    // - 1 week before
-    // - 3 days before  
-    // - 1 day before
-    // - 12 hours before
-    // - 6 hours before
-    // - 1 hour before
-    // - 30 minutes before
+    // ========== EVENT REMINDERS - EVERY HOUR ==========
     await sendEventReminders();
     executed.push("event_reminders");
+    
+    // ========== ✅ SEMESTER END CHECK - EVERY DAY AT MIDNIGHT ==========
+    // Check if a semester has ended and send reports
+    if (hour === 0 && minute < 5) {
+      console.log("📅 Running semester end check...");
+      await checkSemesterEndAndSendReports();
+      executed.push("semester_end_check");
+    }
     
     // ========== CAMPAIGN REMINDERS - Daily at 8:30 AM ==========
     if (hour === 8 && minute >= 30 && minute < 35) {
@@ -1021,8 +1026,7 @@ app.post("/api/cron/check", async (req, res) => {
     console.error("❌ Cron check failed:", error);
     res.status(500).json({ error: error.message });
   }
-});
-
+})
 // ==================== HEALTH CHECK ENDPOINT ====================
 app.get("/health", (req, res) => {
   res.status(200).json({

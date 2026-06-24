@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
-import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, ChevronRight, TrendingUp, Award, Target, BarChart3, XCircle, Calendar as CalendarIcon } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadialBarChart, RadialBar
@@ -17,6 +17,9 @@ export default function MemberAttendanceHistory() {
   const [filter, setFilter] = useState('all');
   const [activeChart, setActiveChart] = useState('trend');
   const [userName, setUserName] = useState('');
+  const [currentSemester, setCurrentSemester] = useState(null);
+  const [semesters, setSemesters] = useState([]);
+const [selectedSemester, setSelectedSemester] = useState('current');
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -24,42 +27,74 @@ export default function MemberAttendanceHistory() {
   };
   
   // SINGLE fetchData function - combines user info and meetings
-  const fetchData = async () => {
+const fetchData = async () => {
+  try {
+    setLoading(true);
+    
+    // Fetch user info first
+    const userResponse = await axios.get(`${BASE_URL}/api/me`, {
+      headers: getHeaders()
+    });
+    setUserName(userResponse.data.fullName || 'Member');
+    
+    // ✅ Fetch current semester
+    await fetchCurrentSemester();
+    
+    // ✅ Fetch all semesters for dropdown
+    await fetchAllSemesters();
+    
+    // Fetch all meetings for this member
+    const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
+      headers: getHeaders()
+    });
+    
+    setAllMeetings(response.data.allMeetings || []);
+    setUserHistory(response.data.userHistory || []);
+    setStats(response.data.stats);
+    
+  } catch (error) {
+    console.error('Error fetching attendance data:', error);
+    
+    // Fallback to old endpoint if new one fails
     try {
-      setLoading(true);
-      
-      // Fetch user info first
-      const userResponse = await axios.get(`${BASE_URL}/api/me`, {
+      const historyResponse = await axios.get(`${BASE_URL}/api/attendance/my-history`, {
         headers: getHeaders()
       });
-      setUserName(userResponse.data.fullName || 'Member');
-      
-      // Fetch all meetings for this member
-      const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
-        headers: getHeaders()
-      });
-      
-      setAllMeetings(response.data.allMeetings || []);
-      setUserHistory(response.data.userHistory || []);
-      setStats(response.data.stats);
-      
-    } catch (error) {
-      console.error('Error fetching attendance data:', error);
-      
-      // Fallback to old endpoint if new one fails
-      try {
-        const historyResponse = await axios.get(`${BASE_URL}/api/attendance/my-history`, {
-          headers: getHeaders()
-        });
-        setUserHistory(historyResponse.data.history || []);
-        setStats(historyResponse.data.stats);
-      } catch (fallbackError) {
-        console.error('Fallback error:', fallbackError);
-      }
-    } finally {
-      setLoading(false);
+      setUserHistory(historyResponse.data.history || []);
+      setStats(historyResponse.data.stats);
+    } catch (fallbackError) {
+      console.error('Fallback error:', fallbackError);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const fetchCurrentSemester = async () => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
+      headers: getHeaders()
+    });
+    if (response.data.semester) {
+      setCurrentSemester(response.data.semester);
+    }
+  } catch (error) {
+    console.error('Error fetching semester:', error);
+  }
+};
+
+const fetchAllSemesters = async () => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/semesters/all`, {
+      headers: getHeaders()
+    });
+    if (response.data.semesters) {
+      setSemesters(response.data.semesters);
+    }
+  } catch (error) {
+    console.error('Error fetching semesters:', error);
+  }
+};
   
   useEffect(() => {
     fetchData();
@@ -108,6 +143,52 @@ export default function MemberAttendanceHistory() {
     }
     return userHistory;
   };
+
+  const handleSemesterChange = async (semesterId) => {
+  setSelectedSemester(semesterId);
+  
+  try {
+    setLoading(true);
+    
+    let params = {};
+    if (semesterId === 'current') {
+      // Get current semester dates
+      const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
+        headers: getHeaders()
+      });
+      if (response.data.semester) {
+        params = {
+          fromDate: new Date(response.data.semester.startDate).toISOString().split('T')[0],
+          toDate: new Date(response.data.semester.endDate).toISOString().split('T')[0]
+        };
+      }
+    } else if (semesterId !== 'all') {
+      // Get specific semester dates
+      const semester = semesters.find(s => s.id === semesterId);
+      if (semester) {
+        params = {
+          fromDate: new Date(semester.startDate).toISOString().split('T')[0],
+          toDate: new Date(semester.endDate).toISOString().split('T')[0]
+        };
+      }
+    }
+    
+    // Fetch filtered meetings
+    const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
+      headers: getHeaders(),
+      params
+    });
+    
+    setAllMeetings(response.data.allMeetings || []);
+    setUserHistory(response.data.userHistory || []);
+    setStats(response.data.stats);
+    
+  } catch (error) {
+    console.error('Error filtering by semester:', error);
+  } finally {
+    setLoading(false);
+  }
+};
   
   // Generate monthly attendance comparison data
   const getMonthlyComparison = () => {
@@ -261,23 +342,53 @@ export default function MemberAttendanceHistory() {
   
   return (
     <div className="attendance-history-page">
-      <div className="page-header">
-        <button className="back-btn" onClick={() => navigate('/dashboard')}>
-          <ArrowLeft size={20} /> Back
-        </button>
-        
-        <div className="header-text">
-          <h1>
-            Hey, <span className="user-name">{firstName}</span>!
-            <span className="title-split"> This is your zuca attendance history & analysis</span>
-          </h1>
-        </div>
-        
-        <div className="semester-badge">
-          <Target size={16} />
-          <span>Current Semester</span>
-        </div>
+     <div className="page-header">
+  <button className="back-btn" onClick={() => navigate('/dashboard')}>
+    <ArrowLeft size={20} /> Back
+  </button>
+  
+  <div className="header-text">
+    <h1>
+      Hey, <span className="user-name">{firstName}</span>!
+      <span className="title-split"> This is your zuca attendance history & analysis</span>
+    </h1>
+  </div>
+  
+  <div className="header-right">
+    {currentSemester && (
+      <div className="semester-badge">
+        <CalendarIcon size={16} />
+        <span className="semester-period">{currentSemester.period?.display || currentSemester.title}</span>
+        <span className="semester-status">Current</span>
       </div>
+    )}
+
+    <div className="semester-filter-section">
+  <div className="filter-group">
+    <label htmlFor="semester-select">📅 Semester:</label>
+    <select 
+      id="semester-select"
+      value={selectedSemester} 
+      onChange={(e) => handleSemesterChange(e.target.value)}
+      className="semester-select"
+    >
+      <option value="current">Current Semester</option>
+      <option value="all">All Time</option>
+      {semesters.map(sem => (
+        <option key={sem.id} value={sem.id}>
+          {sem.period?.display || sem.title}
+          {sem.isCurrent && ' (Current)'}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
+    <div className="semester-badge">
+      <Target size={16} />
+      <span>Current Semester</span>
+    </div>
+  </div>
+</div>
       
       {loading ? (
         <div className="loading-state">
@@ -898,6 +1009,149 @@ export default function MemberAttendanceHistory() {
             margin-top: 4px;
           }
         }
+
+        .header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.semester-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  white-space: nowrap;
+}
+
+.semester-badge .semester-period {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.semester-badge .semester-status {
+  background: #10b981;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.semester-badge:last-child {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .header-right {
+    width: 100%;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  
+  .semester-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+  
+  .semester-badge .semester-period {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* ... existing mobile styles ... */
+}
+
+/* Semester Filter Section */
+.semester-filter-section {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.semester-select {
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: #1e293b;
+  cursor: pointer;
+  min-width: 200px;
+  transition: all 0.2s;
+}
+
+.semester-select:hover {
+  border-color: #94a3b8;
+}
+
+.semester-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.semester-select option {
+  padding: 8px;
+}
+
+@media (max-width: 768px) {
+  .semester-filter-section {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 16px;
+  }
+  
+  .filter-group {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+  
+  .semester-select {
+    width: 100%;
+    min-width: unset;
+  }
+}
       `}</style>
     </div>
   );

@@ -6,7 +6,7 @@ import {
   Search, Filter, Download, User, Users, Calendar, 
   ChevronDown, ChevronUp, Eye, FileText, BarChart3,
   ArrowLeft, X, CheckCircle, XCircle, Clock, MapPin,
-  TrendingUp, Award, Target
+  TrendingUp, Award, Target, Mail
 } from 'lucide-react';
 // Import for PDF generation
 import jsPDF from 'jspdf';
@@ -41,6 +41,12 @@ export default function AdminAttendanceOverview() {
   const [exporting, setExporting] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [showExportMenu, setShowExportMenu] = useState(false);
+const [currentSemester, setCurrentSemester] = useState(null);
+const [semesters, setSemesters] = useState([]);
+const [selectedSemester, setSelectedSemester] = useState('current');
+const [sendingReports, setSendingReports] = useState(false);
+const [showSemesterManagement, setShowSemesterManagement] = useState(false);
+const [activatingSemester, setActivatingSemester] = useState(false);
 
     const isMobileDevice = () => {
     return window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -78,9 +84,7 @@ export default function AdminAttendanceOverview() {
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, [pagination.page, filters]);
+
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -94,6 +98,143 @@ export default function AdminAttendanceOverview() {
 const handleViewUser = (userId) => {
   navigate(`/admin/attendance/member/${userId}`);
 };
+
+const fetchCurrentSemester = async () => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
+      headers: getHeaders()
+    });
+    if (response.data.semester) {
+      setCurrentSemester(response.data.semester);
+    }
+  } catch (error) {
+    console.error('Error fetching semester:', error);
+  }
+};
+
+const fetchAllSemesters = async () => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/semesters/all`, {
+      headers: getHeaders()
+    });
+    if (response.data.semesters) {
+      setSemesters(response.data.semesters);
+    }
+  } catch (error) {
+    console.error('Error fetching semesters:', error);
+  }
+};
+
+const handleSemesterChange = async (semesterId) => {
+  setSelectedSemester(semesterId);
+  try {
+    setLoading(true);
+    let params = {};
+    if (semesterId === 'current') {
+      const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
+        headers: getHeaders()
+      });
+      if (response.data.semester) {
+        params = {
+          fromDate: new Date(response.data.semester.startDate).toISOString().split('T')[0],
+          toDate: new Date(response.data.semester.endDate).toISOString().split('T')[0]
+        };
+      }
+    } else if (semesterId !== 'all') {
+      const semester = semesters.find(s => s.id === semesterId);
+      if (semester) {
+        params = {
+          fromDate: new Date(semester.startDate).toISOString().split('T')[0],
+          toDate: new Date(semester.endDate).toISOString().split('T')[0]
+        };
+      }
+    }
+    setFilters(prev => ({
+      ...prev,
+      fromDate: params.fromDate || '',
+      toDate: params.toDate || ''
+    }));
+  } catch (error) {
+    console.error('Error filtering by semester:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleSendReports = async () => {
+  if (!currentSemester) {
+    alert('No active semester found. Please activate a semester first.');
+    return;
+  }
+  const confirmSend = window.confirm(
+    `This will send semester reports to ALL users with attendance data in "${currentSemester.title}".\n\nAre you sure you want to continue?`
+  );
+  if (!confirmSend) return;
+  setSendingReports(true);
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/api/semesters/${currentSemester.id}/send-reports`,
+      {},
+      { headers: getHeaders() }
+    );
+    alert(`✅ Reports sending started!\n\n${response.data.message}\n\nUsers will receive their reports via email.`);
+  } catch (error) {
+    console.error('Error sending reports:', error);
+    alert('❌ Failed to send reports. Please try again.');
+  } finally {
+    setSendingReports(false);
+  }
+};
+
+const handleActivateSemester = async (scheduleId, title) => {
+  if (!window.confirm(`Activate "${title}" as the current semester?`)) return;
+  
+  setActivatingSemester(true);
+  try {
+    const response = await axios.put(
+      `${BASE_URL}/api/semesters/${scheduleId}/activate`,
+      {},
+      { headers: getHeaders() }
+    );
+    alert(`✅ ${response.data.message}`);
+    // Refresh semesters
+    await fetchAllSemesters();
+    await fetchCurrentSemester();
+  } catch (error) {
+    console.error('Error activating semester:', error);
+    alert('❌ Failed to activate semester. Please try again.');
+  } finally {
+    setActivatingSemester(false);
+  }
+};
+
+const handleDeactivateSemester = async () => {
+  if (!window.confirm('Deactivate the current semester? This will make no semester active.')) return;
+  
+  setActivatingSemester(true);
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/api/semesters/deactivate`,
+      {},
+      { headers: getHeaders() }
+    );
+    alert(`✅ ${response.data.message}`);
+    // Refresh semesters
+    await fetchAllSemesters();
+    await fetchCurrentSemester();
+  } catch (error) {
+    console.error('Error deactivating semester:', error);
+    alert('❌ Failed to deactivate semester. Please try again.');
+  } finally {
+    setActivatingSemester(false);
+  }
+};
+
+ useEffect(() => {
+  fetchUsers();
+  fetchCurrentSemester();
+  fetchAllSemesters();
+}, [pagination.page, filters]);
 
   // Export to PDF
   const exportToPDF = async () => {
@@ -655,45 +796,153 @@ const exportToWord = async () => {
     <div className="admin-attendance-page">
       {/* Header */}
       <div className="page-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={() => navigate('/admin/dashboard')}>
-            <ArrowLeft size={20} /> Back
-          </button>
-          <div>
-            <h1>📊 Attendance Management</h1>
-            <p className="subtitle">View and manage attendance records for all members</p>
-          </div>
-        </div>
-        <div className="header-actions">
-          {/* Export Dropdown */}
-          <div className="export-dropdown">
-            <button 
-              className="export-btn main" 
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={exporting}
-            >
-              <Download size={16} />
-              {exporting ? 'Exporting...' : 'Export'}
-              <ChevronDown size={16} />
-            </button>
-            {showExportMenu && (
-              <div className="export-menu">
-                <button onClick={exportToPDF} disabled={exporting}>
-                  <FileText size={14} /> Export as PDF
-                </button>
-                <button onClick={exportToWord} disabled={exporting}>
-                  <FileText size={14} /> Export as Word
-                </button>
-                <button onClick={exportToCSV} disabled={exporting}>
-                  <FileText size={14} /> Export as CSV
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+       <div className="header-left">
+  <button className="back-btn" onClick={() => navigate('/admin/dashboard')}>
+    <ArrowLeft size={20} /> Back
+  </button>
+  <div>
+    <h1>📊 Attendance Management</h1>
+    <p className="subtitle">View and manage attendance records for all members</p>
+    {currentSemester && (
+      <div className="semester-info">
+        <span className="semester-label">📅 Current Semester:</span>
+        <span className="semester-name">{currentSemester.period?.display || currentSemester.title}</span>
+        <button 
+          className="semester-manage-btn"
+          onClick={() => setShowSemesterManagement(!showSemesterManagement)}
+        >
+          ⚙️ Manage
+        </button>
+      </div>
+    )}
+  </div>
+</div>
+      <div className="header-actions">
+  {/* Semester Dropdown */}
+  <div className="semester-filter">
+    <select 
+      value={selectedSemester} 
+      onChange={(e) => handleSemesterChange(e.target.value)}
+      className="semester-select"
+    >
+      <option value="current">Current Semester</option>
+      <option value="all">All Time</option>
+      {semesters.map(sem => (
+        <option key={sem.id} value={sem.id}>
+          {sem.period?.display || sem.title}
+          {sem.isCurrent && ' (Current)'}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Send Reports Button */}
+  {currentSemester && (
+    <button 
+      className="send-reports-btn" 
+      onClick={handleSendReports}
+      disabled={sendingReports}
+      title={`Send reports for ${currentSemester.title}`}
+    >
+      <Mail size={16} />
+      {sendingReports ? 'Sending...' : 'Send Reports'}
+    </button>
+  )}
+
+  {/* Export Dropdown */}
+  <div className="export-dropdown">
+    <button 
+      className="export-btn main" 
+      onClick={() => setShowExportMenu(!showExportMenu)}
+      disabled={exporting}
+    >
+      <Download size={16} />
+      {exporting ? 'Exporting...' : 'Export'}
+      <ChevronDown size={16} />
+    </button>
+    {showExportMenu && (
+      <div className="export-menu">
+        <button onClick={exportToPDF} disabled={exporting}>
+          <FileText size={14} /> Export as PDF
+        </button>
+        <button onClick={exportToWord} disabled={exporting}>
+          <FileText size={14} /> Export as Word
+        </button>
+        <button onClick={exportToCSV} disabled={exporting}>
+          <FileText size={14} /> Export as CSV
+        </button>
+      </div>
+    )}
+  </div>
+</div>
       </div>
 
-      {/* Rest of the component remains the same... */}
+       {/* ✅ SEMESTER MANAGEMENT PANEL - ADD THIS HERE */}
+      {showSemesterManagement && (
+        <div className="semester-management-panel">
+          <div className="panel-header">
+            <h3>🔧 Semester Management</h3>
+            <button className="panel-close" onClick={() => setShowSemesterManagement(false)}>✕</button>
+          </div>
+          
+          <div className="panel-body">
+            {/* Current Semester */}
+            <div className="semester-status">
+              <div className="status-label">Current Active Semester:</div>
+              {currentSemester ? (
+                <div className="current-semester-box">
+                  <span className="semester-title">✅ {currentSemester.title}</span>
+                  <span className="semester-date">{currentSemester.period?.display || ''}</span>
+                  <button 
+                    className="deactivate-btn"
+                    onClick={handleDeactivateSemester}
+                    disabled={activatingSemester}
+                  >
+                    {activatingSemester ? 'Processing...' : 'Deactivate'}
+                  </button>
+                </div>
+              ) : (
+                <div className="no-semester">❌ No active semester</div>
+              )}
+            </div>
+
+            {/* All Semesters */}
+            <div className="all-semesters">
+              <div className="section-label">All Semesters:</div>
+              <div className="semester-list">
+                {semesters.length === 0 ? (
+                  <div className="no-semesters">No semesters found. Create a schedule with semester dates first.</div>
+                ) : (
+                  semesters.map(sem => (
+                    <div key={sem.id} className={`semester-item ${sem.isCurrent ? 'active' : ''}`}>
+                      <div className="semester-info">
+                        <span className="semester-title">{sem.title}</span>
+                        <span className="semester-date">{sem.period?.display || ''}</span>
+                        {sem.isCurrent && <span className="current-badge">✅ Active</span>}
+                      </div>
+                      <div className="semester-actions">
+                        {!sem.isCurrent && (
+                          <button 
+                            className="activate-btn"
+                            onClick={() => handleActivateSemester(sem.id, sem.title)}
+                            disabled={activatingSemester}
+                          >
+                            {activatingSemester ? '...' : 'Activate'}
+                          </button>
+                        )}
+                        {sem.isCurrent && (
+                          <span className="current-label">Current</span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="filters-section">
         <div className="filter-row">
@@ -1794,6 +2043,326 @@ const exportToWord = async () => {
             margin: 10px;
           }
         }
+
+        .semester-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.semester-select {
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: #1e293b;
+  cursor: pointer;
+  min-width: 180px;
+  transition: all 0.2s;
+}
+
+.semester-select:hover {
+  border-color: #94a3b8;
+}
+
+.semester-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.send-reports-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.send-reports-btn:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.send-reports-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send-reports-btn svg {
+  flex-shrink: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  
+  .semester-filter {
+    width: 100%;
+  }
+  
+  .semester-select {
+    width: 100%;
+    min-width: unset;
+  }
+  
+  .send-reports-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+/* Semester Management Panel */
+.semester-management-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+.panel-close:hover {
+  color: #1e293b;
+}
+
+.semester-status {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.current-semester-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+}
+
+.current-semester-box .semester-title {
+  font-weight: 600;
+  color: #065f46;
+}
+
+.current-semester-box .semester-date {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.deactivate-btn {
+  padding: 4px 12px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.deactivate-btn:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.deactivate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.no-semester {
+  padding: 12px;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.semester-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.semester-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.semester-item:hover {
+  background: #f1f5f9;
+}
+
+.semester-item.active {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.semester-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.semester-info .semester-title {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.semester-info .semester-date {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.current-badge {
+  font-size: 11px;
+  background: #10b981;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.activate-btn {
+  padding: 4px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.activate-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.activate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.current-label {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.no-semesters {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.semester-manage-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.semester-manage-btn:hover {
+  background: #eff6ff;
+}
+
+.semester-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #475569;
+  flex-wrap: wrap;
+}
+
+.semester-label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.semester-name {
+  font-weight: 600;
+  color: #1e293b;
+  background: #eff6ff;
+  padding: 2px 12px;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+}
       `}</style>
     </div>
   );

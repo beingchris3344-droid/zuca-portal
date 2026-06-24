@@ -1291,33 +1291,7 @@ const exportToWord = async () => {
                 </div>
               </div>
 
-            {/* Missed Meetings - FILTERED */}
-{filteredMissed && filteredMissed.length > 0 && (
-  <div className="missed-list-container">
-    <div className="history-header">
-      <h3>❌ Missed Meetings</h3>
-      <span className="history-count">{filteredMissed.length} missed</span>
-    </div>
-    {filteredMissed.map(sheet => (
-      <div key={sheet.id} className="missed-item">
-        <div className="history-icon">
-          <XCircle size={24} className="missed-icon" />
-        </div>
-        <div className="history-details">
-          <div className="history-title">{sheet.title}</div>
-          <div className="history-meta">
-            <span><Calendar size={12} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
-            <span><Clock size={12} /> {sheet.eventTime || 'Time TBD'}</span>
-            <span><MapPin size={12} /> {sheet.location || 'ZUCA'}</span>
-          </div>
-          <div className="history-status">
-            <span className="status-badge absent">❌ Absent</span>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)}
+
             </div>
           </div>
         </div>

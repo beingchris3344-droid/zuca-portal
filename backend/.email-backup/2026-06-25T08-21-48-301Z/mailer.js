@@ -1,75 +1,11 @@
 // services/mailer.js
 const SibApiV3Sdk = require('sib-api-v3-sdk');
-const { PrismaClient } = require('@prisma/client');
-
 
 // ==================== BREVO FOR ALL EMAILS ====================
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
 const apiKey = defaultClient.authentications['api-key'];
 apiKey.apiKey = process.env.BREVO_API_KEY;
 const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
-
-
-// ============================================
-// EMAIL SETTINGS GUARD - Centralized Control
-// ============================================
-const prisma = new PrismaClient();
-
-// Email settings cache
-let emailSettingsCache = {};
-let cacheTimestamp = 0;
-const CACHE_TTL = 60000; // 1 minute
-
-/**
- * Check if an email type is enabled in the database
- * @param {string} emailType - The email type to check
- * @returns {Promise<boolean>}
- */
-async function isEmailEnabled(emailType) {
-  try {
-    const now = Date.now();
-    if (emailSettingsCache[emailType] !== undefined && (now - cacheTimestamp) < CACHE_TTL) {
-      return emailSettingsCache[emailType];
-    }
-
-    const setting = await prisma.emailSetting.findUnique({
-      where: { type: emailType },
-      select: { enabled: true }
-    });
-
-    const enabled = setting ? setting.enabled : true;
-    emailSettingsCache[emailType] = enabled;
-    cacheTimestamp = now;
-    return enabled;
-  } catch (error) {
-    console.error(`Error checking email setting for ${emailType}:`, error);
-    return true; // Default to sending on error
-  }
-}
-
-/**
- * Clear the email settings cache (call after admin updates)
- */
-function clearEmailSettingsCache() {
-  emailSettingsCache = {};
-  cacheTimestamp = 0;
-  console.log('📧 Email settings cache cleared');
-}
-
-/**
- * Check if email is enabled and log the decision
- * @param {string} emailType - The email type to check
- * @param {string} recipient - Email recipient for logging
- * @returns {Promise<boolean>}
- */
-async function shouldSendEmail(emailType, recipient = 'unknown') {
-  const enabled = await isEmailEnabled(emailType);
-  if (!enabled) {
-    console.log(`📧 Email type "${emailType}" is DISABLED, skipping send to ${recipient}`);
-  }
-  return enabled;
-}
-
 
 // Helper: Send via Brevo
 // services/mailer.js - Update sendViaBrevo function
@@ -102,23 +38,6 @@ async function sendViaBrevo(to, subject, htmlContent, textContent, fromName = "Z
     return false;
   }
 }
-
-
-// ============================================
-// WRAPPED: sendViaBrevo with email guard
-// ============================================
-async function sendViaBrevoWithGuard(to, subject, htmlContent, textContent, fromName = "ZUCA", emailType = 'general') {
-  // Check if email is enabled
-  const enabled = await isEmailEnabled(emailType);
-  if (!enabled) {
-    console.log(`📧 Email type "${emailType}" is DISABLED, skipping send to ${to}`);
-    return { sent: false, reason: 'disabled', emailType };
-  }
-  
-  console.log(`📧 Sending email type "${emailType}" to ${to}`);
-  return await sendViaBrevo(to, subject, htmlContent, textContent, fromName);
-}
-
 
 // Helper: Get formal greeting
 function getFormalGreeting() {
@@ -696,8 +615,7 @@ function generateMpesaReceiptHTML(paymentData) {
 }
 
 // ==================== NOTIFICATION EMAIL (FORMAL) ====================
-// ORIGINAL FUNCTION (RENAMED)
-async function sendPersonalizedEmailOriginal(user, notificationType, title, message, data = {}) {
+async function sendPersonalizedEmail(user, notificationType, title, message, data = {}) {
   try {
     const greeting = getFormalGreeting();
     const currentDateTime = getCurrentDateTime();
@@ -892,21 +810,6 @@ ${currentDateTime}
     console.error(`❌ Email failed to ${user.email}:`, error.message);
     return false;
   }
-}
-
-// ============================================
-// WRAPPED: sendPersonalizedEmail with email guard
-// ============================================
-async function sendPersonalizedEmail(user, notificationType, title, message, data = {}) {
-  // Check if email is enabled
-  const enabled = await isEmailEnabled(notificationType);
-  if (!enabled) {
-    console.log(`📧 Email type "${notificationType}" is DISABLED, skipping send to ${user?.email || 'unknown'}`);
-    return { sent: false, reason: 'disabled', emailType: notificationType };
-  }
-  
-  console.log(`📧 Sending email type "${notificationType}" to ${user?.email}`);
-  return await sendPersonalizedEmailOriginal(user, notificationType, title, message, data);
 }
 
 // ==================== SMS FUNCTIONS ====================
@@ -1303,7 +1206,8 @@ function getTimeBasedGreeting() { return getFormalGreeting(); }
 function getCurrentTime() { return getCurrentDateTime(); }
 function getNotificationEmoji(type) { return ''; } // No emojis in formal mode
 
-module.exports = {sendPasswordResetEmail,
+module.exports = { 
+  sendPasswordResetEmail,
   sendPersonalizedEmail,
   sendWelcomeEmail,
   sendVerificationEmail,
@@ -1312,6 +1216,5 @@ module.exports = {sendPasswordResetEmail,
   sendSemesterReportEmail,
   getTimeBasedGreeting,
   getCurrentTime,
-  getNotificationEmoji,
-  isEmailEnabled,
-  clearEmailSettingsCache};
+  getNotificationEmoji
+};

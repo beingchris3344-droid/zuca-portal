@@ -1756,10 +1756,14 @@ const styles = {
   calendarGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(7, 1fr)',
-    gap: '4px',
-    width: '100%',
+ rowGap: '10px',  
+  columnGap: '2px',  
+      width: '90%',
+          marginLeft: '-7px',
+
+
     '@media (min-width: 768px)': {
-      gap: '8px',
+      gap: '2px',
     },
   },
 

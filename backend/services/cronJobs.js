@@ -3,8 +3,26 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+// Helper function to check if email type is enabled
+async function isEmailTypeEnabled(type) {
+  try {
+    const { isEmailTypeEnabled: checkEmail } = require("./mailer");
+    return await checkEmail(type);
+  } catch (err) {
+    console.log(`⚠️ Could not check email setting for ${type}, defaulting to send:`, err.message);
+    return true;
+  }
+}
+
 async function sendEventReminders() {
   console.log("🕐 Running semester schedule event reminders check...");
+  
+  // ✅ Check if event reminders are enabled
+  const isEnabled = await isEmailTypeEnabled('event_reminder');
+  if (!isEnabled) {
+    console.log("📧 Event reminders are disabled, skipping");
+    return;
+  }
   
   const now = new Date();
   
@@ -97,6 +115,13 @@ async function sendEventReminders() {
 async function sendCampaignReminders() {
   console.log("💰 Running campaign deadline check...");
   
+  // ✅ Check if campaign reminders are enabled
+  const isEnabled = await isEmailTypeEnabled('campaign_reminder');
+  if (!isEnabled) {
+    console.log("📧 Campaign reminders are disabled, skipping");
+    return;
+  }
+  
   const threeDaysFromNow = new Date();
   threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
   
@@ -138,6 +163,13 @@ async function sendCampaignReminders() {
 
 async function checkNoAnnouncements() {
   console.log("📢 Checking for recent announcements...");
+  
+  // ✅ Check if announcement suggestions are enabled
+  const isEnabled = await isEmailTypeEnabled('announcement_new');
+  if (!isEnabled) {
+    console.log("📧 Announcement suggestions are disabled, skipping");
+    return;
+  }
   
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);

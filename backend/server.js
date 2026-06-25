@@ -600,6 +600,15 @@ const semesterRoutes = require("./routes/semesterRoutes");
 app.use("/api/semesters", semesterRoutes);
 
 
+//email settings
+const adminEmailSettings = require('./routes/admin/emailSettings');
+console.log('✅ Email Settings routes loaded successfully');
+app.use('/api/admin/email', adminEmailSettings);
+
+app.get('/api/admin/email/test', (req, res) => {
+  res.json({ success: true, message: 'Email settings route is working!', timestamp: new Date().toISOString() });
+});
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

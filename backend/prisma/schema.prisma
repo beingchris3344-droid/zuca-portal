@@ -1748,3 +1748,18 @@ model BankPayment {
   @@index([status])
   @@index([userId])
 }
+
+model EmailSetting {
+  id          String   @id @default(uuid())
+  type        String   @unique
+  category    String
+  name        String
+  description String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([enabled])
+  @@map("email_settings")
+}

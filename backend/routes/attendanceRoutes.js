@@ -30,9 +30,8 @@ function setCachedSheet(sheetId, data) {
 function invalidateSheetCache(sheetId) {
   sheetCache.delete(sheetId);
 }
-// Use global notification function from server.js
 // ==================== LOCAL NOTIFICATION FUNCTION (SELF-CONTAINED) ====================
-// This handles emails + push notifications without depending on server.js globals
+// This handles emails + push notifications with email settings check
 
 async function createAndSendNotification({ userId, type, title, message, data = {} }) {
   try {
@@ -74,7 +73,6 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       if (subscription) {
         const webpush = require('web-push');
         
-        // Set VAPID details
         webpush.setVapidDetails(
           'mailto:zucaportal2025@gmail.com',
           process.env.VAPID_PUBLIC_KEY,
@@ -109,7 +107,21 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       console.error(`❌ Push notification failed for user ${userId}:`, err.message);
     }
 
-    // 4. Send EMAIL
+    // 4. ✅ CHECK IF EMAIL IS ENABLED BEFORE SENDING
+    let shouldSendEmail = true;
+    try {
+      const { isEmailTypeEnabled } = require("../services/mailer");
+      shouldSendEmail = await isEmailTypeEnabled(type);
+    } catch (err) {
+      console.log(`⚠️ Could not check email setting for ${type}, defaulting to send:`, err.message);
+    }
+
+    if (!shouldSendEmail) {
+      console.log(`📧 Email ${type} is disabled, skipping email for user ${userId}`);
+      return notification; // Return early, skip email
+    }
+
+    // 5. Send EMAIL (only if enabled)
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -123,7 +135,6 @@ async function createAndSendNotification({ userId, type, title, message, data = 
         let emailSubject = title;
         let emailBody = message;
         
-        // Add extra details for specific types
         if (type === "attendance_missed") {
           emailBody = `${message}\n\nPlease make sure to attend future meetings.`;
         } else if (type === "attendance_thankyou") {

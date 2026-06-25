@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import bg from "../assets/2.jpg";
 
 import axios from "axios";
+import logo from '../assets/zuca-logo.png';
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
 import ProfileSettings from '../components/ProfileSettings';
@@ -1430,63 +1431,220 @@ const fetchFeaturedGallery = async () => {
             </div>
           </div>
 
-          {/* GAMES & COMMUNITY */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>🎮 GAMES & COMMUNITY</h3>
-            </div>
-            <div className="games-community">
-              <div className="games-section">
-                <div className="games-title">🎮 Active Game Invites: {gameInvites.length}</div>
-                {gameInvites.slice(0, 1).map(invite => (
-                  <div key={invite.id} className="game-invite">
-                    • {invite.fromUser?.fullName} challenged you!
-                  </div>
-                ))}
-                <button className="games-btn" onClick={() => navigate("/games")}>Play Now →</button>
+          {/* GAMES & COMMUNITY - PREMIUM DESIGN */}
+<div className="section-card games-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-games">🎮</div>
+      <div>
+        <h3>GAMES</h3>
+        <p className="header-subtitle">Connect, play, and grow together</p>
+      </div>
+    </div>
+    {gameInvites.length > 0 && (
+      <div className="games-badge">{gameInvites.length} Invites</div>
+    )}
+  </div>
+
+  <div className="games-community-premium">
+    {/* Games Section */}
+    <div className="games-section-premium">
+      <div className="games-header-premium">
+        <span className="games-title-premium">🎮 Active Game Invites</span>
+        <span className="games-count">{gameInvites.length}</span>
+      </div>
+      
+      {gameInvites.length === 0 ? (
+        <div className="empty-games-state">
+          <span className="empty-games-icon">🎯</span>
+          <p>No active game invites</p>
+          <span className="empty-games-sub">Start a game or challenge a friend!</span>
+        </div>
+      ) : (
+        <div className="game-invites-list">
+          {gameInvites.slice(0, 2).map((invite, index) => (
+            <motion.div
+              key={invite.id}
+              className="game-invite-premium"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <div className="game-invite-avatar">
+                {invite.fromUser?.profileImage ? (
+                  <img src={invite.fromUser.profileImage} alt="Player" />
+                ) : (
+                  <span>🎮</span>
+                )}
               </div>
-              <div className="online-section">
-                <div className="online-title">👥 Online Members: {onlineMembers.length}</div>
-                <div className="online-list">
-                  {onlineMembers.slice(0, 3).map(member => (
-                    <span key={member.id} className="online-name">• {member.fullName.split(" ")[0]}</span>
-                  ))}
-                  {onlineMembers.length > 3 && <span className="online-more">...</span>}
+              <div className="game-invite-content">
+                <div className="game-invite-sender">
+                  <strong>{invite.fromUser?.fullName?.split(' ')[0] || 'Someone'}</strong>
+                  <span className="game-invite-action">challenged you!</span>
                 </div>
-                <button className="online-btn" onClick={() => navigate("/chat")}>View All →</button>
+                <div className="game-invite-meta">
+                  <span className="game-type">{invite.gameType || '🎯 Quick Game'}</span>
+                  <span className="game-time">{formatRelativeTime(invite.createdAt)}</span>
+                </div>
               </div>
-            </div>
-          </div>
+              <button 
+                className="game-invite-accept"
+                onClick={() => navigate(`/games/accept/${invite.id}`)}
+              >
+                Accept →
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      )}
+      
+      <button 
+        className="games-action-btn"
+        onClick={() => navigate("/games")}
+      >
+        <span>🎯 Play Games</span>
+        <FiArrowRight className="button-icon" />
+      </button>
+    </div>
 
-          {/* QUICK STATS */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>📊 QUICK STATS</h3>
-            </div>
-            <div className="quick-stats-grid">
-              <div className="quick-stat">
-                <div className="quick-stat-value">{totalUsers}</div>
-                <div className="quick-stat-label">Total Users</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">{totalMessages}</div>
-                <div className="quick-stat-label">Total Messages</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">{totalHymns}</div>
-                <div className="quick-stat-label">Total Hymns</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">{totalMedia}</div>
-                <div className="quick-stat-label">Total Media</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">{galleryItems}</div>
-                <div className="quick-stat-label">Gallery Items</div>
-              </div>
-            </div>
+    {/* Online Members Section */}
+    <div className="online-section-premium">
+      <div className="online-header-premium">
+        <span className="online-title-premium">👥 Online Members</span>
+        <span className="online-count">{onlineMembers.length}</span>
+      </div>
+      
+      {onlineMembers.length === 0 ? (
+        <div className="empty-online-state">
+          <span className="empty-online-icon">🌙</span>
+          <p>No one is online right now</p>
+          <span className="empty-online-sub">Check back later</span>
+        </div>
+      ) : (
+        <>
+          <div className="online-members-grid">
+            {onlineMembers.slice(0, 6).map((member, index) => (
+              <motion.div
+                key={member.id}
+                className="online-member-premium"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -3 }}
+              >
+                <div className="online-member-avatar">
+                  {member.profileImage ? (
+                    <img src={member.profileImage} alt={member.fullName} />
+                  ) : (
+                    <span>{member.fullName?.charAt(0).toUpperCase()}</span>
+                  )}
+                  <div className="online-status-dot"></div>
+                </div>
+                <div className="online-member-name">
+                  {member.fullName?.split(' ')[0] || 'Member'}
+                </div>
+              </motion.div>
+            ))}
           </div>
+          {onlineMembers.length > 6 && (
+            <div className="online-more-indicator">
+              +{onlineMembers.length - 6} more online
+            </div>
+          )}
+        </>
+      )}
+      
+      <button 
+        className="online-action-btn"
+        onClick={() => navigate("/chat")}
+      >
+        <span>💬 Join Chat</span>
+        <FiArrowRight className="button-icon" />
+      </button>
+    </div>
+  </div>
+</div>
 
+          {/* QUICK STATS - PREMIUM DESIGN */}
+<div className="section-card stats-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-stats">📊</div>
+      <div>
+        <h3>ZUCA STATUS</h3>
+        <p className="header-subtitle">ZUCA at a glance</p>
+      </div>
+    </div>
+    <div className="stats-live-badge">● LIVE</div>
+  </div>
+
+  <div className="quick-stats-premium-grid">
+    <motion.div 
+      className="quick-stat-premium"
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className="stat-premium-icon users-icon">👥</div>
+      <div className="stat-premium-content">
+        <div className="stat-premium-value">{totalUsers || 0}</div>
+        <div className="stat-premium-label">Total Users</div>
+      </div>
+      <div className="stat-premium-trend">↑</div>
+    </motion.div>
+
+    <motion.div 
+      className="quick-stat-premium"
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className="stat-premium-icon messages-icon">💬</div>
+      <div className="stat-premium-content">
+        <div className="stat-premium-value">{totalMessages || 0}</div>
+        <div className="stat-premium-label">Messages</div>
+      </div>
+      <div className="stat-premium-trend">↑</div>
+    </motion.div>
+
+    <motion.div 
+      className="quick-stat-premium"
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className="stat-premium-icon hymns-icon">🎵</div>
+      <div className="stat-premium-content">
+        <div className="stat-premium-value">{totalHymns || 0}</div>
+        <div className="stat-premium-label">Hymns</div>
+      </div>
+      <div className="stat-premium-trend">↑</div>
+    </motion.div>
+
+    <motion.div 
+      className="quick-stat-premium"
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className="stat-premium-icon media-icon">📸</div>
+      <div className="stat-premium-content">
+        <div className="stat-premium-value">{totalMedia || 0}</div>
+        <div className="stat-premium-label">Media</div>
+      </div>
+      <div className="stat-premium-trend">↑</div>
+    </motion.div>
+
+    <motion.div 
+      className="quick-stat-premium"
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className="stat-premium-icon gallery-icon">🖼️</div>
+      <div className="stat-premium-content">
+        <div className="stat-premium-value">{galleryItems || 0}</div>
+        <div className="stat-premium-label">Gallery Items</div>
+      </div>
+      <div className="stat-premium-trend">↑</div>
+    </motion.div>
+  </div>
+</div>
           
 
           {/* EXECUTIVE TEAM QUICK ACCESS */}
@@ -1577,61 +1735,166 @@ const fetchFeaturedGallery = async () => {
   </button>
 </div>
 
-          {/* RECENT CHAT ACTIVITY */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>💬 RECENT CHAT ACTIVITY</h3>
-            </div>
-            <div className="chat-activities">
-              {recentChats.length === 0 ? (
-                <div className="empty-state">No recent chat activity</div>
-              ) : (
-                recentChats.map(chat => (
-                  <div key={chat.id} className="chat-item">
-                    <strong>{chat.user?.fullName?.split(" ")[0]}:</strong> "{chat.content?.substring(0, 50)}"
-                    <span className="chat-time">{formatRelativeTime(chat.createdAt)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-            <button className="view-all" onClick={() => navigate("/chat")}>Go to Chat →</button>
-          </div>
+          {/* RECENT CHAT ACTIVITY - PREMIUM */}
+<div className="section-card chat-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-chat">💬</div>
+      <div>
+        <h3>RECENT CHAT ACTIVITY</h3>
+        <p className="header-subtitle">Latest community conversations</p>
+      </div>
+    </div>
+    {recentChats.length > 0 && (
+      <div className="chat-badge">{recentChats.length} New</div>
+    )}
+  </div>
 
-          {/* RECENT NOTIFICATIONS */}
-          <div className="section-card full-width">
-            <div className="section-header">
-              <h3>🔔 RECENT NOTIFICATIONS ({unreadNotificationsCount} unread)</h3>
-            </div>
-            <div className="notifications-list">
-              {recentNotifications.length === 0 ? (
-                <div className="empty-state">No notifications</div>
-              ) : (
-                recentNotifications.map(notif => (
-                  <div key={notif.id} className={`notification-item ${!notif.read ? 'unread' : ''}`}>
-                    <div className="notification-icon">
-                      {notif.type === "announcement" && "📢"}
-                      {notif.type === "game_invite" && "🎮"}
-                      {notif.type === "program" && "⛪"}
-                      {!notif.type && "🔔"}
-                    </div>
-                    <div className="notification-content">
-                      <div className="notification-title">{notif.title}</div>
-                      <div className="notification-message">{notif.message}</div>
-                      <div className="notification-time">{formatRelativeTime(notif.createdAt)}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <button className="view-all" onClick={() => navigate("/notifications")}>View All Notifications →</button>
+  <div className="chat-activities-premium">
+    {recentChats.length === 0 ? (
+      <div className="empty-chat-state">
+        <span className="empty-chat-icon">💭</span>
+        <p>No recent chat activity</p>
+        <span className="empty-chat-sub">Start a conversation!</span>
+      </div>
+    ) : (
+      recentChats.map((chat, index) => (
+        <motion.div 
+          key={chat.id} 
+          className="chat-item-premium"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1 }}
+          whileHover={{ x: 4 }}
+        >
+          <div className="chat-avatar-premium">
+            {chat.user?.profileImage ? (
+              <img src={chat.user.profileImage} alt={chat.user.fullName} />
+            ) : (
+              <span>{chat.user?.fullName?.charAt(0).toUpperCase() || 'U'}</span>
+            )}
           </div>
+          <div className="chat-content-premium">
+            <div className="chat-header-premium">
+              <span className="chat-user-name">{chat.user?.fullName?.split(' ')[0] || 'User'}</span>
+              <span className="chat-time-premium">{formatRelativeTime(chat.createdAt)}</span>
+            </div>
+            <div className="chat-message-premium">
+              "{chat.content?.substring(0, 60)}{chat.content?.length > 60 ? '...' : ''}"
+            </div>
+          </div>
+          <div className="chat-reply-indicator">
+            <FiChevronRight size={16} />
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
 
-          {/* FOOTER */}
-          <div className="footer">
-            <p>© {new Date().getFullYear()} ZUCA Portal | v3.0 | Tumsifu Yesu Kristu! 🙏</p>
-            <p className="creator">Created by @CHRISWEBSYS</p>
+  <button className="chat-action-btn" onClick={() => navigate("/chat")}>
+    <span>💬 Go to Chat</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
+
+         {/* RECENT NOTIFICATIONS - PREMIUM */}
+<div className="section-card notifications-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-notification">🔔</div>
+      <div>
+        <h3>NOTIFICATIONS</h3>
+        <p className="header-subtitle">Stay updated with ZUCA</p>
+      </div>
+    </div>
+    <div className="notif-badge">
+      {unreadNotificationsCount > 0 ? `${unreadNotificationsCount} Unread` : 'All Read'}
+    </div>
+  </div>
+
+  <div className="notifications-premium-list">
+    {recentNotifications.length === 0 ? (
+      <div className="empty-notif-state">
+        <span className="empty-notif-icon">🔕</span>
+        <p>No notifications</p>
+        <span className="empty-notif-sub">You're all caught up!</span>
+      </div>
+    ) : (
+      recentNotifications.map((notif, index) => (
+        <motion.div 
+          key={notif.id} 
+          className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.08 }}
+          whileHover={{ x: 4 }}
+          onClick={() => navigate("/notifications")}
+        >
+          <div className="notif-icon-premium">
+            {notif.type === "announcement" && "📢"}
+            {notif.type === "game_invite" && "🎮"}
+            {notif.type === "program" && "⛪"}
+            {notif.type === "message" && "💬"}
+            {!notif.type && "🔔"}
+          </div>
+          <div className="notif-content-premium">
+            <div className="notif-header-premium">
+              <span className="notif-title-premium">{notif.title || 'Update'}</span>
+              {!notif.read && <span className="notif-unread-dot">●</span>}
+            </div>
+            <div className="notif-message-premium">{notif.message}</div>
+            <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
+          </div>
+          <div className="notif-arrow-premium">
+            <FiChevronRight size={16} />
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="notif-action-btn" onClick={() => navigate("/notifications")}>
+    <span>🔔 View All Notifications</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
+      {/* FOOTER - PREMIUM */}
+      <div className="footer-premium">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <img 
+              src={logo} 
+              alt="ZUCA Logo" 
+              className="footer-logo-img"
+              onClick={() => navigate("/dashboard")}
+              style={{ cursor: "pointer" }}
+            />
+            <div className="footer-brand-text">
+              <h4>ZUCA Portal</h4>
+              <p>Zetech University Catholic Action</p>
+            </div>
+          </div>
+          
+          <div className="footer-links">
+            <a href="#" onClick={() => navigate("/about")}>About</a>
+            <a href="#" onClick={() => navigate("/contact")}>Contact</a>
+            <a href="#" onClick={() => navigate("/privacy")}>Privacy</a>
+            <a href="#" onClick={() => navigate("/terms")}>Terms</a>
+          </div>
+          
+          <div className="footer-social">
+           
           </div>
         </div>
+        
+    <div className="footer-bottom">
+  <p>© {new Date().getFullYear()} ZUCA Portal | v 1.0 | {new Date().toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  })}</p>
+  <p className="creator">Created by <strong>@CHRISWEBSYS</strong></p>
+</div>
       </div>
 
       {/* MODALS */}
@@ -1640,7 +1903,6 @@ const fetchFeaturedGallery = async () => {
           imageFile={selectedImageFile}
           onCropComplete={(croppedFile) => {
             setShowCropper(false);
-            // Handle upload
           }}
           onClose={() => {
             setShowCropper(false);
@@ -1658,6 +1920,8 @@ const fetchFeaturedGallery = async () => {
           setProfileImage(updatedUser.profileImage);
         }}
       />
+
+      
 
       <style>{`
         /* GLOBAL STYLES - MOBILE FIRST */
@@ -5533,9 +5797,1397 @@ const fetchFeaturedGallery = async () => {
     padding: 0.5rem;
   }
 }
-      `}</style>
-    </>
-  );
+/* ============================================
+   GAMES & COMMUNITY - CLEAN LIGHT THEME
+   ============================================ */
+
+.games-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 30px;
+  border-left: 4px solid #444342;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
 }
 
+.games-premium:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Header */
+.header-icon-games {
+  font-size: 2rem;
+  background: #fef3c7;
+  padding: 0.6rem;
+  border-radius: 16px;
+  color: #f59e0b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.games-badge {
+  background: #fef3c7;
+  color: #000000;
+  padding: 0.3rem 0.8rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Two Column Layout */
+.games-community-premium {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .games-community-premium {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Games Section */
+.games-section-premium {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.games-section-premium:hover {
+  background: #f1f5f9;
+  border-color: #000000;
+}
+
+.games-header-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.games-title-premium {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.games-count {
+  background: #ffffff;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  color: #000000;
+  font-weight: 600;
+}
+
+/* Empty State Games */
+.empty-games-state {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px dashed #e2e8f0;
+}
+
+.empty-games-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.empty-games-state p {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.empty-games-sub {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+/* Game Invites List */
+.game-invites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.game-invites-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.game-invites-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.game-invites-list::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 10px;
+}
+
+/* Individual Game Invite */
+.game-invite-premium {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border-radius: 14px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+}
+
+.game-invite-premium:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  transform: translateX(4px);
+}
+
+.game-invite-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fef3c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: #f59e0b;
+}
+
+.game-invite-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.game-invite-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-invite-sender {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.game-invite-sender strong {
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.game-invite-action {
+  color: #94a3b8;
+  margin-left: 0.2rem;
+}
+
+.game-invite-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.6rem;
+  color: #94a3b8;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.game-type {
+  background: #fef3c7;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.game-time {
+  color: #94a3b8;
+}
+
+.game-invite-accept {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.game-invite-accept:hover {
+  background: #d97706;
+  transform: scale(1.05);
+}
+
+/* Games Action Button */
+.games-action-btn {
+  width: 100%;
+  background: #008000;
+  color: white;
+  border: none;
+  padding: 0.7rem;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.games-action-btn:hover {
+  background: #d97706;
+  transform: translateY(-2px);
+}
+
+.games-action-btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   ONLINE MEMBERS SECTION
+   ============================================ */
+
+.online-section-premium {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.online-section-premium:hover {
+  background: #f1f5f9;
+  border-color: #3b82f6;
+}
+
+.online-header-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.online-title-premium {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.online-count {
+  background: #dbeafe;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+/* Empty State Online */
+.empty-online-state {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px dashed #e2e8f0;
+}
+
+.empty-online-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.empty-online-state p {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.empty-online-sub {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+/* Online Members Grid */
+.online-members-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .online-members-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+/* Individual Online Member */
+.online-member-premium {
+  text-align: center;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.online-member-premium:hover {
+  background: #f1f5f9;
+  border-color: #3b82f6;
+  transform: translateY(-3px);
+}
+
+.online-member-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  margin: 0 auto 0.3rem;
+  position: relative;
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  overflow: hidden;
+}
+
+.online-member-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.online-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+}
+
+.online-member-name {
+  font-size: 0.6rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.online-more-indicator {
+  text-align: center;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin-bottom: 0.75rem;
+  padding: 0.3rem;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+/* Online Action Button */
+.online-action-btn {
+  width: 100%;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.7rem;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.online-action-btn:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+}
+
+.online-action-btn:active {
+  transform: translateY(0);
+}
+
+/* Button Icon Animation */
+.button-icon {
+  transition: transform 0.3s ease;
+}
+
+.games-action-btn:hover .button-icon,
+.online-action-btn:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* Section Header overrides */
+.games-premium .section-header {
+  border-bottom-color: #f1f5f9;
+}
+
+.games-premium .section-header h3 {
+  color: #1e293b;
+  background: none;
+  -webkit-text-fill-color: #1e293b;
+}
+
+.games-premium .header-subtitle {
+  color: #94a3b8;
+}
+
+/* Responsive fine-tuning */
+@media (max-width: 640px) {
+  .games-premium {
+    padding: 1rem;
+  }
+  
+  .games-section-premium,
+  .online-section-premium {
+    padding: 1rem;
+  }
+  
+  .game-invite-premium {
+    padding: 0.6rem;
+    flex-wrap: wrap;
+  }
+  
+  .game-invite-accept {
+    width: 100%;
+    text-align: center;
+    padding: 0.4rem;
+    font-size: 0.7rem;
+  }
+  
+  .online-members-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .online-member-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 0.8rem;
+  }
+  
+  .online-status-dot {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .header-icon-games {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+}
+
+/* Scrollbar styling for Firefox */
+.game-invites-list {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b #f1f5f9;
+}
+
+/* ============================================
+   QUICK STATS - CLEAN NEUTRAL THEME
+   ============================================ */
+
+.stats-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 30px;
+  border-left: 4px solid #64748b;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.stats-premium:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.header-icon-stats {
+  font-size: 2rem;
+  background: #f1f5f9;
+  padding: 0.6rem;
+  border-radius: 16px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.stats-live-badge {
+  background: #dcfce7;
+  color: #22c55e;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Quick Stats Grid */
+.quick-stats-premium-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 1024px) {
+  .quick-stats-premium-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .quick-stats-premium-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .quick-stats-premium-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+/* Individual Stat Card */
+.quick-stat-premium {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: all 0.3s ease;
+  border: 1px solid #e2e8f0;
+  cursor: default;
+}
+
+.quick-stat-premium:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-2px);
+}
+
+.stat-premium-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.users-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.messages-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.hymns-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.media-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.gallery-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.stat-premium-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.stat-premium-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.3px;
+}
+
+.stat-premium-label {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+.stat-premium-trend {
+  font-size: 0.7rem;
+  color: #22c55e;
+  font-weight: 700;
+  background: #dcfce7;
+  padding: 0.15rem 0.4rem;
+  border-radius: 10px;
+}
+  /* ============================================
+   RECENT CHAT ACTIVITY - CLEAN NEUTRAL THEME
+   ============================================ */
+
+.chat-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 30px;
+  border-left: 4px solid #64748b;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.chat-premium:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.header-icon-chat {
+  font-size: 2rem;
+  background: #f1f5f9;
+  padding: 0.6rem;
+  border-radius: 16px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.chat-badge {
+  background: #e2e8f0;
+  color: #475569;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Chat Activities */
+.chat-activities-premium {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.chat-activities-premium::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-activities-premium::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.chat-activities-premium::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 10px;
+}
+
+/* Empty State */
+.empty-chat-state {
+  text-align: center;
+  padding: 2rem;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px dashed #e2e8f0;
+}
+
+.empty-chat-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.empty-chat-state p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-chat-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Chat Item */
+.chat-item-premium {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chat-item-premium:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  background: #f8fafc;
+}
+
+.chat-avatar-premium {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #475569;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chat-avatar-premium img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chat-content-premium {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-header-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.chat-user-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.chat-time-premium {
+  font-size: 0.6rem;
+  color: #94a3b8;
+}
+
+.chat-message-premium {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-reply-indicator {
+  color: #94a3b8;
+  opacity: 0;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.chat-item-premium:hover .chat-reply-indicator {
+  opacity: 1;
+}
+
+/* Chat Action Button */
+.chat-action-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #1e293b, #334155);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.chat-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.3);
+}
+
+.chat-action-btn:active {
+  transform: translateY(0);
+}
+
+.chat-action-btn .button-icon {
+  transition: transform 0.3s ease;
+}
+
+.chat-action-btn:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .chat-premium {
+    padding: 1rem;
+  }
+  
+  .chat-item-premium {
+    padding: 0.6rem;
+  }
+  
+  .chat-avatar-premium {
+    width: 34px;
+    height: 34px;
+    font-size: 0.8rem;
+  }
+  
+  .chat-user-name {
+    font-size: 0.75rem;
+  }
+  
+  .chat-message-premium {
+    font-size: 0.7rem;
+  }
+  
+  .header-icon-chat {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================
+   RECENT NOTIFICATIONS - CLEAN NEUTRAL THEME
+   ============================================ */
+
+.notifications-premium {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 30px;
+  border-left: 4px solid #64748b;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.notifications-premium:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.header-icon-notification {
+  font-size: 2rem;
+  background: #f1f5f9;
+  padding: 0.6rem;
+  border-radius: 16px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.notif-badge {
+  background: #e2e8f0;
+  color: #475569;
+  padding: 0.25rem 0.75rem;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Notifications List */
+.notifications-premium-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.notifications-premium-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notifications-premium-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.notifications-premium-list::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 10px;
+}
+
+/* Empty State */
+.empty-notif-state {
+  text-align: center;
+  padding: 2rem;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px dashed #e2e8f0;
+}
+
+.empty-notif-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.empty-notif-state p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-notif-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Notification Item */
+.notif-item-premium {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.notif-item-premium:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  background: #f8fafc;
+}
+
+.notif-unread {
+  background: #f8fafc;
+  border-left: 3px solid #3b82f6;
+}
+
+.notif-unread:hover {
+  background: #f1f5f9;
+}
+
+.notif-icon-premium {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notif-content-premium {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-header-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.notif-title-premium {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.notif-unread-dot {
+  color: #3b82f6;
+  font-size: 0.6rem;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.notif-message-premium {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notif-time-premium {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+.notif-arrow-premium {
+  color: #94a3b8;
+  opacity: 0;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.notif-item-premium:hover .notif-arrow-premium {
+  opacity: 1;
+}
+
+/* Notification Action Button */
+.notif-action-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #1e293b, #334155);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.notif-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.3);
+}
+
+.notif-action-btn:active {
+  transform: translateY(0);
+}
+
+.notif-action-btn .button-icon {
+  transition: transform 0.3s ease;
+}
+
+.notif-action-btn:hover .button-icon {
+  transform: translateX(4px);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .notifications-premium {
+    padding: 1rem;
+  }
+  
+  .notif-item-premium {
+    padding: 0.6rem;
+  }
+  
+  .notif-icon-premium {
+    width: 34px;
+    height: 34px;
+    font-size: 1.2rem;
+  }
+  
+  .notif-title-premium {
+    font-size: 0.75rem;
+  }
+  
+  .notif-message-premium {
+    font-size: 0.7rem;
+  }
+  
+  .header-icon-notification {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================
+   FOOTER - PREMIUM DESIGN
+   ============================================ */
+
+.footer-premium {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 24px;
+  padding: 0rem 0.5rem 0.5rem;
+  margin-top: 2rem;
+    margin-bottom: 5rem;
+
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 1.5rem;
+}
+
+/* Brand Section */
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.footer-logo-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px;
+  object-fit: contain;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footer-logo-img:hover {
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.footer-brand-text h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.footer-brand-text p {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Links Section */
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.footer-links a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #60a5fa, #c084fc);
+  transition: width 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: white;
+}
+
+.footer-links a:hover::after {
+  width: 100%;
+}
+
+/* Social Section */
+.footer-social {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.social-link {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.social-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Footer Bottom */
+.footer-bottom {
+  text-align: center;
+}
+
+.footer-bottom p {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.footer-bottom .creator {
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.footer-bottom .creator strong {
+  color: #94a3b8;
+  font-weight: 600;
+  background: linear-gradient(90deg, #60a5fa, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .footer-brand {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .footer-links {
+    justify-content: center;
+    gap: 1rem;
+  }
+  
+  .footer-social {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer-premium {
+    padding: 1.5rem 1rem 1rem;
+    border-radius: 16px;
+  }
+  
+  .footer-logo-img {
+    width: 40px;
+    height: 40px;
+    padding: 4px;
+  }
+  
+  .footer-links {
+    gap: 0.75rem;
+  }
+  
+  .footer-links a {
+    font-size: 0.7rem;
+  }
+  
+  .social-link {
+    width: 34px;
+    height: 34px;
+    font-size: 0.9rem;
+  }
+  
+  .footer-bottom p {
+    font-size: 0.65rem;
+  }
+}
+    `}</style>
+    </div>
+  </div>
+  </>
+  );
+}
 export default Dashboard;

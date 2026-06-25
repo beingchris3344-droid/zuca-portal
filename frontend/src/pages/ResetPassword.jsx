@@ -367,11 +367,13 @@ function ResetPassword() {
         <h2 style={styles.heading}>Reset Password</h2>
         
         <div style={styles.emailInfo}>
-          📧 Code sent to: {email}
+          📧 Code sent to: {email} 
+          
         </div>
 
         <p style={styles.subheading}>
           Enter the 6-digit code sent to your email
+          <h2><strong> (PLEASE CHECK IN YOUR SPAM FOLDER)</strong></h2>
         </p>
 
         {error && <div style={styles.error}>⚠️ {error}</div>}

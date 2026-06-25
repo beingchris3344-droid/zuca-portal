@@ -7,7 +7,7 @@ import {
   FiEdit2, FiClock, FiCheckCircle, FiRefreshCw,
   FiArrowUp, FiArrowDown, FiGrid, FiImage, FiHome,
   FiLogOut, FiSettings, FiEye, FiTrendingUp, FiPieChart,
-  FiBarChart2, FiFileText  
+  FiBarChart2, FiFileText, FiMail
 } from "react-icons/fi";
 import { RiAdminLine } from "react-icons/ri";
 import { useNavigate } from "react-router-dom"; 
@@ -641,10 +641,10 @@ function AdminDashboard() {
 <div className="actions-grid">
   <button className="action-btn" onClick={() => navigate('/admin/minutes')}><FiFileText /> Meeting Minutes</button>
   <button className="action-btn" onClick={() => navigate('/admin/attendance/overview')}>
-  <FiBarChart2 /> Attendance Management
+  <FiBarChart2 /> Attendance sheet
 </button>
 <button className="action-btn" onClick={() => navigate('/admin/attendance/overview')}>
-  <FiBarChart2 /> Attendance Overview
+  <FiBarChart2 /> Ateendance Monitor 
 </button>
   
   <button className="action-btn" onClick={() => navigate('/admin/users')}><FiUsers /> Users Management</button>
@@ -654,10 +654,12 @@ function AdminDashboard() {
   <button className="action-btn" onClick={() => navigate('/admin/songs')}><FiMusic /> Hymns Management</button>
   <button className="action-btn" onClick={() => navigate('/admin/gallery')}><FiImage /> Gallery Management</button>
   <button className="action-btn" onClick={() => navigate('/executive')}><GiCrown /> Executive Team</button>
-  <button className="action-btn" onClick={() => navigate('/join-jumuia')}><FaChurch /> Jumuia Groups</button>
+
   <button className="action-btn" onClick={() => navigate('/liturgical-calendar')}><FiCalendar /> Calendar Admin</button>
   <button className="action-btn" onClick={() => navigate('/admin/prayers')}><GiPrayer /> Prayer Management</button> {/* ← ADD THIS */}
-  <button className="action-btn" onClick={() => navigate('/admin/settings')}><FiSettings /> System Settings</button>
+<button className="action-btn" onClick={() => navigate('/admin/email-settings')}>
+  <FiMail size={18} /> Email Management
+</button>
 </div>
         </div>
         

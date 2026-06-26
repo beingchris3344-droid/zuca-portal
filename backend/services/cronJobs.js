@@ -6,8 +6,9 @@ const prisma = new PrismaClient();
 // Helper function to check if email type is enabled
 async function isEmailTypeEnabled(type) {
   try {
-    const { isEmailTypeEnabled: checkEmail } = require("./mailer");
-    return await checkEmail(type);
+    // Import the correct function from mailer
+    const { isEmailEnabled } = require("./mailer");
+    return await isEmailEnabled(type);
   } catch (err) {
     console.log(`⚠️ Could not check email setting for ${type}, defaulting to send:`, err.message);
     return true;

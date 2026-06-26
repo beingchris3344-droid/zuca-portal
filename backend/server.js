@@ -14430,16 +14430,10 @@ async function createEventNotifications(event, scheduleId) {
     console.log(`📅 Event: ${event.title}`);
     console.log(`   Event Date-Time (UTC): ${eventDateTime.toISOString()}`);
     console.log(`   Event Date-Time (Kenyan): ${eventDateTime.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`);
-    
-    const notificationTimings = [
-      { daysBefore: 7, label: "1 week before", priority: "normal" },
-      { daysBefore: 3, label: "3 days before", priority: "normal" },
-      { daysBefore: 1, label: "1 day before", priority: "high" },
-      { hoursBefore: 12, label: "12 hours before", priority: "high" },
-      { hoursBefore: 6, label: "6 hours before", priority: "high" },
-      { hoursBefore: 1, label: "1 hour before", priority: "urgent" },
-      { minutesBefore: 30, label: "30 minutes before", priority: "urgent" }  // ← CHANGED to minutesBefore
-    ];
+const notificationTimings = [
+  { daysBefore: 7, label: "1 week before", priority: "normal" },
+  { daysBefore: 1, label: "1 day before", priority: "high" }
+];
     
     const now = new Date();
     let createdCount = 0;
@@ -14552,15 +14546,10 @@ app.get("/api/admin/debug/check-event-creation/:scheduleId", authenticate, async
         where: { eventId: event.id }
       });
       
-      const notificationTimings = [
-        { daysBefore: 7, label: "1 week before" },
-        { daysBefore: 3, label: "3 days before" },
-        { daysBefore: 1, label: "1 day before" },
-        { hoursBefore: 12, label: "12 hours before" },
-        { hoursBefore: 6, label: "6 hours before" },
-        { hoursBefore: 1, label: "1 hour before" },
-        { minutesBefore: 30, label: "30 minutes before" }
-      ];
+   const notificationTimings = [
+  { daysBefore: 7, label: "1 week before" },
+  { daysBefore: 1, label: "1 day before" }
+];
       
       const wouldCreate = [];
       for (const timing of notificationTimings) {

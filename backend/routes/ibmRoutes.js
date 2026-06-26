@@ -706,4 +706,533 @@ router.post("/claim", authenticateUser, async (req, res) => {
   }
 });
 
+// ==================== BANK PAYMENTS ADMIN ROUTES ====================
+
+// Helper: Check if user is admin, treasurer, or secretary
+async function isAdminOrTreasurerOrSecretary(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, specialRole: true }
+  });
+  
+  if (!user) return false;
+  
+  const isAdmin = user.role === "admin";
+  const isTreasurer = user.specialRole === "treasurer";
+  const isSecretary = user.specialRole === "secretary";
+  
+  return isAdmin || isTreasurer || isSecretary;
+}
+
+// ============ 1. GET ALL BANK PAYMENTS ============
+router.get("/payments", authenticateUser, async (req, res) => {
+  try {
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { 
+      page = 1, 
+      limit = 50, 
+      status = 'all',
+      search = '',
+      fromDate = '',
+      toDate = ''
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    let where = {};
+
+    if (status !== 'all') {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { mpesaCode: { contains: search, mode: 'insensitive' } },
+        { payerName: { contains: search, mode: 'insensitive' } },
+        { payerPhone: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    if (fromDate) {
+      where.paymentDate = { ...where.paymentDate, gte: new Date(fromDate) };
+    }
+    if (toDate) {
+      where.paymentDate = { ...where.paymentDate, lte: new Date(toDate) };
+    }
+
+    const total = await prisma.bankPayment.count({ where });
+
+    const payments = await prisma.bankPayment.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true,
+            membership_number: true,
+            role: true,
+            specialRole: true,
+            homeJumuia: {
+              select: { name: true }
+            }
+          }
+        },
+        contributionType: {
+          select: {
+            id: true,
+            title: true,
+            amountRequired: true,
+            collectedAmount: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take
+    });
+
+    // Get stats
+    const stats = await prisma.$transaction([
+      prisma.bankPayment.count(),
+      prisma.bankPayment.count({ where: { status: 'CLAIMED' } }),
+      prisma.bankPayment.count({ where: { status: 'UNCLAIMED' } }),
+      prisma.bankPayment.count({ where: { status: 'AUTO_MATCHED' } }),
+      prisma.bankPayment.aggregate({
+        _sum: { amount: true }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      payments,
+      stats: {
+        total: stats[0],
+        claimed: stats[1],
+        unclaimed: stats[2],
+        autoMatched: stats[3],
+        totalAmount: stats[4]._sum.amount || 0
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    });
+
+  } catch (err) {
+    console.error("Get bank payments error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ 2. GET SINGLE BANK PAYMENT DETAILS ============
+router.get("/payments/:id", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const payment = await prisma.bankPayment.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profileImage: true,
+            membership_number: true,
+            role: true,
+            specialRole: true,
+            homeJumuia: {
+              select: { name: true }
+            },
+            leadingJumuia: {
+              select: { name: true }
+            }
+          }
+        },
+        contributionType: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            amountRequired: true,
+            collectedAmount: true,
+            createdAt: true,
+            jumuia: {
+              select: { name: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    // Build timeline
+    const timeline = [];
+
+    timeline.push({
+      event: "I&M Payment Sent",
+      timestamp: payment.paymentDate,
+      icon: "🔵"
+    });
+
+    timeline.push({
+      event: "System Received",
+      timestamp: payment.createdAt,
+      icon: "🟢"
+    });
+
+    if (payment.status === "AUTO_MATCHED" || payment.status === "CLAIMED") {
+      const notification = await prisma.notification.findFirst({
+        where: {
+          userId: payment.userId,
+          type: "payment_received",
+          createdAt: { gte: payment.createdAt }
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+      if (notification) {
+        timeline.push({
+          event: "User Notified",
+          timestamp: notification.createdAt,
+          icon: "🟡"
+        });
+      }
+    }
+
+    if (payment.status === "CLAIMED") {
+      const claimNotification = await prisma.notification.findFirst({
+        where: {
+          userId: payment.userId,
+          type: "claim_success",
+          createdAt: { gte: payment.createdAt }
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+      if (claimNotification) {
+        timeline.push({
+          event: "Payment Claimed",
+          timestamp: claimNotification.createdAt,
+          icon: "🟣"
+        });
+      }
+    }
+
+    if (payment.contributionTypeId) {
+      const pledge = await prisma.pledge.findFirst({
+        where: {
+          userId: payment.userId,
+          contributionTypeId: payment.contributionTypeId
+        },
+        select: { updatedAt: true }
+      });
+      if (pledge) {
+        timeline.push({
+          event: "Pledge Updated",
+          timestamp: pledge.updatedAt,
+          icon: "✅"
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      payment,
+      timeline
+    });
+
+  } catch (err) {
+    console.error("Get payment details error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ 3. ASSIGN PAYMENT TO USER ============
+router.put("/payments/:id/assign", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, contributionTypeId } = req.body;
+
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const payment = await prisma.bankPayment.findUnique({
+      where: { id }
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    if (payment.status === "CLAIMED") {
+      return res.status(400).json({ error: "Payment already claimed" });
+    }
+
+    const updated = await prisma.bankPayment.update({
+      where: { id },
+      data: {
+        userId,
+        status: "AUTO_MATCHED",
+        contributionTypeId: contributionTypeId || null
+      }
+    });
+
+    await createNotification({
+      userId: userId,
+      type: "payment_assigned",
+      title: "💰 Payment Assigned to You",
+      message: `A payment of KES ${payment.amount} has been assigned to you. Please claim it on the Contributions page.`,
+      data: { amount: payment.amount, code: payment.mpesaCode }
+    });
+
+    res.json({
+      success: true,
+      message: `Payment assigned to ${targetUser.fullName}`,
+      payment: updated
+    });
+
+  } catch (err) {
+    console.error("Assign payment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ 4. MARK PAYMENT AS CLAIMED ============
+router.put("/payments/:id/mark-claimed", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { contributionTypeId } = req.body;
+
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const payment = await prisma.bankPayment.findUnique({
+      where: { id }
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    if (!payment.userId) {
+      return res.status(400).json({ error: "Payment has no user assigned" });
+    }
+
+    if (payment.status === "CLAIMED") {
+      return res.status(400).json({ error: "Payment already claimed" });
+    }
+
+    let pledge = null;
+    let campaignTitle = null;
+
+    if (contributionTypeId) {
+      pledge = await prisma.pledge.findFirst({
+        where: {
+          userId: payment.userId,
+          contributionTypeId
+        }
+      });
+
+      if (!pledge) {
+        pledge = await prisma.pledge.create({
+          data: {
+            userId: payment.userId,
+            contributionTypeId,
+            amountPaid: 0,
+            pendingAmount: 0,
+            status: "PENDING"
+          }
+        });
+      }
+
+      const newAmountPaid = pledge.amountPaid + payment.amount;
+      const campaign = await prisma.contributionType.findUnique({
+        where: { id: contributionTypeId }
+      });
+      campaignTitle = campaign?.title;
+
+      let newStatus = "APPROVED";
+      if (campaign && newAmountPaid >= campaign.amountRequired) {
+        newStatus = "COMPLETED";
+      }
+
+      await prisma.pledge.update({
+        where: { id: pledge.id },
+        data: {
+          amountPaid: newAmountPaid,
+          status: newStatus
+        }
+      });
+
+      await prisma.contributionType.update({
+        where: { id: contributionTypeId },
+        data: {
+          collectedAmount: { increment: payment.amount }
+        }
+      });
+
+      await prisma.payment.create({
+        data: {
+          amount: payment.amount,
+          phoneNumber: payment.payerPhone || "",
+          mpesaReceiptNumber: payment.mpesaCode,
+          status: "SUCCESS",
+          userId: payment.userId,
+          contributionTypeId,
+          pledgeId: pledge.id,
+          completedAt: new Date()
+        }
+      });
+    }
+
+    const updated = await prisma.bankPayment.update({
+      where: { id },
+      data: {
+        status: "CLAIMED",
+        contributionTypeId: contributionTypeId || payment.contributionTypeId
+      }
+    });
+
+    await createNotification({
+      userId: payment.userId,
+      type: "payment_marked_claimed",
+      title: "✅ Payment Marked as Claimed",
+      message: `Your payment of KES ${payment.amount} has been marked as claimed${campaignTitle ? ` for "${campaignTitle}"` : ''}.`,
+      data: { amount: payment.amount }
+    });
+
+    res.json({
+      success: true,
+      message: `Payment marked as claimed${campaignTitle ? ` for "${campaignTitle}"` : ''}`,
+      payment: updated
+    });
+
+  } catch (err) {
+    console.error("Mark claimed error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ 5. EXPORT PAYMENTS (CSV) ============
+router.get("/payments/export/csv", authenticateUser, async (req, res) => {
+  try {
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { status = 'all', fromDate = '', toDate = '' } = req.query;
+
+    let where = {};
+    if (status !== 'all') where.status = status;
+    if (fromDate) where.paymentDate = { ...where.paymentDate, gte: new Date(fromDate) };
+    if (toDate) where.paymentDate = { ...where.paymentDate, lte: new Date(toDate) };
+
+    const payments = await prisma.bankPayment.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+            membership_number: true
+          }
+        },
+        contributionType: {
+          select: { title: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let csv = 'M-PESA Code,Amount,Payer Name,Payer Phone,Payment Date,Status,Claimed By,Claimed To,Created At\n';
+    
+    for (const p of payments) {
+      csv += `${p.mpesaCode},${p.amount},${p.payerName || ''},${p.payerPhone || ''},${p.paymentDate.toISOString().split('T')[0]},${p.status},${p.user?.fullName || ''},${p.contributionType?.title || ''},${p.createdAt.toISOString()}\n`;
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=bank-payments-${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+
+  } catch (err) {
+    console.error("Export error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ 6. GET PAYMENT STATS ============
+router.get("/payments/stats", authenticateUser, async (req, res) => {
+  try {
+    const hasAccess = await isAdminOrTreasurerOrSecretary(req.user.userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Simplified stats queries
+    const total = await prisma.bankPayment.count();
+    const claimed = await prisma.bankPayment.count({ where: { status: 'CLAIMED' } });
+    const unclaimed = await prisma.bankPayment.count({ where: { status: 'UNCLAIMED' } });
+    const autoMatched = await prisma.bankPayment.count({ where: { status: 'AUTO_MATCHED' } });
+    
+    const totalAmountAgg = await prisma.bankPayment.aggregate({
+      _sum: { amount: true }
+    });
+    
+    const claimedAmountAgg = await prisma.bankPayment.aggregate({
+      _sum: { amount: true },
+      where: { status: 'CLAIMED' }
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        total: total,
+        claimed: claimed,
+        unclaimed: unclaimed,
+        autoMatched: autoMatched,
+        totalAmount: totalAmountAgg._sum.amount || 0,
+        claimedAmount: claimedAmountAgg._sum.amount || 0
+      }
+    });
+
+  } catch (err) {
+    console.error("Stats error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

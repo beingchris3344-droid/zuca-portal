@@ -182,7 +182,7 @@ useEffect(() => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    { path: "/member/attendance", label: "Check In", icon: "✅" },
+    { path: "/member/attendance", label: "Attendance", icon: "📑" },
     { path: "/schedules", label: "Schedules", icon: "📅" },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },

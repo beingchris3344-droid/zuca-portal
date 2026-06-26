@@ -63,6 +63,15 @@ function Dashboard() {
 
   const [activeSheets, setActiveSheets] = useState([]);
 const [checkingIn, setCheckingIn] = useState(null);
+
+const [showCountdown, setShowCountdown] = useState(true);
+const [timeRemaining, setTimeRemaining] = useState({
+  days: 0,
+  hours: 0,
+  minutes: 0,
+  seconds: 0
+});
+const [isCountdownComplete, setIsCountdownComplete] = useState(false);
   
 
 // ==================== SIMPLE GLOBAL CACHE FOR DASHBOARD ====================
@@ -582,6 +591,56 @@ const fetchFeaturedGallery = async () => {
     return () => clearInterval(timer);
   }, []);
 
+
+  useEffect(() => {
+  const targetDate = new Date('2026-07-12T12:00:00');
+
+  const calculateTimeRemaining = () => {
+    const now = new Date();
+    const difference = targetDate - now;
+
+    if (difference <= 0) {
+      setIsCountdownComplete(true);
+      setShowCountdown(false);
+      return {
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0
+      };
+    }
+
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+    return {
+      days,
+      hours,
+      minutes,
+      seconds
+    };
+  };
+
+  setTimeRemaining(calculateTimeRemaining());
+
+  const timer = setInterval(() => {
+    const newTime = calculateTimeRemaining();
+    setTimeRemaining(newTime);
+    
+    if (newTime.days === 0 && newTime.hours === 0 && 
+        newTime.minutes === 0 && newTime.seconds === 0) {
+      setIsCountdownComplete(true);
+      setTimeout(() => {
+        setShowCountdown(false);
+      }, 500);
+    }
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, []);
+
   // Socket listeners
   useEffect(() => {
     if (!window.io || !user) return;
@@ -663,6 +722,53 @@ const fetchFeaturedGallery = async () => {
               </button>
             </div>
           </div>
+
+
+          {showCountdown && !isCountdownComplete && (
+  <motion.div
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -50 }}
+    transition={{ duration: 0.5 }}
+    className="countdown-container"
+  >
+    <div className="countdown-content">
+      <div className="countdown-header">
+        <span className="countdown-icon">🚀</span>
+        <span className="countdown-title">ZUCA WEBSITE LAUNCHING HAPPENS IN </span>
+                <span className="countdown-icon">🚀</span>
+
+      </div>
+      
+      <div className="countdown-grid">
+        <div className="countdown-item">
+          <div className="countdown-number">{String(timeRemaining.days).padStart(2, '0')}</div>
+          <div className="countdown-label">Days</div>
+        </div>
+        <div className="countdown-separator">:</div>
+        <div className="countdown-item">
+          <div className="countdown-number">{String(timeRemaining.hours).padStart(2, '0')}</div>
+          <div className="countdown-label">Hours</div>
+        </div>
+        <div className="countdown-separator">:</div>
+        <div className="countdown-item">
+          <div className="countdown-number">{String(timeRemaining.minutes).padStart(2, '0')}</div>
+          <div className="countdown-label">Minutes</div>
+        </div>
+        <div className="countdown-separator">:</div>
+        <div className="countdown-item">
+          <div className="countdown-number">{String(timeRemaining.seconds).padStart(2, '0')}</div>
+          <div className="countdown-label">Seconds</div>
+        </div>
+      </div>
+
+      <div className="countdown-event-info">
+        <span>📅 JOIN US ON 12TH JULY AS WE CELEBRATE OUR "BIRTHDAY"</span>
+        <span>LETS COME ALL!</span>
+      </div>
+    </div>
+  </motion.div>
+)}
 
          {/* USER PROFILE CARD */}
 <div className="profile-card">
@@ -7184,6 +7290,318 @@ const fetchFeaturedGallery = async () => {
     font-size: 0.65rem;
   }
 }
+
+.countdown-container {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 24px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: slideDown 0.6s ease-out;
+}
+
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.countdown-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgba(96, 165, 250, 0.08) 0%, transparent 70%);
+  animation: rotate-bg 20s linear infinite;
+}
+
+@keyframes rotate-bg {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.countdown-container::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #60a5fa, #c084fc, #60a5fa);
+  background-size: 300% 300%;
+  border-radius: 24px;
+  z-index: -1;
+  animation: borderGlow 3s ease-in-out infinite;
+  opacity: 0.3;
+}
+
+@keyframes borderGlow {
+  0% {
+    background-position: 0% 50%;
+    opacity: 0.3;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 0.6;
+  }
+  100% {
+    background-position: 0% 50%;
+    opacity: 0.3;
+  }
+}
+
+.countdown-content {
+  position: relative;
+  z-index: 1;
+}
+
+.countdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.countdown-icon {
+  font-size: 1.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.countdown-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 1px;
+}
+
+.countdown-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.countdown-item {
+  text-align: center;
+  min-width: 60px;
+  animation: fadeInScale 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.countdown-item:nth-child(1) { animation-delay: 0.1s; }
+.countdown-item:nth-child(2) { animation-delay: 0.2s; }
+.countdown-item:nth-child(3) { animation-delay: 0.3s; }
+.countdown-item:nth-child(4) { animation-delay: 0.4s; }
+.countdown-item:nth-child(5) { animation-delay: 0.5s; }
+.countdown-item:nth-child(6) { animation-delay: 0.6s; }
+.countdown-item:nth-child(7) { animation-delay: 0.7s; }
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.countdown-number {
+  font-size: 3rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.5rem;
+  border-radius: 12px;
+  min-width: 60px;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, #60a5fa, #c084fc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: transform 0.3s ease;
+  animation: numberPulse 1s ease-in-out;
+}
+
+@keyframes numberPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.countdown-number:hover {
+  transform: scale(1.1);
+}
+
+.countdown-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 0.25rem;
+  transition: color 0.3s ease;
+}
+
+.countdown-item:hover .countdown-label {
+  color: #60a5fa;
+}
+
+.countdown-separator {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #475569;
+  padding-bottom: 1.5rem;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.countdown-event-info {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  animation: fadeInUp 0.8s ease-out 0.5s both;
+}
+
+.countdown-event-info span {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.countdown-event-info span:hover {
+  color: #60a5fa;
+  transform: translateY(-2px);
+}
+
+.countdown-event-info span::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #60a5fa, #c084fc);
+  transition: width 0.3s ease;
+}
+
+.countdown-event-info span:hover::after {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .countdown-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .countdown-number {
+    font-size: 2rem;
+    min-width: 40px;
+  }
+
+  .countdown-item {
+    min-width: 40px;
+  }
+
+  .countdown-grid {
+    gap: 0.25rem;
+  }
+
+  .countdown-separator {
+    font-size: 1.5rem;
+    padding-bottom: 1.2rem;
+  }
+
+  .countdown-title {
+    font-size: 1rem;
+  }
+
+  .countdown-event-info {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .countdown-event-info span {
+    font-size: 0.75rem;
+  }
+
+  .countdown-item {
+    animation-duration: 0.4s;
+  }
+
+  .countdown-number {
+    animation: numberPulseMobile 1s ease-in-out;
+  }
+
+  @keyframes numberPulseMobile {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
     `}</style>
     </div>
   </div>

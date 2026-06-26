@@ -104,64 +104,91 @@ router.post("/webhook", authenticateIBM, async (req, res) => {
     });
 
     if (userId && status === "AUTO_MATCHED") {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const io = req.app.get("io");
-        if (io) {
-          setTimeout(() => {
-            try {
-              // Notify user
-              io.to(userId).emit("new_notification", {
-                type: "payment_received",
-                title: "💰 Payment Received!",
-                message: `We received KES ${amount} from you. Go to Contributions page to claim it to a campaign.`,
-                data: { amount, code: mpesaCode },
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user) {
+    const io = req.app.get("io");
+
+    // SAVE TO DATABASE
+    await createNotification({
+      userId: userId,
+      type: "payment_received",
+      title: "💰 Payment Received!",
+      message: `We received KES ${amount} from you. Go to Contributions page to claim it.`,
+      data: { amount, code: mpesaCode }
+    });
+
+    // SEND EMAIL TO USER
+    if (user.email) {
+      (async () => {
+        try {
+          await sendPersonalizedEmail(
+            { email: user.email, fullName: user.fullName },
+            "payment_received",
+            `💰 Payment Received - KES ${amount}`,
+            `Dear ${user.fullName},\n\nWe have received KES ${amount} from you.\n\nTo claim this payment, please:\n1. Log in to ZUCA Portal\n2. Go to Contributions page\n3. Paste this M-PESA code: ${mpesaCode}\n\nTumsifu Yesu Kristu! 🙏`,
+            { amount, code: mpesaCode }
+          );
+        } catch (err) {
+          console.error("Failed to send email:", err.message);
+        }
+      })();
+    }
+
+    // SOCKET.IO NOTIFICATIONS
+    if (io) {
+      setTimeout(() => {
+        try {
+          io.to(userId).emit("new_notification", {
+            type: "payment_received",
+            title: "💰 Payment Received!",
+            message: `We received KES ${amount} from you. Go to Contributions page to claim it.`,
+            data: { amount, code: mpesaCode },
+            createdAt: new Date().toISOString(),
+          });
+
+          // Admins
+          const notifyAdmins = async () => {
+            const admins = await prisma.user.findMany({
+              where: { role: "admin" },
+              select: { id: true },
+            });
+            for (const admin of admins) {
+              io.to(admin.id).emit("new_notification", {
+                type: "payment_received_admin",
+                title: "💰 New Payment Received",
+                message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
+                data: { amount, code: mpesaCode, userId, payerName: user.fullName },
                 createdAt: new Date().toISOString(),
               });
-
-              // Notify admins
-              const notifyAdmins = async () => {
-                const admins = await prisma.user.findMany({
-                  where: { role: "admin" },
-                  select: { id: true },
-                });
-                for (const admin of admins) {
-                  io.to(admin.id).emit("new_notification", {
-                    type: "payment_received_admin",
-                    title: "💰 New Payment Received",
-                    message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
-                    data: { amount, code: mpesaCode, userId, payerName: user.fullName },
-                    createdAt: new Date().toISOString(),
-                  });
-                }
-              };
-              notifyAdmins();
-
-              // Notify treasurers
-              const notifyTreasurers = async () => {
-                const treasurers = await prisma.user.findMany({
-                  where: { specialRole: "treasurer" },
-                  select: { id: true },
-                });
-                for (const treasurer of treasurers) {
-                  io.to(treasurer.id).emit("new_notification", {
-                    type: "payment_received_admin",
-                    title: "💰 New Payment Received",
-                    message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
-                    data: { amount, code: mpesaCode, userId, payerName: user.fullName },
-                    createdAt: new Date().toISOString(),
-                  });
-                }
-              };
-              notifyTreasurers();
-
-            } catch (err) {
-              console.error("Webhook notification error:", err);
             }
-          }, 100);
+          };
+          notifyAdmins();
+
+          // Treasurers
+          const notifyTreasurers = async () => {
+            const treasurers = await prisma.user.findMany({
+              where: { specialRole: "treasurer" },
+              select: { id: true },
+            });
+            for (const treasurer of treasurers) {
+              io.to(treasurer.id).emit("new_notification", {
+                type: "payment_received_admin",
+                title: "💰 New Payment Received",
+                message: `${user.fullName} paid KES ${amount} (Code: ${mpesaCode})`,
+                data: { amount, code: mpesaCode, userId, payerName: user.fullName },
+                createdAt: new Date().toISOString(),
+              });
+            }
+          };
+          notifyTreasurers();
+
+        } catch (err) {
+          console.error("Webhook notification error:", err);
         }
-      }
+      }, 100);
     }
+  }
+}
 
     res.status(201).json({
       resultCode: 0,

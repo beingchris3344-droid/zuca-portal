@@ -53,6 +53,8 @@ import LinkCheckin from './components/admin/attendance/LinkCheckin';
 import MinutesList from './pages/admin/minutes/MinutesList';
 import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
 import ScanPage from './pages/ScanPage';
+import BankPayments from "./pages/BankPayments";
+
 
 
 
@@ -513,6 +515,8 @@ useEffect(() => {
           <Route path="/admin/attendance/overview" element={<AdminAttendanceOverview />} />
           <Route path="attendance/member/:userId" element={<AdminMemberDetail />} />
           <Route path="email-settings" element={<EmailManagement />} />
+          <Route path="bank-payments" element={<BankPayments />} />
+
 
           
           {/* ===== EXECUTIVE SYSTEM - ADMIN ROUTES ===== */}

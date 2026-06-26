@@ -76,24 +76,26 @@ export default function RoleLayout() {
              { action: `${basePath}/history`, label: "Manage History", icon: "📜" }
           ]
         };
-      case "treasurer":
-        return { 
-          icon: "💰", 
-          name: "Treasurer", 
-          color: "#f59e0b",
-          description: "Manage contributions & financial reports",
-          modules: [
-            { path: `${basePath}/contributions`, icon: "💰", label: "Contributions" },
-            { path: `${basePath}/reports`, icon: "📊", label: "Reports" },
-             { path: `${basePath}/notes`, icon: "📝", label: "Notes" }
-          ],
-          quickActions: [
-              { action: `${basePath}/notes?new=true`, label: "New Note", icon: "+" },
-               { action: `${basePath}/notes?calculator=true`, label: "Calculator", icon: "🧮" },  
-            { action: `${basePath}/contributions`, label: "Add Contribution", icon: "➕" },
-            { action: `${basePath}/reports`, label: "Generate Report", icon: "📊" }
-          ]
-        };
+     case "treasurer":
+  return { 
+    icon: "💰", 
+    name: "Treasurer", 
+    color: "#f59e0b",
+    description: "Manage contributions & financial reports",
+    modules: [
+      { path: `${basePath}/contributions`, icon: "💰", label: "Contributions" },
+      { path: `${basePath}/reports`, icon: "📊", label: "Reports" },
+      { path: `${basePath}/notes`, icon: "📝", label: "Notes" },
+      { path: `/admin/bank-payments`, icon: "🏦", label: "Bank Payments" }
+    ],
+    quickActions: [
+      { action: `${basePath}/notes?new=true`, label: "New Note", icon: "+" },
+      { action: `${basePath}/notes?calculator=true`, label: "Calculator", icon: "🧮" },  
+      { action: `${basePath}/contributions`, label: "Add Contribution", icon: "➕" },
+      { action: `${basePath}/reports`, label: "Generate Report", icon: "📊" },
+      { action: `/admin/bank-payments`, label: "View Bank Payments", icon: "🏦" }
+    ]
+  };
       case "choir_moderator":
   return { 
     icon: "🎵", 

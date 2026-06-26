@@ -186,7 +186,7 @@ useEffect(() => {
     { path: "/schedules", label: "Schedules", icon: "📅" },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
-        { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
+        { path: "/mass-programs", label: "Mass Programs", icon: "🧾" },
 { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={20} /> },
         { path: "/hymns", label: "Hymn Book", icon: "🎵" },
 

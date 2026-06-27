@@ -609,6 +609,19 @@ app.get('/api/admin/email/test', (req, res) => {
   res.json({ success: true, message: 'Email settings route is working!', timestamp: new Date().toISOString() });
 });
 
+
+// ================== WEBHOOK ROUTES ==================
+const webhookRoutes = require('./routes/webhookRoutes');
+app.use('/api/webhooks', webhookRoutes);
+
+// Email Routes
+const emailRoutes = require('./routes/emailRoutes');
+app.use('/api/email', emailRoutes);
+
+// Email Settings Routes
+const emailSettingsRoutes = require('./routes/emailSettingsRoutes');
+app.use('/api/email', emailSettingsRoutes);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -851,6 +864,9 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
+
+const { setIo } = require('./services/webhookHandler');
+setIo(io);
 
 require('./socket/dmSocket')(io);
 

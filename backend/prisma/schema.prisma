@@ -98,6 +98,10 @@ model User {
     //bank
     bankPayments BankPayment[]
 
+    //emails
+
+    emailWebhookLogs EmailWebhookLog[]
+
 
      // For Attendance System
   attendanceSheetsCreated AttendanceSheet[]  @relation("UserAttendanceSheets")
@@ -1762,4 +1766,24 @@ model EmailSetting {
   @@index([category])
   @@index([enabled])
   @@map("email_settings")
+}
+
+model EmailWebhookLog {
+  id         String   @id @default(uuid())
+  userId     String
+  eventType  String
+  email      String
+  messageId  String?
+  subject    String?
+  tag        String?
+  rawPayload Json
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([email])
+  @@index([createdAt])
+  @@map("email_webhook_logs")
 }

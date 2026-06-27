@@ -146,6 +146,7 @@ const allowedOrigins = [
   "https://zuca-backend-iw9p.onrender.com",
   "https://zucaportal.onrender.com",
   "https://zetechcatholicaction.com",
+  "https://www.zetechcatholicaction.com",
   // ADD YOUR TAILSCALE DOMAIN - THIS IS THE MISSING ONE!
   "https://chris-laptop.tail96b26f.ts.net",
   "http://chris-laptop.tail96b26f.ts.net"  // Also add HTTP version

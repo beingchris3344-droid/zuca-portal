@@ -7,7 +7,7 @@ const { handleBrevoWebhook } = require('../services/webhookHandler');
  * Receives real-time events from Brevo
  * Always returns 200 to acknowledge receipt
  */
-router.post('/brevo', express.json(), async (req, res) => {
+router.post('/brevo', async (req, res) => {
   try {
     console.log('📨 Webhook received from Brevo');
     console.log('📦 Payload:', JSON.stringify(req.body, null, 2));

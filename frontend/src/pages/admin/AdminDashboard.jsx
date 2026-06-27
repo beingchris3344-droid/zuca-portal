@@ -663,6 +663,9 @@ function AdminDashboard() {
 <button className="action-btn" onClick={() => navigate('/admin/bank-payments')}>
   <FiDollarSign /> Bank Payments
 </button>
+<button className="action-btn" onClick={() => navigate('/admin/email')}>
+  <FiMail size={18} /> Email Dashboard
+</button>
 </div>
         </div>
         

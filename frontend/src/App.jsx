@@ -99,6 +99,7 @@ import AddMemberPage from './pages/admin/attendance/AddMemberPage';
 import AdminAttendanceOverview from './pages/admin/attendance/AdminAttendanceOverview';
 import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
 import EmailManagement from './pages/admin/EmailManagement';
+import EmailDashboard from "./pages/admin/EmailDashboard";
 
 
 
@@ -516,6 +517,8 @@ useEffect(() => {
           <Route path="attendance/member/:userId" element={<AdminMemberDetail />} />
           <Route path="email-settings" element={<EmailManagement />} />
           <Route path="bank-payments" element={<BankPayments />} />
+          <Route path="/admin/email" element={<EmailDashboard />} />
+
 
 
           

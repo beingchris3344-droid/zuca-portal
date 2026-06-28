@@ -16,6 +16,8 @@ function ResetPassword() {
   const [email, setEmail] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
+  const [showNewPassword, setShowNewPassword] = useState(false);
+const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     // Get email from location state (passed from ForgotPassword)
@@ -353,6 +355,34 @@ function ResetPassword() {
       color: "rgba(255,255,255,0.3)",
       margin: "0 10px",
     },
+    passwordWrapper: {
+  position: "relative",
+},
+
+passwordInput: {
+  width: "100%",
+  padding: "12px 45px 12px 14px",
+  borderRadius: "12px",
+  border: "2px solid rgba(255,255,255,0.1)",
+  outline: "none",
+  background: "rgba(255,255,255,0.08)",
+  color: "white",
+  fontSize: "14px",
+  boxSizing: "border-box",
+},
+
+eyeButton: {
+  position: "absolute",
+  right: "12px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  background: "none",
+  border: "none",
+  color: "rgba(255,255,255,0.8)",
+  cursor: "pointer",
+  fontSize: "18px",
+  padding: 0,
+},
   };
 
   return (
@@ -406,33 +436,57 @@ function ResetPassword() {
             </p>
           )}
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>New Password</label>
-            <input
-              type="password"
-              placeholder="Enter new password (min 6 characters)"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              style={styles.input}
-              required
-              minLength="6"
-              disabled={loading}
-            />
-          </div>
+         <div style={styles.inputGroup}>
+  <label style={styles.label}>New Password</label>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Confirm Password</label>
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              style={styles.input}
-              required
-              minLength="6"
-              disabled={loading}
-            />
-          </div>
+  <div style={styles.passwordWrapper}>
+    <input
+      type={showNewPassword ? "text" : "password"}
+      placeholder="Enter new password (min 6 characters)"
+      value={newPassword}
+      onChange={(e) => setNewPassword(e.target.value)}
+      style={styles.passwordInput}
+      required
+      minLength="6"
+      disabled={loading}
+    />
+
+    <button
+      type="button"
+      onClick={() => setShowNewPassword(!showNewPassword)}
+      style={styles.eyeButton}
+      tabIndex={-1}
+    >
+      {showNewPassword ? "🙈" : "👁️"}
+    </button>
+  </div>
+</div>
+
+         <div style={styles.inputGroup}>
+  <label style={styles.label}>Confirm Password</label>
+
+  <div style={styles.passwordWrapper}>
+    <input
+      type={showConfirmPassword ? "text" : "password"}
+      placeholder="Confirm new password"
+      value={confirmPassword}
+      onChange={(e) => setConfirmPassword(e.target.value)}
+      style={styles.passwordInput}
+      required
+      minLength="6"
+      disabled={loading}
+    />
+
+    <button
+      type="button"
+      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+      style={styles.eyeButton}
+      tabIndex={-1}
+    >
+      {showConfirmPassword ? "🙈" : "👁️"}
+    </button>
+  </div>
+</div>
 
           <button style={styles.button} type="submit" disabled={loading}>
             {loading ? "Resetting..." : "Reset Password"}

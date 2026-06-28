@@ -54,6 +54,7 @@ import MinutesList from './pages/admin/minutes/MinutesList';
 import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
 import ScanPage from './pages/ScanPage';
 import BankPayments from "./pages/BankPayments";
+import UpdateNotification from './components/UpdateNotification';
 
 
 
@@ -608,6 +609,8 @@ useEffect(() => {
         {/* ================= CATCH ALL ================= */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+       <UpdateNotification />
 
       {/* ========== GLOBAL AI OVERLAY - CHOOSE BASED ON ROLE ========== */}
       {showAI && currentUser && (

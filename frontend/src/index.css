@@ -351,3 +351,14 @@ body {
 .light-mode .message-text {
   color: #111B21;
 }
+
+@keyframes slideUp {
+  from {
+    transform: translateX(-50%) translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}

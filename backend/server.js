@@ -32,21 +32,39 @@ const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
 
 // ================== HELPER FUNCTIONS ==================
-async function getNextMembershipNumber() {
+async function getNextAvailableMembershipNumber() {
   try {
-    const result = await prisma.$queryRaw`
-      SELECT nextval('membership_number_seq') as next_number
-    `;
-    const nextNumber = parseInt(result[0].next_number);
-    return `Z#${nextNumber.toString().padStart(3, '0')}`;
+    const users = await prisma.user.findMany({
+      select: { membership_number: true }
+    });
+
+    if (users.length === 0) {
+      return 'Z#001';
+    }
+
+    const usedNumbers = users
+      .map(u => parseInt(u.membership_number.replace('Z#', '')))
+      .filter(num => !isNaN(num))
+      .sort((a, b) => a - b);
+
+    let expected = 1;
+    for (const num of usedNumbers) {
+      if (num > expected) {
+        return `Z#${expected.toString().padStart(3, '0')}`;
+      }
+      expected++;
+    }
+
+    return `Z#${expected.toString().padStart(3, '0')}`;
   } catch (error) {
-    console.error("⚠️ Sequence error, using fallback:", error.message);
-    const userCount = await prisma.user.count();
-    const nextNumber = userCount + 1;
-    return `Z#${nextNumber.toString().padStart(3, '0')}`;
+    console.error("Error finding next number:", error);
+    const maxUser = await prisma.user.findFirst({
+      orderBy: { membership_number: 'desc' }
+    });
+    const maxNum = maxUser ? parseInt(maxUser.membership_number.replace('Z#', '')) : 0;
+    return `Z#${(maxNum + 1).toString().padStart(3, '0')}`;
   }
 }
-
 
 
 
@@ -5723,39 +5741,33 @@ app.post("/api/register", async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     
-    // ✅ NEW: Use database sequence
-    console.log("🔵 STEP 3: About to generate membership number");
-    const membershipNumber = await getNextMembershipNumber();
-    console.log("🔵 STEP 4: Membership number generated:", membershipNumber);
-
-    console.log("🔵 STEP 5: About to generate verification code");
+    console.log("🔵 STEP 3: About to generate verification code");
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    console.log("🔵 STEP 6: Code generated");
+    console.log("🔵 STEP 4: Code generated");
 
-    console.log("🔵 STEP 7: About to store in pendingRegistrations");
+    console.log("🔵 STEP 5: About to store in pendingRegistrations");
     const pendingKey = `${normalizedEmail}`;
     pendingRegistrations.set(pendingKey, {
       fullName,
       email: normalizedEmail,
       password: hashed,
       phone: formattedPhone,
-      membership_number: membershipNumber,
       role: "member",
       verificationCode,
       verificationExpiry,
       createdAt: new Date()
     });
-    console.log("🔵 STEP 8: Stored in pendingRegistrations");
+    console.log("🔵 STEP 6: Stored in pendingRegistrations (without membership number)");
 
     setTimeout(() => {
       if (pendingRegistrations.has(pendingKey)) {
         pendingRegistrations.delete(pendingKey);
       }
     }, 15 * 60 * 1000);
-    console.log("🔵 STEP 9: Cleanup timer set");
+    console.log("🔵 STEP 7: Cleanup timer set");
 
-    console.log("🔵 STEP 10: About to fire email (async)");
+    console.log("🔵 STEP 8: About to fire email (async)");
     (async () => {
       try {
         console.log(`📧 Sending email to ${normalizedEmail}`);
@@ -5766,16 +5778,16 @@ app.post("/api/register", async (req, res) => {
         console.error(`❌ Verification email failed:`, err.message);
       }
     })();
-    console.log("🔵 STEP 11: Email fire-and-forget triggered");
+    console.log("🔵 STEP 9: Email fire-and-forget triggered");
 
-    console.log("🔵 STEP 12: About to send response");
+    console.log("🔵 STEP 10: About to send response");
     res.json({
       success: true,
       message: "Verification code sent to your email. Please verify to complete registration.",
       email: normalizedEmail,
       requiresVerification: true
     });
-    console.log("🔵 STEP 13: Response sent successfully ✅");
+    console.log("🔵 STEP 11: Response sent successfully ✅");
 
   } catch (err) {
     console.error("❌ Registration Error:", err);
@@ -5810,74 +5822,17 @@ app.post("/api/verify-email", async (req, res) => {
       return res.status(400).json({ error: "Verification code has expired. Please register again." });
     }
     
-    // ✅ FIX: Use the membership number from pending registration, NOT generate a new one!
-    const membershipNumber = pendingUser.membership_number;  // ← USE EXISTING ONE
+    const membershipNumber = await getNextAvailableMembershipNumber();
     
     console.log(`📊 Creating user with membership: ${membershipNumber}`);
     
-    // ✅ Check if membership number is actually unique
-    const existingUser = await prisma.user.findUnique({
-      where: { membership_number: membershipNumber }
-    });
-    
-    if (existingUser) {
-      // If somehow the membership number is taken, generate a new unique one
-      const userCount = await prisma.user.count();
-      const uniqueMembershipNumber = `Z#${(userCount + 1).toString().padStart(3, '0')}`;
-      console.log(`⚠️ Membership ${membershipNumber} taken, using ${uniqueMembershipNumber}`);
-      
-      const user = await prisma.user.create({
-        data: {
-          fullName: pendingUser.fullName,
-          email: pendingUser.email,
-          password: pendingUser.password,
-          phone: pendingUser.phone,
-          membership_number: uniqueMembershipNumber,
-          role: pendingUser.role,
-          emailVerified: true,
-          lastActive: new Date()
-        }
-      });
-      
-      pendingRegistrations.delete(normalizedEmail);
-      
-      // Send welcome email
-      (async () => {
-        try {
-          await sendWelcomeEmail(user, user.membership_number);
-        } catch (err) {
-          console.error(`❌ Welcome email failed:`, err.message);
-        }
-      })();
-      
-      const token = jwt.sign(
-        { userId: user.id, role: user.role, emailVerified: true },
-        JWT_SECRET,
-        { expiresIn: "365d" }
-      );
-      
-      return res.json({
-        success: true,
-        message: "Email verified successfully! Account created.",
-        token: token,
-        user: {
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-          emailVerified: true
-        }
-      });
-    }
-    
-    // ✅ Save to database with the ORIGINAL membership number
     const user = await prisma.user.create({
       data: {
         fullName: pendingUser.fullName,
         email: pendingUser.email,
         password: pendingUser.password,
         phone: pendingUser.phone,
-        membership_number: membershipNumber,  // ← FIXED: Use pending's number
+        membership_number: membershipNumber,
         role: pendingUser.role,
         emailVerified: true,
         lastActive: new Date()
@@ -5886,7 +5841,6 @@ app.post("/api/verify-email", async (req, res) => {
     
     pendingRegistrations.delete(normalizedEmail);
     
-    // Send welcome email in background
     (async () => {
       try {
         await sendWelcomeEmail(user, user.membership_number);
@@ -5911,14 +5865,14 @@ app.post("/api/verify-email", async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         role: user.role,
-        emailVerified: true
+        emailVerified: true,
+        membership_number: user.membership_number
       }
     });
     
   } catch (err) {
     console.error("Verification error:", err);
     
-    // Handle duplicate key error gracefully
     if (err.code === 'P2002') {
       return res.status(409).json({ 
         error: "Membership number conflict. Please try registering again." 

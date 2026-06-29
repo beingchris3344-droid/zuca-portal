@@ -104,17 +104,20 @@ const fetchSong = async () => {
   };
 
   const shareSong = (platform) => {
-    if (!song) return;
-    const text = `Check out this hymn: ${song.title} ${song.reference ? `(${song.reference})` : ''}`;
-    
-    if (platform === 'whatsapp') {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-    } else if (platform === 'telegram') {
-      window.open(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`, '_blank');
-    } else if (platform === 'twitter') {
-      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
-    }
-  };
+  if (!song) return;
+  
+  const hymnUrl = `${window.location.origin}/hymn/${encodeURIComponent(song.title)}`;
+  const text = `Check out this hymn: ${song.title} ${song.reference ? `(${song.reference})` : ''}`;
+  const fullMessage = `${text}\n\n${hymnUrl}`;
+  
+  if (platform === 'whatsapp') {
+    window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, '_blank');
+  } else if (platform === 'telegram') {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(hymnUrl)}&text=${encodeURIComponent(text)}`, '_blank');
+  } else if (platform === 'twitter') {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(fullMessage)}`, '_blank');
+  }
+};
 
   const showToast = (message) => {
     const toast = document.createElement('div');

@@ -716,7 +716,7 @@ const [imageLoading, setImageLoading] = useState({});
           <div className="hero-overlay"></div>
           <div className="hero-content">
             <h1>Our Gallery</h1>
-            <p>zuca's emories over time , events, production,</p>
+            <p>zuca's memories over time , events, production,</p>
             <div className="hero-stats">
               <span><FiImage /> {formatNumber(pagination.total)} Media Items</span>
               <span><FiEye />photos ,videos and mp3 songs</span>

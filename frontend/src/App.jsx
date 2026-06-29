@@ -427,7 +427,7 @@ useEffect(() => {
                   <Route path="/scan/:token" element={<ScanPage />} />
                    <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
-           <Route path="/schedules" element={<UserSchedules />} />
+           
 
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}

@@ -849,10 +849,21 @@ const formatEventDate = (dateString) => {
             </div>
             <div className="welcome-subtitle">CATHOLIC ACTION</div>
             <div className="zuca-name">(Z.U.C.A)</div>
-            <p className="welcome-text">
-              Welcome to the Zetech University Catholic Action official Portal. All in one place where you can view announcements, 
-              explore mass schedules and other relevant programs, and also connect with other members — all in one powerful platform.
-            </p>
+         <p className="welcome-text">
+  Welcome to the Zetech University Catholic Action official website.
+  <br /><br />
+  Zetech Catholic Action is a vibrant student community committed to evangelism, faith, and fellowship through the power of music and service. Our mission is to spread hope, love, and faith within our campus and beyond.
+  <br /><br />
+  • Stay updated with clubs latest announcements
+  <br />
+  • Access mass schedules and programs
+  <br />
+  • View hymns, prayers, and daily readings
+  <br />
+  • Connect and engage with the ZUCA club members
+  <br />
+  • Relive memories through our gallery
+</p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
                 <FaUserPlus /> REGISTER
@@ -1990,7 +2001,12 @@ const formatEventDate = (dateString) => {
 
         /* Welcome Card */
         .welcome-card {
-          background: rgba(31, 97, 196, 0.15);
+background: linear-gradient(
+    135deg,
+    rgba(5, 11, 34, 0.78),
+    rgba(17, 34, 78, 0.55),
+    rgba(18, 18, 19, 0.6)
+);
           backdrop-filter: blur(10px);
           border-radius: 24px;
           padding: clamp(30px, 5vw, 40px) clamp(20px, 4vw, 30px);

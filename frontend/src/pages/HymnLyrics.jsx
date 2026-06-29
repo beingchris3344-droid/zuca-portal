@@ -48,51 +48,35 @@ useEffect(() => {
   fetchSong();
 }, [songTitle]);
 
- const fetchSong = async () => {
+const fetchSong = async () => {
   try {
     setLoading(true);
     const songTitle = decodeURIComponent(id);
     
-    // First try to get all hymns and find by title
-    const res = await axios.get(`${BASE_URL}/api/public/hymns?limit=100`, {
+    const res = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(songTitle)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     
-    if (res.data && res.data.success && res.data.hymns) {
+    if (res.data && res.data.success && res.data.hymns && res.data.hymns.length > 0) {
       // Find exact match (case insensitive)
-      const found = res.data.hymns.find(h => 
+      const exactMatch = res.data.hymns.find(h => 
         h.title.toLowerCase() === songTitle.toLowerCase()
       );
       
-      if (found) {
-        // Fetch full lyrics for this hymn
-        const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${found.id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (detailRes.data.success) {
-          setSong(detailRes.data.hymn);
-          return;
-        }
+      const hymnToUse = exactMatch || res.data.hymns[0];
+      
+      // Fetch full details
+      const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${hymnToUse.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      
+      if (detailRes.data.success) {
+        setSong(detailRes.data.hymn);
+        return;
       }
-      
-      // If no exact match, try partial match
-      const partialMatch = res.data.hymns.find(h => 
-        h.title.toLowerCase().includes(songTitle.toLowerCase()) ||
-        songTitle.toLowerCase().includes(h.title.toLowerCase())
-      );
-      
-      if (partialMatch) {
-        const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${partialMatch.id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (detailRes.data.success) {
-          setSong(detailRes.data.hymn);
-          return;
-        }
-      }
-      
-      setError("Song not found");
     }
+    
+    setError("Song not found");
   } catch (err) {
     setError("Failed to load song");
     console.error(err);

@@ -1130,7 +1130,7 @@ const formatEventDate = (dateString) => {
           
           <div className="view-all-events">
             <button 
-              onClick={() => navigate("/mass-programs")} 
+              onClick={() => navigate("/schedules")} 
               className="view-all-events-btn"
             >
               View All Events →

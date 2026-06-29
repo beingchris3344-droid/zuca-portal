@@ -425,6 +425,9 @@ useEffect(() => {
         <Route path="/pay/campaign/:campaignId" element={<PaymentPage />} /> 
                   <Route path="/attendance/link/:token" element={<LinkCheckin />} />
                   <Route path="/scan/:token" element={<ScanPage />} />
+                   <Route path="/hymns" element={<HymnBook />} />
+          <Route path="/hymn/:id" element={<HymnLyrics />} />
+           <Route path="/schedules" element={<UserSchedules />} />
 
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}

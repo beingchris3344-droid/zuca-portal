@@ -5632,6 +5632,44 @@ app.delete("/api/admin/pending-songs/:id", authenticate, async (req, res) => {
 });
 
 
+app.get("/api/sitemap", async (req, res) => {
+  try {
+    const baseUrl = "https://zetechcatholicaction.com";
+    
+    const songs = await prisma.song.findMany({
+      select: { title: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${baseUrl}/</loc><priority>1.0</priority></url>
+  <url><loc>${baseUrl}/home</loc></url>
+  <url><loc>${baseUrl}/login</loc></url>
+  <url><loc>${baseUrl}/register</loc></url>
+  <url><loc>${baseUrl}/announcements</loc></url>
+  <url><loc>${baseUrl}/mass-programs</loc></url>
+  <url><loc>${baseUrl}/gallery</loc></url>
+  <url><loc>${baseUrl}/prayer</loc></url>
+  <url><loc>${baseUrl}/hymns</loc></url>`;
+    
+    songs.forEach(song => {
+      const title = encodeURIComponent(song.title);
+      xml += `<url><loc>${baseUrl}/hymn/${title}</loc><priority>0.6</priority></url>`;
+    });
+    
+    xml += `</urlset>`;
+    
+    res.header('Content-Type', 'application/xml');
+    res.send(xml);
+    
+  } catch (err) {
+    console.error("Sitemap error:", err);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
+
 
 // ================== UPDATE LAST ACTIVE ==================
 async function updateLastActive(req, res, next) {

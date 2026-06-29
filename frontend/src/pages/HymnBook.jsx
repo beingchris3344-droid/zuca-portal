@@ -372,11 +372,11 @@ export default function HymnBook() {
                 ...(viewMode === 'list' && songCardList),
               }}
             >
-              <Link 
-                to={`/hymn/${song.id}`}
-                style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}
-                onClick={() => trackView(song)}
-              >
+             <Link 
+  to={`/hymn/${encodeURIComponent(song.title)}`}
+  style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}
+  onClick={() => trackView(song)}
+>
                 <div style={songCardHeader}>
                   <div style={songIconWrapper}>
                     <GiPrayerBeads style={songCardIcon} />

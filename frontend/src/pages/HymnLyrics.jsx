@@ -29,6 +29,7 @@ import BASE_URL from "../api";
 export default function HymnLyrics() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const songTitle = decodeURIComponent(id);
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,24 +44,62 @@ export default function HymnLyrics() {
     if (saved) setFavorites(JSON.parse(saved));
   }, []);
 
-  useEffect(() => {
-    fetchSong();
-  }, [id]);
+useEffect(() => {
+  fetchSong();
+}, [songTitle]);
 
-  const fetchSong = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${BASE_URL}/api/songs/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      setSong(res.data);
-    } catch (err) {
-      setError("Failed to load song");
-      console.error(err);
-    } finally {
-      setLoading(false);
+ const fetchSong = async () => {
+  try {
+    setLoading(true);
+    const songTitle = decodeURIComponent(id);
+    
+    // First try to get all hymns and find by title
+    const res = await axios.get(`${BASE_URL}/api/public/hymns?limit=100`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    
+    if (res.data && res.data.success && res.data.hymns) {
+      // Find exact match (case insensitive)
+      const found = res.data.hymns.find(h => 
+        h.title.toLowerCase() === songTitle.toLowerCase()
+      );
+      
+      if (found) {
+        // Fetch full lyrics for this hymn
+        const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${found.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (detailRes.data.success) {
+          setSong(detailRes.data.hymn);
+          return;
+        }
+      }
+      
+      // If no exact match, try partial match
+      const partialMatch = res.data.hymns.find(h => 
+        h.title.toLowerCase().includes(songTitle.toLowerCase()) ||
+        songTitle.toLowerCase().includes(h.title.toLowerCase())
+      );
+      
+      if (partialMatch) {
+        const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${partialMatch.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (detailRes.data.success) {
+          setSong(detailRes.data.hymn);
+          return;
+        }
+      }
+      
+      setError("Song not found");
     }
-  };
+  } catch (err) {
+    setError("Failed to load song");
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const toggleFavorite = () => {
     const newFavorites = favorites.includes(id)

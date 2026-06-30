@@ -1,6 +1,336 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const { sendPersonalizedEmail } = require("./mailer");
+const PDFDocument = require('pdfkit');
+const SibApiV3Sdk = require('sib-api-v3-sdk');
+
+// ==================== BREVO SETUP ====================
+const defaultClient = SibApiV3Sdk.ApiClient.instance;
+const apiKey = defaultClient.authentications['api-key'];
+apiKey.apiKey = process.env.BREVO_API_KEY;
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+
+// ZUCA Logo URL
+const ZUCA_LOGO_URL = "https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/profiles/profile_c2dd6c54-4576-41b1-a85d-1af90d88254a_1777067617594.jpg";
+
+// ==================== HELPER: GET FORMAL GREETING ====================
+function getFormalGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 21) return "Good evening";
+  return "Good evening";
+}
+
+/**
+ * Generate a PDF report from the report data
+ */
+function generatePDFReport(report) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks = [];
+      
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      // ========== HEADER ==========
+      doc.fontSize(20)
+         .font('Helvetica-Bold')
+         .fillColor('#1a237e')
+         .text('ZUCA SYSTEM REPORT', { align: 'center' });
+      
+      doc.moveDown(0.5);
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#666')
+         .text(`Report Period: ${new Date(report.reportPeriod.start).toLocaleString()} - ${new Date(report.reportPeriod.end).toLocaleString()}`, { align: 'center' });
+      
+      doc.text(`Generated: ${new Date(report.reportDate).toLocaleString()}`, { align: 'center' });
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#1a237e').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== SUMMARY SECTION ==========
+      doc.fontSize(16)
+         .font('Helvetica-Bold')
+         .fillColor('#1a237e')
+         .text('📈 SUMMARY', { underline: true });
+      
+      doc.moveDown(0.5);
+      
+      const summary = report.summary;
+      const summaryItems = [
+        ['New Users', summary.newUsers],
+        ['New Pledges', summary.newPledges],
+        ['Announcements', summary.newAnnouncements],
+        ['Active Users', summary.activeUsers],
+        ['Errors', summary.errors],
+        ['Total Activities', summary.totalActivities]
+      ];
+      
+      let xPos = 50;
+      let yPos = doc.y;
+      const boxWidth = 230;
+      const boxHeight = 60;
+      
+      summaryItems.forEach((item, index) => {
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        
+        if (col === 0) {
+          xPos = 50;
+        } else {
+          xPos = 50 + boxWidth + 20;
+        }
+        
+        if (row > 0 && col === 0) {
+          yPos += boxHeight + 10;
+        }
+        
+        doc.rect(xPos, yPos, boxWidth, boxHeight)
+           .fillAndStroke('#f5f5f5', '#e0e0e0');
+        
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#666')
+           .text(item[0], xPos + 10, yPos + 5, { width: boxWidth - 20, align: 'center' });
+        
+        doc.fontSize(24)
+           .font('Helvetica-Bold')
+           .fillColor(item[0] === 'Errors' && item[1] > 0 ? '#f44336' : '#1a237e')
+           .text(String(item[1]), xPos + 10, yPos + 20, { width: boxWidth - 20, align: 'center' });
+      });
+      
+      doc.y = yPos + boxHeight + 20;
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#e0e0e0').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== NEW USERS ==========
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('#1a237e')
+         .text(`👤 NEW USERS (${report.details.newUsers.length})`);
+      
+      doc.moveDown(0.5);
+      
+      if (report.details.newUsers.length > 0) {
+        const tableTop = doc.y;
+        doc.fontSize(9)
+           .font('Helvetica-Bold')
+           .fillColor('#fff');
+        
+        doc.rect(50, tableTop, 130, 20).fill('#1a237e');
+        doc.text('Name', 55, tableTop + 4);
+        
+        doc.rect(180, tableTop, 160, 20).fill('#1a237e');
+        doc.text('Email', 185, tableTop + 4);
+        
+        doc.rect(340, tableTop, 100, 20).fill('#1a237e');
+        doc.text('Membership', 345, tableTop + 4);
+        
+        doc.rect(440, tableTop, 105, 20).fill('#1a237e');
+        doc.text('Jumuia', 445, tableTop + 4);
+        
+        let rowY = tableTop + 20;
+        report.details.newUsers.slice(0, 15).forEach((u, i) => {
+          const bgColor = i % 2 === 0 ? '#f9f9f9' : '#ffffff';
+          
+          doc.rect(50, rowY, 495, 18).fill(bgColor);
+          doc.fontSize(8)
+             .font('Helvetica')
+             .fillColor('#333');
+          
+          doc.text(u.name.substring(0, 20), 55, rowY + 3);
+          doc.text(u.email.substring(0, 25), 185, rowY + 3);
+          doc.text(u.membership || 'N/A', 345, rowY + 3);
+          doc.text(u.jumuia.substring(0, 15), 445, rowY + 3);
+          
+          rowY += 18;
+        });
+        
+        doc.y = rowY + 5;
+        
+        if (report.details.newUsers.length > 15) {
+          doc.fontSize(9).fillColor('#666').text(`... and ${report.details.newUsers.length - 15} more users`);
+        }
+      } else {
+        doc.fontSize(10).fillColor('#666').text('No new users in the last 24 hours.');
+      }
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#e0e0e0').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== NEW PLEDGES ==========
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('#1a237e')
+         .text(`💰 NEW PLEDGES (${report.details.newPledges.length})`);
+      
+      doc.moveDown(0.5);
+      
+      if (report.details.newPledges.length > 0) {
+        const tableTop = doc.y;
+        doc.fontSize(9)
+           .font('Helvetica-Bold')
+           .fillColor('#fff');
+        
+        doc.rect(50, tableTop, 120, 20).fill('#1a237e');
+        doc.text('User', 55, tableTop + 4);
+        
+        doc.rect(170, tableTop, 130, 20).fill('#1a237e');
+        doc.text('Campaign', 175, tableTop + 4);
+        
+        doc.rect(300, tableTop, 80, 20).fill('#1a237e');
+        doc.text('Amount', 305, tableTop + 4);
+        
+        doc.rect(380, tableTop, 80, 20).fill('#1a237e');
+        doc.text('Pending', 385, tableTop + 4);
+        
+        doc.rect(460, tableTop, 85, 20).fill('#1a237e');
+        doc.text('Status', 465, tableTop + 4);
+        
+        let rowY = tableTop + 20;
+        report.details.newPledges.slice(0, 15).forEach((p, i) => {
+          const bgColor = i % 2 === 0 ? '#f9f9f9' : '#ffffff';
+          
+          doc.rect(50, rowY, 495, 18).fill(bgColor);
+          doc.fontSize(8)
+             .font('Helvetica')
+             .fillColor('#333');
+          
+          doc.text(p.user.substring(0, 15), 55, rowY + 3);
+          doc.text(p.campaign.substring(0, 20), 175, rowY + 3);
+          doc.text(`KES ${p.amount.toLocaleString()}`, 305, rowY + 3);
+          doc.text(`KES ${p.pending.toLocaleString()}`, 385, rowY + 3);
+          
+          const statusColor = p.status === 'COMPLETED' ? '#4caf50' : p.status === 'PENDING' ? '#ff9800' : '#2196f3';
+          doc.fillColor(statusColor).text(p.status, 465, rowY + 3);
+          
+          rowY += 18;
+        });
+        
+        doc.y = rowY + 5;
+      } else {
+        doc.fontSize(10).fillColor('#666').text('No new pledges in the last 24 hours.');
+      }
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#e0e0e0').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== ERRORS ==========
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor(report.details.errors.length > 0 ? '#f44336' : '#1a237e')
+         .text(`❌ ERRORS (${report.details.errors.length})`);
+      
+      doc.moveDown(0.5);
+      
+      if (report.details.errors.length > 0) {
+        report.details.errors.slice(0, 10).forEach((e) => {
+          doc.fontSize(9)
+             .font('Helvetica-Bold')
+             .fillColor('#f44336')
+             .text('• ' + e.message.substring(0, 80), { width: 495 });
+          
+          doc.fontSize(8)
+             .font('Helvetica')
+             .fillColor('#666')
+             .text(`  Path: ${e.path} | Method: ${e.method} | User: ${e.userId}`, { width: 495 });
+          
+          doc.text(`  Time: ${new Date(e.timestamp).toLocaleString()}`, { width: 495 });
+          doc.moveDown(0.3);
+        });
+        
+        if (report.details.errors.length > 10) {
+          doc.fontSize(9).fillColor('#666').text(`... and ${report.details.errors.length - 10} more errors`);
+        }
+      } else {
+        doc.fontSize(10).fillColor('#4caf50').text('✅ No errors detected in the last 24 hours.');
+      }
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#e0e0e0').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== SECURITY ==========
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor(report.details.maliciousRequests.length > 0 ? '#ff9800' : '#1a237e')
+         .text(`🛡️ SECURITY`);
+      
+      doc.moveDown(0.5);
+      
+      if (report.details.maliciousRequests.length > 0) {
+        doc.fontSize(10)
+           .font('Helvetica-Bold')
+           .fillColor('#ff9800')
+           .text(`⚠️ ${report.details.maliciousRequests.length} Malicious Request(s) Blocked`);
+        
+        report.details.maliciousRequests.slice(0, 5).forEach((m) => {
+          doc.fontSize(8)
+             .font('Helvetica')
+             .fillColor('#666')
+             .text(`• ${m.type} - ${m.endpoint} (${m.method}) from ${m.ip} at ${new Date(m.timestamp).toLocaleString()}`);
+        });
+      } else {
+        doc.fontSize(10).fillColor('#4caf50').text('✅ No malicious requests detected.');
+      }
+      
+      doc.moveDown(1);
+      doc.lineWidth(1).strokeColor('#e0e0e0').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(1);
+
+      // ========== SYSTEM HEALTH ==========
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('#1a237e')
+         .text('🖥️ SYSTEM HEALTH');
+      
+      doc.moveDown(0.5);
+      
+      const health = report.details.systemHealth;
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#333');
+      
+      doc.text(`Status: ${health.status.toUpperCase()}`, { continued: true });
+      const statusColor = health.status === 'healthy' ? '#4caf50' : '#f44336';
+      doc.fillColor(statusColor).text(` ${health.status.toUpperCase()}`, { continued: false });
+      
+      doc.fillColor('#333');
+      doc.text(`Uptime: ${health.uptime}`);
+      doc.text(`Memory: ${health.memory.heapUsed} / ${health.memory.heapTotal} (RSS: ${health.memory.rss})`);
+      doc.text(`Database: ${health.database.toUpperCase()}`);
+      
+      doc.moveDown(1);
+      
+      // ========== FOOTER ==========
+      doc.lineWidth(1).strokeColor('#1a237e').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(0.5);
+      
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor('#666')
+         .text('This is an automated report from ZUCA System Monitor.', { align: 'center' });
+      
+      doc.text('Tumsifu Yesu Kristu! 🙏', { align: 'center' });
+      
+      doc.text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
+
+      doc.end();
+      
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 /**
  * Generate a 24-hour system activity report
@@ -30,7 +360,6 @@ async function generate24HourReport() {
   });
 
   // ========== 2. ERRORS ==========
-  // Get errors from global error store
   const errors = global.errorStore?.filter(e => 
     new Date(e.timestamp) >= twentyFourHoursAgo
   ) || [];
@@ -185,7 +514,8 @@ async function generate24HourReport() {
 }
 
 /**
- * Send 24-hour report email to admins
+ * Send 24-hour report email to admins with PDF attachment
+ * Uses direct Brevo API (same pattern as semesterReportService)
  */
 async function send24HourReport() {
   try {
@@ -202,32 +532,57 @@ async function send24HourReport() {
 
     if (admins.length === 0) {
       console.log('⚠️ No admins found to send report to');
-      return;
+      return null;
+    }
+
+    // ✅ Generate PDF
+    console.log('📄 Generating PDF report...');
+    let pdfBuffer = null;
+    try {
+      pdfBuffer = await generatePDFReport(report);
+      console.log(`✅ PDF generated: ${pdfBuffer.length} bytes`);
+    } catch (pdfErr) {
+      console.error('❌ PDF generation failed:', pdfErr.message);
+      // Continue without PDF
     }
 
     // Build email body
     const emailBody = buildReportEmail(report);
+    const textContent = buildReportText(report);
 
     // Send to each admin
+    let successCount = 0;
     for (const admin of admins) {
       try {
-        await sendPersonalizedEmail(
-          { email: admin.email, fullName: admin.fullName },
-          'system_report',
-          `📊 ZUCA System Report - ${new Date().toLocaleDateString()}`,
-          emailBody,
-          { report: report }
-        );
-        console.log(`✅ Report sent to ${admin.email}`);
+        // ✅ Create email with attachment (SAME PATTERN AS SEMESTER REPORT)
+        let sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+        sendSmtpEmail.to = [{ email: admin.email }];
+        sendSmtpEmail.sender = { 
+          email: process.env.EMAIL_USER || "zucaportal2025@gmail.com", 
+          name: "ZUCA"
+        };
+        sendSmtpEmail.subject = `📊 ZUCA System Report - ${new Date().toLocaleDateString()}`;
+        sendSmtpEmail.htmlContent = emailBody;
+        sendSmtpEmail.textContent = textContent;
+        
+        // ✅ ATTACH PDF - THIS IS THE KEY!
+        if (pdfBuffer) {
+          sendSmtpEmail.attachment = [{
+            name: `system_report_${new Date().toISOString().split('T')[0]}.pdf`,
+            content: pdfBuffer.toString('base64')
+          }];
+        }
+        
+        const response = await brevoApi.sendTransacEmail(sendSmtpEmail);
+        console.log(`✅ Report sent to ${admin.email}, MessageId: ${response.messageId}`);
+        successCount++;
+        
       } catch (err) {
         console.error(`❌ Failed to send report to ${admin.email}:`, err.message);
       }
     }
 
-    // Also save to database for later viewing
-    await saveReportToDatabase(report);
-
-    console.log(`✅ 24-hour report completed. Sent to ${admins.length} admins.`);
+    console.log(`✅ 24-hour report completed. Sent to ${successCount} admins.`);
     return report;
     
   } catch (err) {
@@ -241,6 +596,7 @@ async function send24HourReport() {
  */
 function buildReportEmail(report) {
   const { summary, details } = report;
+  const greeting = getFormalGreeting();
   
   let html = `
     <!DOCTYPE html>
@@ -256,7 +612,6 @@ function buildReportEmail(report) {
         .stat-number { font-size: 24px; font-weight: bold; color: #1a237e; }
         .stat-label { font-size: 12px; color: #666; }
         .error-item { background: #ffebee; border-left: 4px solid #f44336; padding: 10px; margin: 5px 0; border-radius: 3px; }
-        .user-item { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 10px; margin: 5px 0; border-radius: 3px; }
         .activity-item { background: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px; margin: 5px 0; border-radius: 3px; }
         .warning-item { background: #fff3e0; border-left: 4px solid #ff9800; padding: 10px; margin: 5px 0; border-radius: 3px; }
         table { width: 100%; border-collapse: collapse; margin: 10px 0; }
@@ -269,12 +624,17 @@ function buildReportEmail(report) {
         .badge-red { background: #f44336; color: white; }
         .badge-yellow { background: #ff9800; color: white; }
         .badge-blue { background: #2196f3; color: white; }
+        .pdf-note { background: #e8eaf6; padding: 10px; border-radius: 5px; margin: 15px 0; text-align: center; border: 1px dashed #1a237e; }
       </style>
     </head>
     <body>
       <h1>📊 ZUCA System Report</h1>
       <p><strong>Report Period:</strong> ${new Date(report.reportPeriod.start).toLocaleString()} - ${new Date(report.reportPeriod.end).toLocaleString()}</p>
       <p><strong>Generated:</strong> ${new Date(report.reportDate).toLocaleString()}</p>
+
+      <div class="pdf-note">
+        📄 <strong>PDF Attachment:</strong> A PDF version of this report is attached to this email for offline viewing.
+      </div>
 
       <div class="summary-box">
         <h2>📈 Summary</h2>
@@ -405,16 +765,47 @@ function buildReportEmail(report) {
 }
 
 /**
- * Save report to database for later viewing
+ * Build plain text email body
  */
-async function saveReportToDatabase(report) {
-  try {
-    // Check if reports table exists - if not, create it or skip
-    // For now, just log it
-    console.log('📊 Report saved to database (skipping - table may not exist)');
-  } catch (err) {
-    console.error('Failed to save report:', err.message);
-  }
+function buildReportText(report) {
+  const { summary, details } = report;
+  
+  let text = `
+ZUCA SYSTEM REPORT
+==================
+Report Period: ${new Date(report.reportPeriod.start).toLocaleString()} - ${new Date(report.reportPeriod.end).toLocaleString()}
+Generated: ${new Date(report.reportDate).toLocaleString()}
+
+📈 SUMMARY
+----------
+New Users: ${summary.newUsers}
+New Pledges: ${summary.newPledges}
+Announcements: ${summary.newAnnouncements}
+Active Users: ${summary.activeUsers}
+Errors: ${summary.errors}
+Total Activities: ${summary.totalActivities}
+
+👤 New Users (${details.newUsers.length})
+${details.newUsers.length > 0 ? details.newUsers.map(u => `  • ${u.name} (${u.email})`).join('\n') : '  No new users'}
+
+💰 New Pledges (${details.newPledges.length})
+${details.newPledges.length > 0 ? details.newPledges.map(p => `  • ${p.user} - ${p.campaign}: KES ${p.amount.toLocaleString()}`).join('\n') : '  No new pledges'}
+
+❌ Errors (${details.errors.length})
+${details.errors.length > 0 ? details.errors.map(e => `  • ${e.message}`).join('\n') : '  ✅ No errors'}
+
+🖥️ System Health
+-----------------
+Status: ${details.systemHealth.status.toUpperCase()}
+Uptime: ${details.systemHealth.uptime}
+Memory: ${details.systemHealth.memory.heapUsed} / ${details.systemHealth.memory.heapTotal}
+Database: ${details.systemHealth.database.toUpperCase()}
+
+---
+Tumsifu Yesu Kristu! 🙏
+  `;
+
+  return text;
 }
 
 module.exports = {

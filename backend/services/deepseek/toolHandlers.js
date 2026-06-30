@@ -2,6 +2,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const axios = require("axios");
+const { createAndSendNotification } = require("./notificationService");
 
 /**
  * Execute a tool call and return the result
@@ -565,61 +566,54 @@ async function executeToolCall(toolName, args, context) {
       }
 
       // ==================== ANNOUNCEMENTS ====================
-      case "get_announcements": {
-        const announcements = await prisma.announcement.findMany({
-          where: { published: true },
-          orderBy: { createdAt: "desc" },
-          take: args.limit || 5,
-          include: { author: { select: { fullName: true } } }
-        });
-        
-        return {
-          announcements: announcements.map(a => ({
-            id: a.id,
-            title: a.title,
-            content: a.content,
-            category: a.category,
-            author: a.author?.fullName,
-            createdAt: a.createdAt
-          }))
-        };
-      }
-
-      case "create_announcement": {
-        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
-        const isSecretary = user.specialRole === "secretary";
-        
-        if (!isAdmin && !isSecretary) {
-          return { error: "Only admins and secretaries can create announcements." };
+     case "create_announcement": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can create announcements." };
+  }
+  
+  const announcement = await prisma.announcement.create({
+    data: {
+      title: args.title,
+      content: args.content,
+      category: args.category || "General",
+      published: true,
+      createdBy: currentUser.userId
+    }
+  });
+  
+  // Get all users
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  
+  let successCount = 0;
+  
+  // ✅ Send push notifications + emails + in-app
+  for (const u of allUsers) {
+    try {
+      await createAndSendNotification({
+        userId: u.id,
+        type: "announcement",
+        title: `📢 New Announcement: ${args.title}`,
+        message: args.content.substring(0, 150) + (args.content.length > 150 ? '...' : ''),
+        data: { 
+          announcementId: announcement.id,
+          source: "admin_announcement"
         }
-        
-        const announcement = await prisma.announcement.create({
-          data: {
-            title: args.title,
-            content: args.content,
-            category: args.category || "General",
-            published: true,
-            createdBy: currentUser.userId
-          }
-        });
-        
-        // Notify all users
-        const allUsers = await prisma.user.findMany({ select: { id: true } });
-        for (const u of allUsers) {
-          await prisma.notification.create({
-            data: {
-              userId: u.id,
-              type: "announcement",
-              title: "📢 New Announcement",
-              message: args.title
-            }
-          });
-        }
-        
-        return { success: true, message: `Announcement "${args.title}" published!` };
-      }
-
+      });
+      successCount++;
+    } catch (err) {
+      console.error(`❌ Failed to send to ${u.id}:`, err.message);
+    }
+  }
+  
+  return { 
+    success: true, 
+    message: `✅ Announcement "${args.title}" published and sent to ${successCount} users via push notification!` 
+  };
+}
       // ==================== CHAT ====================
       case "post_to_chat": {
         const defaultRoom = await prisma.chatRoom.findFirst({ where: { name: "default" } });
@@ -1227,35 +1221,52 @@ case "all_users": {
         };
       }
 
-            // ==================== EMAIL & NOTIFICATIONS ====================
-      case "send_bulk_email": {
-        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
-        const isSecretary = user.specialRole === "secretary";
+          
+// ==================== EMAIL & NOTIFICATIONS ====================
+case "send_bulk_email": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
 
-        if (!isAdmin && !isSecretary) {
-          return { error: "Only admins and secretaries can send bulk emails." };
-        }
+  if (!isAdmin && !isSecretary) {
+    return { error: "Only admins and secretaries can send bulk emails." };
+  }
 
-        const allUsers = await prisma.user.findMany({ select: { id: true, email: true, fullName: true } });
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
 
-        for (const u of allUsers) {
-          await prisma.notification.create({
-            data: {
-              userId: u.id,
-              type: "announcement",
-              title: args.title || "📢 ZUCA Announcement",
-              message: args.message
-            }
-          });
-        }
+  const BATCH_SIZE = 10; // Send 10 at a time
+  let successCount = 0;
+  let failCount = 0;
 
-        return {
-          success: true,
-          message: `Announcement sent to ${allUsers.length} users via email and notification!`,
-          recipientCount: allUsers.length
-        };
-      }
+  // Process in batches of 10
+  for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
+    const batch = allUsers.slice(i, i + BATCH_SIZE);
+    
+    const results = await Promise.allSettled(
+      batch.map(u => 
+        createAndSendNotification({
+          userId: u.id,
+          type: "announcement",
+          title: args.title || "📢 ZUCA Announcement",
+          message: args.message,
+          data: { 
+            source: "admin_announcement",
+            timestamp: new Date().toISOString()
+          }
+        })
+      )
+    );
+
+    successCount += results.filter(r => r.status === 'fulfilled').length;
+    failCount += results.filter(r => r.status === 'rejected').length;
+  }
+
+  return {
+    success: true,
+    message: `✅ Announcement sent to ${successCount} users via push notification! ${failCount > 0 ? `(${failCount} failed)` : ''}`,
+    recipientCount: successCount
+  };
+}
 
       case "send_email": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
@@ -1593,32 +1604,51 @@ case "all_users": {
       }
 
       case "post_announcement":
-      case "broadcast":
-      case "notify_all": {
-        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        if (!user || (user.role !== "admin" && user.specialRole !== "secretary")) {
-          return { error: "Only admins and secretaries can post announcements." };
+case "broadcast":
+case "notify_all": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (!user || (user.role !== "admin" && user.specialRole !== "secretary")) {
+    return { error: "Only admins and secretaries can post announcements." };
+  }
+  
+  const announcement = await prisma.announcement.create({
+    data: {
+      title: args.title || "📢 Announcement",
+      content: args.message || args.content || "",
+      category: "General",
+      published: true,
+      createdBy: currentUser.userId
+    }
+  });
+  
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  
+  let successCount = 0;
+  
+  // ✅ Send push notifications + emails + in-app
+  for (const u of allUsers) {
+    try {
+      await createAndSendNotification({
+        userId: u.id,
+        type: "announcement",
+        title: `📢 ${args.title || "New Announcement"}`,
+        message: (args.message || args.content || "").substring(0, 150) + ((args.message || args.content || "").length > 150 ? '...' : ''),
+        data: { 
+          announcementId: announcement.id,
+          source: "admin_broadcast"
         }
-        
-        const announcement = await prisma.announcement.create({
-          data: {
-            title: args.title || "📢 Announcement",
-            content: args.message || args.content || "",
-            category: "General",
-            published: true,
-            createdBy: currentUser.userId
-          }
-        });
-        
-        const allUsers = await prisma.user.findMany({ select: { id: true } });
-        for (const u of allUsers) {
-          await prisma.notification.create({
-            data: { userId: u.id, type: "announcement", title: "📢 New Announcement", message: args.title || "New announcement" }
-          });
-        }
-        
-        return { success: true, message: `Announcement posted to ${allUsers.length} users!` };
-      }
+      });
+      successCount++;
+    } catch (err) {
+      console.error(`❌ Failed to send to ${u.id}:`, err.message);
+    }
+  }
+  
+  return { 
+    success: true, 
+    message: `✅ Announcement posted to ${successCount} users via push notification!` 
+  };
+}
 
       case "delete_schedule":
       case "remove_schedule": {

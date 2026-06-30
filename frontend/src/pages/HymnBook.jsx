@@ -348,7 +348,7 @@ export default function HymnBook() {
             <div style={recentList}>
               {recentlyViewed.map(song => song && (
                 <Link
-                  to={`/hymn/${song.id}`}
+                  to={`/hymn/${encodeURIComponent(song.title)}`}
                   key={song.id}
                   style={recentItem}
                   onClick={() => trackView(song)}

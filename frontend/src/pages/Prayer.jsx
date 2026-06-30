@@ -974,7 +974,7 @@ const getMysteryImage = (set, index) => {
             const isForTheSake = dmPrayerSteps[currentDMIndex]?.showCounter;
             
             if (isForTheSake && dmCount < 10) {
-              // Show warning that they need to complete the decade
+              
               alert('Please complete all 10 prayers before proceeding to the next step.');
               return;
             }

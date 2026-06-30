@@ -1,6 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const webpush = require('web-push');
+const { sendPersonalizedEmail, isEmailTypeEnabled } = require("../mailer");
 
 // Configure web-push
 webpush.setVapidDetails(
@@ -13,7 +14,7 @@ async function createAndSendNotification({ userId, type, title, message, data = 
   try {
     console.log(`🔔 Creating notification: ${title} for user ${userId}`);
     
-    // 1. Create notification in database (in-app notification)
+    // 1. Create notification in database
     const notification = await prisma.notification.create({
       data: {
         userId,
@@ -38,7 +39,7 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       // Socket not available, continue
     }
 
-    // 3. Send PUSH NOTIFICATION (web-push)
+    // 3. Send PUSH NOTIFICATION
     try {
       const subscription = await prisma.pushSubscription.findUnique({
         where: { userId }
@@ -67,8 +68,43 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       console.error(`❌ Push notification failed for user ${userId}:`, err.message);
     }
 
-    // 4. Skip email (not required)
-    // Email is optional, so we skip it
+    // 4. Send EMAIL using Brevo (same as attendanceRoutes)
+    let shouldSendEmail = true;
+    try {
+      shouldSendEmail = await isEmailTypeEnabled(type);
+    } catch (err) {
+      console.log(`⚠️ Could not check email setting for ${type}, defaulting to send:`, err.message);
+    }
+
+    if (!shouldSendEmail) {
+      console.log(`📧 Email ${type} is disabled, skipping email for user ${userId}`);
+      return notification;
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { homeJumuia: true }
+      });
+      
+      if (user?.email) {
+        let emailSubject = title;
+        let emailBody = message;
+        
+        await sendPersonalizedEmail(
+          { email: user.email, fullName: user.fullName },
+          type,
+          emailSubject,
+          emailBody,
+          data
+        );
+        console.log(`✅ Email sent to ${user.email}`);
+      } else {
+        console.log(`⚠️ No email for user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Email failed for user ${userId}:`, err.message);
+    }
 
     return notification;
   } catch (err) {

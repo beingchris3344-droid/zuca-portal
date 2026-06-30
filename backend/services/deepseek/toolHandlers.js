@@ -1268,39 +1268,42 @@ case "send_bulk_email": {
   };
 }
 
-      case "send_email": {
-        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+    case "send_email": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
 
-        if (!isAdmin) {
-          return { error: "Only admins can send individual emails." };
-        }
+  if (!isAdmin) {
+    return { error: "Only admins can send individual emails." };
+  }
 
-        const target = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
-              { email: { contains: args.userIdentifier, mode: "insensitive" } }
-            ]
-          }
-        });
+  const target = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
 
-        if (!target) return { error: "User not found." };
+  if (!target) return { error: "User not found." };
 
-        await prisma.notification.create({
-          data: {
-            userId: target.id,
-            type: "announcement",
-            title: args.title || "📢 Message from Admin",
-            message: args.message
-          }
-        });
+  // ✅ Send to ONLY this user - includes push notification + email + in-app
+  await createAndSendNotification({
+    userId: target.id,
+    type: "announcement",
+    title: args.title || "📢 Message from Admin",
+    message: args.message,
+    data: { 
+      source: "admin_individual",
+      recipient: target.email
+    }
+  });
 
-        return {
-          success: true,
-          message: `Email sent to ${target.fullName}!`
-        };
-      }
+  return {
+    success: true,
+    message: `✅ Email and push notification sent to ${target.fullName} (${target.email})!`
+  };
+}
       
       case "list_all_contributions": {
   const campaigns = await prisma.contributionType.findMany({

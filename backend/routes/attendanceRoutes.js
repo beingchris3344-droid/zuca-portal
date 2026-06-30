@@ -679,7 +679,7 @@ if (sheet.isExecutiveOnly) {
               userId: member.id,
               type: "attendance_thankyou",
               title: "🙏 Thank You for Attending!",
-              message: `Thank you for attending "${sheet.title}". Your presence is appreciated! Tumsifu Yesu Kristu! 🙏`,
+              message: `Thank you for attending "${sheet.title}". Your presence is appreciated! lets build ZUCA together`,
               data: { sheetId: sheet.id, title: sheet.title }
             }).catch(err => console.error(`Notif failed for ${member.id}:`, err.message))
           )
@@ -721,7 +721,7 @@ Location: ${sheet.location || "ZUCA"}
 
 ${tone.actionRequired ? 'Please contact the meeting organizer to discuss any outstanding matters.' : 'We encourage you to attend future meetings to stay informed about ZUCA activities.'}
 
-For any questions, please contact ZUCA administration.
+For any questions, please contact us.
 
 Zetech University Catholic Action (ZUCA)`,
                 { sheetTitle: sheet.title, meetingDate: sheet.eventDate }

@@ -404,7 +404,7 @@ Payment Details:
 
 The user will need to claim this payment by pasting the code on the Contributions page.
 
-Tumsifu Yesu Kristu! 🙏`,
+`,
                           { amount, code: mpesaCode, user: user.fullName }
                         );
                       } catch (err) {

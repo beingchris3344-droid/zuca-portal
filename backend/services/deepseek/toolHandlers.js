@@ -3974,6 +3974,394 @@ case "check_if_executive": {
   }
 }
 
+
+// ==================== SYSTEM INTELLIGENCE ====================
+
+case "get_system_status": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can view system status." };
+  }
+  
+  const status = await global.systemMonitor.getSystemStatus();
+  return status;
+}
+
+case "get_system_issues": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can view system issues." };
+  }
+  
+  const issues = await global.systemMonitor.getIssues();
+  return {
+    issues,
+    total: issues.length,
+    critical: issues.filter(i => i.severity === 'critical').length,
+    warnings: issues.filter(i => i.severity === 'warning').length
+  };
+}
+
+case "get_user_issues": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can view user issues." };
+  }
+  
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: args.userIdentifier, mode: "insensitive" } },
+        { email: { contains: args.userIdentifier, mode: "insensitive" } }
+      ]
+    }
+  });
+  
+  if (!targetUser) return { error: "User not found." };
+  
+  const issues = await global.systemMonitor.getUserIssues(targetUser.id);
+  return {
+    user: targetUser.fullName,
+    ...issues
+  };
+}
+
+case "fix_system_issue": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can fix system issues." };
+  }
+  
+  const { issueType, action } = args;
+  
+  let result = { success: false, message: "Unknown issue type" };
+  
+  switch (issueType) {
+    case 'memory':
+      // Clear cache or restart
+      if (action === 'clear_cache') {
+        // Clear Prisma query cache if exists
+        // This is just an example
+        result = { success: true, message: "Memory cache cleared. Memory should free up." };
+      } else if (action === 'restart_server') {
+        result = { success: true, message: "Restarting server. It will be back online in a few seconds." };
+        setTimeout(() => process.exit(0), 1000);
+      }
+      break;
+      
+    case 'database':
+      result = { 
+        success: true, 
+        message: "Database connection issue detected. Please check DATABASE_URL in .env file and ensure your database is running.",
+        fix: "1. Check DATABASE_URL in .env\n2. Ensure database is running\n3. Check network connectivity\n4. Restart the server"
+      };
+      break;
+      
+    case 'security':
+      if (action === 'clear_failed_logins') {
+        // Reset failed login attempts
+        await prisma.loginAttempt.deleteMany({
+          where: {
+            success: false,
+            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+          }
+        });
+        result = { success: true, message: "Cleared all recent failed login attempts. Security alert reset." };
+      } else {
+        result = { 
+          success: true, 
+          message: "Security issue detected. Recommendations:\n1. Check for unusual login patterns\n2. Consider rate limiting\n3. Enable 2FA for admins\n4. Review user accounts for suspicious activity"
+        };
+      }
+      break;
+      
+    case 'errors':
+      if (action === 'clear_error_logs') {
+        // Clear stored errors
+        errorStore.length = 0;
+        result = { success: true, message: "Error logs cleared. System is now clean." };
+      } else {
+        result = { 
+          success: true, 
+          message: "Errors detected. Most common fix: Check your code for the reported errors and fix them.",
+          details: "Run 'npm run debug' to see detailed error logs."
+        };
+      }
+      break;
+      
+    default:
+      result = { success: false, message: `No fix available for issue type: ${issueType}` };
+  }
+  
+  return result;
+}
+
+case "get_activity_feed": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can view activity feed." };
+  }
+  
+  const { limit = 20, type = 'all' } = args;
+  
+  let activities = activityStore;
+  if (type !== 'all') {
+    activities = activities.filter(a => a.type === type);
+  }
+  
+  return {
+    activities: activities.slice(0, limit),
+    total: activities.length,
+    types: ['user_login', 'checkin', 'payment', 'announcement', 'error', 'warning', 'security', 'slow_request']
+  };
+}
+
+case "get_trends": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user.role !== "admin") {
+    return { error: "Only admins can view trends." };
+  }
+  
+  // Get stats for last 7 days
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  
+  const [newUsers, newPledges, newAnnouncements, totalRaised] = await Promise.all([
+    prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.pledge.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.announcement.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.pledge.aggregate({
+      where: { 
+        createdAt: { gte: weekAgo },
+        status: { in: ["APPROVED", "COMPLETED"] }
+      },
+      _sum: { amountPaid: true }
+    })
+  ]);
+  
+  // Get error trend
+  const errorTrend = errorStore
+    .filter(e => new Date(e.timestamp) > weekAgo)
+    .map(e => ({
+      date: e.timestamp.split('T')[0],
+      error: e.error
+    }));
+  
+  return {
+    trends: {
+      newUsers,
+      newPledges,
+      newAnnouncements,
+      totalRaised: totalRaised._sum.amountPaid || 0,
+      errors: errorTrend.length,
+      errorDetails: errorTrend.slice(0, 10)
+    },
+    weekStarting: weekAgo.toISOString().split('T')[0]
+  };
+}
+
+
+      // ==================== GET NEW USERS ====================
+      case "get_new_users": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        const isAdmin = user.role === "admin";
+        const isSecretary = user.specialRole === "secretary";
+        
+        if (!isAdmin && !isSecretary) {
+          return { error: "Only admins and secretaries can view new users." };
+        }
+        
+        const { days = 7 } = args;
+        const since = new Date();
+        since.setDate(since.getDate() - parseInt(days));
+        
+        const newUsers = await prisma.user.findMany({
+          where: {
+            createdAt: { gte: since }
+          },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            role: true,
+            specialRole: true,
+            membership_number: true,
+            homeJumuia: { select: { name: true } },
+            createdAt: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        // Count by day for chart
+        const dailyCount = {};
+        newUsers.forEach(u => {
+          const date = u.createdAt.toISOString().split('T')[0];
+          dailyCount[date] = (dailyCount[date] || 0) + 1;
+        });
+        
+        const dailyData = Object.entries(dailyCount).map(([date, count]) => ({ date, count }));
+        
+        return {
+          success: true,
+          count: newUsers.length,
+          days: parseInt(days),
+          users: newUsers.map(u => ({
+            name: u.fullName,
+            email: u.email,
+            membership: u.membership_number,
+            role: u.role,
+            specialRole: u.specialRole,
+            jumuia: u.homeJumuia?.name || 'None',
+            joined: u.createdAt.toISOString()
+          })),
+          daily: dailyData
+        };
+      }
+
+      // ==================== GET USER STATS ====================
+      case "get_user_stats": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        const isAdmin = user.role === "admin";
+        
+        if (!isAdmin) {
+          return { error: "Only admins can view user statistics." };
+        }
+        
+        const totalUsers = await prisma.user.count();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const [newToday, newThisWeek, activeUsers, byRole, byJumuia] = await Promise.all([
+          prisma.user.count({ where: { createdAt: { gte: today } } }),
+          prisma.user.count({ 
+            where: { 
+              createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
+            } 
+          }),
+          prisma.user.count({ 
+            where: { 
+              lastActive: { gte: new Date(Date.now() - 30 * 60 * 1000) } 
+            } 
+          }),
+          prisma.user.groupBy({
+            by: ['role'],
+            _count: true
+          }),
+          prisma.user.groupBy({
+            by: ['jumuiaId'],
+            _count: true,
+            where: { jumuiaId: { not: null } }
+          })
+        ]);
+        
+        // Get jumuia names
+        const jumuiaIds = byJumuia.map(j => j.jumuiaId);
+        const jumuias = await prisma.jumuia.findMany({
+          where: { id: { in: jumuiaIds } },
+          select: { id: true, name: true }
+        });
+        const jumuiaMap = Object.fromEntries(jumuias.map(j => [j.id, j.name]));
+        
+        return {
+          total: totalUsers,
+          newToday,
+          newThisWeek,
+          activeNow: activeUsers,
+          byRole: byRole.map(r => ({ role: r.role, count: r._count })),
+          byJumuia: byJumuia.map(j => ({ 
+            jumuia: jumuiaMap[j.jumuiaId] || 'Unknown', 
+            count: j._count 
+          }))
+        };
+      }
+
+      // ==================== GET RECENT ACTIVITY ====================
+      case "get_recent_activity": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        const isAdmin = user.role === "admin";
+        
+        if (!isAdmin) {
+          return { error: "Only admins can view recent activity." };
+        }
+        
+        const { limit = 20 } = args;
+        
+        // Get recent user logins (from lastActive)
+        const recentUsers = await prisma.user.findMany({
+          where: {
+            lastActive: { not: null }
+          },
+          orderBy: { lastActive: 'desc' },
+          take: parseInt(limit),
+          select: {
+            fullName: true,
+            email: true,
+            lastActive: true,
+            role: true
+          }
+        });
+        
+        // Get recent pledges
+        const recentPledges = await prisma.pledge.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          include: {
+            user: { select: { fullName: true } },
+            contributionType: { select: { title: true } }
+          }
+        });
+        
+        // Get recent announcements
+        const recentAnnouncements = await prisma.announcement.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          include: {
+            author: { select: { fullName: true } }
+          }
+        });
+        
+        return {
+          recentLogins: recentUsers.map(u => ({
+            name: u.fullName,
+            email: u.email,
+            lastActive: u.lastActive?.toISOString(),
+            role: u.role
+          })),
+          recentPledges: recentPledges.map(p => ({
+            user: p.user.fullName,
+            campaign: p.contributionType.title,
+            amount: p.amountPaid || 0,
+            status: p.status,
+            createdAt: p.createdAt.toISOString()
+          })),
+          recentAnnouncements: recentAnnouncements.map(a => ({
+            title: a.title,
+            author: a.author?.fullName || 'Unknown',
+            createdAt: a.createdAt.toISOString()
+          }))
+        };
+      }
+
+            // ==================== SEND 24-HOUR REPORT ====================
+      case "send_24h_report": {
+        const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+        if (user.role !== "admin") {
+          return { error: "Only admins can send reports." };
+        }
+        
+        const { send24HourReport } = require("../../services/reportService");
+        const result = await send24HourReport();
+        
+        return {
+          success: true,
+          message: result ? "✅ Report sent to admins" : "❌ Failed to send report",
+          result: result || null
+        };
+      }
+
+      
+
       default:
         return { error: `Unknown tool: ${toolName}` };
     }

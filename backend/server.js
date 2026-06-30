@@ -16,6 +16,7 @@ const axios = require("axios");
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
+const { send24HourReport } = require('./services/reportService');
 
 // ================== EXPRESS & MIDDLEWARE ==================
 const express = require("express");
@@ -25,6 +26,7 @@ const multer = require("multer");
 const app = express();
 const messengerRoutes = require('./routes/messenger');
 const { checkSemesterEndAndSendReports } = require('./services/semesterScheduler');
+const { monitoringMiddleware, systemMonitor } = require('./services/systemMonitor');
 
 // ================== DATABASE & AUTH ==================
 const { PrismaClient } = require("@prisma/client");
@@ -1016,7 +1018,7 @@ app.get("/api/public/test-gemini", async (req, res) => {
 });
 
 
-// ==================== CRON JOB ENDPOINT ====================
+
 // ==================== CRON JOB ENDPOINT ====================
 // This endpoint is called by cron-job.org every hour
 app.post("/api/cron/check", async (req, res) => {
@@ -1059,6 +1061,12 @@ app.post("/api/cron/check", async (req, res) => {
       await checkNoAnnouncements();
       executed.push("announcement_check");
     }
+
+     if (hour === 23 && minute >= 59) {
+      console.log("📊 Sending 24-hour system report...");
+      await send24HourReport();
+      executed.push("24h_report");
+    }
     
     res.json({
       success: true,
@@ -1072,6 +1080,22 @@ app.post("/api/cron/check", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 })
+
+
+app.post("/api/admin/reports/trigger-24h", authenticate, requireAdmin, async (req, res) => {
+  try {
+    console.log("📊 Manually triggering 24-hour report...");
+    const result = await send24HourReport();
+    if (result) {
+      res.json({ success: true, message: "24-hour report generated and sent", report: result });
+    } else {
+      res.status(500).json({ success: false, error: "Failed to generate report" });
+    }
+  } catch (err) {
+    console.error("Report trigger error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 // ==================== HEALTH CHECK ENDPOINT ====================
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -6397,6 +6421,10 @@ app.use("/api", aiRoutes);
 // Attendance registrations
 const attendanceRoutes = require("./routes/attendanceRoutes");
 app.use("/api/attendance", attendanceRoutes);
+
+// monitoring middleware
+app.use(monitoringMiddleware);
+global.systemMonitor = systemMonitor;
 
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
@@ -13850,6 +13878,248 @@ app.post("/api/ai/assistant", authenticate, async (req, res) => {
       }
       return keywords.some(keyword => lowerMsg.includes(keyword));
     };
+
+        // ============ SYSTEM HEALTH (ADMIN ONLY) ============
+    if (hasKeyword(['system health', 'is everything ok', 'system status', 'any issues', 'health check'])) {
+      // Check if user is admin
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      if (currentUser.role !== 'admin') {
+        return res.json({
+          success: true,
+          response: "🔒 This information is only available to admins. Please contact an administrator if you're experiencing issues."
+        });
+      }
+      
+      const status = await global.systemMonitor.getSystemStatus();
+      const issues = await global.systemMonitor.getIssues();
+      
+      let response = `🩺 **SYSTEM HEALTH REPORT**\n\n`;
+      response += `📊 **Status:** ${status.status.toUpperCase()}\n`;
+      response += `⏱️ **Uptime:** ${status.uptime.formatted}\n`;
+      response += `💾 **Memory:** ${status.memory.percentUsed}% used (${status.memory.heapUsed} / ${status.memory.heapTotal})\n`;
+      response += `🗄️ **Database:** ${status.database.status}\n`;
+      response += `👥 **Online Users:** ${status.users.online}\n\n`;
+      
+      if (issues.length > 0) {
+        response += `⚠️ **ISSUES DETECTED (${issues.length})**\n`;
+        for (const issue of issues.slice(0, 5)) {
+          const icon = issue.severity === 'critical' ? '🔴' : '🟡';
+          response += `${icon} **${issue.type}:** ${issue.message}\n`;
+          response += `   ${issue.details}\n`;
+          if (issue.fix) response += `   💡 ${issue.fix}\n`;
+          response += `\n`;
+        }
+      } else {
+        response += `✅ **All systems healthy!** No issues detected.\n\n`;
+      }
+      
+      response += `💡 Say **"Fix [issue]"** to try fixing an issue.`;
+      return res.json({ success: true, response });
+    }
+
+    // ============ FIX SYSTEM ISSUE ============
+    if (hasKeyword(['fix', 'fix issue', 'resolve', 'clear errors', 'fix errors'])) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      if (currentUser.role !== 'admin') {
+        return res.json({
+          success: true,
+          response: "🔒 Only admins can fix system issues."
+        });
+      }
+      
+      // Clear error logs
+      if (hasKeyword(['clear', 'clean', 'erase', 'remove'])) {
+        if (global.healthStore) {
+          global.healthStore.errors = [];
+          global.healthStore.slowRequests = [];
+        }
+        return res.json({
+          success: true,
+          response: "✅ Error logs cleared successfully!"
+        });
+      }
+      
+      return res.json({
+        success: true,
+        response: "🔧 To fix issues, try:\n• **'Clear errors'** - Clear error logs\n• **'Check system health'** - See current issues\n• Restart the server for memory issues"
+      });
+    }
+
+    // ============ CHECK USER ISSUES ============
+    if (hasKeyword(['user issues', 'user problems', 'any users having trouble', 'check user', 'check member'])) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      if (currentUser.role !== 'admin') {
+        return res.json({
+          success: true,
+          response: "🔒 Only admins can check user issues."
+        });
+      }
+      
+      // Find target user
+      let searchTerm = message.replace(/user issues|user problems|any users having trouble|check user|check member|for/gi, '').trim();
+      
+      if (searchTerm) {
+        const targetUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { fullName: { contains: searchTerm, mode: 'insensitive' } },
+              { email: { contains: searchTerm, mode: 'insensitive' } }
+            ]
+          }
+        });
+        
+        if (targetUser) {
+          const errors = global.errorStore?.filter(e => e.context?.userId === targetUser.id) || [];
+          const unreadCount = await prisma.notification.count({
+            where: { userId: targetUser.id, read: false }
+          });
+          const pendingPledges = await prisma.pledge.count({
+            where: { userId: targetUser.id, status: 'PENDING' }
+          });
+          
+          let response = `👤 **USER ISSUES: ${targetUser.fullName}**\n\n`;
+          response += `🔔 Unread Notifications: ${unreadCount}\n`;
+          response += `💰 Pending Pledges: ${pendingPledges}\n`;
+          response += `❌ Recent Errors: ${errors.length}\n\n`;
+          
+          if (errors.length > 0) {
+            response += `**Recent Errors:**\n`;
+            for (const err of errors.slice(0, 3)) {
+              response += `• ${err.error?.substring(0, 80)}...\n`;
+            }
+          }
+          
+          return res.json({ success: true, response });
+        } else {
+          return res.json({
+            success: true,
+            response: `❌ User "${searchTerm}" not found. Try "Check user [name]" or "Check user [email]"`
+          });
+        }
+      } else {
+        return res.json({
+          success: true,
+          response: `💡 Say **"Check user [name]"** or **"Check user [email]"** to see their issues.`
+        });
+      }
+    }
+
+    // ============ ACTIVITY FEED ============
+    if (hasKeyword(['activity feed', 'whats happening', 'recent activity', 'show activity', 'whats new'])) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      if (currentUser.role !== 'admin') {
+        return res.json({
+          success: true,
+          response: "🔒 Only admins can view the activity feed."
+        });
+      }
+      
+      const activities = global.activityStore || [];
+      
+      if (activities.length === 0) {
+        return res.json({
+          success: true,
+          response: "📭 No recent activity to show."
+        });
+      }
+      
+      let response = `📊 **RECENT ACTIVITY**\n\n`;
+      for (const activity of activities.slice(0, 10)) {
+        const icon = {
+          'error': '❌',
+          'warning': '⚠️',
+          'security': '🛡️',
+          'user_login': '👤',
+          'checkin': '✅',
+          'payment': '💰',
+          'announcement': '📢',
+          'slow_request': '🐢'
+        }[activity.type] || '📌';
+        
+        const time = new Date(activity.timestamp).toLocaleString();
+        response += `${icon} ${activity.type.replace('_', ' ')}\n`;
+        response += `   📅 ${time}\n`;
+        if (activity.data?.error) {
+          response += `   📝 ${activity.data.error.substring(0, 60)}...\n`;
+        }
+        response += `\n`;
+      }
+      
+      return res.json({ success: true, response });
+    }
+
+    // ============ TRENDS ============
+    if (hasKeyword(['trends', 'weekly trends', 'system trends', 'whats trending'])) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      if (currentUser.role !== 'admin') {
+        return res.json({
+          success: true,
+          response: "🔒 Only admins can view trends."
+        });
+      }
+      
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const [newUsers, newPledges, newAnnouncements, totalRaised, errorCount] = await Promise.all([
+        prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
+        prisma.pledge.count({ where: { createdAt: { gte: weekAgo } } }),
+        prisma.announcement.count({ where: { createdAt: { gte: weekAgo } } }),
+        prisma.pledge.aggregate({
+          where: { 
+            createdAt: { gte: weekAgo },
+            status: { in: ["APPROVED", "COMPLETED"] }
+          },
+          _sum: { amountPaid: true }
+        }),
+        prisma.notification.count({
+          where: {
+            type: 'error',
+            createdAt: { gte: weekAgo }
+          }
+        })
+      ]);
+      
+      const errorTrend = global.errorStore?.filter(e => 
+        new Date(e.timestamp) > weekAgo
+      ) || [];
+      
+      let response = `📈 **SYSTEM TRENDS (Last 7 Days)**\n\n`;
+      response += `👥 New Users: ${newUsers}\n`;
+      response += `💰 New Pledges: ${newPledges}\n`;
+      response += `📢 New Announcements: ${newAnnouncements}\n`;
+      response += `💵 Total Raised: KES ${(totalRaised._sum.amountPaid || 0).toLocaleString()}\n`;
+      response += `❌ Errors: ${errorTrend.length}\n\n`;
+      
+      if (errorTrend.length > 0) {
+        response += `⚠️ **Recent Errors:**\n`;
+        for (const err of errorTrend.slice(0, 3)) {
+          response += `• ${err.error?.substring(0, 60)}...\n`;
+        }
+      }
+      
+      return res.json({ success: true, response });
+    }
     
     // ============ 1. PROFILE (HIGHEST PRIORITY) ============
     if (hasKeyword(['who am i', 'my profile', 'my info', 'tell me about myself', 'my name', 'membership number', 'whats my name'])) {
@@ -16056,6 +16326,68 @@ app.get("/api/admin/health/clear-cache", authenticate, requireAdmin, async (req,
   healthStore.slowRequests = [];
   
   res.json({ success: true, message: "API metrics cache cleared" });
+});
+
+// ==================== GLOBAL ERROR HANDLER ====================
+// This catches EVERY error in your entire app automatically!
+
+
+// Add this middleware AFTER all your routes
+app.use((err, req, res, next) => {
+  // ✅ Automatically logs ANY error from ANY route
+  if (systemMonitor) {
+    systemMonitor.logError(err, {
+      userId: req.user?.userId || null,
+      path: req.path,
+      method: req.method,
+      ip: req.ip,
+      body: req.body,
+      query: req.query,
+      params: req.params
+    });
+    
+    systemMonitor.logActivity('error', {
+      userId: req.user?.userId || null,
+      path: req.path,
+      method: req.method,
+      error: err.message,
+      statusCode: err.statusCode || 500
+    });
+  }
+
+  // Log to console
+  console.error(`❌ ${req.method} ${req.path} - Error:`, err.message);
+  console.error(err.stack);
+
+  // Send response to user
+  res.status(err.statusCode || 500).json({
+    success: false,
+    error: err.message || 'Internal Server Error',
+    path: req.path,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Also catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+  if (systemMonitor) {
+    systemMonitor.logError(reason, {
+      type: 'unhandled_rejection',
+      promise: promise
+    });
+  }
+});
+
+// Catch uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  if (systemMonitor) {
+    systemMonitor.logError(error, {
+      type: 'uncaught_exception'
+    });
+  }
+  // Don't crash the server
 });
 
 

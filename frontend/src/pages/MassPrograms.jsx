@@ -77,34 +77,34 @@ const songFields = [
   { 
     key: "entrance", 
     label: "Entrance", 
-    icon: "🚪", 
+    icon: "", 
     category: "opening", 
     color: "#4f46e5", 
     mobileOrder: 1,
-    description: "Opening procession hymn"
+    description: "Entrance procession song"
   },
   { 
     key: "mass", 
     label: "Mass", 
-    icon: "⛪", 
+    icon: "", 
     category: "liturgy", 
     color: "#7c3aed", 
     mobileOrder: 2,
-    description: "Ordinary of the Mass"
+    description: "lord have mercy and gloriuos"
   },
   { 
     key: "bible", 
     label: "Reading", 
-    icon: "📖", 
+    icon: "", 
     category: "word", 
     color: "#059669", 
     mobileOrder: 3,
-    description: "Responsorial Psalm"
+    description: "Bible procession song"
   },
   { 
     key: "offertory", 
     label: "Offertory", 
-    icon: "🙏", 
+    icon: "", 
     category: "offering", 
     color: "#b45309", 
     mobileOrder: 4,
@@ -113,25 +113,25 @@ const songFields = [
   { 
     key: "procession", 
     label: "Procession", 
-    icon: "🚶", 
+    icon: "", 
     category: "procession", 
     color: "#6b7280", 
     mobileOrder: 5,
-    description: "Gospel procession"
+    description: "Offering procession song"
   },
   { 
     key: "mtakatifu", 
     label: "Mtakatifu", 
-    icon: "✨", 
+    icon: "", 
     category: "special", 
     color: "#8b5cf6", 
     mobileOrder: 6,
-    description: "Saint's hymn"
+    description: "Kylie"
   },
   { 
     key: "signOfPeace", 
     label: "Peace", 
-    icon: "🕊️", 
+    icon: "", 
     category: "peace", 
     color: "#10b981", 
     mobileOrder: 7,
@@ -140,16 +140,16 @@ const songFields = [
   { 
     key: "communion", 
     label: "Communion", 
-    icon: "🍞", 
+    icon: "", 
     category: "communion", 
     color: "#991b1b", 
     mobileOrder: 8,
-    description: "Communion hymn"
+    description: "Communion song"
   },
   { 
     key: "thanksgiving", 
     label: "Thanksgiving", 
-    icon: "🎉", 
+    icon: "", 
     category: "thanksgiving", 
     color: "#ec4899", 
     mobileOrder: 9,
@@ -158,11 +158,11 @@ const songFields = [
   { 
     key: "exit", 
     label: "Exit", 
-    icon: "👋", 
+    icon: "", 
     category: "closing", 
     color: "#4b5563", 
     mobileOrder: 10,
-    description: "Recessional hymn"
+    description: "Recessional song"
   },
 ];
 

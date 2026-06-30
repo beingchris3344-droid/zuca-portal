@@ -18,16 +18,16 @@ import BookletModal from "../../components/BookletModal";
 
 // Define fields with maximum songs per title
 const songFields = [
-  { key: "entrance", label: "Entrance Hymn", icon: "🚪", maxSongs: 3, required: true },
-  { key: "mass", label: "Mass Hymn", icon: "⛪", maxSongs: 2, required: true },
-  { key: "bible", label: "Bible Reading", icon: "📖", maxSongs: 2, required: true },
-  { key: "offertory", label: "Offertory Hymn", icon: "🙏", maxSongs: 3, required: true },
-  { key: "procession", label: "Procession Hymn", icon: "🚶", maxSongs: 2, required: false },
-  { key: "mtakatifu", label: "Mtakatifu Hymn", icon: "✨", maxSongs: 2, required: true },
-  { key: "signOfPeace", label: "Sign of Peace", icon: "🕊️", maxSongs: 1, required: true },
-  { key: "communion", label: "Communion Hymn", icon: "🍞", maxSongs: 3, required: true },
-  { key: "thanksgiving", label: "Thanksgiving Hymn", icon: "🎉", maxSongs: 2, required: false },
-  { key: "exit", label: "Exit Hymn", icon: "👋", maxSongs: 2, required: true },
+  { key: "entrance", label: "Entrance Hymn", icon: "", maxSongs: 3, required: true },
+  { key: "mass", label: "Mass Hymn", icon: "", maxSongs: 2, required: true },
+  { key: "bible", label: "Bible Reading", icon: "", maxSongs: 2, required: true },
+  { key: "offertory", label: "Offertory Hymn", icon: "", maxSongs: 3, required: true },
+  { key: "procession", label: "Procession Hymn", icon: "", maxSongs: 2, required: false },
+  { key: "mtakatifu", label: "Mtakatifu Hymn", icon: "", maxSongs: 2, required: true },
+  { key: "signOfPeace", label: "Sign of Peace", icon: "", maxSongs: 1, required: true },
+  { key: "communion", label: "Communion Hymn", icon: "", maxSongs: 3, required: true },
+  { key: "thanksgiving", label: "Thanksgiving Hymn", icon: "", maxSongs: 2, required: false },
+  { key: "exit", label: "Exit Hymn", icon: "", maxSongs: 2, required: true },
 ];
 
 // Initialize songs array for each field

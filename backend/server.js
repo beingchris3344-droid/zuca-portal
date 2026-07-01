@@ -1096,6 +1096,205 @@ app.post("/api/admin/reports/trigger-24h", authenticate, requireAdmin, async (re
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// Add this temporary endpoint to check available models
+app.get("/api/debug/groq-models", async (req, res) => {
+  try {
+    const OpenAI = require("openai");
+    const groq = new OpenAI({
+      baseURL: "https://api.groq.com/openai/v1",
+      apiKey: process.env.GROQ_API_KEY,
+    });
+    
+    const models = await groq.models.list();
+    const availableModels = models.data.map(m => m.id).sort();
+    
+    res.json({
+      success: true,
+      availableModels: availableModels,
+      count: availableModels.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==================== SMART AI ASSISTANT ====================
+app.post("/api/ai/smart-query", authenticate, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const userId = req.user.userId;
+    
+    console.log(`🧠 SMART QUERY: "${message}"`);
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = user.role === "admin";
+    const isSecretary = user.specialRole === "secretary";
+    const isTreasurer = user.specialRole === "treasurer";
+    
+    if (!isAdmin && !isSecretary && !isTreasurer) {
+      return res.json({
+        success: false,
+        response: "🔒 This feature is only available to admins, secretaries, and treasurers."
+      });
+    }
+    
+    const lowerMsg = message.toLowerCase().trim();
+    
+    // ========== INTELLIGENT ROUTING ==========
+    let queryResult = null;
+    let response = "";
+    
+    // --- PATTERN 1: COUNT USERS ---
+    if (lowerMsg.includes('how many users') || lowerMsg.includes('user count') || lowerMsg.includes('total users')) {
+      const total = await prisma.user.count();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const newToday = await prisma.user.count({
+        where: { createdAt: { gte: today } }
+      });
+      
+      response = `👥 **Total Users:** ${total}\n📈 **New Today:** ${newToday}`;
+      queryResult = { total, newToday };
+    }
+    
+    // --- PATTERN 2: NEW USERS ---
+    else if (lowerMsg.includes('new users') || lowerMsg.includes('recent signups') || lowerMsg.includes('who joined')) {
+      const daysAgo = new Date();
+      const days = lowerMsg.match(/\d+/)?.[0] || 7;
+      daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+      
+      const newUsers = await prisma.user.findMany({
+        where: { createdAt: { gte: daysAgo } },
+        select: { fullName: true, email: true, createdAt: true, membership_number: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
+      
+      if (newUsers.length === 0) {
+        response = `📭 No new users in the last ${days} days.`;
+      } else {
+        response = `👤 **New Users (Last ${days} days):**\n\n`;
+        newUsers.forEach(u => {
+          response += `• ${u.fullName} (${u.email})\n  🆔 ${u.membership_number || 'N/A'} | 📅 ${new Date(u.createdAt).toLocaleDateString()}\n\n`;
+        });
+      }
+      queryResult = { newUsers, count: newUsers.length };
+    }
+    
+    // --- PATTERN 3: PLEDGE STATS ---
+    else if (lowerMsg.includes('pledge') || lowerMsg.includes('contribution') || lowerMsg.includes('raised') || lowerMsg.includes('how much')) {
+      const totalPledges = await prisma.pledge.count();
+      const totalRaised = await prisma.pledge.aggregate({
+        where: { status: { in: ["APPROVED", "COMPLETED"] } },
+        _sum: { amountPaid: true }
+      });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const newToday = await prisma.pledge.count({
+        where: { createdAt: { gte: today } }
+      });
+      
+      response = `💰 **Pledge Summary**\n\n`;
+      response += `📊 Total Pledges: ${totalPledges}\n`;
+      response += `💵 Total Raised: KES ${(totalRaised._sum.amountPaid || 0).toLocaleString()}\n`;
+      response += `📈 New Today: ${newToday}`;
+      queryResult = { totalPledges, totalRaised: totalRaised._sum.amountPaid || 0, newToday };
+    }
+    
+    // --- PATTERN 4: ANNOUNCEMENTS ---
+    else if (lowerMsg.includes('announcements') || lowerMsg.includes('latest news')) {
+      const limit = lowerMsg.match(/\d+/)?.[0] || 5;
+      const announcements = await prisma.announcement.findMany({
+        where: { published: true },
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit),
+        include: { author: { select: { fullName: true } } }
+      });
+      
+      if (announcements.length === 0) {
+        response = "📢 No announcements found.";
+      } else {
+        response = `📢 **Latest Announcements**\n\n`;
+        announcements.forEach(a => {
+          response += `**${a.title}**\n`;
+          response += `📝 ${a.content.substring(0, 150)}${a.content.length > 150 ? '...' : ''}\n`;
+          response += `👤 By: ${a.author?.fullName || 'Unknown'} | 📅 ${new Date(a.createdAt).toLocaleDateString()}\n\n`;
+        });
+      }
+      queryResult = { announcements };
+    }
+    
+    // --- PATTERN 5: SYSTEM HEALTH ---
+    else if (lowerMsg.includes('health') || lowerMsg.includes('status') || lowerMsg.includes('is everything ok')) {
+      const uptime = process.uptime();
+      const memoryUsage = process.memoryUsage();
+      const memoryPercent = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
+      
+      let dbStatus = 'healthy';
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+      } catch (err) {
+        dbStatus = 'unhealthy';
+      }
+      
+      response = `🩺 **System Health**\n\n`;
+      response += `📊 **Status:** ${dbStatus === 'healthy' ? '✅ Healthy' : '❌ Unhealthy'}\n`;
+      response += `⏱️ **Uptime:** ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m\n`;
+      response += `💾 **Memory:** ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB (${Math.round(memoryPercent)}%)\n`;
+      response += `🗄️ **Database:** ${dbStatus}`;
+      queryResult = { status: dbStatus, memoryPercent, uptime };
+    }
+    
+    // --- PATTERN 6: ERRORS ---
+    else if (lowerMsg.includes('error') || lowerMsg.includes('issue') || lowerMsg.includes('problem') || lowerMsg.includes('anything wrong')) {
+      const errorCount = global.errorStore?.length || 0;
+      const recentErrors = (global.errorStore || []).slice(0, 10);
+      
+      if (errorCount === 0) {
+        response = "✅ No errors detected in the system!";
+      } else {
+        response = `⚠️ **${errorCount} Recent Errors**\n\n`;
+        recentErrors.forEach(e => {
+          response += `• ${e.error?.substring(0, 80)}...\n`;
+          if (e.timestamp) response += `  📅 ${new Date(e.timestamp).toLocaleString()}\n`;
+        });
+      }
+      queryResult = { errorCount, recentErrors };
+    }
+    
+    // --- PATTERN 7: HELP ---
+    else {
+      response = `🤖 **I Can Help With:**\n\n`;
+      response += `👥 "How many users?" - Total users\n`;
+      response += `📈 "New users" - Recent signups\n`;
+      response += `💰 "Pledge stats" - Contribution summary\n`;
+      response += `📢 "Announcements" - Latest news\n`;
+      response += `🩺 "System health" - Check status\n`;
+      response += `⚠️ "Any errors?" - Check issues\n\n`;
+      response += `💡 Try asking me anything about the system!`;
+    }
+    
+    res.json({
+      success: true,
+      response: response,
+      data: queryResult
+    });
+    
+  } catch (error) {
+    console.error("Smart query error:", error);
+    res.status(500).json({
+      success: false,
+      response: "❌ I had trouble processing your request. Please try again."
+    });
+  }
+});
 // ==================== HEALTH CHECK ENDPOINT ====================
 app.get("/health", (req, res) => {
   res.status(200).json({

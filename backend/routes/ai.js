@@ -98,14 +98,14 @@ function formatActionResult(actionResult) {
     return `❌ ${actionResult.error}`;
   }
 
-  // User list
-  if (actionResult.users) {
-    let reply = `**👥 Users (${actionResult.count}):**\n\n`;
-    actionResult.users.forEach((u, i) => {
-      reply += `**${i + 1}. ${u.fullName}** — ${u.email}\n   Role: ${u.role}${u.specialRole ? ` (${u.specialRole})` : ''} | ID: ${u.membership_number || 'N/A'}\n\n`;
-    });
-    return reply;
-  }
+// User list (with safety check)
+if (actionResult.users && Array.isArray(actionResult.users)) {
+  let reply = `**👥 Users (${actionResult.count || actionResult.users.length}):**\n\n`;
+  actionResult.users.forEach((u, i) => {
+    reply += `**${i + 1}. ${u.fullName}** — ${u.email}\n   Role: ${u.role}${u.specialRole ? ` (${u.specialRole})` : ''} | ID: ${u.membership_number || 'N/A'}\n\n`;
+  });
+  return reply;
+}
 
   // Single user
   if (actionResult.user) {
@@ -240,6 +240,38 @@ function formatActionResult(actionResult) {
     });
     return reply;
   }
+
+
+  // ==================== PLEDGE STATS ====================
+if (actionResult.totalRaised !== undefined || actionResult.totalPledges !== undefined) {
+  let reply = `💰 **PLEDGE STATISTICS**\n\n`;
+  reply += `📊 Total Pledges: ${actionResult.totalPledges || 0}\n`;
+  reply += `💵 Total Raised: KES ${(actionResult.totalRaised || 0).toLocaleString()}\n`;
+  reply += `✅ Completed: ${actionResult.completedCount || 0}\n`;
+  reply += `⏳ Pending: ${actionResult.pendingCount || 0}\n\n`;
+  
+  // By Campaign
+  if (actionResult.byCampaign && Object.keys(actionResult.byCampaign).length > 0) {
+    reply += `**📌 By Campaign:**\n`;
+    for (const [campaign, amount] of Object.entries(actionResult.byCampaign)) {
+      if (amount > 0) {
+        reply += `  • ${campaign}: KES ${amount.toLocaleString()}\n`;
+      }
+    }
+  }
+  
+  // By Jumuia
+  if (actionResult.byJumuia && Object.keys(actionResult.byJumuia).length > 0) {
+    reply += `\n**🏠 By Jumuia:**\n`;
+    for (const [jumuia, amount] of Object.entries(actionResult.byJumuia)) {
+      if (amount > 0) {
+        reply += `  • ${jumuia}: KES ${amount.toLocaleString()}\n`;
+      }
+    }
+  }
+  
+  return reply;
+}
 
   // Schedule list
   if (actionResult.schedules) {

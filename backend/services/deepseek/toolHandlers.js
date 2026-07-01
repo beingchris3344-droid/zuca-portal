@@ -4360,6 +4360,134 @@ case "get_trends": {
         };
       }
 
+
+      // ==================== UNIVERSAL DATABASE QUERY ====================
+case "query_database": {
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  const isAdmin = user.role === "admin";
+  const isSecretary = user.specialRole === "secretary";
+  const isTreasurer = user.specialRole === "treasurer";
+  
+  if (!isAdmin && !isSecretary && !isTreasurer) {
+    return { error: "Only admins, secretaries, and treasurers can query data." };
+  }
+  
+  try {
+    const { model, operation, where, select, take, orderBy, groupBy, aggregate } = args;
+    
+    // ========== ALLOWED MODELS ==========
+    const allowedModels = {
+      user: { fields: ['id', 'fullName', 'email', 'phone', 'role', 'specialRole', 'membership_number', 'createdAt', 'lastActive', 'jumuiaId'] },
+      pledge: { fields: ['id', 'userId', 'amountPaid', 'pendingAmount', 'status', 'createdAt', 'contributionTypeId'] },
+      announcement: { fields: ['id', 'title', 'content', 'category', 'createdAt', 'published'] },
+      contributionType: { fields: ['id', 'title', 'amountRequired', 'deadline', 'createdAt'] },
+      media: { fields: ['id', 'title', 'type', 'url', 'createdAt'] },
+      song: { fields: ['id', 'title', 'reference', 'createdAt'] },
+      jumuia: { fields: ['id', 'name', 'code'] },
+      notification: { fields: ['id', 'userId', 'title', 'message', 'type', 'read', 'createdAt'] },
+      massProgram: { fields: ['id', 'date', 'venue', 'createdAt'] },
+      scheduleEvent: { fields: ['id', 'title', 'eventDate', 'eventTime', 'location'] },
+      attendanceEntry: { fields: ['id', 'userId', 'fullName', 'signMethod', 'signTime', 'sheetId'] },
+      attendanceSheet: { fields: ['id', 'title', 'eventDate', 'location', 'isActive'] }
+    };
+    
+    if (!allowedModels[model]) {
+      return { 
+        error: `Model "${model}" not allowed. Available: ${Object.keys(allowedModels).join(', ')}` 
+      };
+    }
+    
+    // ========== BUILD THE QUERY SAFELY ==========
+    const prismaModel = prisma[model];
+    if (!prismaModel) {
+      return { error: `Model "${model}" not found in database.` };
+    }
+    
+    // Validate where conditions
+    let safeWhere = {};
+    if (where) {
+      for (const [key, value] of Object.entries(where)) {
+        // Check if field exists in allowed model
+        if (allowedModels[model].fields.includes(key) || key === 'OR' || key === 'AND' || key === 'NOT') {
+          safeWhere[key] = value;
+        } else {
+          console.log(`⚠️ Skipping invalid where field: ${key}`);
+        }
+      }
+    }
+    
+    // ========== EXECUTE QUERY ==========
+    let result;
+    let queryArgs = {};
+    if (Object.keys(safeWhere).length > 0) queryArgs.where = safeWhere;
+    if (select) {
+      // Only allow valid fields in select
+      const validSelect = {};
+      for (const [key, value] of Object.entries(select)) {
+        if (allowedModels[model].fields.includes(key)) {
+          validSelect[key] = value;
+        }
+      }
+      if (Object.keys(validSelect).length > 0) queryArgs.select = validSelect;
+    }
+    if (take) queryArgs.take = take;
+    if (orderBy) queryArgs.orderBy = orderBy;
+    
+    switch (operation) {
+      case 'count':
+        result = await prismaModel.count(queryArgs);
+        break;
+      case 'findMany':
+        result = await prismaModel.findMany(queryArgs);
+        break;
+      case 'findFirst':
+        result = await prismaModel.findFirst(queryArgs);
+        break;
+      case 'findUnique':
+        queryArgs.where = safeWhere;
+        result = await prismaModel.findUnique(queryArgs);
+        break;
+      case 'aggregate':
+        if (aggregate && aggregate._sum) {
+          result = await prismaModel.aggregate({
+            where: safeWhere,
+            _sum: aggregate._sum
+          });
+        } else {
+          result = await prismaModel.aggregate({
+            where: safeWhere,
+            _count: true
+          });
+        }
+        break;
+      case 'groupBy':
+        if (groupBy && allowedModels[model].fields.includes(groupBy)) {
+          result = await prismaModel.groupBy({
+            by: [groupBy],
+            where: safeWhere,
+            _count: true
+          });
+        } else {
+          return { error: `Invalid groupBy field. Available: ${allowedModels[model].fields.join(', ')}` };
+        }
+        break;
+      default:
+        return { error: `Operation "${operation}" not supported. Use: count, findMany, findFirst, findUnique, aggregate, groupBy` };
+    }
+    
+    return { 
+      success: true, 
+      result: result,
+      count: Array.isArray(result) ? result.length : (typeof result === 'number' ? result : null),
+      message: `✅ Query executed successfully on ${model}`
+    };
+    
+  } catch (error) {
+    console.error("❌ Query error:", error);
+    return { error: `Query failed: ${error.message}` };
+  }
+}
+
       
 
       default:

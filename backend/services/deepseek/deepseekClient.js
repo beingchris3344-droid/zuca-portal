@@ -254,11 +254,11 @@ When in doubt about who to send to, ask the user!
 async function chatWithGroq(messages, userContext) {
   const systemPrompt = buildSystemPrompt(userContext);
   const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "system", content: systemPrompt }, ...messages],
-    temperature: 0.7,
-    max_tokens: 2000,
-  });
+   model: "gemma2-9b-it",
+     messages: [{ role: "system", content: systemPrompt }, ...messages],
+  temperature: 0.3,
+  max_tokens: 1200,
+});
   const message = completion.choices[0].message;
   
   console.log("📤 RAW AI RESPONSE:", message.content?.substring(0, 100));

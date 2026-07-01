@@ -1268,14 +1268,10 @@ case "send_bulk_email": {
   };
 }
 
-    case "send_email": {
+   case "send_email": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
   const isAdmin = user.role === "admin";
-
-  if (!isAdmin) {
-    return { error: "Only admins can send individual emails." };
-  }
-
+  
   const target = await prisma.user.findFirst({
     where: {
       OR: [
@@ -1285,9 +1281,27 @@ case "send_bulk_email": {
     }
   });
 
-  if (!target) return { error: "User not found." };
+  if (!target) return { error: `User "${args.userIdentifier}" not found.` };
 
-  // ✅ Send to ONLY this user - includes push notification + email + in-app
+  if (!isAdmin) {
+    await createAndSendNotification({
+      userId: target.id,
+      type: "prayer_request",
+      title: args.title || "🙏 Prayer Request",
+      message: `${user.fullName} is requesting prayers: ${args.message}`,
+      data: { 
+        fromUserId: user.id,
+        fromName: user.fullName,
+        type: "prayer_request"
+      }
+    });
+
+    return {
+      success: true,
+      message: `✅ Prayer request sent to ${target.fullName}! 🙏`
+    };
+  }
+
   await createAndSendNotification({
     userId: target.id,
     type: "announcement",
@@ -1303,8 +1317,7 @@ case "send_bulk_email": {
     success: true,
     message: `✅ Email and push notification sent to ${target.fullName} (${target.email})!`
   };
-}
-      
+}  
       case "list_all_contributions": {
   const campaigns = await prisma.contributionType.findMany({
     include: {

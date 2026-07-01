@@ -5,6 +5,22 @@ const groq = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
   apiKey: process.env.GROQ_API_KEY,
 });
+
+// ================== MODEL LIST (IN ORDER OF PREFERENCE) ==================
+const MODEL_LIST = [
+  { name: "openai/gpt-oss-120b", quality: "best" },
+  { name: "llama-3.3-70b-versatile", quality: "excellent" },
+  { name: "openai/gpt-oss-20b", quality: "good" },
+  { name: "llama-3.1-8b-instant", quality: "fast" },
+  { name: "qwen/qwen3-32b", quality: "good" },
+  { name: "qwen/qwen3.6-27b", quality: "good" },
+  { name: "meta-llama/llama-4-scout-17b-16e-instruct", quality: "good" },
+];
+
+// Track rate limit reset time
+let rateLimitResetTime = null;
+
+// ================== PARSE ACTION FROM TEXT ==================
 function parseActionFromText(text) {
   if (!text) return { content: text, action: null };
   
@@ -29,8 +45,7 @@ function parseActionFromText(text) {
     return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
   }
 
-
-    // Handle malformed: [[/ACTION instead of [/ACTION]
+  // Handle malformed: [[/ACTION instead of [/ACTION]
   actionRegex = /\[ACTION:(\w+)\]\s*\[\[\/ACTION\]/gi;
   match = actionRegex.exec(text);
   if (match) {
@@ -38,7 +53,7 @@ function parseActionFromText(text) {
     return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
   }
 
-  // ADD THIS: Try [CATEGORY:name][/CATEGORY] (AI sometimes uses CATEGORY instead of ACTION)
+  // Try [CATEGORY:name][/CATEGORY]
   actionRegex = /\[CATEGORY:(\w+)\]\s*\[\/CATEGORY\]/gi;
   match = actionRegex.exec(text);
   if (match) {
@@ -47,7 +62,7 @@ function parseActionFromText(text) {
     return { content: cleanedText || null, action: { name: match[1], arguments: {} } };
   }
 
-    // Try [METHOD:name][/METHOD] (AI sometimes uses METHOD instead of ACTION)
+  // Try [METHOD:name]{"key":"value"}[/METHOD]
   actionRegex = /\[METHOD:(\w+)\]\s*(\{.*?\})\s*\[\/METHOD\]/gi;
   match = actionRegex.exec(text);
   if (match) {
@@ -68,6 +83,8 @@ function parseActionFromText(text) {
   
   return { content: text, action: null };
 }
+
+// ================== BUILD SYSTEM PROMPT ==================
 function buildSystemPrompt(userContext) {
   const { user, stats, currentTime } = userContext || {};
   return `You are ZUCA AI for Zetech University Catholic Action. Be warm, pastoral. Always start in English unless user speaks another language.
@@ -171,13 +188,6 @@ IMPORTANT: Use EXACT titles as shown above (capitalized correctly). "chairperson
 - Create announcement → [ACTION:create_announcement]{"title":"T","content":"C"}[/ACTION]
 - Assign executive → [ACTION:assign_executive]{"userIdentifier":"Christopher Maina","position":"Chairperson"}[/ACTION]
 - Remove executive → [ACTION:remove_executive]{"userIdentifier":"Christopher Maina"}[/ACTION]
-## ACTIONS (use when user wants to DO something):
-- Navigate → [ACTION:navigate_to_page]{"page":"hymns"}[/ACTION]
-- Create pledge → [ACTION:create_pledge]{"amount":5000}[/ACTION]
-- Create announcement → [ACTION:create_announcement]{"title":"T","content":"C"}[/ACTION]
-- Assign executive → [ACTION:assign_executive]{"userIdentifier":"Christopher Maina","position":"Chairperson"}[/ACTION]
-- Remove executive → [ACTION:remove_executive]{"userIdentifier":"Christopher Maina"}[/ACTION]
-
 - Get new users → [ACTION:get_new_users][/ACTION] or [ACTION:get_new_users]{"days":3}[/ACTION]
 - Get user statistics → [ACTION:get_user_stats][/ACTION]
 - Get recent activity → [ACTION:get_recent_activity][/ACTION]
@@ -203,22 +213,6 @@ IMPORTANT: Use EXACT titles as shown above (capitalized correctly). "chairperson
 
 ## NON-ACTION QUESTIONS (just answer, no ACTION):
 "Who is the Pope?" | "What is ZUCA?" | "Hello" | "Admin email?" | "Who built this?" | "Does he have an executive seat?" → Answer directly
-
-
-## SMART QUERYING (RECOMMENDED)
-Instead of specific tools, use the smart query API:
-- ANY question about users, pledges, announcements, health, errors
-- Just ask naturally and the system will figure it out
-
-## FALLBACK (if smart query doesn't work)
-Only use specific actions when needed:
-- send_bulk_email → sends to ALL users
-- send_email → sends to ONE user
-- create_announcement → creates announcement
-- delete_user → removes user (admin only)
-
-
-// In deepseekClient.js - buildSystemPrompt function
 
 ## 📊 DATABASE SCHEMA (What Data Exists)
 
@@ -270,7 +264,6 @@ When a user asks ANY question about the system:
 
 ## RULE: NEVER hardcode user checks! Always query the database dynamically.
 
-
 ## 🚨 SYSTEM INTELLIGENCE - AI AS SYSTEM MONITOR 🚨
 
 You are the System Intelligence Agent for ZUCA. You can:
@@ -317,24 +310,85 @@ When in doubt about who to send to, ask the user!
 3. Keep responses warm and pastoral
 4. Tumsifu Yesu Kristu! 🙏`;
 }
+
+// ================== CHAT WITH GROQ WITH AUTO FALLBACK ==================
 async function chatWithGroq(messages, userContext) {
   const systemPrompt = buildSystemPrompt(userContext);
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-  temperature: 0.3,
-  max_tokens: 1200,
-});
-  const message = completion.choices[0].message;
   
-  console.log("📤 RAW AI RESPONSE:", message.content?.substring(0, 100));
-  
-  if (message.content) {
-    const parsed = parseActionFromText(message.content);
-    console.log("🔍 PARSED:", { hasAction: !!parsed.action, actionName: parsed.action?.name, contentPreview: parsed.content?.substring(0, 50) });
-    return parsed;
+  // If we're within rate limit cooldown, wait
+  if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
+    const waitTime = Math.ceil((rateLimitResetTime - Date.now()) / 1000);
+    console.log(`⏳ Rate limit active, waiting ${waitTime}s...`);
+    await new Promise(resolve => setTimeout(resolve, rateLimitResetTime - Date.now()));
   }
-  return { content: message.content, action: null };
+  
+  // Try models in order until one works
+  let lastError = null;
+  
+  for (let i = 0; i < MODEL_LIST.length; i++) {
+    const model = MODEL_LIST[i];
+    
+    try {
+      console.log(`🧠 Trying model: ${model.name} (${model.quality})...`);
+      
+      const completion = await groq.chat.completions.create({
+        model: model.name,
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        temperature: 0.3,
+        max_tokens: 1200,
+      });
+      
+      const message = completion.choices[0].message;
+      console.log(`✅ Model ${model.name} succeeded!`);
+      console.log("📤 RAW AI RESPONSE:", message.content?.substring(0, 100));
+      
+      if (message.content) {
+        const parsed = parseActionFromText(message.content);
+        console.log("🔍 PARSED:", { 
+          hasAction: !!parsed.action, 
+          actionName: parsed.action?.name, 
+          contentPreview: parsed.content?.substring(0, 50) 
+        });
+        
+       
+        
+        return parsed;
+      }
+      
+      return { content: message.content, action: null };
+      
+    } catch (error) {
+      const errorMsg = error.message || '';
+      console.error(`❌ Model ${model.name} failed:`, errorMsg);
+      lastError = errorMsg;
+      
+      // Check if it's a rate limit or decommissioned error
+      if (errorMsg.includes('rate_limit') || errorMsg.includes('429')) {
+        // Try to parse reset time from error, or default to 60 seconds
+        const match = errorMsg.match(/reset in (\d+)/);
+        const waitSeconds = match ? parseInt(match[1]) : 60;
+        rateLimitResetTime = Date.now() + (waitSeconds * 1000);
+        console.log(`⏳ Rate limit hit. Reset in ${waitSeconds}s`);
+        // Continue to next model
+        continue;
+      }
+      
+      if (errorMsg.includes('decommissioned') || errorMsg.includes('does not exist')) {
+        console.log(`⚠️ Model ${model.name} is unavailable, trying next...`);
+        continue;
+      }
+      
+      // For other errors, try next model
+      continue;
+    }
+  }
+  
+  // If all models failed
+  console.error(`❌ All models failed. Last error: ${lastError}`);
+  return { 
+    content: "Tumsifu Yesu Kristu! 🙏 I'm having trouble connecting. Please try again in a moment.", 
+    action: null 
+  };
 }
 
 module.exports = { chatWithGroq, buildSystemPrompt };

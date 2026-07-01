@@ -57,7 +57,7 @@ function generatePDFReport(report) {
       doc.fontSize(16)
          .font('Helvetica-Bold')
          .fillColor('#1a237e')
-         .text('📈 SUMMARY', { underline: true });
+         .text('SUMMARY', { underline: true });  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       
@@ -114,7 +114,7 @@ function generatePDFReport(report) {
       doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor('#1a237e')
-         .text(`👤 NEW USERS (${report.details.newUsers.length})`);
+         .text(`NEW USERS (${report.details.newUsers.length})`);  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       
@@ -170,7 +170,7 @@ function generatePDFReport(report) {
       doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor('#1a237e')
-         .text(`💰 NEW PLEDGES (${report.details.newPledges.length})`);
+         .text(`NEW PLEDGES (${report.details.newPledges.length})`);  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       
@@ -228,7 +228,7 @@ function generatePDFReport(report) {
       doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor(report.details.errors.length > 0 ? '#f44336' : '#1a237e')
-         .text(`❌ ERRORS (${report.details.errors.length})`);
+         .text(`ERRORS (${report.details.errors.length})`);  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       
@@ -252,7 +252,7 @@ function generatePDFReport(report) {
           doc.fontSize(9).fillColor('#666').text(`... and ${report.details.errors.length - 10} more errors`);
         }
       } else {
-        doc.fontSize(10).fillColor('#4caf50').text('✅ No errors detected in the last 24 hours.');
+        doc.fontSize(10).fillColor('#4caf50').text('No errors detected in the last 24 hours.');
       }
       
       doc.moveDown(1);
@@ -263,7 +263,7 @@ function generatePDFReport(report) {
       doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor(report.details.maliciousRequests.length > 0 ? '#ff9800' : '#1a237e')
-         .text(`🛡️ SECURITY`);
+         .text('SECURITY');  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       
@@ -280,7 +280,7 @@ function generatePDFReport(report) {
              .text(`• ${m.type} - ${m.endpoint} (${m.method}) from ${m.ip} at ${new Date(m.timestamp).toLocaleString()}`);
         });
       } else {
-        doc.fontSize(10).fillColor('#4caf50').text('✅ No malicious requests detected.');
+        doc.fontSize(10).fillColor('#4caf50').text('No malicious requests detected.');
       }
       
       doc.moveDown(1);
@@ -291,7 +291,7 @@ function generatePDFReport(report) {
       doc.fontSize(14)
          .font('Helvetica-Bold')
          .fillColor('#1a237e')
-         .text('🖥️ SYSTEM HEALTH');
+         .text('SYSTEM HEALTH');  // ✅ Removed emoji
       
       doc.moveDown(0.5);
       

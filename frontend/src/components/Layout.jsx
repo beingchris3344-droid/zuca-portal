@@ -190,7 +190,7 @@ useEffect(() => {
 { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={20} /> },
         { path: "/hymns", label: "Hymn Book", icon: "🎵" },
 
-      { path: "/youtube", label: "ZUCA'S YOUTUBE", icon: <FaYoutube size={18} color="#ff0000" /> },
+      { path: "/youtube", label: "ZUCATUBE", icon: <FaYoutube size={18} color="#ff0000" /> },
 
 { 
   path: "/gallery", 

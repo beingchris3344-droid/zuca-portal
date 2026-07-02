@@ -28,7 +28,11 @@ import {
   FaPause,
   FaImage,
   FaCalendarAlt,
-  FaPlay
+  FaPlay,
+  FaAppStore,
+  FaAppStoreIos,
+  FaGooglePlay,
+  FaLaptop
 } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
@@ -863,6 +867,7 @@ const formatEventDate = (dateString) => {
   • Connect and engage with the ZUCA club members
   <br />
   • Relive memories through our gallery
+  
 </p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
@@ -880,10 +885,10 @@ const formatEventDate = (dateString) => {
 
           {/* Mass Info Card */}
           <div className="mass-info-card">
-            <FaChurch className="mass-info-icon" />
+            <FaGooglePlay    className="mass-info-icon" />
             <div className="mass-info-text">
-              <strong>Wednesday Mass:</strong> 4:30 PM
-              <span className="mass-location">Annex Building 002</span>
+              <br /> <strong>(Remember to install our app for faster access and better experience!)</strong>
+              <span className="mass-location">Click the install Button above</span>
             </div>
           </div>
         </div>
@@ -1006,7 +1011,7 @@ const formatEventDate = (dateString) => {
     <div className="section-header">
       <FaYoutube className="section-icon youtube-icon" />
       <h2 className="section-title">Top Watched Videos</h2>
-      <p className="section-subtitle">Our community's favorite content</p>
+      <p className="section-subtitle">ZUCA's favorite content</p>
     </div>
 
     {loadingVideo ? (
@@ -1070,7 +1075,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaCalendarAlt className="section-icon" />
             <h2 className="section-title">Upcoming Events</h2>
-            <p className="section-subtitle">Join us in fellowship and service</p>
+            <p className="section-subtitle">Join us In our activities and functions</p>
           </div>
 
           {loadingEvents ? (
@@ -1157,7 +1162,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaMusic className="section-icon" />
             <h2 className="section-title">Hymn Browser</h2>
-            <p className="section-subtitle">Browse our collection of hymns and songs</p>
+            <p className="section-subtitle">Browse for any lyrics or titles of any song</p>
           </div>
 
           {/* Search Bar */}
@@ -1410,7 +1415,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaPray className="section-icon" />
             <h2 className="section-title">Weekly Mass & Choir Practice</h2>
-            <p className="section-subtitle">Join us in prayer and Jumuia</p>
+            <p className="section-subtitle">Join us in Rosary prayers and Jumuia meetings</p>
           </div>
 
           <div className="mass-cards">
@@ -1451,7 +1456,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaHeart className="section-icon" />
             <h2 className="section-title-light">Connect With Us</h2>
-            <p className="section-subtitle-light">Follow our community on social media</p>
+            <p className="section-subtitle-light">Follow ZUCA on social media platforms</p>
           </div>
 
           <div className="social-grid">
@@ -1519,8 +1524,7 @@ const formatEventDate = (dateString) => {
       
       <div className="activities-grid">
         <div className="activity-item">
-          <FaChurch className="activity-icon" />
-          <span>OUR ACTIVITIES</span>
+          <span><strong>OUR ACTIVITIES  </strong></span>
         </div>
         <div className="activity-item">
           <FaMusic className="activity-icon" />
@@ -1528,7 +1532,7 @@ const formatEventDate = (dateString) => {
         </div>
         <div className="activity-item">
           <FaUsers className="activity-icon" />
-          <span>Jumuia Groups</span>
+          <span>Jumuia Groups Activities/meetings</span>
         </div>
         <div className="activity-item">
           <FaHandsHelping className="activity-icon" />
@@ -1555,12 +1559,24 @@ const formatEventDate = (dateString) => {
               <FaEnvelope className="contact-icon" />
               <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zucaportal2025@gmail.com</a>
             </div>
+             
+            
             <div className="contact-item">
               <FaEnvelope className="contact-icon" />
                             <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zuca406@gmail.com</a>
-
-              <span></span>
+            </div><div className="contact-item">
+              <FaPhone className="contact-icon" />
+              <a href="tel:+254 798 139 693" className="contact-link">+254 798 139 693</a>(Tonny) Chair person
             </div>
+             <div className="contact-item">
+              <FaPhone className="contact-icon" />
+              <a href="tel:+254 758 134 200" className="contact-link">+254 758 134 200</a>(Cecilia) Vice Chair person
+            </div>
+             <div className="contact-item">
+              <FaPhone className="contact-icon" />
+              <a href="tel:+254 746 893 181" className="contact-link">+254 746 893 181</a> <FaLaptop className="contact-icon" />(Chris) IT support
+            </div>
+
           </div>
         </div>
       </section>
@@ -1682,16 +1698,16 @@ const formatEventDate = (dateString) => {
         }
 
         .navbar-scrolled {
-          background: rgba(11, 11, 31, 0.95);
+          background: rgba(0, 0, 0, 0.95);
           backdrop-filter: blur(10px);
           top: 0;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.46);
         }
 
         .nav-container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 12px 20px;
+          padding: 0px 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -1765,7 +1781,7 @@ const formatEventDate = (dateString) => {
           top: 100%;
           left: 0;
           right: 0;
-          background: rgba(11, 11, 31, 0.98);
+          background: rgba(0, 0, 0, 0.93);
           backdrop-filter: blur(10px);
           flex-direction: column;
           padding: 20px;
@@ -2102,8 +2118,8 @@ background: linear-gradient(
         .mass-info-card {
           display: inline-flex;
           align-items: center;
-          gap: 12px;
-          background: rgba(59, 171, 199, 0.4);
+          gap: 0px;
+          background: rgba(23, 25, 26, 0.4);
           backdrop-filter: blur(5px);
           padding: 12px 24px;
           border-radius: 50px;
@@ -2113,18 +2129,18 @@ background: linear-gradient(
 
         .mass-info-icon {
           font-size: 20px;
-          color: #00c6ff;
+          color: #ffffff;
         }
 
         .mass-info-text {
-          font-size: 14px;
+          font-size: 16px;
           text-align: left;
         }
 
         .mass-location {
           display: block;
           font-size: 12px;
-          color: #94a3b8;
+          color: #ffffff;
           margin-top: 2px;
         }
 

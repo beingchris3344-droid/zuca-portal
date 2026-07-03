@@ -782,6 +782,15 @@ const fetchFeaturedGallery = async () => {
         )}
         <div className="avatar-overlay"><FiCamera size={20} /></div>
       </div>
+        {/* SETTINGS ICON BUTTON - OUTSIDE avatar-wrapper */}
+      <button 
+        className="settings-icon-btn"
+        onClick={() => setShowProfileSettings(true)}
+        aria-label="Profile Settings"
+        title="Profile Settings"
+      >
+        <FiSettings size={22} color="#000000" />
+      </button>
     </div>
     <div className="profile-info">
       <div className="info-header">
@@ -7647,6 +7656,72 @@ const fetchFeaturedGallery = async () => {
   transform-origin: 70% 70%;         /* Pivots from the bottom wrist area */
   display: inline-block;             /* Required for transformation to work */
 }
+
+
+/* Settings Icon Button - BELOW AVATAR */
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.settings-icon-btn:hover {
+  background: #f1f5f9;
+  border-color: #000000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.settings-icon-btn:active {
+  transform: translateY(0px);
+}
+
+.settings-label {
+  color: #000000;
+}
+
+/* Update avatar-wrapper style */
+.avatar-wrapper {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 4px solid #0ce428;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .settings-icon-btn {
+    padding: 24px 24px;
+    font-size: 10px;
+  }
+  
+  .settings-icon-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+ 
 
 
     `}</style>

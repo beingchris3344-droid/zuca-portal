@@ -11,9 +11,9 @@ import FloatingInstallButton from "./FloatingInstallButton";
 import { 
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
-  FiAward, FiYoutube, FiMapPin,
+  FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo  } from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
@@ -181,32 +181,32 @@ useEffect(() => {
   };
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    { path: "/member/attendance", label: "Attendance", icon: "📑" },
-    { path: "/schedules", label: "Schedules", icon: "📅" },
+    { path: "/dashboard", label: "Dashboard", icon: <FaThLarge /> },
+    { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#ff0000" /> },
+    { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },
     { path: "/user-manual", label: "User Manual", icon: "📚" },
-    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
-        { path: "/mass-programs", label: "Mass Programs", icon: "🧾" },
-{ path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={20} /> },
-        { path: "/hymns", label: "Hymn Book", icon: "🎵" },
+    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar size={28}/> },
+        { path: "/mass-programs", label: "Mass Programs", icon: "📑" },
+{ path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={28} /> },
+        { path: "/hymns", label: "Lyrics Book", icon: "🎼" },
 
-      { path: "/youtube", label: "ZUCATUBE", icon: <FaYoutube size={18} color="#ff0000" /> },
+      { path: "/youtube", label: "ZUCA/TUBE", icon: <FaYoutube size={28} color="#ff0000" /> },
 
 { 
   path: "/gallery", 
   label: "Gallery", 
-  icon: <span style={{ color: '#3b82f6' }}><FaImages size={20} /></span> 
+  icon: <span style={{ color: '#3b82f6' }}><FaImages size={28} /></span> 
 },    { path: "/announcements", label: "Announcements", icon: "📢" },
-    { path: "/contributions", label: "Contributions", icon: "💰" },
-    { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
+    { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
+    { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
   {path: "/jumuia-contributions", 
     label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
-    icon: "👥" 
+    icon: <FaDove size={25} color="#58cc35" />
   },    
-  { path: "/messenger", label: "Messages", icon: <MessengerIcon /> },
-  { path: "/chat", label: "Chat", icon: "💬" },
-    { path: "/executive", label: "Executive Team", icon: "👔" },
-    { path: "/games", label: "Games Arcade", icon: "🎮" },
+  { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
+  { path: "/chat", label: "Chat", icon: <FaComments size={28} color="#1a1818" /> },
+    { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
+    { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
   ];
 
   return (

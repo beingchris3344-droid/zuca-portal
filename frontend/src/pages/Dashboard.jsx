@@ -12,9 +12,9 @@ import {
   FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
-  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, 
+  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus, FaUser } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -763,8 +763,8 @@ const fetchFeaturedGallery = async () => {
       </div>
 
       <div className="countdown-event-info">
-        <span>📅 JOIN US ON 12TH JULY AS WE CELEBRATE OUR "BIRTHDAY"</span>
-        <span>LETS COME ALL!</span>
+        <span><FaCalendar color="fffff0" /> JOIN US ON 12TH JULY AS WE CELEBRATE OUR "BIRTHDAY"</span>
+        <span><FaUsers color="fffff0" /> LETS COME ALL!</span>
       </div>
     </div>
   </motion.div>
@@ -821,7 +821,7 @@ const fetchFeaturedGallery = async () => {
     </div>
     <div className="stat-divider"></div>
     <div className="stat-item">
-      <div className="stat-icon"></div>
+      <div className="stat-icon"><FaHandHoldingHeart size={30}/></div>
       <div className="stat-info">
         <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
         <span className="stat-label">Total Paid</span>
@@ -995,7 +995,7 @@ const fetchFeaturedGallery = async () => {
   <div className="section-card jumuia-dashboard-card">
     <div className="section-header">
       <div className="header-icon-small">
-        <span>👥</span>
+        <span><FaPrayingHands size={28} color="#1a1818" /></span>
       </div>
       <h3>My Jumuia</h3>
       <div className="jumuia-status-badge-small">
@@ -1011,7 +1011,7 @@ const fetchFeaturedGallery = async () => {
       
       <div className="jumuia-quick-info">
         <div className="quick-info-item">
-          <span className="info-emoji">👤</span>
+          <span className="info-emoji"><FaUserTie/></span>
           <div className="info-text">
             <span className="info-label">Leader</span>
             <span className="info-value">{jumuiaInfo.leaderName?.split(' ')[0] || "TBA"}</span>
@@ -1019,7 +1019,7 @@ const fetchFeaturedGallery = async () => {
         </div>
         
         <div className="quick-info-item">
-          <span className="info-emoji">👥</span>
+          <span className="info-emoji"><FaUsers/></span>
           <div className="info-text">
             <span className="info-label">Members</span>
             <span className="info-value">{jumuiaInfo.memberCount || 0}</span>
@@ -1028,7 +1028,7 @@ const fetchFeaturedGallery = async () => {
         
         {jumuiaInfo.nextMeeting && (
           <div className="quick-info-item meeting-highlight">
-            <span className="info-emoji">📅</span>
+            <span className="info-emoji"><FaCalendar /></span>
             <div className="info-text">
               <span className="info-label">Next Meeting</span>
               <span className="info-value meeting-date">
@@ -1057,7 +1057,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card schedules-section">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-calendar">🗒️</div>
+      <div className="header-icon-calendar"><FaCalendarPlus size={28} color="#141313" /></div>
       <div>
         <h3>UPCOMING ZUCA SCHEDULED EVENTS</h3>
         <p className="header-subtitle">ZUCA indoor and out door activities</p>
@@ -1073,7 +1073,7 @@ const fetchFeaturedGallery = async () => {
   <div className="events-timeline">
     {upcomingSchedules.length === 0 ? (
       <div className="empty-state-calendar">
-        <div className="calendar-icon">🗓️</div>
+        <div className="calendar-icon"><FaCalendar /></div>
         <p>No upcoming events</p>
         <span>Check back soon for new schedules</span>
       </div>
@@ -1139,7 +1139,7 @@ const fetchFeaturedGallery = async () => {
 
             <div className="event-footer-premium">
               <div className="event-organizer">
-                <span className="organizer-icon">👥</span>
+                <span className="organizer-icon"><FaUser /></span>
                 <span>{event.organizer || "ZUCA Community"}</span>
               </div>
               <button 
@@ -1290,7 +1290,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card pledges-compact">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-small-pledge">📝</div>
+      <div className="header-icon-small-pledge"><FaHandHoldingHeart size={39} color="#141313" /></div>
       <h3>MY ACTIVE PLEDGES</h3>
     </div>
     {activePledges.length > 0 && (
@@ -1379,12 +1379,12 @@ const fetchFeaturedGallery = async () => {
             <div className="hymn-meta">
               {hymn.createdAt && (
                 <span className="hymn-date">
-                  📅 {formatRelativeTime(hymn.createdAt)}
+                  <FaRegCalendar /> {formatRelativeTime(hymn.createdAt)}
                 </span>
               )}
               {hymn.numVerses && (
                 <span className="hymn-verses">
-                  📖 {hymn.numVerses} verses
+                  <FaBook /> {hymn.numVerses} verses
                 </span>
               )}
             </div>
@@ -1475,7 +1475,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card gallery-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-gallery">🏞️</div>
+      <div className="header-icon-gallery"><FaPhotoVideo color="#000000" /></div>
       <div>
         <h3>FEATURED GALLERY</h3>
         <p className="header-subtitle">Moments from zuca</p>
@@ -1491,7 +1491,7 @@ const fetchFeaturedGallery = async () => {
   <div className="gallery-premium-grid">
     {featuredGallery.length === 0 ? (
       <div className="empty-state-gallery">
-        <div className="empty-gallery-icon">�</div>
+        <div className="empty-gallery-icon"><FaPhotoVideo /></div>
         <p>No gallery items</p>
         <span>Check back soon for photos</span>
       </div>
@@ -1516,7 +1516,7 @@ const fetchFeaturedGallery = async () => {
                 }}
               />
             ) : (
-              <div className="gallery-premium-placeholder">📷</div>
+              <div className="gallery-premium-placeholder"><FaPhotoVideo /></div>
             )}
             <div className="gallery-premium-overlay">
               <span className="overlay-icon">🔍</span>
@@ -1550,7 +1550,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card games-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-games">ᯤ</div>
+      <div className="header-icon-games"><FaGamepad size={28} color="#141313" /></div>
       <div>
         <h3>GAMES</h3>
         <p className="header-subtitle">Connect, play, and grow together</p>
@@ -1617,7 +1617,7 @@ const fetchFeaturedGallery = async () => {
         className="games-action-btn"
         onClick={() => navigate("/games")}
       >
-        <span>🎯 Play Games</span>
+        <span><FaGamepad /> Play Games</span>
         <FiArrowRight className="button-icon" />
       </button>
     </div>
@@ -1625,7 +1625,7 @@ const fetchFeaturedGallery = async () => {
     {/* Online Members Section */}
     <div className="online-section-premium">
       <div className="online-header-premium">
-        <span className="online-title-premium">👥 Online Members</span>
+        <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
         <span className="online-count">{onlineMembers.length}</span>
       </div>
       
@@ -1684,7 +1684,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card stats-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-stats">ﮩ٨ـ</div>
+      <div className="header-icon-stats"><FiActivity /></div>
       <div>
         <h3>ZUCA STATUS</h3>
         <p className="header-subtitle">ZUCA at a glance</p>
@@ -1699,7 +1699,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon users-icon">👥</div>
+      <div className="stat-premium-icon users-icon"><FaUsers /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalUsers || 0}</div>
         <div className="stat-premium-label">Total Users</div>
@@ -1712,7 +1712,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon messages-icon">💬</div>
+      <div className="stat-premium-icon messages-icon"><FaComments /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalMessages || 0}</div>
         <div className="stat-premium-label">Messages</div>
@@ -1725,7 +1725,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon hymns-icon">🎵</div>
+      <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalHymns || 0}</div>
         <div className="stat-premium-label">Hymns</div>
@@ -1738,7 +1738,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon media-icon">🅾</div>
+      <div className="stat-premium-icon media-icon"><FaPhotoVideo /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalMedia || 0}</div>
         <div className="stat-premium-label">Media</div>
@@ -1751,7 +1751,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon gallery-icon">🌄</div>
+      <div className="stat-premium-icon gallery-icon"><FaThLarge /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{galleryItems || 0}</div>
         <div className="stat-premium-label">Gallery Items</div>
@@ -1766,7 +1766,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card executive-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-executive">👨🏻‍💼</div>
+      <div className="header-icon-executive"><FaUserTie color="#e41811"/></div>
       <div>
         <h3>EXECUTIVE TEAM</h3>
         <p className="header-subtitle">ZUCA Leadership & Administration</p>
@@ -1782,7 +1782,7 @@ const fetchFeaturedGallery = async () => {
   <div className="executive-premium-grid">
     {executiveTeam.length === 0 ? (
       <div className="empty-state-executive">
-        <div className="empty-executive-icon">👔</div>
+        <div className="empty-executive-icon"><FaUserTie /></div>
         <p>No executive team assigned</p>
         <span>Leadership team coming soon</span>
       </div>
@@ -1949,6 +1949,7 @@ const fetchFeaturedGallery = async () => {
             {notif.type === "announcement" && "📢"}
             {notif.type === "game_invite" && "🎮"}
             {notif.type === "program" && "⛪"}
+            {notif.type === "checkin" && "✅"}
             {notif.type === "message" && "💬"}
             {!notif.type && "🔔"}
           </div>
@@ -6177,8 +6178,8 @@ const fetchFeaturedGallery = async () => {
 /* Games Action Button */
 .games-action-btn {
   width: 100%;
-  background: #008000;
-  color: white;
+  background: #fff90;
+  color: #1e293b;
   border: none;
   padding: 0.7rem;
   border-radius: 14px;
@@ -6357,7 +6358,7 @@ const fetchFeaturedGallery = async () => {
 /* Online Action Button */
 .online-action-btn {
   width: 100%;
-  background: #3b82f6;
+  background: #000000;
   color: white;
   border: none;
   padding: 0.7rem;
@@ -7627,6 +7628,26 @@ const fetchFeaturedGallery = async () => {
     }
   }
 }
+
+@keyframes waveAnimation {
+  0% { transform: rotate( 0.0deg) }
+  10% { transform: rotate(14.0deg) }  /* Wave right */
+  20% { transform: rotate(-8.0deg) }  /* Wave left */
+  30% { transform: rotate(14.0deg) }  /* Wave right */
+  40% { transform: rotate(-4.0deg) }  /* Wave left */
+  50% { transform: rotate(10.0deg) }  /* Wave right */
+  60% { transform: rotate( 0.0deg) }  /* Return to center */
+  100% { transform: rotate( 0.0deg) } /* Pause before waving again */
+}
+
+.wave {
+  animation-name: waveAnimation;
+  animation-duration: 1.5s;           /* Total time for one full loop */
+  animation-iteration-count: infinite;/* Loop forever */
+  transform-origin: 70% 70%;         /* Pivots from the bottom wrist area */
+  display: inline-block;             /* Required for transformation to work */
+}
+
 
     `}</style>
     </div>

@@ -532,9 +532,9 @@ const sidebarStyle = {
   left: 0,
   top: 0,
   height: "100vh",
-  width: "280px",
-  background: "#b3b3b3d5",
-  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.05)",
+  width: "250px",
+  background: "#000000d8",
+  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.73)",
   padding: "24px 16px",
   display: "flex",
   flexDirection: "column",
@@ -562,7 +562,7 @@ const logoText = {
 };
 
 const logoTitle = {
-  color: "#1e293b",
+  color: "#ffffff",
   fontSize: "13px",
   fontWeight: "700",
   margin: 0,
@@ -571,7 +571,7 @@ const logoTitle = {
 };
 
 const logoSubtitle = {
-  color: "#64748b",
+  color: "#a0a2a5",
   fontSize: "11px",
   margin: "4px 0 0",
   fontWeight: "500",

@@ -14,7 +14,7 @@ import {
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
   FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus, FaUser } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus, FaUser, FaCalendarAlt } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -806,14 +806,14 @@ const fetchFeaturedGallery = async () => {
 
 
       <div className="badges">
-        <span className="role-badge">👔 {user.role?.toUpperCase() || "MEMBER"}</span>
-        {user.homeJumuia && <span className="jumuia-badge">👥 {user.homeJumuia.name}</span>}
+        <span className="role-badge"><FaUserTie /> {user.role?.toUpperCase() || "MEMBER"}</span>
+        {user.homeJumuia && <span className="jumuia-badge"><FaUsers size={10} /> {user.homeJumuia.name}</span>}
       </div>
     </div>
   </div>
   <div className="profile-stats">
     <div className="stat-item">
-      <div className="stat-icon">🕕</div>
+      <div className="stat-icon"><FaCalendarAlt /></div>
       <div className="stat-info">
         <span className="stat-value">{getMemberSinceMonths()}</span>
         <span className="stat-label">Joined</span>

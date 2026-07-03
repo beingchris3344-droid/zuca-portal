@@ -794,8 +794,17 @@ const fetchFeaturedGallery = async () => {
       <div className="membership-row">
         <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
       </div>
-      <p className="email">📩 {user.email}</p>
-      <p className="phone">📞 {user.phone || "Not set"}</p>
+      <p className="email-row">
+  <span className="icon-style">✉</span> 
+  <span className="text-style">{user.email}</span>
+</p> 
+
+<p className="phone-row">
+  <span className="icon-style">☏</span> 
+  <span className="text-style">{user.phone || "Not set"}</span>
+</p>
+
+
       <div className="badges">
         <span className="role-badge">👔 {user.role?.toUpperCase() || "MEMBER"}</span>
         {user.homeJumuia && <span className="jumuia-badge">👥 {user.homeJumuia.name}</span>}
@@ -804,7 +813,7 @@ const fetchFeaturedGallery = async () => {
   </div>
   <div className="profile-stats">
     <div className="stat-item">
-      <div className="stat-icon">📅</div>
+      <div className="stat-icon">🕕</div>
       <div className="stat-info">
         <span className="stat-value">{getMemberSinceMonths()}</span>
         <span className="stat-label">Joined</span>
@@ -812,7 +821,7 @@ const fetchFeaturedGallery = async () => {
     </div>
     <div className="stat-divider"></div>
     <div className="stat-item">
-      <div className="stat-icon">💰</div>
+      <div className="stat-icon"></div>
       <div className="stat-info">
         <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
         <span className="stat-label">Total Paid</span>
@@ -914,7 +923,7 @@ const fetchFeaturedGallery = async () => {
 
     <div className="reading-premium-body">
       <div className="reading-celebration">
-        <span className="celebration-icon">🙏</span>
+        <span className="celebration-icon"></span>
         <span className="celebration-text">{todaysReading.celebration || "Daily Reading"}</span>
       </div>
 
@@ -922,7 +931,7 @@ const fetchFeaturedGallery = async () => {
         {todaysReading.readings?.firstReading && (
           <div className="reading-verse-card">
             <div className="verse-header">
-              <span className="verse-icon">📜</span>
+              <span className="verse-icon">✍︎</span>
               <span className="verse-title">First Reading</span>
             </div>
             <div className="verse-citation">{todaysReading.readings.firstReading.citation}</div>
@@ -955,7 +964,7 @@ const fetchFeaturedGallery = async () => {
         {todaysReading.readings?.gospel && (
           <div className="reading-verse-card gospel-card">
             <div className="verse-header">
-              <span className="verse-icon">✝️</span>
+              <span className="verse-icon">𓆩♱𓆪</span>
               <span className="verse-title">Holy Gospel</span>
             </div>
             <div className="verse-citation">{todaysReading.readings.gospel.citation}</div>
@@ -986,7 +995,7 @@ const fetchFeaturedGallery = async () => {
   <div className="section-card jumuia-dashboard-card">
     <div className="section-header">
       <div className="header-icon-small">
-        <span>🏠</span>
+        <span>👥</span>
       </div>
       <h3>My Jumuia</h3>
       <div className="jumuia-status-badge-small">
@@ -1048,7 +1057,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card schedules-section">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-calendar">📅</div>
+      <div className="header-icon-calendar">🗒️</div>
       <div>
         <h3>UPCOMING ZUCA SCHEDULED EVENTS</h3>
         <p className="header-subtitle">ZUCA indoor and out door activities</p>
@@ -1163,7 +1172,7 @@ const fetchFeaturedGallery = async () => {
 <div className="financial-stats-grid">
   <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
     <div className="financial-stat-icon pledged-icon">
-      <span>💰</span>
+      <span>⛁ </span>
     </div>
     <div className="financial-stat-content">
       <span className="financial-stat-value">KES {totalPledged.toLocaleString()}</span>
@@ -1176,7 +1185,7 @@ const fetchFeaturedGallery = async () => {
 
   <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
     <div className="financial-stat-icon paid-icon">
-      <span>✅</span>
+      <span>☑</span>
     </div>
     <div className="financial-stat-content">
       <span className="financial-stat-value">KES {totalPaid.toLocaleString()}</span>
@@ -1189,7 +1198,7 @@ const fetchFeaturedGallery = async () => {
 
   <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
     <div className="financial-stat-icon pending-icon">
-      <span>⏳</span>
+      <span>◔</span>
     </div>
     <div className="financial-stat-content">
       <span className="financial-stat-value">KES {totalPending.toLocaleString()}</span>
@@ -1202,7 +1211,7 @@ const fetchFeaturedGallery = async () => {
 
   <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
     <div className="financial-stat-icon campaigns-icon">
-      <span>📊</span>
+      <span>⚡︎</span>
     </div>
     <div className="financial-stat-content">
       <span className="financial-stat-value">{activeCampaigns}</span>
@@ -1281,7 +1290,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card pledges-compact">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-small-pledge">💳</div>
+      <div className="header-icon-small-pledge">📝</div>
       <h3>MY ACTIVE PLEDGES</h3>
     </div>
     {activePledges.length > 0 && (
@@ -1292,7 +1301,7 @@ const fetchFeaturedGallery = async () => {
   <div className="pledges-compact-list">
     {activePledges.length === 0 ? (
       <div className="empty-state-compact-pledge">
-        <span>💰</span>
+        <span>◔</span>
         <p>No active pledges</p>
       </div>
     ) : (
@@ -1327,7 +1336,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card hymns-section">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-music">🎵</div>
+      <div className="header-icon-music">🎼</div>
       <div>
         <h3>RECENT HYMNS</h3>
         <p className="header-subtitle">Recently added Lyrics</p>
@@ -1401,7 +1410,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card mass-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-mass">⛪</div>
+      <div className="header-icon-mass">📑</div>
       <div>
         <h3>UPCOMING MASS PROGRAMS</h3>
         <p className="header-subtitle">Mass songs programe</p>
@@ -1417,7 +1426,7 @@ const fetchFeaturedGallery = async () => {
   <div className="mass-premium-list">
     {massPrograms.length === 0 ? (
       <div className="empty-state-mass">
-        <div className="empty-mass-icon">⛪</div>
+        <div className="empty-mass-icon">˗ˏˋ ✞ ˎˊ˗</div>
         <p>No upcoming mass programs  </p>
         <span>We'll notify you;</span>
       </div>
@@ -1442,7 +1451,7 @@ const fetchFeaturedGallery = async () => {
             <div className="mass-premium-details">
               <span className="mass-time">🕐 {prog.time || "10:00 AM"}</span>
               {prog.presider && (
-                <span className="mass-presider">🙏 {prog.presider}</span>
+                <span className="mass-presider"> {prog.presider}</span>
               )}
             </div>
           </div>
@@ -1466,7 +1475,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card gallery-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-gallery">📸</div>
+      <div className="header-icon-gallery">🏞️</div>
       <div>
         <h3>FEATURED GALLERY</h3>
         <p className="header-subtitle">Moments from zuca</p>
@@ -1482,7 +1491,7 @@ const fetchFeaturedGallery = async () => {
   <div className="gallery-premium-grid">
     {featuredGallery.length === 0 ? (
       <div className="empty-state-gallery">
-        <div className="empty-gallery-icon">📷</div>
+        <div className="empty-gallery-icon">�</div>
         <p>No gallery items</p>
         <span>Check back soon for photos</span>
       </div>
@@ -1541,7 +1550,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card games-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-games">🎮</div>
+      <div className="header-icon-games">ᯤ</div>
       <div>
         <h3>GAMES</h3>
         <p className="header-subtitle">Connect, play, and grow together</p>
@@ -1556,7 +1565,7 @@ const fetchFeaturedGallery = async () => {
     {/* Games Section */}
     <div className="games-section-premium">
       <div className="games-header-premium">
-        <span className="games-title-premium">🎮 Active Game Invites</span>
+        <span className="games-title-premium">ᯤ Active Game Invites</span>
         <span className="games-count">{gameInvites.length}</span>
       </div>
       
@@ -1675,7 +1684,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card stats-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-stats">📊</div>
+      <div className="header-icon-stats">ﮩ٨ـ</div>
       <div>
         <h3>ZUCA STATUS</h3>
         <p className="header-subtitle">ZUCA at a glance</p>
@@ -1729,7 +1738,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon media-icon">📸</div>
+      <div className="stat-premium-icon media-icon">🅾</div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalMedia || 0}</div>
         <div className="stat-premium-label">Media</div>
@@ -1742,7 +1751,7 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon gallery-icon">🖼️</div>
+      <div className="stat-premium-icon gallery-icon">🌄</div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{galleryItems || 0}</div>
         <div className="stat-premium-label">Gallery Items</div>
@@ -1757,7 +1766,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card executive-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-executive">👔</div>
+      <div className="header-icon-executive">👨🏻‍💼</div>
       <div>
         <h3>EXECUTIVE TEAM</h3>
         <p className="header-subtitle">ZUCA Leadership & Administration</p>
@@ -1959,7 +1968,7 @@ const fetchFeaturedGallery = async () => {
     )}
   </div>
 
-  <button className="notif-action-btn" onClick={() => navigate("/notifications")}>
+  <button className="notif-action-btn" onClick={() => navigate("/announcements")}>
     <span>🔔 View All Notifications</span>
     <FiArrowRight className="button-icon" />
   </button>
@@ -2038,7 +2047,7 @@ const fetchFeaturedGallery = async () => {
         }
 
         body {
-          background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
           
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
         }
@@ -2121,7 +2130,7 @@ const fetchFeaturedGallery = async () => {
 
         /* PROFILE CARD */
         .profile-card {
-          background: #e2e2e2;
+          background: #ffffff;
           
           border-radius: 24px;
           padding: 20px;
@@ -2142,7 +2151,7 @@ const fetchFeaturedGallery = async () => {
           height: 80px;
           border-radius: 50%;
           overflow: hidden;
-          border: 4px solid #ffffff;
+          border: 4px solid #0ce428;
           cursor: pointer;
         }
 
@@ -3125,7 +3134,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .hymns-section {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-left: 4px solid #123241;
   border-radius: 30px;
   margin-top: 20px;
@@ -3139,10 +3148,10 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-music {
   font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
+ 
   padding: 0.6rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+ 
   color: white;
 }
 
@@ -3448,7 +3457,31 @@ const fetchFeaturedGallery = async () => {
 /* Make email/phone cleaner */
 .email, .phone {
   font-size: 0.8rem;
+  font-weight: 500;
   color: #ec0000;
+  margin: 0.2rem 0;
+}
+
+/* Styles just the icons */
+.icon-style {
+  color: #000000;
+  font-size: 24px;
+  margin-right: 8px;
+}
+
+/* Styles just the email and phone text */
+.text-style {
+  color: #ff0000;
+    font-size: 14px;
+
+  font-weight: 500;
+}
+
+
+.email1, .phone1 {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #000000;
   margin: 0.2rem 0;
 }
 
@@ -3465,7 +3498,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .schedules-section {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-left: 4px solid #123241;
   position: relative;
   border-radius: 30px;
@@ -3487,10 +3520,10 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-calendar {
   font-size: 1rem;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
+  
   padding: 0.3rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+ 
   color: white;
 }
 
@@ -3935,7 +3968,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .executive-premium {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   margin-bottom: 0;
   border-radius: 35px;
   border-left: 4px solid #123241;
@@ -3947,10 +3980,10 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-executive {
   font-size: 1.8rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
+ 
   padding: 0.5rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+
   color: white;
   display: inline-block;
   margin-bottom: 1rem;
@@ -4203,7 +4236,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .jumuia-dashboard-card {
-  background: linear-gradient(135deg, #acacac 0%, #9b9b9b);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-left: 3px solid #000000;
   padding: 1.25rem;
   gap: 20px;
@@ -4221,7 +4254,6 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-small {
   font-size: 1.3rem;
-  background: linear-gradient(135deg, #000000, #ffffff);
   padding: 0.3rem;
   border-radius: 10px;
   display: flex;
@@ -4376,7 +4408,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .reading-premium-card {
-  background: linear-gradient(135deg, #aaaaaa 0%, #c5c5c5 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-left: 5px solid #123241;
   padding: 0;
   border-radius: 30px;
@@ -4394,11 +4426,11 @@ const fetchFeaturedGallery = async () => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  
   flex-wrap: nowrap;  /* No wrapping on dashboard */
 }
 
 .reading-header-icon {
-  background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   width: 40px;  /* Smaller for dashboard */
   height: 40px;
@@ -4520,7 +4552,7 @@ const fetchFeaturedGallery = async () => {
 }
 
 .verse-icon {
-  font-size: 0.75rem;
+  font-size: 1.2rem;
 }
 
 .verse-title {
@@ -4773,7 +4805,7 @@ const fetchFeaturedGallery = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 2.7rem;
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
@@ -4783,22 +4815,18 @@ const fetchFeaturedGallery = async () => {
 }
 
 .pledged-icon {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   color: #0f172a;
 }
 
 .paid-icon {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   color: #123241;
 }
 
 .pending-icon {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   color: #0f172a;
 }
 
 .campaigns-icon {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   color: #123241;
 }
 
@@ -4869,7 +4897,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .announcements-premium {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-radius: 40px;
   margin-top: 30px;
   border-left: 4px solid #123241;
@@ -4877,10 +4905,9 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-announcement {
   font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
+  background: linear-gradient(135deg, #0f172a00 0%, #1e293b00);
   padding: 0.6rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
   color: white;
 }
 
@@ -5051,7 +5078,7 @@ const fetchFeaturedGallery = async () => {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b);
   color: white;
   border: none;
-  padding: 0.85rem;
+  padding: 0.5rem;
   border-radius: 14px;
   font-weight: 600;
   font-size: 0.85rem;
@@ -5141,12 +5168,12 @@ const fetchFeaturedGallery = async () => {
   border-left: 4px solid #123241;
   margin-top: 50px;
   border-radius: 40px;
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
 }
 
 .header-icon-small-pledge {
   font-size: 1.2rem;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
+  background: linear-gradient(135deg, #0f172a00, #1e293b00);
   padding: 0.3rem;
   border-radius: 10px;
   display: inline-flex;
@@ -5315,17 +5342,16 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .gallery-premium {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-radius: 35px;
   border-left: 4px solid #123241;
 }
 
 .header-icon-gallery {
   font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
+  background: linear-gradient(135deg, #0f172a00 0%, #1e293b00);
   padding: 0.6rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
   color: white;
 }
 
@@ -5487,7 +5513,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .mass-premium {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee  100%);
   border-radius: 35px;
   border-left: 4px solid #123241;
   margin-bottom: 30px;
@@ -5495,10 +5521,10 @@ const fetchFeaturedGallery = async () => {
 
 .header-icon-mass {
   font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
+ 
   padding: 0.6rem;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+ 
   color: white;
 }
 
@@ -5740,7 +5766,7 @@ const fetchFeaturedGallery = async () => {
    ============================================ */
 
 .active-meetings-card {
-  background: linear-gradient(135deg, #c5c5c5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
   border-radius: 30px;
   padding: 1.2rem;
   margin-bottom: 1.5rem;
@@ -5924,7 +5950,7 @@ const fetchFeaturedGallery = async () => {
 /* Header */
 .header-icon-games {
   font-size: 2rem;
-  background: #fef3c7;
+  
   padding: 0.6rem;
   border-radius: 16px;
   color: #f59e0b;

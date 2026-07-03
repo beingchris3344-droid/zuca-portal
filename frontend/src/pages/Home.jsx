@@ -866,7 +866,7 @@ const formatEventDate = (dateString) => {
 </p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
-                <FaUserPlus /> REGISTER
+                <FaUserPlus /> CREATE  <strong> ZUCA </strong> ACCOUNT
               </button>
               <p>OR</p>
               <button onClick={() => navigate("/login")} className="btn-secondary">

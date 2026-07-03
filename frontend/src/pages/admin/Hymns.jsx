@@ -675,6 +675,9 @@ This is the chorus`;
 <button onClick={() => navigate("/admin/ocr-scanner")} style={styles.ocrBtn}>
   <FiCamera size={18} /> Scan Lyrics from Book
 </button>
+            <button onClick={() => navigate("/admin/pending-songs")} style={styles.ocrBtn}>
+  <FiClock size={18} /> Pending Songs
+</button>
             
             {bulkSelectMode && selectedHymns.length > 0 && (
               <button onClick={() => {}} style={styles.bulkDeleteBtn}>

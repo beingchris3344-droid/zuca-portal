@@ -7,11 +7,12 @@ import {
   FiEdit2, FiClock, FiCheckCircle, FiRefreshCw,
   FiArrowUp, FiArrowDown, FiGrid, FiImage, FiHome,
   FiLogOut, FiSettings, FiEye, FiTrendingUp, FiPieChart,
-  FiBarChart2, FiFileText, FiMail
+  FiBarChart2, FiFileText, FiMail,
+  FiPlusCircle
 } from "react-icons/fi";
-import { RiAdminLine } from "react-icons/ri";
+import { RiAdminLine, RiFileWarningLine } from "react-icons/ri";
 import { useNavigate } from "react-router-dom"; 
-import { FaDonate, FaChurch, FaWhatsapp } from "react-icons/fa";
+import { FaDonate, FaChurch, FaWhatsapp, FaCapsules, FaAccessibleIcon, FaReply, FaReplyAll, FaUniversity, FaUserTie } from "react-icons/fa";
 import { GiPrayer, GiCrown } from "react-icons/gi";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 import {
@@ -488,7 +489,7 @@ function AdminDashboard() {
           <div className="header-left">
             <h1 className="greeting">
               {greeting}, <span className="admin-name">Admin</span>
-              <span className="wave">👑</span>
+              <span className="wave"></span>
             </h1>
             <p className="date">{formatDate(currentTime)}</p>
           </div>
@@ -653,18 +654,18 @@ function AdminDashboard() {
   <button className="action-btn" onClick={() => navigate('/admin/contributions')}><FaDonate /> Pledges Management</button>
   <button className="action-btn" onClick={() => navigate('/admin/songs')}><FiMusic /> Hymns Management</button>
   <button className="action-btn" onClick={() => navigate('/admin/gallery')}><FiImage /> Gallery Management</button>
-  <button className="action-btn" onClick={() => navigate('/executive')}><GiCrown /> Executive Team</button>
+  <button className="action-btn" onClick={() => navigate('/executive')}><FaUserTie /> Executive Team</button>
 
   <button className="action-btn" onClick={() => navigate('/liturgical-calendar')}><FiCalendar /> Calendar Admin</button>
   <button className="action-btn" onClick={() => navigate('/admin/prayers')}><GiPrayer /> Prayer Management</button> {/* ← ADD THIS */}
-<button className="action-btn" onClick={() => navigate('/admin/email-settings')}>
-  <FiMail size={18} /> Email Management
+<button className="action-btn" onClick={() => navigate('/admin/security')}>
+  <FiMessageCircle size={18} /> Admin Chat
 </button>
 <button className="action-btn" onClick={() => navigate('/admin/bank-payments')}>
-  <FiDollarSign /> Bank Payments
+  <FaUniversity /> Bank Payments
 </button>
-<button className="action-btn" onClick={() => navigate('/admin/email')}>
-  <FiMail size={18} /> Email Dashboard
+<button className="action-btn" onClick={() => navigate('/admin/health-centre')}>
+  <FiSettings size={18} /> System Analysis
 </button>
 </div>
         </div>
@@ -813,7 +814,7 @@ function AdminDashboard() {
         
         {/* Footer */}
         <div className="footer">
-          <p>© {currentYear} ZUCA Portal Admin | v1.0 | Tumsifu Yesu Kristu! 🙏</p>
+          <p>© {currentYear} ZUCA Portal Admin | v1.0 |</p>
           <p className="creator">created by CHRISWEBSYS</p>
         </div>
       </div>

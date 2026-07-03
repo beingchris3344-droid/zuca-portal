@@ -3,10 +3,14 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import io from "socket.io-client";
-import { FiMessageSquare } from "react-icons/fi";
+import { FiMessageSquare,  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
+  FiDollarSign, FiMusic, FiUserCheck, 
+  FiAward, FiYoutube, FiMapPin, } from "react-icons/fi";
+  import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs, } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
 import badgeManager from '../../utils/badgeManager';
+import { FlagTriangleRightIcon } from "lucide-react";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -198,27 +202,35 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { label: "Admin View", path: "", icon: "", bg: "#eff6ff", color: "#3b82f6" },
-    { label: "Attendance Sheet", path: "attendance", icon: "", bg: "#e0e7ff", color: "#3b82f6" },
-        { label: "Contributions", path: "contributions", icon: "", bg: "#d1fae5", color: "#10b981" },
-            { label: "Announcements", path: "announcements", icon: "", bg: "#dbeafe", color: "#3b82f6" },
-                { label: "Mass Programs", path: "songs", icon: "", bg: "#e0e7ff", color: "#6366f1" },
+    { label: "Admin View", path: "", icon: <FaShieldAlt color="#000000"/>, bg: "#eff6ff", color: "#3b82f6" },
+    { label: "Attendance Sheet", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
+    { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
+     { label: "Attendance Overview", path: "attendance/overview", icon:<FiUsers color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
+        { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart color="#000000"/>, bg: "#d1fae5", color: "#10b981" },
+        { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
+            { label: "Announcements", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },
+                { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
 
 
 
-    { label: "Zuca Users", path: "users", icon: "", bg: "#e0f2fe", color: "#06b6d4" },
-    { label: "Semester Schedule", path: "schedules", icon: "", bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Role management", path: "roles", icon: "", bg: "#fce7f3", color: "#ec4899" },
-    { label: "Executive", path: "executive", icon: "", bg: "#ede9fe", color: "#8b5cf6" },
-    { label: "All Jumuias", path: "jumuia-management", icon: "", bg: "#d1fae5", color: "#10b981" },
-    { label: "Gallery", path: "media", icon: "", bg: "#fef3c7", color: "#f59e0b" },
-    { label: "YouTube Analytics", path: "analytics", icon: "", bg: "#fee2e2", color: "#ef4444" },
-    { label: "Hymn Book", path: "hymns", icon: "", bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Pending Songs", path: "pending-songs", icon: "", bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Messanger", path: "messenger", icon: "", bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
-    { label: "Monitor", path: "chat", icon: "", bg: "#e0f2fe", color: "#06b6d4" },
-    { label: "System Analysis", path: "health-centre", icon: "", bg: "#dcfce7", color: "#10b981" },
-    { label: "Admin Manual", path: "security", icon: "", bg: "#f1f5f9", color: "#64748b" },
+    { label: "Zuca Users", path: "users", icon: <FiUsers color="#000000" />, bg: "#e0f2fe", color: "#000000" },
+    { label: "Semester Schedule", path: "schedules", icon: <FiCalendar color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
+    { label: "Role management", path: "roles", icon: <FaUserTie color="#000000" />, bg: "#fce7f3", color: "#ec4899" },
+    { label: "Executive", path: "executive", icon: <FaUserTie color="#000000" />, bg: "#ede9fe", color: "#8b5cf6" },
+    { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands color="#000000" />, bg: "#d1fae5", color: "#10b981" },
+    { label: "Gallery", path: "media", icon: <FaImages color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
+    { label: "YouTube Analytics", path: "analytics", icon: <FaYoutube color="#ff0000" />, bg: "#fee2e2", color: "#ef4444" },
+    { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
+    { label: "Email Dashboard", path: "email", icon: <FaMailBulk color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
+    { label: "Email Settings", path: "email-settings", icon: <FaCogs color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
+    { label: "Messanger", path: "messenger", icon: 
+    <FaComments color="#000000"/>, bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
+    
+    { label: "Prayer Settings", path: "prayers", icon: <FaPray color= "#000000"/>, bg: "#dcfce7", color: "#10b981" },
+    { label: "Admin Manual", path: "security", icon: <FaBookReader color="#000000"/>, bg: "#f1f5f9", color: "#64748b" },
+   
+    
+    
   ];
 
   // Styles with access to sidebarCollapsed
@@ -273,8 +285,8 @@ export default function AdminLayout() {
   };
 
   const logoText = { flex: 1 };
-  const logoTitle = { color: "#1e293b", fontSize: "13px", fontWeight: "700", margin: 0 };
-  const logoSubtitle = { color: "#64748b", fontSize: "11px", margin: "4px 0 0" };
+  const logoTitle = { color: "#000000", fontSize: "13px", fontWeight: "700", margin: 0 };
+  const logoSubtitle = { color: "#424242", fontSize: "11px", margin: "4px 0 0" };
 
   const navContainerStyle = (shadow) => ({
     flex: 1,
@@ -310,7 +322,7 @@ export default function AdminLayout() {
   };
 
   const navLabelStyle = (isActive, color) => ({
-    color: isActive ? color : "#475569",
+    color: isActive ? color : "#000000",
     fontWeight: isActive ? "600" : "500",
     fontSize: "13px",
   });

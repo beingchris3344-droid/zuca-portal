@@ -5,8 +5,12 @@
       "destination": "https://zuca-backend-iw9p.onrender.com/api/sitemap"
     },
     {
+      "source": "/hymn/:slug",
+      "destination": "/api/hymn/:slug"
+    },
+    {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/index.html"
     }
   ],
   "headers": [

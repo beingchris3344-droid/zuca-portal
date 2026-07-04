@@ -5864,6 +5864,9 @@ app.get("/api/sitemap", async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     
+    // List of titles to exclude
+    const excludeTitles = ['Na', 'Nah', 'Na5', 'Na0', 'Nap', 'API', '?NA', '%3FNA', ''];
+    
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${baseUrl}/</loc><priority>1.0</priority></url>
@@ -5877,14 +5880,20 @@ app.get("/api/sitemap", async (req, res) => {
   <url><loc>${baseUrl}/hymns</loc></url>`;
     
     songs.forEach(song => {
-      const cleanTitle = song.title
-        .replace(/[(){}[\],']/g, '')  // Remove parentheses, brackets, commas
-        .replace(/\n/g, ' ')          // Replace newlines with spaces
-        .replace(/\s+/g, ' ')         // Remove extra spaces
+      // Clean the title
+      let cleanTitle = song.title
+        .replace(/[(){}[\],']/g, '')      // Remove parentheses, brackets, commas
+        .replace(/\n/g, ' ')              // Replace newlines with spaces
+        .replace(/\s+/g, ' ')             // Remove extra spaces
         .trim();
       
+      // Skip if title is empty or in exclude list
       if (!cleanTitle || cleanTitle.length < 2) return;
-      if (['Na', 'Nah', 'Na5', 'Na0', 'Nap', 'API'].includes(cleanTitle)) return;
+      if (excludeTitles.includes(cleanTitle)) return;
+      if (excludeTitles.some(t => cleanTitle.includes(t) && cleanTitle.length < 5)) return;
+      
+      // Skip URLs that start with problematic characters
+      if (cleanTitle.startsWith('?') || cleanTitle.startsWith('%')) return;
       
       const title = encodeURIComponent(cleanTitle);
       xml += `<url><loc>${baseUrl}/hymn/${title}</loc><priority>0.6</priority></url>`;

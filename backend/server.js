@@ -5877,7 +5877,16 @@ app.get("/api/sitemap", async (req, res) => {
   <url><loc>${baseUrl}/hymns</loc></url>`;
     
     songs.forEach(song => {
-      const title = encodeURIComponent(song.title);
+      const cleanTitle = song.title
+        .replace(/[(){}[\],']/g, '')  // Remove parentheses, brackets, commas
+        .replace(/\n/g, ' ')          // Replace newlines with spaces
+        .replace(/\s+/g, ' ')         // Remove extra spaces
+        .trim();
+      
+      if (!cleanTitle || cleanTitle.length < 2) return;
+      if (['Na', 'Nah', 'Na5', 'Na0', 'Nap', 'API'].includes(cleanTitle)) return;
+      
+      const title = encodeURIComponent(cleanTitle);
       xml += `<url><loc>${baseUrl}/hymn/${title}</loc><priority>0.6</priority></url>`;
     });
     

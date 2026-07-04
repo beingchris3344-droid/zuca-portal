@@ -172,6 +172,15 @@ minutesViewed    MeetingMinutesView[]
 excuses          MeetingExcuse[]
 minutesComments  MeetingComment[]
 
+
+ @@index([email])
+  @@index([membership_number])
+  @@index([lastActive])
+  @@index([jumuiaId])
+  @@index([role])
+  @@index([specialRole])
+  @@index([createdAt])
+
 }
 
   
@@ -192,6 +201,9 @@ model Announcement {
   // Optional: which jumuia this announcement is for (null = all)
   jumuiaId String?
   jumuia   Jumuia? @relation(fields: [jumuiaId], references: [id])
+
+  @@index([createdAt])
+  @@index([published])
 }
 
 model MassProgram {
@@ -267,6 +279,11 @@ model Pledge {
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   pledgeMessages     PledgeMessage[]
     payments           Payment[]  
+
+      @@index([userId])
+  @@index([contributionTypeId])
+  @@index([status])
+  
    
 }
 

@@ -15370,7 +15370,7 @@ const createdEvent = await prisma.scheduleEvent.create({
     description: event.description || event.title,
     eventDate: correctEventDate,
     eventTime: event.eventTime || "16:30",
-    location: event.location || "Room 002",
+    location: event.location || "",
     groupName: event.groupName,
     reminderDays: event.reminderDays || [7, 1, 0]
   }
@@ -15571,7 +15571,7 @@ if (events.length > 0) {
         description: event.description || event.title,
         eventDate: correctDate,
         eventTime: event.eventTime || "16:30",
-        location: event.location || "Room 002",
+        location: event.location || "",
         groupName: event.groupName,
         reminderDays: event.reminderDays || [7, 1, 0]
       }

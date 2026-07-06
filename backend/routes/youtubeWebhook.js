@@ -179,10 +179,10 @@ router.post("/youtube-webhook", async (req, res) => {
       createAndSendNotification({
         userId: user.id,
         type: isLive ? "youtube_live" : "youtube_new_video",
-        title: isLive ? "🔴 ZUCA IS LIVE NOW!" : "📹 NEW YOUTUBE VIDEO UPLOADED!",
+        title: isLive ? "🔴 Zetech University Catholic Action IS LIVE NOW!" : "📹 Zetech University Catholic Action IS LIVE NOW!",
         message: isLive 
           ? `${title}\n\nWatch live now on ZUCA!` 
-          : `${title}\n\nClick to watch on ZUCA!`,
+          : `${title}\n\nNavigate to ZUCA/TUBE on your app side bar to watch on ZUCA APP!`,
         data: {
           videoId: videoId,
           videoTitle: title,

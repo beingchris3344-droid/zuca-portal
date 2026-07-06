@@ -4989,7 +4989,7 @@ if (newVideoFound && !lastVideoIds.has(newVideoFound.id.videoId) && hoursSinceUp
     if (isLiveNow && lastLiveVideoId !== liveVideo?.id.videoId) {
       console.log(`🔴 LIVE STREAM DETECTED: ${liveVideo?.snippet.title}`);
       
-      const notificationTitle = "🔴ZUCA IS LIVE NOW!";
+      const notificationTitle = "🔴Zetech University Catholic Action IS LIVE NOW!";
       const notificationMessage = `${liveVideo?.snippet.title}\n\nWatch live now on ZUCA!`;
       
       const allUsers = await prisma.user.findMany({ select: { id: true } });

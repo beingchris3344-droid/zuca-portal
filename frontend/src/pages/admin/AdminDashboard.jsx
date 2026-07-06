@@ -658,7 +658,7 @@ function AdminDashboard() {
 
   <button className="action-btn" onClick={() => navigate('/liturgical-calendar')}><FiCalendar /> Calendar Admin</button>
   <button className="action-btn" onClick={() => navigate('/admin/prayers')}><GiPrayer /> Prayer Management</button> {/* ← ADD THIS */}
-<button className="action-btn" onClick={() => navigate('/admin/security')}>
+<button className="action-btn" onClick={() => navigate('/admin/chat')}>
   <FiMessageCircle size={18} /> Admin Chat
 </button>
 <button className="action-btn" onClick={() => navigate('/admin/bank-payments')}>

@@ -1,9 +1,12 @@
 {
-  "rewrites": [
+  "redirects": [
     {
       "source": "/sitemap.xml",
-      "destination": "https://zuca-backend-iw9p.onrender.com/api/sitemap"
-    },
+      "destination": "https://zuca-backend-iw9p.onrender.com/api/sitemap",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/"

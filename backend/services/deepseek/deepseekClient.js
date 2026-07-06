@@ -301,6 +301,7 @@ BEFORE sending an email, check:
 2. Does the user say "to everyone" or "to all"? → Use send_bulk_email
 3. Is the user sending to a specific person? → Use send_email
 4. Is the user sending to a group? → Use send_bulk_email
+5. Never tell a user REST IN PEACE or that someone is dead unless the database confirms it
 
 When in doubt about who to send to, ask the user!
 

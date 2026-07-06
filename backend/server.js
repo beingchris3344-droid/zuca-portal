@@ -192,6 +192,20 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
+
+app.use((req, res, next) => {
+  if (req.path === '/api/youtube-webhook' && req.method === 'POST') {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => {
+      req.rawBody = data;
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json({ limit: '2gb' }));
 app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
@@ -642,6 +656,13 @@ app.use('/api/email', emailRoutes);
 // Email Settings Routes
 const emailSettingsRoutes = require('./routes/emailSettingsRoutes');
 app.use('/api/email', emailSettingsRoutes);
+
+
+
+// ================== YOUTUBE WEBHOOK ROUTES ==================
+const youtubeWebhookRoutes = require('./routes/youtubeWebhook');
+
+app.use('/api', youtubeWebhookRoutes);
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
@@ -5024,7 +5045,7 @@ app.post("/api/admin/youtube/notify-new-video", authenticate, requireAdmin, asyn
       await createAndSendNotification({
         userId: user.id,
         type: "youtube_new_video",
-        title: "📹 NEW VIDEO UPLOADED!",
+        title: "📹 NEW YOUTUBE VIDEO UPLOADED!",
         message: `${videoTitle}\n\nClick to watch on ZUCA!`,
         data: {
           videoId: videoId,

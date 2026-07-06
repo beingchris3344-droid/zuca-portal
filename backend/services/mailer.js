@@ -742,13 +742,108 @@ async function sendPersonalizedEmailOriginal(user, notificationType, title, mess
       'payment_received': '/contributions',
       'game_invite': '/games',
       'event_reminder': '/calendar',
-      'schedule': '/calendar'
+      'schedule': '/calendar',
+      'youtube_new_video': '/youtube',
+      'youtube_live': '/youtube'
     };
     
     if (urlMap[notificationType]) {
       actionUrl = `${frontendUrl}${urlMap[notificationType]}`;
     }
-    
+
+    // ===== YOUTUBE SPECIAL HANDLING =====
+    if (notificationType === 'youtube_new_video' || notificationType === 'youtube_live') {
+      const isLive = notificationType === 'youtube_live';
+      const videoUrl = data.videoUrl || `https://www.youtube.com/watch?v=${data.videoId}`;
+      const thumbnail = data.videoThumbnail || `https://img.youtube.com/vi/${data.videoId}/hqdefault.jpg`;
+      const videoTitle = data.videoTitle || title;
+      
+      buttonText = isLive ? '🔴 Watch Live Now!' : '▶️ Watch on YouTube';
+      actionUrl = videoUrl;
+      
+      const youtubeHtml = `
+        <div style="text-align: center; margin: 20px 0;">
+          <img src="${thumbnail}" alt="${videoTitle}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />
+          <div style="font-size: 14px; color: #666; margin-top: 10px;">
+            <strong>${videoTitle}</strong>
+          </div>
+          ${isLive ? `<div style="background: #FF0000; color: white; display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; margin-top: 8px;">🔴 LIVE NOW</div>` : ''}
+        </div>
+      `;
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${title} - ZUCA</title>
+          <style>
+            body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; }
+            .container { max-width: 550px; margin: 0 auto; background: #ffffff; }
+            .header { background: #2c5f2d; padding: 20px 30px; }
+            .logo { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+            .organization { color: #ffffff; font-size: 13px; margin-top: 5px; }
+            .content { padding: 30px; }
+            .subject-line { font-size: 20px; font-weight: 600; color: #2c5f2d; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef; }
+            .message-body { font-size: 14px; color: #333333; line-height: 1.6; margin: 20px 0; }
+            .button { display: inline-block; background: ${isLive ? '#FF0000' : '#2c5f2d'}; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 4px; font-weight: 500; font-size: 14px; margin: 15px 0; }
+            .button:hover { background: ${isLive ? '#cc0000' : '#1e4420'}; }
+            .footer { background: #f8f9fa; padding: 15px 30px; font-size: 11px; color: #6c757d; text-align: center; border-top: 1px solid #dee2e6; }
+            hr { border: none; border-top: 1px solid #e9ecef; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <img src="${ZUCA_LOGO_URL}" alt="ZUCA" class="logo">
+              <div class="organization">Zetech University Catholic Action</div>
+            </div>
+            <div class="content">
+              <div class="subject-line">${isLive ? '🔴' : '📹'} ${title}</div>
+              <p>${greeting}, ${firstName}.</p>
+              <div class="message-body">${message}</div>
+              ${youtubeHtml}
+              <div style="text-align: center;">
+                <a href="${videoUrl}" class="button">${buttonText}</a>
+              </div>
+              <hr>
+              <p style="font-size: 12px; color: #6c757d;">
+                Video ID: ${data.videoId}<br>
+                ${isLive ? 'This is a live stream. Join now!' : 'Watch the video on YouTube.'}
+              </p>
+            </div>
+            <div class="footer">
+              ZUCA - Zetech University Catholic Action<br>
+              ${currentDateTime}
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      const textContent = `
+${isLive ? '🔴' : '📹'} ${title}
+
+${greeting}, ${firstName}.
+
+${message}
+
+${isLive ? '🔴 LIVE NOW' : '📹 New Video'}
+Title: ${videoTitle}
+Video ID: ${data.videoId}
+Watch: ${videoUrl}
+
+---
+Zetech University Catholic Action (ZUCA)
+${currentDateTime}
+      `;
+      
+      await sendViaBrevo(user.email, `${isLive ? '🔴 LIVE' : '📹'} ${title}`, htmlContent, textContent, "ZUCA");
+      console.log(`✅ YouTube ${isLive ? 'live' : 'video'} email sent to ${user.email}`);
+      return true;
+    }
+
+    // ===== REGULAR EMAIL (for non-YouTube types) =====
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -756,73 +851,17 @@ async function sendPersonalizedEmailOriginal(user, notificationType, title, mess
         <meta charset="UTF-8">
         <title>${title} - ZUCA</title>
         <style>
-          body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: #f5f5f5;
-          }
-          .container {
-            max-width: 550px;
-            margin: 0 auto;
-            background: #ffffff;
-          }
-          .header {
-            background: #2c5f2d;
-            padding: 20px 30px;
-          }
-          .logo {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            object-fit: cover;
-          }
-          .organization {
-            color: #ffffff;
-            font-size: 13px;
-            margin-top: 5px;
-          }
-          .content {
-            padding: 30px;
-          }
-          .subject-line {
-            font-size: 20px;
-            font-weight: 600;
-            color: #2c5f2d;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e9ecef;
-          }
-          .message-body {
-            font-size: 14px;
-            color: #333333;
-            line-height: 1.6;
-            margin: 20px 0;
-          }
-          .button {
-            display: inline-block;
-            background: #2c5f2d;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-weight: 500;
-            font-size: 13px;
-            margin: 15px 0;
-          }
-          .footer {
-            background: #f8f9fa;
-            padding: 15px 30px;
-            font-size: 11px;
-            color: #6c757d;
-            text-align: center;
-            border-top: 1px solid #dee2e6;
-          }
-          hr {
-            border: none;
-            border-top: 1px solid #e9ecef;
-            margin: 20px 0;
-          }
+          body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; }
+          .container { max-width: 550px; margin: 0 auto; background: #ffffff; }
+          .header { background: #2c5f2d; padding: 20px 30px; }
+          .logo { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+          .organization { color: #ffffff; font-size: 13px; margin-top: 5px; }
+          .content { padding: 30px; }
+          .subject-line { font-size: 20px; font-weight: 600; color: #2c5f2d; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef; }
+          .message-body { font-size: 14px; color: #333333; line-height: 1.6; margin: 20px 0; }
+          .button { display: inline-block; background: #2c5f2d; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-weight: 500; font-size: 13px; margin: 15px 0; }
+          .footer { background: #f8f9fa; padding: 15px 30px; font-size: 11px; color: #6c757d; text-align: center; border-top: 1px solid #dee2e6; }
+          hr { border: none; border-top: 1px solid #e9ecef; margin: 20px 0; }
         </style>
       </head>
       <body>
@@ -831,33 +870,17 @@ async function sendPersonalizedEmailOriginal(user, notificationType, title, mess
             <img src="${ZUCA_LOGO_URL}" alt="ZUCA" class="logo">
             <div class="organization">Zetech University Catholic Action</div>
           </div>
-          
           <div class="content">
             <div class="subject-line">${title}</div>
-            
             <p>${greeting}, ${firstName}.</p>
-            
-            <div class="message-body">
-              ${message}
-            </div>
-            
-            ${data.amount ? `
-              <div style="background: #f8f9fa; padding: 15px; margin: 20px 0; text-align: center;">
-                <strong style="font-size: 12px; color: #666;">AMOUNT</strong>
-                <div style="font-size: 24px; font-weight: 700; color: #2c5f2d;">KES ${data.amount.toLocaleString()}</div>
-                ${data.receiptNumber ? `<div style="font-size: 11px; color: #666; margin-top: 5px;">Receipt: ${data.receiptNumber}</div>` : ''}
-              </div>
-            ` : ''}
-            
+            <div class="message-body">${message}</div>
+            ${data.amount ? `<div style="background: #f8f9fa; padding: 15px; margin: 20px 0; text-align: center;"><strong style="font-size: 12px; color: #666;">AMOUNT</strong><div style="font-size: 24px; font-weight: 700; color: #2c5f2d;">KES ${data.amount.toLocaleString()}</div></div>` : ''}
             <div style="text-align: center;">
               <a href="${actionUrl}" class="button">${buttonText}</a>
             </div>
-            
             <hr>
-            
             <p style="font-size: 12px; color: #6c757d;">If you have any questions, please contact ZUCA support.</p>
           </div>
-          
           <div class="footer">
             ZUCA - Zetech University Catholic Action<br>
             ${currentDateTime}

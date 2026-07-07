@@ -3,10 +3,14 @@ const express = require('express');
 const router = express.Router();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const puppeteer = require('puppeteer');
 
 let client = null;
 let isReady = false;
 let currentQR = null;
+
+// Check if running on Render
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
 
 // Initialize WhatsApp
 async function initWhatsApp() {
@@ -14,14 +18,27 @@ async function initWhatsApp() {
 
   console.log('📱 Initializing WhatsApp...');
 
+  // Use Chrome from Render if in production
+  let puppeteerOptions = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu'
+    ]
+  };
+
+  // In production, specify Chrome path
+  if (isProduction) {
+    puppeteerOptions.executablePath = process.env.CHROME_PATH || '/usr/bin/google-chrome';
+    console.log('🔧 Running in production mode with Chrome at:', puppeteerOptions.executablePath);
+  }
+
   client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: {
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      // ✅ INCREASE TIMEOUT
-      protocolTimeout: 60000 // 60 seconds instead of default 30
-    }
+    puppeteer: puppeteerOptions
   });
 
   client.on('qr', (qr) => {
@@ -35,35 +52,42 @@ async function initWhatsApp() {
     isReady = true;
     console.log('✅ WhatsApp client ready!');
 
-    // Show groups - with retry
     try {
       console.log('📋 Fetching groups...');
       const chats = await client.getChats();
       const groups = chats.filter(chat => chat.isGroup);
 
       console.log(`\n👥 Found ${groups.length} groups:`);
-      groups.forEach((group, index) => {
+      groups.slice(0, 10).forEach((group, index) => {
         console.log(`  ${index + 1}. Name: ${group.name}`);
         console.log(`     ID: ${group.id._serialized}`);
         console.log(`     Members: ${group.participants.length}\n`);
       });
+
+      if (groups.length > 10) {
+        console.log(`  ... and ${groups.length - 10} more groups`);
+      }
 
       if (groups.length > 0) {
         console.log(`💡 Add to .env: WHATSAPP_GROUP_ID=${groups[0].id._serialized}\n`);
       }
     } catch (err) {
       console.error('❌ Error fetching groups:', err.message);
-      console.log('💡 You can still send messages. Get group ID from WhatsApp Web.');
     }
   });
 
   client.on('disconnected', () => {
     isReady = false;
     console.log('⚠️ WhatsApp disconnected. Reconnecting...');
-    setTimeout(initWhatsApp, 5000);
+    setTimeout(initWhatsApp, 10000);
   });
 
-  await client.initialize();
+  try {
+    await client.initialize();
+  } catch (err) {
+    console.error('❌ Failed to initialize WhatsApp:', err.message);
+    console.log('💡 In production, make sure Chrome is installed');
+  }
 }
 
 // ===== ROUTES =====
@@ -170,71 +194,7 @@ router.get('/groups', async (req, res) => {
   }
 });
 
-// Send test message
-router.post('/test', async (req, res) => {
-  if (!isReady) {
-    return res.status(503).json({ 
-      success: false, 
-      message: 'WhatsApp not ready yet.' 
-    });
-  }
-
-  const groupId = req.body.groupId || process.env.WHATSAPP_GROUP_ID;
-  if (!groupId) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'No group ID provided. Set WHATSAPP_GROUP_ID in .env or pass groupId in body.' 
-    });
-  }
-
-  try {
-    await client.sendMessage(
-      `${groupId}@g.us`,
-      `🧪 TEST MESSAGE\n\nThis is a test from ZUCA System!\nTime: ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}`
-    );
-    res.json({ success: true, message: 'Test message sent!' });
-  } catch (err) {
-    console.error('❌ Send error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Send to group (simplified)
-router.post('/send', async (req, res) => {
-  if (!isReady) {
-    return res.status(503).json({ 
-      success: false, 
-      message: 'WhatsApp not ready yet.' 
-    });
-  }
-
-  const { groupId, message } = req.body;
-  const targetGroup = groupId || process.env.WHATSAPP_GROUP_ID;
-
-  if (!targetGroup) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'No group ID provided.' 
-    });
-  }
-
-  if (!message) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'No message provided.' 
-    });
-  }
-
-  try {
-    await client.sendMessage(`${targetGroup}@g.us`, message);
-    res.json({ success: true, message: 'Message sent!' });
-  } catch (err) {
-    console.error('❌ Send error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Replace the test-public route with this
+// Send test message - PUBLIC
 router.get('/test-public', async (req, res) => {
   if (!isReady) {
     return res.status(503).json({ 
@@ -276,6 +236,6 @@ router.get('/test-public', async (req, res) => {
 // Initialize on startup
 setTimeout(() => {
   initWhatsApp();
-}, 3000);
+}, 5000);
 
 module.exports = router;

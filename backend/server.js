@@ -665,8 +665,6 @@ const youtubeWebhookRoutes = require('./routes/youtubeWebhook');
 app.use('/api', youtubeWebhookRoutes);
 
 
-
-
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -6666,11 +6664,6 @@ app.use("/api/attendance", attendanceRoutes);
 // monitoring middleware
 app.use(monitoringMiddleware);
 global.systemMonitor = systemMonitor;
-
-
-// whatsapp routes
-const whatsappRoutes = require('./routes/whatsapp');
-app.use('/api/whatsapp', whatsappRoutes);
 
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================

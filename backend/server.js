@@ -664,6 +664,9 @@ const youtubeWebhookRoutes = require('./routes/youtubeWebhook');
 
 app.use('/api', youtubeWebhookRoutes);
 
+
+
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -6665,6 +6668,11 @@ app.use(monitoringMiddleware);
 global.systemMonitor = systemMonitor;
 
 
+// whatsapp routes
+const whatsappRoutes = require('./routes/whatsapp');
+app.use('/api/whatsapp', whatsappRoutes);
+
+
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
 // ============================================
@@ -12659,6 +12667,17 @@ async function createAndSendNotification({ userId, type, title, message, data = 
       console.error('❌ Email error:', err.message);
     }
   })();
+
+  // ✅ WHATSAPP ✅
+  (async () => {
+    try {
+      const { sendWhatsAppMessage } = require('./services/whatsapp');
+      await sendWhatsAppMessage(title, message);
+    } catch (err) {
+      console.log('⚠️ WhatsApp error:', err.message);
+    }
+  })();
+  
 
   return notif;
 }

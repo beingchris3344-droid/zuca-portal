@@ -12661,15 +12661,7 @@ async function createAndSendNotification({ userId, type, title, message, data = 
     }
   })();
 
-  // ✅ WHATSAPP ✅
-  (async () => {
-    try {
-      const { sendWhatsAppMessage } = require('./services/whatsapp');
-      await sendWhatsAppMessage(title, message);
-    } catch (err) {
-      console.log('⚠️ WhatsApp error:', err.message);
-    }
-  })();
+
   
 
   return notif;

@@ -12621,6 +12621,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
 // SECOND: Define createAndSendNotification
 // ============================================
 async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  // 1. Save notification to database
   const notif = await prisma.notification.create({
     data: {
       id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -12633,37 +12634,37 @@ async function createAndSendNotification({ userId, type, title, message, data = 
     }
   });
 
-  // Send real-time via Socket.IO
+  // 2. Send real-time notification via Socket.IO (instant)
   io.to(userId).emit('new_notification', {
     ...notif,
     createdAt: notif.createdAt.toISOString()
   });
 
-  // Send push notification (don't await)
+  // 3. Send push notification to mobile (fire and forget)
   sendPushNotification(userId, title, message, { type, ...data }).catch(err => {
     console.log('Push not sent:', err.message);
   });
 
-  // ✅ DON'T AWAIT EMAILS - FIRE AND FORGET
+  // 4. Send email (fire and forget - doesn't block)
   (async () => {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { homeJumuia: true }
+        select: { email: true, fullName: true }
       });
       
-      if (user && user.email) {
-        await sendPersonalizedEmail(user, type, title, message, data);
-        console.log(`✅ Email sent to ${user.email}`);
+      if (user?.email) {
+        // No await here - runs in background
+        sendPersonalizedEmail(user, type, title, message, data)
+          .then(() => console.log(`✅ Email sent to ${user.email}`))
+          .catch(err => console.error('❌ Email error:', err.message));
       }
     } catch (err) {
       console.error('❌ Email error:', err.message);
     }
   })();
 
-
-  
-
+  // Return the notification
   return notif;
 }
 

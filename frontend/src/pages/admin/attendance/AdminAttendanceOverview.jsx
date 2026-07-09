@@ -8,6 +8,7 @@ import {
   ArrowLeft, X, CheckCircle, XCircle, Clock, MapPin,
   TrendingUp, Award, Target, Mail
 } from 'lucide-react';
+import { FaUsers, FaCalendar } from 'react-icons/fa';
 // Import for PDF generation
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -797,15 +798,15 @@ const exportToWord = async () => {
       {/* Header */}
       <div className="page-header">
        <div className="header-left">
-  <button className="back-btn" onClick={() => navigate('/admin/dashboard')}>
+  <button className="back-btn" onClick={() => navigate(-1)}>
     <ArrowLeft size={20} /> Back
   </button>
   <div>
-    <h1>📊 Attendance Management</h1>
-    <p className="subtitle">View and manage attendance records for all members</p>
+    <h1><FaUsers /> Attendance Management</h1>
+    <p className="subtitle">Attendance records for all ZUCA members</p>
     {currentSemester && (
       <div className="semester-info">
-        <span className="semester-label">📅 Current Semester:</span>
+        <span className="semester-label"><FaCalendar /> Current Semester:</span>
         <span className="semester-name">{currentSemester.period?.display || currentSemester.title}</span>
         <button 
           className="semester-manage-btn"
@@ -891,7 +892,7 @@ const exportToWord = async () => {
               <div className="status-label">Current Active Semester:</div>
               {currentSemester ? (
                 <div className="current-semester-box">
-                  <span className="semester-title">✅ {currentSemester.title}</span>
+                  <span className="semester-title"> {currentSemester.title}</span>
                   <span className="semester-date">{currentSemester.period?.display || ''}</span>
                   <button 
                     className="deactivate-btn"
@@ -918,7 +919,7 @@ const exportToWord = async () => {
                       <div className="semester-info">
                         <span className="semester-title">{sem.title}</span>
                         <span className="semester-date">{sem.period?.display || ''}</span>
-                        {sem.isCurrent && <span className="current-badge">✅ Active</span>}
+                        {sem.isCurrent && <span className="current-badge"> Active</span>}
                       </div>
                       <div className="semester-actions">
                         {!sem.isCurrent && (
@@ -1519,10 +1520,10 @@ const exportToWord = async () => {
           align-items: center;
           justify-content: center;
         }
-        .stat-icon.users { background: #dbeafe; color: #2563eb; }
-        .stat-icon.high { background: #dcfce7; color: #059669; }
-        .stat-icon.executive { background: #fef3c7; color: #d97706; }
-        .stat-icon.total { background: #ede9fe; color: #7c3aed; }
+        .stat-icon.users { background: #dbeafe00; color: #000000; }
+        .stat-icon.high { background: #00000000; color: #000000; }
+        .stat-icon.executive { background: #fef3c700; color: #000000e5; }
+        .stat-icon.total { background: #00000000; color: #000000; }
         .stat-content {
           display: flex;
           flex-direction: column;

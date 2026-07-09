@@ -765,7 +765,7 @@ const exportToWord = async () => {
 
   const getRoleBadge = (user) => {
     if (user.executivePosition) {
-      return <span className="badge executive">⭐ {user.executivePosition}</span>;
+      return <span className="badge executive"> {user.executivePosition}</span>;
     }
     if (user.role === 'admin') {
       return <span className="badge admin">Admin</span>;
@@ -963,7 +963,7 @@ const exportToWord = async () => {
               onChange={(e) => handleFilterChange('role', e.target.value)}
             >
               <option value="all">All Members</option>
-              <option value="executive">⭐ Executive Team</option>
+              <option value="executive"> Executive Team</option>
               <option value="member">👤 Regular Members</option>
             </select>
           </div>
@@ -1098,7 +1098,7 @@ const exportToWord = async () => {
                       <div className="user-name-wrapper">
                         <span className="user-name">{user.fullName}</span>
                         {user.executivePosition && (
-                          <span className="executive-badge">⭐</span>
+                          <span className="executive-badge"></span>
                         )}
                       </div>
                     </td>
@@ -1214,7 +1214,7 @@ const exportToWord = async () => {
               <div className="modal-user-info">
                 <h2>{selectedUser.user.fullName}</h2>
                 {selectedUser.user.executivePosition && (
-                  <span className="modal-executive-badge">⭐ {selectedUser.user.executivePosition}</span>
+                  <span className="modal-executive-badge"> {selectedUser.user.executivePosition}</span>
                 )}
               </div>
               <button className="modal-close" onClick={() => setShowUserModal(false)}>×</button>

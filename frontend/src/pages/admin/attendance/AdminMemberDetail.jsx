@@ -194,7 +194,7 @@ export default function AdminMemberDetail() {
             <span className="title-split"> Attendance History & Analysis</span>
           </h1>
           {userData?.executivePosition && (
-            <span className="executive-badge">⭐ {userData.executivePosition}</span>
+            <span className="executive-badge"> {userData.executivePosition}</span>
           )}
         </div>
         

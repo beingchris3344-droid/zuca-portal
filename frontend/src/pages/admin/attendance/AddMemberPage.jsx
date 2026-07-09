@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { X, User, Phone, Briefcase, Home, FileText, Search, CheckCircle, Users, Upload, Clock, Hash, Plus, List, ArrowLeft } from 'lucide-react';
 import { api } from '../../../api';
 import { FaUsers } from 'react-icons/fa';
@@ -9,7 +9,8 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 export default function AddMemberPage() {
   const { sheetId } = useParams();
-  const navigate = useNavigate();
+const navigate = useNavigate();
+const location = useLocation();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const basePath = user?.role === "admin" ? "/admin" : "/secretary";
@@ -33,6 +34,8 @@ export default function AddMemberPage() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingJumuia, setLoadingJumuia] = useState(true);
+  const [bulkProgress, setBulkProgress] = useState(0);
+const [isAdding, setIsAdding] = useState(false);
   const [bulkData, setBulkData] = useState('');
   const [bulkPreview, setBulkPreview] = useState([]);
   const [isBulkMode, setIsBulkMode] = useState(false);
@@ -234,6 +237,13 @@ const processUsers = useCallback((users) => {
   useEffect(() => {
     fetchAllUsers();
   }, [fetchAllUsers]);
+
+  // Check if we should default to bulk mode
+useEffect(() => {
+  if (location.state?.defaultToBulkMode) {
+    setIsBulkMode(true);
+  }
+}, [location]);
   
   // ============ DRAFT FUNCTIONS ============
   
@@ -606,7 +616,7 @@ const parseBulkData = useCallback(() => {
     };
   }, [bulkData, parseBulkData]);
   
- // ============ HANDLE BULK ADD (USING BATCH ENDPOINT) ============
+// ============ HANDLE BULK ADD (USING BATCH ENDPOINT) ============
 const handleBulkAdd = async () => {
   if (bulkPreview.length === 0) {
     alert('Please enter at least one name');
@@ -624,6 +634,8 @@ const handleBulkAdd = async () => {
   }
   
   setLoading(true);
+  setBulkProgress(0);
+  setIsAdding(true);
   
   const token = localStorage.getItem('token');
   
@@ -631,6 +643,9 @@ const handleBulkAdd = async () => {
     // ✅ Build the users array for batch
     const users = [];
     let autoFilledCount = 0;
+    
+    // Show progress for processing
+    setBulkProgress(10);
     
     for (const entry of validEntries) {
       let userData = {
@@ -665,31 +680,69 @@ const handleBulkAdd = async () => {
       users.push(userData);
     }
     
-    // ✅ ONE API CALL for ALL members
-    const response = await api.post(
-      `/api/attendance/sheet/${sheetId}/entries/batch`,
-      { users },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    // Update progress to 30% after processing
+    setBulkProgress(30);
     
-    const { count, entries } = response.data;
+    // ✅ ONE API CALL for ALL members with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    let message = `✅ Added: ${count} members successfully!`;
-    if (autoFilledCount > 0) {
-      message += `\n🔄 Auto-filled: ${autoFilledCount} existing users`;
+    try {
+      // Simulate progress during API call (stop at 95%)
+      const progressInterval = setInterval(() => {
+        setBulkProgress(prev => {
+          if (prev < 95) return prev + 5;
+          return prev;
+        });
+      }, 500);
+      
+      const response = await api.post(
+        `/api/attendance/sheet/${sheetId}/entries/batch`,
+        { users },
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal
+        }
+      );
+      
+      clearInterval(progressInterval);
+      clearTimeout(timeoutId);
+      
+      const { count, entries } = response.data;
+      
+      // Immediately set to 100% when done
+      setBulkProgress(100);
+      
+      // Small delay so user sees 100%
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      let message = `✅ Added: ${count} members successfully!`;
+      if (autoFilledCount > 0) {
+        message += `\n🔄 Auto-filled: ${autoFilledCount} existing users`;
+      }
+      alert(message);
+      
+      localStorage.removeItem(DRAFT_KEY);
+      setBulkData('');
+      setBulkPreview([]);
+      navigate(`${basePath}/attendance`);
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        alert('⏱️ Request timed out. Please try again with fewer members.');
+      } else {
+        throw error;
+      }
     }
-    alert(message);
-    
-    localStorage.removeItem(DRAFT_KEY);
-    setBulkData('');
-    setBulkPreview([]);
-    navigate(`${basePath}/attendance`);
     
   } catch (error) {
     console.error('Bulk add error:', error);
     alert(error.response?.data?.error || 'Failed to add members');
   } finally {
     setLoading(false);
+    setBulkProgress(0);
+    setIsAdding(false);
   }
 };
   // ============ HANDLE SUBMIT (Single) ============
@@ -951,7 +1004,7 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
 
 
           
-          {bulkPreview.length > 0 && (
+                    {bulkPreview.length > 0 && (
             <div className="bulk-preview">
               <div className="preview-title">📋 Preview ({bulkPreview.length} members):</div>
               <div className="preview-list">
@@ -973,6 +1026,53 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
             </div>
           )}
           
+        {/* Progress Bar - Inline Styles */}
+{isAdding && (
+  <div style={{
+    margin: '12px 0 8px 0',
+    padding: '12px 16px',
+    background: '#f8fafc',
+    borderRadius: '12px',
+    border: '1px solid #e2e8f0'
+  }}>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '6px'
+    }}>
+      <span style={{ fontSize: '12px', color: '#475569' }}>
+        {bulkProgress < 30 ? '📝 Processing members...' : 
+         bulkProgress < 90 ? '📤 Adding members...' : 
+         '✅ Almost done!'}
+      </span>
+      <span style={{ 
+        fontWeight: 'bold', 
+        color: '#166534', 
+        fontSize: '14px' 
+      }}>
+        {bulkProgress}%
+      </span>
+    </div>
+    <div style={{
+      width: '100%',
+      height: '8px',
+      background: '#e2e8f0',
+      borderRadius: '4px',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        width: `${bulkProgress}%`,
+        height: '100%',
+        background: 'linear-gradient(90deg, #166534, #22c55e)',
+        borderRadius: '4px',
+        transition: 'width 0.5s ease',
+        minWidth: '2%'
+      }}></div>
+    </div>
+  </div>
+)}
+          
           <button 
             type="button" 
             className="bulk-add-btn"
@@ -980,7 +1080,7 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
             disabled={loading || bulkPreview.length === 0}
           >
             <Users size={16} />
-            {loading ? 'Adding...' : `Add All (${bulkPreview.length}) Members`}
+            {loading ? `Adding... ${bulkProgress}%` : `Add All (${bulkPreview.length}) Members`}
           </button>
         </div>
       )}
@@ -1731,6 +1831,69 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
 
 .suggestions-dropdown::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Progress Bar */
+.progress-container {
+  margin: 12px 0 8px 0;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.progress-bar-wrapper {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #166534, #22c55e);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  position: relative;
+  min-width: 2%;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.progress-percent {
+  font-weight: 600;
+  color: #166534;
+  font-size: 13px;
 }
         
         @media (max-width: 768px) {

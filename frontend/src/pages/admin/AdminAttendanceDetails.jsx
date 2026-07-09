@@ -1247,7 +1247,7 @@ const handleBulkMarkPresent = async () => {
       {/* Action Buttons */}
       <div className="action-buttons">
         <button className="btn-primary" onClick={() => navigate(`${basePath}/attendance/add-member/${sheetId}`)}>
-          <UserPlus size={16} /> Add Member
+          <UserPlus size={16} /> Add a Single Member
         </button>
         <button className="btn-secondary" onClick={() => {
           setRemindType('all');
@@ -1255,13 +1255,21 @@ const handleBulkMarkPresent = async () => {
         }}>
           <Bell size={16} /> Remind All
         </button>
+        
         <button className="btn-share" onClick={() => setShowShareModal(true)}>
           <Link2 size={16} /> Share Link
         </button>
+        <button className="btn-primary" onClick={() => navigate(`${basePath}/attendance/add-member/${sheetId}`, { 
+  state: { defaultToBulkMode: true } 
+})}>
+  <UserPlus size={16} /> Bulk Add Member
+</button>
         {sheetData?.isActive && (
           <button className="btn-danger" onClick={handleCloseSheet}>
             <XCircle size={16} /> Close Sheet
           </button>
+
+          
         )}
       </div>
       

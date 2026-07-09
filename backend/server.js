@@ -5987,8 +5987,7 @@ app.delete("/api/admin/pending-songs/:id", authenticate, async (req, res) => {
 
 app.get("/api/sitemap", async (req, res) => {
   try {
-    const baseUrl = "https://zetechcatholicaction.com";
-    
+const baseUrl = "https://www.zetechcatholicaction.com";    
     const songs = await prisma.song.findMany({
       select: { title: true },
       orderBy: { createdAt: 'desc' }

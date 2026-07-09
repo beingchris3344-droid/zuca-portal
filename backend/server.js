@@ -258,6 +258,114 @@ app.get("/api/public/featured-media", async (req, res) => {
   }
 });
 
+
+app.get("/hymn/:title", async (req, res) => {
+  try {
+    const title = decodeURIComponent(req.params.title);
+
+    const hymn = await prisma.song.findFirst({
+      where: {
+        title: {
+          equals: title,
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (!hymn) {
+      return res.status(404).send("<h1>Hymn not found</h1>");
+    }
+
+    // Escape HTML
+    const escapeHtml = (text = "") =>
+      text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const pageTitle = `${hymn.title} Lyrics | Zetech Catholic Action`;
+
+    const description = `Read the full lyrics of ${hymn.title}${
+      hymn.reference ? ` (${hymn.reference})` : ""
+    } from the Zetech Catholic Action Hymn Book.`;
+
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>${pageTitle}</title>
+
+<meta name="description" content="${description}">
+<meta name="robots" content="index,follow">
+
+<link rel="canonical" href="https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}">
+
+<meta property="og:title" content="${pageTitle}">
+<meta property="og:description" content="${description}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}">
+
+<style>
+body{
+max-width:900px;
+margin:auto;
+padding:30px;
+font-family:Arial,sans-serif;
+line-height:1.8;
+background:#fafafa;
+}
+h1{
+color:#1565c0;
+}
+pre{
+white-space:pre-wrap;
+font-family:inherit;
+font-size:18px;
+}
+.button{
+display:inline-block;
+padding:12px 18px;
+background:#1565c0;
+color:white;
+text-decoration:none;
+border-radius:8px;
+margin-top:25px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>${escapeHtml(hymn.title)}</h1>
+
+${
+  hymn.reference
+    ? `<h3>${escapeHtml(hymn.reference)}</h3>`
+    : ""
+}
+
+<pre>${escapeHtml(hymn.lyrics)}</pre>
+
+<a
+class="button"
+href="https://www.zetechcatholicaction.com/hymns">
+Open Zetech Catholic Action
+</a>
+
+</body>
+</html>
+`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+
 // ================== PUBLIC UPCOMING EVENTS ==================
 app.get("/api/public/upcoming-events", async (req, res) => {
   try {
@@ -16632,6 +16740,7 @@ process.on('uncaughtException', (error) => {
   }
   // Don't crash the server
 });
+
 
 
 

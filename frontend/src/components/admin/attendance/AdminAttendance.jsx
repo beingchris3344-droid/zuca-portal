@@ -18,6 +18,7 @@ import {
 // Child Components
 import CreateSheetModal from './CreateSheetModal';
 import QRCodeModal from './QRCodeModal';
+import { FaAcquisitionsIncorporated, FaCalculator, FaCalendarAlt, FaGalacticRepublic, FaRegCalendarCheck, FaUser, FaUsers } from 'react-icons/fa';
 
 export default function AdminAttendance() {
   // ============ STATE ============
@@ -450,7 +451,7 @@ const basePath = user?.role === "admin" ? "/admin" : "/secretary";
       {toast.show && (<div className={`toast-notification ${toast.type}`}><span>{toast.message}</span></div>)}
       
       <div className="attendance-header">
-        <h1>Attendance Manageent</h1>
+        <h1>Attendance Management</h1>
         <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? 'spinning' : ''} /> Refresh
         </button>
@@ -466,13 +467,13 @@ const basePath = user?.role === "admin" ? "/admin" : "/secretary";
       <div className="tabs">
         <button className={`tab ${activeTab === 'sheets' ? 'active' : ''}`} onClick={() => setActiveTab('sheets')}>📋 Sheets</button>
         <button className={`tab ${activeTab === 'entries' ? 'active' : ''}`} onClick={() => setActiveTab('entries')}>👥 All Entries</button>
-        <button className={`tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Statistics</button>
+        <button className={`tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => navigate('/admin/attendance/overview')}><FaUsers /> Attendance Overview</button>
       </div>
       
       {/* TAB 1: SHEETS */}
       {activeTab === 'sheets' && (
         <div className="sheets-tab">
-          <div className="section"><h2>🔴 Active Sheets ({activeSheets.length})</h2>
+          <div className="section"><h2><FaGalacticRepublic /> Active Sheets ({activeSheets.length})</h2>
             <div className="sheets-list">{activeSheets.length === 0 ? <div className="empty-state">No active sheets</div> : activeSheets.map(sheet => (
               <div key={sheet.id} className="sheet-card active">
                 <div className="sheet-header"><h3>{sheet.title}</h3><span className="status-badge live">● LIVE</span></div>
@@ -490,7 +491,7 @@ const basePath = user?.role === "admin" ? "/admin" : "/secretary";
             ))}</div>
           </div>
           <div className="section">
-            <h2>📅 Past Sheets ({completedSheets.length})</h2>
+            <h2><FaRegCalendarCheck /> Past Sheets ({completedSheets.length})</h2>
             <div className="sheets-list">
               {completedSheets.length === 0 ? (
                 <div className="empty-state">No past sheets</div>

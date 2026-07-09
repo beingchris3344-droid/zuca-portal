@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, QrCode, Users, Calendar, Clock, MapPin } from 'lucide-react';
 import { api } from '../../../api';
+import { FaUserTie } from 'react-icons/fa';
 
 export default function CreateSheetModal({ onClose, onCreate }) {
   // ============ STATE ============
@@ -229,14 +230,14 @@ export default function CreateSheetModal({ onClose, onCreate }) {
                 value={formData.jumuiaId}
                 onChange={handleChange}
               >
-                <option value="">All ZUCA Members</option>
-                <option value="executive-team">👑 Executive Team Only</option>
+                <option value="">-Everyone</option>
+                <option value="executive-team">-Leaders  Only</option>
                 <option disabled>──────────</option>
                 {loadingJumuia ? (
                   <option disabled>Loading Jumuia...</option>
                 ) : (
                   jumuiaList.map(j => (
-                    <option key={j.id} value={j.id}>🏠 {j.name}</option>
+                    <option key={j.id} value={j.id}>- {j.name}</option>
                   ))
                 )}
               </select>

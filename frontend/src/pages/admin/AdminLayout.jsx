@@ -203,9 +203,9 @@ export default function AdminLayout() {
 
   const navItems = [
     { label: "Admin View", path: "", icon: <FaShieldAlt color="#000000"/>, bg: "#eff6ff", color: "#3b82f6" },
-    { label: "Attendance Sheet", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
+    { label: "Attendance Management", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
     { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
-     { label: "Attendance Overview", path: "attendance/overview", icon:<FiUsers color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
+    
         { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart color="#000000"/>, bg: "#d1fae5", color: "#10b981" },
         { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
             { label: "Announcements", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },

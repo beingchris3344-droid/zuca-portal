@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { X, User, Phone, Briefcase, Home, FileText, Search, CheckCircle, Users, Upload, Clock, Hash, Plus, List, ArrowLeft } from 'lucide-react';
 import { api } from '../../../api';
+import { FaUsers } from 'react-icons/fa';
 
 const USERS_CACHE_KEY = 'cached_users';
 const CACHE_TTL = 5 * 60 * 1000;
@@ -35,11 +36,40 @@ export default function AddMemberPage() {
   const [bulkData, setBulkData] = useState('');
   const [bulkPreview, setBulkPreview] = useState([]);
   const [isBulkMode, setIsBulkMode] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+const [showSuggestions, setShowSuggestions] = useState(false);
+const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [draftId, setDraftId] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  
+
+  // Auto-number the bulk data
+// Auto-number the bulk data
+const autoNumberBulkData = (text) => {
+  const lines = text.split('\n');
+  let numberedLines = [];
+  let counter = 1;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      numberedLines.push('');
+      continue;
+    }
+    
+    // Remove any existing number at start (e.g., "1. " or "2) ")
+    const cleanLine = trimmed.replace(/^\d+[\.\)]\s*/, '');
+    
+    // Add new number
+    numberedLines.push(`${counter}. ${cleanLine}`);
+    counter++;
+  }
+  
+  return numberedLines.join('\n');
+};
   
   // 🔥 NEW: Store all users in memory for fast matching
   const [allUsers, setAllUsers] = useState([]);
@@ -48,6 +78,38 @@ export default function AddMemberPage() {
   const debounceTimer = useRef(null);
   
   const DRAFT_KEY = 'add_member_draft';
+
+
+  // Get name suggestions from existing users
+const getNameSuggestions = (inputText) => {
+  if (!inputText || inputText.length < 2 || allUsers.length === 0) {
+    setSuggestions([]);
+    setShowSuggestions(false);
+    return;
+  }
+
+  const searchTerm = inputText.toUpperCase().trim();
+  const matchedUsers = [];
+  
+  // Search through all users (max 8 results)
+  for (const user of allUsers) {
+    const fullName = user.fullName.toUpperCase();
+    if (fullName.includes(searchTerm)) {
+      matchedUsers.push({
+        id: user.id,
+        fullName: user.fullName,
+        phone: user.phone,
+        membershipNumber: user.membership_number,
+        role: user.role
+      });
+      if (matchedUsers.length >= 8) break;
+    }
+  }
+  
+  setSuggestions(matchedUsers);
+  setShowSuggestions(matchedUsers.length > 0);
+  setActiveSuggestionIndex(-1);
+};
   
   // ============ FETCH ALL USERS ONCE (NEW) ============
   // ============ FETCH ALL USERS ONCE ============
@@ -347,8 +409,121 @@ const processUsers = useCallback((users) => {
     });
   };
   
-  // ============ PARSE BULK DATA (OPTIMIZED - NO API CALLS) ============
-  const parseBulkData = useCallback(() => {
+ // ============ SMART PARSE BULK DATA (AUTO-DETECTS PHONE NUMBERS) ============
+// Helper: Check if a string looks like a phone number
+const isPhoneNumber = (str) => {
+  if (!str) return false;
+  const clean = str.replace(/[\s\-\(\)]/g, '');
+  const phoneRegex = /^(\+?254|0)?[71]\d{8}$/;
+  const generalRegex = /^(\+?254|0)?\d{9,12}$/;
+  return phoneRegex.test(clean) || generalRegex.test(clean);
+};
+
+// Helper: Extract phone number from a string
+const extractPhoneNumber = (text) => {
+  const patterns = [
+    /\+\d{11,13}/,
+    /0\d{9,10}/,
+    /254\d{9,10}/,
+    /[7|1]\d{8}/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = match[0];
+      if (isPhoneNumber(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  
+  const parts = text.split(/\s+/);
+  for (const part of parts) {
+    if (isPhoneNumber(part)) {
+      return part;
+    }
+  }
+  
+  return null;
+};
+
+// Smart parse function
+const smartParseLine = (line) => {
+  let trimmed = line.trim().toUpperCase();
+  if (!trimmed) return { valid: false, fullName: '', phoneNumber: null, role: 'Guest', membershipNumber: null, signTime: null, existingUser: null, isAutoFilled: false };
+
+  trimmed = trimmed.replace(/^\d+[\.\)]\s*/, '');
+  
+  // CASE 1: Has comma - normal parsing
+  if (trimmed.includes(',')) {
+    const parts = trimmed.split(',').map(p => p.trim());
+    
+    let phoneNumber = null;
+    let nameParts = [];
+    let role = 'Guest';
+    let membershipNumber = null;
+    let signTime = null;
+    
+    for (const part of parts) {
+      if (isPhoneNumber(part)) {
+        phoneNumber = part;
+      } else if (part.match(/^Z#\d+$/i)) {
+        membershipNumber = part;
+      } else if (part.match(/^\d{4}-\d{2}-\d{2}/)) {
+        signTime = part;
+      } else if (['member', 'guest', 'admin', 'treasurer', 'secretary', 'jumuia_leader'].includes(part.toLowerCase())) {
+        role = part;
+      } else {
+        nameParts.push(part);
+      }
+    }
+    
+      return {
+  fullName: nameParts.join(' ').trim() || '',
+  phoneNumber: phoneNumber || null,
+  role: role || 'Guest',
+  membershipNumber: membershipNumber || null,
+  signTime: signTime || null,
+  valid: true,
+  existingUser: null,
+  isAutoFilled: false
+};
+  }
+  
+  // CASE 2: No comma - try to detect phone number in the text
+  const phoneNumber = extractPhoneNumber(trimmed);
+  
+  if (phoneNumber) {
+    let fullName = trimmed.replace(phoneNumber, '').trim();
+    fullName = fullName.replace(/\s+/g, ' ').trim();
+    
+        return {
+      fullName: fullName || '',
+      phoneNumber: phoneNumber,
+      role: 'Guest',
+      membershipNumber: null,
+      signTime: null,
+      valid: !!fullName,
+      existingUser: null,
+      isAutoFilled: false
+    };
+  }
+  
+  // CASE 3: No phone number found - treat entire line as name
+   return {
+    fullName: trimmed,
+    phoneNumber: null,
+    role: 'Guest',
+    membershipNumber: null,
+    signTime: null,
+    valid: true,
+    existingUser: null,
+    isAutoFilled: false
+  };
+};
+
+const parseBulkData = useCallback(() => {
   const lines = bulkData.split('\n').filter(line => line.trim());
   
   if (lines.length === 0) {
@@ -359,19 +534,9 @@ const processUsers = useCallback((users) => {
   const parsed = [];
   
   for (const line of lines) {
-    const parts = line.split(',').map(p => p.trim());
+    const entry = smartParseLine(line);
     
-    const entry = {
-      fullName: parts[0] || '',
-      phoneNumber: parts[1] || null,
-      role: parts[2] || 'Guest',
-      membershipNumber: parts[3] || null,
-      signTime: parts[4] || null,
-      valid: !!parts[0],
-      existingUser: null,
-      isAutoFilled: false
-    };
-    
+    // Check if phone number exists and try to find existing user
     if (entry.phoneNumber && phoneMap.size > 0) {
       const cleanPhone = entry.phoneNumber.trim().replace(/[\s\-]/g, '');
       
@@ -403,12 +568,12 @@ const processUsers = useCallback((users) => {
         if (!existingUser) existingUser = phoneMap.get(`+254${cleanPhone.replace(/^0+/, '')}`);
       }
       
-      if (existingUser) {
+           if (existingUser) {
         entry.existingUser = existingUser;
         entry.isAutoFilled = true;
-        entry.fullName = existingUser.fullName;
-        entry.role = existingUser.role || 'member';
-        entry.membershipNumber = existingUser.membership_number || null;
+        entry.fullName = existingUser.fullName || entry.fullName;
+        entry.role = existingUser.role || entry.role;
+        entry.membershipNumber = existingUser.membership_number || entry.membershipNumber;
       }
     }
     
@@ -641,28 +806,150 @@ const handleBulkAdd = async () => {
         <div className="bulk-section">
           <div className="bulk-header">
             <Upload size={16} />
-            <span>⚡ Bulk Add Multiple Members</span>
+            <span><FaUsers /> Bulk Add Multiple Members</span>
           </div>
-          <div className="bulk-help">
-            <p><strong>Format options:</strong></p>
-            <ul>
-              <li><code>Name, Phone, Role, Membership#, Time</code> - All fields</li>
-              <li><code>Tonnie Kirimi, 0712345678, Guest, Z#001, 2024-01-15 14:30</code></li>
-            </ul>
-            <p><em>💡 Tip: Time format: YYYY-MM-DD HH:MM or leave empty for current time</em></p>
-            <p><strong>📝 Enter one person per line. Separate with commas.</strong></p>
-            <p><strong>⚠️ STRICTLY USE THE PHONE NUMBER YOU USED TO CREATE YOUR ZUCA ACCOUNT WITH.</strong></p>
-          </div>
+         <div className="bulk-help">
+  <p><strong>Format options:</strong></p>
+  <ul>
+    <li><code>Name, Phone,</code> - All fields</li>
+    <li><code>TONNIE KIRIMI, 0712345678</code></li>
+  </ul>
+  <p><em> Tip: Time format: YYYY-MM-DD HH:MM or leave empty for current time</em></p>
+  <p><strong> Enter one person per line. Separate with commas.</strong></p>
+  <p><strong>⚠️ STRICTLY USE THE PHONE NUMBER YOU USED TO CREATE YOUR ZUCA ACCOUNT WITH.</strong></p>
+</div>
+
+{/* Suggestion Dropdown - Now positioned below the help text */}
+{showSuggestions && suggestions.length > 0 && (
+  <div 
+    className="suggestions-dropdown"
+  >
+    <div className="suggestions-header">
+      Resuts {suggestions.length} user{suggestions.length > 1 ? 's' : ''}: 
+   😀 <strong>I  Found Your name: </strong>
+  <span style={{ color: '#ff1100', fontWeight: 'bold' }}> -💡- <strong>Please Tap  - it's easier!</strong></span>
+</div>
+    {suggestions.map((user) => (
+      <div 
+        key={user.id}
+        className="suggestion-item"
+        onClick={() => {
+          // Get current text and cursor position
+          const textarea = document.querySelector('.bulk-textarea-large');
+          if (!textarea) return;
           
-          <textarea
-            className="bulk-textarea-large"
-            placeholder={`Example:
+          const cursorPos = textarea.selectionStart;
+          const beforeCursor = bulkData.substring(0, cursorPos);
+          const afterCursor = bulkData.substring(cursorPos);
+          const lines = beforeCursor.split('\n');
+          const currentLineIndex = lines.length - 1;
+          const currentLine = lines[currentLineIndex] || '';
+          
+          // Get the prefix (number part) and clean the line
+          const numberMatch = currentLine.match(/^(\d+[\.\)]\s*)/);
+          const prefix = numberMatch ? numberMatch[1] : '';
+          
+          // Create the new line with suggestion (keeps numbering, adds phone)
+          const phonePart = user.phone ? ` ${user.phone}` : '';
+          const newLine = `${prefix}${user.fullName}${phonePart}`;
+          lines[currentLineIndex] = newLine;
+          const newText = lines.join('\n') + (afterCursor ? '\n' + afterCursor : '');
+          
+          setBulkData(newText);
+          setShowSuggestions(false);
+          setSuggestions([]);
+          
+          // Focus back on textarea
+          textarea.focus();
+        }}
+      >
+        <span className="suggestion-name">👤 {user.fullName}</span>
+        {user.phone && <span className="suggestion-phone">📞 {user.phone}</span>}
+        {user.membershipNumber && <span className="suggestion-membership">🆔 {user.membershipNumber}</span>}
+      </div>
+    ))}
+  </div>
+)}
+          
+       <textarea
+  className="bulk-textarea-large"
+  placeholder={`Example:
 Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
 `}
-            rows="8"
-            value={bulkData}
-            onChange={(e) => setBulkData(e.target.value)}
-          />
+  rows="8"
+  value={bulkData}
+  onChange={(e) => {
+  let newValue = e.target.value;
+  const cursorPos = e.target.selectionStart;
+  
+  // Convert the current line to uppercase
+  const beforeCursor = newValue.substring(0, cursorPos);
+  const afterCursor = newValue.substring(cursorPos);
+  const lines = beforeCursor.split('\n');
+  const currentLineIndex = lines.length - 1;
+  const currentLine = lines[currentLineIndex] || '';
+  
+  // Get the prefix (number part) and the text part
+  const numberMatch = currentLine.match(/^(\d+[\.\)]\s*)/);
+  const prefix = numberMatch ? numberMatch[1] : '';
+  const textPart = currentLine.substring(prefix.length);
+  
+  // Convert text part to uppercase
+  const upperTextPart = textPart.toUpperCase();
+  const newCurrentLine = prefix + upperTextPart;
+  
+  // Get suggestions based on what user is typing (remove number prefix)
+  const cleanText = textPart.toUpperCase().trim();
+  if (cleanText.length >= 2) {
+    getNameSuggestions(cleanText);
+  } else {
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+  
+  // Reconstruct the full text
+  lines[currentLineIndex] = newCurrentLine;
+  const newText = lines.join('\n') + afterCursor;
+  
+  // Handle numbering on Enter
+  const allLines = newText.split('\n');
+  const lastLine = allLines[allLines.length - 1] || '';
+  
+  if (lastLine === '' && allLines.length > 1) {
+    const numbered = autoNumberBulkData(newText);
+    setBulkData(numbered);
+    setShowSuggestions(false);
+  } else {
+    setBulkData(newText);
+  }
+}}
+  onBlur={() => {
+  // When user clicks away, convert to uppercase and renumber
+  if (bulkData.trim()) {
+    // First convert all text to uppercase (except phone numbers)
+    const lines = bulkData.split('\n');
+    const upperLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+      
+      // Keep the number prefix
+      const numberMatch = trimmed.match(/^(\d+[\.\)]\s*)/);
+      const prefix = numberMatch ? numberMatch[1] : '';
+      const textPart = trimmed.substring(prefix.length);
+      
+      // Convert text part to uppercase
+      return prefix + textPart.toUpperCase();
+    });
+    
+    const upperText = upperLines.join('\n');
+    const numbered = autoNumberBulkData(upperText);
+    setBulkData(numbered);
+  }
+}}
+/>
+
+
+
           
           {bulkPreview.length > 0 && (
             <div className="bulk-preview">
@@ -1017,13 +1304,14 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
         }
         
         /* Bulk Section */
-        .bulk-section {
-          margin: 20px 24px;
-          padding: 20px;
-          background: #f0fdf4;
-          border-radius: 16px;
-          border: 1px solid #bbf7d0;
-        }
+       .bulk-section {
+  margin: 20px 24px;
+  padding: 20px;
+  background: #f0fdf4;
+  border-radius: 16px;
+  border: 1px solid #bbf7d0;
+  position: relative;
+}
         
         .bulk-header {
           display: flex;
@@ -1364,6 +1652,86 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
           border-radius: 12px;
           margin-left: 6px;
         }
+
+
+        /* Suggestion Dropdown */
+.suggestions-dropdown {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px 0;
+  animation: slideUp 0.2s ease;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.suggestions-header {
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 13px;
+}
+
+.suggestion-item:hover {
+  background: #f0fdf4;
+}
+
+.suggestion-name {
+  font-weight: 500;
+  color: #1a1a1a;
+  min-width: 120px;
+}
+
+.suggestion-phone {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.suggestion-membership {
+  color: #8b5cf6;
+  font-size: 11px;
+  background: #f3f0ff;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.suggestions-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.suggestions-dropdown::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.suggestions-dropdown::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.suggestions-dropdown::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
         
         @media (max-width: 768px) {
           .page-container { padding: 12px; }

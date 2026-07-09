@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
+import SEO from "./components/SEO";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import BASE_URL from "./api";
@@ -401,6 +403,8 @@ useEffect(() => {
 
   return (
     <>
+            <SEO />
+
       <Routes>
         <Route path="/treasurer/notes" element={<TreasurerNotes />} />
                   <Route path="/treasurer/reports" element={<TreasurerReports />} />
@@ -669,7 +673,8 @@ function App() {
   if (loading) return <div>Loading...</div>;
   
   return (
-    <BrowserRouter>
+    <HelmetProvider>
+  <BrowserRouter>
       {!isAdmin ? (
         <MessengerProvider>
           <AppContent />
@@ -677,7 +682,8 @@ function App() {
       ) : (
         <AppContent />
       )}
-    </BrowserRouter>
+   </BrowserRouter>
+</HelmetProvider>
   );
 }
 export default App;

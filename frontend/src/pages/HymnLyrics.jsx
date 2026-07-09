@@ -1,5 +1,6 @@
 // frontend/src/pages/HymnLyrics.jsx
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import axios from "axios";
 
@@ -459,9 +460,41 @@ const fetchSong = async () => {
 
   const verses = formatLyrics(song.lyrics);
   const isFavorite = favorites.includes(id);
+  const pageTitle = `${song.title} Lyrics | Zetech Catholic Action`;
+
+const pageDescription = `Read the full lyrics of ${song.title}${
+  song.reference ? ` (${song.reference})` : ""
+} from the Zetech Catholic Action Hymn Book.`;
 
   return (
+  <>
+    <Helmet>
+      <title>{pageTitle}</title>
+
+      <meta name="test-meta" content="HELLO-HYMN-PAGE" />
+
+     <meta
+  name="description"
+  content={pageDescription}
+  key="description"
+/>
+
+      <link
+        rel="canonical"
+        href={`https://zetechcatholicaction.com/hymn/${encodeURIComponent(song.title)}`}
+      />
+
+      <meta property="og:title" content={pageTitle} />
+      <meta property="og:description" content={pageDescription} />
+      <meta
+        property="og:url"
+        content={`https://zetechcatholicaction.com/hymn/${encodeURIComponent(song.title)}`}
+      />
+      <meta property="og:type" content="article" />
+    </Helmet>
+
     <motion.div
+     
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       style={container}
@@ -624,8 +657,9 @@ const fetchSong = async () => {
           }
         `}
       </style>
-    </motion.div>
-  );
+       </motion.div>
+  </>
+);
 }
 
 // ====== STYLES ======

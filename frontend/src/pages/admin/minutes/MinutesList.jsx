@@ -4,6 +4,7 @@ import { api } from '../../../api';
 import io from 'socket.io-client';
 import BASE_URL from '../../../api';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { FaCalculator, FaCalendar,FaClock, FaLocationArrow, FaMapPin, FaUsers } from 'react-icons/fa';
 
 export default function MinutesList() {
   const navigate = useNavigate();
@@ -159,7 +160,7 @@ export default function MinutesList() {
           </div>
           <div>
             <h1>Meeting Minutes</h1>
-            <p className="subtitle">View, edit, publish and manage all meeting minutes</p>
+            <p className="subtitle">ZUCA meeting minutes management section</p>
           </div>
         </div>
         {/* ALWAYS SHOW NEW MINUTES BUTTON */}
@@ -214,16 +215,16 @@ export default function MinutesList() {
           <Filter size={14} />
           <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="all">All Types</option>
-            <option value="EXECUTIVE">👑 Executive</option>
-            <option value="JUMUIA">🏠 Jumuia</option>
+            <option value="EXECUTIVE"> Executive</option>
+            <option value="JUMUIA"> Jumuia</option>
           </select>
         </div>
         <div className="filter-group">
           <CalendarIcon size={14} />
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="all">All Status</option>
-            <option value="APPROVED">✅ Approved</option>
-            <option value="DRAFT">📝 Draft</option>
+            <option value="APPROVED"> Approved</option>
+            <option value="DRAFT"> Draft</option>
           </select>
         </div>
       </div>
@@ -231,7 +232,7 @@ export default function MinutesList() {
       {/* Minutes List */}
       {filteredMinutes.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon">📋</div>
+          <div className="empty-icon"></div>
           <h3>No minutes found</h3>
           <p>Create your first meeting minutes from an attendance sheet</p>
           <button className="btn-primary" onClick={() => navigate(`${basePath}/minutes/create`)}>
@@ -250,17 +251,18 @@ export default function MinutesList() {
                   return (
                     <div key={minute.id} className="minutes-card">
                       <div className="card-badge">
-                        {minute.type === 'EXECUTIVE' ? '👑 EXECUTIVE' : '🏠 JUMUIA'}
+                        {minute.type === 'EXECUTIVE' ? ' EXECUTIVE' : ' JUMUIA'}
                       </div>
                       <h3>{minute.title}</h3>
                       <div className="card-meta">
-                        <span>📅 {new Date(minute.meetingDate).toLocaleDateString()}</span>
-                        <span>⏰ {minute.meetingTime || '4:30 PM'}</span>
-                        <span>📍 {minute.venue || 'ZUCA'}</span>
+                        <span><FaCalendar/> {new Date(minute.meetingDate).toLocaleDateString()}</span>
+                        <span>
+                           <FaClock /> {minute.meetingTime || '4:30 PM'}</span>
+                        <span><FaLocationArrow /> {minute.venue || 'ZUCA'}</span>
                       </div>
                       <div className="card-stats">
-                        <span className="stat-present">✅ {minute.presentMembers?.length || 0} Present</span>
-                        <span className="stat-absent">❌ {minute.absentMembers?.length || 0} Absent</span>
+                        <span className="stat-present"> <FaUsers/>{minute.presentMembers?.length || 0} Present</span>
+                        <span className="stat-absent"><FaUsers /> {minute.absentMembers?.length || 0} Absent</span>
                       </div>
                       <div className="card-footer">
                         <span className="status-badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
@@ -425,9 +427,9 @@ export default function MinutesList() {
           justify-content: center;
         }
 
-        .stat-icon.total { background: #eff6ff; color: #3b82f6; }
-        .stat-icon.approved { background: #dcfce7; color: #22c55e; }
-        .stat-icon.draft { background: #fef3c7; color: #d97706; }
+        .stat-icon.total { background: #eff6ff00; color: #000000; }
+        .stat-icon.approved { background: #dcfce700; color: #000000; }
+        .stat-icon.draft { background: #fef3c700; color: #000000; }
 
         .stat-value {
           display: block;
@@ -599,14 +601,14 @@ export default function MinutesList() {
           transition: all 0.2s;
         }
 
-        .icon-btn.view { background: #eff6ff; color: #3b82f6; }
-        .icon-btn.view:hover { background: #dbeafe; }
-        .icon-btn.edit { background: #fef3c7; color: #d97706; }
-        .icon-btn.edit:hover { background: #fde68a; }
-        .icon-btn.publish { background: #dcfce7; color: #22c55e; }
-        .icon-btn.publish:hover { background: #bbf7d0; }
-        .icon-btn.delete { background: #fee2e2; color: #ef4444; }
-        .icon-btn.delete:hover { background: #fecaca; }
+        .icon-btn.view { background: #eff6ff00; color: #000000; }
+        .icon-btn.view:hover { background: #dbeafe00; }
+        .icon-btn.edit { background: #fef3c700; color: #000000; }
+        .icon-btn.edit:hover { background: #fde68a00; }
+        .icon-btn.publish { background: #dcfce700; color: #000000; }
+        .icon-btn.publish:hover { background: #bbf7d000; }
+        .icon-btn.delete { background: #fee2e200; color: #000000; }
+        .icon-btn.delete:hover { background: #50303000; }
 
         .empty-state {
           text-align: center;

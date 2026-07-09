@@ -12,7 +12,7 @@ import {
 } from "react-icons/fi";
 import { RiAdminLine, RiFileWarningLine } from "react-icons/ri";
 import { useNavigate } from "react-router-dom"; 
-import { FaDonate, FaChurch, FaWhatsapp, FaCapsules, FaAccessibleIcon, FaReply, FaReplyAll, FaUniversity, FaUserTie } from "react-icons/fa";
+import { FaDonate, FaCog, FaUsers, FaChurch, FaWhatsapp, FaChartLine, FaCapsules, FaClock, FaAccessibleIcon, FaReply, FaReplyAll, FaUniversity, FaUserTie, FaHands, FaHistory } from "react-icons/fa";
 import { GiPrayer, GiCrown } from "react-icons/gi";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 import {
@@ -488,7 +488,7 @@ function AdminDashboard() {
         <div className="admin-header">
           <div className="header-left">
             <h1 className="greeting">
-              {greeting}, <span className="admin-name">Admin</span>
+              {greeting}, <span className="admin-name">WELCOME TO SYSTEM CONTROL PANNEL</span>
               <span className="wave"></span>
             </h1>
             <p className="date">{formatDate(currentTime)}</p>
@@ -498,12 +498,9 @@ function AdminDashboard() {
               <FiRefreshCw className={refreshing ? 'spinning' : ''} />
             </button>
             <div className="admin-badge">
-              
-              <div className="admin-avatar">
-                <RiAdminLine />
-              </div>
+              <RiAdminLine size={24} color="#ffffff" className="admin-icon" />
               <div className="admin-info">
-                <span className="admin-title">Administrator</span>
+                <span className="admin-title">ZUCA SYSTEM</span>
                 <span className="admin-status">Online</span>
               </div>
             </div>
@@ -516,7 +513,7 @@ function AdminDashboard() {
         {/* Stats Grid - 6 columns */}
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon users"><FiUsers /></div>
+            <div className="stat-icon users"><FaUsers /></div>
             <div className="stat-info">
               <span className="stat-value">{stats.totalUsers}</span>
               <span className="stat-label">TOTAL USERS</span>
@@ -532,7 +529,7 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon pledges"><FaDonate /></div>
+            <div className="stat-icon pledges"><FaHands /></div>
             <div className="stat-info">
               <span className="stat-value">KES {stats.totalPledged.toLocaleString()}</span>
               <span className="stat-label">TOTAL PLEDGES</span>
@@ -570,7 +567,7 @@ function AdminDashboard() {
           <div className="chart-card">
             <div className="chart-header">
               <div>
-                <h3>📈 User Growth</h3>
+                <h3><FaChartLine /> User Growth</h3>
                 <p>Last 6 months</p>
               </div>
               <FiTrendingUp size={20} />
@@ -601,7 +598,7 @@ function AdminDashboard() {
           <div className="chart-card">
             <div className="chart-header">
               <div>
-                <h3>💰 Contribution Overview</h3>
+                <h3> Contribution Overview</h3>
                 <p>Total: KES {stats.totalPledged.toLocaleString()}</p>
               </div>
               <FiPieChart size={20} />
@@ -618,7 +615,7 @@ function AdminDashboard() {
           <div className="chart-card">
             <div className="chart-header">
               <div>
-                <h3>📊 Platform Statistics</h3>
+                <h3>ZUCA Metrics</h3>
                 <p>Content distribution</p>
               </div>
               <FiBarChart2 size={20} />
@@ -636,7 +633,7 @@ function AdminDashboard() {
         {/* Quick Actions */}
         <div className="quick-actions-section">
           <div className="section-header">
-            <h3>📊 QUICK ACTIONS</h3>
+            <h3>QUICK ACTIONS</h3>
           </div>
         
 <div className="actions-grid">
@@ -675,7 +672,7 @@ function AdminDashboard() {
           {/* Recent Users */}
           <div className="section-card">
             <div className="section-header">
-              <h3>👥 RECENT USERS</h3>
+              <h3><FaUsers /> RECENT USERS</h3>
               <button className="view-all" onClick={() => navigate('/admin/users')}>View All →</button>
             </div>
             <div className="users-list">
@@ -711,7 +708,7 @@ function AdminDashboard() {
           {/* Pending Approvals */}
           <div className="section-card">
             <div className="section-header">
-              <h3>⏳ PENDING APPROVALS</h3>
+              <h3><FaClock /> PENDING APPROVALS</h3>
               <button className="view-all" onClick={() => navigate('/admin/pending')}>View All →</button>
             </div>
             <div className="pending-list">
@@ -742,7 +739,7 @@ function AdminDashboard() {
         {/* Recent Activity Log */}
         <div className="section-card full-width">
           <div className="section-header">
-            <h3>📈 RECENT ACTIVITY LOG</h3>
+            <h3><FaHistory /> RECENT ACTIVITY LOG</h3>
             <button className="view-all" onClick={() => navigate('/admin/activity')}>View Full Log →</button>
           </div>
           <div className="activity-list">
@@ -765,7 +762,7 @@ function AdminDashboard() {
           {/* Executive Team Summary */}
           <div className="section-card">
             <div className="section-header">
-              <h3>👔 EXECUTIVE TEAM SUMMARY</h3>
+              <h3><FaUserTie /> EXECUTIVE TEAM SUMMARY</h3>
               <button className="view-all" onClick={() => navigate('/executive')}>Manage Team →</button>
             </div>
             <div className="executive-summary">
@@ -786,7 +783,7 @@ function AdminDashboard() {
           {/* System Health */}
           <div className="section-card">
             <div className="section-header">
-              <h3>📊 SYSTEM HEALTH</h3>
+              <h3><FaCog /> SYSTEM HEALTH</h3>
             </div>
             <div className="health-grid">
               <div className="health-item">
@@ -806,7 +803,7 @@ function AdminDashboard() {
                 <span>Users online: {stats.onlineUsers}</span>
               </div>
               <div className="health-item full-width">
-                <span>💾 Last backup: {systemHealth.lastBackup ? formatRelativeTime(systemHealth.lastBackup) : 'Not backed up'}</span>
+                <span><FaHistory /> Last backup: {systemHealth.lastBackup ? formatRelativeTime(systemHealth.lastBackup) : 'Not backed up'}</span>
               </div>
             </div>
           </div>
@@ -980,12 +977,12 @@ function AdminDashboard() {
           font-size: 22px;
         }
         
-        .stat-icon.users { background: #eff6ff; color: #3b82f6; }
-        .stat-icon.announcements { background: #fef3c7; color: #f59e0b; }
-        .stat-icon.pledges { background: #d1fae5; color: #10b981; }
-        .stat-icon.programs { background: #ede9fe; color: #8b5cf6; }
-        .stat-icon.messages { background: #fce7f3; color: #ec4899; }
-        .stat-icon.hymns { background: #e0f2fe; color: #06b6d4; }
+        .stat-icon.users { background: #eff6ff00; color: #000000; }
+        .stat-icon.announcements { background: #fef3c700; color: #000000; }
+        .stat-icon.pledges { background: #d1fae500; color: #000000; }
+        .stat-icon.programs { background: #00000000; color: #000000; }
+        .stat-icon.messages { background: #00000000; color: #000000; }
+        .stat-icon.hymns { background: #e0f2fe00; color:      #000000; }
         
         .stat-info { flex: 1; }
         .stat-value { display: block; font-size: 22px; font-weight: 700; color: #1e293b; }

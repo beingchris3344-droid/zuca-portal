@@ -522,7 +522,7 @@ useEffect(() => {
             <div className="sheets-grid">
               {sheets.map(sheet => (
                 <div key={sheet.id} className="sheet-card" onClick={() => handleSheetSelect(sheet)}>
-                  <div className="sheet-header"><h3>{sheet.title}</h3><span className="present-count">✅ {sheet.entries?.length || 0} present</span></div>
+                  <div className="sheet-header"><h3>{sheet.title}</h3><span className="present-count"> {sheet.entries?.length || 0} </span></div>
                   <div className="sheet-details"><span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span><span><Clock size={14} /> {sheet.eventTime || '4:30 PM'}</span><span><MapPin size={14} /> {sheet.location || 'ZUCA'}</span></div>
                 </div>
               ))}
@@ -565,7 +565,7 @@ useEffect(() => {
           .sheet-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); border-color: #3b82f6; }
           .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
           .sheet-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
-          .present-count { font-size: 12px; color: #22c55e; background: #dcfce7; padding: 4px 10px; border-radius: 20px; }
+          .present-count { font-size: 12px; color: #49574e00; background: #00000000; padding: 4px 10px; border-radius: 20px; }
           .sheet-details { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: #64748b; }
           .empty-state { text-align: center; padding: 60px; background: white; border-radius: 20px; border: 2px dashed #e2e8f0; }
           .create-sheet-btn { margin-top: 16px; padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 10px; cursor: pointer; }

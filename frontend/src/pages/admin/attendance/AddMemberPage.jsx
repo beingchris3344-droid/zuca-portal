@@ -867,9 +867,12 @@ const handleBulkAdd = async () => {
     <li><code>Name, Phone,</code> - All fields</li>
     <li><code>TONNIE KIRIMI, 0712345678</code></li>
   </ul>
-  <p><em> Tip: Time format: YYYY-MM-DD HH:MM or leave empty for current time</em></p>
-  <p><strong> Enter one person per line. Separate with commas.</strong></p>
-  <p><strong>⚠️ STRICTLY USE THE PHONE NUMBER YOU USED TO CREATE YOUR ZUCA ACCOUNT WITH.</strong></p>
+  <p><em> <span style={{ color: '#000000', fontWeight: 'bold' }}>Tip: If you already have a ZUCA account use correct names and you'll automatically be identified on the suggestion list!</span></em></p>
+
+   <p><span style={{ color: '#003cff', fontWeight: 'bold' }}><strong>⚠️ NUMBERING IS AUTOMATIC!.</strong></span></p>
+  
+  <p><span style={{ color: '#ff1100', fontWeight: 'bold' }}><strong>⚠️ STRICTLY USE THE PHONE NUMBER YOU USED TO CREATE YOUR ZUCA ACCOUNT WITH.</strong></span></p>
+
 </div>
 
 {/* Suggestion Dropdown - Now positioned below the help text */}
@@ -878,9 +881,9 @@ const handleBulkAdd = async () => {
     className="suggestions-dropdown"
   >
     <div className="suggestions-header">
-      Resuts {suggestions.length} user{suggestions.length > 1 ? 's' : ''}: 
-   😀 <strong>I  Found Your name: </strong>
-  <span style={{ color: '#ff1100', fontWeight: 'bold' }}> -💡- <strong>Please Tap  - it's easier!</strong></span>
+      
+    <span style={{ color: '#0ca307', fontWeight: 'bold' }}>Hey there! 😀 <strong>I  already know Your name: </strong></span>
+  <span style={{ color: '#ff1100', fontWeight: 'bold' }}> -💡- <strong>PLEASE TAP YOUR NAME TO AUTOFILL!</strong></span>
 </div>
     {suggestions.map((user) => (
       <div 
@@ -935,6 +938,9 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
   let newValue = e.target.value;
   const cursorPos = e.target.selectionStart;
   
+  // Check if user is deleting (backspace or delete)
+  const isDeleting = newValue.length < bulkData.length;
+  
   // Convert the current line to uppercase
   const beforeCursor = newValue.substring(0, cursorPos);
   const afterCursor = newValue.substring(cursorPos);
@@ -947,13 +953,16 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
   const prefix = numberMatch ? numberMatch[1] : '';
   const textPart = currentLine.substring(prefix.length);
   
-  // Convert text part to uppercase
-  const upperTextPart = textPart.toUpperCase();
+  // Convert text part to uppercase (only if not deleting)
+  let upperTextPart = textPart;
+  if (!isDeleting) {
+    upperTextPart = textPart.toUpperCase();
+  }
   const newCurrentLine = prefix + upperTextPart;
   
   // Get suggestions based on what user is typing (remove number prefix)
   const cleanText = textPart.toUpperCase().trim();
-  if (cleanText.length >= 2) {
+  if (cleanText.length >= 2 && !isDeleting) {
     getNameSuggestions(cleanText);
   } else {
     setSuggestions([]);
@@ -962,16 +971,38 @@ Christopher Mark, 0712345678, Guest, Z#001, 2024-01-15 14:30
   
   // Reconstruct the full text
   lines[currentLineIndex] = newCurrentLine;
-  const newText = lines.join('\n') + afterCursor;
+  let newText = lines.join('\n') + afterCursor;
+  
+  // If user is deleting, just set the text without renumbering
+  if (isDeleting) {
+    setBulkData(newText);
+    return;
+  }
   
   // Handle numbering on Enter
   const allLines = newText.split('\n');
   const lastLine = allLines[allLines.length - 1] || '';
   
   if (lastLine === '' && allLines.length > 1) {
-    const numbered = autoNumberBulkData(newText);
+    // User pressed Enter - number everything and add next number
+    let numbered = autoNumberBulkData(newText);
+    
+    // Count how many lines have content
+    const contentLines = numbered.split('\n').filter(line => line.trim() !== '');
+    const nextNumber = contentLines.length + 1;
+    
+    // Add the next number on a new empty line
+    numbered = numbered + `\n${nextNumber}. `;
+    
     setBulkData(numbered);
     setShowSuggestions(false);
+    
+    // Focus and set cursor at the end (after the new number)
+    setTimeout(() => {
+      const textarea = e.target;
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = numbered.length;
+    }, 10);
   } else {
     setBulkData(newText);
   }

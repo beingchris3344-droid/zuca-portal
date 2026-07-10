@@ -82,7 +82,7 @@ export default function SEO() {
       />
       <meta name="author" content="Zetech Catholic Action" />
       <meta name="robots" content="index, follow" />
-      <meta name="theme-color" content="#0B6E4F" />
+      <meta name="theme-color" content="#ffffff" />
 
       {/* Canonical */}
       <link rel="canonical" href={url} />

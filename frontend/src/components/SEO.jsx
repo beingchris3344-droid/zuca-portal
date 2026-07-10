@@ -9,7 +9,7 @@ const seoRoutes = {
   "/": {
     title: "Official Zetech University Catholic Action (ZUCA) Club Portal",
     description:
-      "Official Zetech University Catholic Action (ZUCA) portal. Access announcements, Mass schedules, prayers, hymns, leadership information, events and more.",
+      "Official Zetech University Catholic Action (ZUCA) portal.Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. Our mission is to spread the message of hope, love, and faith within our campus community and beyond. Our songs will be an  expression of our devotion and a call to all to embrace Gods grace follow us in our social media! ON Tiktok...https://www.tiktok.com/@zetechcatholicaction?_t=ZM-8yeypKK8YpM&_r=1INSTAGRAM ...https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3 ......FACEBOOK https://www.facebook.com/share/1ELDK56qEJ/.....Our website... Https://zetechcatholicaction.com also Access announcements, Mass schedules, prayers, hymns, leadership information, events and more.",
   },
 
   "/liturgical-calendar": {

@@ -121,11 +121,14 @@ export default function Chess() {
   const [showOnlineList, setShowOnlineList] = useState(false);
   const [opponent, setOpponent] = useState(null);
   const [myColor, setMyColor] = useState("white");
+  const myColorRef = useRef("white");
   const [gameId, setGameId] = useState(null);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const socketRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const token = localStorage.getItem("token");
+
+  useEffect(() => { myColorRef.current = myColor; }, [myColor]);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -133,16 +136,11 @@ export default function Chess() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-
-  
-
   useEffect(() => {
     if (token && user?.id) {
       const socket = io(BASE_URL, { transports: ['websocket', 'polling'] });
       socket.emit("join", user.id);
       socketRef.current = socket;
-
-      // ⚠️ chess_invite_received is handled globally in App.jsx — DO NOT duplicate here
 
       socket.on("chess_start", (data) => {
         setGameId(data.gameId);
@@ -150,6 +148,7 @@ export default function Chess() {
         setGameStarted(true);
         setBoard(createInitialBoard());
         setMyColor(data.color);
+        myColorRef.current = data.color;
         setOpponent({ id: data.opponentId, name: data.opponent });
         setCurrentTurn("white");
         setGameOver(false);
@@ -160,7 +159,7 @@ export default function Chess() {
 
       socket.on("chess_opponent_move", (data) => {
         setBoard(data.board);
-        setCurrentTurn(myColor);
+        setCurrentTurn(myColorRef.current);
         setMessage("Your turn!");
       });
 
@@ -171,13 +170,15 @@ export default function Chess() {
 
       socket.on("chess_rematch_requested", (data) => {
         if (window.confirm(`${data.fromName} wants a rematch! Accept?`)) {
+          const newColor = myColorRef.current === "white" ? "black" : "white";
           setBoard(createInitialBoard());
           setGameOver(false);
           setCapturedWhite([]);
           setCapturedBlack([]);
-          setMyColor(myColor === "white" ? "black" : "white");
+          setMyColor(newColor);
+          myColorRef.current = newColor;
           setCurrentTurn("white");
-          socket.emit("chess_rematch_accept", { gameId, player1Id: myColor === "white" ? user.id : opponent.id, player2Id: myColor === "white" ? opponent.id : user.id, player1Name: myColor === "white" ? user.fullName : opponent.name, player2Name: myColor === "white" ? opponent.name : user.fullName });
+          socket.emit("chess_rematch_accept", { gameId, player1Id: newColor === "white" ? user.id : opponent.id, player2Id: newColor === "white" ? opponent.id : user.id, player1Name: newColor === "white" ? user.fullName : opponent.name, player2Name: newColor === "white" ? opponent.name : user.fullName });
         }
       });
 
@@ -185,39 +186,30 @@ export default function Chess() {
     }
   }, [token, user?.id]);
 
-
-    // Check for pending chess invite (from global App.jsx listener)
   useEffect(() => {
     const inviteData = sessionStorage.getItem("chess_invite");
     if (inviteData && socketRef.current && user?.id) {
       try {
         const data = JSON.parse(inviteData);
         sessionStorage.removeItem("chess_invite");
-        
-        const socket = socketRef.current;
         const gid = Date.now().toString();
         setGameId(gid);
         setMode("online");
         setGameStarted(true);
         setBoard(createInitialBoard());
         setMyColor("black");
+        myColorRef.current = "black";
         setOpponent({ id: data.fromUserId, name: data.fromName });
         setMessage(`${data.fromName}'s turn — White`);
         setCurrentTurn("white");
         setGameOver(false);
         setCapturedWhite([]);
         setCapturedBlack([]);
-        socket.emit("chess_accept", { 
-          gameId: gid, player1Id: data.fromUserId, player2Id: user.id, 
-          player1Name: data.fromName, player2Name: user.fullName 
-        });
-      } catch (e) {
-        console.error("Failed to process invite:", e);
-      }
+        socketRef.current.emit("chess_accept", { gameId: gid, player1Id: data.fromUserId, player2Id: user.id, player1Name: data.fromName, player2Name: user.fullName });
+      } catch (e) { console.error("Failed to process invite:", e); }
     }
   }, [socketRef.current, user?.id]);
 
-  // AI move
   useEffect(() => {
     if (mode === "ai" && gameStarted && !gameOver && currentTurn === "black" && !aiThinking) {
       const t = setTimeout(() => {
@@ -242,10 +234,10 @@ export default function Chess() {
   const handleClick = (row, col) => {
     if (gameOver || aiThinking || !gameStarted) return;
     if (mode === "ai" && currentTurn !== "white") return;
-    if (mode === "online" && currentTurn !== myColor) return;
+    if (mode === "online" && currentTurn !== myColorRef.current) return;
     const piece = board[row][col];
     if (!selected) {
-      const myPieceColor = mode === "ai" ? "white" : myColor;
+      const myPieceColor = mode === "ai" ? "white" : myColorRef.current;
       if (piece && getPieceColor(piece) === myPieceColor) {
         setSelected({ row, col });
         const moves = [];
@@ -264,13 +256,13 @@ export default function Chess() {
         const cp = nb[row][col];
         nb[row][col] = nb[selected.row][selected.col];
         nb[selected.row][selected.col] = null;
-        if (cp) { if (mode === "ai" && getPieceColor(cp) === "black") setCapturedBlack(p => [...p, cp]); else if (getPieceColor(cp) !== myColor) setCapturedBlack(p => [...p, cp]); }
+        if (cp) { if (mode === "ai" && getPieceColor(cp) === "black") setCapturedBlack(p => [...p, cp]); else if (getPieceColor(cp) !== myColorRef.current) setCapturedBlack(p => [...p, cp]); }
         setBoard(nb);
         if (mode === "ai") { setCurrentTurn("black"); setMessage("AI thinking..."); } else {
-          setCurrentTurn(myColor === "white" ? "black" : "white");
+          setCurrentTurn(myColorRef.current === "white" ? "black" : "white");
           setMessage(`${opponent.name}'s turn`);
           socketRef.current?.emit("chess_move", { gameId, opponentId: opponent.id, board: nb, captured: cp });
-          if (isCheckmate(nb, myColor === "white" ? "black" : "white")) { setGameOver(true); setMessage("🏆 You win! Checkmate!"); socketRef.current?.emit("chess_game_over", { gameId, opponentId: opponent.id, winner: user.fullName, reason: "Checkmate" }); }
+          if (isCheckmate(nb, myColorRef.current === "white" ? "black" : "white")) { setGameOver(true); setMessage("🏆 You win! Checkmate!"); socketRef.current?.emit("chess_game_over", { gameId, opponentId: opponent.id, winner: user.fullName, reason: "Checkmate" }); }
         }
       }
       setSelected(null); setValidMoves([]);
@@ -279,7 +271,7 @@ export default function Chess() {
 
   const startAI = (level) => { setMode("ai"); setDifficulty(level); setGameStarted(true); setBoard(createInitialBoard()); setSelected(null); setValidMoves([]); setCapturedWhite([]); setCapturedBlack([]); setGameOver(false); setCurrentTurn("white"); setMessage("Your turn — White"); };
   const showOnline = () => { const s = socketRef.current; if (!s) { alert("Not connected."); return; } setShowOnlineList(true); setOnlinePlayers([]); s.emit("chess_get_online"); s.off("chess_online_list"); s.on("chess_online_list", (list) => { if (Array.isArray(list)) setOnlinePlayers(list.filter(p => p.userId !== user.id)); else setOnlinePlayers([]); }); };
-  const challengePlayer = (playerId) => { const s = socketRef.current; if (!s) { alert("Not connected."); return; } s.emit("chess_invite", { toUserId: playerId, fromUserId: user.id, fromName: user.fullName }); setShowOnlineList(false); setMessage(" Challenge sent! Waiting..."); };
+  const challengePlayer = (playerId) => { const s = socketRef.current; if (!s) { alert("Not connected."); return; } s.emit("chess_invite", { toUserId: playerId, fromUserId: user.id, fromName: user.fullName }); setShowOnlineList(false); setMessage("⚔️ Challenge sent! Waiting..."); };
   const forfeit = () => { socketRef.current?.emit("chess_forfeit", { gameId, opponentId: opponent.id, winnerName: opponent.name }); setGameOver(true); setMessage(`${opponent.name} wins by forfeit!`); };
   const rematch = () => { socketRef.current?.emit("chess_rematch", { gameId, opponentId: opponent.id, fromName: user.fullName }); };
   const reset = () => { setMode(null); setGameStarted(false); setDifficulty(null); setBoard(createInitialBoard()); setSelected(null); setValidMoves([]); setCapturedWhite([]); setCapturedBlack([]); setGameOver(false); setMessage("Choose a mode to start"); setOpponent(null); };
@@ -292,11 +284,11 @@ export default function Chess() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={s.container}>
         <div style={s.headerRow}><button onClick={() => navigate('/games')} style={s.pillBtn}>← Games</button><div><h1 style={s.title}>♟️ Chess</h1><p style={s.sub}>Choose a mode</p></div></div>
         <div style={s.modeContainer}>
-          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setMode("ai")} style={{ ...s.modeCard, borderColor: "#8b5cf6" }}><span style={s.modeIcon}></span><div><h3 style={s.modeTitle}>Play vs AI</h3><p style={s.modeDesc}>Challenge the computer</p></div></motion.div>
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setMode("ai")} style={{ ...s.modeCard, borderColor: "#8b5cf6" }}><span style={s.modeIcon}>🤖</span><div><h3 style={s.modeTitle}>Play vs AI</h3><p style={s.modeDesc}>Challenge the computer</p></div></motion.div>
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={showOnline} style={{ ...s.modeCard, borderColor: "#3b82f6" }}><span style={s.modeIcon}>🌐</span><div><h3 style={s.modeTitle}>Play Online</h3><p style={s.modeDesc}>Challenge a ZUCA member</p></div></motion.div>
         </div>
-        {showOnlineList && (<div style={s.modalOverlay} onClick={() => setShowOnlineList(false)}><div style={s.modal} onClick={e => e.stopPropagation()}><h3 style={s.modalTitle}>Online Players</h3>{onlinePlayers.length === 0 ? <p style={s.modalEmpty}>No players online</p> : onlinePlayers.map(p => (<div key={p.userId} style={s.playerRow} onClick={() => challengePlayer(p.userId)}><div style={{ display: "flex", alignItems: "center", gap: "10px" }}>{p.profileImage ? <img src={p.profileImage} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{p.fullName?.charAt(0) || "?"}</div>}<div><div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b" }}>{p.fullName || "Unknown"}</div>{p.membership && <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.membership}</div>}</div></div><span style={s.challengeBtn}> Challenge</span></div>))}<button onClick={() => setShowOnlineList(false)} style={s.closeBtn}>Close</button></div></div>)}
-        {mode === "ai" && (<div style={s.diffContainer}><h2 style={s.diffTitle}>Choose Difficulty</h2>{[{ l: "easy", c: "#10b981", i: "", n: "Easy", d: "Random moves" }, { l: "medium", c: "#f59e0b", i: "", n: "Medium", d: "Strategic captures" }, { l: "hard", c: "#ef4444", i: "", n: "Hard", d: "Advanced tactics" }].map(d => (<motion.div key={d.l} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => startAI(d.l)} style={{ ...s.diffCard, borderColor: d.c }}><span style={s.diffIcon}>{d.i}</span><div><h3 style={s.diffName}>{d.n}</h3><p style={s.diffDesc}>{d.d}</p></div></motion.div>))}</div>)}
+        {showOnlineList && (<div style={s.modalOverlay} onClick={() => setShowOnlineList(false)}><div style={s.modal} onClick={e => e.stopPropagation()}><h3 style={s.modalTitle}>Online Players</h3>{onlinePlayers.length === 0 ? <p style={s.modalEmpty}>No players online</p> : onlinePlayers.map(p => (<div key={p.userId} style={s.playerRow} onClick={() => challengePlayer(p.userId)}><div style={{ display: "flex", alignItems: "center", gap: "10px" }}>{p.profileImage ? <img src={p.profileImage} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{p.fullName?.charAt(0) || "?"}</div>}<div><div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b" }}>{p.fullName || "Unknown"}</div>{p.membership && <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.membership}</div>}</div></div><span style={s.challengeBtn}>⚔️ Challenge</span></div>))}<button onClick={() => setShowOnlineList(false)} style={s.closeBtn}>Close</button></div></div>)}
+        {mode === "ai" && (<div style={s.diffContainer}><h2 style={s.diffTitle}>Choose Difficulty</h2>{[{ l: "easy", c: "#10b981", i: "🟢", n: "Easy", d: "Random moves" }, { l: "medium", c: "#f59e0b", i: "🟡", n: "Medium", d: "Strategic captures" }, { l: "hard", c: "#ef4444", i: "🔴", n: "Hard", d: "Advanced tactics" }].map(d => (<motion.div key={d.l} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => startAI(d.l)} style={{ ...s.diffCard, borderColor: d.c }}><span style={s.diffIcon}>{d.i}</span><div><h3 style={s.diffName}>{d.n}</h3><p style={s.diffDesc}>{d.d}</p></div></motion.div>))}</div>)}
       </motion.div>
     );
   }
@@ -307,7 +299,7 @@ export default function Chess() {
       <div style={{ ...s.statusBar, background: gameOver ? "#fef2f2" : message.includes("Check") ? "#fef3c7" : aiThinking ? "#eff6ff" : "#f0fdf4", borderColor: gameOver ? "#ef4444" : message.includes("Check") ? "#f59e0b" : aiThinking ? "#3b82f6" : "#10b981" }}><span style={s.statusText}>{aiThinking && "⏳ "}{message}</span></div>
       <div style={s.capRow}><span style={s.capLabel}>Captured by opponent:</span><span style={s.capPieces}>{capturedWhite.join(" ")}</span></div>
       <div style={s.capRow}><span style={s.capLabel}>Captured by you:</span><span style={s.capPieces}>{capturedBlack.join(" ")}</span></div>
-      <div style={{ ...s.boardOuter, width: sq * 8 + 6 }}><div style={s.boardInner}>{board.map((row, ri) => (<div key={ri} style={s.boardRow}>{row.map((piece, ci) => { const isBlack = (ri + ci) % 2 === 1, isSel = selected?.row === ri && selected?.col === ci, isVM = validMoves.some(m => m.row === ri && m.col === ci), canClick = (mode === "ai" && currentTurn === "white") || (mode === "online" && currentTurn === myColor); return (<div key={ci} onClick={() => handleClick(ri, ci)} style={{ ...s.square, width: sq, height: sq, background: isSel ? "#fbbf24" : isVM ? (piece ? "#fecaca" : "#bbf7d0") : isBlack ? "#94a3b8" : "#f1f5f9", cursor: (piece && getPieceColor(piece) === (mode === "ai" ? "white" : myColor) && !gameOver && canClick) || (selected && isVM) ? "pointer" : "default" }}>{ci === 0 && <span style={s.coord}>{8 - ri}</span>}{ri === 7 && <span style={{ ...s.coord, bottom: 1, right: 2, left: "auto" }}>{String.fromCharCode(97 + ci)}</span>}<span style={{ ...s.piece, fontSize: Math.max(sq * 0.6, 18) }}>{piece}</span></div>); })}</div>))}</div></div>
+      <div style={{ ...s.boardOuter, width: sq * 8 + 6 }}><div style={s.boardInner}>{board.map((row, ri) => (<div key={ri} style={s.boardRow}>{row.map((piece, ci) => { const isBlack = (ri + ci) % 2 === 1, isSel = selected?.row === ri && selected?.col === ci, isVM = validMoves.some(m => m.row === ri && m.col === ci), canClick = (mode === "ai" && currentTurn === "white") || (mode === "online" && currentTurn === myColorRef.current); return (<div key={ci} onClick={() => handleClick(ri, ci)} style={{ ...s.square, width: sq, height: sq, background: isSel ? "#fbbf24" : isVM ? (piece ? "#fecaca" : "#bbf7d0") : isBlack ? "#94a3b8" : "#f1f5f9", cursor: (piece && getPieceColor(piece) === (mode === "ai" ? "white" : myColorRef.current) && !gameOver && canClick) || (selected && isVM) ? "pointer" : "default" }}>{ci === 0 && <span style={s.coord}>{8 - ri}</span>}{ri === 7 && <span style={{ ...s.coord, bottom: 1, right: 2, left: "auto" }}>{String.fromCharCode(97 + ci)}</span>}<span style={{ ...s.piece, fontSize: Math.max(sq * 0.6, 18) }}>{piece}</span></div>); })}</div>))}</div></div>
       <div style={s.controls}>{mode === "online" && !gameOver && <button onClick={forfeit} style={{ ...s.ctrlBtn, background: "#ef4444" }}>🏳️ Forfeit</button>}{mode === "online" && gameOver && <button onClick={rematch} style={s.ctrlBtn}>🔄 Rematch</button>}<button onClick={reset} style={{ ...s.ctrlBtn, background: "#64748b" }}>↩ Leave</button></div>
     </motion.div>
   );

@@ -357,7 +357,7 @@ useEffect(() => {
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span style={userNameStyle}></span>
+                <span style={userNameStyle}>{user.fullName.split(" ")[1]}</span>
                 <span style={dropdownArrowStyle}>▼</span>
               </motion.div>
 
@@ -852,8 +852,8 @@ const userMenuTriggerStyle = {
 };
 
 const headerAvatarStyle = {
-  width: "36px",
-  height: "36px",
+  width: "30px",
+  height: "30px",
   borderRadius: "36px",
   objectFit: "cover",
   border: "2px solid #3b83f600",

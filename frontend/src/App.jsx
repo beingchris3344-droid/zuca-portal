@@ -317,6 +317,7 @@ useEffect(() => {
       console.log("📨 Chess invite received:", data);
       
       if (window.confirm(`♟️ ${data.fromName} challenged you to Chess!\n\nAccept?`)) {
+        sessionStorage.setItem("chess_invite", JSON.stringify(data));
         window.location.href = "/games/chess";
       }
     });

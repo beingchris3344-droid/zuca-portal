@@ -133,6 +133,9 @@ export default function Chess() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+
+  
+
   useEffect(() => {
     if (token && user?.id) {
       const socket = io(BASE_URL, { transports: ['websocket', 'polling'] });
@@ -181,6 +184,38 @@ export default function Chess() {
       return () => { socket.disconnect(); };
     }
   }, [token, user?.id]);
+
+
+    // Check for pending chess invite (from global App.jsx listener)
+  useEffect(() => {
+    const inviteData = sessionStorage.getItem("chess_invite");
+    if (inviteData && socketRef.current && user?.id) {
+      try {
+        const data = JSON.parse(inviteData);
+        sessionStorage.removeItem("chess_invite");
+        
+        const socket = socketRef.current;
+        const gid = Date.now().toString();
+        setGameId(gid);
+        setMode("online");
+        setGameStarted(true);
+        setBoard(createInitialBoard());
+        setMyColor("black");
+        setOpponent({ id: data.fromUserId, name: data.fromName });
+        setMessage(`${data.fromName}'s turn — White`);
+        setCurrentTurn("white");
+        setGameOver(false);
+        setCapturedWhite([]);
+        setCapturedBlack([]);
+        socket.emit("chess_accept", { 
+          gameId: gid, player1Id: data.fromUserId, player2Id: user.id, 
+          player1Name: data.fromName, player2Name: user.fullName 
+        });
+      } catch (e) {
+        console.error("Failed to process invite:", e);
+      }
+    }
+  }, [socketRef.current, user?.id]);
 
   // AI move
   useEffect(() => {

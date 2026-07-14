@@ -182,30 +182,35 @@ useEffect(() => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: <FaThLarge /> },
-    { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#ff0000" /> },
+     { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
+  {path: "/jumuia-contributions", 
+    label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
+    icon: <FaDove size={25} color="#4e4939" />
+  },  
+    { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
+             { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
+
     { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },
-    { path: "/user-manual", label: "User Manual", icon: "📚" },
+    
+      { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar size={28}/> },
         { path: "/mass-programs", label: "Mass Programs", icon: "📑" },
 { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={28} /> },
         { path: "/hymns", label: "Lyrics Book", icon: "🎼" },
+    { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
 
       { path: "/youtube", label: "ZUCA/TUBE", icon: <FaYoutube size={28} color="#ff0000" /> },
 
 { 
   path: "/gallery", 
   label: "Gallery", 
-  icon: <span style={{ color: '#3b82f6' }}><FaImages size={28} /></span> 
-},    { path: "/announcements", label: "Announcements", icon: "📢" },
-    { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
-    { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
-  {path: "/jumuia-contributions", 
-    label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
-    icon: <FaDove size={25} color="#58cc35" />
-  },    
+  icon: <span style={{ color: '#000000' }}><FaImages size={28} /></span> 
+},   
+     
   { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
   { path: "/chat", label: "Chat", icon: <FaComments size={28} color="#1a1818" /> },
-    { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
+  { path: "/user-manual", label: "User Manual", icon: "📚" },
+  
     { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
   ];
 
@@ -533,7 +538,7 @@ const sidebarStyle = {
   top: 0,
   height: "100vh",
   width: "250px",
-  background: "#000000d8",
+  background: "#ffffff",
   boxShadow: "2px 0 12px rgba(0, 0, 0, 0.73)",
   padding: "24px 16px",
   display: "flex",
@@ -562,7 +567,7 @@ const logoText = {
 };
 
 const logoTitle = {
-  color: "#ffffff",
+  color: "#790591",
   fontSize: "13px",
   fontWeight: "700",
   margin: 0,
@@ -648,7 +653,7 @@ const navCardStyle = (isActive) => ({
   padding: "12px 16px",
   borderRadius: "12px",
   textDecoration: "none",
-  color: isActive ? "#00ff55" : "#475569",
+  color: isActive ? "#2feb8d" : "#475569",
   fontWeight: isActive ? "600" : "500",
   fontSize: "14px",
   fontFamily: "'Inter', sans-serif",

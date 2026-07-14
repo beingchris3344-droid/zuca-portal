@@ -638,7 +638,7 @@ const handleSendMessage = async () => {
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <h1 style={styles.title}>{jumuiaName || 'My Jumuia'}</h1>
-          <p style={styles.subtitle}> jumuia  dashboard</p>
+          <p style={styles.subtitle}> Hey {user?.fullName?.split(" ")[0] || "User"}, welcome to your jumuia dashboard, here you'll find  {jumuiaName || 'your jumuia'} announcements, and cotribution when they are posted by the moderator.</p>
         </div>
       </div>
 
@@ -877,7 +877,7 @@ const handleSendMessage = async () => {
         </div>
         <div>
           <h3 style={styles.chatHeaderTitle}>{jumuiaName || 'Jumuia'} Chat</h3>
-          <p style={styles.chatHeaderSubtitle}>Community discussion</p>
+          <p style={styles.chatHeaderSubtitle}> discussion Forum</p>
         </div>
       </div>
     </div>

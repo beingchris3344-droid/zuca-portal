@@ -22,6 +22,7 @@ import {
 import { IoTimeOutline } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import BASE_URL from "../api";
+import { FaMusic } from "react-icons/fa";
 
 export default function HymnBook() {
   const [searchParams] = useSearchParams();
@@ -40,6 +41,7 @@ export default function HymnBook() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [shareModal, setShareModal] = useState(null);
   const initialLoadDone = useRef(false);
+  const backButtonRef = useRef(null);
 
   const token = localStorage.getItem("token");
 
@@ -259,14 +261,51 @@ export default function HymnBook() {
     >
       <div style={headerSection}>
         <div style={headerTop}>
-          <div style={titleWrapper}>
-            <div style={titleIcon}>🎵</div>
-            <div>
-              <h1 style={title}>Hymn Book</h1>
-              <p style={titleSub}>{totalSongs || safeSongs.length || 0} hymns</p>
-            </div>
-          </div>
-        </div>
+  <div style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    flexWrap: "wrap",
+  }}>
+    <div style={titleWrapper}>
+      <div style={titleIcon}><FaMusic color="#000000"/></div>
+      <div>
+        <h1 style={title}>Hymn Book</h1>
+        <p style={titleSub}>{totalSongs || safeSongs.length || 0} hymns</p>
+      </div>
+    </div>
+    
+    <Link to="/dashboard" style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "8px 16px",
+      background: "white",
+      border: "2px solid #000000",
+      borderRadius: "50px",
+      color: "#000000",
+      textDecoration: "none",
+      fontSize: "13px",
+      fontWeight: "600",
+      whiteSpace: "nowrap",
+      transition: "all 0.2s ease",
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.background = "#4f46e5";
+      e.currentTarget.style.color = "white";
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.background = "white";
+      e.currentTarget.style.color = "#4f46e5";
+    }}
+    >
+      ← Dashboard
+    </Link>
+  </div>
+</div>
+        
+        
 
         <div style={compactStats}>
           <motion.div 
@@ -597,7 +636,6 @@ const titleIcon = {
   width: "44px",
   height: "44px",
   borderRadius: "12px",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -695,7 +733,7 @@ const searchClearBtn = {
 
 const searchButton = {
   padding: "0 20px",
-  background: "#4f46e5",
+  background: "#0c0c0eb6",
   color: "white",
   border: "none",
   borderRadius: "30px",
@@ -1018,6 +1056,11 @@ const toastStyle = `
   overflow: hidden;
   text-overflow: ellipsis;
 `;
+
+
+
+
+
 
 const style = document.createElement('style');
 style.innerHTML = `

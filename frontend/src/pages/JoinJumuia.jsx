@@ -185,7 +185,7 @@ useEffect(() => {
               Join a <span style={styles.highlight}>Jumuia</span>
             </h1>
             <p style={styles.subtitle}>
-              Discover your spiritual family and grow in faith together
+Hey {user?.fullName?.split(" ")[0] || "User"}, join your respective jumuia to easily participate in their activities, such as meetings and contributions.
             </p>
           </div>
         </div>
@@ -303,8 +303,7 @@ useEffect(() => {
                   
                   {/* Member Stats Placeholder */}
                   <div style={styles.cardStats}>
-                    <Heart size={12} />
-                    <span>Growing community</span>
+                    <span></span>
                   </div>
                   
                   {j.whatsappLink && (
@@ -314,7 +313,7 @@ useEffect(() => {
                     >
                       <div style={styles.whatsappHeader}>
                         <MessageCircle size={14} />
-                        <span style={styles.whatsappLabel}>Community Chat</span>
+                        <span style={styles.whatsappLabel}>Jumuia Chat</span>
                       </div>
                       <a
                         href={j.whatsappLink}

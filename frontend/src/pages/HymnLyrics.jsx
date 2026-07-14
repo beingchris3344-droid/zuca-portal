@@ -502,7 +502,8 @@ const pageDescription = `Read the full lyrics of ${song.title}${
       {/* Header with back button and actions */}
       <div style={header}>
         <button onClick={() => navigate(-1)} style={backButton}>
-          <FiChevronLeft size={24} />
+          <FiChevronLeft size={74} />
+          back
         </button>
         <div style={headerActions}>
           <motion.button

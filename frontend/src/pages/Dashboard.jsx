@@ -1368,7 +1368,7 @@ const fetchFeaturedGallery = async () => {
         <motion.div
           key={hymn.id}
           className="hymn-item"
-          onClick={() => navigate(`/hymn/${hymn.id}`)}
+          onClick={() => navigate(`/hymn/${hymn.title}`)}
           whileHover={{ x: 5 }}
           transition={{ type: "spring", stiffness: 300 }}
         >

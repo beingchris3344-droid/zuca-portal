@@ -65,6 +65,8 @@ import UpdateNotification from './components/UpdateNotification';
 import TicTacToe from "./pages/games/TicTacToe";
 import Snake from "./pages/games/Snake";
 import BibleTrivia from "./pages/games/BibleTrivia";
+import Chess from "./pages/games/Chess";
+
 
 // ===== EXECUTIVE SYSTEM IMPORTS =====
 import ExecutivePage from "./pages/ExecutivePage";
@@ -307,12 +309,25 @@ useEffect(() => {
         await pushService.subscribe();
       }
     });
+
+
     
+        // ===== GLOBAL CHESS INVITE LISTENER =====
+    socket.on("chess_invite_received", (data) => {
+      console.log("📨 Chess invite received:", data);
+      
+      if (window.confirm(`♟️ ${data.fromName} challenged you to Chess!\n\nAccept?`)) {
+        window.location.href = "/games/chess";
+      }
+    });
+
+   
     return () => {
       socket.off("new_notification");
       socket.off("new_notification_batch");
        socket.off("minutes_published");
       socket.off("push_subscription_refresh");
+      socket.off("chess_invite_received");
     };
   }, []);
   
@@ -467,6 +482,7 @@ useEffect(() => {
           <Route path="/games/tictactoe" element={<TicTacToe />} />
           <Route path="/games/snake" element={<Snake />} />
           <Route path="/games/trivia" element={<BibleTrivia />} />
+          <Route path="/games/chess" element={<Chess />} />
            <Route path="/minutes" element={<MinutesList />} />
         </Route>
 

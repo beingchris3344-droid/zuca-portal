@@ -17,12 +17,10 @@ function Games() {
   }, [token, navigate]);
 
   const games = [
-    { id: "tictactoe", name: "Tic Tac Toe", icon: "🎮", color: "#667eea", description: "Classic 3x3 game. Play vs AI or with friends!" },
-    { id: "snake", name: "Snake", icon: "🐍", color: "#f093fb", description: "Eat food, grow longer, don't crash!" },
-    { id: "trivia", name: "Bible Trivia", icon: "📖", color: "#4facfe", description: "Test your Bible knowledge with fun questions!" },
-    { id: "crossword", name: "Crossword", icon: "📝", color: "#43e97b", description: "Fill words in the grid. General knowledge puzzles!" },
-    { id: "match3", name: "Candy Match", icon: "🍬", color: "#fa709a", description: "Match 3 or more candies to score points!" },
-    { id: "memory", name: "Memory Match", icon: "🧠", color: "#a8edea", description: "Match pairs of cards. Test your memory!" }
+    { id: "tictactoe", name: "Tic Tac Toe", icon: "🎮", color: "#667eea00", description: "Classic 3x3 game. Play vs AI or with friends!" },
+    { id: "snake", name: "Snake", icon: "🐍", color: "#f193fb00", description: "Eat food, grow longer, don't crash!" },
+    { id: "trivia", name: "Bible Trivia", icon: "📖", color: "#4facfe00", description: "Test your Bible knowledge with fun questions!" },
+    { id: "chess", name: "Chess", icon: "♟️", color: "#43e97b00", description: "Classic strategy game. Challenge your mind!" },
   ];
 
   const handleGameClick = (gameId) => {
@@ -37,8 +35,35 @@ function Games() {
       style={styles.container}
     >
       <div style={styles.header}>
-        <button onClick={() => navigate('/dashboard')} style={styles.backButton}>
-          ← Back to Dashboard
+        <button 
+          onClick={() => navigate('/dashboard')} 
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "10px 18px",
+            background: "white",
+            border: "2px solid #e2e8f0",
+            borderRadius: "50px",
+            color: "#475569",
+            fontSize: "14px",
+            fontWeight: "500",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#4f46e5";
+            e.currentTarget.style.color = "white";
+            e.currentTarget.style.borderColor = "#4f46e5";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "white";
+            e.currentTarget.style.color = "#475569";
+            e.currentTarget.style.borderColor = "#e2e8f0";
+          }}
+        >
+          ← Back
         </button>
         <div>
           <h1 style={styles.title}>🎮 Games Arcade</h1>
@@ -84,6 +109,7 @@ const styles = {
     background: "#f8fafc",
     padding: "20px",
     marginTop: "0px",
+    marginBottom: "60px",
     fontFamily: "'Inter', sans-serif",
   },
   header: {
@@ -92,15 +118,6 @@ const styles = {
     gap: "20px",
     marginBottom: "40px",
     flexWrap: "wrap",
-  },
-  backButton: {
-    padding: "8px 16px",
-    background: "white",
-    border: "1px solid #e2e8f0",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "14px",
-    color: "#475569",
   },
   title: {
     fontSize: "28px",
@@ -155,7 +172,7 @@ const styles = {
   },
   playBtn: {
     padding: "8px 20px",
-    background: "#3b82f6",
+    background: "#000000b6",
     color: "white",
     border: "none",
     borderRadius: "30px",

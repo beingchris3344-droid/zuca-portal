@@ -1065,8 +1065,20 @@ io.on("connection", (socket) => {
     } else {
       console.log("🔴 Unknown user disconnected:", socket.id);
     }
+
   });
+
+      try {
+     require("./socket/chessSocket")(io, socket, onlineUsers, userSocketMap);
+     console.log("✅ Chess socket loaded");
+   } catch(e) {
+     console.log("❌ Chess socket error:", e.message);
+   }
+
 });
+
+
+
 
 
 

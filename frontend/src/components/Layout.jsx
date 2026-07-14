@@ -258,7 +258,7 @@ useEffect(() => {
             </div>
           )}
           <div style={userBadgeInfo}>
-            <span style={userBadgeName}>{user.fullName.split(" ")[0]}</span>
+            <span style={userBadgeName}>{user.fullName.split(" ")[0]} </span>
             <span style={userBadgeRole}>{user.role || "Member"}</span>
           </div>
         </div>
@@ -351,13 +351,13 @@ useEffect(() => {
                 whileTap={{ scale: 0.95 }}
               >
                 {profileImageUrl ? (
-                  <img src={profileImageUrl} alt={user.fullName} style={headerAvatarStyle} />
+                  <img src={profileImageUrl} alt={user.fullName.split(" ")[0]} style={headerAvatarStyle} />
                 ) : (
                   <div style={headerAvatarFallbackStyle}>
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span style={userNameStyle}>{user.fullName.split(" ")[0]}</span>
+                <span style={userNameStyle}></span>
                 <span style={dropdownArrowStyle}>▼</span>
               </motion.div>
 
@@ -739,7 +739,7 @@ const mainContentStyle = (isMobile, menuOpen) => ({
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "fit-content",
   background: "#ffffff",
   borderRadius: "5px",
   padding: "0px 20px",
@@ -748,6 +748,7 @@ const headerStyle = {
   border: "1px solid #e2e8f0",
   position: "sticky",
   top: 0,
+  marginRight: "0px",
   zIndex: 30,
   flexShrink: 0,
 };
@@ -837,7 +838,7 @@ const userMenuContainerStyle = {
 const userMenuTriggerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "10px",
+  gap: "0px",
   padding: "6px 12px",
   borderRadius: "40px",
   background: "#f8fafc",
@@ -863,8 +864,8 @@ const headerAvatarStyle = {
 };
 
 const headerAvatarFallbackStyle = {
-  width: "36px",
-  height: "36px",
+  width: "20px",
+  height: "20px",
   borderRadius: "36px",
   background: "linear-gradient(135deg, #f3052d, #2563eb)",
   display: "flex",
@@ -874,15 +875,16 @@ const headerAvatarFallbackStyle = {
   fontWeight: "600",
   color: "#fff",
   "@media (max-width: 900px)": {
-    width: "32px",
+    width: "2px",
     height: "32px",
     fontSize: "14px",
   },
 };
 
+
 const userNameStyle = {
   color: "#1e293b",
-  fontSize: "14px",
+  fontSize: "10px",
   fontWeight: "600",
   "@media (max-width: 900px)": {
     display: "none",

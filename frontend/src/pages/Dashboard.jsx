@@ -9,12 +9,12 @@ import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
 import ProfileSettings from '../components/ProfileSettings';
 import { 
-  FiMessageSquare, FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
+  FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
   FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus, FaUser, FaCalendarAlt } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -117,7 +117,7 @@ const getEventBadge = (type) => {
     'concert': '🎵 Concert',
     'conference': '💼 Conference',
     'retreat': '🧘 Retreat',
-    'default': '🙏 Mass'
+    'default': ' Mass'
   };
   return badges[type?.toLowerCase()] || badges.default;
 };
@@ -919,11 +919,11 @@ const fetchFeaturedGallery = async () => {
   <div className="section-card reading-premium-card">
     <div className="reading-premium-header">
       <div className="reading-header-icon">
-        <span className="reading-icon">📖</span>
+        <span className="reading-icon"><FiBook color="#ffffff" /></span>
       </div>
       <div className="reading-header-content">
         <h3 className="reading-premium-title">Today's Liturgical Reading</h3>
-        <p className="reading-premium-subtitle">Daily Word of God</p>
+        <p className="reading-premium-subtitle">Daily Catholic Daily Readings</p>
       </div>
       <div className="reading-date-badge">
         {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -963,7 +963,7 @@ const fetchFeaturedGallery = async () => {
         {todaysReading.readings?.secondReading && (
           <div className="reading-verse-card">
             <div className="verse-header">
-              <span className="verse-icon">📜</span>
+              <span className="verse-icon"><FaBook /></span>
               <span className="verse-title">Second Reading</span>
             </div>
             <div className="verse-citation">{todaysReading.readings.secondReading.citation}</div>
@@ -990,7 +990,7 @@ const fetchFeaturedGallery = async () => {
           <FiArrowRight className="btn-arrow-icon" />
         </button>
         <div className="reading-footer-note">
-          <span>📅 Liturgical Year {new Date().getFullYear()}</span>
+          <span><FiCalendar /> {new Date().getFullYear()}</span>
           <span></span>
         </div>
       </div>
@@ -1240,7 +1240,7 @@ const fetchFeaturedGallery = async () => {
 <div className="section-card announcements-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-announcement">📢</div>
+      <div className="header-icon-announcement"><FiBell /></div>
       <div>
         <h3>RECENT ANNOUNCEMENTS</h3>
         <p className="header-subtitle">Latest updates from ZUCA</p>
@@ -2143,7 +2143,7 @@ const fetchFeaturedGallery = async () => {
           background: #ffffff;
           
           border-radius: 24px;
-          padding: 20px;
+          padding: 15px;
           margin-bottom: 20px;
           box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
@@ -2219,7 +2219,7 @@ const fetchFeaturedGallery = async () => {
 
         .profile-info {
           flex: 1;
-        }
+             }
 
         .info-header {
           display: flex;
@@ -2230,7 +2230,9 @@ const fetchFeaturedGallery = async () => {
         }
 
         .info-header h2 {
-          font-size: 20px;
+          font-size: 15px;
+          font-weight: 900;
+         font-style: italic;
           color: #1e293b;
         }
 
@@ -7697,22 +7699,11 @@ const fetchFeaturedGallery = async () => {
   color: #000000;
 }
 
-/* Update avatar-wrapper style */
-.avatar-wrapper {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 4px solid #0ce428;
-  cursor: pointer;
-  flex-shrink: 0;
-}
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .settings-icon-btn {
-    padding: 24px 24px;
+    padding: 4px s4px;
     font-size: 10px;
   }
   

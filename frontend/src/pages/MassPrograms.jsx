@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import {FaChurch, FaMusic, FaBook, FaSun, FaMoon, FaPray, FaPeace, FaHeart, FaStar, FaEnvelope, FaShareAlt} from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { 
@@ -240,7 +241,7 @@ export default function MassPrograms() {
       
       if (songs && songs.length > 0) {
         // Navigate directly to the song by ID
-        navigate(`/hymn/${songs[0].id}`);
+        navigate(`/hymn/${songs[0].title}`);
       } else {
         showToast(`"${hymnTitle}" not found in hymn book`);
         setOpeningSong(null);
@@ -395,7 +396,7 @@ const shareImageToWhatsApp = async (program) => {
       if (songsArray.length === 1) {
         songsDisplay = `<div style="font-size: 13px; line-height: 1.4;">${songsArray[0]}</div>`;
       } else {
-        songsDisplay = songsArray.map((song, idx) => 
+        songsDisplay = songsArray.map((song) => 
           `<div style="font-size: 13px; line-height: 1.4; margin-top: ${idx === 0 ? '0' : '6px'};">${idx + 1}. ${song}</div>`
         ).join('');
       }
@@ -975,7 +976,7 @@ const shareImageToWhatsApp = async (program) => {
       <div style={headerSection}>
         <div style={headerTop}>
           <div style={titleWrapper}>
-            <div style={titleIcon}>⛪</div>
+            <div style={titleIcon}><FaChurch /></div>
             <div>
               <h1 style={title}>Mass Programs</h1>
               <p style={titleSub}>{stats.totalHymns} hymns • {stats.venues} venues</p>

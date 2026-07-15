@@ -12765,27 +12765,27 @@ async function createAndSendNotification({ userId, type, title, message, data = 
   });
 
   // 4. Send email (fire and forget - doesn't block)
- // (async () => {
-   // try {
-     // const user = await prisma.user.findUnique({
-       // where: { id: userId },
-        //select: { email: true, fullName: true }
-     // });
+ /* (async () => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, fullName: true }
+      });
       
-     /// if (user?.email) {
+      if (user?.email) {
         // No await here - runs in background
-        //sendPersonalizedEmail(user, type, title, message, data)
-          //.then(() => console.log(`✅ Email sent to ${user.email}`))
-          //.catch(err => console.error('❌ Email error:',// err.message));
-     // }
-    //} catch (err) {
-    //  console.error('❌ Email error:', err.message);
-  //  }
- // })();
+        sendPersonalizedEmail(user, type, title, message, data)
+          .then(() => console.log(`✅ Email sent to ${user.email}`))
+          .catch(err => console.error('❌ Email error:', err.message));
+      }
+    } catch (err) {
+      console.error('❌ Email error:', err.message);
+    }
+  })();*/
 
   // Return the notification
- /// return notif;
-//}
+  return notif;
+}
 
 
 // ============================================

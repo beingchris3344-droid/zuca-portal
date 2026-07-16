@@ -3278,23 +3278,47 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
     const uploadedMedia = [];
 
     // Process files - upload to Cloudinary
-    for (const file of files) {
-      try {
-        const isVideo = file.mimetype.startsWith('video/');
-        const mediaType = isVideo ? 'video' : 'image';
-        
-        // Upload to Cloudinary
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: 'zuca-gallery',
-          resource_type: isVideo ? 'video' : 'image',
-          transformation: isVideo ? [
-            { quality: 'auto:good' },
-            { format: 'mp4' }
-          ] : [
-            { quality: 'auto:good' },
-            { fetch_format: 'auto' }
-          ]
-        });
+for (const file of files) {
+  try {
+    const isVideo = file.mimetype.startsWith('video/');
+    const mediaType = isVideo ? 'video' : 'image';
+    let result;
+    
+    // ✅ VIDEO UPLOAD - WITH LARGE FILE SUPPORT
+    if (isVideo) {
+      const fileSizeMB = file.size / (1024 * 1024);
+      
+      let uploadOptions = {
+        folder: 'zuca-gallery',
+        resource_type: 'video',
+      };
+
+      // ✅ If video is over 40MB, use async processing
+      if (fileSizeMB > 40) {
+        uploadOptions.eager = [
+          { quality: 'auto:good', format: 'mp4' }
+        ];
+        uploadOptions.eager_async = true;
+      } else {
+        uploadOptions.transformation = [
+          { quality: 'auto:good' },
+          { format: 'mp4' }
+        ];
+      }
+
+      result = await cloudinary.uploader.upload(file.path, uploadOptions);
+      
+    } else {
+      // ✅ IMAGE UPLOAD
+      result = await cloudinary.uploader.upload(file.path, {
+        folder: 'zuca-gallery',
+        resource_type: 'image',
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      });
+    }
 
         // Auto-generate thumbnail for videos
         let thumbnailUrl = null;

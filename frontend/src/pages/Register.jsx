@@ -481,7 +481,7 @@ function Register() {
               <motion.div variants={itemVariants} style={styles.inputGroup}>
                 <label style={styles.label}>
                   <span style={{ color: focusedField === "email" ? "#3b82f6" : "#ffffff" }}>
-                    Email Address
+                    Email Address:<p/>⚠️ please avoid using <strong>example@students.zetech.ac.ke</strong><p/>
                   </span>
                 </label>
                 <div style={styles.inputWrapper}>

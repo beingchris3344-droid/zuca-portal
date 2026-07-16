@@ -1203,23 +1203,23 @@ if (showSplash) {
         </div>
 
         <div className="hero-container">
-          {/* Action Buttons Row - Independently arranged */}
-          <div className="action-buttons-row">
-            {showInstallButton && (
-              <button onClick={handleInstallClick} className="action-btn action-btn-install">
-                <FaDownload /> Install Our App
-              </button>
-            )}
-            <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
-              📷 Our Gallery
-            </button>
-            <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
-              📅 Liturgical Calendar
-            </button>
-            <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
-              <FaUserPlus /> 📚 Our User's Manual
-            </button>
-          </div>
+          {/* Action Buttons Row - 2 column grid on mobile */}
+<div className="action-buttons-row">
+  {showInstallButton && (
+    <button onClick={handleInstallClick} className="action-btn action-btn-install">
+      <FaDownload /> Install Our App
+    </button>
+  )}
+  <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
+    <FaImage /> Our Gallery
+  </button>
+  <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
+    <FaCalendarAlt /> Liturgical Calendar
+  </button>
+  <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
+    <FaUserPlus />  Portal Guide
+  </button>
+</div>
 
           {/* Welcome Card */}
           <div className="welcome-card">
@@ -2328,29 +2328,72 @@ if (showSplash) {
         }
 
         /* Action Buttons Row - Clean independent arrangement */
-        .action-buttons-row {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 16px;
-          flex-wrap: wrap;
-          margin-bottom: 30px;
-        }
+       .action-buttons-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: -18px;
+  margin-bottom: 10px;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
-        .action-btn {
-          padding: 12px 24px;
-          border-radius: 40px;
-          border: none;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          transition: all 0.3s ease;
-          backdrop-filter: blur(8px);
-          white-space: nowrap;
-        }
+@media (max-width: 768px) {
+  .action-buttons-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .action-buttons-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 0 3px;
+  }
+}
+
+.action-btn {
+  padding: 12px 16px;
+  border-radius: 40px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  width: 100%;
+  min-height: 48px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .action-btn {
+    font-size: 12px;
+    padding: 10px 12px;
+    min-height: 44px;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 480px) {
+  .action-btn {
+    font-size: 11px;
+    padding: 8px 10px;
+    min-height: 40px;
+    gap: 5px;
+  }
+}
+
+       
 
         .action-btn:hover {
           transform: translateY(-3px);

@@ -17,6 +17,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 const { send24HourReport } = require('./services/reportService');
+const cloudinary = require('cloudinary').v2;
 
 // ================== EXPRESS & MIDDLEWARE ==================
 const express = require("express");
@@ -3249,8 +3250,16 @@ async function generateVideoThumbnail(videoPath, outputDir, outputName) {
   });
 }
 
-// ADMIN UPLOAD//
+// Configure Cloudinary (add after your other configs)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
+// ==================== MEDIA GALLERY WITH CLOUDINARY ====================
+
+// ADMIN UPLOAD - Cloudinary Version
 app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
@@ -3259,7 +3268,7 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
     }
 
     const files = req.files['files'];
-    const thumbnails = req.files['thumbnails'];
+    // Remove thumbnails - Cloudinary auto-generates them!
     
     if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
@@ -3267,129 +3276,75 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
 
     const { category, tags, isPublic, isFeatured, description } = req.body;
     const uploadedMedia = [];
-    
-    // Store file paths for background processing
-    const filePaths = [];
 
-    // Process files - upload to Supabase
+    // Process files - upload to Cloudinary
     for (const file of files) {
-      const mediaType = getMediaType(file.mimetype);
-      const fileName = `media_${Date.now()}_${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
-      const filePath = `media/${fileName}`;
-      
-      // Save the temp file path for later thumbnail generation
-      filePaths.push({
-        tempPath: file.path,
-        fileName: fileName,
-        originalName: file.originalname,
-        mediaType: mediaType
-      });
-      
-      // Upload original file to Supabase
-      const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(filePath, fs.createReadStream(file.path), {
-          contentType: file.mimetype,
-          upsert: true,
+      try {
+        const isVideo = file.mimetype.startsWith('video/');
+        const mediaType = isVideo ? 'video' : 'image';
+        
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: 'zuca-gallery',
+          resource_type: isVideo ? 'video' : 'image',
+          transformation: isVideo ? [
+            { quality: 'auto:good' },
+            { format: 'mp4' }
+          ] : [
+            { quality: 'auto:good' },
+            { fetch_format: 'auto' }
+          ]
         });
 
-      if (uploadError) {
-        console.error("Supabase upload error:", uploadError);
-        // Clean up this file
-        fs.unlinkSync(file.path);
-        return res.status(500).json({ error: `Failed to upload ${file.originalname}` });
-      }
-
-      const publicURL = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${filePath}`;
-      
-      // Save to database (thumbnail will be updated later)
-      const media = await prisma.media.create({
-        data: {
-          title: file.originalname.replace(/\.[^/.]+$/, ""),
-          description: description || null,
-          filename: fileName,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size,
-          sizeFormatted: formatFileSize(file.size),
-          type: mediaType,
-          url: publicURL,
-          thumbnailUrl: null,
-          category: category || "uncategorized",
-          tags: tags ? tags.split(',').map(t => t.trim()) : [],
-          isPublic: isPublic === 'true',
-          isFeatured: isFeatured === 'true',
-          uploadedById: req.user.userId
+        // Auto-generate thumbnail for videos
+        let thumbnailUrl = null;
+        if (isVideo) {
+          thumbnailUrl = cloudinary.url(result.public_id, {
+            resource_type: 'video',
+            format: 'jpg',
+            transformation: [
+              { start_offset: '2' },
+              { width: 640, height: 360, crop: 'fill' },
+              { quality: 'auto' }
+            ]
+          });
         }
-      });
 
-      uploadedMedia.push(media);
+        // Save to database
+        const media = await prisma.media.create({
+          data: {
+            title: file.originalname.replace(/\.[^/.]+$/, ""),
+            description: description || null,
+            filename: result.public_id, // Cloudinary public ID
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: result.bytes,
+            sizeFormatted: formatFileSize(result.bytes),
+            type: mediaType,
+            url: result.secure_url, // Cloudinary URL
+            thumbnailUrl: thumbnailUrl,
+            category: category || "uncategorized",
+            tags: tags ? tags.split(',').map(t => t.trim()) : [],
+            isPublic: isPublic === 'true',
+            isFeatured: isFeatured === 'true',
+            uploadedById: req.user.userId
+          }
+        });
+
+        uploadedMedia.push(media);
+        
+        // Clean up temp file
+        try { fs.unlinkSync(file.path); } catch(e) {}
+
+      } catch (uploadErr) {
+        console.error("Cloudinary upload error:", uploadErr);
+        // Clean up temp file
+        try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch(e) {}
+      }
     }
 
     // ✅ SEND RESPONSE IMMEDIATELY
     res.status(201).json({ success: true, media: uploadedMedia });
-
-    // ========== BACKGROUND PROCESSING ==========
-    // Process thumbnails in background using saved file paths
-    setTimeout(async () => {
-      for (let i = 0; i < filePaths.length; i++) {
-        const fileInfo = filePaths[i];
-        const media = uploadedMedia[i];
-        
-        if (fileInfo.mediaType === 'video') {
-          try {
-            // Check if temp file still exists
-            if (!fs.existsSync(fileInfo.tempPath)) {
-              console.log(`⚠️ Temp file not found: ${fileInfo.tempPath}`);
-              continue;
-            }
-            
-            const thumbFileName = `thumb_${fileInfo.fileName.replace(path.extname(fileInfo.fileName), '.jpg')}`;
-            
-            await generateVideoThumbnail(fileInfo.tempPath, thumbnailsDir, thumbFileName);
-            
-            const thumbFilePath = `media/thumbnails/${thumbFileName}`;
-            const { error: thumbError } = await supabase.storage
-              .from("media")
-              .upload(thumbFilePath, fs.createReadStream(path.join(thumbnailsDir, thumbFileName)), {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-            
-            if (!thumbError) {
-              const thumbnailUrl = `https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/media/${thumbFilePath}`;
-              await prisma.media.update({
-                where: { id: media.id },
-                data: { thumbnailUrl }
-              });
-              console.log('✅ Thumbnail generated for:', fileInfo.originalName);
-            }
-            
-            // Clean up temp file AFTER thumbnail generation
-            try {
-              if (fs.existsSync(fileInfo.tempPath)) {
-                fs.unlinkSync(fileInfo.tempPath);
-              }
-              if (fs.existsSync(path.join(thumbnailsDir, thumbFileName))) {
-                fs.unlinkSync(path.join(thumbnailsDir, thumbFileName));
-              }
-            } catch(e) {}
-            
-          } catch (thumbErr) {
-            console.error('❌ Thumbnail generation failed:', thumbErr.message);
-            // Still try to clean up temp file
-            try {
-              if (fs.existsSync(fileInfo.tempPath)) fs.unlinkSync(fileInfo.tempPath);
-            } catch(e) {}
-          }
-        } else {
-          // For non-video files, just delete the temp file
-          try {
-            if (fs.existsSync(fileInfo.tempPath)) fs.unlinkSync(fileInfo.tempPath);
-          } catch(e) {}
-        }
-      }
-    }, 100);
 
     // Send notifications in background
     if (uploadedMedia.length > 0 && isPublic === 'true') {
@@ -3412,15 +3367,6 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
       }, 200);
     }
 
-    // Clean up any uploaded thumbnails (if they exist)
-    if (thumbnails && thumbnails.length > 0) {
-      for (const thumb of thumbnails) {
-        try {
-          if (fs.existsSync(thumb.path)) fs.unlinkSync(thumb.path);
-        } catch(e) {}
-      }
-    }
-
   } catch (err) {
     console.error("Media upload error:", err);
     if (req.files) {
@@ -3436,13 +3382,11 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
     }
   }
 });
-  
 
-// 2. Get all media (Admin panel)
+// 2. Get all media (Admin panel) - NO CHANGE NEEDED
 app.get("/api/admin/media", authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    // Allow admin, secretary, OR media_moderator
     if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
       return res.status(403).json({ error: "Not authorized" });
     }
@@ -3480,14 +3424,13 @@ app.get("/api/admin/media", authenticate, async (req, res) => {
   }
 });
 
-// 3. Update media metadata
+// 3. Update media metadata - NO CHANGE NEEDED
 app.put("/api/admin/media/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, category, tags, isPublic, isFeatured } = req.body;
     
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    // Allow admin, secretary, OR media_moderator
     if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
       return res.status(403).json({ error: "Not authorized" });
     }
@@ -3511,13 +3454,12 @@ app.put("/api/admin/media/:id", authenticate, async (req, res) => {
   }
 });
 
-// 4. Delete media
+// 4. Delete media - Cloudinary Version
 app.delete("/api/admin/media/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    // Allow admin, secretary, OR media_moderator
     if (user.role !== "admin" && user.specialRole !== "secretary" && user.specialRole !== "media_moderator") {
       return res.status(403).json({ error: "Not authorized" });
     }
@@ -3525,23 +3467,18 @@ app.delete("/api/admin/media/:id", authenticate, async (req, res) => {
     const media = await prisma.media.findUnique({ where: { id } });
     if (!media) return res.status(404).json({ error: "Media not found" });
     
-    // Delete from Supabase - main file
-    const filePath = `media/${media.filename}`;
-    await supabase.storage.from("media").remove([filePath]);
-    
-    // Delete thumbnail if it exists
-    if (media.thumbnailUrl) {
-      try {
-        const thumbFileName = `thumb_${media.filename.replace(path.extname(media.filename), '.jpg')}`;
-        const thumbPath = `media/thumbnails/${thumbFileName}`;
-        await supabase.storage.from("media").remove([thumbPath]);
-        console.log('✅ Thumbnail deleted for:', media.filename);
-      } catch(e) {
-        console.error('Error deleting thumbnail:', e);
-      }
+    // Delete from Cloudinary
+    try {
+      const publicId = media.filename;
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: media.type === 'video' ? 'video' : 'image'
+      });
+      console.log('✅ Deleted from Cloudinary:', publicId);
+    } catch (cloudErr) {
+      console.error("Cloudinary delete error:", cloudErr);
     }
     
-    // Delete from database (cascade deletes all related records)
+    // Delete from database
     await prisma.media.delete({ where: { id } });
     
     res.json({ success: true, message: "Media deleted" });

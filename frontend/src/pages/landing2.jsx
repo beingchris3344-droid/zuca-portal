@@ -100,7 +100,8 @@ const [showVideoModal, setShowVideoModal] = useState(false);
 
 const [historyEntries, setHistoryEntries] = useState([]);
 const [loadingHistory, setLoadingHistory] = useState(true);
-
+ const [showSplash, setShowSplash] = useState(true);
+  const [splashProgress, setSplashProgress] = useState(0);
   // Slideshow images array
   const slides = [
     { id: 2, image: slide2, title: "Community Prayer", description: "Join us in worship" },
@@ -556,6 +557,30 @@ useEffect(() => {
   fetchHymns(1, '');
 }, []);
 
+
+useEffect(() => {
+  // Animate progress
+  const progressInterval = setInterval(() => {
+    setSplashProgress(prev => {
+      if (prev >= 100) {
+        clearInterval(progressInterval);
+        return 100;
+      }
+      return prev + Math.random() * 3 + 1;
+    });
+  }, 50);
+
+  // Auto-hide after progress reaches 100
+  const timer = setTimeout(() => {
+    setShowSplash(false);
+  }, 3500);
+
+  return () => {
+    clearInterval(progressInterval);
+    clearTimeout(timer);
+  };
+}, []);
+
   // Auto-play slideshow
   useEffect(() => {
     if (isPlaying) {
@@ -728,8 +753,359 @@ const formatEventDate = (dateString) => {
     }
   };
 
+
+  
+if (showSplash) {
+  // Get current slide image
+  const currentSlideImage = slides[currentSlide % slides.length]?.image || slide2;
+  
+  return (
+    <div className="splash-premium">
+      {/* Background Slideshow Image */}
+      <div className="splash-bg-slideshow" style={{ backgroundImage: `url(${currentSlideImage})` }}>
+        <div className="splash-bg-overlay"></div>
+      </div>
+
+      <div className="splash-premium-content">
+        {/* Animated Rings */}
+        <div className="splash-ring-container">
+          <img src={logo} alt="ZUCA Logo" className="splash-premium-logo" />
+          <div className="splash-ring ring-1"></div>
+          <div className="splash-ring ring-2"></div>
+          <div className="splash-ring ring-3"></div>
+        </div>
+
+        {/* Title with Algerian Font */}
+        <h1 className="splash-premium-title">(Z.U.C.A)</h1>
+        <p className="splash-premium-sub">Zetech University Catholic Action</p>
+
+        {/* Tagline */}
+        <div className="splash-tagline">
+          <span className="tagline-text">✝ Welcome Back</span>
+          <span className="tagline-dot">●</span>
+          <span className="tagline-text">🎵 Unity in voices</span>
+          <span className="tagline-dot">●</span>
+          <span className="tagline-text">❤ Service</span>
+        </div>
+
+        {/* Premium Progress */}
+        <div className="splash-premium-progress">
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${Math.min(splashProgress, 100)}%` }}></div>
+          </div>
+          <span className="progress-percent">{Math.min(Math.round(splashProgress), 100)}%</span>
+        </div>
+
+        {/* Status */}
+        <div className="splash-status">
+          <span className="status-dot"></span>
+          <span className="status-text">Preparering the portal...</span>
+        </div>
+      </div>
+
+      {/* Version */}
+      <div className="splash-version">v2.0</div>
+
+      <style>{`
+        /* PREMIUM SPLASH SCREEN - ALGERIAN FONT */
+        @import url('https://fonts.googleapis.com/css2?family=Algerian&display=swap');
+        
+        /* Fallback if Google Fonts doesn't load */
+        @font-face {
+          font-family: 'Algerian';
+          src: local('Algerian'), local('Algerian Regular');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        .splash-premium {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          overflow: hidden;
+        }
+
+        .splash-bg-slideshow {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+
+        .splash-bg-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(10, 22, 40, 0.88) 0%, rgba(26, 42, 74, 0.8) 40%, rgba(13, 31, 60, 0.88) 70%, rgba(10, 22, 40, 0.92) 100%);
+        }
+
+        .splash-premium-content {
+          position: relative;
+          text-align: center;
+          padding: 40px;
+          z-index: 2;
+        }
+
+        .splash-ring-container {
+          position: relative;
+          width: 160px;
+          height: 160px;
+          margin: 0 auto 25px;
+        }
+
+        .splash-premium-logo {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: contain;
+          position: relative;
+          z-index: 2;
+          background: rgba(255, 255, 255, 0.05);
+          padding: 10px;
+          border: 3px solid rgba(0, 198, 255, 0.3);
+        }
+
+        .splash-ring {
+          position: absolute;
+          border-radius: 50%;
+          border: 3px solid transparent;
+          animation: ringSpin 2s linear infinite;
+        }
+
+        .ring-1 {
+          top: -12px;
+          left: -12px;
+          right: -12px;
+          bottom: -12px;
+          border-top-color: #00c6ff;
+          border-right-color: transparent;
+          animation-duration: 1.5s;
+        }
+
+        .ring-2 {
+          top: -24px;
+          left: -24px;
+          right: -24px;
+          bottom: -24px;
+          border-bottom-color: #007bff;
+          border-left-color: transparent;
+          animation-duration: 2.5s;
+          animation-direction: reverse;
+        }
+
+        .ring-3 {
+          top: -36px;
+          left: -36px;
+          right: -36px;
+          bottom: -36px;
+          border-top-color: rgba(0, 198, 255, 0.5);
+          border-bottom-color: rgba(0, 123, 255, 0.5);
+          animation-duration: 3s;
+        }
+
+        @keyframes ringSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        /* ALGERIAN FONT TITLE */
+        .splash-premium-title {
+          font-family: 'Algerian', 'Times New Roman', serif;
+          font-size: 64px;
+          font-weight: 900;
+          color: #ffffff;
+          margin-bottom: 5px;
+          letter-spacing: 8px;
+          text-shadow: 0 0 30px rgba(0, 198, 255, 0.2);
+        }
+
+        .splash-premium-sub {
+          color: #94a3b8;
+          font-size: 14px;
+          letter-spacing: 4px;
+          font-weight: 300;
+          margin-bottom: 25px;
+        }
+
+        .splash-tagline {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          margin-bottom: 35px;
+          flex-wrap: wrap;
+        }
+
+        .tagline-text {
+          color: #cbd5e1;
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: 1px;
+          animation: taglineFade 2s ease-in-out infinite;
+        }
+
+        .tagline-text:nth-child(1) { animation-delay: 0s; }
+        .tagline-text:nth-child(3) { animation-delay: 0.7s; }
+        .tagline-text:nth-child(5) { animation-delay: 1.4s; }
+
+        @keyframes taglineFade {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.9; }
+        }
+
+        .tagline-dot {
+          color: #00c6ff;
+          font-size: 6px;
+        }
+
+        .splash-premium-progress {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          max-width: 300px;
+          margin: 0 auto 20px;
+        }
+
+        .progress-track {
+          flex: 1;
+          height: 4px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #007bff, #00c6ff);
+          border-radius: 4px;
+          position: relative;
+          transition: width 0.3s ease;
+        }
+
+        .progress-percent {
+          font-size: 14px;
+          font-weight: 600;
+          color: #00c6ff;
+          min-width: 40px;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .splash-status {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-top: 5px;
+        }
+
+        .status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #00c6ff;
+          animation: statusBlink 1s ease-in-out infinite;
+        }
+
+        @keyframes statusBlink {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.3); }
+        }
+
+        .status-text {
+          font-size: 12px;
+          color: #94a3b8;
+          letter-spacing: 1px;
+          font-weight: 300;
+        }
+
+        .splash-version {
+          position: absolute;
+          bottom: 25px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.15);
+          letter-spacing: 2px;
+          font-weight: 300;
+          z-index: 3;
+        }
+
+        @media (max-width: 480px) {
+          .splash-ring-container {
+            width: 120px;
+            height: 120px;
+          }
+          
+          .splash-premium-title {
+            font-size: 42px;
+            letter-spacing: 4px;
+          }
+          
+          .splash-premium-sub {
+            font-size: 11px;
+            letter-spacing: 3px;
+          }
+          
+          .splash-tagline {
+            gap: 10px;
+          }
+          
+          .tagline-text {
+            font-size: 12px;
+          }
+          
+          .splash-premium-progress {
+            max-width: 220px;
+          }
+          
+          .splash-ring {
+            border-width: 2px;
+          }
+          
+          .ring-1 {
+            top: -8px;
+            left: -8px;
+            right: -8px;
+            bottom: -8px;
+          }
+          
+          .ring-2 {
+            top: -16px;
+            left: -16px;
+            right: -16px;
+            bottom: -16px;
+          }
+          
+          .ring-3 {
+            top: -24px;
+            left: -24px;
+            right: -24px;
+            bottom: -24px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
   return (
     <div className="landing-wrapper">
+
+      
+      
       {/* Top Bar - Hidden on mobile */}
       <div className="top-bar">
         <div className="top-bar-content">

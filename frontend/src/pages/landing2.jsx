@@ -1233,16 +1233,6 @@ if (showSplash) {
   Welcome to the Zetech University Catholic Action official website.
   <br /><br />
   Zetech Catholic Action is a vibrant student community committed to evangelism, faith, and fellowship through the power of music and service. Our mission is to spread hope, love, and faith within our campus and beyond.
-  <br /><br />
-  • Stay updated with clubs latest announcements
-  <br />
-  • Access mass schedules and programs
-  <br />
-  • View hymns, prayers, and daily readings
-  <br />
-  • Connect and engage with the ZUCA club members
-  <br />
-  • Relive memories through our gallery
   
 </p>
             <div className="welcome-buttons">

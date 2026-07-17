@@ -999,70 +999,7 @@ const fetchFeaturedGallery = async () => {
 )}
 
 
-            {/* MY JUMUIA - DASHBOARD CARD */}
-{jumuiaInfo && (
-  <div className="section-card jumuia-dashboard-card">
-    <div className="section-header">
-      <div className="header-icon-small">
-        <span><FaPrayingHands size={28} color="#1a1818" /></span>
-      </div>
-      <h3>My Jumuia</h3>
-      <div className="jumuia-status-badge-small">
-        <span className="status-dot"></span>
-        Active
-      </div>
-    </div>
-
-    <div className="jumuia-dashboard-content">
-      <div className="jumuia-name-dashboard">
-        {jumuiaInfo.name}
-      </div>
-      
-      <div className="jumuia-quick-info">
-        <div className="quick-info-item">
-          <span className="info-emoji"><FaUserTie/></span>
-          <div className="info-text">
-            <span className="info-label">Leader</span>
-            <span className="info-value">{jumuiaInfo.leaderName?.split(' ')[0] || "TBA"}</span>
-          </div>
-        </div>
-        
-        <div className="quick-info-item">
-          <span className="info-emoji"><FaUsers/></span>
-          <div className="info-text">
-            <span className="info-label">Members</span>
-            <span className="info-value">{jumuiaInfo.memberCount || 0}</span>
-          </div>
-        </div>
-        
-        {jumuiaInfo.nextMeeting && (
-          <div className="quick-info-item meeting-highlight">
-            <span className="info-emoji"><FaCalendar /></span>
-            <div className="info-text">
-              <span className="info-label">Next Meeting</span>
-              <span className="info-value meeting-date">
-                {new Date(jumuiaInfo.nextMeeting).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <button 
- 
-  className="jumuia-chat-btn-dashboard"
-  onClick={() => navigate("/jumuia-contributions")}
->
-  💰 View Jumuia Contributions →
-</button>
-    </div>
-  </div>
-)}
-
-          {/* UPCOMING SCHEDULED EVENTS - PREMIUM DESIGN */}
+   {/* UPCOMING SCHEDULED EVENTS - PREMIUM DESIGN */}
 <div className="section-card schedules-section">
   <div className="section-header">
     <div className="header-with-icon">
@@ -1160,6 +1097,7 @@ const fetchFeaturedGallery = async () => {
               </button>
             </div>
           </div>
+          
 
           {/* Status indicator */}
           <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
@@ -1176,6 +1114,133 @@ const fetchFeaturedGallery = async () => {
   </button>
 </div>
 
+
+
+
+ {/* Online Members Section */}
+    <div className="online-section-premium">
+      <div className="online-header-premium">
+        <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
+        <span className="online-count">{onlineMembers.length}</span>
+      </div>
+      
+      {onlineMembers.length === 0 ? (
+        <div className="empty-online-state">
+          <span className="empty-online-icon"><FaUser /></span>
+          <p>No one is online right now</p>
+          <span className="empty-online-sub">Check back later</span>
+        </div>
+      ) : (
+        <>
+          <div className="online-members-grid">
+            {onlineMembers.slice(0, 6).map((member, index) => (
+              <motion.div
+                key={member.id}
+                className="online-member-premium"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -3 }}
+              >
+                <div className="online-member-avatar">
+                  {member.profileImage ? (
+                    <img src={member.profileImage} alt={member.fullName} />
+                  ) : (
+                    <span>{member.fullName?.charAt(0).toUpperCase()}</span>
+                  )}
+                  <div className="online-status-dot"></div>
+                </div>
+                <div className="online-member-name">
+                  {member.fullName?.split(' ')[0] || 'Member'}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          {onlineMembers.length > 6 && (
+            <div className="online-more-indicator">
+              +{onlineMembers.length - 6} more online
+            </div>
+          )}
+        </>
+      )}
+      
+      <button 
+        className="online-action-btn"
+        onClick={() => navigate("/chat")}
+      >
+        <span>💬 Join Chat</span>
+        <FiArrowRight className="button-icon" />
+      </button>
+    </div>
+    <div>
+      <div></div>
+
+
+
+            {/* MY JUMUIA - DASHBOARD CARD */}
+{jumuiaInfo && (
+  <div className="section-card jumuia-dashboard-card">
+    <div className="section-header">
+      <div className="header-icon-small">
+        <span><FaPrayingHands size={28} color="#1a1818" /></span>
+      </div>
+      <h3>My Jumuia</h3>
+      <div className="jumuia-status-badge-small">
+        <span className="status-dot"></span>
+        Active
+      </div>
+    </div>
+
+    <div className="jumuia-dashboard-content">
+      <div className="jumuia-name-dashboard">
+        {jumuiaInfo.name}
+      </div>
+      
+      <div className="jumuia-quick-info">
+        <div className="quick-info-item">
+          <span className="info-emoji"><FaUserTie/></span>
+          <div className="info-text">
+            <span className="info-label">Leader</span>
+            <span className="info-value">{jumuiaInfo.leaderName?.split(' ')[0] || "TBA"}</span>
+          </div>
+        </div>
+        
+        <div className="quick-info-item">
+          <span className="info-emoji"><FaUsers/></span>
+          <div className="info-text">
+            <span className="info-label">Members</span>
+            <span className="info-value">{jumuiaInfo.memberCount || 0}</span>
+          </div>
+        </div>
+        
+        {jumuiaInfo.nextMeeting && (
+          <div className="quick-info-item meeting-highlight">
+            <span className="info-emoji"><FaCalendar /></span>
+            <div className="info-text">
+              <span className="info-label">Next Meeting</span>
+              <span className="info-value meeting-date">
+                {new Date(jumuiaInfo.nextMeeting).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button 
+ 
+  className="jumuia-chat-btn-dashboard"
+  onClick={() => navigate("/jumuia-contributions")}
+>
+  View Jumuia Contributions →
+</button>
+    </div>
+  </div>
+)}
+
+       
 
 {/* FINANCIAL STATS ROW - PREMIUM DESIGN */}
 <div className="financial-stats-grid">
@@ -1580,7 +1645,7 @@ const fetchFeaturedGallery = async () => {
       
       {gameInvites.length === 0 ? (
         <div className="empty-games-state">
-          <span className="empty-games-icon">🎯</span>
+          <span className="empty-games-icon"><FaGamepad /></span>
           <p>No active game invites</p>
           <span className="empty-games-sub">Start a game or challenge a friend!</span>
         </div>
@@ -1631,60 +1696,7 @@ const fetchFeaturedGallery = async () => {
       </button>
     </div>
 
-    {/* Online Members Section */}
-    <div className="online-section-premium">
-      <div className="online-header-premium">
-        <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
-        <span className="online-count">{onlineMembers.length}</span>
-      </div>
-      
-      {onlineMembers.length === 0 ? (
-        <div className="empty-online-state">
-          <span className="empty-online-icon">🌙</span>
-          <p>No one is online right now</p>
-          <span className="empty-online-sub">Check back later</span>
-        </div>
-      ) : (
-        <>
-          <div className="online-members-grid">
-            {onlineMembers.slice(0, 6).map((member, index) => (
-              <motion.div
-                key={member.id}
-                className="online-member-premium"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ y: -3 }}
-              >
-                <div className="online-member-avatar">
-                  {member.profileImage ? (
-                    <img src={member.profileImage} alt={member.fullName} />
-                  ) : (
-                    <span>{member.fullName?.charAt(0).toUpperCase()}</span>
-                  )}
-                  <div className="online-status-dot"></div>
-                </div>
-                <div className="online-member-name">
-                  {member.fullName?.split(' ')[0] || 'Member'}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          {onlineMembers.length > 6 && (
-            <div className="online-more-indicator">
-              +{onlineMembers.length - 6} more online
-            </div>
-          )}
-        </>
-      )}
-      
-      <button 
-        className="online-action-btn"
-        onClick={() => navigate("/chat")}
-      >
-        <span>💬 Join Chat</span>
-        <FiArrowRight className="button-icon" />
-      </button>
+   
     </div>
   </div>
 </div>
@@ -1710,7 +1722,7 @@ const fetchFeaturedGallery = async () => {
     >
       <div className="stat-premium-icon users-icon"><FaUsers /></div>
       <div className="stat-premium-content">
-        <div className="stat-premium-value">{totalUsers || 0}</div>
+        <div className="stat-premium-value">Z#{totalUsers || 0}</div>
         <div className="stat-premium-label">Total Users</div>
       </div>
       <div className="stat-premium-trend">↑</div>
@@ -1721,19 +1733,8 @@ const fetchFeaturedGallery = async () => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon messages-icon"><FaComments /></div>
-      <div className="stat-premium-content">
-        <div className="stat-premium-value">{totalMessages || 0}</div>
-        <div className="stat-premium-label">Messages</div>
-      </div>
-      <div className="stat-premium-trend">↑</div>
-    </motion.div>
-
-    <motion.div 
-      className="quick-stat-premium"
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
+     
+    
       <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalHymns || 0}</div>
@@ -1755,18 +1756,7 @@ const fetchFeaturedGallery = async () => {
       <div className="stat-premium-trend">↑</div>
     </motion.div>
 
-    <motion.div 
-      className="quick-stat-premium"
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
-      <div className="stat-premium-icon gallery-icon"><FaThLarge /></div>
-      <div className="stat-premium-content">
-        <div className="stat-premium-value">{galleryItems || 0}</div>
-        <div className="stat-premium-label">Gallery Items</div>
-      </div>
-      <div className="stat-premium-trend">↑</div>
-    </motion.div>
+    <motion.div ></motion.div>
   </div>
 </div>
           
@@ -3515,6 +3505,7 @@ const fetchFeaturedGallery = async () => {
   position: relative;
   border-radius: 30px;
   margin-top: 20px;
+  margin-bottom: 30px;
   padding: 0.1rem 1rem;
   overflow: hidden;
 }
@@ -6220,6 +6211,8 @@ const fetchFeaturedGallery = async () => {
 .online-section-premium {
   background: #f8fafc;
   border-radius: 20px;
+  margin-bottom: 1.5rem;
+  margin-top: 2.5rem;
   padding: 1.25rem;
   border: 1px solid #e2e8f0;
   transition: all 0.3s ease;

@@ -5,7 +5,15 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const fs = require('fs');
+const path = require('path');
+
+// ==================== USE MEMORY STORAGE INSTEAD ====================
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
 
 // ==================== FIRE-AND-FORGET NOTIFICATIONS ====================
 
@@ -17,10 +25,8 @@ async function sendBulkNotifications(users, title, message, data = {}) {
   for (let i = 0; i < users.length; i += BATCH_SIZE) {
     const batch = users.slice(i, i + BATCH_SIZE);
     
-    // Fire and forget - no await
     setImmediate(async () => {
       try {
-        // Bulk create notifications
         const notifications = batch.map(user => ({
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           userId: user.id,
@@ -37,7 +43,6 @@ async function sendBulkNotifications(users, title, message, data = {}) {
           skipDuplicates: true
         });
 
-        // Send real-time via Socket.IO (fire and forget)
         const io = global.io;
         if (io) {
           batch.forEach(user => {
@@ -48,7 +53,6 @@ async function sendBulkNotifications(users, title, message, data = {}) {
           });
         }
 
-        // Send push notifications (fire and forget)
         try {
           const subscriptions = await prisma.pushSubscription.findMany({
             where: {
@@ -90,82 +94,14 @@ async function sendBulkNotifications(users, title, message, data = {}) {
                 }),
                 { urgency: 'high', TTL: 86400 }
               );
-            } catch (err) {
-              // Failed push, continue
-            }
+            } catch (err) {}
           }
-        } catch (err) {
-          // Push failed, continue
-        }
+        } catch (err) {}
       } catch (err) {
         console.error('Batch notification error:', err.message);
       }
     });
   }
-}
-
-async function sendSingleNotification(userId, title, message, data = {}) {
-  // Fire and forget
-  setImmediate(async () => {
-    try {
-      const notification = await prisma.notification.create({
-        data: {
-          userId,
-          type: "mass_reading",
-          title,
-          message,
-          read: false,
-          data: data || {}
-        }
-      });
-
-      const io = global.io;
-      if (io) {
-        io.to(userId).emit('new_notification', {
-          ...notification,
-          createdAt: notification.createdAt.toISOString()
-        });
-      }
-
-      try {
-        const subscription = await prisma.pushSubscription.findUnique({
-          where: { userId }
-        });
-
-        if (subscription) {
-          const webpush = require('web-push');
-          webpush.setVapidDetails(
-            'mailto:zucaportal2025@gmail.com',
-            process.env.VAPID_PUBLIC_KEY,
-            process.env.VAPID_PRIVATE_KEY
-          );
-
-          const unreadCount = await prisma.notification.count({
-            where: { userId, read: false }
-          });
-
-          const pushSubscription = JSON.parse(subscription.subscription);
-          await webpush.sendNotification(
-            pushSubscription,
-            JSON.stringify({
-              title,
-              body: message,
-              icon: '/android-chrome-192x192.png',
-              badge: '/favicon.ico',
-              badgeCount: unreadCount + 1,
-              data: { type: "mass_reading", ...data },
-              timestamp: Date.now()
-            }),
-            { urgency: 'high', TTL: 86400 }
-          );
-        }
-      } catch (err) {
-        // Push failed
-      }
-    } catch (err) {
-      console.error('Notification error:', err.message);
-    }
-  });
 }
 
 // ==================== ROUTES ====================
@@ -253,7 +189,6 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Title and date are required" });
     }
 
-    // Create reading (fast)
     const reading = await prisma.massReading.create({
       data: {
         title,
@@ -270,7 +205,6 @@ router.post("/", authenticate, async (req, res) => {
       }
     });
 
-    // Add attachments (fast)
     if (attachments && attachments.length > 0) {
       await prisma.massReadingAttachment.createMany({
         data: attachments.map((att, index) => ({
@@ -286,7 +220,6 @@ router.post("/", authenticate, async (req, res) => {
       });
     }
 
-    // Get complete reading (fast)
     const completeReading = await prisma.massReading.findUnique({
       where: { id: reading.id },
       include: {
@@ -303,23 +236,19 @@ router.post("/", authenticate, async (req, res) => {
       }
     });
 
-    // Get uploader info (fast)
     const uploader = await prisma.user.findUnique({
       where: { id: req.user.userId },
       select: { fullName: true }
     });
 
-    // Send response IMMEDIATELY (no waiting for notifications)
     res.status(201).json({
       success: true,
       message: "Reading created successfully",
       reading: completeReading
     });
 
-    // ============ FIRE AND FORGET - NOTIFICATIONS IN BACKGROUND ============
     setImmediate(async () => {
       try {
-        // Get all users
         const allUsers = await prisma.user.findMany({
           select: { id: true }
         });
@@ -331,10 +260,8 @@ router.post("/", authenticate, async (req, res) => {
         const notifMessage = `${uploaderName} uploaded: ${title}`;
         const notifData = { readingId: reading.id, title, date };
 
-        // Send bulk notifications (batched)
         await sendBulkNotifications(allUsers, notifTitle, notifMessage, notifData);
 
-        // Socket.IO real-time event
         const io = req.app.get("io");
         if (io) {
           io.emit("new_mass_reading", {
@@ -454,7 +381,6 @@ router.delete("/:id", authenticate, async (req, res) => {
       return res.status(403).json({ error: "You can only delete your own readings" });
     }
 
-    // Delete from Cloudinary (fire and forget)
     for (const att of existing.attachments) {
       setImmediate(async () => {
         try {
@@ -479,96 +405,95 @@ router.delete("/:id", authenticate, async (req, res) => {
   }
 });
 
+// ==================== FIXED UPLOAD ROUTE ====================
 router.post("/upload", authenticate, upload.array('files'), async (req, res) => {
   try {
     const files = req.files;
+    
+    console.log(`📤 Received ${files?.length || 0} files for upload`);
     
     if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
     const uploadedFiles = [];
-    const uploadPromises = [];
 
     for (const file of files) {
-      uploadPromises.push(
-        new Promise(async (resolve) => {
-          try {
-            const isImage = file.mimetype.startsWith('image/');
-            const isVideo = file.mimetype.startsWith('video/');
-            const isPDF = file.mimetype === 'application/pdf';
-            const isWord = file.mimetype === 'application/msword' || 
-                           file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-            const isPowerPoint = file.mimetype === 'application/vnd.ms-powerpoint' || 
-                                 file.mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      try {
+        console.log(`📄 Processing: ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
+        
+        // Determine file type
+        const isImage = file.mimetype.startsWith('image/');
+        const isVideo = file.mimetype.startsWith('video/');
+        const isPDF = file.mimetype === 'application/pdf';
+        const isWord = file.mimetype === 'application/msword' || 
+                       file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        const isPowerPoint = file.mimetype === 'application/vnd.ms-powerpoint' || 
+                             file.mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
-            let options = {
-              folder: 'mass-readings',
-              resource_type: 'auto'
-            };
+        let options = {
+          folder: 'mass-readings',
+          resource_type: 'auto'
+        };
 
-            if (isVideo) options.resource_type = 'video';
-            else if (isPDF || isWord || isPowerPoint) options.resource_type = 'raw';
-            else if (isImage) options.resource_type = 'image';
+        if (isVideo) options.resource_type = 'video';
+        else if (isPDF || isWord || isPowerPoint) options.resource_type = 'raw';
+        else if (isImage) options.resource_type = 'image';
 
-            const result = await cloudinary.uploader.upload(file.path, options);
-            
-            let fileType = 'image';
-            if (isVideo) fileType = 'video';
-            else if (isPDF) fileType = 'pdf';
-            else if (isWord) fileType = 'word';
-            else if (isPowerPoint) fileType = 'powerpoint';
-            else fileType = 'image';
+        // Upload file buffer to Cloudinary
+        const result = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            options,
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          
+          // Write the buffer to the stream
+          uploadStream.end(file.buffer);
+        });
 
-            resolve({
-              fileName: file.originalname,
-              fileUrl: result.secure_url,
-              publicId: result.public_id,
-              fileType: fileType,
-              mimeType: file.mimetype,
-              fileSize: file.size
-            });
-          } catch (err) {
-            console.error("Error uploading file:", file.originalname, err.message);
-            resolve(null);
-          }
-        })
-      );
-    }
+        console.log(`✅ Uploaded: ${file.originalname} -> ${result.secure_url}`);
+        
+        let fileType = 'image';
+        if (isVideo) fileType = 'video';
+        else if (isPDF) fileType = 'pdf';
+        else if (isWord) fileType = 'word';
+        else if (isPowerPoint) fileType = 'powerpoint';
+        else fileType = 'image';
 
-    // Wait for all uploads to complete
-    const results = await Promise.all(uploadPromises);
-    
-    // Filter out failed uploads
-    for (const result of results) {
-      if (result) uploadedFiles.push(result);
+        uploadedFiles.push({
+          fileName: file.originalname,
+          fileUrl: result.secure_url,
+          publicId: result.public_id,
+          fileType: fileType,
+          mimeType: file.mimetype,
+          fileSize: file.size
+        });
+        
+      } catch (err) {
+        console.error(`❌ Error uploading file ${file.originalname}:`, err.message);
+        // Continue with other files
+      }
     }
 
     if (uploadedFiles.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        error: "No files could be uploaded. Please check file formats." 
+        error: "No files could be uploaded. Please check file formats and try again." 
       });
     }
 
+    console.log(`✅ Successfully uploaded ${uploadedFiles.length} files`);
+    
     res.json({
       success: true,
       files: uploadedFiles
     });
 
-    // Clean up temp files (fire and forget)
-    setImmediate(() => {
-      for (const file of files) {
-        try {
-          require('fs').unlinkSync(file.path);
-        } catch (err) {
-          // Ignore
-        }
-      }
-    });
-
   } catch (err) {
-    console.error("Error in upload:", err);
+    console.error("❌ Error in upload route:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

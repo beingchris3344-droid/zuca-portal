@@ -774,6 +774,11 @@ const youtubeWebhookRoutes = require('./routes/youtubeWebhook');
 app.use('/api', youtubeWebhookRoutes);
 
 
+// ================== MASS READINGS ROUTES ==================
+const massReadingsRoutes = require("./routes/massReadings");
+app.use("/api/mass-readings", massReadingsRoutes);
+
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)
@@ -3317,7 +3322,7 @@ for (const file of files) {
           { quality: 'auto:good' },
           { fetch_format: 'auto' }
         ]
-      });
+      })
     }
 
         // Auto-generate thumbnail for videos

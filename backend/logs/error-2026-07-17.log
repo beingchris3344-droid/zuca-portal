@@ -1,0 +1,1 @@
+{"id":"1784268696791-lfmku","timestamp":"2026-07-17T06:11:36.791Z","error":"HTTP 401","context":{"userId":null,"path":"/api/auth/login","method":"POST","ip":"127.0.0.1","statusCode":401,"userAgent":"axios/1.16.1"},"resolved":false}

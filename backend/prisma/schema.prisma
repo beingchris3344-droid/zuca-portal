@@ -59,6 +59,9 @@ model User {
   // Relations
   pledgeMessages PledgeMessage[]
 
+// Relations for Mass  readings
+   massReadings MassReading[]
+
   // NEW: Relations for created content
   announcementsCreated Announcement[] @relation("UserAnnouncements")
   massProgramsCreated  MassProgram[]  @relation("UserMassPrograms")
@@ -1803,4 +1806,40 @@ model EmailWebhookLog {
   @@index([email])
   @@index([createdAt])
   @@map("email_webhook_logs")
+}
+
+model MassReading {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime
+  dateLabel   String    @map("date_label")
+  isPublished Boolean   @default(true) @map("is_published")
+  uploadedBy  String    @map("uploaded_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  attachments MassReadingAttachment[]
+  user        User      @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  
+  @@map("mass_readings")
+  @@index([date])
+  @@index([uploadedBy])
+  @@index([isPublished])
+}
+
+model MassReadingAttachment {
+  id              String   @id @default(uuid())
+  readingId       String   @map("reading_id")
+  fileName        String   @map("file_name")
+  fileUrl         String   @map("file_url")
+  publicId        String   @map("public_id")
+  fileType        String   @map("file_type")
+  mimeType        String?  @map("mime_type")
+  fileSize        Int?     @map("file_size")
+  displayOrder    Int      @default(0) @map("display_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  reading         MassReading @relation(fields: [readingId], references: [id], onDelete: Cascade)
+  
+  @@map("mass_reading_attachments")
+  @@index([readingId])
 }

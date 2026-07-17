@@ -11,7 +11,7 @@ import ProfileSettings from '../components/ProfileSettings';
 import { 
   FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
-  FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome,
+  FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
   FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
 import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt } from "react-icons/fa";
@@ -57,6 +57,8 @@ function Dashboard() {
   const [showCropper, setShowCropper] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  // New state for latest readings
+const [latestReadings, setLatestReadings] = useState([]);
 
 
   //attendance states
@@ -208,6 +210,20 @@ const handleSelfCheckin = async (sheetId) => {
       console.error("Error fetching mass programs:", error);
     }
   };
+
+
+  // Fetch latest mass readings for dashboard
+const fetchLatestReadings = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`${BASE_URL}/api/mass-readings?limit=3`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setLatestReadings(res.data.readings || []);
+  } catch (error) {
+    console.error("Error fetching mass readings:", error);
+  }
+};
 
   // Fetch my pledges
   const fetchMyPledges = async () => {
@@ -556,7 +572,7 @@ const fetchFeaturedGallery = async () => {
             fetchAnnouncements(),
             fetchMassPrograms(),
             fetchMyPledges(),
-            fetchPublicStats(),  // ← Uses public endpoint instead
+            fetchPublicStats(),  
             fetchJumuiaInfo(),
             fetchFeaturedGallery(),
             fetchRecentHymns(),
@@ -566,8 +582,9 @@ const fetchFeaturedGallery = async () => {
             fetchExecutiveTeam(),
             fetchUpcomingSchedules(),
             fetchTodaysReading(),
-            fetchActiveSheets()
-            // No fetchSystemStats() for regular users
+            fetchActiveSheets(),
+            fetchLatestReadings()
+           
           ]);
         }
         
@@ -1111,6 +1128,67 @@ const fetchFeaturedGallery = async () => {
   <button className="view-all-schedules" onClick={() => navigate("/schedules")}>
     <span>Browse All Events</span>
     <FiArrowRight className="button-arrow-icon" />
+  </button>
+</div>
+
+
+
+{/* MASS READINGS - DASHBOARD CARD */}
+<div className="section-card readings-dashboard-card">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-reading"><FaBook color="#000000" /></div>
+      <div>
+        <h3>MASS READINGS</h3>
+        <p className="header-subtitle">Daily Word of God</p>
+      </div>
+    </div>
+    <button className="view-all-readings-btn" onClick={() => navigate("/mass-readings")}>
+      View All →
+    </button>
+  </div>
+
+  <div className="readings-dashboard-list">
+    {latestReadings.length === 0 ? (
+      <div className="empty-state-reading">
+        <span><FaBook /></span>
+        <p>No readings available</p>
+        <span className="empty-sub">Check back later for daily readings</span>
+      </div>
+    ) : (
+      latestReadings.map((reading) => (
+        <motion.div
+          key={reading.id}
+          className="reading-dash-item"
+          onClick={() => navigate(`/mass-readings/${reading.id}`)}
+          whileHover={{ x: 5 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="reading-dash-date">
+            <span className="dash-date-day">{new Date(reading.date).getDate()}</span>
+            <span className="dash-date-month">{new Date(reading.date).toLocaleString('default', { month: 'short' })}</span>
+          </div>
+          <div className="reading-dash-content">
+            <h4>{reading.title}</h4>
+            <p>{reading.description || 'Mass Readings'}</p>
+            <div className="reading-dash-meta">
+              <span className="reading-dash-files">
+                {reading.attachments?.length || 0} files
+              </span>
+              <span className="reading-dash-date-text">
+                {new Date(reading.date).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+          <div className="reading-dash-arrow">→</div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="upload-reading-btn" onClick={() => navigate("/mass-readings/upload")}>
+    <FiUpload size={16} />
+    Upload New Reading
   </button>
 </div>
 
@@ -7693,6 +7771,217 @@ const fetchFeaturedGallery = async () => {
 }
 
 
+  /* ============================================
+   MASS READINGS DASHBOARD CARD
+   ============================================ */
+
+.readings-dashboard-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 30px;
+  border-left: 4px solid #8b5cf6;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.readings-dashboard-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.header-icon-reading {
+  font-size: 2rem;
+  background: #f5f3ff;
+  padding: 0.6rem;
+  border-radius: 16px;
+  color: #8b5cf6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.view-all-readings-btn {
+  background: transparent;
+  border: none;
+  color: #8b5cf6;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.view-all-readings-btn:hover {
+  background: #f5f3ff;
+}
+
+.readings-dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0 1rem 0;
+}
+
+.reading-dash-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #f1f5f9;
+}
+
+.reading-dash-item:hover {
+  background: #f5f3ff;
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+}
+
+.reading-dash-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+
+.dash-date-day {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.dash-date-month {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.reading-dash-content {
+  flex: 1;
+}
+
+.reading-dash-content h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 2px 0;
+}
+
+.reading-dash-content p {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin: 0 0 4px 0;
+}
+
+.reading-dash-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.6rem;
+  color: #94a3b8;
+}
+
+.reading-dash-files {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reading-dash-arrow {
+  color: #94a3b8;
+  transition: all 0.3s ease;
+}
+
+.reading-dash-item:hover .reading-dash-arrow {
+  color: #8b5cf6;
+  transform: translateX(4px);
+}
+
+.empty-state-reading {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px dashed #e2e8f0;
+}
+
+.empty-state-reading span {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state-reading p {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0;
+}
+
+.empty-state-reading .empty-sub {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.upload-reading-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: #f5f3ff;
+  border: 1px dashed #8b5cf6;
+  border-radius: 12px;
+  color: #8b5cf6;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-reading-btn:hover {
+  background: #8b5cf6;
+  color: white;
+  border-color: #8b5cf6;
+}
+
+@media (max-width: 640px) {
+  .readings-dashboard-card {
+    padding: 1rem;
+  }
+  
+  .reading-dash-item {
+    padding: 0.6rem 0.75rem;
+  }
+  
+  .reading-dash-date {
+    min-width: 40px;
+  }
+  
+  .dash-date-day {
+    font-size: 1rem;
+  }
+  
+  .reading-dash-content h4 {
+    font-size: 0.8rem;
+  }
+}
+
+
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .settings-icon-btn {
@@ -7704,6 +7993,10 @@ const fetchFeaturedGallery = async () => {
     width: 24px;
     height: 24px;
   }
+
+ 
+
+ 
   
  
 

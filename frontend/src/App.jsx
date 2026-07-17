@@ -57,7 +57,10 @@ import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
 import ScanPage from './pages/ScanPage';
 import BankPayments from "./pages/BankPayments";
 import UpdateNotification from './components/UpdateNotification';
-
+import MassReadingsPage from './pages/MassReadingsPage';
+import MassReadingDetail from './pages/MassReadingDetail';
+import MassReadingUpload from './pages/MassReadingUpload'
+import MassReadingEdit from './pages/MassReadingEdit';
 
 
 
@@ -477,6 +480,12 @@ useEffect(() => {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
+
+{/* MASS READINGS */}
+          <Route path="/mass-readings" element={<MassReadingsPage />} />
+<Route path="/mass-readings/:id" element={<MassReadingDetail />} />
+<Route path="/mass-readings/upload" element={<MassReadingUpload />} />
+<Route path="/mass-readings/edit/:id" element={<MassReadingEdit />} />
       
 
           {/* GAMES */}

@@ -794,7 +794,6 @@ export default function MassReadingDetail() {
   const [showMenu, setShowMenu] = useState(false);
   const [user, setUser] = useState(null);
 
-  // Use useLayoutEffect for immediate style application
   useLayoutEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(storedUser);
@@ -871,6 +870,11 @@ export default function MassReadingDetail() {
   };
 
   const isOwner = user?.id === reading?.uploadedBy || user?.role === 'admin';
+
+  // Handle opening file in new tab
+  const openFileInNewTab = (fileUrl) => {
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  };
 
   if (loading) {
     return (
@@ -978,12 +982,12 @@ export default function MassReadingDetail() {
                   {att.fileType === 'image' ? (
                     <div 
                       className="attachment-image-preview"
-                      onClick={() => setShowFullImage(att)}
+                      onClick={() => openFileInNewTab(att.fileUrl)}
                     >
                       <img src={att.fileUrl} alt={att.fileName} />
                       <div className="image-overlay">
-                        <ZoomIn size={24} />
-                        <span>View</span>
+                        <ExternalLink size={24} />
+                        <span>Open</span>
                       </div>
                     </div>
                   ) : (
@@ -998,25 +1002,13 @@ export default function MassReadingDetail() {
                   <p className="attachment-size">{formatFileSize(att.fileSize)}</p>
                 </div>
                 <div className="attachment-actions">
-                  {att.fileType === 'image' ? (
-                    <button 
-                      className="attachment-btn view"
-                      onClick={() => setShowFullImage(att)}
-                    >
-                      <Eye size={16} />
-                      View
-                    </button>
-                  ) : (
-                    <a 
-                      href={att.fileUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="attachment-btn view"
-                    >
-                      <Eye size={16} />
-                      View
-                    </a>
-                  )}
+                  <button 
+                    className="attachment-btn view"
+                    onClick={() => openFileInNewTab(att.fileUrl)}
+                  >
+                    <ExternalLink size={16} />
+                    Open
+                  </button>
                   <a 
                     href={att.fileUrl} 
                     download={att.fileName}
@@ -1031,21 +1023,6 @@ export default function MassReadingDetail() {
           </div>
         )}
       </div>
-
-      {showFullImage && (
-        <div className="image-modal" onClick={() => setShowFullImage(null)}>
-          <div className="image-modal-content" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowFullImage(null)}>
-              <X size={24} />
-            </button>
-            <img src={showFullImage.fileUrl} alt={showFullImage.fileName} />
-            <div className="image-modal-caption">
-              <h4>{showFullImage.fileName}</h4>
-              <p>{getFileTypeLabel(showFullImage.fileType)}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showDeleteModal && (
         <div className="delete-modal" onClick={() => setShowDeleteModal(false)}>

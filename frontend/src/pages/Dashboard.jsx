@@ -1140,7 +1140,7 @@ const fetchFeaturedGallery = async () => {
       <div className="header-icon-reading"><FaBook color="#000000" /></div>
       <div>
         <h3>MASS READINGS</h3>
-        <p className="header-subtitle">Daily Word of God</p>
+        <p className="header-subtitle">Readings for mass</p>
       </div>
     </div>
     <button className="view-all-readings-btn" onClick={() => navigate("/mass-readings")}>

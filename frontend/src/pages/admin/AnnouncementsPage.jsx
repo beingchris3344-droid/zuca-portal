@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiPlus, FiX, FiEdit2, FiTrash2, FiBell, 
   FiClock, FiCalendar, FiCheck, FiAlertCircle,
-  FiRefreshCw, FiSearch, FiFilter, FiTag, FiLoader
+  FiRefreshCw, FiSearch, FiFilter, FiTag, FiLoader,
+  FiEye, FiUsers
 } from "react-icons/fi";
 import { MdOutlineAnnouncement } from "react-icons/md";
 import { BsMegaphone } from "react-icons/bs";
@@ -35,6 +36,16 @@ export default function AdminAnnouncements() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Viewer Modal State
+  const [viewerModal, setViewerModal] = useState({ 
+    isOpen: false, 
+    announcementId: null, 
+    viewers: [], 
+    total: 0, 
+    stats: {} 
+  });
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -291,6 +302,55 @@ export default function AdminAnnouncements() {
     }
   };
 
+  // Track when a user views an announcement
+  const trackView = async (announcementId) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `${BASE_URL}/api/announcements/${announcementId}/view`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error('Failed to track view:', err);
+    }
+  };
+
+  const handleAnnouncementClick = (announcement) => {
+    trackView(announcement.id);
+  };
+
+  // Open viewer modal
+  const openViewerModal = async (announcementId, e) => {
+    e.stopPropagation();
+    setViewerModal({ ...viewerModal, isOpen: true, announcementId });
+    setViewerLoading(true);
+    
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(
+        `${BASE_URL}/api/announcements/${announcementId}/viewers`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setViewerModal({
+        isOpen: true,
+        announcementId: announcementId,
+        viewers: res.data.viewers || [],
+        total: res.data.total || 0,
+        stats: res.data.stats || {}
+      });
+    } catch (err) {
+      console.error('Failed to fetch viewers:', err);
+      toast.error('Failed to load viewers');
+    } finally {
+      setViewerLoading(false);
+    }
+  };
+
+  const closeViewerModal = () => {
+    setViewerModal({ isOpen: false, announcementId: null, viewers: [], total: 0, stats: {} });
+  };
+
   const getCategoryColor = (category) => {
     switch(category) {
       case 'Mass': return { bg: '#8b5cf6', light: '#f3e8ff' };
@@ -320,6 +380,107 @@ export default function AdminAnnouncements() {
       </div>
     </div>
   );
+
+  // Viewer Modal Component
+  const ViewersModal = () => {
+    if (!viewerModal.isOpen) return null;
+    
+    const announcement = announcements.find(a => a.id === viewerModal.announcementId);
+    
+    return (
+      <div className="viewers-modal-overlay" onClick={closeViewerModal}>
+        <div className="viewers-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="viewers-modal-header">
+            <h3>👁️ Who Viewed This?</h3>
+            <button className="viewers-modal-close" onClick={closeViewerModal}>
+              <FiX />
+            </button>
+          </div>
+          
+          <div className="viewers-modal-announcement">
+            <h4>{announcement?.title || 'Announcement'}</h4>
+            <p className="viewers-modal-total">Total Views: <strong>{viewerModal.total}</strong></p>
+          </div>
+
+          {viewerLoading ? (
+            <div className="viewers-modal-loading">
+              <div className="spinner"></div>
+              <p>Loading viewers...</p>
+            </div>
+          ) : (
+            <>
+              {/* Stats Summary */}
+              {viewerModal.stats && Object.keys(viewerModal.stats.byRole || {}).length > 0 && (
+                <div className="viewers-modal-stats">
+                  <div className="stats-row">
+                    <span className="stats-label">By Role:</span>
+                    {Object.entries(viewerModal.stats.byRole || {}).map(([role, count]) => (
+                      <span key={role} className="stats-badge">
+                        {role}: {count}
+                      </span>
+                    ))}
+                  </div>
+                  {viewerModal.stats.byJumuia && Object.keys(viewerModal.stats.byJumuia || {}).length > 0 && (
+                    <div className="stats-row">
+                      <span className="stats-label">By Jumuia:</span>
+                      {Object.entries(viewerModal.stats.byJumuia || {}).map(([jumuia, count]) => (
+                        <span key={jumuia} className="stats-badge">
+                          {jumuia}: {count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Viewers List */}
+              <div className="viewers-modal-list">
+                {viewerModal.viewers.length === 0 ? (
+                  <p className="no-viewers">No one has viewed this announcement yet.</p>
+                ) : (
+                  viewerModal.viewers.map((viewer, idx) => (
+                    <div key={viewer.id || idx} className="viewer-item">
+                      <div className="viewer-avatar-large">
+                        {viewer.profileImage ? (
+                          <img src={viewer.profileImage} alt={viewer.fullName} />
+                        ) : (
+                          <span className="avatar-placeholder-large">
+                            {viewer.fullName?.charAt(0).toUpperCase() || '?'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="viewer-info">
+                        <div className="viewer-name">{viewer.fullName}</div>
+                        <div className="viewer-details">
+                          <span className="viewer-role">{viewer.specialRole || viewer.role || 'Member'}</span>
+                          {viewer.membership_number && (
+                            <span className="viewer-membership">🆔 {viewer.membership_number}</span>
+                          )}
+                          {viewer.homeJumuia?.name && (
+                            <span className="viewer-jumuia">🏠 {viewer.homeJumuia.name}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="viewer-time">
+                        {formatDate(viewer.viewedAt)}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="viewers-modal-footer">
+                <span>{viewerModal.total} unique viewer{viewerModal.total !== 1 ? 's' : ''}</span>
+                <button className="btn-secondary btn-small" onClick={closeViewerModal}>
+                  Close
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
   <div className="announcements-page">
@@ -394,7 +555,7 @@ export default function AdminAnnouncements() {
     <AdminHistory />
   </div>
 )}
-      {/* ANNOUNCEMENTS TAB CONTENT - shows when "announcements" tab is clicked */}
+      {/* ANNOUNCEMENTS TAB CONTENT */}
       {activeTab === "announcements" && (
         <>
           {/* Stats Cards */}
@@ -573,6 +734,7 @@ export default function AdminAnnouncements() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
+                      onClick={() => handleAnnouncementClick(announcement)}
                     >
                       {editingId === announcement.id ? (
                         <div className="edit-mode">
@@ -632,18 +794,25 @@ export default function AdminAnnouncements() {
                               <span className="card-date">
                                 <FiClock /> {formatDate(announcement.createdAt)}
                               </span>
+                              <span 
+                                className="card-views"
+                                onClick={(e) => openViewerModal(announcement.id, e)}
+                                title="Click to see who viewed this"
+                              >
+                                <FiEye /> {announcement.viewCount || 0}
+                              </span>
                             </div>
                             <div className="card-actions">
                               <button 
                                 className="action-btn edit"
-                                onClick={() => startEdit(announcement)}
+                                onClick={(e) => { e.stopPropagation(); startEdit(announcement); }}
                                 title="Edit"
                               >
                                 <FiEdit2 />
                               </button>
                               <button 
                                 className="action-btn delete"
-                                onClick={() => setDeleteConfirmId(announcement.id)}
+                                onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(announcement.id); }}
                                 title="Delete"
                               >
                                 <FiTrash2 />
@@ -653,6 +822,38 @@ export default function AdminAnnouncements() {
                           
                           <h3 className="card-title">{announcement.title}</h3>
                           <p className="card-content">{announcement.content}</p>
+
+                          {/* Viewer Avatars */}
+                          {announcement.recentViewers && announcement.recentViewers.length > 0 && (
+                            <div className="card-viewers">
+                              <div className="viewer-avatars">
+                                {announcement.recentViewers.slice(0, 5).map((viewer, idx) => (
+                                  <div 
+                                    key={viewer.id || idx} 
+                                    className="viewer-avatar" 
+                                    title={`${viewer.fullName} - ${viewer.role || 'Member'}`}
+                                    style={{ zIndex: 5 - idx }}
+                                  >
+                                    {viewer.profileImage ? (
+                                      <img src={viewer.profileImage} alt={viewer.fullName} />
+                                    ) : (
+                                      <span className="avatar-placeholder">
+                                        {viewer.fullName?.charAt(0).toUpperCase() || '?'}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {announcement.recentViewers.length > 5 && (
+                                  <div 
+                                    className="viewer-more"
+                                    onClick={(e) => openViewerModal(announcement.id, e)}
+                                  >
+                                    +{announcement.recentViewers.length - 5}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           
                           {announcement.updatedAt !== announcement.createdAt && (
                             <span className="edited-badge">
@@ -670,17 +871,17 @@ export default function AdminAnnouncements() {
         </>
       )}
 
-      {/* SCHEDULES TAB CONTENT - shows when "schedules" tab is clicked */}
+      {/* SCHEDULES TAB CONTENT */}
       {activeTab === "schedules" && (
         <AdminSchedules />
       )}
 
-    {/* MINUTES TAB CONTENT */}
-{activeTab === "minutes" && (
-  <div className="minutes-tab-content">
-    <MinutesList userRole="secretary" />
-  </div>
-)}
+      {/* MINUTES TAB CONTENT */}
+      {activeTab === "minutes" && (
+        <div className="minutes-tab-content">
+          <MinutesList userRole="secretary" />
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -690,6 +891,9 @@ export default function AdminAnnouncements() {
           onCancel={() => setDeleteConfirmId(null)}
         />
       )}
+
+      {/* Viewers Modal */}
+      <ViewersModal />
     </div>
 
       <style>{`
@@ -772,39 +976,40 @@ export default function AdminAnnouncements() {
           transition: all 0.2s;
         }
 
-             .tab-navigation {
-        display: grid;
-        gap: 6px;
-        margin-bottom: 24px;
-        border-bottom: 1px solid #e2e8f0;
-        padding-bottom: 0;
-      }
+        .tab-navigation {
+          display: grid;
+          gap: 6px;
+          margin-bottom: 24px;
+          border-bottom: 1px solid #e2e8f0;
+          padding-bottom: 0;
+        }
 
-      .tab-btn {
-        padding: 10px 24px;
-        background: none;
-        border: none;
-        font-size: 15px;
-        font-weight: 500;
-        color: #64748b;
-        cursor: pointer;
-        border-radius: 8px 8px 0 0;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+        .tab-btn {
+          padding: 10px 24px;
+          background: none;
+          border: none;
+          font-size: 15px;
+          font-weight: 500;
+          color: #64748b;
+          cursor: pointer;
+          border-radius: 8px 8px 0 0;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
 
-      .tab-btn:hover {
-        color: #3b82f6;
-        background: #f1f5f9;
-      }
+        .tab-btn:hover {
+          color: #3b82f6;
+          background: #f1f5f9;
+        }
 
-      .tab-btn.active {
-        color: #3b82f6;
-        border-bottom: 2px solid #3b82f6;
-        background: #eff6ff;
-      }
+        .tab-btn.active {
+          color: #3b82f6;
+          border-bottom: 2px solid #3b82f6;
+          background: #eff6ff;
+        }
+
         .refresh-btn:hover:not(:disabled) {
           background: #f8fafc;
           color: #0f172a;
@@ -1137,6 +1342,7 @@ export default function AdminAnnouncements() {
           border-left-width: 4px;
           border-left-style: solid;
           box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+          cursor: pointer;
         }
         .announcement-card:hover {
           transform: translateY(-2px);
@@ -1174,6 +1380,23 @@ export default function AdminAnnouncements() {
           background: #f8fafc;
           padding: 4px 10px;
           border-radius: 20px;
+        }
+
+        .card-views {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: #64748b;
+          background: #f1f5f9;
+          padding: 2px 10px;
+          border-radius: 20px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .card-views:hover {
+          background: #e2e8f0;
+          transform: scale(1.05);
         }
 
         .card-actions {
@@ -1228,6 +1451,81 @@ export default function AdminAnnouncements() {
           white-space: pre-wrap;
         }
 
+        .card-viewers {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .viewer-avatars {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0;
+        }
+
+        .viewer-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #e2e8f0;
+          color: #475569;
+          font-size: 12px;
+          font-weight: 600;
+          margin-right: -8px;
+          border: 2px solid white;
+          overflow: hidden;
+          transition: transform 0.2s;
+          cursor: default;
+        }
+
+        .viewer-avatar:hover {
+          transform: scale(1.1);
+          z-index: 10 !important;
+        }
+
+        .viewer-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .viewer-more {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: #64748b;
+          border: 2px solid white;
+          margin-right: -8px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .viewer-more:hover {
+          background: #e2e8f0;
+        }
+
         .edited-badge {
           font-size: 11px;
           color: #94a3b8;
@@ -1275,30 +1573,30 @@ export default function AdminAnnouncements() {
         }
 
         /* Delete Confirmation Modal */
-       .confirm-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999999;  /* CHANGE FROM 10000 TO 999999 */
-}
+        .confirm-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 999999;
+        }
 
-.confirm-modal {
-  background: white;
-  border-radius: 20px;
-  padding: 24px;
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-  animation: fadeInUp 0.2s ease;
-  z-index: 9990999  /* ADD THIS LINE */
-}
+        .confirm-modal {
+          background: white;
+          border-radius: 20px;
+          padding: 24px;
+          max-width: 400px;
+          width: 90%;
+          text-align: center;
+          animation: fadeInUp 0.2s ease;
+          z-index: 9990999;
+        }
 
         @keyframes fadeInUp {
           from {
@@ -1379,6 +1677,240 @@ export default function AdminAnnouncements() {
           background: #dc2626;
         }
 
+        /* Viewers Modal */
+        .viewers-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 999999;
+        }
+
+        .viewers-modal {
+          background: white;
+          border-radius: 20px;
+          padding: 24px;
+          max-width: 600px;
+          width: 95%;
+          max-height: 80vh;
+          display: flex;
+          flex-direction: column;
+          animation: fadeInUp 0.2s ease;
+          z-index: 9990999;
+        }
+
+        .viewers-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .viewers-modal-header h3 {
+          font-size: 18px;
+          font-weight: 600;
+          color: #0f172a;
+          margin: 0;
+        }
+
+        .viewers-modal-close {
+          width: 32px;
+          height: 32px;
+          border: none;
+          border-radius: 8px;
+          background: #f1f5f9;
+          color: #475569;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .viewers-modal-close:hover {
+          background: #e2e8f0;
+        }
+
+        .viewers-modal-announcement {
+          margin-bottom: 16px;
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 12px;
+        }
+
+        .viewers-modal-announcement h4 {
+          font-size: 14px;
+          font-weight: 600;
+          color: #0f172a;
+          margin: 0 0 4px;
+        }
+
+        .viewers-modal-total {
+          font-size: 13px;
+          color: #64748b;
+          margin: 0;
+        }
+
+        .viewers-modal-total strong {
+          color: #3b82f6;
+          font-size: 16px;
+        }
+
+        .viewers-modal-stats {
+          margin-bottom: 16px;
+          padding: 12px;
+          background: #f1f5f9;
+          border-radius: 12px;
+        }
+
+        .stats-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 4px;
+        }
+
+        .stats-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .stats-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #475569;
+          margin-right: 4px;
+        }
+
+        .stats-badge {
+          font-size: 11px;
+          background: white;
+          padding: 2px 10px;
+          border-radius: 12px;
+          color: #475569;
+        }
+
+        .viewers-modal-list {
+          flex: 1;
+          overflow-y: auto;
+          max-height: 350px;
+          margin-bottom: 16px;
+        }
+
+        .viewer-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          transition: background 0.2s;
+          border-bottom: 1px solid #f1f5f9;
+        }
+
+        .viewer-item:hover {
+          background: #f8fafc;
+        }
+
+        .viewer-avatar-large {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          overflow: hidden;
+          flex-shrink: 0;
+          background: #e2e8f0;
+        }
+
+        .viewer-avatar-large img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .avatar-placeholder-large {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          color: white;
+          font-size: 18px;
+          font-weight: 600;
+        }
+
+        .viewer-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .viewer-name {
+          font-size: 14px;
+          font-weight: 500;
+          color: #0f172a;
+        }
+
+        .viewer-details {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          font-size: 12px;
+          color: #64748b;
+        }
+
+        .viewer-role {
+          background: #eff6ff;
+          color: #3b82f6;
+          padding: 0 8px;
+          border-radius: 4px;
+        }
+
+        .viewer-membership,
+        .viewer-jumuia {
+          color: #64748b;
+        }
+
+        .viewer-time {
+          font-size: 12px;
+          color: #94a3b8;
+          flex-shrink: 0;
+        }
+
+        .viewers-modal-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-top: 12px;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .viewers-modal-footer span {
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .viewers-modal-loading {
+          text-align: center;
+          padding: 40px 20px;
+        }
+
+        .viewers-modal-loading .spinner {
+          width: 32px;
+          height: 32px;
+        }
+
+        .no-viewers {
+          text-align: center;
+          color: #94a3b8;
+          padding: 30px 0;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
           .announcements-page { padding: 16px; }
@@ -1416,6 +1948,22 @@ export default function AdminAnnouncements() {
             width: 100%;
             justify-content: space-between;
           }
+
+          .viewers-modal {
+            max-width: 100%;
+            max-height: 90vh;
+            margin: 10px;
+            padding: 16px;
+          }
+
+          .viewer-item {
+            flex-wrap: wrap;
+          }
+
+          .viewer-time {
+            width: 100%;
+            padding-left: 52px;
+          }
         }
 
         @media (max-width: 480px) {
@@ -1429,19 +1977,36 @@ export default function AdminAnnouncements() {
           }
 
           .minutes-tab-content {
-  margin-top: 20px;
-}
+            margin-top: 20px;
+          }
+
+          .viewer-avatar {
+            width: 28px;
+            height: 28px;
+            font-size: 10px;
+            margin-right: -6px;
+          }
+
+          .viewer-more {
+            width: 28px;
+            height: 28px;
+            font-size: 10px;
+          }
+
+          .card-views {
+            font-size: 11px;
+            padding: 2px 8px;
+          }
         }
 
         .minutes-tab-content {
-  margin-top: 0;
-  padding: 0;
-}
+          margin-top: 0;
+          padding: 0;
+        }
 
-.tab-content {
-  margin-top: 20px;
-}
-          
+        .tab-content {
+          margin-top: 20px;
+        }
       `}</style>
     </div>
   );

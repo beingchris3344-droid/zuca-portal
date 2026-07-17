@@ -6921,20 +6921,197 @@ app.get("/api/events/upcoming", authenticate, async (req, res) => {
 // ================== ANNOUNCEMENTS ==================
 app.get("/api/announcements", async (req, res) => {
   try {
+    const userId = req.user?.userId;
+    
     const announcements = await prisma.announcement.findMany({
       where: { published: true },
       orderBy: { createdAt: "desc" },
+      include: {
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            profileImage: true
+          }
+        },
+        views: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                profileImage: true,
+                membership_number: true,
+                role: true,
+                specialRole: true
+              }
+            }
+          },
+          orderBy: { viewedAt: 'desc' },
+          take: 10
+        }
+      }
     });
     
-    const formattedAnnouncements = announcements.map(a => ({
-      ...a,
-      createdAt: a.createdAt.toISOString()
-    }));
+    const enhanced = announcements.map(announcement => {
+      const viewCount = announcement.views.length;
+      const hasViewed = userId ? announcement.views.some(v => v.userId === userId) : false;
+      
+      const viewers = announcement.views.map(v => ({
+        id: v.user.id,
+        fullName: v.user.fullName,
+        profileImage: v.user.profileImage,
+        role: v.user.specialRole || v.user.role || 'member',
+        viewedAt: v.viewedAt
+      }));
+      
+      const { views, ...rest } = announcement;
+      
+      return {
+        ...rest,
+        viewCount,
+        hasViewed,
+        recentViewers: viewers.slice(0, 5),
+        viewerCount: viewCount
+      };
+    });
     
-    res.json(formattedAnnouncements);
+    res.json(enhanced);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ TRACK ANNOUNCEMENT VIEW ============
+app.post("/api/announcements/:id/view", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    const announcement = await prisma.announcement.findUnique({
+      where: { id }
+    });
+    
+    if (!announcement) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+    
+    await prisma.announcementView.upsert({
+      where: {
+        announcementId_userId: {
+          announcementId: id,
+          userId: userId
+        }
+      },
+      update: {
+        viewedAt: new Date()
+      },
+      create: {
+        announcementId: id,
+        userId: userId,
+        viewedAt: new Date()
+      }
+    });
+    
+    const viewCount = await prisma.announcementView.count({
+      where: { announcementId: id }
+    });
+    
+    res.json({ 
+      success: true, 
+      viewCount
+    });
+  } catch (error) {
+    console.error('Error tracking view:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ GET ALL VIEWERS FOR AN ANNOUNCEMENT ============
+app.get("/api/announcements/:id/viewers", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Check if user is admin or secretary
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { role: true, specialRole: true }
+    });
+    
+    const isAdmin = user.role === 'admin';
+    const isSecretary = user.specialRole === 'secretary';
+    
+    if (!isAdmin && !isSecretary) {
+      return res.status(403).json({ error: 'Not authorized. Admin or Secretary only.' });
+    }
+    
+    // Check if announcement exists
+    const announcement = await prisma.announcement.findUnique({
+      where: { id }
+    });
+    
+    if (!announcement) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+    
+    const views = await prisma.announcementView.findMany({
+      where: { announcementId: id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            profileImage: true,
+            membership_number: true,
+            role: true,
+            specialRole: true,
+            homeJumuia: {
+              select: { name: true }
+            }
+          }
+        }
+      },
+      orderBy: { viewedAt: 'desc' },
+      skip,
+      take: parseInt(limit)
+    });
+    
+    const total = await prisma.announcementView.count({
+      where: { announcementId: id }
+    });
+    
+    // Calculate stats
+    const stats = {
+      total,
+      byRole: {},
+      byJumuia: {}
+    };
+    
+    views.forEach(view => {
+      const role = view.user.specialRole || view.user.role || 'member';
+      stats.byRole[role] = (stats.byRole[role] || 0) + 1;
+      
+      const jumuia = view.user.homeJumuia?.name || 'No Jumuia';
+      stats.byJumuia[jumuia] = (stats.byJumuia[jumuia] || 0) + 1;
+    });
+    
+    res.json({
+      viewers: views.map(v => ({
+        ...v.user,
+        viewedAt: v.viewedAt
+      })),
+      total,
+      stats,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('Error fetching viewers:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 app.post("/api/announcements", authenticate, async (req, res) => {

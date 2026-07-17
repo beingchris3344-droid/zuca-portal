@@ -66,6 +66,9 @@ model User {
   announcementsCreated Announcement[] @relation("UserAnnouncements")
   massProgramsCreated  MassProgram[]  @relation("UserMassPrograms")
 
+// Relations for viewing announcements
+  announcementViews AnnouncementView[]
+
   // Jumuia relations with unique names
   homeJumuia    Jumuia? @relation("UserHomeJumuia", fields: [jumuiaId], references: [id]) // Their home jumuia
   leadingJumuia Jumuia? @relation("UserLeadingJumuia", fields: [assignedJumuiaId], references: [id]) // Jumuia they lead (if leader)
@@ -205,8 +208,31 @@ model Announcement {
   jumuiaId String?
   jumuia   Jumuia? @relation(fields: [jumuiaId], references: [id])
 
+   views     AnnouncementView[]
+  
+
+  
+
   @@index([createdAt])
   @@index([published])
+}
+
+
+model AnnouncementView {
+  id             String   @id @default(uuid())
+  announcementId String
+  userId         String
+  viewedAt       DateTime @default(now())
+  
+  // Relations
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Each user can only view each announcement once
+  @@unique([announcementId, userId])
+  @@index([announcementId])
+  @@index([userId])
+  @@index([viewedAt])
 }
 
 model MassProgram {

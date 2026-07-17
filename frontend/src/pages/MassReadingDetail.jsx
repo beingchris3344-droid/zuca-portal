@@ -791,8 +791,8 @@ export default function MassReadingDetail() {
   const [showFullImage, setShowFullImage] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [user, setUser] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useLayoutEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -820,6 +820,61 @@ export default function MassReadingDetail() {
   const goBack = () => navigate(-1);
   const goHome = () => navigate('/dashboard');
   const goReadings = () => navigate('/mass-readings');
+
+  // ============ DOWNLOAD FUNCTION ============
+  const handleDownload = async (fileUrl, fileName) => {
+    setDownloading(true);
+    try {
+      const response = await fetch(fileUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // ============ OPEN FILE FUNCTION ============
+  const openFileInNewTab = (fileUrl, fileType) => {
+    // For images - open directly in new tab
+    if (fileType === 'image') {
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    
+    // For videos - open directly in new tab
+    if (fileType === 'video') {
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    
+    // For raw files (PDF, Word, PowerPoint) - download instead
+    // Cloudinary raw files don't have previews
+    const att = reading?.attachments?.find(a => a.fileUrl === fileUrl);
+    if (att) {
+      handleDownload(fileUrl, att.fileName);
+    } else {
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   const getFileIcon = (fileType, size = 24) => {
     switch(fileType) {
@@ -870,11 +925,6 @@ export default function MassReadingDetail() {
   };
 
   const isOwner = user?.id === reading?.uploadedBy || user?.role === 'admin';
-
-  // Handle opening file in new tab
-  const openFileInNewTab = (fileUrl) => {
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
-  };
 
   if (loading) {
     return (
@@ -982,12 +1032,12 @@ export default function MassReadingDetail() {
                   {att.fileType === 'image' ? (
                     <div 
                       className="attachment-image-preview"
-                      onClick={() => openFileInNewTab(att.fileUrl)}
+                      onClick={() => openFileInNewTab(att.fileUrl, att.fileType)}
                     >
                       <img src={att.fileUrl} alt={att.fileName} />
                       <div className="image-overlay">
                         <ExternalLink size={24} />
-                        <span>Open</span>
+                        <span>View</span>
                       </div>
                     </div>
                   ) : (
@@ -1002,21 +1052,30 @@ export default function MassReadingDetail() {
                   <p className="attachment-size">{formatFileSize(att.fileSize)}</p>
                 </div>
                 <div className="attachment-actions">
+                  {/* View/Open button - shows View for images, Download for PDFs */}
                   <button 
                     className="attachment-btn view"
-                    onClick={() => openFileInNewTab(att.fileUrl)}
+                    onClick={() => openFileInNewTab(att.fileUrl, att.fileType)}
                   >
                     <ExternalLink size={16} />
-                    Open
+                    {att.fileType === 'image' ? 'View' : 'Download'}
                   </button>
-                  <a 
-                    href={att.fileUrl} 
-                    download={att.fileName}
+                  
+                  {/* Download button - always downloads */}
+                  <button 
                     className="attachment-btn download"
+                    onClick={() => handleDownload(att.fileUrl, att.fileName)}
+                    disabled={downloading}
                   >
-                    <Download size={16} />
-                    Download
-                  </a>
+                    {downloading ? (
+                      <Loader2 size={16} className="spinning" />
+                    ) : (
+                      <>
+                        <Download size={16} />
+                        Download
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}

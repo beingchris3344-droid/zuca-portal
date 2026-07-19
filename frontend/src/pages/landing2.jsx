@@ -11,6 +11,7 @@ import {
   FaMapMarkerAlt,
   FaChurch,
   FaMusic,
+  FaLaptop,
   FaUsers,
   FaHandsHelping,
   FaHeart,
@@ -28,11 +29,7 @@ import {
   FaPause,
   FaImage,
   FaCalendarAlt,
-  FaPlay,
-  FaAppStore,
-  FaAppStoreIos,
-  FaGooglePlay,
-  FaLaptop
+  FaPlay
 } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
@@ -100,8 +97,7 @@ const [showVideoModal, setShowVideoModal] = useState(false);
 
 const [historyEntries, setHistoryEntries] = useState([]);
 const [loadingHistory, setLoadingHistory] = useState(true);
- const [showSplash, setShowSplash] = useState(true);
-  const [splashProgress, setSplashProgress] = useState(0);
+
   // Slideshow images array
   const slides = [
     { id: 2, image: slide2, title: "Community Prayer", description: "Join us in worship" },
@@ -557,30 +553,6 @@ useEffect(() => {
   fetchHymns(1, '');
 }, []);
 
-
-useEffect(() => {
-  // Animate progress
-  const progressInterval = setInterval(() => {
-    setSplashProgress(prev => {
-      if (prev >= 100) {
-        clearInterval(progressInterval);
-        return 100;
-      }
-      return prev + Math.random() * 3 + 1;
-    });
-  }, 50);
-
-  // Auto-hide after progress reaches 100
-  const timer = setTimeout(() => {
-    setShowSplash(false);
-  }, 3500);
-
-  return () => {
-    clearInterval(progressInterval);
-    clearTimeout(timer);
-  };
-}, []);
-
   // Auto-play slideshow
   useEffect(() => {
     if (isPlaying) {
@@ -753,360 +725,8 @@ const formatEventDate = (dateString) => {
     }
   };
 
-
-  
-if (showSplash) {
-  // Get current slide image
-  const currentSlideImage = slides[currentSlide % slides.length]?.image || slide2;
-  
-  return (
-    <div className="splash-premium">
-      {/* Background Slideshow Image */}
-      <div className="splash-bg-slideshow" style={{ backgroundImage: `url(${currentSlideImage})` }}>
-        <div className="splash-bg-overlay"></div>
-      </div>
-
-      <div className="splash-premium-content">
-        {/* Animated Rings */}
-        <div className="splash-ring-container">
-          <img src={logo} alt="ZUCA Logo" className="splash-premium-logo" />
-          <div className="splash-ring ring-1"></div>
-          <div className="splash-ring ring-2"></div>
-          <div className="splash-ring ring-3"></div>
-        </div>
-
-        {/* Title with Algerian Font */}
-        <h1 className="splash-premium-title">(Z.U.C.A)</h1>
-        <p className="splash-premium-sub">Zetech University Catholic Action</p>
-
-        {/* Tagline */}
-        <div className="splash-tagline">
-          <span className="tagline-text">✝ Welcome Back</span>
-          <span className="tagline-dot">●</span>
-          <span className="tagline-text">🎵 Unity in voices</span>
-          <span className="tagline-dot">●</span>
-          <span className="tagline-text">❤ Service</span>
-        </div>
-
-        {/* Premium Progress */}
-        <div className="splash-premium-progress">
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${Math.min(splashProgress, 100)}%` }}></div>
-          </div>
-          <span className="progress-percent">{Math.min(Math.round(splashProgress), 100)}%</span>
-        </div>
-
-        {/* Status */}
-        <div className="splash-status">
-          <span className="status-dot"></span>
-          <span className="status-text">Preparering the portal...</span>
-        </div>
-      </div>
-
-      {/* Version */}
-      <div className="splash-version">v2.0</div>
-
-     <style>{`
-  /* PREMIUM SPLASH SCREEN - ALGERIAN FONT */
-  .splash-premium-title {
-    font-family: 'Algerian', 'Times New Roman', serif;
-    font-size: 64px;
-    font-weight: 900;
-    color: #ffffff;
-    margin-bottom: 5px;
-    letter-spacing: 8px;
-    text-shadow: 0 0 30px rgba(0, 198, 255, 0.2);
-  }
-  
-
-        .splash-premium {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 99999;
-          overflow: hidden;
-        }
-
-        .splash-bg-slideshow {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-        }
-
-        .splash-bg-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10, 22, 40, 0.88) 0%, rgba(26, 42, 74, 0.8) 40%, rgba(13, 31, 60, 0.88) 70%, rgba(10, 22, 40, 0.92) 100%);
-        }
-
-        .splash-premium-content {
-          position: relative;
-          text-align: center;
-          padding: 40px;
-          z-index: 2;
-        }
-
-        .splash-ring-container {
-          position: relative;
-          width: 160px;
-          height: 160px;
-          margin: 0 auto 25px;
-        }
-
-        .splash-premium-logo {
-          width: 100%;
-          height: 100%;
-          border-radius: 50%;
-          object-fit: contain;
-          position: relative;
-          z-index: 2;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 10px;
-          border: 3px solid rgba(0, 198, 255, 0.3);
-        }
-
-        .splash-ring {
-          position: absolute;
-          border-radius: 50%;
-          border: 3px solid transparent;
-          animation: ringSpin 2s linear infinite;
-        }
-
-        .ring-1 {
-          top: -12px;
-          left: -12px;
-          right: -12px;
-          bottom: -12px;
-          border-top-color: #00c6ff;
-          border-right-color: transparent;
-          animation-duration: 1.5s;
-        }
-
-        .ring-2 {
-          top: -24px;
-          left: -24px;
-          right: -24px;
-          bottom: -24px;
-          border-bottom-color: #007bff;
-          border-left-color: transparent;
-          animation-duration: 2.5s;
-          animation-direction: reverse;
-        }
-
-        .ring-3 {
-          top: -36px;
-          left: -36px;
-          right: -36px;
-          bottom: -36px;
-          border-top-color: rgba(0, 198, 255, 0.5);
-          border-bottom-color: rgba(0, 123, 255, 0.5);
-          animation-duration: 3s;
-        }
-
-        @keyframes ringSpin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        /* ALGERIAN FONT TITLE */
-        .splash-premium-title {
-          font-family: 'Algerian', 'Times New Roman', serif;
-          font-size: 64px;
-          font-weight: 900;
-          color: #ffffff;
-          margin-bottom: 5px;
-          letter-spacing: 8px;
-          text-shadow: 0 0 30px rgba(0, 198, 255, 0.2);
-        }
-
-        .splash-premium-sub {
-          color: #94a3b8;
-          font-size: 14px;
-          letter-spacing: 4px;
-          font-weight: 300;
-          margin-bottom: 25px;
-        }
-
-        .splash-tagline {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 14px;
-          margin-bottom: 35px;
-          flex-wrap: wrap;
-        }
-
-        .tagline-text {
-          color: #cbd5e1;
-          font-size: 14px;
-          font-weight: 500;
-          letter-spacing: 1px;
-          animation: taglineFade 2s ease-in-out infinite;
-        }
-
-        .tagline-text:nth-child(1) { animation-delay: 0s; }
-        .tagline-text:nth-child(3) { animation-delay: 0.7s; }
-        .tagline-text:nth-child(5) { animation-delay: 1.4s; }
-
-        @keyframes taglineFade {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.9; }
-        }
-
-        .tagline-dot {
-          color: #00c6ff;
-          font-size: 6px;
-        }
-
-        .splash-premium-progress {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          max-width: 300px;
-          margin: 0 auto 20px;
-        }
-
-        .progress-track {
-          flex: 1;
-          height: 4px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 4px;
-          overflow: hidden;
-          position: relative;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, #007bff, #00c6ff);
-          border-radius: 4px;
-          position: relative;
-          transition: width 0.3s ease;
-        }
-
-        .progress-percent {
-          font-size: 14px;
-          font-weight: 600;
-          color: #00c6ff;
-          min-width: 40px;
-          text-align: right;
-          font-variant-numeric: tabular-nums;
-        }
-
-        .splash-status {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          margin-top: 5px;
-        }
-
-        .status-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #00c6ff;
-          animation: statusBlink 1s ease-in-out infinite;
-        }
-
-        @keyframes statusBlink {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.3); }
-        }
-
-        .status-text {
-          font-size: 12px;
-          color: #94a3b8;
-          letter-spacing: 1px;
-          font-weight: 300;
-        }
-
-        .splash-version {
-          position: absolute;
-          bottom: 25px;
-          left: 50%;
-          transform: translateX(-50%);
-          font-size: 11px;
-          color: rgba(255, 255, 255, 0.15);
-          letter-spacing: 2px;
-          font-weight: 300;
-          z-index: 3;
-        }
-
-        @media (max-width: 480px) {
-          .splash-ring-container {
-            width: 120px;
-            height: 120px;
-          }
-          
-          .splash-premium-title {
-            font-size: 42px;
-            letter-spacing: 4px;
-          }
-          
-          .splash-premium-sub {
-            font-size: 11px;
-            letter-spacing: 3px;
-          }
-          
-          .splash-tagline {
-            gap: 10px;
-          }
-          
-          .tagline-text {
-            font-size: 12px;
-          }
-          
-          .splash-premium-progress {
-            max-width: 220px;
-          }
-          
-          .splash-ring {
-            border-width: 2px;
-          }
-          
-          .ring-1 {
-            top: -8px;
-            left: -8px;
-            right: -8px;
-            bottom: -8px;
-          }
-          
-          .ring-2 {
-            top: -16px;
-            left: -16px;
-            right: -16px;
-            bottom: -16px;
-          }
-          
-          .ring-3 {
-            top: -24px;
-            left: -24px;
-            right: -24px;
-            bottom: -24px;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
   return (
     <div className="landing-wrapper">
-
-      
-      
       {/* Top Bar - Hidden on mobile */}
       <div className="top-bar">
         <div className="top-bar-content">
@@ -1204,23 +824,23 @@ if (showSplash) {
         </div>
 
         <div className="hero-container">
-          {/* Action Buttons Row - 2 column grid on mobile */}
-<div className="action-buttons-row">
-  {showInstallButton && (
-    <button onClick={handleInstallClick} className="action-btn action-btn-install">
-      <FaDownload /> Install Our App
-    </button>
-  )}
-  <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
-    <FaImage /> Our Gallery
-  </button>
-  <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
-    <FaCalendarAlt /> Liturgical Calendar
-  </button>
-  <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
-    <FaUserPlus />  Portal Guide
-  </button>
-</div>
+          {/* Action Buttons Row - Independently arranged */}
+          <div className="action-buttons-row">
+            {showInstallButton && (
+              <button onClick={handleInstallClick} className="action-btn action-btn-install">
+                <FaDownload /> Install Our App
+              </button>
+            )}
+            <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
+              📷 Our Gallery
+            </button>
+            <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
+              📅 Liturgical Calendar
+            </button>
+            <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
+              <FaUserPlus /> 📚 Our User's Manual
+            </button>
+          </div>
 
           {/* Welcome Card */}
           <div className="welcome-card">
@@ -1231,10 +851,19 @@ if (showSplash) {
             <div className="welcome-subtitle">CATHOLIC ACTION</div>
             <div className="zuca-name">(Z.U.C.A)</div>
          <p className="welcome-text">
-  Welcome to the Zetech University Catholic Action official website.
+  Welcome to the Zetech University Catholic Action official web dashbord.
   <br /><br />
   Zetech Catholic Action is a vibrant student community committed to evangelism, faith, and fellowship through the power of music and service. Our mission is to spread hope, love, and faith within our campus and beyond.
-  
+  <br /><br />
+  • Stay updated with clubs latest announcements
+  <br />
+  • Access mass schedules and programs
+  <br />
+  • View hymns, prayers, and daily readings
+  <br />
+  • Connect and engage with the ZUCA club members
+  <br />
+  • Relive memories through our gallery
 </p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
@@ -1252,10 +881,10 @@ if (showSplash) {
 
           {/* Mass Info Card */}
           <div className="mass-info-card">
-            <FaGooglePlay    className="mass-info-icon" />
+            <FaChurch className="mass-info-icon" />
             <div className="mass-info-text">
-              <br /> <strong>(Remember to install our app for faster access and better experience!)</strong>
-              <span className="mass-location">Click the install Button above</span>
+              <strong>Wednesday Mass:</strong> 4:30 PM
+              <span className="mass-location">Annex Building 002</span>
             </div>
           </div>
         </div>
@@ -1378,7 +1007,7 @@ if (showSplash) {
     <div className="section-header">
       <FaYoutube className="section-icon youtube-icon" />
       <h2 className="section-title">Top Watched Videos</h2>
-      <p className="section-subtitle">ZUCA's favorite content</p>
+      <p className="section-subtitle">Our community's favorite content</p>
     </div>
 
     {loadingVideo ? (
@@ -1442,7 +1071,7 @@ if (showSplash) {
           <div className="section-header">
             <FaCalendarAlt className="section-icon" />
             <h2 className="section-title">Upcoming Events</h2>
-            <p className="section-subtitle">Join us In our activities and functions</p>
+            <p className="section-subtitle">Join us in fellowship and service</p>
           </div>
 
           {loadingEvents ? (
@@ -1529,7 +1158,7 @@ if (showSplash) {
           <div className="section-header">
             <FaMusic className="section-icon" />
             <h2 className="section-title">Hymn Browser</h2>
-            <p className="section-subtitle">Browse for any lyrics or titles of any song</p>
+            <p className="section-subtitle">Browse our collection of hymns and songs</p>
           </div>
 
           {/* Search Bar */}
@@ -1782,7 +1411,7 @@ if (showSplash) {
           <div className="section-header">
             <FaPray className="section-icon" />
             <h2 className="section-title">Weekly Mass & Choir Practice</h2>
-            <p className="section-subtitle">Join us in Rosary prayers and Jumuia meetings</p>
+            <p className="section-subtitle">Join us in prayer and Jumuia</p>
           </div>
 
           <div className="mass-cards">
@@ -1823,7 +1452,7 @@ if (showSplash) {
           <div className="section-header">
             <FaHeart className="section-icon" />
             <h2 className="section-title-light">Connect With Us</h2>
-            <p className="section-subtitle-light">Follow ZUCA on social media platforms</p>
+            <p className="section-subtitle-light">Follow our community on social media</p>
           </div>
 
           <div className="social-grid">
@@ -1891,7 +1520,8 @@ if (showSplash) {
       
       <div className="activities-grid">
         <div className="activity-item">
-          <span><strong>OUR ACTIVITIES  </strong></span>
+          <FaChurch className="activity-icon" />
+          <span>OUR ACTIVITIES</span>
         </div>
         <div className="activity-item">
           <FaMusic className="activity-icon" />
@@ -1899,7 +1529,7 @@ if (showSplash) {
         </div>
         <div className="activity-item">
           <FaUsers className="activity-icon" />
-          <span>Jumuia Groups Activities/meetings</span>
+          <span>Jumuia Groups</span>
         </div>
         <div className="activity-item">
           <FaHandsHelping className="activity-icon" />
@@ -1924,12 +1554,6 @@ if (showSplash) {
             </div>
             <div className="contact-item">
               <FaEnvelope className="contact-icon" />
-              <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zucaportal2025@gmail.com</a>
-            </div>
-             
-            
-            <div className="contact-item">
-              <FaEnvelope className="contact-icon" />
                             <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zuca406@gmail.com</a>
             </div><div className="contact-item">
               <FaPhone className="contact-icon" />
@@ -1942,8 +1566,9 @@ if (showSplash) {
              <div className="contact-item">
               <FaPhone className="contact-icon" />
               <a href="tel:+254 746 893 181" className="contact-link">+254 746 893 181</a> <FaLaptop className="contact-icon" />(Chris) IT support
-            </div>
 
+              <span></span>
+            </div>
           </div>
         </div>
       </section>
@@ -2065,16 +1690,16 @@ if (showSplash) {
         }
 
         .navbar-scrolled {
-          background: rgba(0, 0, 0, 0.95);
+          background: rgba(11, 11, 31, 0.95);
           backdrop-filter: blur(10px);
           top: 0;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.46);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
 
         .nav-container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 0px 20px;
+          padding: 12px 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -2148,7 +1773,7 @@ if (showSplash) {
           top: 100%;
           left: 0;
           right: 0;
-          background: rgba(0, 0, 0, 0.93);
+          background: rgba(11, 11, 31, 0.98);
           backdrop-filter: blur(10px);
           flex-direction: column;
           padding: 20px;
@@ -2329,72 +1954,29 @@ if (showSplash) {
         }
 
         /* Action Buttons Row - Clean independent arrangement */
-       .action-buttons-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-top: -18px;
-  margin-bottom: 10px;
-  max-width: 900px;
-  margin-left: auto;
-  margin-right: auto;
-}
+        .action-buttons-row {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 30px;
+        }
 
-@media (max-width: 768px) {
-  .action-buttons-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 0 10px;
-  }
-}
-
-@media (max-width: 480px) {
-  .action-buttons-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    padding: 0 3px;
-  }
-}
-
-.action-btn {
-  padding: 12px 16px;
-  border-radius: 40px;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(8px);
-  white-space: nowrap;
-  width: 100%;
-  min-height: 48px;
-  text-align: center;
-}
-
-@media (max-width: 768px) {
-  .action-btn {
-    font-size: 12px;
-    padding: 10px 12px;
-    min-height: 44px;
-    white-space: normal;
-    word-break: break-word;
-  }
-}
-
-@media (max-width: 480px) {
-  .action-btn {
-    font-size: 11px;
-    padding: 8px 10px;
-    min-height: 40px;
-    gap: 5px;
-  }
-}
-
-       
+        .action-btn {
+          padding: 12px 24px;
+          border-radius: 40px;
+          border: none;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(8px);
+          white-space: nowrap;
+        }
 
         .action-btn:hover {
           transform: translateY(-3px);
@@ -2528,8 +2110,8 @@ background: linear-gradient(
         .mass-info-card {
           display: inline-flex;
           align-items: center;
-          gap: 0px;
-          background: rgba(23, 25, 26, 0.4);
+          gap: 12px;
+          background: rgba(59, 171, 199, 0.4);
           backdrop-filter: blur(5px);
           padding: 12px 24px;
           border-radius: 50px;
@@ -2539,18 +2121,18 @@ background: linear-gradient(
 
         .mass-info-icon {
           font-size: 20px;
-          color: #ffffff;
+          color: #00c6ff;
         }
 
         .mass-info-text {
-          font-size: 16px;
+          font-size: 14px;
           text-align: left;
         }
 
         .mass-location {
           display: block;
           font-size: 12px;
-          color: #ffffff;
+          color: #94a3b8;
           margin-top: 2px;
         }
 
@@ -4610,3 +4192,4 @@ background: linear-gradient(
 }
 
 export default Landing2;
+

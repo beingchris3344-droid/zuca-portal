@@ -806,17 +806,18 @@ if (showSplash) {
       {/* Version */}
       <div className="splash-version">v2.0</div>
 
-      <style>{`
-        /* PREMIUM SPLASH SCREEN - ALGERIAN FONT */
-        @import url('https://fonts.googleapis.com/css2?family=Algerian&display=swap');
-        
-        /* Fallback if Google Fonts doesn't load */
-        @font-face {
-          font-family: 'Algerian';
-          src: local('Algerian'), local('Algerian Regular');
-          font-weight: normal;
-          font-style: normal;
-        }
+     <style>{`
+  /* PREMIUM SPLASH SCREEN - ALGERIAN FONT */
+  .splash-premium-title {
+    font-family: 'Algerian', 'Times New Roman', serif;
+    font-size: 64px;
+    font-weight: 900;
+    color: #ffffff;
+    margin-bottom: 5px;
+    letter-spacing: 8px;
+    text-shadow: 0 0 30px rgba(0, 198, 255, 0.2);
+  }
+  
 
         .splash-premium {
           position: fixed;

@@ -30,7 +30,7 @@ export default function AdminAttendanceOverview() {
   });
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 10000000,
     total: 0,
     totalPages: 0
   });
@@ -84,6 +84,9 @@ const [activatingSemester, setActivatingSemester] = useState(false);
       setLoading(false);
     }
   };
+
+
+  
 
 
 

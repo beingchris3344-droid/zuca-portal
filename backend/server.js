@@ -75,6 +75,100 @@ async function getNextAvailableMembershipNumber() {
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
+
+
+
+// ============================================
+// GLOBAL URL HELPER FOR PUSH NOTIFICATIONS
+// ============================================
+function getDeepLinkUrl(type, data = {}) {
+  const baseUrl = process.env.FRONTEND_URL || 'https://www.zetechcatholicaction.com';
+  
+  const routes = {
+    // Attendance
+    'attendance_checkin': '/member/attendance',
+    'attendance_thankyou': '/member/attendance',
+    'attendance_missed': '/member/attendance',
+    'attendance_sheet_opened': '/admin/attendance',
+    'attendance_reminder': '/member/attendance',
+    'attendance_summary': '/admin/attendance/overview',
+    'attendance_automatic_reminder': '/member/attendance',
+    
+    // Minutes
+    'meeting_minutes_published': '/minutes',
+    'meeting_minutes_comment': '/minutes',
+    
+    // Announcements
+    'announcement': '/announcements',
+    'new_announcement': '/announcements',
+    'jumuia_announcement': '/announcements',
+    
+    // Games
+    'game_invite': '/games',
+    
+    // Messages
+    'message': '/messenger',
+    'chat_mention': '/messenger',
+    'pin': '/messenger',
+    
+    // Contributions
+    'contribution': '/contributions',
+    'pledge_approved': '/contributions',
+    'payment_added': '/contributions',
+    'payment_success': '/contributions',
+    'payment_received': '/contributions',
+    
+    // Executive
+    'executive_appointment': '/executive',
+    'executive_removed': '/executive',
+    
+    // Media
+    'new_media': '/gallery',
+    'media_comment': '/gallery',
+    
+    // YouTube
+    'youtube_new_video': '/youtube',
+    'youtube_live': '/youtube',
+    
+    // System
+    'test': '/dashboard',
+    'user_login': '/dashboard',
+    'role_change': '/dashboard',
+    'send_email': '/messenger',
+    'schedule': '/schedules',
+    'event_reminder': '/schedules',
+    'program': '/mass-programs',
+    'broadcast': '/messenger',
+    'report_resolved': '/messenger',
+    'jumuia': '/jumuia',
+    'jumuia_contribution': '/contributions',
+    'pledge_message': '/contributions',
+    'schedule': '/schedules',
+    'welcome': '/dashboard',
+    'api_notify': '/dashboard',
+    'default': '/dashboard'
+  };
+  
+  let route = routes[type] || routes['default'];
+  
+  // Add IDs to URLs if present
+  if (data.sheetId) route = route + '/sheet/' + data.sheetId;
+  if (data.minutesId) route = route + '/' + data.minutesId;
+  if (data.inviteId && type === 'game_invite') route = route + '?invite=' + data.inviteId;
+  if (data.mediaId) route = route + '/' + data.mediaId;
+  if (data.announcementId) route = route + '/' + data.announcementId;
+  if (data.pledgeId) route = route + '/' + data.pledgeId;
+  if (data.scheduleId) route = route + '/' + data.scheduleId;
+  if (data.eventId) route = route + '/' + data.eventId;
+  if (data.broadcastId) route = route + '/' + data.broadcastId;
+  if (data.reportId) route = route + '/' + data.reportId;
+  
+  return baseUrl + route;
+}
+
+console.log('✅ URL helper loaded for push notifications');
+
+
 // ================== PUBLIC DEBUG ENDPOINTS (NO AUTH NEEDED) ==================
 // Put these BEFORE your authenticate middleware!
 
@@ -12837,24 +12931,29 @@ webpush.setVapidDetails(
 // FIRST: Define sendPushNotification
 // ============================================
 async function sendPushNotification(userId, title, body, data = {}) {
+  console.log(`🔔 Attempting push for user: ${userId}`);
+  
   try {
     const subscription = await prisma.pushSubscription.findUnique({
       where: { userId }
     });
 
-    if (!subscription) return;
+    if (!subscription) {
+      console.log(`⚠️ No push subscription for user ${userId}`);
+      return;
+    }
 
-    // Get current unread count for this user
+    console.log(`✅ Found subscription for user ${userId}, sending push...`);
+
     const unreadCount = await prisma.notification.count({
-      where: { 
-        userId: userId, 
-        read: false 
-      }
+      where: { userId: userId, read: false }
     });
+
+    // 🎯 Generate the deep link URL using the helper
+    const deepLinkUrl = getDeepLinkUrl(data.type || 'default', data);
 
     const pushSubscription = JSON.parse(subscription.subscription);
     
-    // Send with HIGH URGENCY to fix "background update" issue
     await webpush.sendNotification(
       pushSubscription, 
       JSON.stringify({
@@ -12863,17 +12962,19 @@ async function sendPushNotification(userId, title, body, data = {}) {
         icon: '/android-chrome-192x192.png',
         badge: '/favicon.ico',
         badgeCount: unreadCount + 1,
-        data,
+        data: {
+          ...data,           // Keep all existing data
+          url: deepLinkUrl   // ⬅️ ADD THE URL HERE
+        },
+        url: deepLinkUrl,    // ⬅️ ALSO AT ROOT LEVEL
         timestamp: Date.now()
       }),
-      {
-        urgency: 'high'  // ← This fixes the "app updated in background" issue
-      }
+      { urgency: 'high' }
     );
     
-    console.log(`📱 Push sent to ${userId} (badge: ${unreadCount + 1})`);
+    console.log(`📱 Push sent to ${userId} with URL: ${deepLinkUrl} (badge: ${unreadCount + 1})`);
   } catch (err) {
-    console.error('Error sending push notification:', err);
+    console.error(`❌ Push failed for ${userId}:`, err.message);
     if (err.statusCode === 410) {
       await prisma.pushSubscription.deleteMany({ where: { userId } });
     }

@@ -8,6 +8,7 @@ import {
   Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock
 } from 'lucide-react';
 import QRScanner from '../../components/member/attendance/QRScanner';
+import CelebrationOverlay from '../../components/CelebrationOverlay';
 
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
 import { saveOfflineCheckin, getPendingCount, getPendingCheckins, syncOfflineCheckins } from '../../utils/offlineStorage';
@@ -21,6 +22,7 @@ export default function MemberAttendance() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 const [pendingCount, setPendingCount] = useState(0);
 const [syncing, setSyncing] = useState(false);
+const [showCelebration, setShowCelebration] = useState(false);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -67,7 +69,7 @@ const [syncing, setSyncing] = useState(false);
       setLoading(false);
     }
   };
- const handleCheckin = async (sheetId) => {
+const handleCheckin = async (sheetId) => {
   const sheet = activeSheets.find(s => s.id === sheetId);
   if (!sheet) return;
   
@@ -114,8 +116,26 @@ const [syncing, setSyncing] = useState(false);
     }, {
       headers: getHeaders()
     });
+    
+    // 🎉 SHOW CELEBRATION ON SUCCESS
+    setShowCelebration(true);
+    
+    // Optional: Vibrate on mobile
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200]);
+    }
+    
+    // Auto-hide celebration after 3.5 seconds
+    setTimeout(() => {
+      setShowCelebration(false);
+    }, 3500);
+    
+    // Show toast notification
     showToast('✅ Checked in successfully!', 'success');
+    
+    // Refresh the meeting list
     fetchActiveSheets();
+    
   } catch (error) {
     const errorMsg = error.response?.data;
     const status = error.response?.status;
@@ -321,6 +341,12 @@ const handleOnline = async () => {
   
   return (
     <div className="member-attendance">
+ {/*celebration */}
+          <CelebrationOverlay 
+      show={showCelebration} 
+      onComplete={() => setShowCelebration(false)} 
+    />
+
       {toast.show && (
         <div className={`toast-notification ${toast.type}`}>
           {toast.message}

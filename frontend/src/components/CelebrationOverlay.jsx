@@ -8,7 +8,7 @@ const CelebrationOverlay = ({ show, onComplete }) => {
       // Auto-dismiss after 3 seconds
       const timer = setTimeout(() => {
         if (onComplete) onComplete();
-      }, 3000);
+      }, 4000);
       
       return () => clearTimeout(timer);
     }
@@ -64,7 +64,7 @@ const CelebrationOverlay = ({ show, onComplete }) => {
         .celebration-title {
           font-size: 48px;
           font-weight: 900;
-          background: linear-gradient(135deg, #f6d365, #fda085, #f6d365);
+          background: linear-gradient(135deg, #52db40, #fda085, #f6d365);
           background-size: 200% 200%;
           -webkit-background-clip: text;
           background-clip: text;
@@ -149,7 +149,7 @@ const CelebrationOverlay = ({ show, onComplete }) => {
 
         .meter-fill {
           height: 100%;
-          background: linear-gradient(90deg, #f6d365, #fda085);
+          background: linear-gradient(90deg, #16e90f, #4bdf1e);
           border-radius: 10px;
           animation: meterPulse 0.5s ease infinite alternate;
         }
@@ -189,7 +189,7 @@ const CelebrationOverlay = ({ show, onComplete }) => {
               left: `${Math.random() * 100}%`,
               animationDelay: `${Math.random() * 2}s`,
               animationDuration: `${Math.random() * 2 + 2}s`,
-              backgroundColor: ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#54a0ff', '#5f27cd'][Math.floor(Math.random() * 6)],
+              backgroundColor: ['#ff6b6b', '#47eb41', '#48dbfb', '#756cfa', '#54a0ff', '#4a23d6'][Math.floor(Math.random() * 6)],
               width: `${Math.random() * 10 + 5}px`,
               height: `${Math.random() * 10 + 5}px`,
               borderRadius: Math.random() > 0.5 ? '50%' : '2px',
@@ -219,7 +219,7 @@ const CelebrationOverlay = ({ show, onComplete }) => {
             <div className="meter-bar">
               <div className="meter-fill"></div>
             </div>
-            <span className="meter-text">💪 ATTENDANCE CONFIRMED!</span>
+            <span className="meter-text"> ATTENDANCE CONFIRMED!</span>
           </div>
         </div>
       </div>

@@ -5,6 +5,8 @@ import { api } from "../api";
 import { motion, AnimatePresence } from "framer-motion";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { FaCalendarDay } from "react-icons/fa";
+import { FiCalendar, FiList } from "react-icons/fi";
 
 function UserSchedules() {
   const navigate = useNavigate();
@@ -304,7 +306,7 @@ function UserSchedules() {
       {/* Simple Header - No Dashboard Bar */}
       <div className="schedules-header">
         <button onClick={goBack} className="back-btn">← Back</button>
-        <h1>📅 Semester Schedules</h1>
+        <h1><FaCalendarDay></FaCalendarDay> Semester Schedules</h1>
         <p>View and download all published semester schedules</p>
       </div>
 
@@ -354,7 +356,7 @@ function UserSchedules() {
                 className="schedule-card"
                 whileHover={{ y: -4 }}
               >
-                <div className="card-icon">📅</div>
+                <div className="card-icon"><FiCalendar></FiCalendar></div>
                 <h3>{schedule.title}</h3>
                 <div className="card-date">
                   {schedule.startDate && (
@@ -364,7 +366,7 @@ function UserSchedules() {
                 <div className="card-badge" style={{ background: status.bg, color: status.color }}>
                   {status.text}
                 </div>
-                <div className="card-events">📋 {schedule.events?.length || 0} events</div>
+                <div className="card-events"><FiList></FiList> {schedule.events?.length || 0} events</div>
                 <motion.button
                   onClick={() => viewSchedule(schedule)}
                   className="view-btn"
@@ -482,7 +484,7 @@ function UserSchedules() {
           left: 0;
           top: 0;
           padding: 8px 16px;
-          background: white;
+          background: black;
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           cursor: pointer;

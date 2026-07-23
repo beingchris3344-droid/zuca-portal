@@ -7,6 +7,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadialBarChart, RadialBar
 } from 'recharts';
+import { FaCalendarAlt } from 'react-icons/fa';
 
 export default function MemberAttendanceHistory() {
   const navigate = useNavigate();
@@ -423,7 +424,7 @@ const fetchAllSemesters = async () => {
 
     <div className="semester-filter-section">
   <div className="filter-group">
-    <label htmlFor="semester-select">📅 Semester:</label>
+    <label htmlFor="semester-select"><FaCalendarAlt></FaCalendarAlt> Semester:</label>
     <select 
       id="semester-select"
       value={selectedSemester} 
@@ -504,19 +505,19 @@ const fetchAllSemesters = async () => {
           {/* Stats Cards */}
           <div className="stats-cards">
             <div className="stat-card">
-              <div className="stat-icon">📊</div>
+              <div className="stat-icon"></div>
               <div className="stat-value">{totalMeetings}</div>
               <div className="stat-label">Total Meetings</div>
               <div className="stat-trend">All time</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">✅</div>
+              <div className="stat-icon"></div>
               <div className="stat-value">{attendanceRate}%</div>
               <div className="stat-label">Attendance Rate</div>
               <div className="stat-trend positive">{attendedMeetings} of {totalMeetings}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">❌</div>
+              <div className="stat-icon"></div>
               <div className="stat-value">{missedMeetings}</div>
               <div className="stat-label">Missed Meetings</div>
               <div className="stat-trend">{upcomingMeetings} upcoming</div>
@@ -714,14 +715,14 @@ const fetchAllSemesters = async () => {
           align-items: center;
           gap: 8px;
           padding: 8px 16px;
-          background: white;
+          background: black;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
           cursor: pointer;
           transition: all 0.2s;
         }
         .back-btn:hover {
-          background: #f8fafc;
+          background: #606264;
           transform: translateX(-2px);
         }
         .header-text {
@@ -947,8 +948,8 @@ const fetchAllSemesters = async () => {
         }
         .filter-btn {
           padding: 8px 20px;
-          background: white;
-          border: 1px solid #e2e8f0;
+          background: grey;
+          border: 1px solid #e2e8f000;
           border-radius: 30px;
           cursor: pointer;
           font-size: 13px;

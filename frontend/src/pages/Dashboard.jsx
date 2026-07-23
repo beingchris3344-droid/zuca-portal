@@ -14,7 +14,7 @@ import {
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
   FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -874,10 +874,10 @@ const fetchFeaturedGallery = async () => {
   <div className="active-meetings-card">
     <div className="section-header">
       <div className="header-with-icon">
-        <div className="header-icon-meeting">🔴</div>
+        <div className="header-icon-meeting"></div>
         <div>
           <h3>ACTIVE MEETINGS</h3>
-          <p className="header-subtitle">Check in to today's gatherings</p>
+          <p className="header-subtitle">This an active meeting click to verify your attendance</p>
         </div>
       </div>
       <div className="meeting-count-badge">{activeSheets.length} Active</div>
@@ -889,19 +889,20 @@ const fetchFeaturedGallery = async () => {
           <div className="meeting-status-row">
             <span className="live-indicator">● LIVE</span>
             <span className="meeting-time-sm">
-              <span className="time-icon">🕐</span> {sheet.eventTime || '4:30 PM'}
+              <span className="time-icon">
+                <FaClock></FaClock></span> {sheet.eventTime || '4:30 PM'}
             </span>
           </div>
           
           <h4 className="meeting-title-sm">{sheet.title}</h4>
           
           <div className="meeting-details-sm">
-            <span><span className="detail-icon">📅</span> {new Date(sheet.eventDate).toLocaleDateString()}</span>
-            <span><span className="detail-icon">📍</span> {sheet.location || 'ZUCA'}</span>
+            <span><span className="detail-icon"><FaCalendar></FaCalendar></span> {new Date(sheet.eventDate).toLocaleDateString()}</span>
+            <span><span className="detail-icon"><FaLocationArrow></FaLocationArrow></span> {sheet.location || 'ZUCA'}</span>
           </div>
           
           <div className="meeting-stats-sm">
-            <span className="stat-icon-sm">👥</span>
+            <span className="stat-icon-sm"><FaUsers></FaUsers></span>
             <span>{sheet._count?.entries || 0} people checked in</span>
           </div>
           
@@ -916,7 +917,7 @@ const fetchFeaturedGallery = async () => {
   className="checkin-btn-sm"
   onClick={() => navigate('/member/attendance')}
 >
-  🎯 Check In →
+  Let's Check In →
 </button>
         </div>
       ))}

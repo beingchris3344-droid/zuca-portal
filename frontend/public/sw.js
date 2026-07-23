@@ -281,7 +281,10 @@ self.addEventListener('push', (event) => {
       const payload = event.data.json();
       title = payload.title || title;
       options.body = payload.body || options.body;
-      options.data.url = payload.data?.url || payload.url || '/';
+      options.data = {
+  ...(payload.data || {}),
+  url: payload.data?.url || payload.url || '/'
+};
     } catch (err) {
       options.body = event.data.text() || options.body;
     }
@@ -351,6 +354,8 @@ const NOTIFICATION_URLS = {
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked');
   event.notification.close();
+  console.log("Notification data:", event.notification.data);
+console.log("Notification URL:", event.notification.data?.url);
   const notificationType = event.notification.data?.type;
   const url = event.notification.data?.url || NOTIFICATION_URLS[notificationType] || '/dashboard';
   event.waitUntil(

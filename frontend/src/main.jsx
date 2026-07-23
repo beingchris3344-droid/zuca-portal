@@ -6,6 +6,7 @@ import { registerSW } from 'virtual:pwa-register' // service worker for PWA
 
 // Register the service worker
 registerSW({
+  immediate: true,
   onRegistered(r) {
     console.log("Service Worker registered!", r)
   },

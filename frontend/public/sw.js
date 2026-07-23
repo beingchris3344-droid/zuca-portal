@@ -350,7 +350,9 @@ const NOTIFICATION_URLS = {
   
   // 🎯 Default (fallback)
   'default': '/dashboard'
-};self.addEventListener("notificationclick", (event) => {
+};
+
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const url = event.notification.data?.url || "/dashboard";
@@ -358,19 +360,25 @@ const NOTIFICATION_URLS = {
   event.waitUntil(
     self.clients.matchAll({
       type: "window",
-      includeUncontrolled: true
+      includeUncontrolled: true,
     }).then((clients) => {
 
-      // Find a real browser window (not the service worker script)
-      const client = clients.find(c =>
-        c.url.startsWith("https://www.zetechcatholicaction.com") &&
-        !c.url.endsWith("/sw.js")
-      );
+      // Try to focus an existing window only
+      for (const client of clients) {
+        if (
+          client.url.startsWith("https://www.zetechcatholicaction.com") &&
+          !client.url.endsWith("/sw.js")
+        ) {
+          client.postMessage({
+            type: "OPEN_NOTIFICATION",
+            url,
+          });
 
-      if (client) {
-        return client.focus().then(() => client.navigate(url));
+          return client.focus();
+        }
       }
 
+      // No window open → open a new one
       return self.clients.openWindow(url);
     })
   );

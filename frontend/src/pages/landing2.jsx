@@ -29,7 +29,10 @@ import {
   FaPause,
   FaImage,
   FaCalendarAlt,
-  FaPlay
+  FaPlay,
+  FaAppStore,
+  FaAppStoreIos,
+  FaGooglePlay
 } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import logo from "../assets/zuca-logo.png";
@@ -854,16 +857,7 @@ const formatEventDate = (dateString) => {
   Welcome to the Zetech University Catholic Action official web dashbord.
   <br /><br />
   Zetech Catholic Action is a vibrant student community committed to evangelism, faith, and fellowship through the power of music and service. Our mission is to spread hope, love, and faith within our campus and beyond.
-  <br /><br />
-  • Stay updated with clubs latest announcements
-  <br />
-  • Access mass schedules and programs
-  <br />
-  • View hymns, prayers, and daily readings
-  <br />
-  • Connect and engage with the ZUCA club members
-  <br />
-  • Relive memories through our gallery
+ 
 </p>
             <div className="welcome-buttons">
               <button onClick={() => navigate("/register")} className="btn-primary">
@@ -881,10 +875,10 @@ const formatEventDate = (dateString) => {
 
           {/* Mass Info Card */}
           <div className="mass-info-card">
-            <FaChurch className="mass-info-icon" />
+            <FaGooglePlay className="mass-info-icon" />
             <div className="mass-info-text">
-              <strong>Wednesday Mass:</strong> 4:30 PM
-              <span className="mass-location">Annex Building 002</span>
+              <strong>Remember to install our  PWA app using the orange button above  </strong>
+              <span className="mass-location"></span>
             </div>
           </div>
         </div>
@@ -895,8 +889,8 @@ const formatEventDate = (dateString) => {
         <div className="container">
           <div className="section-header">
             <FaImage className="section-icon" />
-            <h2 className="section-title">Featured Media</h2>
-            <p className="section-subtitle">Check out our latest photos and videos</p>
+            <h2 className="section-title">ZUCAS' top content</h2>
+            <p className="section-subtitle">View  our latest shots from our gallery</p>
           </div>
 
           {loadingMedia ? (
@@ -906,7 +900,7 @@ const formatEventDate = (dateString) => {
             </div>
           ) : featuredMedia.length === 0 ? (
             <div className="no-media">
-              <p>No featured media available yet.</p>
+              <p>No content available yet.</p>
             </div>
           ) : (
             <div className="media-grid">
@@ -948,7 +942,7 @@ const formatEventDate = (dateString) => {
               onClick={() => navigate("/gallery")} 
               className="view-all-btn"
             >
-              View All Media →
+              View All Content →
             </button>
           </div>
         </div>
@@ -1007,7 +1001,7 @@ const formatEventDate = (dateString) => {
     <div className="section-header">
       <FaYoutube className="section-icon youtube-icon" />
       <h2 className="section-title">Top Watched Videos</h2>
-      <p className="section-subtitle">Our community's favorite content</p>
+      <p className="section-subtitle">Top Youtube  content</p>
     </div>
 
     {loadingVideo ? (
@@ -1071,7 +1065,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaCalendarAlt className="section-icon" />
             <h2 className="section-title">Upcoming Events</h2>
-            <p className="section-subtitle">Join us in fellowship and service</p>
+            <p className="section-subtitle">Join us in our jumuias  and our activities in genereal</p>
           </div>
 
           {loadingEvents ? (
@@ -1158,7 +1152,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaMusic className="section-icon" />
             <h2 className="section-title">Hymn Browser</h2>
-            <p className="section-subtitle">Browse our collection of hymns and songs</p>
+            <p className="section-subtitle">Search Lyrics of diffrent songs all here at zuca</p>
           </div>
 
           {/* Search Bar */}
@@ -1411,7 +1405,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaPray className="section-icon" />
             <h2 className="section-title">Weekly Mass & Choir Practice</h2>
-            <p className="section-subtitle">Join us in prayer and Jumuia</p>
+            <p className="section-subtitle"></p>
           </div>
 
           <div className="mass-cards">
@@ -1452,7 +1446,7 @@ const formatEventDate = (dateString) => {
           <div className="section-header">
             <FaHeart className="section-icon" />
             <h2 className="section-title-light">Connect With Us</h2>
-            <p className="section-subtitle-light">Follow our community on social media</p>
+            <p className="section-subtitle-light">We apper in social media platforms as follows please follow, like, share and subscribe</p>
           </div>
 
           <div className="social-grid">
@@ -2121,7 +2115,7 @@ background: linear-gradient(
 
         .mass-info-icon {
           font-size: 20px;
-          color: #00c6ff;
+          color: #fdffff;
         }
 
         .mass-info-text {

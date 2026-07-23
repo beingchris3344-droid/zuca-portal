@@ -351,25 +351,32 @@ const NOTIFICATION_URLS = {
   // 🎯 Default (fallback)
   'default': '/dashboard'
 };
-self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked');
+self.addEventListener("notificationclick", (event) => {
+  console.log("CLICKED");
+  console.log(event.notification.data);
+
   event.notification.close();
-  console.log("Notification data:", event.notification.data);
-console.log("Notification URL:", event.notification.data?.url);
-  const notificationType = event.notification.data?.type;
-  const url = event.notification.data?.url || NOTIFICATION_URLS[notificationType] || '/dashboard';
+
+  const url = event.notification.data?.url || "/dashboard";
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientsArr) => {
-        for (const client of clientsArr) {
-          // ✅ CHANGE THIS ONE LINE
-          if (client.url && 'navigate' in client) {
-            client.navigate(url);  // Always navigate to the URL
-            return client.focus();
-          }
-        }
-        return self.clients.openWindow(url);
-      })
+    self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    }).then((clients) => {
+
+      console.log("Clients:", clients.length);
+
+      clients.forEach(c => console.log(c.url));
+
+      if (clients.length) {
+        return clients[0]
+          .navigate(url)
+          .then(() => clients[0].focus());
+      }
+
+      return self.clients.openWindow(url);
+    })
   );
 });
 // ================== PUSH SUBSCRIPTION CHANGE ==================

@@ -127,7 +127,7 @@ async function main() {
     console.log(`      Schedule: ${event.schedule?.title || 'Unknown'} (Published: ${event.schedule?.isPublished})`);
     console.log(`      Date: ${formatDateOnly(eventDate)}`);
     console.log(`      Time: ${event.eventTime || "16:30"}`);
-    console.log(`      Location: ${event.location || "Room 002"}`);
+    console.log(`      Location: ${event.location || "TBA"}`);
     console.log(`      Days until: ${daysUntil} days`);
     console.log(`      Hours until: ${hoursUntil} hours`);
     console.log(`      Event DateTime (Kenyan): ${formatKenyanTime(eventDateTime)}`);

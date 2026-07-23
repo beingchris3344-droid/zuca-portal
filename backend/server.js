@@ -15232,7 +15232,7 @@ function parseDateString(dateStr) {
 }
 
 function getNotificationMessage(event, timing) {
-  const eventTime = event.eventTime || "16:30";
+  const eventTime = event.eventTime || "";
   const location = event.location || "Location to be announced";
   const eventDateFormatted = new Date(event.eventDate).toLocaleDateString('en-US', { 
     weekday: 'long', 

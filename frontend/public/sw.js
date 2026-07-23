@@ -350,11 +350,7 @@ const NOTIFICATION_URLS = {
   
   // 🎯 Default (fallback)
   'default': '/dashboard'
-};
-self.addEventListener("notificationclick", (event) => {
-  console.log("CLICKED");
-  console.log(event.notification.data);
-
+};self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const url = event.notification.data?.url || "/dashboard";
@@ -362,17 +358,17 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     self.clients.matchAll({
       type: "window",
-      includeUncontrolled: true,
+      includeUncontrolled: true
     }).then((clients) => {
 
-      console.log("Clients:", clients.length);
+      // Find a real browser window (not the service worker script)
+      const client = clients.find(c =>
+        c.url.startsWith("https://www.zetechcatholicaction.com") &&
+        !c.url.endsWith("/sw.js")
+      );
 
-      clients.forEach(c => console.log(c.url));
-
-      if (clients.length) {
-        return clients[0]
-          .navigate(url)
-          .then(() => clients[0].focus());
+      if (client) {
+        return client.focus().then(() => client.navigate(url));
       }
 
       return self.clients.openWindow(url);

@@ -148,6 +148,7 @@ function getDeepLinkUrl(type, data = {}) {
     'api_notify': '/dashboard',
     'default': '/dashboard'
   };
+
   
   let route = routes[type] || routes['default'];
   
@@ -165,6 +166,10 @@ function getDeepLinkUrl(type, data = {}) {
   
   return baseUrl + route;
 }
+
+
+  global.getDeepLinkUrl = getDeepLinkUrl;
+
 
 console.log('✅ URL helper loaded for push notifications');
 
@@ -13079,50 +13084,6 @@ app.delete('/api/notifications/unsubscribe', authenticate, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-async function sendPushNotification(userId, title, body, data = {}) {
-  console.log(`🔔 Attempting push for user: ${userId}`);
-  
-  try {
-    const subscription = await prisma.pushSubscription.findUnique({
-      where: { userId }
-    });
-
-    if (!subscription) {
-      console.log(`⚠️ No push subscription for user ${userId}`);
-      return;
-    }
-
-    console.log(`✅ Found subscription for user ${userId}, sending push...`);
-
-    const unreadCount = await prisma.notification.count({
-      where: { userId: userId, read: false }
-    });
-
-    const pushSubscription = JSON.parse(subscription.subscription);
-    
-    await webpush.sendNotification(
-      pushSubscription, 
-      JSON.stringify({
-        title,
-        body,
-        icon: '/android-chrome-192x192.png',
-        badge: '/favicon.ico',
-        badgeCount: unreadCount + 1,
-        data,
-        timestamp: Date.now()
-      }),
-      { urgency: 'high' }
-    );
-    
-    console.log(`📱 Push sent to ${userId} (badge: ${unreadCount + 1})`);
-  } catch (err) {
-    console.error(`❌ Push failed for ${userId}:`, err.message);
-    if (err.statusCode === 410) {
-      await prisma.pushSubscription.deleteMany({ where: { userId } });
-    }
-  }
-}
 
 // Test endpoint to verify notifications work
 app.post('/api/send-test-notification', authenticate, async (req, res) => {

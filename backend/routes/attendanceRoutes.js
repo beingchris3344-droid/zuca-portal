@@ -85,19 +85,32 @@ async function createAndSendNotification({ userId, type, title, message, data = 
 
         const pushSubscription = JSON.parse(subscription.subscription);
         
-        await webpush.sendNotification(
-          pushSubscription,
-          JSON.stringify({
-            title,
-            body: message,
-            icon: '/android-chrome-192x192.png',
-            badge: '/favicon.ico',
-            badgeCount: unreadCount + 1,
-            data: { type, ...data },
-            timestamp: Date.now()
-          }),
-          { urgency: 'high' }
-        );
+   // Build the URL for this notification
+const deepLinkUrl = global.getDeepLinkUrl
+  ? global.getDeepLinkUrl(type, data)
+  : `${process.env.FRONTEND_URL || "https://www.zetechcatholicaction.com"}/dashboard`;
+
+await webpush.sendNotification(
+  pushSubscription,
+  JSON.stringify({
+    title,
+    body: message,
+    icon: "/android-chrome-192x192.png",
+    badge: "/favicon.ico",
+    badgeCount: unreadCount + 1,
+
+    data: {
+      type,
+      ...data,
+      url: deepLinkUrl
+    },
+
+    url: deepLinkUrl,
+
+    timestamp: Date.now()
+  }),
+  { urgency: "high" }
+);
         
         console.log(`📱 Push notification sent to user ${userId}`);
       } else {

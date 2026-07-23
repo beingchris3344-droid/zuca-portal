@@ -357,31 +357,42 @@ self.addEventListener("notificationclick", (event) => {
 
   const url = event.notification.data?.url || "/dashboard";
 
-  event.waitUntil(
-    self.clients.matchAll({
+  event.waitUntil((async () => {
+
+    const windows = await self.clients.matchAll({
       type: "window",
-      includeUncontrolled: true,
-    }).then((clients) => {
+      includeUncontrolled: true
+    });
 
-      // Try to focus an existing window only
-      for (const client of clients) {
-        if (
-          client.url.startsWith("https://www.zetechcatholicaction.com") &&
-          !client.url.endsWith("/sw.js")
-        ) {
-          client.postMessage({
-            type: "OPEN_NOTIFICATION",
-            url,
-          });
+    console.log("ALL CLIENTS");
+    windows.forEach(c => {
+      console.log({
+        url: c.url,
+        focused: c.focused,
+        visibilityState: c.visibilityState
+      });
+    });
 
-          return client.focus();
-        }
-      }
+    // Find a real page
+   const client = windows.find(c =>
+  c.url.startsWith(self.location.origin) &&
+  !c.url.endsWith("/sw.js")
+);
 
-      // No window open → open a new one
-      return self.clients.openWindow(url);
-    })
-  );
+  if (client) {
+  await client.focus();
+
+  client.postMessage({
+    type: "OPEN_URL",
+    url
+  });
+
+  return;
+}
+
+    return self.clients.openWindow(url);
+
+  })());
 });
 // ================== PUSH SUBSCRIPTION CHANGE ==================
 self.addEventListener('pushsubscriptionchange', (event) => {

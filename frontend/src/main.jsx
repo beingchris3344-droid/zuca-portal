@@ -15,6 +15,16 @@ registerSW({
   }
 })
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "OPEN_URL") {
+      console.log("Opening:", event.data.url);
+      window.location.href = event.data.url;
+    }
+  });
+}
+
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />

@@ -412,15 +412,7 @@ const fetchAllSemesters = async () => {
       </div>
     )}
 
-     <button 
-    className="download-report-btn" 
-    onClick={downloadMyReport}
-    disabled={downloading}
-    title="Download your semester attendance report"
-  >
-    <Download size={16} />
-    {downloading ? 'Downloading...' : 'Download Report'}
-  </button>
+   
 
     <div className="semester-filter-section">
   <div className="filter-group">

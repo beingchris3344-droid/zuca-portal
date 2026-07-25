@@ -1368,8 +1368,8 @@ case "send_bulk_email": {
     await createAndSendNotification({
       userId: target.id,
       type: "prayer_request",
-      title: args.title || "🙏 Prayer Request",
-      message: `${user.fullName} is requesting prayers: ${args.message}`,
+      title: args.title || "A Request",
+      message: `${user.fullName} sent a request: ${args.message}`,
       data: { 
         fromUserId: user.id,
         fromName: user.fullName,
@@ -1379,7 +1379,7 @@ case "send_bulk_email": {
 
     return {
       success: true,
-      message: `✅ Prayer request sent to ${target.fullName}! 🙏`
+      message: `✅request sent to ${target.fullName}! 🙏`
     };
   }
 

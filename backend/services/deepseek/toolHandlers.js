@@ -973,7 +973,7 @@ case "all_users": {
         return { users, count: users.length, message: `Showing ${users.length} users` };
       }
 
-     case "find_user": {
+    case "find_user": {
   let searchTerm = args.searchTerm;
   searchTerm = searchTerm.replace(/[''"`]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
   
@@ -982,7 +982,7 @@ case "all_users": {
   if (currentUser?.userId) {
     const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
     if (user) {
-      isAuthorized = true; // Allow all authenticated users
+      isAuthorized = true;
     }
   }
 
@@ -1007,10 +1007,10 @@ case "all_users": {
     // Check if searchTerm is a position title
     const positionMatch = await prisma.executive.findFirst({
       where: {
+        isActive: true,
         position: {
           title: { contains: searchTerm, mode: "insensitive" }
-        },
-        isActive: true
+        }
       },
       include: {
         user: {
@@ -1032,9 +1032,11 @@ case "all_users": {
           role: userData.role,
           specialRole: userData.specialRole,
           jumuia: userData.homeJumuia?.name,
-          position: positionMatch.position.title, // Show their position
+          position: positionMatch.position.title,
           message: `Found ${userData.fullName} who is the ${positionMatch.position.title}`
-        }
+        },
+        action: "navigate",
+        path: `/executive`
       };
     }
 
@@ -1080,6 +1082,22 @@ case "all_users": {
           }))
         },
         message: `Found Jumuia "${jumuiaMatch.name}" with ${jumuiaMatch.members.length} members.`
+      };
+    }
+
+    // If position exists but is vacant (no one assigned)
+    const vacantPosition = await prisma.executivePosition.findFirst({
+      where: {
+        title: { contains: searchTerm, mode: "insensitive" }
+      }
+    });
+
+    if (vacantPosition) {
+      return {
+        message: `The position "${vacantPosition.title}" is currently VACANT. No one is assigned to this role.`,
+        position: vacantPosition.title,
+        isVacant: true,
+        action: "assign"
       };
     }
 

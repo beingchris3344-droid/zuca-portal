@@ -189,7 +189,7 @@ useEffect(() => {
   },  
     { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
              { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
-              { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 111, 226, 0.91)" /> },
+              { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 33, 226, 0.91)" /> },
               { path: "/hymns", label: "Lyrics Book", icon: <FiMusic size={28} color="rgba(238, 9, 9, 0.91)" />},
 
     { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },

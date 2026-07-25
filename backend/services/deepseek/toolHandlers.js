@@ -980,17 +980,16 @@ case "all_users": {
         let isAuthorized = false;
         
         if (currentUser?.userId) {
-          const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-          if (user) {
-            isAuthorized = user.role === "admin" || 
-                           user.specialRole === "secretary" || 
-                           user.specialRole === "treasurer";
-          }
-        }
-        
-        if (!isAuthorized) {
-          return { error: "Only admins, secretaries, and treasurers can search users." };
-        }
+  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+  if (user) {
+    isAuthorized = true;  // ← Allow ALL authenticated users
+  }
+}
+
+if (!isAuthorized) {
+  return { error: "You must be logged in to search users." };
+}
+
         
         const found = await prisma.user.findFirst({
           where: {

@@ -12,6 +12,7 @@ import CelebrationOverlay from '../../components/CelebrationOverlay';
 
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
 import { saveOfflineCheckin, getPendingCount, getPendingCheckins, syncOfflineCheckins } from '../../utils/offlineStorage';
+
 export default function MemberAttendance() {
   const navigate = useNavigate();
   const [activeSheets, setActiveSheets] = useState([]);
@@ -20,9 +21,9 @@ export default function MemberAttendance() {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [greeting, setGreeting] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-const [pendingCount, setPendingCount] = useState(0);
-const [syncing, setSyncing] = useState(false);
-const [showCelebration, setShowCelebration] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -36,7 +37,7 @@ const [showCelebration, setShowCelebration] = useState(false);
 
   const [showQRScanner, setShowQRScanner] = useState(false);
 
-   const checkWiFiNetwork = async (sheet) => {
+  const checkWiFiNetwork = async (sheet) => {
     if (!sheet.enableWifiCheckin) return true;
     
     const userNetwork = prompt(
@@ -69,252 +70,234 @@ const [showCelebration, setShowCelebration] = useState(false);
       setLoading(false);
     }
   };
-const handleCheckin = async (sheetId) => {
-  const sheet = activeSheets.find(s => s.id === sheetId);
-  if (!sheet) return;
   
-  // Set loading state immediately
-  setCheckingIn(sheetId);
-  
-  // Check if offline
-  if (!isOnline) {
-    try {
-      // Check if already have a pending check-in for this sheet
-      const pending = await getPendingCheckins();
-      const alreadyPending = pending.some(p => p.sheetId === sheetId);
-      
-      if (alreadyPending) {
-        showToast('⚠️ You already have a pending check-in for this meeting. Will sync when online.', 'info');
-        setCheckingIn(null);
-        return;
-      }
-      
-      // Save offline check-in
-      const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
-      if (saved) {
-        const newCount = await getPendingCount();
-        setPendingCount(newCount);
-        showToast('📱 Offline check-in saved! Will sync when online.', 'info');
-      } else {
+  const handleCheckin = async (sheetId) => {
+    const sheet = activeSheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    setCheckingIn(sheetId);
+    
+    if (!isOnline) {
+      try {
+        const pending = await getPendingCheckins();
+        const alreadyPending = pending.some(p => p.sheetId === sheetId);
+        
+        if (alreadyPending) {
+          showToast('⚠️ You already have a pending check-in for this meeting. Will sync when online.', 'info');
+          setCheckingIn(null);
+          return;
+        }
+        
+        const saved = await saveOfflineCheckin(sheetId, getDeviceId(), getDeviceName());
+        if (saved) {
+          const newCount = await getPendingCount();
+          setPendingCount(newCount);
+          showToast('📱 Offline check-in saved! Will sync when online.', 'info');
+        } else {
+          showToast('❌ Failed to save offline check-in', 'error');
+        }
+      } catch (error) {
+        console.error('Offline check-in error:', error);
         showToast('❌ Failed to save offline check-in', 'error');
+      } finally {
+        setCheckingIn(null);
       }
+      return;
+    }
+    
+    try {
+      await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
+        sheetId,
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName()
+      }, {
+        headers: getHeaders()
+      });
+      
+      setShowCelebration(true);
+      
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      
+      setTimeout(() => {
+        setShowCelebration(false);
+      }, 3500);
+      
+      showToast('✅ Checked in successfully!', 'success');
+      fetchActiveSheets();
+      
     } catch (error) {
-      console.error('Offline check-in error:', error);
-      showToast('❌ Failed to save offline check-in', 'error');
+      const errorMsg = error.response?.data;
+      const status = error.response?.status;
+      
+      if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
+        showToast(`❌ Wrong Wi-Fi Network!\n\nPlease connect to: "${sheet.wifiSSID}"`, 'error');
+      } 
+      else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
+        showToast(`⚠️ Already checked in for "${sheet.title}"`, 'error');
+      } 
+      else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
+        showToast(`⚠️ This device has already been used to check someone into this meeting.`, 'error');
+      }
+      else if (status === 403) {
+        showToast(`🔒 Self check-in is not enabled for this meeting.`, 'error');
+      }
+      else if (status === 404) {
+        showToast(`📋 This attendance sheet may have been closed.`, 'error');
+      }
+      else {
+        showToast(`❌ Check-in failed\n\n${errorMsg?.message || 'Please try again.'}`, 'error');
+      }
     } finally {
       setCheckingIn(null);
     }
-    return;
-  }
-  
-  // Online check-in
-  try {
-    await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
-      sheetId,
-      deviceId: getDeviceId(),
-      deviceName: getDeviceName()
-    }, {
-      headers: getHeaders()
-    });
-    
-    // 🎉 SHOW CELEBRATION ON SUCCESS
-    setShowCelebration(true);
-    
-    // Optional: Vibrate on mobile
-    if (navigator.vibrate) {
-      navigator.vibrate([200, 100, 200]);
-    }
-    
-    // Auto-hide celebration after 3.5 seconds
-    setTimeout(() => {
-      setShowCelebration(false);
-    }, 3500);
-    
-    // Show toast notification
-    showToast('✅ Checked in successfully!', 'success');
-    
-    // Refresh the meeting list
-    fetchActiveSheets();
-    
-  } catch (error) {
-    const errorMsg = error.response?.data;
-    const status = error.response?.status;
-    
-    if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
-      showToast(`❌ Wrong Wi-Fi Network!\n\nPlease connect to: "${sheet.wifiSSID}"`, 'error');
-    } 
-    else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
-      showToast(`⚠️ Already checked in for "${sheet.title}"`, 'error');
-    } 
-    else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
-      showToast(`⚠️ This device has already been used to check someone into this meeting.`, 'error');
-    }
-    else if (status === 403) {
-      showToast(`🔒 Self check-in is not enabled for this meeting.`, 'error');
-    }
-    else if (status === 404) {
-      showToast(`📋 This attendance sheet may have been closed.`, 'error');
-    }
-    else {
-      showToast(`❌ Check-in failed\n\n${errorMsg?.message || 'Please try again.'}`, 'error');
-    }
-  } finally {
-    setCheckingIn(null);
-  }
-};
-const handleWifiCheckin = async (sheetId, wifiSSID) => {
-  const sheet = activeSheets.find(s => s.id === sheetId);
-  if (!sheet) return;
-  
-  const confirmed = window.confirm(
-    `📡 Wi-Fi Check-in\n\n` +
-    `Make sure you are connected to:\n` +
-    `"${wifiSSID}"\n\n` +
-    `Click OK to check in using this network.`
-  );
-  
-  if (!confirmed) return;
-  
-  setCheckingIn(sheetId);
-  try {
-    await axios.post(`${BASE_URL}/api/attendance/wifi-checkin`, {
-      sheetId,
-      ssid: wifiSSID,
-      deviceId: getDeviceId(),
-      deviceName: getDeviceName()
-    }, {
-      headers: getHeaders()
-    });
-    showToast('✅ Wi-Fi check-in successful!', 'success');
-    fetchActiveSheets();
-  } catch (error) {
-    const errorMsg = error.response?.data;
-    if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
-      showToast(`❌ Wrong Wi-Fi network. Please connect to "${wifiSSID}"`, 'error');
-    } else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
-      showToast('You have already checked in for this meeting', 'error');
-    } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
-      showToast('This device has already been used to check someone in', 'error');
-    } else {
-      showToast(errorMsg?.message || 'Wi-Fi check-in failed', 'error');
-    }
-  } finally {
-    setCheckingIn(null);
-  }
-};
-
-// Periodically check pending count when online
-useEffect(() => {
-  if (!isOnline) return;
-  
-  const checkPending = async () => {
-    const count = await getPendingCount();
-    if (count !== pendingCount) {
-      setPendingCount(count);
-    }
   };
   
-  const interval = setInterval(checkPending, 3000);
-  return () => clearInterval(interval);
-}, [isOnline, pendingCount]);
-
-
-// Register background sync
-useEffect(() => {
-  const registerBackgroundSync = async () => {
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      const registration = await navigator.serviceWorker.ready;
-      try {
-        await registration.sync.register('sync-checkins');
-        console.log('✅ Background sync registered');
-      } catch (err) {
-        console.error('Background sync registration failed:', err);
+  const handleWifiCheckin = async (sheetId, wifiSSID) => {
+    const sheet = activeSheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    const confirmed = window.confirm(
+      `📡 Wi-Fi Check-in\n\n` +
+      `Make sure you are connected to:\n` +
+      `"${wifiSSID}"\n\n` +
+      `Click OK to check in using this network.`
+    );
+    
+    if (!confirmed) return;
+    
+    setCheckingIn(sheetId);
+    try {
+      await axios.post(`${BASE_URL}/api/attendance/wifi-checkin`, {
+        sheetId,
+        ssid: wifiSSID,
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName()
+      }, {
+        headers: getHeaders()
+      });
+      showToast('✅ Wi-Fi check-in successful!', 'success');
+      fetchActiveSheets();
+    } catch (error) {
+      const errorMsg = error.response?.data;
+      if (errorMsg?.error === 'Invalid Wi-Fi network for this meeting') {
+        showToast(`❌ Wrong Wi-Fi network. Please connect to "${wifiSSID}"`, 'error');
+      } else if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
+        showToast('You have already checked in for this meeting', 'error');
+      } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
+        showToast('This device has already been used to check someone in', 'error');
+      } else {
+        showToast(errorMsg?.message || 'Wi-Fi check-in failed', 'error');
       }
-    } else {
-      console.log('Background sync not supported');
+    } finally {
+      setCheckingIn(null);
     }
   };
-  
-  registerBackgroundSync();
-}, []);
 
-// Periodic sync when app is in background (even if not open)
-useEffect(() => {
-  let syncInterval;
-  
-  const backgroundSync = async () => {
-    if (navigator.onLine) {
-      const pending = await getPendingCount();
-      if (pending > 0) {
-        console.log(`🔄 Background sync: ${pending} pending check-ins`);
-        setSyncing(true);
-        const result = await syncOfflineCheckins();
-        if (result.synced > 0) {
-          showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
-          fetchActiveSheets();
+  useEffect(() => {
+    if (!isOnline) return;
+    
+    const checkPending = async () => {
+      const count = await getPendingCount();
+      if (count !== pendingCount) {
+        setPendingCount(count);
+      }
+    };
+    
+    const interval = setInterval(checkPending, 3000);
+    return () => clearInterval(interval);
+  }, [isOnline, pendingCount]);
+
+  useEffect(() => {
+    const registerBackgroundSync = async () => {
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        const registration = await navigator.serviceWorker.ready;
+        try {
+          await registration.sync.register('sync-checkins');
+          console.log('✅ Background sync registered');
+        } catch (err) {
+          console.error('Background sync registration failed:', err);
         }
-        const newCount = await getPendingCount();
-        setPendingCount(newCount);
-        setSyncing(false);
+      } else {
+        console.log('Background sync not supported');
       }
-    }
-  };
-  
-  // Check every 30 seconds even when app is in background
-  syncInterval = setInterval(backgroundSync, 30000);
-  
-  return () => clearInterval(syncInterval);
-}, []);
+    };
+    
+    registerBackgroundSync();
+  }, []);
 
-// Handle online/offline status and sync
-useEffect(() => {
-const handleOnline = async () => {
-  console.log('🟢 Back online!');
-  setIsOnline(true);
-  setSyncing(true);
-  
-  // Sync offline check-ins
-  const result = await syncOfflineCheckins();
-  
-  if (result.synced > 0) {
-    showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
-    fetchActiveSheets();
-  }
-  
-  // ✅ IMPORTANT: Refresh pending count after sync
-  const newCount = await getPendingCount();
-  setPendingCount(newCount);
-  
-  setSyncing(false);
-};
-  
-  const handleOffline = () => {
-  console.log('🔴 Offline mode');
-  setIsOnline(false);
-  showToast('📱 You are offline. Check-ins will be saved and synced when online.', 'info');
-  
-  // ✅ Refresh pending count when going offline
-  const loadCount = async () => {
-    const count = await getPendingCount();
-    setPendingCount(count);
-  };
-  loadCount();
-};
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
-  
-  // Load pending count on mount
-  const loadPendingCount = async () => {
-    const count = await getPendingCount();
-    setPendingCount(count);
-  };
-  loadPendingCount();
-  
-  return () => {
-    window.removeEventListener('online', handleOnline);
-    window.removeEventListener('offline', handleOffline);
-  };
-}, []);
+  useEffect(() => {
+    let syncInterval;
+    
+    const backgroundSync = async () => {
+      if (navigator.onLine) {
+        const pending = await getPendingCount();
+        if (pending > 0) {
+          console.log(`🔄 Background sync: ${pending} pending check-ins`);
+          setSyncing(true);
+          const result = await syncOfflineCheckins();
+          if (result.synced > 0) {
+            showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
+            fetchActiveSheets();
+          }
+          const newCount = await getPendingCount();
+          setPendingCount(newCount);
+          setSyncing(false);
+        }
+      }
+    };
+    
+    syncInterval = setInterval(backgroundSync, 30000);
+    
+    return () => clearInterval(syncInterval);
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      console.log('🟢 Back online!');
+      setIsOnline(true);
+      setSyncing(true);
+      
+      const result = await syncOfflineCheckins();
+      
+      if (result.synced > 0) {
+        showToast(`✅ ${result.synced} offline check-in(s) synced!`, 'success');
+        fetchActiveSheets();
+      }
+      
+      const newCount = await getPendingCount();
+      setPendingCount(newCount);
+      
+      setSyncing(false);
+    };
+    
+    const handleOffline = () => {
+      console.log('🔴 Offline mode');
+      setIsOnline(false);
+      showToast('📱 You are offline. Check-ins will be saved and synced when online.', 'info');
+      
+      const loadCount = async () => {
+        const count = await getPendingCount();
+        setPendingCount(count);
+      };
+      loadCount();
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    const loadPendingCount = async () => {
+      const count = await getPendingCount();
+      setPendingCount(count);
+    };
+    loadPendingCount();
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   useEffect(() => {
     fetchActiveSheets();
@@ -328,24 +311,398 @@ const handleOnline = async () => {
   const totalCheckedIn = activeSheets.reduce((sum, sheet) => sum + (sheet._count?.entries || 0), 0);
   const totalMeetings = activeSheets.length;
   
+  // Skeleton Loader
   if (loading) {
     return (
       <div className="member-attendance">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Loading meetings...</p>
+        <div className="skeleton-wrapper">
+          {/* Hero Header Skeleton */}
+          <div className="hero-header skeleton">
+            <div className="hero-bg-pattern"></div>
+            <div className="skeleton-header-content">
+              <div className="skeleton-back-btn"></div>
+              <div className="hero-content">
+                <div className="skeleton-greeting"></div>
+                <div className="skeleton-title"></div>
+                <div className="skeleton-subtitle"></div>
+              </div>
+              <div className="skeleton-refresh-btn"></div>
+            </div>
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="stats-overview">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="stat-card-overview skeleton">
+                <div className="stat-icon-skeleton"></div>
+                <div className="stat-info-skeleton">
+                  <div className="skeleton-line value"></div>
+                  <div className="skeleton-line label"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Meeting Cards Skeleton */}
+          <div className="meetings-list">
+            {[1, 2].map((item) => (
+              <div key={item} className="meeting-card-premium skeleton-card">
+                <div className="skeleton-card-header">
+                  <div className="skeleton-badge-group">
+                    <div className="skeleton-badge"></div>
+                    <div className="skeleton-badge"></div>
+                  </div>
+                  <div className="skeleton-time"></div>
+                </div>
+                <div className="skeleton-title-line"></div>
+                <div className="skeleton-details">
+                  <div className="skeleton-detail"></div>
+                  <div className="skeleton-detail"></div>
+                  <div className="skeleton-detail"></div>
+                </div>
+                <div className="skeleton-progress">
+                  <div className="skeleton-progress-bar"></div>
+                </div>
+                <div className="skeleton-actions">
+                  <div className="skeleton-btn"></div>
+                  <div className="skeleton-btn primary"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* History Skeleton */}
+          <div className="history-section-premium skeleton-history">
+            <div className="skeleton-history-content">
+              <div className="skeleton-history-icon"></div>
+              <div className="skeleton-history-text">
+                <div className="skeleton-line"></div>
+                <div className="skeleton-line short"></div>
+              </div>
+              <div className="skeleton-history-btn"></div>
+            </div>
+          </div>
         </div>
+
+        <style>{`
+          .skeleton-wrapper {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          }
+
+          /* Skeleton base */
+          .skeleton {
+            position: relative;
+            overflow: hidden;
+            background: #e2e8f0 !important;
+          }
+
+          .skeleton::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+              90deg,
+              transparent 0%,
+              rgba(255, 255, 255, 0.6) 50%,
+              transparent 100%
+            );
+            animation: shimmer 1.5s ease-in-out infinite;
+          }
+
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+
+          /* Header Skeleton */
+          .skeleton-header-content {
+            padding: 30px 24px 40px;
+            position: relative;
+          }
+
+          .skeleton-back-btn {
+            width: 80px;
+            height: 36px;
+            background: #475569 !important;
+            border-radius: 40px;
+            margin-bottom: 20px;
+          }
+
+          .skeleton-greeting {
+            width: 140px;
+            height: 28px;
+            background: #475569 !important;
+            border-radius: 40px;
+            margin: 0 auto 16px;
+          }
+
+          .skeleton-title {
+            width: 240px;
+            height: 44px;
+            background: #475569 !important;
+            border-radius: 8px;
+            margin: 0 auto 12px;
+          }
+
+          .skeleton-subtitle {
+            width: 280px;
+            height: 20px;
+            background: #475569 !important;
+            border-radius: 4px;
+            margin: 0 auto;
+          }
+
+          .skeleton-refresh-btn {
+            width: 40px;
+            height: 40px;
+            background: #475569 !important;
+            border-radius: 40px;
+            position: absolute;
+            top: 30px;
+            right: 24px;
+          }
+
+          /* Stats Skeleton */
+          .stat-card-overview.skeleton {
+            flex: 1;
+            background: #f1f5f9 !important;
+            border-radius: 20px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-height: 70px;
+            border: 1px solid #e2e8f0;
+          }
+
+          .stat-icon-skeleton {
+            width: 48px;
+            height: 48px;
+            background: #cbd5e1 !important;
+            border-radius: 16px;
+            flex-shrink: 0;
+          }
+
+          .stat-info-skeleton {
+            flex: 1;
+          }
+
+          .skeleton-line {
+            background: #cbd5e1 !important;
+            border-radius: 4px;
+            height: 14px;
+          }
+
+          .skeleton-line.value {
+            width: 40px;
+            height: 28px;
+            margin-bottom: 4px;
+            background: #94a3b8 !important;
+          }
+
+          .skeleton-line.label {
+            width: 60px;
+            height: 12px;
+          }
+
+          /* Meeting Cards Skeleton */
+          .skeleton-card {
+            background: white !important;
+            border-radius: 28px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+            min-height: 280px;
+          }
+
+          .skeleton-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+          }
+
+          .skeleton-badge-group {
+            display: flex;
+            gap: 8px;
+          }
+
+          .skeleton-badge {
+            width: 80px;
+            height: 28px;
+            background: #cbd5e1 !important;
+            border-radius: 30px;
+          }
+
+          .skeleton-time {
+            width: 80px;
+            height: 28px;
+            background: #cbd5e1 !important;
+            border-radius: 30px;
+          }
+
+          .skeleton-title-line {
+            width: 200px;
+            height: 28px;
+            background: #cbd5e1 !important;
+            border-radius: 4px;
+            margin-bottom: 20px;
+          }
+
+          .skeleton-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+          }
+
+          .skeleton-detail {
+            height: 60px;
+            background: #f1f5f9 !important;
+            border-radius: 16px;
+          }
+
+          .skeleton-progress {
+            margin-bottom: 20px;
+          }
+
+          .skeleton-progress-bar {
+            height: 8px;
+            background: #e2e8f0 !important;
+            border-radius: 10px;
+            width: 100%;
+          }
+
+          .skeleton-actions {
+            display: flex;
+            gap: 12px;
+          }
+
+          .skeleton-btn {
+            flex: 1;
+            height: 52px;
+            background: #e2e8f0 !important;
+            border-radius: 20px;
+          }
+
+          .skeleton-btn.primary {
+            background: #cbd5e1 !important;
+          }
+
+          /* History Skeleton */
+          .skeleton-history {
+            margin: 24px 24px 40px;
+            padding: 24px;
+            background: white !important;
+            border-radius: 24px;
+            border: 1px solid #e2e8f0;
+          }
+
+          .skeleton-history-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+          }
+
+          .skeleton-history-icon {
+            width: 56px;
+            height: 56px;
+            background: #cbd5e1 !important;
+            border-radius: 20px;
+            flex-shrink: 0;
+          }
+
+          .skeleton-history-text {
+            flex: 1;
+          }
+
+          .skeleton-history-text .skeleton-line {
+            height: 16px;
+            margin-bottom: 6px;
+            width: 160px;
+          }
+
+          .skeleton-history-text .skeleton-line.short {
+            width: 200px;
+            height: 14px;
+            margin-bottom: 0;
+          }
+
+          .skeleton-history-btn {
+            width: 140px;
+            height: 44px;
+            background: #cbd5e1 !important;
+            border-radius: 40px;
+          }
+
+          /* Hero header skeleton */
+          .hero-header.skeleton {
+            background: #1e293b !important;
+          }
+
+          .hero-header.skeleton .skeleton-back-btn,
+          .hero-header.skeleton .skeleton-greeting,
+          .hero-header.skeleton .skeleton-title,
+          .hero-header.skeleton .skeleton-subtitle,
+          .hero-header.skeleton .skeleton-refresh-btn {
+            background: #475569 !important;
+          }
+
+          .hero-header.skeleton .skeleton-back-btn::after,
+          .hero-header.skeleton .skeleton-greeting::after,
+          .hero-header.skeleton .skeleton-title::after,
+          .hero-header.skeleton .skeleton-subtitle::after,
+          .hero-header.skeleton .skeleton-refresh-btn::after {
+            display: none;
+          }
+
+          @media (max-width: 640px) {
+            .skeleton-title {
+              width: 180px;
+              height: 36px;
+            }
+
+            .skeleton-subtitle {
+              width: 220px;
+            }
+
+            .skeleton-stats {
+              flex-direction: column;
+              padding: 0 16px;
+            }
+
+            .skeleton-list {
+              padding: 16px;
+            }
+
+            .skeleton-details {
+              grid-template-columns: 1fr;
+            }
+
+            .skeleton-history-content {
+              flex-direction: column;
+              text-align: center;
+            }
+
+            .skeleton-history-text .skeleton-line {
+              margin: 0 auto 6px;
+            }
+          }
+        `}</style>
       </div>
     );
   }
   
   return (
     <div className="member-attendance">
- {/*celebration */}
-          <CelebrationOverlay 
-      show={showCelebration} 
-      onComplete={() => setShowCelebration(false)} 
-    />
+      <CelebrationOverlay 
+        show={showCelebration} 
+        onComplete={() => setShowCelebration(false)} 
+      />
 
       {toast.show && (
         <div className={`toast-notification ${toast.type}`}>
@@ -372,7 +729,7 @@ const handleOnline = async () => {
         </button>
       </div>
 
-            {/* Offline Banner */}
+      {/* Offline Banner */}
       {(!isOnline || pendingCount > 0) && (
         <div className={`offline-banner ${!isOnline ? 'offline' : 'pending'}`}>
           <div className="banner-content">
@@ -444,37 +801,33 @@ const handleOnline = async () => {
         <div className="meetings-list">
           {activeSheets.map((sheet, index) => (
             <div key={sheet.id} className="meeting-card-premium" style={{ animationDelay: `${index * 0.1}s` }}>
-              {/* Card Glow Effect */}
               <div className="card-glow"></div>
               
-              {/* Header Section */}
               <div className="card-header-premium">
-               <div className="badge-group">
-  {sheet.isActive ? (
-    <span className="live-badge-premium">
-      <Zap size={12} /> LIVE NOW
-    </span>
-  ) : (
-    <span className="closed-badge-premium">
-      <Lock size={12} /> CLOSED
-    </span>
-  )}
-{sheet.enableQrCheckin && (
-  <span className="qr-badge-premium">
-    <QrCode size={12} /> QR Available
-  </span>
-)}
-</div>
+                <div className="badge-group">
+                  {sheet.isActive ? (
+                    <span className="live-badge-premium">
+                      <Zap size={12} /> LIVE NOW
+                    </span>
+                  ) : (
+                    <span className="closed-badge-premium">
+                      <Lock size={12} /> CLOSED
+                    </span>
+                  )}
+                  {sheet.enableQrCheckin && (
+                    <span className="qr-badge-premium">
+                      <QrCode size={12} /> QR Available
+                    </span>
+                  )}
+                </div>
                 <div className="time-badge">
                   <Clock size={14} />
                   <span>{sheet.eventTime || '4:30 PM'}</span>
                 </div>
               </div>
               
-              {/* Title */}
               <h3 className="meeting-title-premium">{sheet.title}</h3>
               
-              {/* Details Grid */}
               <div className="details-grid-premium">
                 <div className="detail-card-premium">
                   <Calendar size={18} />
@@ -505,7 +858,7 @@ const handleOnline = async () => {
                 </div>
                 {sheet.enableWifiCheckin && sheet.wifiSSID && (
                   <div className="detail-card-premium wifi-highlight">
-                   <QrCode size={18} />
+                    <QrCode size={18} />
                     <div>
                       <span className="detail-label">QR Code Check-in</span>
                       <span className="detail-value">Scan QR Code to Check-in</span>
@@ -514,7 +867,6 @@ const handleOnline = async () => {
                 )}
               </div>
               
-              {/* Progress Bar */}
               {sheet.totalMembers && (
                 <div className="progress-section">
                   <div className="progress-header">
@@ -532,18 +884,17 @@ const handleOnline = async () => {
                 </div>
               )}
               
-                         {/* Action Buttons */}
               <div className="action-buttons-group">
                 {sheet.enableWifiCheckin && (
-  <button 
-    className="checkin-btn-qr"
-    onClick={() => setShowQRScanner(true)}
-    disabled={checkingIn === sheet.id}
-  >
-    <QrCode size={18} />
-    Scan QR
-  </button>
-)}
+                  <button 
+                    className="checkin-btn-qr"
+                    onClick={() => setShowQRScanner(true)}
+                    disabled={checkingIn === sheet.id}
+                  >
+                    <QrCode size={18} />
+                    Scan QR
+                  </button>
+                )}
                 
                 <button 
                   className="checkin-btn-premium"
@@ -585,14 +936,13 @@ const handleOnline = async () => {
         </div>
       </div>
 
-        {/* QR Scanner Modal - ADD THIS HERE */}
       {showQRScanner && (
         <QRScanner
           onClose={() => setShowQRScanner(false)}
           onSuccess={() => {
-  showToast('✅ Checked in via QR Code!', 'success');
-  fetchActiveSheets();
-}}
+            showToast('✅ Checked in via QR Code!', 'success');
+            fetchActiveSheets();
+          }}
         />
       )}
       
@@ -604,7 +954,6 @@ const handleOnline = async () => {
           padding: 0;
         }
         
-        /* Hero Header */
         .hero-header {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
           padding: 0px 0px 0px;
@@ -628,7 +977,7 @@ const handleOnline = async () => {
           border: 1px solid rgba(255,255,255,0.2);
           padding: 8px 16px;
           border-radius: 40px;
-top: 20px;
+          top: 20px;
           color: white;
           cursor: pointer;
           display: flex;
@@ -668,8 +1017,7 @@ top: 20px;
         
         .hero-content {
           text-align: center;
-                    margin-top: -24px;
-
+          margin-top: -24px;
         }
         
         .hero-greeting {
@@ -681,7 +1029,6 @@ top: 20px;
           padding: 6px 16px;
           border-radius: 40px;
           margin-top: -50px;
-
           margin-bottom: 0px;
         }
         
@@ -693,7 +1040,6 @@ top: 20px;
         .hero-title {
           font-size: 36px;
           font-weight: 700;
-          
           color: white;
           margin: 0 0 12px 0;
         }
@@ -702,19 +1048,16 @@ top: 20px;
           background: linear-gradient(135deg, #60a5fa, #c084fc);
           -webkit-background-clip: text;
           background-clip: text;
-          
           color: transparent;
         }
         
         .hero-subtitle {
           font-size: 14px;
           color: #94a3b8;
-          
           max-width: 400px;
           margin: 0 auto;
         }
         
-        /* Stats Overview */
         .stats-overview {
           display: flex;
           gap: 16px;
@@ -768,7 +1111,6 @@ top: 20px;
           letter-spacing: 0.5px;
         }
         
-        /* Meetings List */
         .meetings-list {
           padding: 24px;
           display: flex;
@@ -811,10 +1153,10 @@ top: 20px;
           height: 4px;
           background: linear-gradient(90deg, #dc2626, #f97316, #dc2626);
           background-size: 200% 100%;
-          animation: shimmer 2s infinite;
+          animation: shimmerGlow 2s infinite;
         }
         
-        @keyframes shimmer {
+        @keyframes shimmerGlow {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
@@ -827,18 +1169,19 @@ top: 20px;
           flex-wrap: wrap;
           gap: 10px;
         }
-          .closed-badge-premium {
-  background: #64748b;
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: 0.5px;
-}
+        
+        .closed-badge-premium {
+          background: #64748b;
+          color: white;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 30px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          letter-spacing: 0.5px;
+        }
         
         .badge-group {
           display: flex;
@@ -859,17 +1202,17 @@ top: 20px;
           letter-spacing: 0.5px;
         }
         
-      .qr-badge-premium {
-  background: #dcfce7;
-  color: #059669;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+        .qr-badge-premium {
+          background: #dcfce7;
+          color: #059669;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 30px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
         
         .time-badge {
           background: #f8fafc;
@@ -1029,7 +1372,6 @@ top: 20px;
           animation: spin 0.8s linear infinite;
         }
         
-        /* History Section */
         .history-section-premium {
           padding: 24px;
           background: white;
@@ -1094,7 +1436,6 @@ top: 20px;
           gap: 12px;
         }
         
-        /* Empty State */
         .empty-state-premium {
           text-align: center;
           padding: 60px 24px;
@@ -1131,48 +1472,24 @@ top: 20px;
           color: #64748b;
         }
         
-        /* Loading */
-        .loading-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 60vh;
-        }
-        
-        .loading-spinner {
-          width: 50px;
-          height: 50px;
-          border: 3px solid #e2e8f0;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-bottom: 16px;
-        }
-        
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        
-        /* Toast */
         .toast-notification {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 14px 24px;
-  border-radius: 16px;
-  background: #1e293b;
-  color: white;
-  font-size: 14px;
-  z-index: 1000;
-  animation: slideUp 0.3s ease;
-  max-width: 350px;
-  width: 90%;
-  text-align: center;
-  white-space: pre-line;
-  line-height: 1.5;
-}
+          position: fixed;
+          bottom: 30px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 14px 24px;
+          border-radius: 16px;
+          background: #1e293b;
+          color: white;
+          font-size: 14px;
+          z-index: 1000;
+          animation: slideUp 0.3s ease;
+          max-width: 350px;
+          width: 90%;
+          text-align: center;
+          white-space: pre-line;
+          line-height: 1.5;
+        }
         
         .toast-notification.error {
           background: #ef4444;
@@ -1193,7 +1510,89 @@ top: 20px;
           }
         }
         
-        /* Responsive */
+        .action-buttons-group {
+          display: flex;
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .checkin-btn-qr {
+          flex: 1;
+          background: linear-gradient(135deg, #059669, #047857);
+          color: white;
+          border: none;
+          padding: 14px 12px;
+          border-radius: 20px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        .checkin-btn-qr:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
+        }
+
+        .offline-banner {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 1000;
+          border-radius: 50px;
+          padding: 10px 20px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          animation: slideUp 0.3s ease;
+        }
+
+        .offline-banner.offline {
+          background: #f59e0b;
+          color: white;
+        }
+
+        .offline-banner.pending {
+          background: #3b82f6;
+          color: white;
+        }
+
+        .banner-content {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .banner-icon {
+          font-size: 16px;
+        }
+
+        .pending-badge {
+          background: rgba(255,255,255,0.2);
+          padding: 2px 8px;
+          border-radius: 20px;
+          font-size: 11px;
+        }
+
+        .banner-text {
+          font-size: 11px;
+          opacity: 0.9;
+        }
+
+        .sync-spinner-small {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          display: inline-block;
+        }
+
         @media (max-width: 640px) {
           .hero-title {
             font-size: 28px;
@@ -1230,106 +1629,21 @@ top: 20px;
           .hero-content {
             padding-right: 48px;
           }
+
+          .offline-banner {
+            bottom: 10px;
+            padding: 8px 16px;
+          }
+          
+          .banner-content {
+            font-size: 11px;
+            gap: 8px;
+          }
+          
+          .banner-text {
+            display: none;
+          }
         }
-
-        .action-buttons-group {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.checkin-btn-qr {
-  flex: 1;
-  background: linear-gradient(135deg, #059669, #047857);
-  color: white;
-  border: none;
-  padding: 14px 12px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.checkin-btn-qr:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
-}
-
-/* Offline Banner */
-.offline-banner {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  border-radius: 50px;
-  padding: 10px 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  animation: slideUp 0.3s ease;
-}
-
-.offline-banner.offline {
-  background: #f59e0b;
-  color: white;
-}
-
-.offline-banner.pending {
-  background: #3b82f6;
-  color: white;
-}
-
-.banner-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.banner-icon {
-  font-size: 16px;
-}
-
-.pending-badge {
-  background: rgba(255,255,255,0.2);
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-}
-
-.banner-text {
-  font-size: 11px;
-  opacity: 0.9;
-}
-
-.sync-spinner-small {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@media (max-width: 640px) {
-  .offline-banner {
-    bottom: 10px;
-    padding: 8px 16px;
-  }
-  
-  .banner-content {
-    font-size: 11px;
-    gap: 8px;
-  }
-  
-  .banner-text {
-    display: none;
-  }
-}
       `}</style>
     </div>
   );

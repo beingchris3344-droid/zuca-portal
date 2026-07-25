@@ -338,9 +338,7 @@ useEffect(() => {
           <div style={headerRightStyle}>
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
-              <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
-                              <FiMessageSquare size={18} /> Ask zuca
-                            </button>
+             
             </div>
 
             <div ref={userMenuRef} style={userMenuContainerStyle}>
@@ -506,6 +504,25 @@ useEffect(() => {
   justify-content: center;
   padding: 0 5px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Mobile specific fixes for header */
+@media (max-width: 600px) {
+  .header-right-wrapper {
+    gap: 2px !important;
+  }
+  
+  .notification-wrapper {
+    padding: 2px !important;
+  }
+  
+  .user-menu-trigger {
+    padding: 2px 6px !important;
+  }
+  
+  .user-name-display {
+    display: none !important;
+  }
 }
         `}
       </style>
@@ -764,8 +781,8 @@ const hamburgerStyle = {
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
   borderRadius: "10px",
-  width: "0px",
-  height: "0px",
+  width: "40px",
+  height: "40px",
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
@@ -776,8 +793,8 @@ const hamburgerStyle = {
 
 const hamburgerIconStyle = {
   color: "#475569",
-  fontSize: "20px",
-  fontWeight: "600",
+  fontSize: "25px",
+  fontWeight: "800",
 };
 
 const pageTitleStyle = {
@@ -789,23 +806,13 @@ const pageTitleStyle = {
   },
 };
 
+// Update these styles in your Layout.jsx
+
 const headerRightStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "7px",
-  left: "9px",
-  position: "relative",
-  zIndex: 31,
-  "@media (max-width: 900px)": {
-    
-  },
-};
-
-// NEW - Group for notifications + AI button
-const headerActionsGroup = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
+  gap: "6px",
+  flexShrink: 0, // Prevents squeezing
   "@media (max-width: 600px)": {
     gap: "4px",
   },
@@ -815,45 +822,48 @@ const enhancedNotificationWrapperStyle = {
   position: "relative",
   zIndex: 999999,
   isolation: "isolate",
-  background: "#f1f5f9",
-  borderRadius: "12px",
-  padding: "0.10px",
-  border: "1px solid #e2e8f0",
+  background: "#f7f4f4f3",
+  borderRadius: "52px",
+  padding: "0.1px", // Reduced from 0.10px
+  border: "0.1px solid #e2e8f0",
   transition: "all 0.2s ease",
   cursor: "pointer",
-  left: "17px",
+  // REMOVED: left: "17px" - this was causing issues
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  flexShrink: 0, // Prevents squeezing
 };
 
 const userMenuContainerStyle = {
   position: "relative",
   zIndex: 100,
-  left: "9px",
-  padding: "5px 5px",
-  gap: "15px",
+  // REMOVED: left: "9px" - this was causing issues
+  padding: "4px 4px",
+  flexShrink: 0, // Prevents squeezing
 };
 
 const userMenuTriggerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "0px",
-  padding: "6px 12px",
+  gap: "4px",
+  padding: "4px 10px",
   borderRadius: "40px",
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
   cursor: "pointer",
   position: "relative",
   zIndex: 101,
-  "@media (max-width: 900px)": {
-    padding: "4px 8px",
+  flexShrink: 0, // Prevents squeezing
+  "@media (max-width: 600px)": {
+    padding: "3px 6px",
+    gap: "2px",
   },
 };
 
 const headerAvatarStyle = {
-  width: "30px",
-  height: "30px",
+  width: "40px",
+  height: "40px",
   borderRadius: "36px",
   objectFit: "cover",
   border: "2px solid #3b83f600",
@@ -884,8 +894,8 @@ const headerAvatarFallbackStyle = {
 
 const userNameStyle = {
   color: "#1e293b",
-  fontSize: "10px",
-  fontWeight: "600",
+  fontSize: "14px",
+  fontWeight: "800",
   "@media (max-width: 900px)": {
     display: "none",
   },

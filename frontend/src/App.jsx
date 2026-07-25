@@ -61,7 +61,7 @@ import MassReadingsPage from './pages/MassReadingsPage';
 import MassReadingDetail from './pages/MassReadingDetail';
 import MassReadingUpload from './pages/MassReadingUpload'
 import MassReadingEdit from './pages/MassReadingEdit';
-
+import FloatingAIAssistantButton from "./components/FloatingAIAssistantButton";
 
 
 // GAMES
@@ -673,6 +673,17 @@ useEffect(() => {
           />
         )
       )}
+
+        {/* ========== FLOATING AI BUTTON - UNIVERSAL ========== */}
+    {currentUser && (
+      <FloatingAIAssistantButton 
+        user={currentUser} 
+        onOpenAI={() => {
+          setShowAI(true);
+          setIsAIFullPage(false);
+        }}
+      />
+    )}
     </>
   );
 }

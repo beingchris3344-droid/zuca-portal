@@ -1910,25 +1910,15 @@ useEffect(() => {
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <div className="stat-premium-icon users-icon"><FaUsers /></div>
-      <div className="stat-premium-content">
-        <div className="stat-premium-value">Z#{totalUsers || 0}</div>
-        <div className="stat-premium-label">Total Users</div>
-      </div>
-      <div className="stat-premium-trend">↑</div>
-    </motion.div>
-
-    <motion.div 
-      className="quick-stat-premium"
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
+     
+      
+   
      
     
       <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
       <div className="stat-premium-content">
         <div className="stat-premium-value">{totalHymns || 0}</div>
-        <div className="stat-premium-label">Hymns</div>
+        <div className="stat-premium-label">Hymns Lyrics</div>
       </div>
       <div className="stat-premium-trend">↑</div>
     </motion.div>

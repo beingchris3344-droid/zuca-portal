@@ -13,7 +13,7 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus} from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
@@ -189,14 +189,16 @@ useEffect(() => {
   },  
     { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
              { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
+              { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 111, 226, 0.91)" /> },
+              { path: "/hymns", label: "Lyrics Book", icon: <FiMusic size={28} color="rgba(238, 9, 9, 0.91)" />},
 
     { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },
     
       { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
     { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar size={28}/> },
-        { path: "/mass-programs", label: "Mass Programs", icon: "📑" },
+       
 { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={28} /> },
-        { path: "/hymns", label: "Lyrics Book", icon: "🎼" },
+        
     { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
 
       { path: "/youtube", label: "ZUCA/TUBE", icon: <FaYoutube size={28} color="#ff0000" /> },
@@ -209,7 +211,7 @@ useEffect(() => {
      
   { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
   { path: "/chat", label: "Chat", icon: <FaComments size={28} color="#1a1818" /> },
-  { path: "/user-manual", label: "User Manual", icon: "📚" },
+ 
   
     { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
   ];
@@ -762,7 +764,7 @@ const headerStyle = {
   padding: "4px 20px",
   marginBottom: "0px",
   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
-  border: "1px solid #e2e8f0",
+  border: "1px solid #c0c2c4",
   position: "sticky",
   top: 1,
   marginRight: "0px",

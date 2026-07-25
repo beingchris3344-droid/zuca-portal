@@ -48,6 +48,11 @@ export default function Notifications({ userId }) {
       
       const filtered = res.data.filter(n => !dismissedIds.has(n.id));
       setNotifications(filtered);
+
+      const unread = filtered.filter(n => !n.read);
+    window.dispatchEvent(new CustomEvent('notificationUpdate', {
+      detail: { unreadCount: unread.length }
+    }));
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {
@@ -128,6 +133,14 @@ export default function Notifications({ userId }) {
               badgeManager.incrementBadge();
             }
           } catch(e) { console.log('Badge error:', e); }
+
+           window.dispatchEvent(new CustomEvent('newNotification', {
+        detail: { notification }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: unreadCount + 1 }
+      }));
           
           return [notification, ...prev];
         });
@@ -265,6 +278,14 @@ export default function Notifications({ userId }) {
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+       window.dispatchEvent(new CustomEvent('notificationRead', {
+      detail: { notificationId }
+    }));
+    
+    window.dispatchEvent(new CustomEvent('notificationUpdate', {
+      detail: { unreadCount: unreadCount - 1 }
+    }));
       
     } catch (err) {
       console.error("Error marking as read:", err);
@@ -284,6 +305,11 @@ export default function Notifications({ userId }) {
       await axios.put(`${BASE_URL}/api/notifications/${userId}/read-all`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+       window.dispatchEvent(new CustomEvent('notificationAllRead'));
+    window.dispatchEvent(new CustomEvent('notificationUpdate', {
+      detail: { unreadCount: 0 }
+    }));
       
     } catch (err) {
       console.error("Error marking all as read:", err);

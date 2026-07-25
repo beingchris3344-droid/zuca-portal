@@ -14,7 +14,7 @@ import {
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
   FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -658,6 +658,48 @@ const fetchFeaturedGallery = async () => {
   return () => clearInterval(timer);
 }, []);
 
+
+// ==================== SYNC NOTIFICATIONS WITH BELL ====================
+useEffect(() => {
+  // This listens for when the bell updates notifications
+  const handleNotificationUpdate = (event) => {
+    console.log('📢 Bell updated, refreshing dashboard...');
+    fetchNotifications();
+  };
+
+  // Listen for when a single notification is marked as read
+  const handleNotificationRead = (event) => {
+    console.log('📢 Notification marked as read in bell');
+    fetchNotifications();
+  };
+
+  // Listen for when ALL notifications are marked as read
+  const handleAllRead = () => {
+    console.log('📢 All notifications marked as read in bell');
+    fetchNotifications();
+  };
+
+  // Listen for new notifications
+  const handleNewNotification = (event) => {
+    console.log('📢 New notification received:', event.detail);
+    fetchNotifications();
+  };
+
+  // Add all event listeners
+  window.addEventListener('notificationUpdate', handleNotificationUpdate);
+  window.addEventListener('notificationRead', handleNotificationRead);
+  window.addEventListener('notificationAllRead', handleAllRead);
+  window.addEventListener('newNotification', handleNewNotification);
+
+  // Clean up
+  return () => {
+    window.removeEventListener('notificationUpdate', handleNotificationUpdate);
+    window.removeEventListener('notificationRead', handleNotificationRead);
+    window.removeEventListener('notificationAllRead', handleAllRead);
+    window.removeEventListener('newNotification', handleNewNotification);
+  };
+}, [fetchNotifications]);
+
   // Socket listeners
   useEffect(() => {
     if (!window.io || !user) return;
@@ -670,10 +712,16 @@ const fetchFeaturedGallery = async () => {
       socket.emit("join", user.id);
     });
     
-    socket.on("new_notification", () => {
-      fetchNotifications();
-      fetchAnnouncements();
-    });
+  socket.on("new_notification", (data) => {
+  console.log('🔔 New notification received in dashboard:', data);
+  fetchNotifications(); // Refresh dashboard
+  fetchAnnouncements(); // Refresh announcements
+  
+  // Also dispatch an event so the bell knows to refresh
+  window.dispatchEvent(new CustomEvent('newNotification', {
+    detail: { notification: data }
+  }));
+});
     
     socket.on("new_message", () => {
       fetchRecentChats();
@@ -1380,11 +1428,74 @@ const fetchFeaturedGallery = async () => {
           <div className="two-columns">
             {/* LEFT COLUMN */}
             <div className="left-column">
+
+               {/* RECENT NOTIFICATIONS - PREMIUM */}
+<div className="section-card notifications-premium full-width">
+  <div className="section-header">
+    <div className="header-with-icon">
+      <div className="header-icon-notification">🔔</div>
+      <div>
+        <h3>NOTIFICATIONS</h3>
+        <p className="header-subtitle"> {user.fullName?.split(" ")[0]} take note of important notifications</p>
+      </div>
+    </div>
+    <div className="notif-badge">
+      {unreadNotificationsCount > 0 ? `${unreadNotificationsCount} Unread` : 'All Read'}
+    </div>
+  </div>
+
+  <div className="notifications-premium-list">
+    {recentNotifications.length === 0 ? (
+      <div className="empty-notif-state">
+        <span className="empty-notif-icon">🔕</span>
+        <p>No notifications</p>
+        <span className="empty-notif-sub">You're all caught up!</span>
+      </div>
+    ) : (
+      recentNotifications.map((notif, index) => (
+        <motion.div 
+          key={notif.id} 
+          className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.08 }}
+          whileHover={{ x: 4 }}
+          onClick={() => navigate("/notifications")}
+        >
+          <div className="notif-icon-premium">
+            {notif.type === "announcement" && "📢"}
+            {notif.type === "game_invite" && "🎮"}
+            {notif.type === "program" && "⛪"}
+            {notif.type === "checkin" && "✅"}
+            {notif.type === "message" && "💬"}
+            {!notif.type && "🔔"}
+          </div>
+          <div className="notif-content-premium">
+            <div className="notif-header-premium">
+              <span className="notif-title-premium">{notif.title || 'Update'}</span>
+              {!notif.read && <span className="notif-unread-dot">●</span>}
+            </div>
+            <div className="notif-message-premium">{notif.message}</div>
+            <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
+          </div>
+          <div className="notif-arrow-premium">
+            <FiChevronRight size={16} />
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+
+  <button className="notif-action-btn" onClick={() => navigate("/announcements")}>
+    <span>🔔 View All Notifications</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
              {/* RECENT ANNOUNCEMENTS */}
 <div className="section-card announcements-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-announcement"><FiBell /></div>
+      <div className="header-icon-announcement">🔥<FaBell /></div>
       <div>
         <h3>RECENT ANNOUNCEMENTS</h3>
         <p className="header-subtitle">Latest updates from ZUCA</p>
@@ -1935,7 +2046,7 @@ const fetchFeaturedGallery = async () => {
       <div className="header-icon-chat">💬</div>
       <div>
         <h3>RECENT CHAT ACTIVITY</h3>
-        <p className="header-subtitle">Latest community conversations</p>
+        <p className="header-subtitle">What are people saying in the group</p>
       </div>
     </div>
     {recentChats.length > 0 && (
@@ -1990,68 +2101,7 @@ const fetchFeaturedGallery = async () => {
   </button>
 </div>
 
-         {/* RECENT NOTIFICATIONS - PREMIUM */}
-<div className="section-card notifications-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-notification">🔔</div>
-      <div>
-        <h3>NOTIFICATIONS</h3>
-        <p className="header-subtitle">Stay updated with ZUCA</p>
-      </div>
-    </div>
-    <div className="notif-badge">
-      {unreadNotificationsCount > 0 ? `${unreadNotificationsCount} Unread` : 'All Read'}
-    </div>
-  </div>
-
-  <div className="notifications-premium-list">
-    {recentNotifications.length === 0 ? (
-      <div className="empty-notif-state">
-        <span className="empty-notif-icon">🔕</span>
-        <p>No notifications</p>
-        <span className="empty-notif-sub">You're all caught up!</span>
-      </div>
-    ) : (
-      recentNotifications.map((notif, index) => (
-        <motion.div 
-          key={notif.id} 
-          className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.08 }}
-          whileHover={{ x: 4 }}
-          onClick={() => navigate("/notifications")}
-        >
-          <div className="notif-icon-premium">
-            {notif.type === "announcement" && "📢"}
-            {notif.type === "game_invite" && "🎮"}
-            {notif.type === "program" && "⛪"}
-            {notif.type === "checkin" && "✅"}
-            {notif.type === "message" && "💬"}
-            {!notif.type && "🔔"}
-          </div>
-          <div className="notif-content-premium">
-            <div className="notif-header-premium">
-              <span className="notif-title-premium">{notif.title || 'Update'}</span>
-              {!notif.read && <span className="notif-unread-dot">●</span>}
-            </div>
-            <div className="notif-message-premium">{notif.message}</div>
-            <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
-          </div>
-          <div className="notif-arrow-premium">
-            <FiChevronRight size={16} />
-          </div>
-        </motion.div>
-      ))
-    )}
-  </div>
-
-  <button className="notif-action-btn" onClick={() => navigate("/announcements")}>
-    <span>🔔 View All Notifications</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
+        
       {/* FOOTER - PREMIUM */}
       <div className="footer-premium">
         <div className="footer-content">
@@ -6701,6 +6751,7 @@ const fetchFeaturedGallery = async () => {
   border-radius: 30px;
   border-left: 4px solid #64748b;
   padding: 1.5rem;
+  Margin-top: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
@@ -6942,6 +6993,7 @@ const fetchFeaturedGallery = async () => {
   border-radius: 30px;
   border-left: 4px solid #64748b;
   padding: 1.5rem;
+  margin-top: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;

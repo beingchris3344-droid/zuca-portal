@@ -974,50 +974,132 @@ case "all_users": {
       }
 
      case "find_user": {
-        let searchTerm = args.searchTerm;
-        searchTerm = searchTerm.replace(/[''"`]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-        
-        let isAuthorized = false;
-        
-        if (currentUser?.userId) {
-  const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  if (user) {
-    isAuthorized = true;  // ← Allow ALL authenticated users
+  let searchTerm = args.searchTerm;
+  searchTerm = searchTerm.replace(/[''"`]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  let isAuthorized = false;
+  
+  if (currentUser?.userId) {
+    const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+    if (user) {
+      isAuthorized = true; // Allow all authenticated users
+    }
   }
-}
 
-if (!isAuthorized) {
-  return { error: "You must be logged in to search users." };
-}
+  if (!isAuthorized) {
+    return { error: "You must be logged in to search users." };
+  }
 
-        
-        const found = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { fullName: { contains: searchTerm, mode: "insensitive" } },
-              { email: { contains: searchTerm, mode: "insensitive" } },
-              { membership_number: { contains: searchTerm, mode: "insensitive" } }
-            ]
-          },
-          include: { homeJumuia: true, pledges: { include: { contributionType: true } } }
-        });
-        
-        if (!found) return { error: `No user found matching "${args.searchTerm}".` };
-        
-        return {
-          user: {
-            id: found.id,
-            fullName: found.fullName,
-            email: found.email,
-            phone: found.phone,
-            membership: found.membership_number,
-            role: found.role,
-            specialRole: found.specialRole,
-            jumuia: found.homeJumuia?.name,
-            totalPaid: found.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0)
-          }
-        };
+  // First try to find as a user
+  let found = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { fullName: { contains: searchTerm, mode: "insensitive" } },
+        { email: { contains: searchTerm, mode: "insensitive" } },
+        { membership_number: { contains: searchTerm, mode: "insensitive" } }
+      ]
+    },
+    include: { homeJumuia: true, pledges: { include: { contributionType: true } } }
+  });
+
+  // If not found as user, check if it's a position title
+  if (!found) {
+    // Check if searchTerm is a position title
+    const positionMatch = await prisma.executive.findFirst({
+      where: {
+        position: {
+          title: { contains: searchTerm, mode: "insensitive" }
+        },
+        isActive: true
+      },
+      include: {
+        user: {
+          include: { homeJumuia: true }
+        },
+        position: true
       }
+    });
+
+    if (positionMatch) {
+      const userData = positionMatch.user;
+      return {
+        user: {
+          id: userData.id,
+          fullName: userData.fullName,
+          email: userData.email,
+          phone: userData.phone,
+          membership: userData.membership_number,
+          role: userData.role,
+          specialRole: userData.specialRole,
+          jumuia: userData.homeJumuia?.name,
+          position: positionMatch.position.title, // Show their position
+          message: `Found ${userData.fullName} who is the ${positionMatch.position.title}`
+        }
+      };
+    }
+
+    // Check if it's a jumuia name (e.g., "St. Gregory")
+    const jumuiaMatch = await prisma.jumuia.findFirst({
+      where: {
+        name: { contains: searchTerm, mode: "insensitive" }
+      },
+      include: {
+        members: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            role: true,
+            specialRole: true,
+            membership_number: true
+          }
+        },
+        leaders: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (jumuiaMatch) {
+      return {
+        jumuia: {
+          name: jumuiaMatch.name,
+          code: jumuiaMatch.code,
+          memberCount: jumuiaMatch.members.length,
+          leaders: jumuiaMatch.leaders.map(l => l.fullName),
+          members: jumuiaMatch.members.map(m => ({
+            name: m.fullName,
+            email: m.email,
+            role: m.role,
+            specialRole: m.specialRole
+          }))
+        },
+        message: `Found Jumuia "${jumuiaMatch.name}" with ${jumuiaMatch.members.length} members.`
+      };
+    }
+
+    return { error: `No user, position, or Jumuia found matching "${args.searchTerm}".` };
+  }
+  
+  return {
+    user: {
+      id: found.id,
+      fullName: found.fullName,
+      email: found.email,
+      phone: found.phone,
+      membership: found.membership_number,
+      role: found.role,
+      specialRole: found.specialRole,
+      jumuia: found.homeJumuia?.name,
+      totalPaid: found.pledges.reduce((s, p) => s + (p.amountPaid || 0), 0)
+    }
+  };
+}
       case "change_user_role": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
         if (user.role !== "admin") return { error: "Admin only." };

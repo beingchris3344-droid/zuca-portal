@@ -305,6 +305,12 @@ BEFORE sending an email, check:
 
 When in doubt about who to send to, ask the user!
 
+## POSITION SEARCH RULES
+- "St. Gregory Moderator" is a POSITION TITLE, not a user
+- When someone asks about a "moderator" or "leader" role, search for the position
+- If no one holds the position, say "This position is currently vacant"
+- Always check positions before saying "not found"
+
 ## GENERAL RULES
 1. ONE action per response maximum
 2. NEVER make up data — only the database knows real information

@@ -212,17 +212,17 @@ const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
       }
     });
 
-    socket.on('member_added', (data) => {
-      if (data.jumuiaId === jumuia?.id) {
-        handleMemberAdded(data);
-      }
-    });
+   socket.on('member_added', (data) => {
+  if (data.jumuiaId === jumuia?.id) {
+    handleMemberAddedRealtime(data);  // ← Rename to this
+  }
+});
 
-    socket.on('member_removed', (data) => {
-      if (data.jumuiaId === jumuia?.id) {
-        handleMemberRemoved(data);
-      }
-    });
+ socket.on('member_removed', (data) => {
+  if (data.jumuiaId === jumuia?.id) {
+    handleMemberRemovedRealtime(data);
+  }
+});
 
     socket.on('leader_assigned', (data) => {
       if (data.jumuiaId === jumuia?.id) {
@@ -361,21 +361,91 @@ const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
     showNotification(`🗑️ Campaign deleted: ${data.title}`, 'info');
   };
 
-  const handleMemberAdded = (data) => {
-    console.log('Member added:', data);
-    addLiveUpdate('success', `👤 ${data.memberName} joined the jumuia`);
+ const handleMemberAdded = async (userId) => {
+  if (!userId) {
+    showNotification("Please select a user to add", "error");
+    return;
+  }
 
-    setMembers(prev => [...prev, data.member]);
-    showNotification(`👤 ${data.memberName} joined`, 'success');
-  };
+  try {
+    const response = await api.post(
+      `/api/jumuia/${jumuia.id}/members/add`,
+      { userId }
+    );
+    
+    // Update members list with the new member
+    const newMember = response.data.member;
+    setMembers(prev => [...prev, newMember]);
+    
+    // Show success notification
+    showNotification(`👤 ${newMember.fullName} joined the jumuia`, 'success');
+    
+    // Close the modal
+    setShowAddMemberModal(false);
+    
+    // Add live update for other users
+    addLiveUpdate('success', `👤 ${newMember.fullName} joined the jumuia`);
+    
+    // Refresh jumuia data to get updated member count and details
+    await fetchJumuiaDetails();
+    
+  } catch (err) {
+    console.error('Error adding member:', err);
+    showNotification(
+      err.response?.data?.error || "Failed to add member to jumuia", 
+      "error"
+    );
+  }
+};
 
-  const handleMemberRemoved = (data) => {
-    console.log('Member removed:', data);
-    addLiveUpdate('info', `👋 ${data.memberName} left the jumuia`);
+// ==================== REMOVE MEMBER FROM JUMUIA (API CALL) ====================
+const handleMemberRemoved = async (memberId, memberName) => {
+  if (!memberId) {
+    showNotification("Member ID is required", "error");
+    return;
+  }
 
-    setMembers(prev => prev.filter(m => m.id !== data.memberId));
-    showNotification(`👋 ${data.memberName} removed`, 'info');
-  };
+  // Confirm before removing
+  if (!window.confirm(`Are you sure you want to remove ${memberName} from this Jumuia?`)) {
+    return;
+  }
+
+  try {
+    const response = await api.delete(
+      `/api/jumuia/${jumuia.id}/members/${memberId}`
+    );
+    
+    console.log('Remove response:', response.data);
+    
+    // Update members list - remove the member
+    setMembers(prev => prev.filter(m => m.id !== memberId));
+    
+    // Show success notification
+    showNotification(`👋 ${memberName} removed from jumuia`, 'success');
+    
+    // Add live update
+    addLiveUpdate('info', `👋 ${memberName} left the jumuia`);
+    
+    // Refresh jumuia data to get updated member count
+    await fetchJumuiaDetails();
+    
+  } catch (err) {
+    console.error('Error removing member:', err);
+    showNotification(
+      err.response?.data?.error || "Failed to remove member from jumuia", 
+      "error"
+    );
+  }
+};
+
+
+// ==================== SOCKET EVENT HANDLER (REAL-TIME) ====================
+const handleMemberRemovedRealtime = (data) => {
+  console.log('Member removed (realtime):', data);
+  addLiveUpdate('info', `👋 ${data.memberName} left the jumuia`);
+  setMembers(prev => prev.filter(m => m.id !== data.memberId));
+  showNotification(`👋 ${data.memberName} removed`, 'info');
+};
 
   const handleLeaderAssigned = (data) => {
     console.log('Leader assigned:', data);
@@ -2424,6 +2494,8 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [addingUserId, setAddingUserId] = useState(null);
 
   useEffect(() => {
     fetchAvailableUsers();
@@ -2432,13 +2504,34 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   const fetchAvailableUsers = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/users');
-      const available = res.data.filter(u => !u.jumuiaId);
-      setUsers(available);
+      setError(null);
+      
+      // Use the new endpoint that only returns users with no Jumuia
+      const res = await api.get('/api/jumuia/available-users');
+      console.log('Users with no Jumuia:', res.data);
+      
+      setUsers(res.data);
+      
+      if (res.data.length === 0) {
+        setError('No available users found. All users may already be in a Jumuia.');
+      }
+      
     } catch (err) {
       console.error('Error fetching users:', err);
+      setError(err.response?.data?.error || 'Failed to load users. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddUser = async (userId) => {
+    setAddingUserId(userId);
+    try {
+      await onAdd(userId);
+      // Parent will close modal on success
+    } catch (err) {
+      console.error('Error adding user:', err);
+      setAddingUserId(null);
     }
   };
 
@@ -2449,15 +2542,29 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   );
 
   return (
-    <div style={styles.modalOverlay}>
-      <div style={{...styles.modal, maxWidth: '600px'}}>
-        <h3>Add Member to Jumuia</h3>
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={{...styles.modal, maxWidth: '600px'}} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>Add Member to Jumuia</h3>
+          <button 
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#64748b'
+            }}
+          >
+            ×
+          </button>
+        </div>
         
         <div style={styles.searchWrapper}>
           <Icons.Search />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users by name, email, or membership number..."
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -2469,28 +2576,67 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
             <div style={styles.spinner} />
             <p>Loading users...</p>
           </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#ef4444' }}>
+            <p style={{ fontSize: '48px', margin: 0 }}>⚠️</p>
+            <p>{error}</p>
+            <button 
+              onClick={fetchAvailableUsers}
+              style={{
+                marginTop: '12px',
+                padding: '8px 16px',
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           <div style={{ maxHeight: '400px', overflowY: 'auto', marginTop: '16px' }}>
             {filteredUsers.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#94a3b8' }}>No users available</p>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                <p style={{ fontSize: '48px', margin: 0 }}>👤</p>
+                <p>No users found</p>
+                <p style={{ fontSize: '12px' }}>
+                  {searchTerm ? 'Try a different search term' : 'All users are already in a Jumuia'}
+                </p>
+              </div>
             ) : (
               filteredUsers.map(user => (
                 <div key={user.id} style={styles.userRow}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                     <div style={styles.memberAvatarSmall}>
-                      {user.fullName?.charAt(0).toUpperCase()}
+                      {user.fullName?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div>
-                      <div style={{ fontWeight: '600' }}>{user.fullName}</div>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>{user.fullName}</div>
                       <div style={{ fontSize: '12px', color: '#64748b' }}>{user.email}</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>#{user.membership_number}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        #{user.membership_number || 'No membership'}
+                        {user.role === 'admin' && ' 👑 Admin'}
+                      </div>
                     </div>
                   </div>
                   <button
-                    style={styles.addUserBtn}
-                    onClick={() => onAdd(user.id)}
+                    style={{
+                      ...styles.addUserBtn,
+                      opacity: addingUserId === user.id ? 0.7 : 1,
+                      cursor: addingUserId === user.id ? 'not-allowed' : 'pointer'
+                    }}
+                    onClick={() => handleAddUser(user.id)}
+                    disabled={addingUserId === user.id}
                   >
-                    Add
+                    {addingUserId === user.id ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Icons.Spinner /> Adding...
+                      </span>
+                    ) : (
+                      '+ Add'
+                    )}
                   </button>
                 </div>
               ))
@@ -2502,12 +2648,17 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
           <button style={styles.cancelBtn} onClick={onClose}>
             Close
           </button>
+          <button 
+            style={{...styles.confirmBtn, background: '#64748b'}}
+            onClick={fetchAvailableUsers}
+          >
+            🔄 Refresh
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 // SimpleMessageModal component
 function SimpleMessageModal({ pledgeId, userName, onClose }) {
   return (

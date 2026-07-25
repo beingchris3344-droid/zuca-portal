@@ -374,7 +374,7 @@ Just type what you need, or try one of the quick actions below!`,
           <div style={fullPageHeaderLeft}>
             <button onClick={handleBack} style={backButtonStyle}>
               <FiArrowLeft size={18} />
-              <span>Back</span>
+              <span>minimize</span>
             </button>
             <div style={fullPageTitleStyle}>
               <img src={logoImg} alt="ZUCA" style={fullPageLogoStyle} />

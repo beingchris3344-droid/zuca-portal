@@ -878,6 +878,10 @@ const massReadingsRoutes = require("./routes/massReadings");
 app.use("/api/mass-readings", massReadingsRoutes);
 
 
+const jumuiaMembersRoutes = require('./routes/jumuiaMembers');
+app.use('/api/jumuia', jumuiaMembersRoutes);
+
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

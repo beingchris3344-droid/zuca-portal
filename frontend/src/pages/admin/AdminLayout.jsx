@@ -205,22 +205,26 @@ export default function AdminLayout() {
     { label: "Admin View", path: "", icon: <FaShieldAlt color="#000000"/>, bg: "#eff6ff", color: "#3b82f6" },
     { label: "Attendance Management", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
     { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
+                     { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
+
+    { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
+     { label: "Semester Schedule", path: "schedules", icon: <FiCalendar color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
+     { label: "Executive", path: "executive", icon: <FaUserTie color="#000000" />, bg: "#ede9fe", color: "#8b5cf6" },
+    { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands color="#000000" />, bg: "#d1fae5", color: "#10b981" },
+     { label: "Zuca Users", path: "users", icon: <FiUsers color="#000000" />, bg: "#e0f2fe", color: "#000000" },
+   
+    { label: "Role management", path: "roles", icon: <FaUserTie color="#000000" />, bg: "#fce7f3", color: "#ec4899" },
     
+
         { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart color="#000000"/>, bg: "#d1fae5", color: "#10b981" },
         { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
             { label: "Announcements", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },
-                { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
 
 
 
-    { label: "Zuca Users", path: "users", icon: <FiUsers color="#000000" />, bg: "#e0f2fe", color: "#000000" },
-    { label: "Semester Schedule", path: "schedules", icon: <FiCalendar color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Role management", path: "roles", icon: <FaUserTie color="#000000" />, bg: "#fce7f3", color: "#ec4899" },
-    { label: "Executive", path: "executive", icon: <FaUserTie color="#000000" />, bg: "#ede9fe", color: "#8b5cf6" },
-    { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands color="#000000" />, bg: "#d1fae5", color: "#10b981" },
+   
     { label: "Gallery", path: "media", icon: <FaImages color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
     { label: "YouTube Analytics", path: "analytics", icon: <FaYoutube color="#ff0000" />, bg: "#fee2e2", color: "#ef4444" },
-    { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
     { label: "Email Dashboard", path: "email", icon: <FaMailBulk color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
     { label: "Email Settings", path: "email-settings", icon: <FaCogs color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
     { label: "Messanger", path: "messenger", icon: 

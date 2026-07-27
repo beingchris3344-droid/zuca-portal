@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import io from 'socket.io-client';
 import BASE_URL from '../../api';
+import axios from 'axios';
 
 // Icons
 const Icons = {
@@ -1092,8 +1093,69 @@ const handleCreateAnnouncement = async () => {
       )}
 
       {/* Header */}
+          {/* Header */}
       <div style={styles.header}>
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <h1 style={{ ...styles.title, margin: 0 }}>{jumuia.name}</h1>
+            
+          {/* ==================== BACK TO MEMBER BUTTON ==================== */}
+{user?.specialRole === "jumuia_leader" && (
+  <button
+    onClick={async (e) => {
+      const btn = e.currentTarget;
+      const originalHTML = btn.innerHTML;
+      
+      // Show loading
+      btn.innerHTML = `
+        <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+        Switching...
+      `;
+      btn.style.opacity = "0.7";
+      btn.style.pointerEvents = "none";
+      
+      try {
+        const token = localStorage.getItem("token");
+        const res = await api.post(`${BASE_URL}/api/switch-role`, 
+          { targetRole: "member" },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        localStorage.setItem("token", res.data.token);
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        storedUser.role = "member";
+        localStorage.setItem("user", JSON.stringify(storedUser));
+        
+        window.location.href = "/dashboard";
+      } catch (err) {
+        // Restore on error
+        btn.innerHTML = originalHTML;
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        alert("Failed to switch back");
+      }
+    }}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "6px 14px",
+      background: "linear-gradient(135deg, #0fbb26, #0ba83f)",
+      color: "white",
+      border: "none",
+      borderRadius: "20px",
+      fontSize: "12px",
+      fontWeight: "600",
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: 0,
+      transition: "all 0.2s ease",
+    }}
+  >
+    👤 Back to Member
+  </button>
+)}
+          </div>
           <h1 style={styles.title}>{jumuia.name}</h1>
           <div style={styles.stats}>
             <span style={styles.statBadge}>

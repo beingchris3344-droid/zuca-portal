@@ -265,6 +265,90 @@ useEffect(() => {
           </div>
         </div>
 
+
+{/* ==================== ROLE SWITCHER ==================== */}
+{user?.specialRole && (
+  <motion.button
+    whileTap={{ scale: 0.95 }}
+    onClick={async (e) => {
+      const btn = e.currentTarget;
+      const originalHTML = btn.innerHTML;
+      
+      // Show loading spinner
+      btn.innerHTML = `
+        <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+        Switching...
+      `;
+      btn.style.opacity = "0.7";
+      btn.style.pointerEvents = "none";
+      
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentRole = storedUser.role || "member";
+      const targetRole = currentRole === "member" ? user.specialRole : "member";
+      
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+          { targetRole },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // ✅ Update token
+        localStorage.setItem("token", res.data.token);
+        
+        // ✅ Update user object with new role
+        storedUser.role = res.data.role;
+        storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+        localStorage.setItem("user", JSON.stringify(storedUser));
+        
+        // Redirect to appropriate dashboard
+              if (targetRole === "member") {
+          window.location.href = "/dashboard";
+               } else if (targetRole === "jumuia_leader") {
+          const jumuiaCode = res.data.jumuiaCode || user?.homeJumuia?.code;
+          console.log("🔀 Jumuia code from API:", res.data.jumuiaCode);
+          console.log("🔀 Final redirect code:", jumuiaCode);
+          window.location.href = jumuiaCode ? `/jumuia/${jumuiaCode.toLowerCase()}` : "/leader";
+        } else {
+          const rolePaths = {
+            secretary: "/secretary",
+            treasurer: "/treasurer",
+            choir_moderator: "/choir",
+            media_moderator: "/media-moderator"
+          };
+          window.location.href = rolePaths[targetRole] || "/dashboard";
+        }
+      } catch (err) {
+        // Restore button on error
+        btn.innerHTML = originalHTML;
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        alert(err.response?.data?.error || "Failed to switch role. Please try again.");
+      }
+    }}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "10px 14px",
+      background: "linear-gradient(135deg, #069b12, #1cf32e)",
+      color: "white",
+      border: "none",
+      borderRadius: "12px",
+      fontSize: "12px",
+      fontWeight: "600",
+      cursor: "pointer",
+      width: "100%",
+      justifyContent: "center",
+      marginBottom: "16px",
+      boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
+      transition: "all 0.2s ease",
+    }}
+  >
+    🔑 Switch to {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
+  </motion.button>
+)}
+
         <div
           ref={scrollContainerRef}
           style={navContainer(sidebarShadow)}
@@ -506,6 +590,12 @@ useEffect(() => {
   justify-content: center;
   padding: 0 5px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Mobile specific fixes for header */

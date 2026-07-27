@@ -1,6 +1,8 @@
 // frontend/src/pages/role/RoleLayout.jsx
 import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axios from "axios";          
+import BASE_URL from "../../api"; 
 
 
 export default function RoleLayout() {
@@ -206,7 +208,46 @@ export default function RoleLayout() {
           </div>
           {!isMobile && <span className="role-desc-mini">{roleInfo.description}</span>}
         </div>
-        <div className="top-bar-right">
+              <div className="top-bar-right">
+          {/* ==================== BACK TO MEMBER BUTTON ==================== */}
+<button 
+  className="back-to-member-btn"
+  onClick={async (e) => {
+    const btn = e.currentTarget;
+    const originalHTML = btn.innerHTML;
+    
+    // Show loading
+    btn.innerHTML = `
+      <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+      Switching...
+    `;
+    btn.style.opacity = "0.7";
+    btn.style.pointerEvents = "none";
+    
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+        { targetRole: "member" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      localStorage.setItem("token", res.data.token);
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      storedUser.role = "member";
+      localStorage.setItem("user", JSON.stringify(storedUser));
+      
+      window.location.href = "/dashboard";
+    } catch (err) {
+      btn.innerHTML = originalHTML;
+      btn.style.opacity = "1";
+      btn.style.pointerEvents = "auto";
+      alert("Failed to switch back to member mode");
+    }
+  }}
+>
+  👤 Back to Member
+</button>
+          
           {!isMobile && <span className="user-name-mini">{user.fullName || user.name || "User"}</span>}
           <button className="logout-btn-mini" onClick={handleLogout}>
             <span>🚪</span>
@@ -791,6 +832,34 @@ export default function RoleLayout() {
 
           .layout-container {
             flex-direction: column;
+          }
+        }
+
+                .back-to-member-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: linear-gradient(135deg, #e54646, #ed3a43);
+          color: white;
+          border: none;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .back-to-member-btn:active {
+          transform: scale(0.95);
+          opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+          .back-to-member-btn {
+            padding: 6px 10px;
+            font-size: 11px;
           }
         }
 

@@ -6578,6 +6578,64 @@ app.post("/api/role-login", async (req, res) => {
     }
   }
 });
+
+
+// ==================== ROLE SWITCHER ====================
+
+// 1. BACKEND — Add this to server.js (near other auth routes)
+app.post("/api/switch-role", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { targetRole } = req.body;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, specialRole: true, fullName: true, email: true }
+    });
+    
+    if (!user) return res.status(404).json({ error: "User not found" });
+    
+    // Switch BACK to member
+    if (targetRole === "member") {
+      const token = jwt.sign(
+        { userId: user.id, role: "member" },
+        JWT_SECRET, { expiresIn: "365d" }
+      );
+      return res.json({ 
+        success: true, 
+        token, 
+        role: "member",
+        message: "Switched to Member mode" 
+      });
+    }
+    
+   if (user.specialRole === targetRole) {
+  let jumuiaCode = null;
+  
+  if (targetRole === "jumuia_leader") {
+    const jumuia = await prisma.jumuia.findFirst({
+      where: { leaders: { some: { id: userId } } }
+    });
+    if (!jumuia) return res.status(403).json({ error: "You are not assigned as a jumuia leader" });
+    jumuiaCode = jumuia.code;
+  }
+  
+  const token = jwt.sign(
+    { userId: user.id, role: targetRole, jumuiaCode },
+    JWT_SECRET, { expiresIn: "365d" }
+  );
+  return res.json({ 
+    success: true, token, role: targetRole, jumuiaCode,
+    message: `Switched to ${targetRole} mode` 
+  });
+}
+    
+    res.status(403).json({ error: `You don't have the ${targetRole} role` });
+    
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ================== TOKEN REFRESH ENDPOINT ==================
 app.post("/api/auth/refresh-token", async (req, res) => {
   try {

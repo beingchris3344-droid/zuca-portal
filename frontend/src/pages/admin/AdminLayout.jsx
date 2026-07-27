@@ -573,14 +573,59 @@ export default function AdminLayout() {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-            <span style={                          pageTitleStyle}>ZUCA(M/S)</span>
+            <span style={                          pageTitleStyle}>ZUCA</span>
           </div>
 
           <div style={headerRightStyle}>
-            <button className="ai-assistant-btn" onClick={openAI}>
-              <FiMessageSquare size={18} />
-              <span>AI</span>
-            </button>
+  {/* ==================== BACK TO MEMBER BUTTON ==================== */}
+  <button 
+    className="back-to-member-btn"
+    onClick={async (e) => {
+      const btn = e.currentTarget;
+      const originalHTML = btn.innerHTML;
+      
+      btn.innerHTML = `
+        <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+        Switching...
+      `;
+      btn.style.opacity = "0.7";
+      btn.style.pointerEvents = "none";
+      
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${BASE_URL}/api/switch-role`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ targetRole: "member" })
+        });
+        
+        if (!res.ok) throw new Error("Failed");
+        
+        const data = await res.json();
+        localStorage.setItem("token", data.token);
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        storedUser.role = "member";
+        localStorage.setItem("user", JSON.stringify(storedUser));
+        
+        window.location.href = "/dashboard";
+      } catch (err) {
+        btn.innerHTML = originalHTML;
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        alert("Failed to switch back");
+      }
+    }}
+  >
+    👤 Back to Member
+  </button>
+
+  <button className="ai-assistant-btn" onClick={openAI}>
+    <FiMessageSquare size={18} />
+    <span>AI</span>
+  </button>
 
             <button 
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -811,6 +856,40 @@ export default function AdminLayout() {
           background: #f8fcff;
           object-fit: cover;
           border: 1px solid #e2e8f0;
+        }
+
+                .back-to-member-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: linear-gradient(135deg, #17171a, #111113);
+          color: white;
+          border: none;
+          border-radius: 24px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .back-to-member-btn:active {
+          transform: scale(0.95);
+          opacity: 0.9;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+          .back-to-member-btn {
+            padding: 6px 8px;
+            margin-left: 6px;
+            font-size: 11px;
+          }
         }
 
         @keyframes pulse {

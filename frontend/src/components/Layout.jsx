@@ -314,7 +314,9 @@ useEffect(() => {
             secretary: "/secretary",
             treasurer: "/treasurer",
             choir_moderator: "/choir",
+            admin: "/admin",
             media_moderator: "/media-moderator"
+          
           };
           window.location.href = rolePaths[targetRole] || "/dashboard";
         }

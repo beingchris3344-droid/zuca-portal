@@ -629,6 +629,7 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
   const getCurrentSpecialRole = () => {
     if (!user.specialRole) return null;
     const roles = {
+      'admin': 'Administrator',
       'jumuia_leader': 'Jumuia Leader',
       'treasurer': 'Treasurer',
       'secretary': 'Secretary',
@@ -640,6 +641,7 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
 
   const getRoleStyle = (role) => {
     const styles = {
+      'admin': { background: '#fef2f2', color: '#dc2626', icon: '👑' },
       'jumuia_leader': { background: '#f3e8ff', color: '#7c3aed', icon: '👥' },
       'treasurer': { background: '#fef3c7', color: '#d97706', icon: '💰' },
       'secretary': { background: '#d1fae5', color: '#059669', icon: '📝' },
@@ -709,6 +711,7 @@ function UserRoleCard({ user, jumuias, onUpdate, updating }) {
             disabled={updating}
           >
             <option value="">None</option>
+            <option value="admin"> Administrator</option>
             <option value="jumuia_leader">Jumuia Leader</option>
             <option value="treasurer">Treasurer</option>
             <option value="secretary">Secretary</option>

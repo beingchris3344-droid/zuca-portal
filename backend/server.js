@@ -1389,7 +1389,7 @@ app.post("/api/ai/smart-query", authenticate, async (req, res) => {
       select: { role: true, specialRole: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isTreasurer = user.specialRole === "treasurer";
     
@@ -4030,7 +4030,7 @@ app.delete("/api/media/comments/:commentId", authenticate, async (req, res) => {
     if (!comment) return res.status(404).json({ error: "Comment not found" });
     
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isOwner = comment.userId === req.user.userId;
     const isMediaOwner = comment.media.uploadedById === req.user.userId;
     
@@ -4251,7 +4251,7 @@ app.get('/api/notifications/vapid-public-key', (req, res) => {
 
 
 
-
+      
 
 // ================== AUTH MIDDLEWARE ==================
 function authenticate(req, res, next) {
@@ -4269,8 +4269,9 @@ function authenticate(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
-  next();
+  if (req.user.role === "admin") return next();
+  if (req.user.specialRole === "admin") return next();
+  res.status(403).json({ message: "Admin only" });
 }
 
 const hasRole = (req, allowedRoles) => {
@@ -5720,8 +5721,7 @@ app.get("/api/admin/songs", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isSecretary = user.specialRole === "secretary";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isSecretary = user.specialRole === "secretary";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isSecretary && !isChoirModerator) {
@@ -5801,8 +5801,7 @@ app.get("/api/admin/songs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isSecretary = user.specialRole === "secretary";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isSecretary = user.specialRole === "secretary";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isSecretary && !isChoirModerator) {
@@ -5846,8 +5845,7 @@ app.post("/api/admin/songs", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isSecretary = user.specialRole === "secretary";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isSecretary = user.specialRole === "secretary";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isSecretary && !isChoirModerator) {
@@ -5904,8 +5902,7 @@ app.put("/api/admin/songs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isSecretary = user.specialRole === "secretary";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isSecretary = user.specialRole === "secretary";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isSecretary && !isChoirModerator) {
@@ -5948,8 +5945,7 @@ app.delete("/api/admin/songs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isSecretary = user.specialRole === "secretary";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isSecretary = user.specialRole === "secretary";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isSecretary && !isChoirModerator) {
@@ -5975,8 +5971,7 @@ app.get("/api/admin/pending-songs", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isChoirModerator = user.specialRole === "choir_moderator";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
       return res.status(403).json({ error: "Not authorized" });
@@ -6012,8 +6007,7 @@ app.put("/api/admin/pending-songs/:id/complete", authenticate, async (req, res) 
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
-    const isChoirModerator = user.specialRole === "choir_moderator";
+const isAdmin = user.role === "admin" || user.specialRole === "admin";    const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
       return res.status(403).json({ error: "Not authorized" });
@@ -6041,7 +6035,7 @@ app.delete("/api/admin/pending-songs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -7206,7 +7200,7 @@ app.get("/api/announcements/:id/viewers", authenticate, async (req, res) => {
       select: { role: true, specialRole: true }
     });
     
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'admin' || user.specialRole === 'admin';
     const isSecretary = user.specialRole === 'secretary';
     
     if (!isAdmin && !isSecretary) {
@@ -7285,7 +7279,7 @@ app.post("/api/announcements", authenticate, async (req, res) => {
     if (!title || !content) return res.status(400).json({ error: "Title & Content required" });
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     
     if (!isAdmin && !isSecretary) {
@@ -7350,7 +7344,7 @@ app.put("/api/announcements/:id", authenticate, async (req, res) => {
     const { title, content, category, published } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     
     if (!isAdmin && !isSecretary) {
@@ -7379,7 +7373,7 @@ app.delete("/api/announcements/:id", authenticate, async (req, res) => {
     const { id } = req.params;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     
     if (!isAdmin && !isSecretary) {
@@ -7462,7 +7456,7 @@ app.get("/api/admin/mass-programs", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -7531,7 +7525,7 @@ app.post("/api/admin/mass-programs", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -7666,7 +7660,7 @@ app.put("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -7994,7 +7988,7 @@ app.delete("/api/admin/mass-programs/:id", authenticate, async (req, res) => {
       where: { id: req.user.userId } 
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -8045,7 +8039,7 @@ app.delete("/api/admin/mass-programs/:id/songs", authenticate, async (req, res) 
     const { id } = req.params;
     
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -8070,7 +8064,7 @@ app.post("/api/admin/mass-programs/:id/songs", authenticate, async (req, res) =>
     const { type, title } = req.body;
     
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isChoirModerator = user.specialRole === "choir_moderator";
     
     if (!isAdmin && !isChoirModerator) {
@@ -8270,7 +8264,7 @@ app.post("/api/admin/contributions/jumuia", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Title, amountRequired & jumuiaId are required" });
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -8355,7 +8349,7 @@ async function checkJumuiaAccess(req, res, next) {
       }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeaderOfThisJumuia = user.leadingJumuia?.id === jumuiaId;
     const isMemberOfThisJumuia = user.homeJumuia?.id === jumuiaId;
 
@@ -8434,7 +8428,7 @@ app.get("/api/jumuia/:identifier", authenticate, async (req, res) => {
       }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeaderOfThisJumuia = user.leadingJumuia?.id === jumuia.id;
     const isMemberOfThisJumuia = user.homeJumuia?.id === jumuia.id;
 
@@ -8523,7 +8517,7 @@ app.post("/api/jumuia/:jumuiaId/contributions", authenticate, checkJumuiaAccess,
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = req.jumuiaAccess.isLeader;
 
@@ -8602,7 +8596,7 @@ app.put("/api/jumuia/contributions/:contributionId", authenticate, async (req, r
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === contribution.jumuiaId;
 
@@ -8644,7 +8638,7 @@ app.delete("/api/jumuia/contributions/:contributionId", authenticate, async (req
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === contribution.jumuiaId;
 
@@ -8689,7 +8683,7 @@ app.put("/api/jumuia/pledges/:pledgeId/approve", authenticate, async (req, res) 
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -8763,7 +8757,7 @@ app.put("/api/jumuia/pledges/:pledgeId/manual-add", authenticate, async (req, re
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -8852,7 +8846,7 @@ app.put("/api/jumuia/pledges/:pledgeId/edit-message", authenticate, async (req, 
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -8890,7 +8884,7 @@ app.put("/api/jumuia/pledges/:pledgeId/reset", authenticate, async (req, res) =>
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -8939,7 +8933,7 @@ app.post("/api/jumuia/contributions/bulk-delete", authenticate, async (req, res)
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === firstCampaign.jumuiaId;
 
@@ -9003,7 +8997,7 @@ app.post("/api/jumuia/contributions/bulk-duplicate", authenticate, async (req, r
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === firstCampaign.jumuiaId;
 
@@ -9108,7 +9102,7 @@ app.post("/api/jumuia/pledges/bulk-approve", authenticate, async (req, res) => {
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === firstPledge.contributionType.jumuiaId;
 
@@ -9230,7 +9224,7 @@ app.post("/api/jumuia/:jumuiaId/members", authenticate, async (req, res) => {
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeader = user.leadingJumuia?.id === jumuiaId;
 
     if (!isAdmin && !isLeader) {
@@ -9264,7 +9258,7 @@ app.delete("/api/jumuia/:jumuiaId/members/:userId", authenticate, async (req, re
       include: { leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeader = user.leadingJumuia?.id === jumuiaId;
 
     if (!isAdmin && !isLeader) {
@@ -9476,7 +9470,7 @@ app.post("/api/jumuia/:jumuiaId/chat/rooms", authenticate, checkJumuiaAccess, as
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeader = req.jumuiaAccess.isLeader;
 
     if (!isAdmin && !isLeader) {
@@ -9526,7 +9520,7 @@ app.get("/api/jumuia/chat/rooms/:roomId/messages", authenticate, async (req, res
       include: { homeJumuia: true, leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isMember = user.homeJumuia?.id === room.jumuiaId;
     const isLeader = user.leadingJumuia?.id === room.jumuiaId;
 
@@ -9629,7 +9623,7 @@ app.post("/api/jumuia/chat/rooms/:roomId/messages", authenticate, async (req, re
       include: { homeJumuia: true, leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isMember = user.homeJumuia?.id === room.jumuiaId;
     const isLeader = user.leadingJumuia?.id === room.jumuiaId;
 
@@ -9754,7 +9748,7 @@ app.post("/api/jumuia/chat/messages/:messageId/reactions", authenticate, async (
       include: { homeJumuia: true, leadingJumuia: true }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isMember = user.homeJumuia?.id === message.room.jumuiaId;
     const isLeader = user.leadingJumuia?.id === message.room.jumuiaId;
 
@@ -9918,7 +9912,7 @@ app.post("/api/jumuia/:jumuiaId/announcements", authenticate, checkJumuiaAccess,
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isLeader = req.jumuiaAccess.isLeader;
 
@@ -10007,7 +10001,7 @@ app.delete("/api/jumuia/chat/messages/:messageId", authenticate, async (req, res
       include: { leadingJumuia: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isLeader = user.leadingJumuia?.id === message.room.jumuiaId;
     const isOwner = message.userId === req.user.userId;
     
@@ -10116,7 +10110,7 @@ app.get("/api/jumuia/chat/rooms/:roomId/unread-count", authenticate, async (req,
       include: { homeJumuia: true, leadingJumuia: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isMember = user.homeJumuia?.id === room.jumuiaId;
     const isLeader = user.leadingJumuia?.id === room.jumuiaId;
     
@@ -10237,7 +10231,7 @@ app.put("/api/jumuia/:jumuiaId/announcements/:announcementId", authenticate, asy
       include: { leadingJumuia: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isLeader = user.leadingJumuia?.id === jumuiaId;
     const isCreator = announcement.createdBy === req.user.userId;
@@ -10287,7 +10281,7 @@ app.delete("/api/jumuia/:jumuiaId/announcements/:announcementId", authenticate, 
       include: { leadingJumuia: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isLeader = user.leadingJumuia?.id === jumuiaId;
     const isCreator = announcement.createdBy === req.user.userId;
@@ -10327,7 +10321,7 @@ app.patch("/api/jumuia/:jumuiaId/announcements/:announcementId/publish", authent
       include: { leadingJumuia: true }
     });
     
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isLeader = user.leadingJumuia?.id === jumuiaId;
     
@@ -11624,8 +11618,7 @@ app.get("/api/users", authenticate, async (req, res) => {
       select: { role: true, specialRole: true }
     });
     
-    const isAdmin = currentUser.role === "admin";
-    const isSecretary = currentUser.role === "secretary" || currentUser.specialRole === "secretary";
+const isAdmin = currentUser.role === "admin" || currentUser.specialRole === "admin";    const isSecretary = currentUser.role === "secretary" || currentUser.specialRole === "secretary";
     
     if (!isAdmin && !isSecretary) {
       return res.status(403).json({ error: "Not authorized" });
@@ -12095,7 +12088,7 @@ app.post("/api/contribution-types", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Title & amountRequired required" });
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12156,7 +12149,7 @@ app.post("/api/contribution-types", authenticate, async (req, res) => {
 app.get("/api/contribution-types", authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12206,7 +12199,7 @@ app.put("/api/contribution-types/:id", authenticate, async (req, res) => {
     const { title, description, amountRequired, deadline } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12234,7 +12227,7 @@ app.delete("/api/contribution-types/:id", authenticate, async (req, res) => {
     const { id } = req.params;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12259,7 +12252,7 @@ app.post("/api/contribution-types/bulk-delete", authenticate, async (req, res) =
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12305,7 +12298,7 @@ app.post("/api/contribution-types/bulk-duplicate", authenticate, async (req, res
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     
     if (!isAdmin && !isTreasurer) {
@@ -12540,7 +12533,7 @@ app.get("/api/pledges/:pledgeId/messages", authenticate, async (req, res) => {
     });
 
     const isOwner = pledge.userId === req.user.userId;
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -12605,7 +12598,7 @@ app.post("/api/pledges/:pledgeId/messages", authenticate, async (req, res) => {
     });
 
     const isOwner = pledge.userId === req.user.userId;
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
     const isLeader = user.leadingJumuia?.id === pledge.contributionType.jumuiaId;
 
@@ -12743,7 +12736,7 @@ app.put("/api/pledges/:pledgeId/approve", authenticate, async (req, res) => {
       where: { id: req.user.userId }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
 
     if (!isAdmin && !isTreasurer) {
@@ -12816,7 +12809,7 @@ app.put("/api/pledges/:pledgeId/manual-add", authenticate, async (req, res) => {
       where: { id: req.user.userId }
     });
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isTreasurer = user.specialRole === "treasurer";
 
     if (!isAdmin && !isTreasurer) {
@@ -13906,7 +13899,7 @@ app.post("/api/admin/ai/assistant", authenticate, async (req, res) => {
     });
     
     // Check if user is admin
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.specialRole === "admin";
     const isSecretary = user.specialRole === "secretary";
     const isTreasurer = user.specialRole === "treasurer";
     

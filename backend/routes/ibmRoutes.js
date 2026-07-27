@@ -717,7 +717,7 @@ async function isAdminOrTreasurerOrSecretary(userId) {
   
   if (!user) return false;
   
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isTreasurer = user.specialRole === "treasurer";
   const isSecretary = user.specialRole === "secretary";
   

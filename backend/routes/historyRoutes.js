@@ -21,7 +21,7 @@ const authenticate = (req, res, next) => {
 
 // Updated: Allow both Admin AND Secretary
 const requireAdminOrSecretary = (req, res, next) => {
-  const isAdmin = req.user.role === "admin";
+  const isAdmin = req.user.role === "admin" || req.user.specialRole === "admin";
   const isSecretary = req.user.role === "secretary";
   
   if (isAdmin || isSecretary) {

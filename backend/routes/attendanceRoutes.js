@@ -1047,7 +1047,7 @@ const getSheetById = async (req, res) => {
       select: { role: true, specialRole: true, jumuiaId: true }
     });
     
-    const isAdmin = currentUser.role === 'admin';
+    const isAdmin = currentUser.role === 'admin' || currentUser.specialRole === 'admin';
     const isSecretary = currentUser.role === 'secretary' || currentUser.specialRole === 'secretary';
     
     if (sheetBasic.isExecutiveOnly) {
@@ -2004,7 +2004,7 @@ const getAdminStats = async (req, res) => {
       select: { role: true, specialRole: true }
     });
     
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'admin' || user.specialRole === 'admin';
     const isSecretary = user.role === 'secretary' || user.specialRole === 'secretary';
     
     if (!isAdmin && !isSecretary) {
@@ -2276,7 +2276,7 @@ router.get("/all-sheets", authenticate, requireLeaderOrAdmin, async (req, res) =
       select: { role: true, specialRole: true }
     });
     
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'admin' || user.specialRole === 'admin';
     const isSecretary = user.role === 'secretary' || user.specialRole === 'secretary';
     
     if (!isAdmin && !isSecretary) {
@@ -2320,7 +2320,7 @@ router.get("/sheet/:sheetId", authenticate, async (req, res) => {
       select: { role: true, specialRole: true, jumuiaId: true }
     });
     
-    const isAdmin = currentUser.role === 'admin';
+    const isAdmin = currentUser.role === 'admin' || currentUser.specialRole === 'admin';
     const isSecretary = currentUser.role === 'secretary' || currentUser.specialRole === 'secretary';
     
     // Get sheet info to check access
@@ -2366,7 +2366,7 @@ router.post("/sheet/:sheetId/entry", authenticate, async (req, res, next) => {
     select: { role: true, specialRole: true }
   });
   
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.role === "secretary" || user.specialRole === "secretary";
   const isLeader = user.specialRole === "jumuia_leader";
   
@@ -2624,7 +2624,7 @@ router.get("/member/all-meetings", authenticate, async (req, res) => {
     
     const visibleSheets = allSheets.filter(sheet => {
       if (sheet.isExecutiveOnly) {
-        const isAdmin = user.role === 'admin';
+        const isAdmin = user.role === 'admin' || user.specialRole === 'admin';
         const isSecretary = user.specialRole === 'secretary';
         return isAdmin || isSecretary || isExecutive;
       }

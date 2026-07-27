@@ -246,7 +246,7 @@ async function executeToolCall(toolName, args, context) {
 
       case "create_campaign": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         const isTreasurer = user.specialRole === "treasurer";
         
         if (!isAdmin && !isTreasurer) {
@@ -297,7 +297,7 @@ async function executeToolCall(toolName, args, context) {
 
       case "approve_pledge": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         const isTreasurer = user.specialRole === "treasurer";
         
         if (!isAdmin && !isTreasurer) {
@@ -568,7 +568,7 @@ async function executeToolCall(toolName, args, context) {
       // ==================== ANNOUNCEMENTS ====================
      case "create_announcement": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -1249,7 +1249,7 @@ case "all_users": {
       // ==================== HELP ====================
       case "show_help": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         
         let helpText = `**What I Can Do For You:**\n\n`;
         helpText += `🗣️ **Chat & Navigate** - Talk naturally, I'll guide you\n`;
@@ -1278,7 +1278,7 @@ case "all_users": {
       // ==================== SCHEDULE GENERATION ====================
       case "generate_schedule_from_text": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         const isSecretary = user.specialRole === "secretary";
         
         if (!isAdmin && !isSecretary) {
@@ -1324,7 +1324,7 @@ case "all_users": {
 // ==================== EMAIL & NOTIFICATIONS ====================
 case "send_bulk_email": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
 
   if (!isAdmin && !isSecretary) {
@@ -1369,7 +1369,7 @@ case "send_bulk_email": {
 
    case "send_email": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   
   const target = await prisma.user.findFirst({
     where: {
@@ -1878,7 +1878,7 @@ case "mark_notifications_read": {
 // ==================== CONTRIBUTIONS ====================
 case "manual_add_payment": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isTreasurer = user.specialRole === "treasurer";
   
   if (!isAdmin && !isTreasurer) {
@@ -1945,7 +1945,7 @@ case "manual_add_payment": {
 
 case "delete_campaign": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isTreasurer = user.specialRole === "treasurer";
   
   if (!isAdmin && !isTreasurer) {
@@ -2019,7 +2019,7 @@ case "get_campaign_details": {
 
 case "get_pledge_stats": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   
   if (!isAdmin) {
     return { error: "Only admins can view pledge statistics." };
@@ -2276,7 +2276,7 @@ case "navigate_to_hymn": {
 // ==================== JUMUIA ====================
 case "get_jumuia_members": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isJumuiaLeader = user.specialRole === "jumuia_leader";
   
   if (!isAdmin && !isJumuiaLeader) {
@@ -2332,7 +2332,7 @@ case "get_jumuia_members": {
 
 case "add_member_to_jumuia": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isJumuiaLeader = user.specialRole === "jumuia_leader" && user.jumuiaId;
   
   if (!isAdmin && !isJumuiaLeader) {
@@ -2375,7 +2375,7 @@ case "add_member_to_jumuia": {
 
 case "remove_member_from_jumuia": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isJumuiaLeader = user.specialRole === "jumuia_leader";
   
   if (!isAdmin && !isJumuiaLeader) {
@@ -2522,7 +2522,7 @@ case "search_announcements": {
 
 case "edit_announcement": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -2557,7 +2557,7 @@ case "edit_announcement": {
 
 case "pin_announcement": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -2647,7 +2647,7 @@ case "get_pinned_messages": {
 
 case "pin_message": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isModerator = user.specialRole === "secretary";
   
   if (!isAdmin && !isModerator) {
@@ -3190,7 +3190,7 @@ case "update_executive_details": {
 // ==================== SCHEDULE ====================
 case "publish_schedule": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -3265,7 +3265,7 @@ case "get_schedule_by_id": {
 
 case "update_schedule_event": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -3292,7 +3292,7 @@ case "update_schedule_event": {
 
 case "delete_schedule_event": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -3311,7 +3311,7 @@ case "delete_schedule_event": {
 
 case "add_schedule_event": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   
   if (!isAdmin && !isSecretary) {
@@ -4276,7 +4276,7 @@ case "get_trends": {
       // ==================== GET NEW USERS ====================
       case "get_new_users": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         const isSecretary = user.specialRole === "secretary";
         
         if (!isAdmin && !isSecretary) {
@@ -4334,7 +4334,7 @@ case "get_trends": {
       // ==================== GET USER STATS ====================
       case "get_user_stats": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         
         if (!isAdmin) {
           return { error: "Only admins can view user statistics." };
@@ -4391,7 +4391,7 @@ case "get_trends": {
       // ==================== GET RECENT ACTIVITY ====================
       case "get_recent_activity": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.specialRole === "admin";
         
         if (!isAdmin) {
           return { error: "Only admins can view recent activity." };
@@ -4476,7 +4476,7 @@ case "get_trends": {
       // ==================== UNIVERSAL DATABASE QUERY ====================
 case "query_database": {
   const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "admin" || user.specialRole === "admin";
   const isSecretary = user.specialRole === "secretary";
   const isTreasurer = user.specialRole === "treasurer";
   

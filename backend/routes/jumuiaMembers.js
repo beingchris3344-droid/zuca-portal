@@ -127,7 +127,7 @@ router.get('/available-users', authenticate, async (req, res) => {
     });
     
     const isLeader = currentUser?.specialRole === 'jumuia_leader';
-    const isAdmin = currentUser?.role === 'admin';
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.specialRole === 'admin';
     const isTreasurer = currentUser?.specialRole === 'treasurer';
     
     if (!isLeader && !isAdmin && !isTreasurer) {

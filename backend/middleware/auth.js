@@ -17,14 +17,13 @@ function authenticate(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-  next();
+  if (req.user.role === "admin") return next();
+  if (req.user.specialRole === "admin") return next();
+  return res.status(403).json({ error: "Admin access required" });
 }
 
 function requireLeaderOrAdmin(req, res, next) {
-  const isAdmin = req.user.role === "admin";
+ const isAdmin = req.user.role === "admin" || req.user.specialRole === "admin";
   const isLeader = req.user.specialRole === "jumuia_leader";
   const isSecretary = req.user.role === "secretary" || req.user.specialRole === "secretary";
   

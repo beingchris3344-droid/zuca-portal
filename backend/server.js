@@ -11695,7 +11695,7 @@ app.put("/api/users/:id/role", requireAdmin, async (req, res) => {
     const { role, specialRole, assignedJumuiaId } = req.body;
 
     const allowedRoles = ["member", "admin"];
-    const allowedSpecialRoles = ["jumuia_leader", "treasurer", "secretary", "choir_moderator", "media_moderator", null];
+    const allowedSpecialRoles = ["jumuia_leader", "treasurer", "secretary", "choir_moderator", "media_moderator","admin", null];
 
     if (role && !allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role" });

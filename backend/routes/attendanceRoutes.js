@@ -3251,7 +3251,7 @@ router.get("/admin/member/:userId/history", authenticate, requireLeaderOrAdmin, 
           // Global meetings (not assigned to any jumuia, not executive only)
           { jumuiaId: null, isExecutiveOnly: false },
           // Meetings for this user's jumuia
-          { jumuiaId: userJumuiaId },
+{ jumuiaId: userJumuiaId, isExecutiveOnly: false },
           // Executive meetings (if user is executive)
           ...(isExecutive ? [{ isExecutiveOnly: true }] : [])
         ]

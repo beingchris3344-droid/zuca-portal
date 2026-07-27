@@ -554,7 +554,7 @@ async function sendSemesterReportEmail(userId, semester) {
         },
         OR: [
           { jumuiaId: null, isExecutiveOnly: false },
-          { jumuiaId: user?.jumuiaId },
+{ jumuiaId: user?.jumuiaId, isExecutiveOnly: false },
           ...(isExecutive ? [{ isExecutiveOnly: true }] : [])
         ]
       },

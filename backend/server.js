@@ -882,6 +882,10 @@ const jumuiaMembersRoutes = require('./routes/jumuiaMembers');
 app.use('/api/jumuia', jumuiaMembersRoutes);
 
 
+//delete account 
+const deleteAccountRoutes = require("./routes/deleteAccount");
+app.use("/api", deleteAccountRoutes);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

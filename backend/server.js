@@ -6603,7 +6603,7 @@ app.post("/api/switch-role", authenticate, async (req, res) => {
       });
     }
     
-   if (user.specialRole === targetRole) {
+  if (user.specialRole === targetRole || user.role === targetRole) {
   let jumuiaCode = null;
   
   if (targetRole === "jumuia_leader") {

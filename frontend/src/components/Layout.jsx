@@ -265,89 +265,193 @@ useEffect(() => {
           </div>
         </div>
 
-
 {/* ==================== ROLE SWITCHER ==================== */}
 {(user?.specialRole || user?.role === "admin") && (
-  <motion.button
-    whileTap={{ scale: 0.95 }}
-    onClick={async (e) => {
-      const btn = e.currentTarget;
-      const originalHTML = btn.innerHTML;
-      
-      // Show loading spinner
-      btn.innerHTML = `
-        <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-        Switching...
-      `;
-      btn.style.opacity = "0.7";
-      btn.style.pointerEvents = "none";
-      
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-      const currentRole = storedUser.role || "member";
-     const targetRole = currentRole === "member" ? (user.specialRole || user.role) : "member";
-      try {
-        const token = localStorage.getItem("token");
-        const res = await axios.post(`${BASE_URL}/api/switch-role`, 
-          { targetRole },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        // ✅ Update token
-        localStorage.setItem("token", res.data.token);
-        
-        // ✅ Update user object with new role
-        storedUser.role = res.data.role;
-        storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
-        localStorage.setItem("user", JSON.stringify(storedUser));
-        
-        // Redirect to appropriate dashboard
-              if (targetRole === "member") {
-          window.location.href = "/dashboard";
-               } else if (targetRole === "jumuia_leader") {
-          const jumuiaCode = res.data.jumuiaCode || user?.homeJumuia?.code;
-          console.log("🔀 Jumuia code from API:", res.data.jumuiaCode);
-          console.log("🔀 Final redirect code:", jumuiaCode);
-          window.location.href = jumuiaCode ? `/jumuia/${jumuiaCode.toLowerCase()}` : "/leader";
-        } else {
-          const rolePaths = {
-            secretary: "/secretary",
-            treasurer: "/treasurer",
-            choir_moderator: "/choir",
-            admin: "/admin",
-            media_moderator: "/media-moderator"
+  <>
+    {user?.role === "admin" && user?.specialRole ? (
+      /* ========== DROPDOWN for users with BOTH admin account AND specialRole ========== */
+      <div style={{ marginBottom: "16px", position: "relative" }}>
+        <select
+          onChange={async (e) => {
+            const targetRole = e.target.value;
+            if (!targetRole) return;
+            
+            const selectEl = e.target;
+            const wrapperEl = selectEl.parentElement;
+            
+            // Create loading overlay
+            const loadingDiv = document.createElement("div");
+            loadingDiv.innerHTML = `
+              <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              Switching...
+            `;
+            loadingDiv.style.cssText = `
+              position: absolute;
+              inset: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: linear-gradient(135deg, #069b12, #1cf32e);
+              color: white;
+              font-size: 13px;
+              font-weight: 600;
+              borderRadius: 12px;
+              zIndex: 10;
+            `;
+            wrapperEl.appendChild(loadingDiv);
+            selectEl.style.visibility = "hidden";
+            
+            try {
+              const token = localStorage.getItem("token");
+              const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+                { targetRole },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              localStorage.setItem("token", res.data.token);
+              const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+              storedUser.role = res.data.role;
+              storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+              localStorage.setItem("user", JSON.stringify(storedUser));
+              
+              if (targetRole === "member") window.location.href = "/dashboard";
+              else if (targetRole === "jumuia_leader") {
+                const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+                window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+              } else if (targetRole === "admin") window.location.href = "/admin";
+              else if (targetRole === "secretary") window.location.href = "/secretary";
+              else if (targetRole === "treasurer") window.location.href = "/treasurer";
+              else if (targetRole === "choir_moderator") window.location.href = "/choir";
+              else if (targetRole === "media_moderator") window.location.href = "/media-moderator";
+            } catch (err) {
+              loadingDiv.remove();
+              selectEl.style.visibility = "visible";
+              selectEl.value = "";
+              alert("Failed to switch role");
+            }
+          }}
+          style={{
+            width: "100%",
+            padding: "10px 14px",
+            borderRadius: "12px",
+            border: "none",
+            background: "linear-gradient(135deg, #069b12, #1cf32e)",
+            fontSize: "13px",
+            fontWeight: "600",
+            color: "white",
+            cursor: "pointer",
+            outline: "none",
+            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <option value="">🔑 Switch Role...</option>
+          {window.location.pathname.startsWith("/admin") || 
+           window.location.pathname.startsWith("/jumuia") || 
+           window.location.pathname.startsWith("/secretary") || 
+           window.location.pathname.startsWith("/treasurer") || 
+           window.location.pathname.startsWith("/choir") || 
+           window.location.pathname.startsWith("/leader") || 
+           window.location.pathname.startsWith("/media-moderator") ? (
+            <option value="member">👤 Back to Member Mode</option>
+          ) : (
+            <>
+              <option value="admin"> Admin Mode</option>
+              <option value={user.specialRole}>
+                 {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
+              </option>
+            </>
+          )}
+        </select>
+      </div>
+    ) : (
+      /* ========== SINGLE BUTTON for users with only ONE role ========== */
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={async (e) => {
+          const btn = e.currentTarget;
+          const originalHTML = btn.innerHTML;
           
-          };
-          window.location.href = rolePaths[targetRole] || "/dashboard";
-        }
-      } catch (err) {
-        // Restore button on error
-        btn.innerHTML = originalHTML;
-        btn.style.opacity = "1";
-        btn.style.pointerEvents = "auto";
-        alert(err.response?.data?.error || "Failed to switch role. Please try again.");
-      }
-    }}
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      padding: "10px 14px",
-      background: "linear-gradient(135deg, #069b12, #1cf32e)",
-      color: "white",
-      border: "none",
-      borderRadius: "12px",
-      fontSize: "12px",
-      fontWeight: "600",
-      cursor: "pointer",
-      width: "100%",
-      justifyContent: "center",
-      marginBottom: "16px",
-      boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
-      transition: "all 0.2s ease",
-    }}
-  >
-    🔑 Switch to {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
-  </motion.button>
+          btn.innerHTML = `
+            <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(11, 165, 36, 0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+            Switching...
+          `;
+          btn.style.opacity = "0.7";
+          btn.style.pointerEvents = "none";
+          
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          const isOnRolePage = window.location.pathname.includes("/admin") || 
+                               window.location.pathname.includes("/secretary") || 
+                               window.location.pathname.includes("/treasurer") || 
+                               window.location.pathname.includes("/choir") || 
+                               window.location.pathname.includes("/leader") || 
+                               window.location.pathname.includes("/media-moderator");
+          const targetRole = isOnRolePage ? "member" : (user.specialRole || user.role);
+          
+          try {
+            const token = localStorage.getItem("token");
+            const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+              { targetRole },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            localStorage.setItem("token", res.data.token);
+            storedUser.role = res.data.role;
+            storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+            localStorage.setItem("user", JSON.stringify(storedUser));
+            
+            if (targetRole === "member") {
+              window.location.href = "/dashboard";
+            } else if (targetRole === "jumuia_leader") {
+              const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+              window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+            } else {
+              const rolePaths = {
+                secretary: "/secretary",
+                treasurer: "/treasurer",
+                choir_moderator: "/choir",
+                admin: "/admin",
+                media_moderator: "/media-moderator"
+              };
+              window.location.href = rolePaths[targetRole] || "/dashboard";
+            }
+          } catch (err) {
+            btn.innerHTML = originalHTML;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+            alert(err.response?.data?.error || "Failed to switch role. Please try again.");
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "10px 14px",
+          background: "linear-gradient(135deg, #069b12, #1cf32e)",
+          color: "white",
+          border: "none",
+          borderRadius: "12px",
+          fontSize: "12px",
+          fontWeight: "600",
+          cursor: "pointer",
+          width: "100%",
+          justifyContent: "center",
+          marginBottom: "16px",
+          boxShadow: "0 2px 8px rgba(21, 172, 71, 0.3)",
+          transition: "all 0.2s ease",
+        }}
+      >
+        {window.location.pathname.includes("/admin") || 
+         window.location.pathname.includes("/secretary") || 
+         window.location.pathname.includes("/treasurer") || 
+         window.location.pathname.includes("/choir") || 
+         window.location.pathname.includes("/leader") || 
+         window.location.pathname.includes("/media-moderator")
+          ? "👤 Back to Member Mode" 
+          : `🔑 Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
+      </motion.button>
+    )}
+  </>
 )}
 
         <div
@@ -592,6 +696,25 @@ useEffect(() => {
   padding: 0 5px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
+
+        select option {
+          background: #0dac28;
+          color: white;
+          padding: 10px;
+        }
+
+
+                select option {
+          background: #11af0c;
+          color: white;
+          padding: 10px;
+        }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
 
 
 @keyframes spin {

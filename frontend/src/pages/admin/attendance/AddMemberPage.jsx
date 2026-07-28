@@ -13,7 +13,7 @@ const navigate = useNavigate();
 const location = useLocation();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const basePath = user?.role === "admin" ? "/admin" : "/secretary";
+ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/admin" : "/secretary";
   
   // ============ STATE ============
   const [formData, setFormData] = useState({

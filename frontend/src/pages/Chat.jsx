@@ -1016,7 +1016,7 @@ const handleSendMessage = async () => {
                 <div style={styles.dateHeader}><span style={styles.dateText}>{date}</span></div>
                 {msgs.map((msg) => {
                   const isOwn = msg.userId === user?.id;
-                  const isAdmin = msg.user?.role === "admin" || msg.user?.role === "ADMIN";
+                const isAdmin = msg.user?.role === "admin" || msg.user?.role === "ADMIN" || msg.user?.specialRole === "admin";
                   const reactions = getReactionsForMessage(msg.id);
                   const isPinned = pinnedMessages.some(p => p.messageId === msg.id);
                   const isBlocked = blockedUsers.some(b => b.id === msg.userId);

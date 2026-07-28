@@ -133,7 +133,7 @@ function Login() {
             // Redirect based on role
             setTimeout(() => {
               if (userData.role === "admin") {
-                navigate("/admin");
+                navigate("/dashbord");
               } else if (userData.role === "jumuia_leader") {
                 navigate(`/jumuia/${userData.jumuiaCode}`);
               } else if (userData.role === "treasurer") {

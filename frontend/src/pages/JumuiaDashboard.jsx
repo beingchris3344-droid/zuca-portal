@@ -901,7 +901,7 @@ const handleSendMessage = async () => {
               // REMOVED .reverse() - messages should already be in correct order from API
               chatMessages.map((message) => {
                 const isOwn = message.userId === getCurrentUserId();
-                const isAdmin = message.user?.role === "admin";
+                const isAdmin = message.user?.role === "admin" || message.user?.specialRole === "admin";
                 
                 return (
                   <div

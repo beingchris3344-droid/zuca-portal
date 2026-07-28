@@ -1164,7 +1164,7 @@ const handleUnmuteUser = (userId) => {
           ) : (
             filteredMessages.map((msg, index) => {
               const isOwn = msg.user?.id === currentUser?.id;
-              const isAdmin = msg.user?.role === "admin";
+             const isAdmin = msg.user?.role === "admin" || msg.user?.specialRole === "admin";
               const isPinned = pinnedMessages.some(p => p.messageId === msg.id);
               const showAvatar = index === 0 || filteredMessages[index - 1]?.user?.id !== msg.user?.id;
 

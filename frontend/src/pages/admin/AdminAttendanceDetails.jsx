@@ -16,7 +16,7 @@ export default function AdminAttendanceDetails() {
   
   // ============ STATE ============
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const basePath = user?.role === "admin" ? "/admin" : "/secretary";
+const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/admin" : "/secretary";
   const [sheetData, setSheetData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -267,7 +267,7 @@ useEffect(() => {
 
 
 {/* ==================== ROLE SWITCHER ==================== */}
-{user?.specialRole && (
+{(user?.specialRole || user?.role === "admin") && (
   <motion.button
     whileTap={{ scale: 0.95 }}
     onClick={async (e) => {
@@ -284,8 +284,7 @@ useEffect(() => {
       
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       const currentRole = storedUser.role || "member";
-      const targetRole = currentRole === "member" ? user.specialRole : "member";
-      
+     const targetRole = currentRole === "member" ? (user.specialRole || user.role) : "member";
       try {
         const token = localStorage.getItem("token");
         const res = await axios.post(`${BASE_URL}/api/switch-role`, 

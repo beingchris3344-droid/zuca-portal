@@ -417,6 +417,7 @@ useEffect(() => {
 
   // Check if user is admin
   const isAdmin = currentUser?.role === "admin" || 
+                 currentUser?.specialRole === "admin" ||
                   currentUser?.specialRole === "secretary" || 
                   currentUser?.specialRole === "treasurer";
 

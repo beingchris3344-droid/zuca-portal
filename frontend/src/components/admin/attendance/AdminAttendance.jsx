@@ -24,7 +24,7 @@ export default function AdminAttendance() {
   // ============ STATE ============
   // Add this at the top of the component (after getting user)
 const user = JSON.parse(localStorage.getItem("user") || "{}");
-const basePath = user?.role === "admin" ? "/admin" : "/secretary";
+const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/admin" : "/secretary";
 
 // Then in the View button, use:
 

@@ -131,7 +131,7 @@ const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
   }, [navigate]);
 
   // Check if user has modify permissions
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.specialRole === "admin";
   const isLeader = user?.specialRole === "jumuia_leader" && user?.jumuiaCode === jumuiaCode;
   const isTreasurer = user?.specialRole === "treasurer";
   const canModify = isAdmin || isLeader || isTreasurer;

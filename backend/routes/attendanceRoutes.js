@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 const crypto = require('crypto');
 
 const { sendPersonalizedEmail } = require("../services/mailer");
+const { getCurrentSemester, getSemesterDateFilter } = require("../utils/semesterHelpers");
 
 
 // ==================== SHEET CACHE ====================
@@ -1679,17 +1680,32 @@ const updateSheetSettings = async (req, res) => {
 
 
 
-
 // Get user's attendance history
 const getUserAttendanceHistory = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { semesterId } = req.query; // 'current', 'all', or specific ID
+    
+    console.log(`📊 Fetching history for user ${userId}, semester: ${semesterId || 'current'}`);
+    
+    // Build the where clause
+    let where = { userId };
+    
+    // Add semester date filter if applicable
+    if (semesterId !== 'all') {
+      const dateFilter = await getSemesterDateFilter(prisma, semesterId);
+      if (dateFilter) {
+        where.signTime = dateFilter;
+      }
+    }
+    // If semesterId === 'all', no date filter (show everything)
 
     const history = await prisma.attendanceEntry.findMany({
-      where: { userId },
+      where,
       include: {
         sheet: {
           select: {
+            id: true,
             title: true,
             eventDate: true,
             eventTime: true,
@@ -1705,6 +1721,10 @@ const getUserAttendanceHistory = async (req, res) => {
     const present = history.length;
     const attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
+    // Get current semester info for response
+    const currentSemester = await getCurrentSemester(prisma);
+    const semesterName = currentSemester?.title || 'No active semester';
+
     res.json({ 
       success: true, 
       history,
@@ -1712,6 +1732,10 @@ const getUserAttendanceHistory = async (req, res) => {
         total,
         present,
         attendanceRate: attendanceRate.toFixed(1)
+      },
+      filter: {
+        semesterId: semesterId || 'current',
+        semesterName: semesterName
       }
     });
   } catch (err) {
@@ -2584,6 +2608,7 @@ router.get("/all-entries", authenticate, requireLeaderOrAdmin, async (req, res) 
 router.get("/member/all-meetings", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { semesterId } = req.query
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -2599,28 +2624,42 @@ router.get("/member/all-meetings", authenticate, async (req, res) => {
       where: { userId: userId, isActive: true }
     });
     
-    const allSheets = await prisma.attendanceSheet.findMany({
-      where: {
-        eventDate: {
-          gte: new Date(user.createdAt)
-        }
-      },
-      orderBy: { eventDate: "desc" },
-      include: {
-        entries: {
-          where: { userId: userId },
-          select: {
-            id: true,
-            signTime: true,
-            signMethod: true,
-            userId: true
-          }
-        },
-        _count: {
-          select: { entries: true }
-        }
+    // Build the where clause
+let sheetWhere = {
+  eventDate: {
+    gte: new Date(user.createdAt)
+  }
+};
+
+// Add semester filter if provided
+if (semesterId && semesterId !== 'all') {
+  const dateFilter = await getSemesterDateFilter(prisma, semesterId);
+  if (dateFilter) {
+    sheetWhere.eventDate = {
+      gte: dateFilter.gte,
+      lte: dateFilter.lte
+    };
+  }
+}
+
+const allSheets = await prisma.attendanceSheet.findMany({
+  where: sheetWhere,
+  orderBy: { eventDate: "desc" },
+  include: {
+    entries: {
+      where: { userId: userId },
+      select: {
+        id: true,
+        signTime: true,
+        signMethod: true,
+        userId: true
       }
-    });
+    },
+    _count: {
+      select: { entries: true }
+    }
+  }
+});
     
     const visibleSheets = allSheets.filter(sheet => {
       if (sheet.isExecutiveOnly) {
@@ -2820,7 +2859,8 @@ router.get("/admin/all-members-attendance", authenticate, requireLeaderOrAdmin, 
       fromDate = '',
       toDate = '',
       sortBy = 'fullName',
-      sortOrder = 'asc'
+      sortOrder = 'asc',
+      semesterId = '' 
     } = req.query;
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -2939,22 +2979,41 @@ router.get("/admin/all-members-attendance", authenticate, requireLeaderOrAdmin, 
     }
     
     // Get ALL attendance entries for ALL users in ONE query
-    let allEntries = [];
-    try {
-      const entryWhere = {
-        userId: { in: userIds }
+  // Get ALL attendance entries for ALL users in ONE query
+let allEntries = [];
+try {
+  const entryWhere = {
+    userId: { in: userIds }
+  };
+
+  // Build date filter from semester OR fromDate/toDate
+  let dateFilter = {};
+  
+  // Check if semester filter is applied
+  if (semesterId && semesterId !== 'all') {
+    const semesterDateFilter = await getSemesterDateFilter(prisma, semesterId);
+    if (semesterDateFilter) {
+      dateFilter = {
+        gte: semesterDateFilter.gte,
+        lte: semesterDateFilter.lte
       };
-      
-      if (fromDate && toDate) {
-        entryWhere.signTime = {
-          gte: new Date(fromDate),
-          lte: new Date(toDate)
-        };
-      } else if (fromDate) {
-        entryWhere.signTime = { gte: new Date(fromDate) };
-      } else if (toDate) {
-        entryWhere.signTime = { lte: new Date(toDate) };
-      }
+    }
+  } else if (fromDate && toDate) {
+    // Use manual date range if no semester filter
+    dateFilter = {
+      gte: new Date(fromDate),
+      lte: new Date(toDate)
+    };
+  } else if (fromDate) {
+    dateFilter = { gte: new Date(fromDate) };
+  } else if (toDate) {
+    dateFilter = { lte: new Date(toDate) };
+  }
+  
+  // Apply date filter if it exists
+  if (Object.keys(dateFilter).length > 0) {
+    entryWhere.signTime = dateFilter;
+  }
       
       allEntries = await prisma.attendanceEntry.findMany({
         where: entryWhere,

@@ -258,6 +258,50 @@ async function checkForNewSemester(prisma, currentSemester) {
   }
 }
 
+/**
+ * Get date filter for a specific semester
+ * @param {PrismaClient} prisma - Prisma client instance
+ * @param {string} semesterId - 'current', 'all', or specific schedule ID
+ * @returns {Promise<Object|null>} - Date filter object { gte, lte } or null
+ */
+async function getSemesterDateFilter(prisma, semesterId) {
+  try {
+    // If 'current' or undefined, get active semester
+    if (!semesterId || semesterId === 'current') {
+      const current = await getCurrentSemester(prisma);
+      if (current && current.startDate && current.endDate) {
+        return {
+          gte: new Date(current.startDate),
+          lte: new Date(current.endDate)
+        };
+      }
+      return null;
+    }
+    
+    // If 'all', return null (no filter)
+    if (semesterId === 'all') {
+      return null;
+    }
+    
+    // Specific semester ID
+    const semester = await prisma.schedule.findUnique({
+      where: { id: semesterId }
+    });
+    
+    if (semester && semester.startDate && semester.endDate) {
+      return {
+        gte: new Date(semester.startDate),
+        lte: new Date(semester.endDate)
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting semester date filter:', error);
+    return null;
+  }
+}
+
 module.exports = {
   getCurrentSemester,
   getAllSemesters,
@@ -267,6 +311,7 @@ module.exports = {
   isSemesterJustEnded,
   isSemesterEndDate,
   getNextSemester,
-  checkForNewSemester
+  checkForNewSemester,
+  getSemesterDateFilter
 };
 

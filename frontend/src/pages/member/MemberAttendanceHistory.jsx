@@ -48,9 +48,10 @@ const fetchData = async () => {
     await fetchAllSemesters();
     
     // Fetch all meetings for this member
-    const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
-      headers: getHeaders()
-    });
+  const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
+  headers: getHeaders(),
+  params: { semesterId: 'current' }
+});
     
     setAllMeetings(response.data.allMeetings || []);
     setUserHistory(response.data.userHistory || []);
@@ -199,33 +200,14 @@ const fetchAllSemesters = async () => {
   try {
     setLoading(true);
     
-    let params = {};
-    if (semesterId === 'current') {
-      // Get current semester dates
-      const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
-        headers: getHeaders()
-      });
-      if (response.data.semester) {
-        params = {
-          fromDate: new Date(response.data.semester.startDate).toISOString().split('T')[0],
-          toDate: new Date(response.data.semester.endDate).toISOString().split('T')[0]
-        };
-      }
-    } else if (semesterId !== 'all') {
-      // Get specific semester dates
-      const semester = semesters.find(s => s.id === semesterId);
-      if (semester) {
-        params = {
-          fromDate: new Date(semester.startDate).toISOString().split('T')[0],
-          toDate: new Date(semester.endDate).toISOString().split('T')[0]
-        };
-      }
+    const params = {};
+    if (semesterId !== 'all') {
+      params.semesterId = semesterId;
     }
     
-    // Fetch filtered meetings
     const response = await axios.get(`${BASE_URL}/api/attendance/member/all-meetings`, {
       headers: getHeaders(),
-      params
+      params: params
     });
     
     setAllMeetings(response.data.allMeetings || []);

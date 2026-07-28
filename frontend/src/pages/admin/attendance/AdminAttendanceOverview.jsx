@@ -131,33 +131,39 @@ const fetchAllSemesters = async () => {
 
 const handleSemesterChange = async (semesterId) => {
   setSelectedSemester(semesterId);
+  
   try {
     setLoading(true);
-    let params = {};
-    if (semesterId === 'current') {
-      const response = await axios.get(`${BASE_URL}/api/semesters/current`, {
-        headers: getHeaders()
-      });
-      if (response.data.semester) {
-        params = {
-          fromDate: new Date(response.data.semester.startDate).toISOString().split('T')[0],
-          toDate: new Date(response.data.semester.endDate).toISOString().split('T')[0]
-        };
-      }
-    } else if (semesterId !== 'all') {
-      const semester = semesters.find(s => s.id === semesterId);
-      if (semester) {
-        params = {
-          fromDate: new Date(semester.startDate).toISOString().split('T')[0],
-          toDate: new Date(semester.endDate).toISOString().split('T')[0]
-        };
-      }
+    
+    // Build params - just pass semesterId directly to backend
+    const params = {};
+    if (semesterId && semesterId !== 'all') {
+      params.semesterId = semesterId;
     }
+    // If semesterId === 'all', don't add any filter
+    
+    const response = await axios.get(
+      `${BASE_URL}/api/attendance/admin/all-members-attendance`,
+      { 
+        headers: getHeaders(),
+        params: params
+      }
+    );
+    
+    setUsers(response.data.users || []);
+    setPagination(prev => ({
+      ...prev,
+      total: response.data.pagination?.total || 0,
+      totalPages: response.data.pagination?.totalPages || 0
+    }));
+    
+    // Clear the date filters since we're using semesterId now
     setFilters(prev => ({
       ...prev,
-      fromDate: params.fromDate || '',
-      toDate: params.toDate || ''
+      fromDate: '',
+      toDate: ''
     }));
+    
   } catch (error) {
     console.error('Error filtering by semester:', error);
   } finally {

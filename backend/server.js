@@ -6912,74 +6912,7 @@ global.systemMonitor = systemMonitor;
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
-// ============================================
-// GLOBAL FILTER: Hide Admin Users from ALL Responses
-// ============================================
-app.use((req, res, next) => {
-  const originalJson = res.json;
-  
-  res.json = function(data) {
-    if (data && typeof data === 'object') {
-      
-      const isAdmin = (item) => {
-        if (!item) return false;
-        if (item.role === 'admin') return true;
-        if (item.user && item.user.role === 'admin') return true;
-        if (item.creator && item.creator.role === 'admin') return true;
-        if (item.uploadedBy && item.uploadedBy.role === 'admin') return true;
-        if (item.assignedBy && item.assignedBy.role === 'admin') return true;
-        return false;
-      };
-      
-      // ✅ FIXED: Preserve Date objects
-      const filterRecursive = (obj) => {
-        // ✅ SKIP Date objects - keep them intact
-        if (obj instanceof Date) return obj;
-        
-        if (!obj || typeof obj !== 'object') return obj;
-        
-        if (Array.isArray(obj)) {
-          return obj.filter(item => !isAdmin(item)).map(item => filterRecursive(item));
-        }
-        
-        const result = {};
-        for (const [key, value] of Object.entries(obj)) {
-          // ✅ SKIP Date objects
-          if (value instanceof Date) {
-            result[key] = value;
-          } else if (Array.isArray(value)) {
-            result[key] = value.filter(item => !isAdmin(item)).map(item => filterRecursive(item));
-          } else if (value && typeof value === 'object') {
-            result[key] = filterRecursive(value);
-          } else {
-            result[key] = value;
-          }
-        }
-        return result;
-      };
-      
-      const filteredData = filterRecursive(data);
-      
-      // Update count fields if they exist
-      if (filteredData && typeof filteredData === 'object') {
-        if (filteredData.sheet && filteredData.sheet.entries) {
-          const nonAdminCount = filteredData.sheet.entries.filter(e => e.role !== 'admin').length;
-          if (filteredData.sheet.totalMembers !== undefined) {
-            filteredData.sheet.totalMembers = nonAdminCount;
-          }
-        }
-        if (filteredData.total !== undefined && Array.isArray(filteredData.users)) {
-          filteredData.total = filteredData.users.length;
-        }
-      }
-      
-      return originalJson.call(this, filteredData);
-    }
-    return originalJson.call(this, data);
-  };
-  
-  next();
-});
+
 // ================== DASHBOARD STATS ==================
 app.get("/api/announcements/unread", authenticate, async (req, res) => {
   try {

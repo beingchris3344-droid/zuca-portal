@@ -3,6 +3,14 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { authenticateDM, getOrCreateConversation, updateConversationLastMessage, markConversationRead } = require('./helpers');
+const webpush = require('web-push');
+
+// Configure web-push for push notifications
+webpush.setVapidDetails(
+  'mailto:zucaportal2025@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 // GET messages in a conversation (paginated)
 router.get('/:conversationId', authenticateDM, async (req, res) => {
@@ -138,12 +146,13 @@ router.post('/', authenticateDM, async (req, res) => {
       ? conversation.participant2Id 
       : conversation.participant1Id;
 
-    // ✅ ADD NOTIFICATION FOR RECIPIENT
+    // ✅ Get sender info
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
       select: { fullName: true, profileImage: true }
     });
 
+    // ✅ CREATE IN-APP NOTIFICATION
     const notification = await prisma.notification.create({
       data: {
         userId: recipientId2,
@@ -161,6 +170,52 @@ router.post('/', authenticateDM, async (req, res) => {
       }
     });
 
+    // ✅ SEND PUSH NOTIFICATION
+    try {
+      const subscription = await prisma.pushSubscription.findUnique({
+        where: { userId: recipientId2 }
+      });
+
+      if (subscription) {
+        const unreadCount = await prisma.notification.count({
+          where: { userId: recipientId2, read: false }
+        });
+
+        const pushSubscription = JSON.parse(subscription.subscription);
+        const frontendUrl = process.env.FRONTEND_URL || "https://www.zetechcatholicaction.com";
+        const deepLinkUrl = `${frontendUrl}/messenger`;
+
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title: `💬 New message from ${sender.fullName}`,
+            body: content?.substring(0, 120) || "📎 New message with attachment",
+            icon: "/android-chrome-192x192.png",
+            badge: "/favicon.ico",
+            badgeCount: unreadCount + 1,
+            data: {
+              type: "direct_message",
+              messageId: message.id,
+              conversationId: convId,
+              sender: sender.fullName,
+              senderId: senderId,
+              url: deepLinkUrl
+            },
+            url: deepLinkUrl,
+            timestamp: Date.now()
+          }),
+          { urgency: "high" }
+        );
+
+        console.log(`📱 Push notification sent to ${recipientId2} from ${sender.fullName}`);
+      } else {
+        console.log(`⚠️ No push subscription for user ${recipientId2}`);
+      }
+    } catch (pushErr) {
+      console.error("❌ Push notification failed:", pushErr.message);
+    }
+
+    // ✅ SEND REAL-TIME NOTIFICATIONS VIA SOCKET.IO
     const io = req.app.get('io');
     if (io) {
       // Send message notification to bell icon

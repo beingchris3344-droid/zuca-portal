@@ -7,31 +7,25 @@ const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
 // ============================================
-// HELPER: Get RP ID from request
+// HELPER: Get RP ID - HARDCODE YOUR FRONTEND DOMAIN
 // ============================================
 function getRpId(req) {
-  const host = req.get('host')?.split(':')[0] || '';
+  // ✅ YOUR FRONTEND DOMAIN - THIS IS WHAT MATTERS
+  const FRONTEND_DOMAIN = 'zetechcatholicaction.com';
   
-  console.log(`🔍 Getting RP ID from host: "${host}"`);
+  // Check if request is from localhost (development)
+  const origin = req.get('origin') || '';
+  const host = req.get('host') || '';
   
-  // For localhost
-  if (host === 'localhost' || host === '127.0.0.1') {
+  console.log(`🔍 Origin: ${origin}, Host: ${host}`);
+  
+  // For localhost development
+  if (origin.includes('localhost') || host.includes('localhost')) {
     return 'localhost';
   }
   
-  // For Vercel default domains
-  if (host.endsWith('.vercel.app')) {
-    return 'vercel.app';
-  }
-  
-  // For Render default domains
-  if (host.endsWith('.onrender.com')) {
-    return 'onrender.com';
-  }
-  
-  // For custom domains, use the full domain
-  // Or use the environment variable as fallback
-  return host || process.env.DOMAIN || 'zetechcatholicaction.com';
+  // ✅ ALWAYS return your frontend domain for production
+  return FRONTEND_DOMAIN;
 }
 
 // Auth middleware
@@ -81,13 +75,13 @@ router.post("/register-challenge", authenticate, async (req, res) => {
     const challenge = crypto.randomBytes(32).toString('base64url');
     const rpId = getRpId(req);
     
-    console.log(`📝 Registration challenge for user ${userId}, RP ID: ${rpId}`);
+    console.log(`📝 Registration challenge - RP ID: ${rpId}`);
     
     await prisma.biometricChallenge.create({
       data: {
         userId,
         challenge,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
       }
     });
     
@@ -99,7 +93,7 @@ router.post("/register-challenge", authenticate, async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: rpId,  // ✅ Dynamic RP ID
+      rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
       rpName: "ZUCA Portal",
       userId: userId.toString(),
       userName: user?.email || user?.fullName || "Zuca User",
@@ -117,9 +111,7 @@ router.post("/register-challenge", authenticate, async (req, res) => {
 router.post("/register", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { credentialId, publicKey, attestationObject, clientDataJSON, transports } = req.body;
-    
-    console.log(`📝 Registration for user ${userId}, credential: ${credentialId?.substring(0, 30)}...`);
+    const { credentialId, publicKey, transports } = req.body;
     
     if (!credentialId) {
       return res.status(400).json({ error: "Credential ID required" });
@@ -183,7 +175,7 @@ router.post("/login-challenge", async (req, res) => {
     const { email } = req.body;
     const rpId = getRpId(req);
     
-    console.log(`🔐 Login challenge request, RP ID: ${rpId}`);
+    console.log(`🔐 Login challenge - RP ID: ${rpId}`);
     
     if (email) {
       const user = await prisma.user.findFirst({
@@ -215,7 +207,7 @@ router.post("/login-challenge", async (req, res) => {
         return res.json({
           success: true,
           challenge,
-          rpId: rpId,  // ✅ Dynamic RP ID
+          rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
           allowCredentials: [
             {
               id: user.biometricCredentialId,
@@ -233,7 +225,7 @@ router.post("/login-challenge", async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: rpId,  // ✅ Dynamic RP ID
+      rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
       userVerification: 'required'
     });
   } catch (err) {
@@ -248,8 +240,6 @@ router.post("/login-challenge", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { credentialId } = req.body;
-    
-    console.log(`🔐 Login with credential: ${credentialId?.substring(0, 30)}...`);
     
     if (!credentialId) {
       return res.status(400).json({ error: "Credential ID required" });
@@ -356,6 +346,20 @@ router.delete("/remove", authenticate, async (req, res) => {
     console.error("Remove biometric error:", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ============================================
+// DEBUG: Check RP ID
+// ============================================
+router.get("/debug/rp-id", async (req, res) => {
+  const rpId = getRpId(req);
+  res.json({
+    rpId: rpId,
+    origin: req.get('origin'),
+    host: req.get('host'),
+    referer: req.get('referer'),
+    frontendDomain: 'zetechcatholicaction.com'
+  });
 });
 
 module.exports = router;

@@ -107,6 +107,7 @@ function getDeepLinkUrl(type, data = {}) {
     'game_invite': '/games',
     
     // Messages
+    'direct_message': '/messenger',
     'message': '/messenger',
     'chat_mention': '/messenger',
     'pin': '/messenger',

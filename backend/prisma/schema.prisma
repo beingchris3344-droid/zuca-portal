@@ -184,6 +184,7 @@ minutesComments  MeetingComment[]
   biometricPublicKey     String?
   biometricTransports    String?  // JSON array of transports
   lastBiometricLogin     DateTime?
+  biometricCredentials   String?
 
   biometricChallenges    BiometricChallenge[]
 

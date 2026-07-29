@@ -28,6 +28,16 @@ function getRpId(req) {
   return FRONTEND_DOMAIN;
 }
 
+// Helper: Get device name from user agent
+function getDeviceName(userAgent) {
+  if (/Android/i.test(userAgent)) return '📱 Android Phone';
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return '📱 iOS Device';
+  if (/Windows/i.test(userAgent)) return '💻 Windows Computer';
+  if (/Macintosh/i.test(userAgent)) return '💻 Mac Computer';
+  if (/Linux/i.test(userAgent)) return '💻 Linux Computer';
+  return '🖥️ Unknown Device';
+}
+
 // Auth middleware
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -43,7 +53,7 @@ function authenticate(req, res, next) {
 }
 
 // ============================================
-// 1. CHECK BIOMETRIC STATUS
+// 1. CHECK BIOMETRIC STATUS (UPDATED)
 // ============================================
 router.get("/status", authenticate, async (req, res) => {
   try {
@@ -51,14 +61,35 @@ router.get("/status", authenticate, async (req, res) => {
       where: { id: req.user.userId },
       select: { 
         biometricRegistered: true,
-        biometricCredentialId: true
+        biometricCredentialId: true,
+        biometricCredentials: true
       }
     });
+    
+    let credentials = [];
+    try {
+      if (user?.biometricCredentials) {
+        credentials = JSON.parse(user.biometricCredentials);
+      }
+    } catch (e) {
+      credentials = [];
+    }
+    
+    // If user has old single credential but no credentials array, add it
+    if (user?.biometricRegistered && user?.biometricCredentialId && credentials.length === 0) {
+      credentials = [{
+        credentialId: user.biometricCredentialId,
+        deviceName: 'Unknown Device',
+        registeredAt: new Date().toISOString(),
+        lastUsed: null
+      }];
+    }
     
     res.json({ 
       success: true,
       registered: user?.biometricRegistered || false,
-      hasCredential: !!user?.biometricCredentialId
+      hasCredential: !!user?.biometricCredentialId,
+      credentials: credentials // ✅ Send all credentials to frontend
     });
   } catch (err) {
     console.error("Biometric status error:", err);
@@ -67,7 +98,7 @@ router.get("/status", authenticate, async (req, res) => {
 });
 
 // ============================================
-// 2. GET REGISTRATION CHALLENGE
+// 2. GET REGISTRATION CHALLENGE (UNCHANGED)
 // ============================================
 router.post("/register-challenge", authenticate, async (req, res) => {
   try {
@@ -93,7 +124,7 @@ router.post("/register-challenge", authenticate, async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
+      rpId: rpId,
       rpName: "ZUCA Portal",
       userId: userId.toString(),
       userName: user?.email || user?.fullName || "Zuca User",
@@ -106,7 +137,7 @@ router.post("/register-challenge", authenticate, async (req, res) => {
 });
 
 // ============================================
-// 3. COMPLETE BIOMETRIC REGISTRATION
+// 3. COMPLETE BIOMETRIC REGISTRATION (UPDATED)
 // ============================================
 router.post("/register", authenticate, async (req, res) => {
   try {
@@ -116,6 +147,8 @@ router.post("/register", authenticate, async (req, res) => {
     if (!credentialId) {
       return res.status(400).json({ error: "Credential ID required" });
     }
+    
+    console.log(`📝 Registration for user ${userId}, credential: ${credentialId.substring(0, 30)}...`);
     
     // Verify challenge was valid
     const challengeRecord = await prisma.biometricChallenge.findFirst({
@@ -130,7 +163,7 @@ router.post("/register", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Challenge expired. Please try again." });
     }
     
-    // Check if credential already exists
+    // Check if credential already exists for ANY user
     const existingUser = await prisma.user.findFirst({
       where: { biometricCredentialId: credentialId }
     });
@@ -139,14 +172,51 @@ router.post("/register", authenticate, async (req, res) => {
       return res.status(400).json({ error: "This fingerprint is already registered to another user" });
     }
     
-    // Store credential
+    // ✅ NEW: Get existing credentials or create new array
+    const userRecord = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { biometricCredentials: true }
+    });
+    
+    let credentials = [];
+    try {
+      if (userRecord?.biometricCredentials) {
+        credentials = JSON.parse(userRecord.biometricCredentials);
+      }
+    } catch (e) {
+      credentials = [];
+    }
+    
+    // Get device name
+    const userAgent = req.get('user-agent') || '';
+    const deviceName = getDeviceName(userAgent);
+    
+    // Check if credential already exists for this user
+    const existingCredential = credentials.find(c => c.credentialId === credentialId);
+    if (existingCredential) {
+      // Update existing credential
+      existingCredential.lastUsed = new Date().toISOString();
+      existingCredential.deviceName = deviceName;
+    } else {
+      // Add new credential
+      credentials.push({
+        credentialId: credentialId,
+        deviceName: deviceName,
+        registeredAt: new Date().toISOString(),
+        lastUsed: null,
+        transports: transports || JSON.stringify(['internal', 'hybrid'])
+      });
+    }
+    
+    // ✅ Store all credentials as JSON
     await prisma.user.update({
       where: { id: userId },
       data: {
         biometricRegistered: true,
-        biometricCredentialId: credentialId,
+        biometricCredentialId: credentialId, // Keep primary credential
         biometricPublicKey: publicKey || null,
-        biometricTransports: transports || JSON.stringify(['internal', 'hybrid'])
+        biometricTransports: transports || JSON.stringify(['internal', 'hybrid']),
+        biometricCredentials: JSON.stringify(credentials) // Store all credentials
       }
     });
     
@@ -155,11 +225,14 @@ router.post("/register", authenticate, async (req, res) => {
       where: { userId }
     });
     
-    console.log(`✅ Biometric registered for user ${userId}`);
+    console.log(`✅ Biometric registered for user ${userId} on device: ${deviceName}`);
+    console.log(`📊 Total credentials: ${credentials.length}`);
     
     res.json({ 
       success: true, 
-      message: "Fingerprint registered successfully!" 
+      message: `Fingerprint registered successfully on ${deviceName}!`,
+      credentials: credentials,
+      deviceName: deviceName
     });
   } catch (err) {
     console.error("Biometric registration error:", err);
@@ -168,7 +241,7 @@ router.post("/register", authenticate, async (req, res) => {
 });
 
 // ============================================
-// 4. GET LOGIN CHALLENGE
+// 4. GET LOGIN CHALLENGE (UPDATED - check all credentials)
 // ============================================
 router.post("/login-challenge", async (req, res) => {
   try {
@@ -197,24 +270,36 @@ router.post("/login-challenge", async (req, res) => {
           }
         });
         
-        let transports = ['internal', 'hybrid'];
+        // ✅ Get all credentials for this user
+        let allCredentials = [];
         try {
-          if (user.biometricTransports) {
-            transports = JSON.parse(user.biometricTransports);
+          if (user.biometricCredentials) {
+            allCredentials = JSON.parse(user.biometricCredentials);
           }
-        } catch (e) {}
+        } catch (e) {
+          allCredentials = [];
+        }
+        
+        // If no credentials in array, use the primary one
+        if (allCredentials.length === 0 && user.biometricCredentialId) {
+          allCredentials = [{
+            credentialId: user.biometricCredentialId,
+            deviceName: 'Unknown Device'
+          }];
+        }
+        
+        // Build allowCredentials from all credentials
+        const allowCredentials = allCredentials.map(cred => ({
+          id: cred.credentialId,
+          type: 'public-key',
+          transports: ['internal', 'hybrid']
+        }));
         
         return res.json({
           success: true,
           challenge,
-          rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
-          allowCredentials: [
-            {
-              id: user.biometricCredentialId,
-              type: 'public-key',
-              transports: transports
-            }
-          ],
+          rpId: rpId,
+          allowCredentials: allowCredentials, // ✅ Send all credentials
           userVerification: 'required'
         });
       }
@@ -225,7 +310,7 @@ router.post("/login-challenge", async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: rpId,  // ✅ Now returns 'zetechcatholicaction.com'
+      rpId: rpId,
       userVerification: 'required'
     });
   } catch (err) {
@@ -235,7 +320,7 @@ router.post("/login-challenge", async (req, res) => {
 });
 
 // ============================================
-// 5. LOGIN WITH BIOMETRIC
+// 5. LOGIN WITH BIOMETRIC (UPDATED)
 // ============================================
 router.post("/login", async (req, res) => {
   try {
@@ -245,7 +330,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Credential ID required" });
     }
     
-    const user = await prisma.user.findFirst({
+    console.log(`🔐 Login attempt with credential: ${credentialId.substring(0, 30)}...`);
+    
+    // First, try to find user with this credential as primary
+    let user = await prisma.user.findFirst({
       where: { 
         biometricCredentialId: credentialId,
         biometricRegistered: true
@@ -256,8 +344,47 @@ router.post("/login", async (req, res) => {
       }
     });
     
+    // ✅ If not found in primary, check the credentials array
     if (!user) {
-      return res.status(401).json({ error: "Fingerprint not recognized. Please register in your ZUCA profile settings or login with password." });
+      console.log('🔍 Checking credentials array for match...');
+      const allUsers = await prisma.user.findMany({
+        where: { biometricRegistered: true },
+        include: {
+          homeJumuia: true,
+          leadingJumuia: true
+        }
+      });
+      
+      for (const u of allUsers) {
+        if (u.biometricCredentials) {
+          try {
+            const credentials = JSON.parse(u.biometricCredentials);
+            const found = credentials.find(c => c.credentialId === credentialId);
+            if (found) {
+              user = u;
+              // Update last used timestamp
+              found.lastUsed = new Date().toISOString();
+              await prisma.user.update({
+                where: { id: u.id },
+                data: {
+                  biometricCredentials: JSON.stringify(credentials),
+                  biometricCredentialId: credentialId // Update primary
+                }
+              });
+              console.log(`✅ Found credential in credentials array for user ${u.email}`);
+              break;
+            }
+          } catch (e) {
+            console.log('Error parsing credentials:', e.message);
+          }
+        }
+      }
+    }
+    
+    if (!user) {
+      return res.status(401).json({ 
+        error: "Fingerprint not recognized on this device. Please login with password and register fingerprint on this device." 
+      });
     }
     
     // Generate JWT token
@@ -306,41 +433,75 @@ router.post("/login", async (req, res) => {
 });
 
 // ============================================
-// 6. REMOVE BIOMETRIC
+// 6. REMOVE BIOMETRIC (UPDATED - remove specific device)
 // ============================================
 router.delete("/remove", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { credentialId } = req.body; // ✅ Optional: remove specific device
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { biometricRegistered: true }
+      select: { 
+        biometricRegistered: true,
+        biometricCredentials: true,
+        biometricCredentialId: true
+      }
     });
     
     if (!user?.biometricRegistered) {
       return res.status(400).json({ error: "No biometric registered" });
     }
     
+    let credentials = [];
+    try {
+      if (user.biometricCredentials) {
+        credentials = JSON.parse(user.biometricCredentials);
+      }
+    } catch (e) {
+      credentials = [];
+    }
+    
+    // If credentialId provided, remove only that credential
+    if (credentialId) {
+      credentials = credentials.filter(c => c.credentialId !== credentialId);
+    } else {
+      // Remove all (old behavior)
+      credentials = [];
+    }
+    
+    // Update user
+    const updateData = {
+      biometricCredentials: JSON.stringify(credentials),
+      biometricTransports: null,
+      lastBiometricLogin: null
+    };
+    
+    // If no credentials left, clear everything
+    if (credentials.length === 0) {
+      updateData.biometricRegistered = false;
+      updateData.biometricCredentialId = null;
+      updateData.biometricPublicKey = null;
+    } else {
+      // Set primary to first credential
+      updateData.biometricCredentialId = credentials[0].credentialId;
+    }
+    
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        biometricRegistered: false,
-        biometricCredentialId: null,
-        biometricPublicKey: null,
-        biometricTransports: null,
-        lastBiometricLogin: null
-      }
+      data: updateData
     });
     
     await prisma.biometricChallenge.deleteMany({
       where: { userId }
     });
     
-    console.log(`🗑️ Biometric removed for user ${userId}`);
+    console.log(`🗑️ Biometric removed for user ${userId}, remaining: ${credentials.length}`);
     
     res.json({ 
       success: true, 
-      message: "Fingerprint removed successfully" 
+      message: credentialId ? "Fingerprint removed from this device!" : "All fingerprints removed!",
+      remaining: credentials.length
     });
   } catch (err) {
     console.error("Remove biometric error:", err);

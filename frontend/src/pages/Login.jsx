@@ -18,6 +18,25 @@ import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
 import { FaFingerprint } from "react-icons/fa";
 
+// ============================================
+// HELPER: Convert base64url to ArrayBuffer
+// ============================================
+function base64urlToArrayBuffer(base64url) {
+  // 1. Replace URL-safe characters with standard base64
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  // 2. Add padding if needed
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  // 3. Decode with atob() - now it works!
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -237,9 +256,9 @@ function Login() {
         throw new Error(challengeData.error || "Failed to get challenge");
       }
       
-      const challengeBuffer = Uint8Array.from(
-        atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), 
-        c => c.charCodeAt(0)
+      // ✅ FIXED: Use helper function instead of direct atob()
+      const challengeBuffer = new Uint8Array(
+        base64urlToArrayBuffer(challengeData.challenge)
       );
       
       const credential = await navigator.credentials.get({
@@ -249,7 +268,7 @@ function Login() {
           rpId: challengeData.rpId || window.location.hostname,
           userVerification: "required",
           allowCredentials: challengeData.allowCredentials?.map(cred => ({
-            id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+            id: new Uint8Array(base64urlToArrayBuffer(cred.id)),
             type: "public-key"
           }))
         }
@@ -736,6 +755,7 @@ function Login() {
               </label>
               <div style={styles.inputWrapper}>
                 <input
+                  id="login-email"
                   type="email"
                   placeholder="Your Registered email"
                   value={email}
@@ -854,7 +874,7 @@ function Login() {
                     </div>
                   ) : (
                     <div style={styles.fingerprintContent}>
-                      <span style={styles.fingerprintIcon}><FaFingerprint></FaFingerprint></span>
+                      <span style={styles.fingerprintIcon}><FaFingerprint /></span>
                       <span>Login with Fingerprint</span>
                     </div>
                   )}
@@ -878,6 +898,7 @@ function Login() {
               </motion.div>
             )}
 
+           
             <motion.button
               type="submit"
               disabled={loading}
@@ -1290,8 +1311,8 @@ const styles = {
     textTransform: "uppercase",
     letterSpacing: "0.5px",
     whiteSpace: "nowrap"
-  }
-};
+  },
+}
 
 // ===== FINGERPRINT PROMPT STYLES =====
 const promptStyles = {
@@ -1343,8 +1364,8 @@ const promptStyles = {
     fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
-    background: 'linear-gradient(135deg, #f8f8f8, #ffffff)',
-    color: 'black',
+    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+    color: 'white',
     width: '100%',
   },
   secondaryBtn: {

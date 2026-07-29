@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-// Slideshow images (same as Landing2.jsx and Register.jsx)
+// Slideshow images
 import slide1 from "../assets/background2.webp";
 import slide2 from "../assets/2.jpg";
 import slide3 from "../assets/3.jpg";
@@ -16,6 +16,7 @@ import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
+import { FaFingerprint } from "react-icons/fa";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -33,6 +34,15 @@ function Login() {
   const [isCheckingAutoLogin, setIsCheckingAutoLogin] = useState(true);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const navigate = useNavigate();
+
+  // ===== BIOMETRIC/FINGERPRINT STATES =====
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [isBiometricLogin, setIsBiometricLogin] = useState(false);
+  const [biometricError, setBiometricError] = useState("");
+  const [hasRegisteredFingerprint, setHasRegisteredFingerprint] = useState(false);
+  
+  // ===== FINGERPRINT PROMPT STATE =====
+  const [showFingerprintPrompt, setShowFingerprintPrompt] = useState(false);
 
   // Slideshow state
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -66,6 +76,38 @@ function Login() {
     };
   }, [isPlaying, slides.length]);
 
+  // ===== CHECK BIOMETRIC SUPPORT =====
+  useEffect(() => {
+    const checkBiometricSupport = async () => {
+      try {
+        if (window.PublicKeyCredential) {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          setIsBiometricSupported(available);
+          
+          if (available) {
+            const token = localStorage.getItem('token');
+            if (token) {
+              try {
+                const res = await fetch(`${BASE_URL}/api/biometric/status`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                setHasRegisteredFingerprint(data.registered);
+              } catch (err) {
+                console.log("Could not check biometric status");
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Biometric support check failed:", error);
+        setIsBiometricSupported(false);
+      }
+    };
+    
+    checkBiometricSupport();
+  }, []);
+
   // Track mouse for subtle parallax
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -79,11 +121,11 @@ function Login() {
   }, []);
 
   useEffect(() => {
-  const redirect = localStorage.getItem('redirectAfterLogin');
-  if (redirect) {
-    setRedirectAfterLogin(redirect);
-  }
-}, []);
+    const redirect = localStorage.getItem('redirectAfterLogin');
+    if (redirect) {
+      setRedirectAfterLogin(redirect);
+    }
+  }, []);
 
   // CRITICAL: Check for saved session and AUTO-LOGIN
   useEffect(() => {
@@ -93,14 +135,12 @@ function Login() {
       const rememberMeFlag = localStorage.getItem('rememberMe') === 'true';
       const rememberExpiry = localStorage.getItem('rememberExpiry');
       
-      // Check if remember me session has expired
       let isExpired = false;
       if (rememberExpiry) {
         const expiryDate = new Date(rememberExpiry);
         const now = new Date();
         isExpired = now > expiryDate;
         if (isExpired) {
-          // Clear expired session
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('rememberMe');
@@ -114,7 +154,6 @@ function Login() {
           console.log('Auto-login: Found valid saved session, logging in automatically...');
           const userData = JSON.parse(userJson);
           
-          // Verify token is still valid with backend (optional but recommended)
           const verifyRes = await fetch(`${BASE_URL}/api/verify-token`, {
             method: "POST",
             headers: { 
@@ -124,13 +163,9 @@ function Login() {
           });
           
           if (verifyRes.ok) {
-            // Token is valid, auto-login successful
             console.log('Auto-login: Token verified, redirecting...');
-            
-            // Show toast notification for auto-login
             showAutoLoginToast(userData.fullName?.split(' ')[0] || 'User');
             
-            // Redirect based on role
             setTimeout(() => {
               if (userData.role === "admin") {
                 navigate("/dashboard");
@@ -150,7 +185,6 @@ function Login() {
             }, 500);
             return;
           } else {
-            // Token expired or invalid
             console.log('Auto-login: Token invalid, clearing session');
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -168,10 +202,8 @@ function Login() {
         }
       }
       
-      // If no auto-login, just show the login form
       setIsCheckingAutoLogin(false);
       
-      // Pre-fill email if saved (for convenience)
       const savedEmail = localStorage.getItem('rememberedEmail');
       if (savedEmail && !isExpired) {
         setEmail(savedEmail);
@@ -181,6 +213,136 @@ function Login() {
 
     autoLogin();
   }, [navigate]);
+
+  // ===== HANDLE FINGERPRINT LOGIN =====
+  const handleFingerprintLogin = async () => {
+    if (!isBiometricSupported) {
+      setBiometricError("Fingerprint not supported on this device");
+      return;
+    }
+    
+    setIsBiometricLogin(true);
+    setBiometricError("");
+    
+    try {
+      const challengeRes = await fetch(`${BASE_URL}/api/biometric/login-challenge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email || undefined })
+      });
+      
+      const challengeData = await challengeRes.json();
+      
+      if (!challengeData.success) {
+        throw new Error(challengeData.error || "Failed to get challenge");
+      }
+      
+      const challengeBuffer = Uint8Array.from(
+        atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), 
+        c => c.charCodeAt(0)
+      );
+      
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: challengeBuffer,
+          timeout: 60000,
+          rpId: challengeData.rpId || window.location.hostname,
+          userVerification: "required",
+          allowCredentials: challengeData.allowCredentials?.map(cred => ({
+            id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+            type: "public-key"
+          }))
+        }
+      });
+      
+      if (!credential) {
+        throw new Error("Fingerprint authentication cancelled");
+      }
+      
+      const credentialId = credential.id;
+      
+      const loginRes = await fetch(`${BASE_URL}/api/biometric/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credentialId })
+      });
+      
+      const loginData = await loginRes.json();
+      
+      if (loginRes.ok && loginData.token) {
+        handleSuccessfulLogin(loginData.user, loginData.token);
+      } else {
+        setBiometricError(loginData.error || "Fingerprint authentication failed");
+      }
+      
+    } catch (error) {
+      console.error("Fingerprint login error:", error);
+      if (error.name === "NotAllowedError") {
+        setBiometricError("Fingerprint authentication was cancelled");
+      } else if (error.name === "NotFoundError") {
+        setBiometricError("No registered fingerprint found. Please login with password first.");
+      } else {
+        setBiometricError(error.message || "Fingerprint login failed");
+      }
+    } finally {
+      setIsBiometricLogin(false);
+    }
+  };
+
+  // ===== SUCCESSFUL LOGIN HANDLER (with fingerprint prompt) =====
+  const handleSuccessfulLogin = (userData, token) => {
+    // Store token and user data
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    if (rememberMe) {
+      localStorage.setItem('rememberMe', 'true');
+      localStorage.setItem('rememberedEmail', email);
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+      localStorage.setItem('rememberExpiry', expiryDate.toISOString());
+      showToast("Auto-sign in enabled!", "success");
+    } else {
+      localStorage.setItem('rememberMe', 'false');
+      localStorage.removeItem('rememberedEmail');
+      localStorage.removeItem('rememberExpiry');
+    }
+
+    // Show welcome toast
+    showWelcomeToast(userData.fullName?.split(' ')[0] || 'Member', userData.role);
+
+    // ===== CHECK IF USER HAS FINGERPRINT REGISTERED =====
+    // If not, show a prompt to register after a short delay
+    setTimeout(async () => {
+      try {
+        const statusRes = await fetch(`${BASE_URL}/api/biometric/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const statusData = await statusRes.json();
+        
+        // If not registered, show the prompt
+        if (!statusData.registered) {
+          setShowFingerprintPrompt(true);
+        }
+      } catch (err) {
+        console.log("Could not check biometric status");
+      }
+    }, 1500);
+
+    // Navigate after delay
+    setTimeout(() => {
+      const roleRedirects = {
+        admin: "/dashboard",
+        jumuia_leader: `/jumuia/${userData.jumuiaCode}`,
+        treasurer: "/treasurer",
+        secretary: "/secretary",
+        choir_moderator: "/choir",
+        media_moderator: "/media-moderator"
+      };
+      const redirectPath = roleRedirects[userData.role] || "/dashboard";
+      navigate(redirectPath);
+    }, 500);
+  };
 
   // Show auto-login toast notification
   const showAutoLoginToast = (userName) => {
@@ -337,44 +499,7 @@ function Login() {
           data.user.specialRole = 'jumuia_leader';
         }
         
-        // Store token and user data
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        if (rememberMe) {
-          // Set remember me for 30 days
-          localStorage.setItem('rememberMe', 'true');
-          localStorage.setItem('rememberedEmail', email);
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          localStorage.setItem('rememberExpiry', expiryDate.toISOString());
-          console.log('✅ Remember me ENABLED - Auto-sign in active for 30 days');
-          
-          // Show success toast
-          showToast("Auto-sign in enabled! You'll be automatically logged in next time.", "success");
-        } else {
-          // Clear remember me data
-          localStorage.setItem('rememberMe', 'false');
-          localStorage.removeItem('rememberedEmail');
-          localStorage.removeItem('rememberExpiry');
-          console.log('❌ Remember me DISABLED - Session only');
-        }
-
-        // Show welcome toast
-        showWelcomeToast(data.user.fullName?.split(' ')[0] || 'Member', data.user.role);
-
-        setTimeout(() => {
-          const roleRedirects = {
-            admin: "/dashboard",
-            jumuia_leader: `/jumuia/${data.user.jumuiaCode}`,
-            treasurer: "/treasurer",
-            secretary: "/secretary",
-            choir_moderator: "/choir",
-            media_moderator: "/media-moderator"
-          };
-          const redirectPath = roleRedirects[data.user.role] || "/dashboard";
-          navigate(redirectPath);
-        }, 500);
+        handleSuccessfulLogin(data.user, data.token);
       } else {
         setLoginError(data.error || "Invalid email or password");
       }
@@ -456,7 +581,7 @@ function Login() {
     }, 3000);
   };
 
-  // Clear saved session (for debugging/logout)
+  // Clear saved session
   const clearSavedSession = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -466,6 +591,45 @@ function Login() {
     showToast("Saved session cleared", "info");
     window.location.reload();
   };
+
+  // ===== FINGERPRINT PROMPT MODAL =====
+  const FingerprintPromptModal = () => (
+    <div style={promptStyles.overlay}>
+      <div style={promptStyles.modal}>
+        <div style={{ fontSize: '64px', marginBottom: '16px' }}>🖐️</div>
+        <h2 style={promptStyles.title}>Secure Your Account</h2>
+        <p style={promptStyles.description}>
+          Register your fingerprint for faster and more secure login next time.
+          <br/><br/>
+          <span style={promptStyles.highlight}>
+            ⚡ One-tap login • 🔒 More secure • 📱 Works on all devices
+          </span>
+        </p>
+        <div style={promptStyles.buttonGroup}>
+          <button 
+            onClick={() => {
+              setShowFingerprintPrompt(false);
+              navigate('/profile');
+              setTimeout(() => showToast("👆 Go to 'Fingerprint Login' section to register!", "info"), 500);
+            }}
+            style={promptStyles.primaryBtn}
+          >
+            📱 Register Fingerprint Now
+          </button>
+          <button 
+            onClick={() => {
+              setShowFingerprintPrompt(false);
+              showToast("You can register later in Profile Settings", "info");
+            }}
+            style={promptStyles.secondaryBtn}
+          >
+            Maybe Later
+          </button>
+        </div>
+        <p style={promptStyles.footer}>You can always register later in Profile Settings</p>
+      </div>
+    </div>
+  );
 
   if (isCheckingAutoLogin) {
     return (
@@ -503,6 +667,9 @@ function Login() {
           </div>
         ))}
       </div>
+
+      {/* ===== FINGERPRINT PROMPT MODAL ===== */}
+      {showFingerprintPrompt && <FingerprintPromptModal />}
 
       <div style={styles.container}>
         <div 
@@ -646,7 +813,7 @@ function Login() {
                 </span>
               </label>
               <Link to="/forgot-password" style={styles.forgotLink}>
-                                    <p>Forgot password?</p> 
+                <p>Forgot password?</p> 
               </Link>
             </div>
 
@@ -662,6 +829,54 @@ function Login() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* ===== FINGERPRINT LOGIN BUTTON ===== */}
+            {isBiometricSupported && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                style={styles.fingerprintContainer}
+              >
+                <button
+                  type="button"
+                  onClick={handleFingerprintLogin}
+                  disabled={isBiometricLogin || loading}
+                  style={{
+                    ...styles.fingerprintButton,
+                    background: `linear-gradient(135deg, ${currentWelcome.color}, ${currentWelcome.color}dd)`,
+                  }}
+                >
+                  {isBiometricLogin ? (
+                    <div style={styles.buttonLoading}>
+                      <span style={styles.buttonSpinner}>⟳</span>
+                      <span>Verifying Fingerprint...</span>
+                    </div>
+                  ) : (
+                    <div style={styles.fingerprintContent}>
+                      <span style={styles.fingerprintIcon}><FaFingerprint></FaFingerprint></span>
+                      <span>Login with Fingerprint</span>
+                    </div>
+                  )}
+                </button>
+                
+                {biometricError && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    style={styles.fingerprintError}
+                  >
+                    {biometricError}
+                  </motion.p>
+                )}
+                
+                <div style={styles.dividerContainer}>
+                  <span style={styles.dividerLine} />
+                  <span style={styles.dividerText}>or continue with</span>
+                  <span style={styles.dividerLine} />
+                </div>
+              </motion.div>
+            )}
 
             <motion.button
               type="submit"
@@ -724,7 +939,6 @@ function Login() {
           color: #475569;
         }
 
-        /* Slideshow styles */
         .login-slideshow-container {
           position: fixed;
           top: 0;
@@ -754,15 +968,15 @@ function Login() {
           object-position: center;
         }
        
-          .login-slideshow-container {
-            background-color: #0a0a1e;
-          }
+        .login-slideshow-container {
+          background-color: #0a0a1e;
         }
       `}</style>
     </div>
   );
 }
 
+// ===== STYLES =====
 const styles = {
   pageWrapper: {
     minHeight: "100vh",
@@ -1024,7 +1238,131 @@ const styles = {
     color: "#475569",
     marginTop: "28px",
     fontStyle: "italic"
+  },
+  // ===== FINGERPRINT STYLES =====
+  fingerprintContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    marginTop: "4px"
+  },
+  fingerprintButton: {
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: "40px",
+    border: "none",
+    color: "white",
+    fontWeight: 500,
+    fontSize: "14px",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  fingerprintContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  },
+  fingerprintIcon: {
+    fontSize: "22px"
+  },
+  fingerprintError: {
+    color: "#ef4444",
+    fontSize: "12px",
+    textAlign: "center"
+  },
+  dividerContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    margin: "4px 0"
+  },
+  dividerLine: {
+    flex: 1,
+    height: "1px",
+    background: "rgba(255,255,255,0.1)"
+  },
+  dividerText: {
+    fontSize: "11px",
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    whiteSpace: "nowrap"
   }
+};
+
+// ===== FINGERPRINT PROMPT STYLES =====
+const promptStyles = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.7)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+  },
+  modal: {
+    background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+    borderRadius: '24px',
+    padding: '40px',
+    maxWidth: '420px',
+    width: '90%',
+    textAlign: 'center',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+  },
+  title: {
+    color: '#f1f5f9',
+    fontSize: '22px',
+    fontWeight: 700,
+    marginBottom: '8px',
+  },
+  description: {
+    color: '#94a3b8',
+    fontSize: '14px',
+    lineHeight: 1.6,
+    marginBottom: '24px',
+  },
+  highlight: {
+    color: '#64748b',
+    fontSize: '13px',
+  },
+  buttonGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  primaryBtn: {
+    padding: '14px 24px',
+    border: 'none',
+    borderRadius: '40px',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    background: 'linear-gradient(135deg, #f8f8f8, #ffffff)',
+    color: 'black',
+    width: '100%',
+  },
+  secondaryBtn: {
+    padding: '12px 24px',
+    border: 'none',
+    borderRadius: '40px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    background: 'transparent',
+    color: '#64748b',
+    width: '100%',
+  },
+  footer: {
+    color: '#475569',
+    fontSize: '12px',
+    marginTop: '16px',
+  },
 };
 
 // Add hover styles for links

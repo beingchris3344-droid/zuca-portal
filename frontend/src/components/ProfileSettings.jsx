@@ -4,10 +4,12 @@ import axios from "axios";
 import { 
   FiX, FiSave, FiUser, FiMail, FiPhone, FiLock, FiCheckCircle, 
   FiAlertCircle, FiCamera, FiTrash2, FiArrowLeft, FiShield,
-  FiEye, FiEyeOff
+  FiEye, FiEyeOff, 
 } from "react-icons/fi";
 import BASE_URL from "../api";
 import ProfileImageCropper from './ProfileImageCropper';
+import FingerprintRegistration from './FingerprintRegistration';
+import { FaFingerprint } from "react-icons/fa";
 
 const guiltMessages = [
   "🎵 You'll miss the beautiful choir hymns...",
@@ -45,6 +47,9 @@ function ProfileSettings({ isOpen, onClose, user, onUserUpdate }) {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteCountdown, setDeleteCountdown] = useState(5);
   const [deleting, setDeleting] = useState(false);
+
+  // Fingerprint refresh state
+  const [fingerprintUpdated, setFingerprintUpdated] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -164,6 +169,12 @@ function ProfileSettings({ isOpen, onClose, user, onUserUpdate }) {
     }
   };
 
+  const handleFingerprintRegistered = () => {
+    setFingerprintUpdated(!fingerprintUpdated);
+    setSuccess("✅ Fingerprint settings updated!");
+    setTimeout(() => setSuccess(""), 3000);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -232,6 +243,16 @@ function ProfileSettings({ isOpen, onClose, user, onUserUpdate }) {
                     </div>
                   </motion.div>
                 )}
+              </div>
+
+              {/* ==================== FINGERPRINT SECTION ==================== */}
+              <div style={s.section}>
+                <h3 style={{ ...s.sectionTitle, color: "#7c3aed", borderBottomColor: "#ddd6fe" }}>
+                  <FaFingerprint size={16} style={{ marginRight: 8 }} /> Fingerprint Login
+                </h3>
+                <FingerprintRegistration 
+                  onRegistered={handleFingerprintRegistered}
+                />
               </div>
 
               {/* ==================== DANGER ZONE ==================== */}

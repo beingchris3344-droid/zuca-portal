@@ -12,6 +12,95 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
+// ==================== SELF-CONTAINED NOTIFICATION FUNCTION ====================
+// This handles push notifications + in-app notifications + Socket.IO
+// EXACTLY like the attendance router's createAndSendNotification
+
+async function createAndSendDMNotification({ userId, type, title, message, data = {} }) {
+  try {
+    console.log(`🔔 Creating DM notification: ${title} for user ${userId}`);
+    
+    // 1. Create notification in database
+    const notification = await prisma.notification.create({
+      data: {
+        id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId,
+        type,
+        title,
+        message,
+        read: false,
+        createdAt: new Date(),
+        data: data || {}
+      }
+    });
+
+    // 2. Send real-time via Socket.IO (bell icon)
+    try {
+      const io = global.io;
+      if (io) {
+        io.to(userId).emit('new_notification', {
+          ...notification,
+          createdAt: notification.createdAt.toISOString()
+        });
+      }
+    } catch (err) {
+      console.log('⚠️ Socket.IO not available for real-time notification');
+    }
+
+    // 3. Send PUSH NOTIFICATION (SAME AS ATTENDANCE ROUTER)
+    try {
+      const subscription = await prisma.pushSubscription.findUnique({
+        where: { userId }
+      });
+
+      if (subscription) {
+        const unreadCount = await prisma.notification.count({
+          where: { userId, read: false }
+        });
+
+        const pushSubscription = JSON.parse(subscription.subscription);
+        
+        // Build the URL for this notification
+        const deepLinkUrl = global.getDeepLinkUrl
+          ? global.getDeepLinkUrl(type, data)
+          : `${process.env.FRONTEND_URL || "https://www.zetechcatholicaction.com"}/messenger`;
+
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title,
+            body: message,
+            icon: "/android-chrome-192x192.png",
+            badge: "/favicon.ico",
+            badgeCount: unreadCount + 1,
+            data: {
+              type,
+              ...data,
+              url: deepLinkUrl
+            },
+            url: deepLinkUrl,
+            timestamp: Date.now()
+          }),
+          { urgency: "high" }
+        );
+        
+        console.log(`📱 Push notification sent to user ${userId}`);
+      } else {
+        console.log(`⚠️ No push subscription for user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Push notification failed for user ${userId}:`, err.message);
+    }
+
+    return notification;
+  } catch (err) {
+    console.error('❌ createAndSendDMNotification error:', err.message);
+    return null;
+  }
+}
+
+// ==================== ROUTES ====================
+
 // GET messages in a conversation (paginated)
 router.get('/:conversationId', authenticateDM, async (req, res) => {
   try {
@@ -76,7 +165,7 @@ router.get('/:conversationId', authenticateDM, async (req, res) => {
   }
 });
 
-// POST - Send a new message (with optional files)
+// POST - Send a new message (with optional files) - WITH FULL PUSH NOTIFICATIONS
 router.post('/', authenticateDM, async (req, res) => {
   try {
     const { content, conversationId, recipientId, files } = req.body;
@@ -152,89 +241,28 @@ router.post('/', authenticateDM, async (req, res) => {
       select: { fullName: true, profileImage: true }
     });
 
-    // ✅ CREATE IN-APP NOTIFICATION
-    const notification = await prisma.notification.create({
-      data: {
+    // ✅ SEND NOTIFICATION (In-App + Push + Socket) using the self-contained function
+    if (recipientId2) {
+      await createAndSendDMNotification({
         userId: recipientId2,
         type: "direct_message",
         title: `💬 New message from ${sender.fullName}`,
-        message: content?.substring(0, 100) || "Sent you a message",
+        message: content?.substring(0, 100) || "📎 New message with attachment",
         data: {
           conversationId: convId,
           messageId: message.id,
           senderId: senderId,
-          senderName: sender.fullName
-        },
-        read: false,
-        createdAt: new Date()
-      }
-    });
-
-    // ✅ SEND PUSH NOTIFICATION
-    try {
-      const subscription = await prisma.pushSubscription.findUnique({
-        where: { userId: recipientId2 }
-      });
-
-      if (subscription) {
-        const unreadCount = await prisma.notification.count({
-          where: { userId: recipientId2, read: false }
-        });
-
-        const pushSubscription = JSON.parse(subscription.subscription);
-        const frontendUrl = process.env.FRONTEND_URL || "https://www.zetechcatholicaction.com";
-        const deepLinkUrl = `${frontendUrl}/messenger`;
-
-        await webpush.sendNotification(
-          pushSubscription,
-          JSON.stringify({
-            title: `💬 New message from ${sender.fullName}`,
-            body: content?.substring(0, 120) || "📎 New message with attachment",
-            icon: "/android-chrome-192x192.png",
-            badge: "/favicon.ico",
-            badgeCount: unreadCount + 1,
-            data: {
-              type: "direct_message",
-              messageId: message.id,
-              conversationId: convId,
-              sender: sender.fullName,
-              senderId: senderId,
-              url: deepLinkUrl
-            },
-            url: deepLinkUrl,
-            timestamp: Date.now()
-          }),
-          { urgency: "high" }
-        );
-
-        console.log(`📱 Push notification sent to ${recipientId2} from ${sender.fullName}`);
-      } else {
-        console.log(`⚠️ No push subscription for user ${recipientId2}`);
-      }
-    } catch (pushErr) {
-      console.error("❌ Push notification failed:", pushErr.message);
-    }
-
-    // ✅ SEND REAL-TIME NOTIFICATIONS VIA SOCKET.IO
-    const io = req.app.get('io');
-    if (io) {
-      // Send message notification to bell icon
-      io.to(recipientId2).emit('new_notification', {
-        id: notification.id,
-        userId: recipientId2,
-        type: "direct_message",
-        title: `💬 New message from ${sender.fullName}`,
-        message: content?.substring(0, 100) || "Sent you a message",
-        data: {
-          conversationId: convId,
-          messageId: message.id,
-          senderId: senderId,
-          senderName: sender.fullName
-        },
-        read: false,
-        createdAt: notification.createdAt.toISOString()
+          senderName: sender.fullName,
+          type: "direct_message"
+        }
       });
       
+      console.log(`🔔 DM notification sent to ${recipientId2} from ${sender.fullName}`);
+    }
+
+    // ✅ Send real-time message to chat window via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
       // Send message to chat window
       io.to(recipientId2).emit('new_dm_message', {
         ...message,
@@ -409,6 +437,54 @@ router.put('/:messageId', authenticateDM, async (req, res) => {
 
     res.json(updated);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST - Test notification (for debugging) - SAME AS ATTENDANCE ROUTER TEST
+router.post('/test', authenticateDM, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    const notification = await createAndSendDMNotification({
+      userId: userId,
+      type: "direct_message",
+      title: "🔔 Test DM Notification",
+      message: "If you see this, push notifications are working! 🎉",
+      data: {
+        messageId: "test-id",
+        conversationId: "test-conv-id",
+        sender: "Test User",
+        type: "direct_message"
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Test notification sent",
+      notificationId: notification?.id 
+    });
+
+  } catch (err) {
+    console.error("Test notification error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET - Get VAPID public key (same as attendance router)
+router.get('/vapid-public-key', (req, res) => {
+  try {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    
+    if (!publicKey) {
+      console.error("❌ VAPID_PUBLIC_KEY not set in environment");
+      return res.status(500).json({ error: "VAPID key not configured" });
+    }
+    
+    res.json({ publicKey });
+  } catch (err) {
+    console.error("Error serving VAPID key:", err);
     res.status(500).json({ error: err.message });
   }
 });

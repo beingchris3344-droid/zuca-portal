@@ -3,11 +3,19 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { authenticateDM } = require('./helpers');
+const webpush = require('web-push');
 
 // Helper function to send email notification (reuse from your existing mailer)
 const { sendPersonalizedEmail } = require('../../services/mailer');
 
-// Helper to create and send notification (both in-app and email)
+// Configure web-push for push notifications
+webpush.setVapidDetails(
+  'mailto:zucaportal2025@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+// Helper to create and send notification (both in-app, email, and PUSH)
 async function createMessageNotification(userId, senderName, messageContent, messageId, conversationId, userEmail) {
   try {
     // Create in-app notification
@@ -23,23 +31,85 @@ async function createMessageNotification(userId, senderName, messageContent, mes
       }
     });
 
-    // Send email notification if user has email enabled
-    if (userEmail) {
-      // Check user's DM settings
-      const settings = await prisma.dMSettings.findUnique({
+    // --- PUSH NOTIFICATION ---
+    try {
+      const subscription = await prisma.pushSubscription.findUnique({
         where: { userId }
       });
 
-      // Send email if email notifications are enabled (default true)
-      if (!settings || settings.emailNotifications !== false) {
-        await sendPersonalizedEmail(
-          { email: userEmail, fullName: senderName },
-          'direct_message',
-          `💬 New message from ${senderName}`,
-          `${senderName} sent you a message:\n\n"${messageContent?.substring(0, 200) || "Check your messages for the attachment"}"\n\nReply in the ZUCA app.`,
-          { messageId, conversationId, sender: senderName }
-        ).catch(err => console.error("Email send failed:", err.message));
+      if (subscription) {
+        const unreadCount = await prisma.notification.count({
+          where: { userId, read: false }
+        });
+
+        const pushSubscription = JSON.parse(subscription.subscription);
+
+        // Deep link URL - goes to messenger page
+        const deepLinkUrl = "https://www.zetechcatholicaction.com/messenger";
+
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title: `💬 New message from ${senderName}`,
+            body: messageContent?.substring(0, 120) || "📎 New message with attachment",
+            icon: "/android-chrome-192x192.png",
+            badge: "/favicon.ico",
+            badgeCount: unreadCount + 1,
+            data: {
+              type: "direct_message",
+              messageId,
+              conversationId,
+              sender: senderName,
+              url: deepLinkUrl
+            },
+            url: deepLinkUrl,
+            timestamp: Date.now()
+          }),
+          { urgency: "high" }
+        );
+
+        console.log(`📱 Push notification sent to user ${userId} for DM from ${senderName}`);
+      } else {
+        console.log(`⚠️ No push subscription for user ${userId}`);
       }
+    } catch (pushErr) {
+      console.error("❌ Push notification failed:", pushErr.message);
+    }
+
+    // --- EMAIL NOTIFICATION ---
+    // Check user's DM settings for email preferences
+    if (userEmail) {
+      try {
+        const settings = await prisma.dMSettings.findUnique({
+          where: { userId }
+        });
+
+        // Send email if email notifications are enabled (default true)
+        if (!settings || settings.emailNotifications !== false) {
+          await sendPersonalizedEmail(
+            { email: userEmail, fullName: senderName },
+            'direct_message',
+            `💬 New message from ${senderName}`,
+            `${senderName} sent you a message:\n\n"${messageContent?.substring(0, 200) || "Check your messages for the attachment"}"\n\nReply in the ZUCA app.`,
+            { messageId, conversationId, sender: senderName }
+          ).catch(err => console.error("Email send failed:", err.message));
+        }
+      } catch (emailErr) {
+        console.error("Email send error:", emailErr.message);
+      }
+    }
+
+    // --- REAL-TIME SOCKET.IO ---
+    try {
+      const io = global.io; // or req.app.get('io') if available
+      if (io) {
+        io.to(userId).emit('new_notification', {
+          ...notification,
+          createdAt: notification.createdAt.toISOString()
+        });
+      }
+    } catch (socketErr) {
+      // Socket not available, continue
     }
 
     return notification;
@@ -203,7 +273,7 @@ router.post('/test', authenticateDM, async (req, res) => {
     );
 
     // Emit via Socket.io
-    const io = req.app.get('io');
+    const io = global.io;
     if (io) {
       io.to(userId).emit('new_notification', notification);
     }

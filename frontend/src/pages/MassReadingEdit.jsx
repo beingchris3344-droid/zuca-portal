@@ -18,6 +18,24 @@ const styles = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
+  /* Force the page to scroll properly under the header */
+.mass-reading-edit {
+  min-height: calc(100vh - 70px); /* Adjust based on your header height */
+  padding-top: 0px;
+  margin-top: 0;
+  display: block;
+    margin-bottom: 100px;
+
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure the header section is properly contained */
+.edit-header {
+  margin-top: 0;
+  /* Keep the rest of your header styles */
+}
+
   /* Premium Loader - Same as Landing2 */
   .edit-loader-premium {
     min-height: 100vh;

@@ -406,6 +406,7 @@ export default function MassReadingUpload() {
 
         .mass-reading-upload {
           min-height: 100vh;
+          
           background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
@@ -413,8 +414,10 @@ export default function MassReadingUpload() {
         .upload-header {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
           padding: 20px 24px 40px;
+          
           position: relative;
           overflow: hidden;
+          
         }
 
         .nav-bar {
@@ -446,6 +449,7 @@ export default function MassReadingUpload() {
         .upload-hero {
           text-align: center;
           color: white;
+          
         }
 
         .upload-icon-wrapper {
@@ -823,6 +827,27 @@ export default function MassReadingUpload() {
           .drop-zone { padding: 30px 16px; }
           .skeleton-row { flex-direction: column; }
         }
+
+
+
+
+  /* Force the page to scroll properly */
+  .mass-reading-upload {
+    min-height: calc(100vh - 80px); /* Adjust based on your header height */
+    padding-top: 0px;
+    padding-bottom: 50px;
+    margin-top: 0;
+    position: relative;
+    z-index: 1;
+    display: block;
+  }
+
+  /* Ensure the form container is visible */
+  .upload-form-container {
+    position: relative;
+    z-index: 2;
+    clear: both;
+  }
       `}</style>
     </div>
   );

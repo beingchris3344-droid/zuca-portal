@@ -18,6 +18,22 @@ const styles = `
     box-sizing: border-box;
   }
 
+  /* Force the page to scroll properly under the header */
+.mass-reading-detail {
+  min-height: calc(100vh - 70px); /* Adjust based on your header height */
+  padding-top: 0px;
+  margin-top: 0;
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure the header section is properly contained */
+.detail-header {
+  margin-top: 0;
+  /* Keep the rest of your header styles */
+}
+
   .mass-reading-detail {
     min-height: 100vh;
     background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
@@ -766,6 +782,8 @@ const styles = `
     .loader-sub {
       font-size: 12px;
     }
+
+    
     .loader-progress {
       max-width: 220px;
     }

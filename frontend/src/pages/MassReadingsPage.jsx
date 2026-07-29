@@ -964,6 +964,29 @@ export default function MassReadingsPage() {
           .pagination { flex-wrap: wrap; }
         }
 
+
+
+
+        /* Add this to your style tag - this ensures the page starts below the header */
+.mass-readings-page {
+  min-height: calc(100vh - 70px); /* Adjust based on your header height */
+  padding-top: 0px;
+  margin-top: 0;
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+/* Make sure the hero section is properly contained */
+.premium-hero {
+  margin-top: 0;
+  /* Keep the rest of your hero styles */
+}
+
+
+
+        
+
         @media (max-width: 480px) {
           .reading-date-badge { min-width: 40px; padding: 4px 8px; }
           .date-day { font-size: 18px; }

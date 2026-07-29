@@ -712,16 +712,13 @@ function App() {
   
   return (
     <HelmetProvider>
-  <BrowserRouter>
-      {!isAdmin ? (
+      <BrowserRouter>
+      
         <MessengerProvider>
           <AppContent />
         </MessengerProvider>
-      ) : (
-        <AppContent />
-      )}
-   </BrowserRouter>
-</HelmetProvider>
+      </BrowserRouter>
+    </HelmetProvider>
   );
 }
 export default App;

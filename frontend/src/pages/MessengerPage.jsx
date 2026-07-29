@@ -1,4 +1,3 @@
-// frontend/src/pages/MessengerPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMessenger } from '../contexts/MessengerContext';
@@ -9,19 +8,29 @@ import ChatInfoDrawer from '../components/messenger/ChatInfoDrawer';
 
 export default function MessengerPage() {
   const navigate = useNavigate();
+  const messengerContext = useMessenger();
+  
+  // ✅ Add fallback if context is undefined
+  if (!messengerContext) {
+    return (
+      <div className="messenger-loading">
+        <div className="loading-spinner"></div>
+        <h3>Loading Messenger</h3>
+        <p>Please wait...</p>
+      </div>
+    );
+  }
+  
   const { 
     user, 
     loading, 
     fetchUser, 
     fetchConversations,
-    activeConversation,      // ← USE FROM CONTEXT (not local state)
-    setActiveConversation,   // ← USE FROM CONTEXT
+    activeConversation,
+    setActiveConversation,
     darkMode,
     setDarkMode 
-  } = useMessenger();
-  
-  // ❌ REMOVE this line - don't create local state
-  // const [activeConversation, setActiveConversation] = useState(null);
+  } = messengerContext;
   
   const [showNewChat, setShowNewChat] = useState(false);
   const [showInfoDrawer, setShowInfoDrawer] = useState(false);
@@ -41,10 +50,19 @@ export default function MessengerPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
- 
+  // ✅ Add loading state from context
+  if (loading) {
+    return (
+      <div className="messenger-loading">
+        <div className="loading-spinner"></div>
+        <h3>Loading Messenger</h3>
+        <p>Please wait...</p>
+      </div>
+    );
+  }
 
   const handleSelectChat = (conversation) => {
-    setActiveConversation(conversation);  // ← This updates both state and ref
+    setActiveConversation(conversation);
     if (!isDesktop) {
       setMobileView('chat');
     }
@@ -87,7 +105,6 @@ export default function MessengerPage() {
     }
   };
 
- 
   return (
     <div className={`messenger-page ${darkMode ? 'dark' : ''}`}>
       {/* Desktop Layout - Two Panels Side by Side */}
@@ -116,7 +133,7 @@ export default function MessengerPage() {
               <ChatInfoDrawer 
                 conversation={activeConversation}
                 onClose={handleCloseInfo}
-                 onBack={handleBackToList}
+                onBack={handleBackToList}
               />
             </div>
           )}
@@ -163,7 +180,6 @@ export default function MessengerPage() {
           height: 90%;
           margin-bottom: 15px;
           background: #ECE5DD;
-          
           overflow: hidden;
         }
 

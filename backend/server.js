@@ -843,6 +843,12 @@ const semesterRoutes = require("./routes/semesterRoutes");
 app.use("/api/semesters", semesterRoutes);
 
 
+// ================== BIOMETRIC ROUTES ==================
+const biometricRoutes = require('./routes/biometricRoutes');
+app.use('/api/biometric', biometricRoutes);
+console.log('✅ Biometric routes loaded successfully');
+
+
 //email settings
 const adminEmailSettings = require('./routes/admin/emailSettings');
 console.log('✅ Email Settings routes loaded successfully');

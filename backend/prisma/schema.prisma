@@ -178,6 +178,15 @@ minutesViewed    MeetingMinutesView[]
 excuses          MeetingExcuse[]
 minutesComments  MeetingComment[]
 
+// ===== BIOMETRIC/FINGERPRINT FIELDS =====
+  biometricRegistered    Boolean  @default(false)
+  biometricCredentialId  String?  @unique
+  biometricPublicKey     String?
+  biometricTransports    String?  // JSON array of transports
+  lastBiometricLogin     DateTime?
+
+  biometricChallenges    BiometricChallenge[]
+
 
  @@index([email])
   @@index([membership_number])
@@ -1868,4 +1877,21 @@ model MassReadingAttachment {
   
   @@map("mass_reading_attachments")
   @@index([readingId])
+}
+
+
+// ===== BIOMETRIC CHALLENGES =====
+model BiometricChallenge {
+  id        String   @id @default(uuid())
+  userId    String
+  challenge String
+  type      String   @default("register") // "register" or "login"
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("biometric_challenges")
 }

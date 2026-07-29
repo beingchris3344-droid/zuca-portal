@@ -85,7 +85,7 @@ function getDeepLinkUrl(type, data = {}) {
   const baseUrl = process.env.FRONTEND_URL || 'https://www.zetechcatholicaction.com';
   
   const routes = {
-    // Attendance
+    // ==================== ATTENDANCE ====================
     'attendance_checkin': '/member/attendance',
     'attendance_thankyou': '/member/attendance',
     'attendance_missed': '/member/attendance',
@@ -93,79 +93,86 @@ function getDeepLinkUrl(type, data = {}) {
     'attendance_reminder': '/member/attendance',
     'attendance_summary': '/admin/attendance/overview',
     'attendance_automatic_reminder': '/member/attendance',
+    'attendance_admin_report': '/admin/attendance/overview',
+    'attendance_bulk_checkin': '/admin/attendance',
     
-    // Minutes
+    // ==================== MINUTES ====================
     'meeting_minutes_published': '/minutes',
     'meeting_minutes_comment': '/minutes',
+    'minutes_published': '/minutes',
     
-    // Announcements
+    // ==================== ANNOUNCEMENTS ====================
     'announcement': '/announcements',
     'new_announcement': '/announcements',
     'jumuia_announcement': '/announcements',
     
-    // Games
+    // ==================== GAMES ====================
     'game_invite': '/games',
     
-    // Messages
+    // ==================== DIRECT MESSAGES ====================
     'direct_message': '/messenger',
     'message': '/messenger',
     'chat_mention': '/messenger',
     'pin': '/messenger',
+    'broadcast': '/messenger',
+    'send_email': '/messenger',
+    'report_resolved': '/messenger',
     
-    // Contributions
+    // ==================== CONTRIBUTIONS ====================
     'contribution': '/contributions',
     'pledge_approved': '/contributions',
     'payment_added': '/contributions',
     'payment_success': '/contributions',
     'payment_received': '/contributions',
+    'jumuia_contribution': '/contributions',
+    'pledge_message': '/contributions',
+    'new_pledge': '/contributions',
     
-    // Executive
+    // ==================== EXECUTIVE ====================
     'executive_appointment': '/executive',
     'executive_removed': '/executive',
     
-    // Media
+    // ==================== MEDIA ====================
     'new_media': '/gallery',
     'media_comment': '/gallery',
     
-    // YouTube
+    // ==================== YOUTUBE ====================
     'youtube_new_video': '/youtube',
     'youtube_live': '/youtube',
     
-    // System
-    'test': '/dashboard',
-    'user_login': '/dashboard',
-    'role_change': '/dashboard',
-    'send_email': '/messenger',
+    // ==================== SCHEDULES & EVENTS ====================
     'schedule': '/schedules',
     'event_reminder': '/schedules',
     'program': '/mass-programs',
-    'broadcast': '/messenger',
-    'report_resolved': '/messenger',
+    
+    // ==================== JUMUIA ====================
     'jumuia': '/jumuia',
-    'jumuia_contribution': '/contributions',
-    'pledge_message': '/contributions',
-    'schedule': '/schedules',
+    
+    // ==================== SYSTEM ====================
+    'test': '/dashboard',
+    'user_login': '/dashboard',
+    'role_change': '/dashboard',
     'welcome': '/dashboard',
     'api_notify': '/dashboard',
+    
+    // ==================== DEFAULT ====================
     'default': '/dashboard'
   };
 
-  
+  // ✅ Get the clean route - NO IDs, NO parameters appended
   let route = routes[type] || routes['default'];
   
-  // Add IDs to URLs if present
-  if (data.sheetId) route = route + '/sheet/' + data.sheetId;
-  if (data.minutesId) route = route + '/' + data.minutesId;
-  if (data.inviteId && type === 'game_invite') route = route + '?invite=' + data.inviteId;
-  if (data.mediaId) route = route + '/' + data.mediaId;
-  if (data.announcementId) route = route + '/' + data.announcementId;
-  if (data.pledgeId) route = route + '/' + data.pledgeId;
-  if (data.scheduleId) route = route + '/' + data.scheduleId;
-  if (data.eventId) route = route + '/' + data.eventId;
-  if (data.broadcastId) route = route + '/' + data.broadcastId;
-  if (data.reportId) route = route + '/' + data.reportId;
+  // ✅ REMOVED ALL ID APPENDAGE:
+  // - No /sheet/ 
+  // - No ?invite=
+  // - No /media/
+  // - No ?conversation=
+  // - Nothing extra!
   
-  return baseUrl + route;
+  const finalUrl = baseUrl + route;
+  console.log(`🔗 [${type}] Opening: ${finalUrl}`);
+  
+  return finalUrl;
 }
 
 

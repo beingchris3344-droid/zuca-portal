@@ -6,6 +6,34 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "zuca_super_secret_key";
 
+// ============================================
+// HELPER: Get RP ID from request
+// ============================================
+function getRpId(req) {
+  const host = req.get('host')?.split(':')[0] || '';
+  
+  console.log(`🔍 Getting RP ID from host: "${host}"`);
+  
+  // For localhost
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'localhost';
+  }
+  
+  // For Vercel default domains
+  if (host.endsWith('.vercel.app')) {
+    return 'vercel.app';
+  }
+  
+  // For Render default domains
+  if (host.endsWith('.onrender.com')) {
+    return 'onrender.com';
+  }
+  
+  // For custom domains, use the full domain
+  // Or use the environment variable as fallback
+  return host || process.env.DOMAIN || 'zetechcatholicaction.com';
+}
+
 // Auth middleware
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -51,6 +79,9 @@ router.post("/register-challenge", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const challenge = crypto.randomBytes(32).toString('base64url');
+    const rpId = getRpId(req);
+    
+    console.log(`📝 Registration challenge for user ${userId}, RP ID: ${rpId}`);
     
     await prisma.biometricChallenge.create({
       data: {
@@ -68,7 +99,7 @@ router.post("/register-challenge", authenticate, async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: process.env.DOMAIN || 'localhost',
+      rpId: rpId,  // ✅ Dynamic RP ID
       rpName: "ZUCA Portal",
       userId: userId.toString(),
       userName: user?.email || user?.fullName || "Zuca User",
@@ -86,10 +117,12 @@ router.post("/register-challenge", authenticate, async (req, res) => {
 router.post("/register", authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { credentialId, publicKey, transports } = req.body;
+    const { credentialId, publicKey, attestationObject, clientDataJSON, transports } = req.body;
     
-    if (!credentialId || !publicKey) {
-      return res.status(400).json({ error: "Missing credential data" });
+    console.log(`📝 Registration for user ${userId}, credential: ${credentialId?.substring(0, 30)}...`);
+    
+    if (!credentialId) {
+      return res.status(400).json({ error: "Credential ID required" });
     }
     
     // Verify challenge was valid
@@ -120,7 +153,7 @@ router.post("/register", authenticate, async (req, res) => {
       data: {
         biometricRegistered: true,
         biometricCredentialId: credentialId,
-        biometricPublicKey: publicKey,
+        biometricPublicKey: publicKey || null,
         biometricTransports: transports || JSON.stringify(['internal', 'hybrid'])
       }
     });
@@ -130,7 +163,7 @@ router.post("/register", authenticate, async (req, res) => {
       where: { userId }
     });
     
-    console.log(` Biometric registered for user ${userId}`);
+    console.log(`✅ Biometric registered for user ${userId}`);
     
     res.json({ 
       success: true, 
@@ -148,6 +181,9 @@ router.post("/register", authenticate, async (req, res) => {
 router.post("/login-challenge", async (req, res) => {
   try {
     const { email } = req.body;
+    const rpId = getRpId(req);
+    
+    console.log(`🔐 Login challenge request, RP ID: ${rpId}`);
     
     if (email) {
       const user = await prisma.user.findFirst({
@@ -179,7 +215,7 @@ router.post("/login-challenge", async (req, res) => {
         return res.json({
           success: true,
           challenge,
-          rpId: process.env.DOMAIN || 'localhost',
+          rpId: rpId,  // ✅ Dynamic RP ID
           allowCredentials: [
             {
               id: user.biometricCredentialId,
@@ -197,7 +233,7 @@ router.post("/login-challenge", async (req, res) => {
     res.json({
       success: true,
       challenge,
-      rpId: process.env.DOMAIN || 'localhost',
+      rpId: rpId,  // ✅ Dynamic RP ID
       userVerification: 'required'
     });
   } catch (err) {
@@ -212,6 +248,8 @@ router.post("/login-challenge", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { credentialId } = req.body;
+    
+    console.log(`🔐 Login with credential: ${credentialId?.substring(0, 30)}...`);
     
     if (!credentialId) {
       return res.status(400).json({ error: "Credential ID required" });
@@ -229,7 +267,7 @@ router.post("/login", async (req, res) => {
     });
     
     if (!user) {
-      return res.status(401).json({ error: "Fingerprint not recognized Please register in your ZUCA profile settings or login with password." });
+      return res.status(401).json({ error: "Fingerprint not recognized. Please register in your ZUCA profile settings or login with password." });
     }
     
     // Generate JWT token
@@ -266,7 +304,9 @@ router.post("/login", async (req, res) => {
         specialRole: user.specialRole,
         membership_number: user.membership_number,
         profileImage: user.profileImage,
-        jumuiaId: user.jumuiaId
+        jumuiaId: user.jumuiaId,
+        jumuia: user.homeJumuia?.name || null,
+        leadingJumuia: user.leadingJumuia?.code || null
       }
     });
   } catch (err) {

@@ -5,18 +5,15 @@ const prisma = new PrismaClient();
 const { authenticateDM, getOrCreateConversation, updateConversationLastMessage, markConversationRead } = require('./helpers');
 const webpush = require('web-push');
 
-// Configure web-push for push notifications
+// ✅ Configure web-push (same as attendanceRoutes)
 webpush.setVapidDetails(
   'mailto:zucaportal2025@gmail.com',
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// ==================== SELF-CONTAINED NOTIFICATION FUNCTION ====================
-// This handles push notifications + in-app notifications + Socket.IO
-// EXACTLY like the attendance router's createAndSendNotification
-
-async function createAndSendDMNotification({ userId, type, title, message, data = {} }) {
+// ✅ SELF-CONTAINED notification function (copied from attendanceRoutes)
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
   try {
     console.log(`🔔 Creating DM notification: ${title} for user ${userId}`);
     
@@ -34,7 +31,7 @@ async function createAndSendDMNotification({ userId, type, title, message, data 
       }
     });
 
-    // 2. Send real-time via Socket.IO (bell icon)
+    // 2. Send real-time via Socket.IO
     try {
       const io = global.io;
       if (io) {
@@ -44,10 +41,10 @@ async function createAndSendDMNotification({ userId, type, title, message, data 
         });
       }
     } catch (err) {
-      console.log('⚠️ Socket.IO not available for real-time notification');
+      // Socket not available, continue
     }
 
-    // 3. Send PUSH NOTIFICATION (SAME AS ATTENDANCE ROUTER)
+    // 3. Send PUSH NOTIFICATION (SAME AS ATTENDANCE ROUTES)
     try {
       const subscription = await prisma.pushSubscription.findUnique({
         where: { userId }
@@ -94,14 +91,12 @@ async function createAndSendDMNotification({ userId, type, title, message, data 
 
     return notification;
   } catch (err) {
-    console.error('❌ createAndSendDMNotification error:', err.message);
+    console.error('❌ createAndSendNotification error:', err.message);
     return null;
   }
 }
 
-// ==================== ROUTES ====================
-
-// GET messages in a conversation (paginated)
+// GET messages in a conversation (paginated) - UNCHANGED
 router.get('/:conversationId', authenticateDM, async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -165,7 +160,7 @@ router.get('/:conversationId', authenticateDM, async (req, res) => {
   }
 });
 
-// POST - Send a new message (with optional files) - WITH FULL PUSH NOTIFICATIONS
+// POST - Send a new message - ✅ THIS IS THE ONLY ROUTE THAT CHANGES
 router.post('/', authenticateDM, async (req, res) => {
   try {
     const { content, conversationId, recipientId, files } = req.body;
@@ -235,15 +230,15 @@ router.post('/', authenticateDM, async (req, res) => {
       ? conversation.participant2Id 
       : conversation.participant1Id;
 
-    // ✅ Get sender info
+    // Get sender info
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
       select: { fullName: true, profileImage: true }
     });
 
-    // ✅ SEND NOTIFICATION (In-App + Push + Socket) using the self-contained function
+    // ✅ NEW: Send notification with push (this is the only addition)
     if (recipientId2) {
-      await createAndSendDMNotification({
+      await createAndSendNotification({
         userId: recipientId2,
         type: "direct_message",
         title: `💬 New message from ${sender.fullName}`,
@@ -260,10 +255,8 @@ router.post('/', authenticateDM, async (req, res) => {
       console.log(`🔔 DM notification sent to ${recipientId2} from ${sender.fullName}`);
     }
 
-    // ✅ Send real-time message to chat window via Socket.IO
     const io = req.app.get('io');
     if (io) {
-      // Send message to chat window
       io.to(recipientId2).emit('new_dm_message', {
         ...message,
         conversationId: convId,
@@ -280,7 +273,7 @@ router.post('/', authenticateDM, async (req, res) => {
   }
 });
 
-// PUT mark message as read
+// PUT mark message as read - UNCHANGED
 router.put('/:messageId/read', authenticateDM, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -329,7 +322,7 @@ router.put('/:messageId/read', authenticateDM, async (req, res) => {
   }
 });
 
-// DELETE message (soft delete)
+// DELETE message (soft delete) - UNCHANGED
 router.delete('/:messageId', authenticateDM, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -377,11 +370,9 @@ router.delete('/:messageId', authenticateDM, async (req, res) => {
   }
 });
 
-// GET - Get online users list
+// GET - Get online users list - UNCHANGED
 router.get('/online-users', authenticateDM, async (req, res) => {
   try {
-    // You need to track online users - either from socket or database
-    // For now, return empty array or implement tracking
     const onlineUsersList = Array.from(onlineUsers || []);
     res.json({ users: onlineUsersList });
   } catch (err) {
@@ -389,7 +380,7 @@ router.get('/online-users', authenticateDM, async (req, res) => {
   }
 });
 
-// PUT edit message
+// PUT edit message - UNCHANGED
 router.put('/:messageId', authenticateDM, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -441,13 +432,13 @@ router.put('/:messageId', authenticateDM, async (req, res) => {
   }
 });
 
-// POST - Test notification (for debugging) - SAME AS ATTENDANCE ROUTER TEST
+// ✅ NEW: Test endpoint (optional - same as attendanceRoutes test)
 router.post('/test', authenticateDM, async (req, res) => {
   try {
     const userId = req.user.userId;
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    const notification = await createAndSendDMNotification({
+    const notification = await createAndSendNotification({
       userId: userId,
       type: "direct_message",
       title: "🔔 Test DM Notification",
@@ -468,23 +459,6 @@ router.post('/test', authenticateDM, async (req, res) => {
 
   } catch (err) {
     console.error("Test notification error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET - Get VAPID public key (same as attendance router)
-router.get('/vapid-public-key', (req, res) => {
-  try {
-    const publicKey = process.env.VAPID_PUBLIC_KEY;
-    
-    if (!publicKey) {
-      console.error("❌ VAPID_PUBLIC_KEY not set in environment");
-      return res.status(500).json({ error: "VAPID key not configured" });
-    }
-    
-    res.json({ publicKey });
-  } catch (err) {
-    console.error("Error serving VAPID key:", err);
     res.status(500).json({ error: err.message });
   }
 });

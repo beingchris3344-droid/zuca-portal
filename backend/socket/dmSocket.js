@@ -1,5 +1,97 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const webpush = require('web-push'); 
+
+webpush.setVapidDetails(
+  'mailto:zucaportal2025@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+
+
+// ✅ ADD THIS WHOLE FUNCTION - Self-contained notification function
+async function createAndSendNotification({ userId, type, title, message, data = {} }) {
+  try {
+    console.log(`🔔 Creating DM notification: ${title} for user ${userId}`);
+    
+    // 1. Create notification in database
+    const notification = await prisma.notification.create({
+      data: {
+        id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId,
+        type,
+        title,
+        message,
+        read: false,
+        createdAt: new Date(),
+        data: data || {}
+      }
+    });
+
+    // 2. Send real-time via Socket.IO
+    try {
+      const io = global.io;
+      if (io) {
+        io.to(userId).emit('new_notification', {
+          ...notification,
+          createdAt: notification.createdAt.toISOString()
+        });
+      }
+    } catch (err) {
+      // Socket not available, continue
+    }
+
+    // 3. Send PUSH NOTIFICATION
+    try {
+      const subscription = await prisma.pushSubscription.findUnique({
+        where: { userId }
+      });
+
+      if (subscription) {
+        const unreadCount = await prisma.notification.count({
+          where: { userId, read: false }
+        });
+
+        const pushSubscription = JSON.parse(subscription.subscription);
+        
+        const deepLinkUrl = global.getDeepLinkUrl
+          ? global.getDeepLinkUrl(type, data)
+          : `${process.env.FRONTEND_URL || "https://www.zetechcatholicaction.com"}/messenger`;
+
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title,
+            body: message,
+            icon: "/android-chrome-192x192.png",
+            badge: "/favicon.ico",
+            badgeCount: unreadCount + 1,
+            data: {
+              type,
+              ...data,
+              url: deepLinkUrl
+            },
+            url: deepLinkUrl,
+            timestamp: Date.now()
+          }),
+          { urgency: "high" }
+        );
+        
+        console.log(`📱 Push notification sent to user ${userId}`);
+      } else {
+        console.log(`⚠️ No push subscription for user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Push notification failed for user ${userId}:`, err.message);
+    }
+
+    return notification;
+  } catch (err) {
+    console.error('❌ createAndSendNotification error:', err.message);
+    return null;
+  }
+}
 
 const onlineUsers = new Map();
 const userSockets = new Map();
@@ -218,41 +310,25 @@ socket.emit('dm:message_sent', {
           where: { id: conversationId },
           data: { [unreadField]: { increment: 1 } }
         }).catch(console.error);
-        
-        // Create notification
-        prisma.notification.create({
-          data: {
-            userId: recipientId,
-            type: "direct_message",
-            title: `💬 New message from ${message.sender.fullName}`,
-            message: content?.substring(0, 100) || "Sent you a message",
-            data: {
-              conversationId,
-              messageId: message.id,
-              senderId: userId,
-              senderName: message.sender.fullName
-            },
-            read: false,
-            createdAt: new Date()
-          }
-        }).then(notification => {
-          io.to(recipientId).emit('new_notification', {
-            id: notification.id,
-            userId: recipientId,
-            type: "direct_message",
-            title: `💬 New message from ${message.sender.fullName}`,
-            message: content?.substring(0, 100) || "Sent you a message",
-            data: {
-              conversationId,
-              messageId: message.id,
-              senderId: userId,
-              senderName: message.sender.fullName
-            },
-            read: false,
-            createdAt: notification.createdAt.toISOString()
-          });
-        }).catch(console.error);
-        
+      // ✅ REPLACE WITH THIS - uses createAndSendNotification with push
+try {
+  await createAndSendNotification({
+    userId: recipientId,
+    type: "direct_message",
+    title: `💬 New message from ${message.sender.fullName}`,
+    message: content?.substring(0, 100) || "📎 New message",
+    data: {
+      conversationId: conversationId,
+      messageId: message.id,
+      senderId: userId,
+      senderName: message.sender.fullName,
+      type: "direct_message"
+    }
+  });
+  console.log(`📱 Push notification sent to ${recipientId} from ${message.sender.fullName}`);
+} catch (err) {
+  console.error('❌ Push notification failed:', err);
+}
       } catch (err) {
         console.error('Send message error:', err);
         socket.emit('dm:error', { error: err.message });

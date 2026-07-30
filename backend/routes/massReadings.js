@@ -21,6 +21,8 @@ async function sendBulkNotifications(users, title, message, data = {}) {
   if (!users || users.length === 0) return;
 
   const BATCH_SIZE = 50;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://www.zetechcatholicaction.com';
+  const deepLinkUrl = `${frontendUrl}/mass-readings`;
   
   for (let i = 0; i < users.length; i += BATCH_SIZE) {
     const batch = users.slice(i, i + BATCH_SIZE);
@@ -34,7 +36,7 @@ async function sendBulkNotifications(users, title, message, data = {}) {
           title: title,
           message: message,
           read: false,
-          data: data || {},
+          data: { ...data, url: deepLinkUrl },
           createdAt: new Date()
         }));
 
@@ -89,7 +91,12 @@ async function sendBulkNotifications(users, title, message, data = {}) {
                   icon: '/android-chrome-192x192.png',
                   badge: '/favicon.ico',
                   badgeCount: (unreadMap[sub.userId] || 0) + 1,
-                  data: { type: "mass_reading", ...data },
+                  data: { 
+                    type: "mass_reading", 
+                    ...data,
+                    url: deepLinkUrl  // ✅ ADD URL HERE
+                  },
+                  url: deepLinkUrl,  // ✅ ADD URL HERE TOO
                   timestamp: Date.now()
                 }),
                 { urgency: 'high', TTL: 86400 }

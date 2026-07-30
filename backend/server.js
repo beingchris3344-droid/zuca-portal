@@ -156,7 +156,10 @@ function getDeepLinkUrl(type, data = {}) {
     'api_notify': '/dashboard',
     
     // ==================== DEFAULT ====================
-    'default': '/dashboard'
+    'default': '/dashboard',
+
+       // ==================== MASS READINGS ====================
+    'mass_reading': '/mass-readings',  
   };
 
   // ✅ Get the clean route - NO IDs, NO parameters appended

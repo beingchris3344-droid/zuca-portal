@@ -1,7 +1,7 @@
 // frontend/src/components/Notifications.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaBell } from "react-icons/fa"; // CHANGED: from FiBell to FaBell (solid bell)
+import { FaBell } from "react-icons/fa";
 import { FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
@@ -50,9 +50,9 @@ export default function Notifications({ userId }) {
       setNotifications(filtered);
 
       const unread = filtered.filter(n => !n.read);
-    window.dispatchEvent(new CustomEvent('notificationUpdate', {
-      detail: { unreadCount: unread.length }
-    }));
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: unread.length }
+      }));
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {
@@ -119,7 +119,7 @@ export default function Notifications({ userId }) {
                 tag: notification.id,
                 vibrate: [200, 100, 200],
                 data: {
-                  url: `/dashboard`,
+                  url: notification.data?.url || getNotificationPath(notification.type),
                   id: notification.id,
                   type: notification.type,
                   entityId: notification.entityId
@@ -134,13 +134,13 @@ export default function Notifications({ userId }) {
             }
           } catch(e) { console.log('Badge error:', e); }
 
-           window.dispatchEvent(new CustomEvent('newNotification', {
-        detail: { notification }
-      }));
+          window.dispatchEvent(new CustomEvent('newNotification', {
+            detail: { notification }
+          }));
       
-      window.dispatchEvent(new CustomEvent('notificationUpdate', {
-        detail: { unreadCount: unreadCount + 1 }
-      }));
+          window.dispatchEvent(new CustomEvent('notificationUpdate', {
+            detail: { unreadCount: unreadCount + 1 }
+          }));
           
           return [notification, ...prev];
         });
@@ -186,6 +186,63 @@ export default function Notifications({ userId }) {
     badgeManager.loadCount();
   }, []);
 
+  // Helper function to get notification path
+  const getNotificationPath = (type) => {
+    const paths = {
+      'attendance_checkin': '/member/attendance',
+      'attendance_thankyou': '/member/attendance',
+      'attendance_missed': '/member/attendance',
+      'attendance_reminder': '/member/attendance',
+      'attendance_automatic_reminder': '/member/attendance',
+      'attendance_sheet_opened': '/admin/attendance',
+      'attendance_summary': '/admin/attendance/overview',
+      'attendance_admin_report': '/admin/attendance/overview',
+      'attendance_bulk_checkin': '/admin/attendance',
+      'meeting_minutes_published': '/minutes',
+      'meeting_minutes_comment': '/minutes',
+      'minutes_published': '/minutes',
+      'announcement': '/announcements',
+      'new_announcement': '/announcements',
+      'jumuia_announcement': '/announcements',
+      'game_invite': '/games',
+      'direct_message': '/messenger',
+      'message': '/messenger',
+      'chat_mention': '/messenger',
+      'pin': '/messenger',
+      'broadcast': '/messenger',
+      'send_email': '/messenger',
+      'report_resolved': '/messenger',
+      'contribution': '/contributions',
+      'pledge_approved': '/contributions',
+      'payment_added': '/contributions',
+      'payment_success': '/contributions',
+      'payment_received': '/contributions',
+      'jumuia_contribution': '/contributions',
+      'pledge_message': '/contributions',
+      'new_pledge': '/contributions',
+      'executive_appointment': '/executive',
+      'executive_removed': '/executive',
+      'new_media': '/gallery',
+      'media_comment': '/gallery',
+      'media_like': '/gallery',
+      'youtube_new_video': '/youtube',
+      'youtube_live': '/youtube',
+      'schedule': '/schedules',
+      'event_reminder': '/schedules',
+      'program': '/mass-programs',
+      'jumuia': '/jumuia',
+      'mass_reading': '/mass-readings',
+      'test': '/dashboard',
+      'user_login': '/dashboard',
+      'role_change': '/dashboard',
+      'welcome': '/dashboard',
+      'api_notify': '/dashboard',
+      'default': '/dashboard'
+    };
+    return paths[type] || paths['default'];
+  };
+
+  // Page type detection for auto-marking as read
   useEffect(() => {
     if (!userId || !location.pathname) return;
 
@@ -193,21 +250,71 @@ export default function Notifications({ userId }) {
       let pageType = null;
       let pagePath = location.pathname;
 
-      if (pagePath.includes('/announcements')) {
+      // Attendance (Member)
+      if (pagePath.includes('/member/attendance')) {
+        pageType = 'attendance_checkin';
+      }
+      // Attendance (Admin)
+      else if (pagePath.includes('/admin/attendance/overview')) {
+        pageType = 'attendance_summary';
+      }
+      else if (pagePath.includes('/admin/attendance')) {
+        pageType = 'attendance_sheet_opened';
+      }
+      // Minutes
+      else if (pagePath.includes('/minutes')) {
+        pageType = 'minutes_published';
+      }
+      // Announcements
+      else if (pagePath.includes('/announcements')) {
         pageType = 'announcement';
-      } else if (pagePath.includes('/mass-programs')) {
+      }
+      // Mass Programs
+      else if (pagePath.includes('/mass-programs')) {
         pageType = 'program';
-      } else if (pagePath.includes('/chat')) {
+      }
+      // Mass Readings
+      else if (pagePath.includes('/mass-readings')) {
+        pageType = 'mass_reading';
+      }
+      // Messenger
+      else if (pagePath.includes('/messenger')) {
+        pageType = 'direct_message';
+      }
+      // Chat
+      else if (pagePath.includes('/chat')) {
         pageType = 'message';
-        } else if (pagePath.includes('/messenger')) {  
-  pageType = 'direct_message';
-      } else if (pagePath.includes('/contributions')) {
+      }
+      // Contributions
+      else if (pagePath.includes('/contributions') || pagePath.includes('/jumuia-contributions')) {
         pageType = 'contribution';
-      } else if (pagePath.includes('/jumuia-contributions')) {
-        pageType = 'contribution';
-      } else if (pagePath.includes('/gallery')) {
+      }
+      // Gallery
+      else if (pagePath.includes('/gallery')) {
         pageType = 'new_media';
-      } else if (pagePath.includes('/dashboard')) {
+      }
+      // YouTube
+      else if (pagePath.includes('/youtube')) {
+        pageType = 'youtube_new_video';
+      }
+      // Schedules
+      else if (pagePath.includes('/schedules')) {
+        pageType = 'schedule';
+      }
+      // Executive
+      else if (pagePath.includes('/executive')) {
+        pageType = 'executive_appointment';
+      }
+      // Games
+      else if (pagePath.includes('/games')) {
+        pageType = 'game_invite';
+      }
+      // Jumuia
+      else if (pagePath.includes('/jumuia')) {
+        pageType = 'jumuia';
+      }
+      // Dashboard - don't mark anything
+      else if (pagePath.includes('/dashboard')) {
         return;
       }
 
@@ -272,20 +379,18 @@ export default function Notifications({ userId }) {
         )
       );
 
-     // badgeManager.decrementBadge();
-
       const token = localStorage.getItem("token");
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-       window.dispatchEvent(new CustomEvent('notificationRead', {
-      detail: { notificationId }
-    }));
+      window.dispatchEvent(new CustomEvent('notificationRead', {
+        detail: { notificationId }
+      }));
     
-    window.dispatchEvent(new CustomEvent('notificationUpdate', {
-      detail: { unreadCount: unreadCount - 1 }
-    }));
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: unreadCount - 1 }
+      }));
       
     } catch (err) {
       console.error("Error marking as read:", err);
@@ -306,10 +411,10 @@ export default function Notifications({ userId }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-       window.dispatchEvent(new CustomEvent('notificationAllRead'));
-    window.dispatchEvent(new CustomEvent('notificationUpdate', {
-      detail: { unreadCount: 0 }
-    }));
+      window.dispatchEvent(new CustomEvent('notificationAllRead'));
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: 0 }
+      }));
       
     } catch (err) {
       console.error("Error marking all as read:", err);
@@ -339,62 +444,98 @@ export default function Notifications({ userId }) {
     badgeManager.updateBadgeCount(newUnreadCount);
   };
 
- const handleNotificationClick = (notif) => {
-  if (!notif.read) {
-    markAsRead(notif.id);
-  }
-  
-  let path = '/dashboard';
-  let state = {};
-  
-  switch(notif.type) {
-    case 'announcement':
-      path = '/announcements';
-      break;
-    case 'program':
-      path = '/mass-programs';
-      break;
-    case 'message':
-      path = '/chat';
-      break;
-
-       case 'direct_message':  
-      path = '/messenger';
-      state = { 
-        conversationId: notif.data?.conversationId,
-        messageId: notif.data?.messageId
-      };
-      break;
-    case 'contribution':
-      path = '/contributions';
-      break;
-    case 'new_media':
-      path = '/gallery';
-      break;
-    case 'game_invite':  // SPECIAL HANDLING FOR GAME INVITES
-      // Navigate to games page with the invite ID in state
-      path = '/games';
-      state = { 
-        pendingInviteId: notif.data?.inviteId,
-        fromUserId: notif.data?.fromUserId,
-        gameType: notif.data?.gameType
-      };
-      break;
-    case 'media_comment':
-      if (notif.data?.mediaId) {
-        path = `/gallery?media=${notif.data.mediaId}`;
-      } else {
-        path = '/gallery';
-      }
-      break;
-    case 'media_like':
-      path = '/gallery';
-      break;
-  }
-  
-  navigate(path, { state });
-  setShowDropdown(false);
-};
+  // COMPLETE handleNotificationClick with ALL types
+  const handleNotificationClick = (notif) => {
+    if (!notif.read) {
+      markAsRead(notif.id);
+    }
+    
+    let path = getNotificationPath(notif.type);
+    let state = {};
+    
+    // Special handling for types with extra data
+    switch(notif.type) {
+      case 'direct_message':
+      case 'message':
+        state = { 
+          conversationId: notif.data?.conversationId,
+          messageId: notif.data?.messageId
+        };
+        break;
+      case 'game_invite':
+        state = { 
+          pendingInviteId: notif.data?.inviteId,
+          fromUserId: notif.data?.fromUserId,
+          gameType: notif.data?.gameType
+        };
+        break;
+      case 'mass_reading':
+        if (notif.data?.readingId) {
+          state = { readingId: notif.data.readingId };
+        }
+        break;
+      case 'attendance_checkin':
+      case 'attendance_thankyou':
+      case 'attendance_missed':
+      case 'attendance_reminder':
+        if (notif.data?.sheetId) {
+          state = { sheetId: notif.data.sheetId };
+        }
+        break;
+      case 'attendance_summary':
+      case 'attendance_admin_report':
+        if (notif.data?.sheetId) {
+          state = { sheetId: notif.data.sheetId };
+        }
+        break;
+      case 'new_media':
+      case 'media_comment':
+      case 'media_like':
+        if (notif.data?.mediaId) {
+          path = `/gallery?media=${notif.data.mediaId}`;
+        }
+        break;
+      case 'contribution':
+      case 'pledge_approved':
+      case 'payment_added':
+      case 'new_pledge':
+        if (notif.data?.pledgeId) {
+          state = { pledgeId: notif.data.pledgeId };
+        }
+        break;
+      case 'minutes_published':
+        if (notif.data?.minutesId) {
+          state = { minutesId: notif.data.minutesId };
+        }
+        break;
+      case 'youtube_new_video':
+        if (notif.data?.videoId) {
+          state = { videoId: notif.data.videoId };
+        }
+        break;
+      case 'event_reminder':
+        if (notif.data?.eventId) {
+          state = { eventId: notif.data.eventId };
+        }
+        break;
+      case 'schedule':
+        if (notif.data?.scheduleId) {
+          state = { scheduleId: notif.data.scheduleId };
+        }
+        break;
+      case 'announcement':
+      case 'new_announcement':
+        if (notif.data?.announcementId) {
+          state = { announcementId: notif.data.announcementId };
+        }
+        break;
+      default:
+        break;
+    }
+    
+    navigate(path, { state });
+    setShowDropdown(false);
+  };
 
   const formatTime = (dateString) => {
     if (!dateString) return 'Just now';
@@ -417,22 +558,107 @@ export default function Notifications({ userId }) {
     }
   };
 
+  // COMPLETE getNotificationIcon with ALL types
   const getNotificationIcon = (type) => {
     switch(type) {
-      case 'announcement': return '📢';
-      case 'message': return '💬';
-      case 'direct_message': return '💬';
-      case 'program': return '⛪';
-      case 'event': return '📅';
-      case 'contribution': return '💰';
-      case 'new_media': return '📸';
-      case 'media_comment': return '💬';
-      case 'media_like': return '❤️';
-       case 'game_invite': return '🎮'; 
-      default: return '🔔';
+      // Attendance
+      case 'attendance_checkin':
+      case 'attendance_thankyou':
+      case 'attendance_missed':
+      case 'attendance_reminder':
+      case 'attendance_automatic_reminder':
+      case 'attendance_sheet_opened':
+      case 'attendance_summary':
+      case 'attendance_admin_report':
+      case 'attendance_bulk_checkin':
+        return '✅';
+      
+      // Minutes
+      case 'meeting_minutes_published':
+      case 'meeting_minutes_comment':
+      case 'minutes_published':
+        return '📋';
+      
+      // Announcements
+      case 'announcement':
+      case 'new_announcement':
+      case 'jumuia_announcement':
+        return '📢';
+      
+      // Games
+      case 'game_invite':
+        return '🎮';
+      
+      // Messages
+      case 'direct_message':
+      case 'message':
+      case 'chat_mention':
+      case 'pin':
+      case 'broadcast':
+      case 'send_email':
+      case 'report_resolved':
+        return '💬';
+      
+      // Contributions
+      case 'contribution':
+      case 'pledge_approved':
+      case 'payment_added':
+      case 'payment_success':
+      case 'payment_received':
+      case 'jumuia_contribution':
+      case 'pledge_message':
+      case 'new_pledge':
+        return '💰';
+      
+      // Executive
+      case 'executive_appointment':
+      case 'executive_removed':
+        return '👑';
+      
+      // Media
+      case 'new_media':
+      case 'media_comment':
+      case 'media_like':
+        return '📸';
+      
+      // YouTube
+      case 'youtube_new_video':
+      case 'youtube_live':
+        return '📺';
+      
+      // Schedules
+      case 'schedule':
+      case 'event_reminder':
+        return '📅';
+      
+      // Programs
+      case 'program':
+        return '⛪';
+      
+      // Jumuia
+      case 'jumuia':
+      case 'jumuia_announcement':
+      case 'jumuia_contribution':
+        return '🏠';
+      
+      // Mass Readings
+      case 'mass_reading':
+        return '📖';
+      
+      // System
+      case 'test':
+      case 'user_login':
+      case 'role_change':
+      case 'welcome':
+      case 'api_notify':
+        return '🔔';
+      
+      default:
+        return '🔔';
     }
   };
 
+  // Rest of the component (render section remains the same)
   const unreadNotifications = notifications.filter(n => !n.read);
   const readNotifications = notifications.filter(n => n.read);
 
@@ -444,7 +670,6 @@ export default function Notifications({ userId }) {
         onClick={() => setShowDropdown(!showDropdown)}
         style={styles.bellButton}
       >
-        {/* CHANGED: Golden bell icon with FaBell */}
         <FaBell size={20} color="#fbbf24" style={styles.goldenBell} />
         {unreadCount > 0 && (
           <motion.span
@@ -606,6 +831,7 @@ export default function Notifications({ userId }) {
     </div>
   );
 }
+
 
 const styles = {
   container: {

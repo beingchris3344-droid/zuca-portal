@@ -8,6 +8,9 @@ import logo from '../assets/zuca-logo.png';
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
 import ProfileSettings from '../components/ProfileSettings';
+
+import QRScanner from '../components/member/attendance/QRScanner';
+import { QrCode } from 'lucide-react';
 import { 
   FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
@@ -74,6 +77,7 @@ const [timeRemaining, setTimeRemaining] = useState({
   seconds: 0
 });
 const [isCountdownComplete, setIsCountdownComplete] = useState(false);
+const [showScanner, setShowScanner] = useState(false);
   
 
 // ==================== SIMPLE GLOBAL CACHE FOR DASHBOARD ====================
@@ -779,6 +783,11 @@ useEffect(() => {
               <p className="date">{formatDate(currentTime)}</p>
             </div>
             <div className="header-right">
+
+               {/* QR SCAN BUTTON - ADD THIS */}
+    <button className="qr-scan-header-btn" onClick={() => setShowScanner(true)}>
+      <QrCode size={18} /> Scan QR
+    </button>
               <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
                 <FiMessageSquare size={18} /> Ask zuca
               </button>
@@ -2152,8 +2161,21 @@ useEffect(() => {
         onUserUpdate={(updatedUser) => {
           setUser(updatedUser);
           setProfileImage(updatedUser.profileImage);
+
+          
         }}
       />
+
+      {/* QR SCANNER MODAL */}
+{showScanner && (
+  <QRScanner 
+    onClose={() => setShowScanner(false)}
+    onSuccess={() => {
+      setShowScanner(false);
+      fetchActiveSheets();
+    }}
+  />
+)}
 
       
 
@@ -7976,6 +7998,52 @@ useEffect(() => {
   color: #94a3b8;
   display: block;
   margin-top: 0.25rem;
+}
+
+/* ============================================
+   QR SCAN BUTTON - IN HEADER (Matches Theme)
+   ============================================ */
+
+.qr-scan-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.qr-scan-header-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
+}
+
+.qr-scan-header-btn:active {
+  transform: translateY(0px);
+}
+
+.qr-scan-header-btn svg {
+  color: #10b981;
+}
+
+@media (max-width: 640px) {
+  .qr-scan-header-btn {
+    padding: 6px 12px;
+    font-size: 10px;
+  }
+  
+  .qr-scan-header-btn span {
+    display: none;
+  }
 }
 
 .upload-reading-btn {

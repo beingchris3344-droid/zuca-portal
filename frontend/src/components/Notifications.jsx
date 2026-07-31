@@ -670,7 +670,7 @@ export default function Notifications({ userId }) {
         onClick={() => setShowDropdown(!showDropdown)}
         style={styles.bellButton}
       >
-        <FaBell size={20} color="#fbbf24" style={styles.goldenBell} />
+        <span style={{ fontSize: '22px', lineHeight: 1 }}>🔔</span>
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}

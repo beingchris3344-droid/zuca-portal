@@ -854,6 +854,13 @@ const semesterRoutes = require("./routes/semesterRoutes");
 app.use("/api/semesters", semesterRoutes);
 
 
+//executive view minutes 
+
+const executiveMinutesRoutes = require("./routes/executiveMinutesRoutes");
+
+app.use("/api/executive/minutes", executiveMinutesRoutes);
+
+
 // ================== BIOMETRIC ROUTES ==================
 const biometricRoutes = require('./routes/biometricRoutes');
 app.use('/api/biometric', biometricRoutes);

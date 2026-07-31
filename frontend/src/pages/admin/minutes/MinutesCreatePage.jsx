@@ -630,7 +630,7 @@ useEffect(() => {
           </div>
           
           <div className="preview-header"><h1>MINUTES OF MEETING HELD ON {new Date(sheetData?.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()} AT {sheetData?.location?.toUpperCase() || 'THE COMPLEX BUILDING'} AT {sheetData?.eventTime || '1850HRS'}</h1></div>
-         <div className="preview-section">
+        <div className="preview-section">
   <h2>Members present</h2>
   {(() => {
     const getPositionRank = (position) => {
@@ -653,13 +653,19 @@ useEffect(() => {
       return hierarchy[position] || 98;
     };
 
-    const sortedEntries = [...(sheetData?.entries?.filter(entry => entry.userId) || [])].sort((a, b) => {
+    const allPresent = sheetData?.entries?.filter(entry => entry.userId) || [];
+    
+    const executives = allPresent.filter(m => 
+      m.executivePosition && m.executivePosition !== 'Member'
+    );
+    
+    const sortedExecutives = [...executives].sort((a, b) => {
       const roleA = a.executivePosition || 'Member';
       const roleB = b.executivePosition || 'Member';
       return getPositionRank(roleA) - getPositionRank(roleB);
     });
 
-    return sortedEntries.map((member, idx) => {
+    return sortedExecutives.map((member, idx) => {
       let displayRole = member.executivePosition || 'Member';
       return (
         <div key={member.userId || idx}>
@@ -669,6 +675,35 @@ useEffect(() => {
     });
   })()}
 </div>
+
+{(() => {
+  const allPresent = sheetData?.entries?.filter(entry => entry.userId) || [];
+  const regularMembers = allPresent.filter(m => 
+    !m.executivePosition || m.executivePosition === 'Member'
+  );
+  const guests = sheetData?.presentGuests || [];
+  const inAttendance = [...regularMembers, ...guests];
+  
+  if (inAttendance.length === 0) return null;
+  
+  return (
+    <div className="preview-section">
+      <h2>In-Attendance</h2>
+      {inAttendance.map((member, idx) => {
+        let displayName = member.fullName;
+        let displayRole = member.role || 'Member';
+        if (member.role === 'Guest' || member.role === 'guest') {
+          displayRole = '';
+        }
+        return (
+          <div key={member.userId || idx}>
+            {idx + 1}. {displayName}{displayRole ? ` (${displayRole})` : ''}
+          </div>
+        );
+      })}
+    </div>
+  );
+})()}
          {/* All Absent Members */}
 {sheetData?.absentMembers?.length > 0 && (
   <div className="preview-section">

@@ -232,116 +232,138 @@ const getPositionRank = (position) => {
             }
           </style>
         </head>
-        <body>
-          <div class="document-container">
-            <h1>MINUTES OF MEETING HELD ON ${formattedDate}<br/>AT ${venue} AT ${time}</h1>
-            
-            <h2>Members present</h2>
-<div class="members-list">
-  ${(() => {
-    const getPositionRank = (position) => {
-      const hierarchy = {
-        'Chairperson': 1,
-        'Vice Chairperson': 2,
-        'Secretary': 3,
-        'Vice Secretary': 4,
-        'Treasurer': 5,
-        'Organising Secretary': 6,
-        'Choir Moderator': 7,
-        'Vice Choir Moderator': 8,
-        'Media Moderator': 9,
-        'St. Gregory Moderator': 10,
-        'St. Peregrine Moderator': 11,
-        'Welfare': 12,
-        'ALTO Voice Rep': 13,
-        'Member': 99
-      };
-      return hierarchy[position] || 98;
-    };
+       <body>
+  <div class="document-container">
+    <h1>MINUTES OF MEETING HELD ON ${formattedDate}<br/>AT ${venue} AT ${time}</h1>
+    
+    <h2>Members present</h2>
+    <div class="members-list">
+      ${(() => {
+        const getPositionRank = (position) => {
+          const hierarchy = {
+            'Chairperson': 1,
+            'Vice Chairperson': 2,
+            'Secretary': 3,
+            'Vice Secretary': 4,
+            'Treasurer': 5,
+            'Organising Secretary': 6,
+            'Choir Moderator': 7,
+            'Vice Choir Moderator': 8,
+            'Media Moderator': 9,
+            'St. Gregory Moderator': 10,
+            'St. Peregrine Moderator': 11,
+            'Welfare': 12,
+            'ALTO Voice Rep': 13,
+            'Member': 99
+          };
+          return hierarchy[position] || 98;
+        };
 
-    const sortedMembers = [...(minutes?.presentMembers || [])].sort((a, b) => {
-      const roleA = a.executivePosition || 'Member';
-      const roleB = b.executivePosition || 'Member';
-      return getPositionRank(roleA) - getPositionRank(roleB);
-    });
+        const executives = (minutes?.presentMembers || []).filter(m => 
+          m.executivePosition && m.executivePosition !== 'Member'
+        );
+        
+        const sortedExecutives = [...executives].sort((a, b) => {
+          const roleA = a.executivePosition || 'Member';
+          const roleB = b.executivePosition || 'Member';
+          return getPositionRank(roleA) - getPositionRank(roleB);
+        });
 
-    return sortedMembers.map((member, idx) => {
-      let displayRole = member.executivePosition || 'Member';
-      return `<div class="member-item">${idx + 1}. ${member.fullName} <span class="role-tag">(${displayRole})</span></div>`;
-    }).join('');
-  })()}
-</div>     
-          ${minutes?.absentMembers?.length > 0 ? `
-<h2>Absent Members</h2>
-<div class="members-list">
-  ${minutes.absentMembers.map((member, idx) => {
-    // ONLY show executivePosition, never role or specialRole
-    let displayRole = member.executivePosition || null;
-    return `<div class="member-item">${idx + 1}. ${member.fullName}${displayRole ? ` <span class="role-tag">(${displayRole})</span>` : ''}${member.excused ? ` <span class="excused-tag">(Excused)</span>` : ''}</div>`;
-  }).join('')}
-</div>` : ''}
+        return sortedExecutives.map((member, idx) => {
+          let displayRole = member.executivePosition || 'Member';
+          return `<div class="member-item">${idx + 1}. ${member.fullName} <span class="role-tag">(${displayRole})</span></div>`;
+        }).join('');
+      })()}
+    </div>
 
-${minutes?.absentMembers?.filter(m => m.excused).length > 0 ? `
-<h2>Absent with Apology</h2>
-<div class="members-list">
-  ${minutes.absentMembers.filter(m => m.excused).map((member, idx) => `<div class="member-item">${idx + 1}. ${member.fullName}</div>`).join('')}
-</div>` : ''}
-            
-            ${minutes?.presentGuests?.length > 0 ? `
-            <h2>In-Attendance</h2>
-            <div class="members-list">
-              ${minutes.presentGuests.map((guest, idx) => `<div class="member-item">${idx + 1}. ${guest.fullName}</div>`).join('')}
-            </div>` : ''}
-            
-            <h2>Agenda</h2>
-            <div class="members-list">
-              ${minutes?.agenda?.map((item, idx) => `<div class="member-item">${idx + 1}. ${item}</div>`).join('') || '<div class="member-item">None</div>'}
-            </div>
-            
-           ${minutes?.preliminaries ? `
-<h2>MIN 01/${String(new Date().getMonth() + 1).padStart(2, '0')}: PRELIMINARIES</h2>
-<p class="section-content">${minutes.preliminaries}</p>` : ''}
-            
-            ${minutes?.sections?.map(section => `
-              <h2>${section.number}: ${section.title}</h2>
-              <p class="section-content">${section.content}</p>
-              ${section.decisions?.length > 0 ? `
-              <div class="decisions">
-                <strong>DECISIONS:</strong>
-                <ul>
-                  ${section.decisions.map(d => `<li>${d}</li>`).join('')}
-                </ul>
-              </div>` : ''}
-            `).join('')}
-            
-            ${minutes?.aob?.length > 0 ? `
-<h2>MIN ${String((minutes.sections?.length || 0) + 2).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
-${minutes.aob.map(item => `<div class="aob-item"><p><strong>${item.title}</strong></p>${item.content ? `<p>${item.content}</p>` : ''}</div>`).join('')}` : ''}
+    ${(() => {
+      const regularMembers = (minutes?.presentMembers || []).filter(m => 
+        !m.executivePosition || m.executivePosition === 'Member'
+      );
+      const guests = minutes?.presentGuests || [];
+      const inAttendance = [...regularMembers, ...guests];
+      
+      if (inAttendance.length === 0) return '';
+      
+      return `
+        <h2>In-Attendance</h2>
+        <div class="members-list">
+          ${inAttendance.map((member, idx) => {
+            let displayName = member.fullName;
+            let displayRole = member.role || 'Member';
+            if (member.role === 'Guest' || member.role === 'guest') {
+              displayRole = '';
+            }
+            return `<div class="member-item">${idx + 1}. ${displayName}${displayRole ? ` (${displayRole})` : ''}</div>`;
+          }).join('')}
+        </div>
+      `;
+    })()}
+    
+    ${minutes?.absentMembers?.length > 0 ? `
+      <h2>Absent Members</h2>
+      <div class="members-list">
+        ${minutes.absentMembers.map((member, idx) => {
+          let displayRole = member.executivePosition || null;
+          return `<div class="member-item">${idx + 1}. ${member.fullName}${displayRole ? ` <span class="role-tag">(${displayRole})</span>` : ''}${member.excused ? ` <span class="excused-tag">(Excused)</span>` : ''}</div>`;
+        }).join('')}
+      </div>` : ''}
 
-${minutes?.adjournment ? `
-<h2>MIN ${String((minutes.sections?.length || 0) + (minutes.aob?.length > 0 ? 3 : 2)).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
-<p class="section-content">${minutes.adjournment}</p>` : ''}
-            
-            <div class="signatures">
-              <div class="signature-line">
-                <div class="signature-label">Date</div>
-                <div class="signature-placeholder">_________________</div>
-              </div>
-              <div class="signature-line">
-                <div class="signature-label">Chairperson</div>
-                <div class="signature-placeholder">${'........................................'}</div>
-              </div>
-              <div class="signature-line">
-                <div class="signature-label">Secretary</div>
-                <div class="signature-placeholder">${'........................................'}</div>
-              </div>
-            </div>
-            
-            <div class="footer">
-              <p>ZUCA PORTAL SYSTEM GENERATED DOCUMENT</p>
-            </div>
-          </div>
-        </body>
+    ${minutes?.absentMembers?.filter(m => m.excused).length > 0 ? `
+      <h2>Absent with Apology</h2>
+      <div class="members-list">
+        ${minutes.absentMembers.filter(m => m.excused).map((member, idx) => `<div class="member-item">${idx + 1}. ${member.fullName}</div>`).join('')}
+      </div>` : ''}
+    
+    <h2>Agenda</h2>
+    <div class="members-list">
+      ${minutes?.agenda?.map((item, idx) => `<div class="member-item">${idx + 1}. ${item}</div>`).join('') || '<div class="member-item">None</div>'}
+    </div>
+    
+    ${minutes?.preliminaries ? `
+      <h2>MIN 01/${String(new Date().getMonth() + 1).padStart(2, '0')}: PRELIMINARIES</h2>
+      <p class="section-content">${minutes.preliminaries}</p>` : ''}
+    
+    ${minutes?.sections?.map(section => `
+      <h2>${section.number}: ${section.title}</h2>
+      <p class="section-content">${section.content}</p>
+      ${section.decisions?.length > 0 ? `
+        <div class="decisions">
+          <strong>DECISIONS:</strong>
+          <ul>
+            ${section.decisions.map(d => `<li>${d}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+    `).join('')}
+    
+    ${minutes?.aob?.length > 0 ? `
+      <h2>MIN ${String((minutes.sections?.length || 0) + 2).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: AOB</h2>
+      ${minutes.aob.map(item => `<div class="aob-item"><p><strong>${item.title}</strong></p>${item.content ? `<p>${item.content}</p>` : ''}</div>`).join('')}` : ''}
+
+    ${minutes?.adjournment ? `
+      <h2>MIN ${String((minutes.sections?.length || 0) + (minutes.aob?.length > 0 ? 3 : 2)).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}: ADJOURNMENT</h2>
+      <p class="section-content">${minutes.adjournment}</p>` : ''}
+    
+    <div class="signatures">
+      <div class="signature-line">
+        <div class="signature-label">Date</div>
+        <div class="signature-placeholder">_________________</div>
+      </div>
+      <div class="signature-line">
+        <div class="signature-label">Chairperson</div>
+        <div class="signature-placeholder">........................................</div>
+      </div>
+      <div class="signature-line">
+        <div class="signature-label">Secretary</div>
+        <div class="signature-placeholder">........................................</div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>ZUCA PORTAL SYSTEM GENERATED DOCUMENT</p>
+    </div>
+  </div>
+</body>
         </html>
       `;
       const blob = new Blob([content], { type: 'application/msword' });
@@ -438,13 +460,17 @@ ${minutes?.adjournment ? `
       return hierarchy[position] || 98;
     };
 
-    const sortedMembers = [...(minutes.presentMembers || [])].sort((a, b) => {
+    const executives = (minutes.presentMembers || []).filter(m => 
+      m.executivePosition && m.executivePosition !== 'Member'
+    );
+    
+    const sortedExecutives = [...executives].sort((a, b) => {
       const roleA = a.executivePosition || 'Member';
       const roleB = b.executivePosition || 'Member';
       return getPositionRank(roleA) - getPositionRank(roleB);
     });
 
-    return sortedMembers.map((member, idx) => {
+    return sortedExecutives.map((member, idx) => {
       let displayRole = member.executivePosition || 'Member';
       return (
         <div key={member.userId || idx} className="member-item">
@@ -455,7 +481,36 @@ ${minutes?.adjournment ? `
     });
   })()}
 </div>
-       
+
+{(() => {
+  const regularMembers = (minutes.presentMembers || []).filter(m => 
+    !m.executivePosition || m.executivePosition === 'Member'
+  );
+  const guests = minutes.presentGuests || [];
+  const inAttendance = [...regularMembers, ...guests];
+  
+  if (inAttendance.length === 0) return null;
+  
+  return (
+    <>
+      <h2>In-Attendance</h2>
+      <div className="members-list">
+        {inAttendance.map((member, idx) => {
+          let displayName = member.fullName;
+          let displayRole = member.role || 'Member';
+          if (member.role === 'Guest' || member.role === 'guest') {
+            displayRole = '';
+          }
+          return (
+            <div key={member.userId || idx} className="member-item">
+              {idx + 1}. {displayName}{displayRole ? ` (${displayRole})` : ''}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+})()}
 
  {/* All Absent Members */}
 {minutes.absentMembers?.length > 0 && (

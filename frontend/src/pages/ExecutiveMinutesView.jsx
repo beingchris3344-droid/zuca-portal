@@ -551,12 +551,7 @@ export default function ExecutiveMinutesView() {
 
         {minutes.presentGuests?.length > 0 && (
           <>
-            <h2>In-Attendance</h2>
-            <div className="members-list">
-              {minutes.presentGuests.map((guest, idx) => (
-                <div key={idx} className="member-item">{idx + 1}. {guest.fullName}</div>
-              ))}
-            </div>
+           
           </>
         )}
 

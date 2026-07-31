@@ -9,7 +9,7 @@ import { saveOfflineCheckin, getPendingCount } from '../../../utils/offlineStora
 // Constants
 const SCAN_DEBOUNCE_MS = 1000;
 const API_TIMEOUT_MS = 5000;
-const CLOSE_DELAY_MS = 800; // Quick close after scan
+const CLOSE_DELAY_MS = 1200; // Fast close after scan
 const MAX_RETRY_ATTEMPTS = 3;
 
 export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) {
@@ -21,6 +21,9 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [cameraFacingMode, setCameraFacingMode] = useState('environment');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
   
   // Refs
   const scannerRef = useRef(null);
@@ -103,48 +106,54 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setIsScanning(false);
   }, [stopCameraTracks]);
 
-  // 🔥 NEW: Clean close function - immediately closes without waiting
-  const performClose = useCallback(() => {
-    if (isClosingRef.current || !mountedRef.current) return;
+  // 🔥 Show success animation and close
+  const showSuccessAndClose = useCallback((message, data) => {
+    if (!mountedRef.current || isClosingRef.current) return;
+    
+    setIsSuccess(true);
+    setSuccessMessage(message || '✓ Check-in successful!');
+    setShowSuccess(true);
     isClosingRef.current = true;
     
-    // Clear any pending timeouts
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-    
     // Stop scanner immediately
-    stopScanner().then(() => {
-      if (mountedRef.current) {
-        onClose();
-      }
-    }).catch(() => {
-      // Force close even if stop fails
-      if (mountedRef.current) {
-        onClose();
-      }
-    });
-  }, [onClose, stopScanner]);
-
-  // 🔥 NEW: Handle scan result with immediate close
-  const handleScanResult = useCallback((success, message, data) => {
-    if (!mountedRef.current) return;
+    stopScanner();
     
-    // Close immediately after a very short delay
+    // Close after animation
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
     }
     
     closeTimeoutRef.current = setTimeout(() => {
-      // Call onSuccess callback before closing
-      if (success && onSuccess) {
-        onSuccess(data);
+      if (mountedRef.current) {
+        if (onSuccess) onSuccess(data);
+        onClose();
       }
-      // Close the scanner
-      performClose();
     }, CLOSE_DELAY_MS);
-  }, [onSuccess, performClose]);
+  }, [onSuccess, onClose, stopScanner]);
+
+  // Show error and close
+  const showErrorAndClose = useCallback((message) => {
+    if (!mountedRef.current || isClosingRef.current) return;
+    
+    setIsSuccess(false);
+    setSuccessMessage(message || '❌ Check-in failed');
+    setShowSuccess(true);
+    isClosingRef.current = true;
+    
+    // Stop scanner immediately
+    stopScanner();
+    
+    // Close after animation
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    
+    closeTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        onClose();
+      }
+    }, CLOSE_DELAY_MS);
+  }, [onClose, stopScanner]);
 
   // Process check-in in background
   const processCheckin = useCallback(async (decodedText) => {
@@ -166,7 +175,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         if (urlMatch && urlMatch[1]) {
           token = urlMatch[1];
         } else {
-          handleScanResult(false, 'Invalid QR code format');
+          showErrorAndClose('Invalid QR code format');
           isProcessing.current = false;
           return;
         }
@@ -181,12 +190,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
             `QR Scan (Offline) - ${new Date().toLocaleString()}`
           );
           if (saved) {
-            handleScanResult(true, 'Check-in saved offline!', { offline: true });
+            showSuccessAndClose('✓ Check-in saved offline!', { offline: true });
           } else {
-            handleScanResult(false, 'Failed to save offline');
+            showErrorAndClose('Failed to save offline');
           }
         } else {
-          handleScanResult(false, 'Offline mode not supported');
+          showErrorAndClose('Offline mode not supported');
         }
         isProcessing.current = false;
         return;
@@ -213,7 +222,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
         clearTimeout(timeoutId);
         
         if (response.data.success && mountedRef.current) {
-          handleScanResult(true, 'Check-in successful!', response.data.entry);
+          showSuccessAndClose('✓ Check-in successful!', response.data.entry);
         }
       } catch (axiosError) {
         clearTimeout(timeoutId);
@@ -236,28 +245,28 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
               `QR Scan (Offline Fallback) - ${new Date().toLocaleString()}`
             );
             if (saved) {
-              handleScanResult(true, 'Check-in saved offline!', { offline: true });
+              showSuccessAndClose('✓ Check-in saved offline!', { offline: true });
               isProcessing.current = false;
               return;
             }
           }
         } catch (e) {}
-        handleScanResult(false, 'No internet connection');
+        showErrorAndClose('No internet connection');
       } else if (error.name === 'AbortError') {
-        handleScanResult(false, 'Request timed out');
+        showErrorAndClose('Request timed out');
       } else if (errorMsg.includes('Invalid') || errorMsg.includes('expired')) {
-        handleScanResult(false, 'QR code expired or invalid');
+        showErrorAndClose('QR code expired or invalid');
       } else if (errorMsg.includes('Already checked in')) {
-        handleScanResult(true, 'Already checked in');
+        showSuccessAndClose('✓ Already checked in');
       } else if (errorMsg.includes('DEVICE_ALREADY_USED')) {
-        handleScanResult(false, 'Device already used');
+        showErrorAndClose('Device already used');
       } else {
-        handleScanResult(false, errorMsg || 'Check-in failed');
+        showErrorAndClose(errorMsg || 'Check-in failed');
       }
       
       isProcessing.current = false;
     }
-  }, [isOffline, getHeaders, handleScanResult]);
+  }, [isOffline, getHeaders, showSuccessAndClose, showErrorAndClose]);
 
   // Handle successful scan
   const onScanSuccess = useCallback(async (decodedText, decodedResult) => {
@@ -348,6 +357,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setError(null);
     setPermissionDenied(false);
     isClosingRef.current = false;
+    setShowSuccess(false);
     
     const hasPermission = await requestCameraPermission();
     if (!hasPermission || !mountedRef.current) {
@@ -418,6 +428,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     setIsInitializing(false);
     setRetryCount(prev => prev + 1);
     isClosingRef.current = false;
+    setShowSuccess(false);
     
     await stopScanner();
     
@@ -442,11 +453,260 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     };
   }, [initializeScanner, stopScanner]);
 
-  // Render
+  // Render success overlay
+  if (showSuccess) {
+    return (
+      <div className="qr-scanner-overlay">
+        <div className="qr-scanner-container">
+          <div className={`qr-success-overlay ${isSuccess ? 'success' : 'error'}`}>
+            <div className="success-animation">
+              <div className="success-circle">
+                <svg viewBox="0 0 100 100" className="success-svg">
+                  <circle cx="50" cy="50" r="45" className="success-circle-bg" />
+                  {isSuccess ? (
+                    <path d="M30 50 L45 65 L70 35" className="success-checkmark" fill="none" />
+                  ) : (
+                    <path d="M35 35 L65 65 M65 35 L35 65" className="error-cross" stroke="white" strokeWidth="6" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+            </div>
+            <h2 className="success-title">{isSuccess ? 'Welcome!' : 'Oops!'}</h2>
+            <p className="success-message">{successMessage}</p>
+            <div className="confetti">
+              <div className="confetti-piece"></div>
+              <div className="confetti-piece"></div>
+              <div className="confetti-piece"></div>
+              <div className="confetti-piece"></div>
+              <div className="confetti-piece"></div>
+              <div className="confetti-piece"></div>
+            </div>
+          </div>
+        </div>
+        
+        <style>{`
+          .qr-scanner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fadeIn 0.15s ease;
+          }
+          
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          
+          .qr-scanner-container {
+            background: white;
+            border-radius: 32px;
+            width: 90%;
+            max-width: 500px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            animation: slideUp 0.2s ease;
+          }
+          
+          @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          
+          /* Success Overlay */
+          .qr-success-overlay {
+            text-align: center;
+            padding: 48px 32px;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+          }
+          
+          .qr-success-overlay.success {
+            background: linear-gradient(135deg, #065f46, #047857);
+            color: white;
+          }
+          
+          .qr-success-overlay.error {
+            background: linear-gradient(135deg, #991b1b, #dc2626);
+            color: white;
+          }
+          
+          .success-animation {
+            margin-bottom: 20px;
+            animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+          }
+          
+          .success-circle {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto;
+            position: relative;
+          }
+          
+          .success-svg {
+            width: 100%;
+            height: 100%;
+          }
+          
+          .success-circle-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.3);
+            stroke-width: 4;
+          }
+          
+          .success-checkmark {
+            stroke: white;
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: drawCheck 0.3s ease-out 0.1s forwards;
+          }
+          
+          .error-cross {
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: drawCross 0.3s ease-out 0.1s forwards;
+          }
+          
+          @keyframes drawCheck {
+            to {
+              stroke-dashoffset: 0;
+            }
+          }
+          
+          @keyframes drawCross {
+            to {
+              stroke-dashoffset: 0;
+            }
+          }
+          
+          @keyframes bounceIn {
+            0% {
+              opacity: 0;
+              transform: scale(0.5);
+            }
+            60% {
+              transform: scale(1.1);
+            }
+            100% {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+          
+          .success-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            color: white;
+            animation: fadeInUp 0.3s ease 0.1s both;
+          }
+          
+          .success-message {
+            font-size: 16px;
+            color: rgba(255,255,255,0.9);
+            margin: 0;
+            animation: fadeInUp 0.3s ease 0.2s both;
+          }
+          
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(15px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          
+          /* Confetti */
+          .confetti {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+          }
+          
+          .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            opacity: 0;
+            animation: confettiFall 1.5s ease-out forwards;
+          }
+          
+          .confetti-piece:nth-child(1) { left: 10%; background: #fcd34d; animation-delay: 0.05s; }
+          .confetti-piece:nth-child(2) { left: 25%; background: #60a5fa; animation-delay: 0.1s; }
+          .confetti-piece:nth-child(3) { left: 40%; background: #f87171; animation-delay: 0.08s; }
+          .confetti-piece:nth-child(4) { left: 55%; background: #fbbf24; animation-delay: 0.15s; }
+          .confetti-piece:nth-child(5) { left: 70%; background: #a78bfa; animation-delay: 0.12s; }
+          .confetti-piece:nth-child(6) { left: 85%; background: #f472b6; animation-delay: 0.18s; }
+          
+          @keyframes confettiFall {
+            0% {
+              top: -20px;
+              transform: rotate(0deg) scale(0);
+              opacity: 1;
+            }
+            100% {
+              top: 100%;
+              transform: rotate(720deg) scale(1);
+              opacity: 0;
+            }
+          }
+          
+          @media (max-width: 480px) {
+            .qr-scanner-container {
+              width: 100%;
+              border-radius: 0;
+              height: 100vh;
+              max-height: 100vh;
+            }
+            
+            .qr-success-overlay {
+              min-height: 100vh;
+              padding: 32px 20px;
+            }
+            
+            .success-circle {
+              width: 70px;
+              height: 70px;
+            }
+            
+            .success-title {
+              font-size: 24px;
+            }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Render scanner
   return (
     <div 
       className="qr-scanner-overlay" 
-      onClick={performClose}
+      onClick={() => {
+        if (!showSuccess) onClose();
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="QR Code Scanner"
@@ -462,7 +722,9 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           )}
           <button 
             className="qr-scanner-close" 
-            onClick={performClose}
+            onClick={() => {
+              if (!showSuccess) onClose();
+            }}
             aria-label="Close scanner"
           >
             <X size={20} />
@@ -484,7 +746,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
                 >
                   {retryCount >= MAX_RETRY_ATTEMPTS ? 'Max Retries' : 'Try Again'}
                 </button>
-                <button onClick={performClose} className="close-btn">
+                <button onClick={onClose} className="close-btn">
                   Close
                 </button>
               </div>

@@ -185,8 +185,8 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
     setFilteredEntries(filtered);
   }, [allEntries, entrySearchTerm, entryMethodFilter, entryRoleFilter]);
   
-  // ============ EXPORT FUNCTION ============
-  const exportToWord = async (sheet, type) => {
+ // ============ EXPORT FUNCTION ============
+const exportToWord = async (sheet, type) => {
   try {
     showToast('Generating report...', 'info');
     
@@ -196,16 +196,14 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
     const presentMembers = sheetData.entries || [];
     const absentMembers = sheetData.absentMembers || [];
 
-    // Filter out admin users
-    const presentNonAdmin = presentMembers.filter(m => m.role !== 'admin');
-    const absentNonAdmin = absentMembers.filter(m => m.role !== 'admin');
-    const totalNonAdmin = presentNonAdmin.length + absentNonAdmin.length;
-    const attendanceRate = totalNonAdmin > 0 ? ((presentNonAdmin.length / totalNonAdmin) * 100).toFixed(1) : 0;
+    // ✅ Include ALL members (admins included) - NO FILTER
+    const totalAll = presentMembers.length + absentMembers.length;
+    const attendanceRate = totalAll > 0 ? ((presentMembers.length / totalAll) * 100).toFixed(1) : 0;
     
-    // Calculate method counts using filtered presentNonAdmin
-    const selfCount = presentNonAdmin.filter(e => e.signMethod === 'SELF').length;
-    const qrCount = presentNonAdmin.filter(e => e.signMethod === 'QR_CODE').length;
-    const manualCount = presentNonAdmin.filter(e => e.signMethod === 'MANUAL').length;
+    // Calculate method counts using ALL present members
+    const selfCount = presentMembers.filter(e => e.signMethod === 'SELF').length;
+    const qrCount = presentMembers.filter(e => e.signMethod === 'QR_CODE').length;
+    const manualCount = presentMembers.filter(e => e.signMethod === 'MANUAL').length;
     
     let htmlContent = `<!DOCTYPE html>
 <html>
@@ -240,7 +238,7 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
   </div>`;
     
     if (type === 'full' || type === 'present') {
-      htmlContent += `<h2>PRESENT MEMBERS (${presentNonAdmin.length})</h2>
+      htmlContent += `<h2>PRESENT MEMBERS (${presentMembers.length})</h2>
 <table>
   <thead>
     <tr>
@@ -255,7 +253,7 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
   </thead>
   <tbody>`;
       
-      presentNonAdmin.forEach((member, index) => {
+      presentMembers.forEach((member, index) => {
         const position = member.executivePosition || member.role || 'Member';
         let methodText = '';
         if (member.signMethod === 'SELF') methodText = 'Self';
@@ -265,9 +263,9 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
         
         htmlContent += `<tr>
           <td>${index + 1}</td>
-          <td>${member.user?.membership_number || '-'}</td>
+          <td>${member.user?.membership_number || member.membershipNumber || '-'}</td>
           <td>${member.fullName}</td>
-          <td>${member.phoneNumber || '-'}</td>
+          <td>${member.phoneNumber || member.phone || '-'}</td>
           <td>${position}</td>
           <td>${methodText}</td>
           <td>${member.signTime ? new Date(member.signTime).toLocaleTimeString() : '-'}</td>
@@ -285,15 +283,15 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
     <tr><th>Method</th><th>Count</th><th>Percentage</th></tr>
   </thead>
   <tbody>
-    <tr><td>Self Check-in</td><td>${selfCount}</td><td>${presentNonAdmin.length > 0 ? ((selfCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
-    <tr><td>QR Code</td><td>${qrCount}</td><td>${presentNonAdmin.length > 0 ? ((qrCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
-    <tr><td>Manual (Admin)</td><td>${manualCount}</td><td>${presentNonAdmin.length > 0 ? ((manualCount / presentNonAdmin.length) * 100).toFixed(1) : 0}%</td></tr>
+    <tr><td>Self Check-in</td><td>${selfCount}</td><td>${presentMembers.length > 0 ? ((selfCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
+    <tr><td>QR Code</td><td>${qrCount}</td><td>${presentMembers.length > 0 ? ((qrCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
+    <tr><td>Manual (Admin)</td><td>${manualCount}</td><td>${presentMembers.length > 0 ? ((manualCount / presentMembers.length) * 100).toFixed(1) : 0}%</td></tr>
   </tbody>
 </table>`;
     }
     
     if (type === 'full' || type === 'absent') {
-      htmlContent += `<h2>ABSENT MEMBERS (${absentNonAdmin.length})</h2>
+      htmlContent += `<h2>ABSENT MEMBERS (${absentMembers.length})</h2>
 <table>
   <thead>
     <tr>
@@ -306,7 +304,7 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
   </thead>
   <tbody>`;
       
-      absentNonAdmin.forEach((member, index) => {
+      absentMembers.forEach((member, index) => {
         const position = member.executivePosition || member.role || 'Member';
         htmlContent += `<tr>
           <td>${index + 1}</td>
@@ -324,9 +322,9 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
     htmlContent += `
   <div class="summary">
     <p><strong>SUMMARY</strong></p>
-    <p>• Total Members: ${totalNonAdmin}</p>
-    <p>• Present: ${presentNonAdmin.length}</p>
-    <p>• Absent: ${absentNonAdmin.length}</p>
+    <p>• Total Members: ${totalAll}</p>
+    <p>• Present: ${presentMembers.length}</p>
+    <p>• Absent: ${absentMembers.length}</p>
     <p>• Attendance Rate: ${attendanceRate}%</p>
   </div>
   <div class="signature">

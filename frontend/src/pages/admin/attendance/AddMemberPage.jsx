@@ -124,9 +124,8 @@ const fetchAllUsers = useCallback(async () => {
       const { data, timestamp } = JSON.parse(cached);
       const age = Date.now() - timestamp;
       if (age < CACHE_TTL) {
-        const nonAdmins = data.filter(u => u.role !== 'admin');
-        console.log(`📦 Using cached users (${nonAdmins.length} non-admin users)`);
-        processUsers(nonAdmins);
+        console.log(`📦 Using cached users (${data.length} total users)`);
+processUsers(data);
         return;
       }
     }
@@ -188,12 +187,12 @@ const fetchAllUsers = useCallback(async () => {
 
 // ============ PROCESS USERS (BUILD PHONE MAP) ============
 const processUsers = useCallback((users) => {
-  const nonAdminUsers = users.filter(u => u.role !== 'admin');
-  setAllUsers(nonAdminUsers);
+  
+  setAllUsers(users);
   
   const map = new Map();
   
-  for (const u of nonAdminUsers) {
+  for (const u of users) {
     if (u.phone) {
       const phone = u.phone.trim();
       

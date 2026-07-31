@@ -569,7 +569,9 @@ const fetchFeaturedGallery = async () => {
             fetchExecutiveTeam(),
             fetchUpcomingSchedules(),
             fetchTodaysReading(),
-            fetchSystemStats()
+            fetchSystemStats(),
+             fetchActiveSheets(),   
+    fetchLatestReadings() 
           ]);
         } else {
           await Promise.all([

@@ -1,34 +1,63 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { X, Camera, AlertCircle, CheckCircle, Wifi, WifiOff } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../../api';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getDeviceId, getDeviceName } from '../../../utils/deviceId';
 import { saveOfflineCheckin, getPendingCount } from '../../../utils/offlineStorage';
 
+// Constants
+const SCAN_DEBOUNCE_MS = 1000;
+const API_TIMEOUT_MS = 5000;
+const AUTO_CLOSE_DELAY_MS = 1500;
+const SUCCESS_CLOSE_DELAY_MS = 2000;
+const MAX_RETRY_ATTEMPTS = 3;
+
+// Error messages mapping
+const ERROR_MESSAGES = {
+  'Invalid or expired QR code': 'This QR code has expired. Please request a new one.',
+  'Already checked in': 'You have already checked in to this session.',
+  'DEVICE_ALREADY_USED': 'This device has already been used for check-in.',
+  'Network Error': 'Network error. Please check your connection.',
+  'Request timed out': 'Request timed out. Please try again.',
+};
+
 export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) {
+  // State
   const [error, setError] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const scannerRef = useRef(null);
-  const isProcessing = useRef(false);
-  const streamRef = useRef(null);
-  const lastScanTime = useRef(0);
-  const successTimeoutRef = useRef(null);
-  const mountedRef = useRef(true);
+  const [scanStatus, setScanStatus] = useState(null); // 'success' | 'error' | 'processing'
+  const [statusMessage, setStatusMessage] = useState('');
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment');
   
-  const getHeaders = () => {
+  // Refs
+  const scannerRef = useRef(null);
+  const streamRef = useRef(null);
+  const isProcessing = useRef(false);
+  const lastScanTime = useRef(0);
+  const mountedRef = useRef(true);
+  const closeTimeoutRef = useRef(null);
+  const initTimeoutRef = useRef(null);
+  
+  // Memoized headers
+  const getHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
-    return { Authorization: `Bearer ${token}` };
-  };
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
-  // Monitor online/offline status
+  // Network status monitoring
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = () => {
+      setIsOffline(false);
+      // Retry any pending operations
+      if (error && retryCount < MAX_RETRY_ATTEMPTS) {
+        handleRetry();
+      }
+    };
     const handleOffline = () => setIsOffline(true);
     
     window.addEventListener('online', handleOnline);
@@ -38,206 +67,25 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
-  
+  }, [error, retryCount]);
+
   // Cleanup on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (successTimeoutRef.current) {
-        clearTimeout(successTimeoutRef.current);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
       }
       stopScanner();
     };
   }, []);
-  
-  // Show success animation and auto-close
-  const handleSuccess = (entry) => {
-    if (!mountedRef.current) return;
-    
-    setSuccessMessage(entry?.message || '✓ Check-in successful!');
-    setShowSuccess(true);
-    
-    // Stop scanner immediately
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(console.error);
-      scannerRef.current = null;
-    }
-    setIsScanning(false);
-    
-    // Stop camera tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        if (track && track.readyState === 'live') {
-          track.stop();
-        }
-      });
-      streamRef.current = null;
-    }
-    
-    // Close after animation completes
-    successTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) {
-        if (onSuccess) onSuccess(entry);
-        onClose();
-      }
-    }, 5000);
-  };
-  
-  const onScanSuccess = async (decodedText, decodedResult) => {
-    // Debounce - prevent multiple scans within 1.5 seconds
-    const now = Date.now();
-    if (now - lastScanTime.current < 1500 || showSuccess || !mountedRef.current) {
-      return;
-    }
-    lastScanTime.current = now;
-    
-    if (isProcessing.current) {
-      return;
-    }
-    
-    isProcessing.current = true;
-    
-    // Pause scanner immediately
-    if (scannerRef.current && isScanning) {
-      try {
-        await scannerRef.current.pause();
-        setIsScanning(false);
-      } catch (err) {
-        console.error('Error pausing scanner:', err);
-      }
-    }
-    
-    try {
-      let token;
-      let scannedSheetId;
-      
-      // Try to parse as JSON first (old format)
-      try {
-        const qrData = JSON.parse(decodedText);
-        if (qrData.type === 'attendance_checkin') {
-          token = qrData.token;
-          scannedSheetId = qrData.sheetId;
-        } else {
-          throw new Error('Not attendance QR');
-        }
-      } catch (e) {
-        // Not JSON - treat as URL (new format)
-        const urlMatch = decodedText.match(/\/scan\/([a-f0-9]+)/);
-        if (urlMatch && urlMatch[1]) {
-          token = urlMatch[1];
-        } else {
-          setError('Invalid QR code format');
-          isProcessing.current = false;
-          if (scannerRef.current && mountedRef.current) {
-            await scannerRef.current.resume();
-            setIsScanning(true);
-          }
-          return;
-        }
-      }
-      
-      // Offline mode
-      if (isOffline) {
-        if (scannedSheetId) {
-          const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline)');
-          if (saved) {
-            handleSuccess({ offline: true, message: '✓ Saved offline!' });
-          } else {
-            setError('Failed to save offline check-in');
-            isProcessing.current = false;
-            if (scannerRef.current && mountedRef.current) {
-              await scannerRef.current.resume();
-              setIsScanning(true);
-            }
-          }
-        } else {
-          setError('Offline check-in not supported for this QR type');
-          isProcessing.current = false;
-          if (scannerRef.current && mountedRef.current) {
-            await scannerRef.current.resume();
-            setIsScanning(true);
-          }
-        }
-        return;
-      }
-      
-      // Online check-in with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      try {
-        const response = await axios.post(`${BASE_URL}/api/attendance/qr-checkin`, {
-          token: token,
-          deviceId: getDeviceId(),
-          deviceName: getDeviceName()
-        }, {
-          headers: getHeaders(),
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.data.success && mountedRef.current) {
-          handleSuccess(response.data.entry);
-        }
-      } catch (axiosError) {
-        clearTimeout(timeoutId);
-        throw axiosError;
-      }
-      
-    } catch (error) {
-      if (!mountedRef.current) return;
-      
-      const errorMsg = error.response?.data;
-      
-      if (error.name === 'AbortError') {
-        setError('Request timed out. Please try again.');
-      } else if (error.message === 'Network Error' || !navigator.onLine) {
-        try {
-          const qrData = JSON.parse(decodedText);
-          const scannedSheetId = qrData.sheetId;
-          const saved = await saveOfflineCheckin(scannedSheetId, getDeviceId(), 'QR Scan (Offline Fallback)');
-          if (saved) {
-            handleSuccess({ offline: true, message: '✓ Saved offline' });
-            return;
-          }
-        } catch (e) {}
-        setError('No internet connection. Please check your network.');
-      } else if (errorMsg?.error === 'Invalid or expired QR code') {
-        setError('QR code is invalid or has expired');
-      } else if (errorMsg?.error === 'Already checked in') {
-        setError('You have already checked in');
-      } else if (errorMsg?.error === 'DEVICE_ALREADY_USED') {
-        setError('This device has already been used');
-      } else {
-        setError(errorMsg?.error || 'Check-in failed');
-      }
-      
-      isProcessing.current = false;
-      
-      if (scannerRef.current && mountedRef.current) {
-        try {
-          await scannerRef.current.resume();
-          setIsScanning(true);
-        } catch (err) {
-          console.error('Error resuming scanner:', err);
-        }
-      }
-    }
-  };
-  
-  const onScanError = (err) => {
-    // Only log critical errors
-    if (err && err.message && 
-        !err.message.includes('No MultiFormat Readers') &&
-        !err.message.includes('NotFoundException')) {
-      console.error('Scan error:', err);
-    }
-  };
-  
-  const stopCameraTracks = () => {
+
+  // Stop camera tracks
+  const stopCameraTracks = useCallback(() => {
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach(track => {
@@ -250,9 +98,10 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       }
       streamRef.current = null;
     }
-  };
-  
-  const stopScanner = async () => {
+  }, []);
+
+  // Stop scanner
+  const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -263,14 +112,193 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       scannerRef.current = null;
     }
     stopCameraTracks();
-  };
-  
-  const isMediaDevicesSupported = () => {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  };
-  
-  const requestCameraPermission = async () => {
-    if (!isMediaDevicesSupported()) {
+    setIsScanning(false);
+  }, [stopCameraTracks]);
+
+  // Immediate close function
+  const immediateClose = useCallback(async () => {
+    await stopScanner();
+  }, [stopScanner]);
+
+  // Show status and auto-close
+  const showStatusAndClose = useCallback((status, message, shouldClose = true) => {
+    if (!mountedRef.current) return;
+    
+    setScanStatus(status);
+    setStatusMessage(message);
+    
+    // Clear any existing timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    
+    // Auto close after delay
+    if (shouldClose) {
+      const delay = status === 'success' ? SUCCESS_CLOSE_DELAY_MS : AUTO_CLOSE_DELAY_MS;
+      closeTimeoutRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          onClose();
+        }
+      }, delay);
+    }
+  }, [onClose]);
+
+  // Process check-in in background
+  const processCheckin = useCallback(async (decodedText) => {
+    try {
+      let token;
+      let scannedSheetId;
+      
+      // Parse QR data - support both JSON and URL formats
+      try {
+        const qrData = JSON.parse(decodedText);
+        if (qrData.type === 'attendance_checkin') {
+          token = qrData.token;
+          scannedSheetId = qrData.sheetId;
+        } else {
+          throw new Error('Not attendance QR');
+        }
+      } catch (e) {
+        // Try URL format
+        const urlMatch = decodedText.match(/\/scan\/([a-f0-9]+)/);
+        if (urlMatch && urlMatch[1]) {
+          token = urlMatch[1];
+        } else {
+          showStatusAndClose('error', '❌ Invalid QR code format', true);
+          isProcessing.current = false;
+          return;
+        }
+      }
+      
+      // Offline mode
+      if (isOffline) {
+        if (scannedSheetId) {
+          const saved = await saveOfflineCheckin(
+            scannedSheetId, 
+            getDeviceId(), 
+            `QR Scan (Offline) - ${new Date().toLocaleString()}`
+          );
+          if (saved) {
+            showStatusAndClose('success', '✅ Check-in saved offline!', true);
+            if (onSuccess) onSuccess({ offline: true });
+          } else {
+            showStatusAndClose('error', '❌ Failed to save offline', true);
+          }
+        } else {
+          showStatusAndClose('error', '⚠️ Offline mode not supported for this QR', true);
+        }
+        isProcessing.current = false;
+        return;
+      }
+      
+      // Online check-in with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+      
+      try {
+        const response = await axios.post(
+          `${BASE_URL}/api/attendance/qr-checkin`,
+          {
+            token: token,
+            deviceId: getDeviceId(),
+            deviceName: getDeviceName()
+          },
+          {
+            headers: getHeaders(),
+            signal: controller.signal
+          }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        if (response.data.success && mountedRef.current) {
+          showStatusAndClose('success', '✅ Check-in successful!', true);
+          if (onSuccess) onSuccess(response.data.entry);
+        }
+      } catch (axiosError) {
+        clearTimeout(timeoutId);
+        throw axiosError;
+      }
+      
+    } catch (error) {
+      if (!mountedRef.current) return;
+      
+      const errorMsg = error.response?.data?.error || error.message;
+      
+      // Offline fallback for network errors
+      if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+        try {
+          const qrData = JSON.parse(decodedText);
+          if (qrData.sheetId) {
+            const saved = await saveOfflineCheckin(
+              qrData.sheetId, 
+              getDeviceId(), 
+              `QR Scan (Offline Fallback) - ${new Date().toLocaleString()}`
+            );
+            if (saved) {
+              showStatusAndClose('success', '✅ Check-in saved offline!', true);
+              if (onSuccess) onSuccess({ offline: true });
+              isProcessing.current = false;
+              return;
+            }
+          }
+        } catch (e) {}
+        showStatusAndClose('error', '📡 No internet connection', true);
+      } else if (error.name === 'AbortError') {
+        showStatusAndClose('error', '⏱️ Request timed out', true);
+      } else if (errorMsg.includes('Invalid') || errorMsg.includes('expired')) {
+        showStatusAndClose('error', '❌ QR code expired or invalid', true);
+      } else if (errorMsg.includes('Already checked in')) {
+        showStatusAndClose('success', '✅ Already checked in', true);
+      } else if (errorMsg.includes('DEVICE_ALREADY_USED')) {
+        showStatusAndClose('error', '📱 Device already used', true);
+      } else {
+        showStatusAndClose('error', `❌ ${ERROR_MESSAGES[errorMsg] || 'Check-in failed'}`, true);
+      }
+      
+      isProcessing.current = false;
+    }
+  }, [isOffline, getHeaders, showStatusAndClose, onSuccess]);
+
+  // Handle successful scan
+  const onScanSuccess = useCallback(async (decodedText, decodedResult) => {
+    // Debounce check
+    const now = Date.now();
+    if (now - lastScanTime.current < SCAN_DEBOUNCE_MS || scanStatus || !mountedRef.current) {
+      return;
+    }
+    lastScanTime.current = now;
+    
+    if (isProcessing.current) {
+      return;
+    }
+    
+    isProcessing.current = true;
+    
+    // 🔥 IMMEDIATELY stop scanner
+    await immediateClose();
+    
+    // Show processing status
+    showStatusAndClose('processing', '⏳ Processing check-in...', false);
+    
+    // Process check-in in background
+    processCheckin(decodedText);
+    
+  }, [immediateClose, showStatusAndClose, processCheckin, scanStatus]);
+
+  // Scan error handler - filtered to only log critical errors
+  const onScanError = useCallback((err) => {
+    if (err && err.message && 
+        !err.message.includes('No MultiFormat Readers') &&
+        !err.message.includes('NotFoundException') &&
+        !err.message.includes('NoVideoInputDevices')) {
+      console.error('Scan error:', err);
+    }
+  }, []);
+
+  // Request camera permission
+  const requestCameraPermission = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setError('Your browser does not support camera access.');
       setPermissionDenied(true);
       return false;
@@ -279,14 +307,22 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     try {
       stopCameraTracks();
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: { exact: "environment" } } 
-      }).catch(async () => {
-        return await navigator.mediaDevices.getUserMedia({ video: true });
-      });
+      const constraints = {
+        video: {
+          facingMode: { exact: cameraFacingMode }
+        }
+      };
+      
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        // Fallback to default camera
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setCameraFacingMode('user');
+      }
       
       streamRef.current = stream;
-      // Don't stop the stream here - keep it for the scanner
       return true;
     } catch (err) {
       console.error('Camera permission error:', err);
@@ -301,22 +337,25 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       }
       return false;
     }
-  };
-  
-  const initializeScanner = async () => {
-    const element = document.getElementById("qr-reader");
+  }, [cameraFacingMode, stopCameraTracks]);
+
+  // Initialize scanner
+  const initializeScanner = useCallback(async () => {
+    const element = document.getElementById('qr-reader');
     if (!element || !mountedRef.current) {
-      console.error("qr-reader element not found");
+      console.error('qr-reader element not found');
       return false;
     }
     
-    if (!isMediaDevicesSupported()) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setError('Your browser does not support camera access.');
       setPermissionDenied(true);
       return false;
     }
     
     setIsInitializing(true);
+    setError(null);
+    setPermissionDenied(false);
     
     const hasPermission = await requestCameraPermission();
     if (!hasPermission || !mountedRef.current) {
@@ -325,18 +364,26 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     }
     
     try {
-      const scanner = new Html5Qrcode("qr-reader");
+      // Clean up existing scanner
+      if (scannerRef.current) {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      }
+      
+      const scanner = new Html5Qrcode('qr-reader');
+      
+      const config = {
+        fps: 20,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
+      };
       
       await scanner.start(
-        { facingMode: "environment" },
-        {
-          fps: 20,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
-        },
+        { facingMode: cameraFacingMode },
+        config,
         onScanSuccess,
         onScanError
       );
@@ -348,57 +395,42 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       
       scannerRef.current = scanner;
       setIsScanning(true);
-      setError(null);
-      setPermissionDenied(false);
       setIsInitializing(false);
+      setRetryCount(0);
       return true;
+      
     } catch (err) {
-      console.error("Failed to start scanner:", err);
+      console.error('Failed to start scanner:', err);
       setIsInitializing(false);
       
-      // Fallback to front camera
-      try {
-        const scanner = new Html5Qrcode("qr-reader");
-        await scanner.start(
-          { facingMode: "user" },
-          {
-            fps: 15,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-          },
-          onScanSuccess,
-          onScanError
-        );
-        
-        if (!mountedRef.current) {
-          await scanner.stop();
-          return false;
-        }
-        
-        scannerRef.current = scanner;
-        setIsScanning(true);
-        setError(null);
-        setPermissionDenied(false);
-        setIsInitializing(false);
-        return true;
-      } catch (fallbackErr) {
-        console.error("Fallback also failed:", fallbackErr);
+      // Try fallback to front camera
+      if (cameraFacingMode === 'environment') {
+        setCameraFacingMode('user');
+        // Retry with front camera after delay
+        initTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            initializeScanner();
+          }
+        }, 500);
+        return false;
       }
       
       setError(`Could not start camera: ${err.message || 'Unknown error'}`);
       setPermissionDenied(true);
       return false;
     }
-  };
-  
-  const handleRetry = async () => {
-    // Reset all states
+  }, [cameraFacingMode, requestCameraPermission, onScanSuccess, onScanError]);
+
+  // Handle retry
+  const handleRetry = useCallback(async () => {
+    // Reset states
     setError(null);
     setPermissionDenied(false);
     setIsScanning(false);
     setIsInitializing(false);
-    setShowSuccess(false);
-    setSuccessMessage('');
+    setScanStatus(null);
+    setStatusMessage('');
+    setRetryCount(prev => prev + 1);
     
     // Clean up existing scanner
     await stopScanner();
@@ -407,15 +439,16 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
     lastScanTime.current = 0;
     
     // Clear the reader element
-    const readerElement = document.getElementById("qr-reader");
+    const readerElement = document.getElementById('qr-reader');
     if (readerElement) {
       readerElement.innerHTML = '';
     }
     
     // Reinitialize scanner
     initializeScanner();
-  };
-  
+  }, [stopScanner, initializeScanner]);
+
+  // Initial setup
   useEffect(() => {
     initializeScanner();
     
@@ -423,102 +456,147 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
       mountedRef.current = false;
       stopScanner();
     };
-  }, []);
-  
+  }, [initializeScanner, stopScanner]);
+
+  // Memoized render functions
+  const renderStatus = useMemo(() => {
+    if (!scanStatus) return null;
+    
+    const statusConfig = {
+      success: {
+        icon: '✅',
+        className: 'success',
+        title: statusMessage || 'Check-in successful!',
+        subtitle: 'Check-in completed'
+      },
+      error: {
+        icon: '❌',
+        className: 'error',
+        title: statusMessage || 'Check-in failed',
+        subtitle: 'Please try again'
+      },
+      processing: {
+        icon: '⏳',
+        className: 'processing',
+        title: statusMessage || 'Processing...',
+        subtitle: 'Please wait'
+      }
+    };
+    
+    const config = statusConfig[scanStatus];
+    
+    return (
+      <div className={`qr-status-overlay ${config.className}`}>
+        <div className="status-icon">{config.icon}</div>
+        <h2>{config.title}</h2>
+        <p className="status-subtitle">{config.subtitle}</p>
+        {scanStatus === 'error' && (
+          <button 
+            onClick={handleRetry}
+            className="retry-btn"
+            disabled={retryCount >= MAX_RETRY_ATTEMPTS}
+          >
+            {retryCount >= MAX_RETRY_ATTEMPTS ? 'Max retries reached' : 'Try Again'}
+          </button>
+        )}
+        <div className="status-close-timer">
+          <div className="timer-bar" />
+        </div>
+      </div>
+    );
+  }, [scanStatus, statusMessage, handleRetry, retryCount]);
+
+  // Render scanner content
+  const renderScanner = useMemo(() => (
+    <>
+      <div id="qr-reader" className="scanner-view" />
+      {isInitializing && (
+        <div className="scanner-loading">
+          <div className="spinner" />
+          <p>Starting camera...</p>
+        </div>
+      )}
+      {!isInitializing && isScanning && !error && (
+        <>
+          <p className="scanner-instruction">
+            📱 Point camera at QR code
+          </p>
+          <p className="scanner-hint">
+            {isOffline ? (
+              <span><WifiOff size={14} /> Offline mode - check-ins will be saved</span>
+            ) : (
+              <span><Wifi size={14} /> Online mode</span>
+            )}
+          </p>
+          {isOffline && (
+            <div className="offline-badge-scanner">
+              <span>📡 OFFLINE</span>
+              <span className="pending-count">
+                {getPendingCount() > 0 && `(${getPendingCount()} pending)`}
+              </span>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  ), [isInitializing, isScanning, error, isOffline]);
+
   return (
-    <div className="qr-scanner-overlay" onClick={!showSuccess ? onClose : undefined}>
+    <div 
+      className="qr-scanner-overlay" 
+      onClick={!scanStatus ? onClose : undefined}
+      role="dialog"
+      aria-modal="true"
+      aria-label="QR Code Scanner"
+    >
       <div className="qr-scanner-container" onClick={e => e.stopPropagation()}>
-        {/* SUCCESS VIEW WITH ANIMATION */}
-        {showSuccess ? (
-          <div className="qr-success-view">
-            <div className="success-animation">
-              <div className="success-circle">
-                <svg viewBox="0 0 100 100" className="success-svg">
-                  <circle cx="50" cy="50" r="45" className="success-circle-bg" />
-                  <path d="M30 50 L45 65 L70 35" className="success-checkmark" fill="none" />
-                </svg>
+        {/* Header */}
+        <div className="qr-scanner-header">
+          <h3>
+            <Camera size={20} /> Scan QR Code
+          </h3>
+          {isOffline && (
+            <span className="offline-badge">📡 OFFLINE</span>
+          )}
+          <button 
+            className="qr-scanner-close" 
+            onClick={onClose}
+            aria-label="Close scanner"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        
+        {/* Body */}
+        <div className="qr-scanner-body">
+          {error && !scanStatus ? (
+            <div className="qr-scanner-error">
+              <div className="error-icon">{permissionDenied ? '📷' : '⚠️'}</div>
+              <h4>{permissionDenied ? 'Camera Access Denied' : 'Scan Failed'}</h4>
+              <p>{error}</p>
+              <div className="error-buttons">
+                <button 
+                  onClick={handleRetry} 
+                  className="retry-btn"
+                  disabled={retryCount >= MAX_RETRY_ATTEMPTS}
+                >
+                  {retryCount >= MAX_RETRY_ATTEMPTS ? 'Max Retries' : 'Try Again'}
+                </button>
+                <button onClick={onClose} className="close-btn">
+                  Close
+                </button>
               </div>
             </div>
-            <h2 className="success-title">Welcome!</h2>
-            <p className="success-message">{successMessage}</p>
-            <div className="confetti">
-              <div className="confetti-piece"></div>
-              <div className="confetti-piece"></div>
-              <div className="confetti-piece"></div>
-              <div className="confetti-piece"></div>
-              <div className="confetti-piece"></div>
-              <div className="confetti-piece"></div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="qr-scanner-header">
-              <h3>
-                <Camera size={20} /> Scan QR Code
-              </h3>
-              {isOffline && (
-                <span className="offline-badge">📡 OFFLINE MODE</span>
-              )}
-              <button className="qr-scanner-close" onClick={onClose}>
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="qr-scanner-body">
-              {!isMediaDevicesSupported() && (
-                <div className="qr-scanner-error">
-                  <div className="error-icon">🌐</div>
-                  <h4>Browser Not Supported</h4>
-                  <p>Please use Chrome, Firefox, or Safari.</p>
-                  <button onClick={onClose} className="close-btn">Close</button>
-                </div>
-              )}
-              
-              {(permissionDenied || error) && isMediaDevicesSupported() && (
-                <div className="qr-scanner-error">
-                  <div className="error-icon">{permissionDenied ? "📷" : "⚠️"}</div>
-                  <h4>{permissionDenied ? "Camera Access Denied" : "Scan Failed"}</h4>
-                  <p>{error || "Please allow camera access to scan QR codes."}</p>
-                  <div className="error-buttons">
-                    <button onClick={handleRetry} className="retry-btn">
-                      Try Again
-                    </button>
-                    <button onClick={onClose} className="close-btn">
-                      Close
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {!error && !permissionDenied && isMediaDevicesSupported() && (
-                <>
-                  <div id="qr-reader" className="scanner-view"></div>
-                  {isInitializing && (
-                    <div className="scanner-loading">
-                      <div className="spinner"></div>
-                      <p>Starting camera...</p>
-                    </div>
-                  )}
-                  {!isInitializing && isScanning && (
-                    <>
-                      <p className="scanner-instruction">
-                        📱 Point camera at QR code
-                      </p>
-                      <p className="scanner-hint">
-                        {isOffline 
-                          ? "⚠️ Offline mode - check-ins will be saved"
-                          : "Center the QR code in the frame"}
-                      </p>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        )}
+          ) : scanStatus ? (
+            renderStatus
+          ) : (
+            renderScanner
+          )}
+        </div>
       </div>
       
       <style>{`
+        /* Overlay */
         .qr-scanner-overlay {
           position: fixed;
           top: 0;
@@ -538,6 +616,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           to { opacity: 1; }
         }
         
+        /* Container */
         .qr-scanner-container {
           background: white;
           border-radius: 32px;
@@ -553,154 +632,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           to { transform: translateY(0); opacity: 1; }
         }
         
-        /* ========== SUCCESS ANIMATION STYLES ========== */
-        .qr-success-view {
-          text-align: center;
-          padding: 48px 32px;
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-          color: white;
-          min-height: 400px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          overflow: hidden;
-        }
-        
-        .success-animation {
-          margin-bottom: 24px;
-          animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        
-        .success-circle {
-          width: 100px;
-          height: 100px;
-          margin: 0 auto;
-          position: relative;
-        }
-        
-        .success-svg {
-          width: 100%;
-          height: 100%;
-        }
-        
-        .success-circle-bg {
-          fill: none;
-          stroke: #10b981;
-          stroke-width: 4;
-          stroke-dasharray: 283;
-          stroke-dashoffset: 283;
-          animation: drawCircle 0.6s ease-out forwards;
-        }
-        
-        .success-checkmark {
-          stroke: #10b981;
-          stroke-width: 6;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          stroke-dasharray: 50;
-          stroke-dashoffset: 50;
-          animation: drawCheck 0.4s ease-out 0.3s forwards;
-        }
-        
-        @keyframes drawCircle {
-          to {
-            stroke-dashoffset: 0;
-          }
-        }
-        
-        @keyframes drawCheck {
-          to {
-            stroke-dashoffset: 0;
-          }
-        }
-        
-        @keyframes bounceIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.3);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.1);
-          }
-          80% {
-            transform: scale(0.95);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        .success-title {
-          font-size: 28px;
-          font-weight: 700;
-          margin: 0 0 12px 0;
-          color: white;
-          animation: fadeInUp 0.5s ease 0.2s both;
-        }
-        
-        .success-message {
-          font-size: 16px;
-          color: #94a3b8;
-          margin: 0;
-          animation: fadeInUp 0.5s ease 0.4s both;
-        }
-        
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        /* Confetti Animation */
-        .confetti {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-          overflow: hidden;
-        }
-        
-        .confetti-piece {
-          position: absolute;
-          width: 10px;
-          height: 10px;
-          background: #f59e0b;
-          opacity: 0;
-          animation: confettiFall 2.5s ease-out forwards;
-        }
-        
-        .confetti-piece:nth-child(1) { left: 10%; background: #10b981; animation-delay: 0.1s; }
-        .confetti-piece:nth-child(2) { left: 25%; background: #3b82f6; animation-delay: 0.2s; }
-        .confetti-piece:nth-child(3) { left: 40%; background: #ef4444; animation-delay: 0.15s; }
-        .confetti-piece:nth-child(4) { left: 55%; background: #f59e0b; animation-delay: 0.25s; }
-        .confetti-piece:nth-child(5) { left: 70%; background: #8b5cf6; animation-delay: 0.18s; }
-        .confetti-piece:nth-child(6) { left: 85%; background: #ec4899; animation-delay: 0.3s; }
-        
-        @keyframes confettiFall {
-          0% {
-            top: -20px;
-            transform: rotate(0deg);
-            opacity: 1;
-          }
-          100% {
-            top: 100%;
-            transform: rotate(360deg);
-            opacity: 0;
-          }
-        }
-        
-        /* Regular styles */
+        /* Header */
         .qr-scanner-header {
           display: flex;
           justify-content: space-between;
@@ -725,6 +657,12 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           padding: 4px 10px;
           border-radius: 20px;
           margin-left: 10px;
+          animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
         }
         
         .qr-scanner-close {
@@ -737,6 +675,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           align-items: center;
           justify-content: center;
           transition: all 0.2s;
+          color: white;
         }
         
         .qr-scanner-close:hover {
@@ -744,10 +683,13 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           transform: rotate(90deg);
         }
         
+        /* Body */
         .qr-scanner-body {
           padding: 24px;
+          position: relative;
         }
         
+        /* Scanner View */
         .scanner-view {
           width: 100%;
           border-radius: 20px;
@@ -776,6 +718,7 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           display: none !important;
         }
         
+        /* Scanner Instructions */
         .scanner-instruction {
           text-align: center;
           font-size: 14px;
@@ -790,8 +733,64 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           font-size: 12px;
           color: #94a3b8;
           margin: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
         }
         
+        .offline-badge-scanner {
+          text-align: center;
+          margin-top: 8px;
+          font-size: 11px;
+          color: #f59e0b;
+          font-weight: 600;
+        }
+        
+        .pending-count {
+          color: #94a3b8;
+          font-weight: normal;
+          margin-left: 4px;
+        }
+        
+        /* Loading */
+        .scanner-loading {
+          text-align: center;
+          padding: 40px;
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border-radius: 16px;
+        }
+        
+        .scanner-loading p {
+          color: white;
+          margin-top: 16px;
+          font-size: 14px;
+        }
+        
+        .spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid rgba(255,255,255,0.3);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Error View */
         .qr-scanner-error {
           text-align: center;
           padding: 40px 24px;
@@ -835,9 +834,14 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           color: white;
         }
         
-        .retry-btn:hover {
+        .retry-btn:hover:not(:disabled) {
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .retry-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
         
         .close-btn {
@@ -850,40 +854,136 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
           transform: translateY(-2px);
         }
         
-        .scanner-loading {
+        /* Status Overlay */
+        .qr-status-overlay {
           text-align: center;
-          padding: 40px;
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.8);
+          padding: 48px 32px;
+          min-height: 350px;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          border-radius: 16px;
+          animation: fadeIn 0.3s ease;
+          position: relative;
+          overflow: hidden;
         }
         
-        .scanner-loading p {
+        .qr-status-overlay.success {
+          background: linear-gradient(135deg, #065f46, #047857);
           color: white;
-          margin-top: 16px;
+        }
+        
+        .qr-status-overlay.error {
+          background: linear-gradient(135deg, #991b1b, #dc2626);
+          color: white;
+        }
+        
+        .qr-status-overlay.processing {
+          background: linear-gradient(135deg, #1e293b, #334155);
+          color: white;
+        }
+        
+        .status-icon {
+          font-size: 64px;
+          margin-bottom: 16px;
+          animation: bounceIn 0.5s ease;
+        }
+        
+        @keyframes bounceIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.3);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          70% {
+            transform: scale(0.9);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        .qr-status-overlay h2 {
+          margin: 0 0 8px 0;
+          font-size: 24px;
+        }
+        
+        .status-subtitle {
+          margin: 0 0 24px 0;
+          opacity: 0.8;
           font-size: 14px;
         }
         
-        .spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid rgba(255,255,255,0.3);
-          border-top-color: #ffffff;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto;
+        .qr-status-overlay .retry-btn {
+          padding: 12px 32px;
+          background: white;
+          color: #1e293b;
+          border: none;
+          border-radius: 40px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
         }
         
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .qr-status-overlay .retry-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .qr-status-overlay .retry-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        /* Timer bar */
+        .status-close-timer {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: rgba(255,255,255,0.2);
+        }
+        
+        .timer-bar {
+          height: 100%;
+          background: rgba(255,255,255,0.8);
+          animation: timerProgress 2s linear forwards;
+        }
+        
+        @keyframes timerProgress {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+          .qr-scanner-container {
+            width: 100%;
+            border-radius: 0;
+            height: 100vh;
+            max-height: 100vh;
+          }
+          
+          .scanner-view {
+            min-height: 50vh;
+          }
+          
+          .qr-scanner-header {
+            padding: 14px 16px;
+          }
+          
+          .qr-scanner-body {
+            padding: 16px;
+          }
+          
+          .qr-status-overlay {
+            min-height: 70vh;
+            padding: 32px 20px;
+          }
         }
       `}</style>
     </div>

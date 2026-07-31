@@ -13,7 +13,7 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt} from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaRegFilePdf} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
@@ -82,6 +82,8 @@ function Layout() {
   const sidebarRef = useRef(null);
   const [jumuiaName, setJumuiaName] = useState("");
 const [isJumuiaLoading, setIsJumuiaLoading] = useState(true);
+const [isExecutive, setIsExecutive] = useState(false);
+const [loadingExecutive, setLoadingExecutive] = useState(true);
 
 // Fetch user details including jumuia name
 useEffect(() => {
@@ -113,6 +115,36 @@ useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) setUser(storedUser);
   }, []);
+
+
+  // Check if user has executive position
+useEffect(() => {
+  const checkExecutiveStatus = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLoadingExecutive(false);
+      return;
+    }
+    
+    try {
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      // Check if user has executive position
+      const response = await axios.get(`${BASE_URL}/api/executive/check-user/${userData.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setIsExecutive(response.data.hasPosition || false);
+    } catch (error) {
+      console.error("Error checking executive status:", error);
+      setIsExecutive(false);
+    } finally {
+      setLoadingExecutive(false);
+    }
+  };
+  
+  checkExecutiveStatus();
+}, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -188,6 +220,12 @@ useEffect(() => {
     icon: <FaDove size={25} color="#4e4939" />
   },  
     { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
+  ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin" ? [{
+    path: "/executive/minutes", 
+    label: "Meeting Minutes", 
+    icon: <FaRegFilePdf size={28} color="#141b16" />
+  }] : []),
+    
              { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
               { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 33, 226, 0.91)" /> },
               { path: "/hymns", label: "Lyrics Book", icon: <FiMusic size={28} color="rgba(238, 9, 9, 0.91)" />},
@@ -215,6 +253,9 @@ useEffect(() => {
   
     { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
   ];
+
+
+  
 
   return (
     <div style={containerStyle}>

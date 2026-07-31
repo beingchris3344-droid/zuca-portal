@@ -62,7 +62,8 @@ import MassReadingDetail from './pages/MassReadingDetail';
 import MassReadingUpload from './pages/MassReadingUpload'
 import MassReadingEdit from './pages/MassReadingEdit';
 import FloatingAIAssistantButton from "./components/FloatingAIAssistantButton";
-
+import ExecutiveMinutes from './pages/ExecutiveMinutes';
+import ExecutiveMinutesView from './pages/ExecutiveMinutesView';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -451,6 +452,8 @@ useEffect(() => {
                   <Route path="/scan/:token" element={<ScanPage />} />
                    <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
+
+         
            
 
         
@@ -487,6 +490,12 @@ useEffect(() => {
 <Route path="/mass-readings/:id" element={<MassReadingDetail />} />
 <Route path="/mass-readings/upload" element={<MassReadingUpload />} />
 <Route path="/mass-readings/edit/:id" element={<MassReadingEdit />} />
+
+ <Route 
+  path="/executive/minutes" 
+  element={<ExecutiveMinutes />} 
+/>
+<Route path="/executive/minutes/:id" element={<ExecutiveMinutesView />} />
       
 
           {/* GAMES */}

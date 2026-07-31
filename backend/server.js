@@ -6862,7 +6862,7 @@ app.get("/api/users/light", async (req, res) => {
     
     console.log('📡 First load - fetching all users...');
     
-    // 🔥 Fetch ALL users in one query
+    // 🔥 Fetch ALL users in one query - NO FILTERING
     const users = await prisma.$queryRaw`
       SELECT 
         u.id, 
@@ -6875,7 +6875,7 @@ app.get("/api/users/light", async (req, res) => {
         j.name AS "jumuiaName"
       FROM "User" u
       LEFT JOIN "Jumuia" j ON u."jumuiaId" = j.id
-      WHERE u.role != 'admin'
+      -- ✅ REMOVED: WHERE u.role != 'admin'
       ORDER BY u."fullName" ASC
     `;
     

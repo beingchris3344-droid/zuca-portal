@@ -1232,7 +1232,7 @@ const getSheetById = async (req, res) => {
 const presentUserIdsSet = new Set(presentUserIds);
 
 const entriesWithExecutive = entries
-  .filter(entry => entry.role !== 'admin')  // ✅ FILTER ADMIN FROM PRESENT
+ 
   .map(entry => ({
     ...entry,
     executivePosition: executiveMap.get(entry.userId)?.executivePosition || null,
@@ -1241,7 +1241,7 @@ const entriesWithExecutive = entries
 
 const absentMembers = allTargetMembers
   .filter(member => !presentUserIdsSet.has(member.id))
-  .filter(member => member.role !== 'admin');  // ✅ FILTER ADMIN FROM ABSENT
+ 
     
     const responseData = {
       ...sheetBasic,

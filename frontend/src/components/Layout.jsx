@@ -13,10 +13,11 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaRegFilePdf} from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaRegFilePdf, FaSun} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
+import { toggleDark } from "../utils/darkReader";
 
 
 // Messenger Icon with Badge Component - ADD THIS BEFORE the Layout function
@@ -567,7 +568,11 @@ useEffect(() => {
             <span style={pageTitleStyle}>Dashboard</span>
           </div>
 
-          <div style={headerRightStyle}>
+        <div style={headerRightStyle}>
+  <button onClick={toggleDark} style={{ backgroundColor: "transparent", border: "none", cursor: "pointer" }}>
+    <FaSun style={{ fontSize: "24px", color: "#f39c12" }} />
+  </button>
+
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
              

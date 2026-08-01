@@ -109,6 +109,7 @@ import AdminAttendanceOverview from './pages/admin/attendance/AdminAttendanceOve
 import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
 import EmailManagement from './pages/admin/EmailManagement';
 import EmailDashboard from "./pages/admin/EmailDashboard";
+import { initializeDark } from "./utils/darkReader";
 
 
 
@@ -702,6 +703,10 @@ useEffect(() => {
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+   useEffect(() => {
+    initializeDark();
+  }, []);
   
   useEffect(() => {
     const checkUserRole = () => {

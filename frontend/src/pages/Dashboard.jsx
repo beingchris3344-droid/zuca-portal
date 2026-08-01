@@ -111,6 +111,8 @@ axios.get = function(url, config) {
   return originalGet.call(this, url, config);
 };
 
+
+
  
 const getEventBadge = (type) => {
   const badges = {
@@ -3302,7 +3304,7 @@ useEffect(() => {
 
 .header-subtitle {
   font-size: 0.7rem;
-  color: #123241;
+  color: #020202;
   margin: 0;
   font-weight: 500;
   letter-spacing: 0.5px;
@@ -4396,6 +4398,10 @@ useEffect(() => {
   margin-bottom: 1rem;
   padding-bottom: 0;
   border-bottom: none;
+   
+    border-radius: 15px;
+
+
 }
 
 .header-icon-small {

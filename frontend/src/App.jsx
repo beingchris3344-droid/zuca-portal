@@ -442,6 +442,8 @@ useEffect(() => {
         <Route path="/register" element={<Register />} />
         <Route path="/prayer" element={<Prayer />} />
         <Route path="/gallery" element={<GalleryPage />} />
+                <Route path="/gallery/:id" element={<GalleryPage />} />
+
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />

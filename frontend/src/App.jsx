@@ -461,7 +461,6 @@ useEffect(() => {
 
         
         {/* ================= EXECUTIVE SYSTEM - PUBLIC VIEW ================= */}
-        <Route path="/executive" element={<ExecutivePage />} />
 
         {/* ================= MEMBER PORTAL ================= */}
         <Route
@@ -487,6 +486,9 @@ useEffect(() => {
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
+                  <Route path="/executive" element={<ExecutivePage />} />
+
+          
 
 {/* MASS READINGS */}
           <Route path="/mass-readings" element={<MassReadingsPage />} />

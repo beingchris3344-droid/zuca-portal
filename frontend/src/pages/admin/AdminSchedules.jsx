@@ -522,7 +522,7 @@ function AdminSchedules() {
           events.push({
             title: `${section.title || "Event"} - ${row.event}`,
             eventDate: `${year}-${month}-${day}`,
-            eventTime: "00:00",
+            eventTime: "16:30",
             location: "TBA",
             groupName: row.event,
             reminderDays: [7, 1, 0]

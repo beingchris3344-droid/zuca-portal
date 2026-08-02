@@ -301,7 +301,7 @@ const fetchLatestReadings = async () => {
 const fetchFeaturedGallery = async () => {
   try {
     const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/media/public?limit=8`, {
+    const res = await axios.get(`${BASE_URL}/api/media/public?limit=16`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
@@ -319,7 +319,7 @@ const fetchFeaturedGallery = async () => {
     
     console.log("Images only:", imagesOnly.length);
     
-    const galleryToShow = imagesOnly.slice(0, 3);
+    const galleryToShow = imagesOnly.slice(0, 16);
     
     setFeaturedGallery(galleryToShow);
     setGalleryItems(galleryToShow.length);
@@ -379,7 +379,7 @@ const fetchFeaturedGallery = async () => {
       const res = await axios.get(`${BASE_URL}/api/chat/enhanced`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const recent = (res.data || []).slice(0, 3);
+      const recent = (res.data || []).slice(0, 2);
       setRecentChats(recent);
       setTotalMessages((res.data || []).length);
     } catch (error) {
@@ -410,7 +410,7 @@ const fetchFeaturedGallery = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/executive/team`);
       if (res.data.success && res.data.executives) {
-        setExecutiveTeam(res.data.executives.slice(0, 4));
+        setExecutiveTeam(res.data.executives.slice(0, 6));
       }
     } catch (error) {
       console.error("Error fetching executive team:", error);
@@ -421,7 +421,7 @@ const fetchFeaturedGallery = async () => {
   const fetchUpcomingSchedules = async () => {
   try {
     const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=2`, {
+    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     

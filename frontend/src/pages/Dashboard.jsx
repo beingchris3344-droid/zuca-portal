@@ -222,7 +222,7 @@ const handleSelfCheckin = async (sheetId) => {
 const fetchLatestReadings = async () => {
   try {
     const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/mass-readings?limit=3`, {
+    const res = await axios.get(`${BASE_URL}/api/mass-readings?limit=2`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     setLatestReadings(res.data.readings || []);
@@ -410,7 +410,7 @@ const fetchFeaturedGallery = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/executive/team`);
       if (res.data.success && res.data.executives) {
-        setExecutiveTeam(res.data.executives.slice(0, 2));
+        setExecutiveTeam(res.data.executives.slice(0, 4));
       }
     } catch (error) {
       console.error("Error fetching executive team:", error);
@@ -421,7 +421,7 @@ const fetchFeaturedGallery = async () => {
   const fetchUpcomingSchedules = async () => {
   try {
     const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, {
+    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=2`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     

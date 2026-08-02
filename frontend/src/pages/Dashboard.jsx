@@ -5669,6 +5669,7 @@ useEffect(() => {
   border-radius: 35px;
   border-left: 4px solid #123241;
   margin-bottom: 30px;
+  margin-top: 30px;
 }
 
 .header-icon-mass {

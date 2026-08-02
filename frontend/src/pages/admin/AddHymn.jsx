@@ -606,8 +606,8 @@ Use **bold** for chorus lines (or click Auto Format to detect repeats)"
 
 const styles = {
   fullScreenOverlay: {
-    position: 'fixed',
-    top: 50,
+    position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
     bottom: 0,

@@ -813,7 +813,7 @@ This is the chorus`;
                 </div>
               </div>
               <div style={styles.actions}>
-                <button onClick={() => openEditModal(hymn)} style={styles.editBtn} title="Edit">
+                <button onClick={() => navigate(`/admin/hymns/edit/${hymn.id}`)} style={styles.editBtn} title="Edit">
                   <FiEdit2 size={16} />
                 </button>
                 <button onClick={() => {
@@ -1567,7 +1567,7 @@ const styles = {
     width: "100%",
     minHeight: "100vh",
     overflowY: "auto",
-  },
+    },
 
   modalHeader: {
     display: "flex",

@@ -109,6 +109,7 @@ import AdminAttendanceOverview from './pages/admin/attendance/AdminAttendanceOve
 import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
 import EmailManagement from './pages/admin/EmailManagement';
 import EmailDashboard from "./pages/admin/EmailDashboard";
+
 import { initializeDark } from "./utils/darkReader";
 
 
@@ -550,6 +551,7 @@ useEffect(() => {
           <Route path="security" element={<SecurityPage />} />
           <Route path="media" element={<AdminMediaPage />} />
           <Route path="/admin/hymns/add" element={<AddHymn />} /> 
+          <Route path="/admin/hymns/edit/:id" element={<AddHymn />} />
           <Route path="/admin/pending-songs" element={<PendingSongs />} />
           <Route path="/admin/ocr-scanner" element={<OCRScannerPage />} />
           <Route path="/admin/health-centre" element={<AdminHealthCentre />} />

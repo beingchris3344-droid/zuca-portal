@@ -1484,7 +1484,7 @@ const parseDateString = (dateStr) => {
                           value={section.title} 
                           onChange={(e) => updateSectionTitle(section.id, e.target.value)} 
                           style={styles.sectionTitleInput} 
-                          placeholder="Section Title (e.g., INTERNAL MASS ANIMATIONS)" 
+                          placeholder="Section Title (e.g., INTERNAL MASS ANIMATIONS.)" 
                         />
                         <button type="button" onClick={() => removeSection(section.id)} style={styles.removeSectionBtn}>Remove Section</button>
                       </div>

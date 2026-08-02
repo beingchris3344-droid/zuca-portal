@@ -10,6 +10,7 @@ import "react-quill/dist/quill.snow.css";
 import "react-datepicker/dist/react-datepicker.css";
 import { createPortal } from 'react-dom';
 import BASE_URL from "../../api";
+import { FaCalendar, FaCalendarAlt, FaTrash, FaEdit, FaDownload, FaPlus, FaTimes } from "react-icons/fa";                                   
 
 function AdminSchedules() {
   const navigate = useNavigate();
@@ -521,8 +522,8 @@ function AdminSchedules() {
           events.push({
             title: `${section.title || "Event"} - ${row.event}`,
             eventDate: `${year}-${month}-${day}`,
-            eventTime: "16:30",
-            location: "Room 002",
+            eventTime: "TBA",
+            location: "TBA",
             groupName: row.event,
             reminderDays: [7, 1, 0]
           });
@@ -1504,6 +1505,7 @@ const parseDateString = (dateStr) => {
                                       onChange={(e) => updateTableRowDate(section.id, row.id, e.target.value, null)}
                                       style={styles.dateTextInput}
                                       placeholder="e.g., 20th May"
+                                      readOnly
                                     />
                                     <DatePicker
                                       selected={row.dateValue}
@@ -1512,7 +1514,7 @@ const parseDateString = (dateStr) => {
                                         updateTableRowDate(section.id, row.id, dateDisplay, date);
                                       }}
                                       dateFormat="dd/MM/yyyy"
-                                      customInput={<button type="button" style={styles.calendarBtn}>📅</button>}
+                                      customInput={<button type="button" style={styles.calendarBtn}><FaCalendarAlt /></button>}
                                     />
                                   </div>
                                   </td>

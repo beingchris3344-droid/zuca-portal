@@ -1084,7 +1084,8 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-calendar"><FaCalendarPlus size={28} color="#141313" /></div>
       <div>
-        <h3>UPCOMING ZUCA SCHEDULED EVENTS</h3>
+        
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">UPCOMING ZUCA SCHEDULED EVENTS</h2>
         <p className="header-subtitle">ZUCA indoor and out door activities</p>
       </div>
     </div>
@@ -1169,7 +1170,7 @@ useEffect(() => {
               </div>
               <button 
                 className="event-details-btn"
-                onClick={() => navigate(`/schedule/${event.id}`)}
+                onClick={() => navigate(`/schedules`)}
               >
                 View Details
                 <FiChevronRight size={16} />
@@ -1201,7 +1202,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-reading"><FaBook color="#000000" /></div>
       <div>
-        <h3>MASS READINGS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MASS READINGS</h2>
         <p className="header-subtitle">Readings for mass</p>
       </div>
     </div>
@@ -1292,6 +1293,7 @@ useEffect(() => {
                 </div>
                 <div className="online-member-name">
                   {member.fullName?.split(' ')[0] || 'Member'}
+                 
                 </div>
               </motion.div>
             ))}
@@ -1324,7 +1326,7 @@ useEffect(() => {
       <div className="header-icon-small">
         <span><FaPrayingHands size={28} color="#1a1818" /></span>
       </div>
-      <h3>My Jumuia</h3>
+      <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MY HOME JUMUIYA - {jumuiaInfo.name}</h2>
       <div className="jumuia-status-badge-small">
         <span className="status-dot"></span>
         Active
@@ -1448,7 +1450,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-notification">🔔</div>
       <div>
-        <h3>NOTIFICATIONS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">NOTIFICATIONS</h2>
         <p className="header-subtitle"> {user.fullName?.split(" ")[0]} take note of important notifications</p>
       </div>
     </div>
@@ -1473,7 +1475,7 @@ useEffect(() => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: index * 0.08 }}
           whileHover={{ x: 4 }}
-          onClick={() => navigate("/notifications")}
+          onClick={() => navigate("/announcements")}
         >
           <div className="notif-icon-premium">
             {notif.type === "announcement" && "📢"}
@@ -1481,6 +1483,7 @@ useEffect(() => {
             {notif.type === "program" && "⛪"}
             {notif.type === "checkin" && "✅"}
             {notif.type === "message" && "💬"}
+             {notif.type === "user_login" && <FaUser />}
             {!notif.type && "🔔"}
           </div>
           <div className="notif-content-premium">
@@ -1508,9 +1511,9 @@ useEffect(() => {
 <div className="section-card announcements-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-announcement">🔥<FaBell /></div>
+      <div className="header-icon-announcement">🔥</div>
       <div>
-        <h3>RECENT ANNOUNCEMENTS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT ANNOUNCEMENTS</h2>
         <p className="header-subtitle">Latest updates from ZUCA</p>
       </div>
     </div>
@@ -1568,7 +1571,7 @@ useEffect(() => {
   <div className="section-header">
     <div className="header-with-icon">
       <div className="header-icon-small-pledge"><FaHandHoldingHeart size={39} color="#141313" /></div>
-      <h3>MY ACTIVE PLEDGES</h3>
+      <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MY ACTIVE PLEDGES</h2>
     </div>
     {activePledges.length > 0 && (
       <div className="pledge-count-badge">{activePledges.length}</div>
@@ -1615,7 +1618,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-music">🎼</div>
       <div>
-        <h3>RECENT HYMNS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT HYMNS</h2>
         <p className="header-subtitle">Recently added Lyrics</p>
       </div>
     </div>
@@ -1689,7 +1692,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-mass">📑</div>
       <div>
-        <h3>UPCOMING MASS PROGRAMS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">UPCOMING MASS PROGRAMS</h2>
         <p className="header-subtitle">Mass songs programe</p>
       </div>
     </div>
@@ -1754,7 +1757,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-gallery"><FaPhotoVideo color="#000000" /></div>
       <div>
-        <h3>FEATURED GALLERY</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">FEATURED GALLERY</h2>
         <p className="header-subtitle">Moments from zuca</p>
       </div>
     </div>
@@ -1829,7 +1832,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-games"><FaGamepad size={28} color="#141313" /></div>
       <div>
-        <h3>GAMES</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">GAMES</h2>
         <p className="header-subtitle">Connect, play, and grow together</p>
       </div>
     </div>
@@ -1910,7 +1913,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-stats"><FiActivity /></div>
       <div>
-        <h3>ZUCA STATUS</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">ZUCA STATUS</h2>
         <p className="header-subtitle">ZUCA at a glance</p>
       </div>
     </div>
@@ -1960,7 +1963,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-executive"><FaUserTie color="#e41811"/></div>
       <div>
-        <h3>EXECUTIVE TEAM</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">EXECUTIVE TEAM</h2>
         <p className="header-subtitle">ZUCA Leadership & Administration</p>
       </div>
     </div>
@@ -2048,7 +2051,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-chat">💬</div>
       <div>
-        <h3>RECENT CHAT ACTIVITY</h3>
+        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT CHAT ACTIVITY</h2>
         <p className="header-subtitle">What are people saying in the group</p>
       </div>
     </div>
@@ -6481,8 +6484,8 @@ useEffect(() => {
 
 .online-status-dot {
   position: absolute;
-  bottom: 0;
-  right: 0;
+  top: 30px;
+  left: 25px;
   width: 12px;
   height: 12px;
   background: #22c55e;

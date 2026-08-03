@@ -43,6 +43,11 @@ export default function HymnBook() {
   const initialLoadDone = useRef(false);
   const backButtonRef = useRef(null);
 
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingLive, setIsSearchingLive] = useState(false);
+  const debounceTimer = useRef(null);
+
   const token = localStorage.getItem("token");
 
   // Handle resize
@@ -126,6 +131,54 @@ export default function HymnBook() {
     }
   }, [token]);
 
+  const fetchSuggestions = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    setIsSearchingLive(true);
+    try {
+      const params = new URLSearchParams({ search: query, limit: 8 });
+      const res = await axios.get(`${BASE_URL}/api/songs?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const items = res.data?.songs || [];
+      setSuggestions(items);
+      setShowSuggestions(items.length > 0);
+    } catch (err) {
+      console.error("Suggestions error:", err);
+      setSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearchingLive(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (searchInput.trim().length >= 2) {
+      debounceTimer.current = setTimeout(() => {
+        fetchSuggestions(searchInput);
+      }, 300);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchInput, fetchSuggestions]);
+
+  const selectSuggestion = (suggestion) => {
+    setSearchInput(suggestion.title);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setActiveSearch(suggestion.title);
+    setPage(1);
+    fetchSongs(1, suggestion.title, true, false);
+  };
+
   // ONE TIME initial load - handles both normal and search from programs
   useEffect(() => {
     if (initialLoadDone.current) return;
@@ -151,6 +204,7 @@ export default function HymnBook() {
     setActiveSearch(searchInput);
     setPage(1);
     fetchSongs(1, searchInput, true, false);
+    setShowSuggestions(false);
   };
 
   const clearSearch = () => {
@@ -159,6 +213,8 @@ export default function HymnBook() {
     setShowFavoritesOnly(false);
     setPage(1);
     fetchSongs(1, "", true, false);
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const handleKeyPress = (e) => {
@@ -348,7 +404,6 @@ export default function HymnBook() {
           </motion.div>
         </div>
 
-        {/* Search with button */}
         <div style={searchContainer}>
           <div style={searchWrapper}>
             <FiSearch style={searchIcon} />
@@ -358,12 +413,51 @@ export default function HymnBook() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyPress={handleKeyPress}
+              onFocus={() => {
+                if (suggestions.length > 0 && searchInput.trim().length >= 2) {
+                  setShowSuggestions(true);
+                }
+              }}
+              onBlur={() => {
+                setTimeout(() => setShowSuggestions(false), 200);
+              }}
               style={searchInputStyle}
             />
             {searchInput && (
               <button onClick={clearSearch} style={searchClearBtn}>
                 ✕
               </button>
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <div style={suggestionsContainer}>
+                {suggestions.map((suggestion, index) => (
+                  <div
+                    key={suggestion.id}
+                    style={{
+                      ...suggestionItem,
+                      animationDelay: `${index * 0.03}s`,
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestion(suggestion)}
+                  >
+                    <div style={suggestionIcon}>🎵</div>
+                    <div style={suggestionContent}>
+                      <div style={suggestionTitle}>{suggestion.title}</div>
+                      {suggestion.firstLine && (
+                        <div style={suggestionPreview}>
+                          {suggestion.firstLine.substring(0, 60)}...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isSearchingLive && (
+              <div style={searchLoading}>
+                <div style={searchSpinner}></div>
+                <span>Searching...</span>
+              </div>
             )}
           </div>
           <button onClick={handleSearch} style={searchButton}>
@@ -474,7 +568,6 @@ export default function HymnBook() {
         </AnimatePresence>
       </div>
 
-      {/* Load More Button - shows when there are more results */}
       {hasMore && displayedSongs.length > 0 && (
         <motion.button
           whileTap={{ scale: 0.95 }}
@@ -1057,10 +1150,77 @@ const toastStyle = `
   text-overflow: ellipsis;
 `;
 
+const suggestionsContainer = {
+  position: "absolute",
+  top: "calc(100% + 8px)",
+  left: 0,
+  right: 0,
+  background: "#39393bfb",
+  borderRadius: "16px",
+  maxHeight: "400px",
+  overflowY: "auto",
+  zIndex: 1000,
+  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.3)",
+  border: "1px solid rgba(255,255,255,0.1)",
+};
 
+const suggestionItem = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  padding: "12px 16px",
+  cursor: "pointer",
+  transition: "background 0.2s",
+  borderBottom: "1px solid rgba(255,255,255,0.05)",
+  animation: "fadeInUp 0.3s ease backwards",
+};
 
+const suggestionIcon = {
+  fontSize: "20px",
+  minWidth: "32px",
+};
 
+const suggestionContent = {
+  flex: 1,
+};
 
+const suggestionTitle = {
+  fontSize: "14px",
+  fontWeight: "600",
+  color: "white",
+  marginBottom: "4px",
+};
+
+const suggestionPreview = {
+  fontSize: "12px",
+  color: "#94a3b8",
+};
+
+const searchLoading = {
+  position: "absolute",
+  top: "calc(100% + 8px)",
+  left: 0,
+  right: 0,
+  background: "#1b1b1afa",
+  borderRadius: "12px",
+  padding: "16px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "12px",
+  color: "#00c6ff",
+  fontSize: "14px",
+  zIndex: 1000,
+};
+
+const searchSpinner = {
+  width: "20px",
+  height: "20px",
+  border: "2px solid rgba(0,198,255,0.2)",
+  borderTopColor: "#00c6ff",
+  borderRadius: "50%",
+  animation: "spin 0.8s linear infinite",
+};
 
 const style = document.createElement('style');
 style.innerHTML = `
@@ -1074,6 +1234,10 @@ style.innerHTML = `
   @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 `;
 document.head.appendChild(style);

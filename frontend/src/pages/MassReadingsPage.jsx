@@ -6,7 +6,7 @@ import {
   Download, Eye, ChevronRight, Users, Upload, 
   Clock, User, BookOpen, Plus, X, Search,
   Filter, Grid, List, ChevronLeft, ChevronDown,
-  Loader2
+  Loader2, Share2, Check,  MessageCircle, Facebook, Twitter, Send, Mail, Linkedin, Link2
 } from 'lucide-react';
 import { formatDistance, format } from 'date-fns';
 
@@ -125,6 +125,213 @@ export default function MassReadingsPage() {
     </div>
   );
 
+
+
+  // Share Button Component - Professional version with actual icons
+  const ShareButton = ({ readingId, title }) => {
+    const [copied, setCopied] = useState(false);
+    const [showShareOptions, setShowShareOptions] = useState(false);
+
+    const message = `Check the readings for "${title}" at ZUCA PORTAL`;
+    const link = `${window.location.origin}/mass-readings/${readingId}`;
+    const fullMessage = `${message}\n${link}`;
+
+    // Close share options when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (showShareOptions && !e.target.closest('.share-popup')) {
+          setShowShareOptions(false);
+        }
+      };
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }, [showShareOptions]);
+
+    const handleShareClick = (e) => {
+      e.stopPropagation();
+      
+      // If Web Share API is available (mobile), use it
+      if (navigator.share) {
+        navigator.share({
+          title: title || 'Mass Reading',
+          text: message,
+          url: link,
+        }).catch(err => {
+          if (err.name !== 'AbortError') {
+            console.error('Share error:', err);
+          }
+        });
+        return;
+      }
+
+      // On desktop, show the popup
+      setShowShareOptions(!showShareOptions);
+    };
+
+    const copyToClipboard = async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(fullMessage);
+        setCopied(true);
+        setShowShareOptions(false);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        // Fallback
+        const textArea = document.createElement('textarea');
+        textArea.value = fullMessage;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopied(true);
+        setShowShareOptions(false);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    };
+
+    const shareToApp = (app, e) => {
+      e.stopPropagation();
+      const encodedMessage = encodeURIComponent(fullMessage);
+      const encodedLink = encodeURIComponent(link);
+      const encodedTitle = encodeURIComponent(title);
+      let url = '';
+
+      switch(app) {
+        case 'whatsapp':
+          url = `https://api.whatsapp.com/send?text=${encodedMessage}`;
+          break;
+        case 'facebook':
+          url = `https://www.facebook.com/sharer/sharer.php?u=${encodedLink}&quote=${encodedMessage}`;
+          break;
+        case 'twitter':
+          url = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
+          break;
+        case 'telegram':
+          url = `https://t.me/share/url?url=${encodedLink}&text=${encodedMessage}`;
+          break;
+        case 'email':
+          url = `mailto:?subject=Mass Reading: ${encodedTitle}&body=${encodedMessage}`;
+          break;
+        case 'linkedin':
+          url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedLink}`;
+          break;
+        case 'copy':
+          copyToClipboard(e);
+          return;
+        default:
+          return;
+      }
+
+      window.open(url, '_blank', 'width=600,height=400');
+      setShowShareOptions(false);
+    };
+
+    // Share apps configuration - Professional icons
+    const shareApps = [
+      { 
+        id: 'whatsapp', 
+        name: 'WhatsApp', 
+        icon: MessageCircle, 
+        color: '#25D366' 
+      },
+      { 
+        id: 'facebook', 
+        name: 'Facebook', 
+        icon: Facebook, 
+        color: '#1877F2' 
+      },
+      { 
+        id: 'twitter', 
+        name: 'Twitter', 
+        icon: Twitter, 
+        color: '#000000' 
+      },
+      { 
+        id: 'telegram', 
+        name: 'Telegram', 
+        icon: Send, 
+        color: '#0088cc' 
+      },
+      { 
+        id: 'email', 
+        name: 'Email', 
+        icon: Mail, 
+        color: '#ea4335' 
+      },
+      { 
+        id: 'linkedin', 
+        name: 'LinkedIn', 
+        icon: Linkedin, 
+        color: '#0A66C2' 
+      },
+      { 
+        id: 'copy', 
+        name: 'Copy Link', 
+        icon: Link2, 
+        color: '#6B7280' 
+      },
+    ];
+
+    return (
+      <div className="share-wrapper">
+        <button 
+          className="share-btn"
+          onClick={handleShareClick}
+          title="Share this reading"
+        >
+          {copied ? (
+            <>
+              <Check size={16} />
+              <span>Copied!</span>
+            </>
+          ) : (
+            <>
+              <Share2 size={16} />
+              <span>Share</span>
+            </>
+          )}
+        </button>
+
+        {/* Share Popup */}
+        {showShareOptions && (
+          <div className="share-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="share-popup-header">
+              <span>Share via</span>
+              <button 
+                className="share-close-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowShareOptions(false);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="share-apps-grid">
+              {shareApps.map((app) => {
+                const IconComponent = app.icon;
+                return (
+                  <button
+                    key={app.id}
+                    className="share-app-btn"
+                    onClick={(e) => shareToApp(app.id, e)}
+                  >
+                    <span className="app-icon-wrapper" style={{ color: app.color }}>
+                      <IconComponent size={22} strokeWidth={1.5} />
+                    </span>
+                    <span className="app-name">{app.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  
+
   const ReadingCard = ({ reading }) => {
     return (
       <div 
@@ -142,6 +349,9 @@ export default function MassReadingsPage() {
               {reading.description || 'Mass Readings'}
             </p>
           </div>
+
+            <ShareButton readingId={reading.id} title={reading.title} />
+
         </div>
         
         <div className="reading-card-body">
@@ -205,9 +415,10 @@ export default function MassReadingsPage() {
             </div>
           </div>
         </div>
-        <div className="list-item-right">
-          <ChevronRight size={20} />
-        </div>
+       <div className="list-item-right">
+  <ShareButton readingId={reading.id} title={reading.title} />
+  <ChevronRight size={20} />
+</div>
       </div>
     );
   };
@@ -982,6 +1193,225 @@ export default function MassReadingsPage() {
   margin-top: 0;
   /* Keep the rest of your hero styles */
 }
+
+                /* Share Button Styles - Professional */
+        .share-wrapper {
+          position: relative;
+          flex-shrink: 0;
+        }
+
+        .share-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: rgba(59, 130, 246, 0.08);
+          border: 1px solid rgba(59, 130, 246, 0.15);
+          border-radius: 20px;
+          color: #3b82f6;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .share-btn:hover {
+          background: #3b82f6;
+          color: white;
+          border-color: #3b82f6;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .share-btn:active {
+          transform: scale(0.95);
+        }
+
+        /* Share Popup */
+        .share-popup {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          background: white;
+          border-radius: 16px;
+          padding: 20px;
+          min-width: 240px;
+          box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+          border: 1px solid #f0f0f0;
+          z-index: 1000;
+          animation: slideDown 0.2s ease;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .share-popup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #f3f4f6;
+        }
+
+        .share-popup-header span {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e293b;
+          letter-spacing: 0.3px;
+        }
+
+        .share-close-btn {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+        }
+
+        .share-close-btn:hover {
+          background: #f1f5f9;
+          color: #475569;
+        }
+
+        .share-apps-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+
+        .share-app-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          padding: 12px 8px;
+          background: transparent;
+          border: none;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 11px;
+          color: #475569;
+        }
+
+        .share-app-btn:hover {
+          background: #f8fafc;
+          transform: translateY(-2px);
+        }
+
+        .share-app-btn:active {
+          transform: scale(0.92);
+        }
+
+        .share-app-btn .app-icon-wrapper {
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 12px;
+          background: #f8fafc;
+          transition: all 0.2s ease;
+        }
+
+        .share-app-btn:hover .app-icon-wrapper {
+          background: #f1f5f9;
+          transform: scale(1.05);
+        }
+
+        .share-app-btn .app-name {
+          font-size: 10px;
+          font-weight: 500;
+          color: #64748b;
+          letter-spacing: 0.2px;
+        }
+
+        /* Responsive - Mobile */
+        @media (max-width: 640px) {
+          .share-popup {
+            position: fixed;
+            top: auto;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 32px;
+            animation: slideUp 0.3s ease;
+            max-width: 100%;
+            box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
+          }
+
+          @keyframes slideUp {
+            from {
+              transform: translateY(100%);
+            }
+            to {
+              transform: translateY(0);
+            }
+          }
+
+          .share-apps-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+          }
+
+          .share-app-btn {
+            padding: 8px 4px;
+          }
+
+          .share-app-btn .app-icon-wrapper {
+            width: 48px;
+            height: 48px;
+          }
+
+          .share-app-btn .app-icon-wrapper svg {
+            width: 24px;
+            height: 24px;
+          }
+        }
+
+        @media (min-width: 641px) {
+          .share-popup {
+            right: 0;
+            left: auto;
+          }
+        }
+
+        /* Ensure containers don't clip the popup */
+        .reading-card {
+          position: relative;
+          overflow: visible;
+        }
+
+        .reading-list-item {
+          position: relative;
+          overflow: visible;
+        }
+
+        @media (max-width: 480px) {
+          .share-btn {
+            padding: 4px 10px;
+            font-size: 10px;
+          }
+          .share-btn span {
+            display: none;
+          }
+        }
 
 
 

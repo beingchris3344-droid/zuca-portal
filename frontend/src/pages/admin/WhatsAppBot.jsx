@@ -4,7 +4,9 @@ import {
   Plus, Search, Filter, RefreshCw, Link as LinkIcon, 
   Unlink, QrCode, Send, Users, MessageCircle, 
   Settings, AlertCircle, CheckCircle, XCircle,
-  Loader, Copy, Check, Phone, Radio
+  Loader, Copy, Check, Phone, Radio, Globe,
+  ChevronDown, ChevronRight, Database, Hash,
+  UserPlus, UserMinus, List, Layers
 } from 'lucide-react';
 import { api } from '../../api';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +28,14 @@ export default function WhatsAppBot() {
   const [showQR, setShowQR] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [groups, setGroups] = useState([]);
+  const [activeGroups, setActiveGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [groupMessage, setGroupMessage] = useState('');
+  const [broadcastGroupMessage, setBroadcastGroupMessage] = useState('');
+  const [expandedGroupId, setExpandedGroupId] = useState(null);
+  const [groupMembers, setGroupMembers] = useState({});
+  const [showGroupMembers, setShowGroupMembers] = useState({});
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -41,16 +51,19 @@ export default function WhatsAppBot() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // ==================== FETCH STATUS ====================
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await api.get('/api/whatsapp/bot/status', { headers });
-      setStatus(response.data);
-      if (response.data.groupId) {
-        setGroupId(response.data.groupId);
-        setNewGroupId(response.data.groupId);
+      const response = await api.get('/api/admin/whatsapp/status', { headers });
+      setStatus(response.data.status || response.data);
+      if (response.data.status?.groupId || response.data.groupId) {
+        const gid = response.data.status?.groupId || response.data.groupId;
+        setGroupId(gid);
+        setNewGroupId(gid);
       }
-      if (response.data.qrCode) {
-        setQrCode(response.data.qrCode);
+      if (response.data.status?.qrCode || response.data.qrCode) {
+        const qr = response.data.status?.qrCode || response.data.qrCode;
+        setQrCode(qr);
         setShowQR(true);
       }
     } catch (error) {
@@ -59,19 +72,55 @@ export default function WhatsAppBot() {
     }
   }, []);
 
+  // ==================== FETCH GROUPS ====================
+  const fetchGroups = useCallback(async () => {
+    try {
+      const response = await api.get('/api/admin/whatsapp/groups', { headers });
+      if (response.data.success) {
+        const groupList = response.data.groups || [];
+        setGroups(groupList);
+        const active = groupList.filter(g => g.isActive) || [];
+        setActiveGroups(active);
+      }
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      showToast('Failed to fetch groups', 'error');
+    }
+  }, []);
+
+  // ==================== FETCH GROUP MEMBERS ====================
+  const fetchGroupMembers = async (groupId) => {
+    try {
+      const response = await api.get(`/api/admin/whatsapp/groups/${groupId}/members`, { headers });
+      if (response.data.success) {
+        setGroupMembers(prev => ({ ...prev, [groupId]: response.data.members }));
+      }
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      showToast('Failed to fetch group members', 'error');
+    }
+  };
+
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+    fetchGroups();
+    const statusInterval = setInterval(fetchStatus, 15000);
+    const groupsInterval = setInterval(fetchGroups, 30000);
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(groupsInterval);
+    };
+  }, [fetchStatus, fetchGroups]);
+
+  // ==================== ACTIONS ====================
 
   const handleLink = async () => {
     setLoading(true);
     try {
-      const response = await api.post('/api/whatsapp/bot/link', {}, { headers });
+      // Use /link endpoint to generate QR
+      const response = await api.post('/api/admin/whatsapp/link', {}, { headers });
       if (response.data.success) {
         showToast('WhatsApp linking initiated! Scan the QR code with your phone.');
-        setStatus(response.data.status);
         if (response.data.qrCode) {
           setQrCode(response.data.qrCode);
           setShowQR(true);
@@ -79,7 +128,7 @@ export default function WhatsAppBot() {
         setTimeout(fetchStatus, 2000);
       }
     } catch (error) {
-      showToast('Failed to link WhatsApp: ' + error.message, 'error');
+      showToast('Failed to link WhatsApp: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setLoading(false);
     }
@@ -90,13 +139,13 @@ export default function WhatsAppBot() {
     
     setLoading(true);
     try {
-      await api.post('/api/whatsapp/bot/unlink', {}, { headers });
+      await api.post('/api/admin/whatsapp/unlink', { force: true }, { headers });
       showToast('WhatsApp unlinked successfully');
       setQrCode(null);
       setShowQR(false);
       fetchStatus();
     } catch (error) {
-      showToast('Failed to unlink WhatsApp', 'error');
+      showToast('Failed to unlink WhatsApp: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setLoading(false);
     }
@@ -110,16 +159,59 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      await api.post('/api/whatsapp/bot/set-group', { groupId: newGroupId }, { headers });
-      showToast('Group ID set successfully!');
+      // Use /group endpoint (matches backend)
+      await api.post('/api/admin/whatsapp/group', { groupId: newGroupId }, { headers });
+      showToast('Default Group ID set successfully!');
       setGroupId(newGroupId);
       fetchStatus();
     } catch (error) {
-      showToast('Failed to set group ID: ' + error.message, 'error');
+      showToast('Failed to set group ID: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setActionLoading(false);
     }
   };
+
+  // ==================== GROUP MANAGEMENT ====================
+  const handleActivateGroup = async (groupId) => {
+    setActionLoading(true);
+    try {
+      await api.post('/api/admin/whatsapp/groups/activate', { groupId }, { headers });
+      showToast('Group activated successfully!');
+      fetchGroups();
+    } catch (error) {
+      showToast('Failed to activate group: ' + (error.response?.data?.error || error.message), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeactivateGroup = async (groupId) => {
+    setActionLoading(true);
+    try {
+      await api.post('/api/admin/whatsapp/groups/deactivate', { groupId }, { headers });
+      showToast('Group deactivated successfully!');
+      fetchGroups();
+    } catch (error) {
+      showToast('Failed to deactivate group: ' + (error.response?.data?.error || error.message), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRefreshGroups = async () => {
+    setActionLoading(true);
+    try {
+      await api.post('/api/admin/whatsapp/groups/refresh', {}, { headers });
+      showToast('Groups refreshed successfully!');
+      fetchGroups();
+    } catch (error) {
+      showToast('Failed to refresh groups', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ==================== SEND MESSAGES ====================
 
   const handleSendToGroup = async () => {
     if (!message.trim()) {
@@ -129,11 +221,34 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      await api.post('/api/whatsapp/bot/send-to-group', { message }, { headers });
-      showToast('Message sent to group!');
+      // Use /test-group endpoint
+      await api.post('/api/admin/whatsapp/test-group', { message }, { headers });
+      showToast('Message sent to default group!');
       setMessage('');
     } catch (error) {
-      showToast('Failed to send message: ' + error.message, 'error');
+      showToast('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendToSpecificGroup = async () => {
+    if (!selectedGroupId || !groupMessage.trim()) {
+      showToast('Please select a group and enter a message', 'error');
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      // Use /send endpoint with groupId
+      await api.post('/api/admin/whatsapp/send', { 
+        groupId: selectedGroupId, 
+        message: groupMessage 
+      }, { headers });
+      showToast('Message sent to group!');
+      setGroupMessage('');
+    } catch (error) {
+      showToast('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -147,7 +262,8 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      await api.post('/api/whatsapp/bot/send-to-user', { 
+      // Use /test-user endpoint
+      await api.post('/api/admin/whatsapp/test-user', { 
         phoneNumber, 
         message: personalMessage 
       }, { headers });
@@ -155,7 +271,7 @@ export default function WhatsAppBot() {
       setPhoneNumber('');
       setPersonalMessage('');
     } catch (error) {
-      showToast('Failed to send message: ' + error.message, 'error');
+      showToast('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -171,22 +287,53 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      const response = await api.post('/api/whatsapp/bot/broadcast', {
+      const response = await api.post('/api/admin/whatsapp/broadcast', {
         title: broadcastTitle,
         message: broadcastMessage
       }, { headers });
       
       if (response.data.success) {
-        showToast(`Broadcast sent to ${response.data.sent} users!`);
+        showToast(`Broadcast sent to ${response.data.sent || response.data.total} users!`);
         setBroadcastTitle('');
         setBroadcastMessage('');
       }
     } catch (error) {
-      showToast('Broadcast failed: ' + error.message, 'error');
+      showToast('Broadcast failed: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setActionLoading(false);
     }
   };
+
+  const handleBroadcastToGroups = async () => {
+    if (!broadcastGroupMessage.trim()) {
+      showToast('Please enter a message', 'error');
+      return;
+    }
+    
+    if (activeGroups.length === 0) {
+      showToast('No active groups to broadcast to. Please activate a group first.', 'error');
+      return;
+    }
+    
+    if (!confirm(`Send broadcast to ALL active groups? (${activeGroups.length} groups)`)) return;
+    
+    setActionLoading(true);
+    try {
+      const response = await api.post('/api/admin/whatsapp/broadcast-all', { 
+        message: broadcastGroupMessage 
+      }, { headers });
+      
+      const successCount = response.data.summary?.success || 0;
+      showToast(`Broadcast sent to ${successCount} groups!`);
+      setBroadcastGroupMessage('');
+    } catch (error) {
+      showToast('Broadcast failed: ' + (error.response?.data?.error || error.message), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ==================== UTILITY ====================
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -194,8 +341,17 @@ export default function WhatsAppBot() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const toggleGroupMembers = (groupId) => {
+    setShowGroupMembers(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+    if (!groupMembers[groupId]) {
+      fetchGroupMembers(groupId);
+    }
+  };
+
   const getStatusBadge = () => {
     if (!status) return { label: 'Unknown', color: '#64748b', bg: '#f1f5f9' };
+    
+    const connectionStatus = status.connectionStatus || status.status || 'disconnected';
     
     const statusMap = {
       'connected': { label: '✅ Connected', color: '#22c55e', bg: '#dcfce7' },
@@ -207,7 +363,7 @@ export default function WhatsAppBot() {
       'reconnecting': { label: '🔄 Reconnecting...', color: '#f59e0b', bg: '#fef3c7' }
     };
     
-    const info = statusMap[status.connectionStatus] || statusMap.disconnected;
+    const info = statusMap[connectionStatus] || statusMap.disconnected;
     return info;
   };
 
@@ -215,6 +371,7 @@ export default function WhatsAppBot() {
     <div className="whatsapp-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
+      {/* ==================== HEADER ==================== */}
       <div className="page-header">
         <div className="header-left">
           <div className="title-icon">
@@ -225,12 +382,14 @@ export default function WhatsAppBot() {
             <p className="subtitle">Manage WhatsApp integration for ZUCA</p>
           </div>
         </div>
-        <button className="btn-refresh" onClick={fetchStatus}>
-          <RefreshCw size={18} /> Refresh
-        </button>
+        <div className="header-actions">
+          <button className="btn-refresh" onClick={() => { fetchStatus(); fetchGroups(); }}>
+            <RefreshCw size={18} /> Refresh
+          </button>
+        </div>
       </div>
 
-      {/* Status Card */}
+      {/* ==================== STATUS CARD ==================== */}
       <div className="status-card">
         <div className="status-header">
           <div className="status-indicator">
@@ -251,7 +410,11 @@ export default function WhatsAppBot() {
         
         <div className="status-details">
           <div className="detail-item">
-            <span className="detail-label">Group ID:</span>
+            <span className="detail-label">Bot Number</span>
+            <span className="detail-value">{status?.botNumber || 'N/A'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Default Group ID</span>
             <span className="detail-value">
               {groupId || 'Not set'}
               {groupId && (
@@ -262,19 +425,31 @@ export default function WhatsAppBot() {
             </span>
           </div>
           <div className="detail-item">
-            <span className="detail-label">Reconnect Attempts:</span>
-            <span className="detail-value">{status?.reconnectAttempts || 0}</span>
+            <span className="detail-label">Connection Status</span>
+            <span className="detail-value">{status?.connectionStatus || 'Unknown'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Reconnect Attempts</span>
+            <span className="detail-value">{status?.reconnectAttempts || 0} / {status?.maxReconnectAttempts || 10}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Total Groups</span>
+            <span className="detail-value">{groups.length}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Active Groups</span>
+            <span className="detail-value">{activeGroups.length}</span>
           </div>
           {status?.lastError && (
             <div className="detail-item error">
-              <span className="detail-label">Last Error:</span>
+              <span className="detail-label">Last Error</span>
               <span className="detail-value">{status.lastError}</span>
             </div>
           )}
         </div>
 
         <div className="status-actions">
-          {!status?.connected && status?.connectionStatus !== 'connected' && (
+          {(!status?.connected || status?.connectionStatus === 'disconnected' || status?.connectionStatus === 'logged_out') && (
             <button className="btn-link" onClick={handleLink} disabled={loading}>
               {loading ? <Loader size={18} className="spin" /> : <LinkIcon size={18} />}
               Link WhatsApp
@@ -288,7 +463,7 @@ export default function WhatsAppBot() {
         </div>
       </div>
 
-      {/* QR Code Display */}
+      {/* ==================== QR CODE DISPLAY ==================== */}
       {showQR && qrCode && (
         <div className="qr-section">
           <div className="qr-container">
@@ -306,12 +481,86 @@ export default function WhatsAppBot() {
         </div>
       )}
 
+      {/* ==================== GROUPS MANAGEMENT ==================== */}
+      <div className="card full-width">
+        <div className="card-header">
+          <Layers size={18} />
+          <h3>Group Management</h3>
+          <span className="badge">{groups.length} groups • {activeGroups.length} active</span>
+          <button className="btn-refresh-small" onClick={handleRefreshGroups} disabled={actionLoading}>
+            {actionLoading ? <Loader size={14} className="spin" /> : <RefreshCw size={14} />}
+            Refresh
+          </button>
+        </div>
+        <div className="card-body">
+          {groups.length === 0 ? (
+            <div className="empty-state">
+              <MessageCircle size={48} />
+              <p>No groups found. Link WhatsApp first to see groups.</p>
+            </div>
+          ) : (
+            <div className="groups-grid">
+              {groups.map(group => (
+                <div key={group.id} className={`group-item ${group.isActive ? 'active' : 'inactive'}`}>
+                  <div className="group-info">
+                    <div className="group-name">
+                      {group.name}
+                      {group.isCommunity && <span className="community-badge">Community</span>}
+                    </div>
+                    <div className="group-details">
+                      <span className="group-id">{group.id}</span>
+                      <span className="group-members">{group.participants} members</span>
+                      {group.description && (
+                        <span className="group-desc">{group.description}</span>
+                      )}
+                    </div>
+                    <button 
+                      className="btn-toggle-members"
+                      onClick={() => toggleGroupMembers(group.id)}
+                    >
+                      {showGroupMembers[group.id] ? 'Hide Members' : 'Show Members'}
+                    </button>
+                    {showGroupMembers[group.id] && groupMembers[group.id] && (
+                      <div className="group-members-list">
+                        {groupMembers[group.id].slice(0, 20).map(member => (
+                          <div key={member.id} className="member-item">
+                            <span>{member.name || member.id}</span>
+                          </div>
+                        ))}
+                        {groupMembers[group.id].length > 20 && (
+                          <div className="member-more">... and {groupMembers[group.id].length - 20} more</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="group-actions">
+                    <span className={`group-status ${group.isActive ? 'active' : 'inactive'}`}>
+                      {group.isActive ? '✅ Active' : '⬜ Inactive'}
+                    </span>
+                    {group.isActive ? (
+                      <button className="btn-deactivate" onClick={() => handleDeactivateGroup(group.id)}>
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button className="btn-activate" onClick={() => handleActivateGroup(group.id)}>
+                        Activate
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ==================== CONTENT GRID ==================== */}
       <div className="content-grid">
-        {/* Group ID Management */}
+        {/* ===== Set Default Group ID ===== */}
         <div className="card">
           <div className="card-header">
-            <Settings size={18} />
-            <h3>Group ID Management</h3>
+            <Hash size={18} />
+            <h3>Default Group ID</h3>
           </div>
           <div className="card-body">
             <div className="input-group">
@@ -322,21 +571,21 @@ export default function WhatsAppBot() {
                 onChange={(e) => setNewGroupId(e.target.value)}
               />
               <button className="btn-set" onClick={handleSetGroup} disabled={actionLoading}>
-                {actionLoading ? <Loader size={16} className="spin" /> : 'Set Group ID'}
+                {actionLoading ? <Loader size={16} className="spin" /> : 'Set'}
               </button>
             </div>
             <div className="hint">
               <AlertCircle size={14} />
-              <span>Group ID format: [number]@g.us (e.g., 120363428001788260@g.us)</span>
+              <span>Format: [number]@g.us (e.g., 120363428001788260@g.us)</span>
             </div>
           </div>
         </div>
 
-        {/* Send to Group */}
+        {/* ===== Send to Default Group ===== */}
         <div className="card">
           <div className="card-header">
             <Send size={18} />
-            <h3>Send to Group</h3>
+            <h3>Send to Default Group</h3>
           </div>
           <div className="card-body">
             <textarea
@@ -347,12 +596,44 @@ export default function WhatsAppBot() {
             />
             <button className="btn-send" onClick={handleSendToGroup} disabled={actionLoading || !message.trim()}>
               {actionLoading ? <Loader size={16} className="spin" /> : <Send size={16} />}
-              Send to Group
+              Send to Default Group
             </button>
           </div>
         </div>
 
-        {/* Send to User */}
+        {/* ===== Send to Specific Group ===== */}
+        <div className="card">
+          <div className="card-header">
+            <Globe size={18} />
+            <h3>Send to Specific Group</h3>
+          </div>
+          <div className="card-body">
+            <select 
+              value={selectedGroupId} 
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              className="group-select"
+            >
+              <option value="">Select a group...</option>
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>
+                  {group.name} ({group.participants} members) {group.isActive ? '✅' : '⬜'}
+                </option>
+              ))}
+            </select>
+            <textarea
+              placeholder="Type your message here..."
+              value={groupMessage}
+              onChange={(e) => setGroupMessage(e.target.value)}
+              rows="3"
+            />
+            <button className="btn-send" onClick={handleSendToSpecificGroup} disabled={actionLoading || !selectedGroupId || !groupMessage.trim()}>
+              {actionLoading ? <Loader size={16} className="spin" /> : <Send size={16} />}
+              Send to Selected Group
+            </button>
+          </div>
+        </div>
+
+        {/* ===== Send to User ===== */}
         <div className="card">
           <div className="card-header">
             <Phone size={18} />
@@ -378,8 +659,8 @@ export default function WhatsAppBot() {
           </div>
         </div>
 
-        {/* Broadcast */}
-        <div className="card full-width">
+        {/* ===== Broadcast to All Users ===== */}
+        <div className="card">
           <div className="card-header">
             <Users size={18} />
             <h3>Broadcast to All Users</h3>
@@ -387,7 +668,7 @@ export default function WhatsAppBot() {
           <div className="card-body">
             <div className="warning-box">
               <AlertCircle size={18} />
-              <span>This will send a message to ALL users with phone numbers. Use with caution!</span>
+              <span>This will send to ALL users with phone numbers!</span>
             </div>
             <input
               type="text"
@@ -403,12 +684,38 @@ export default function WhatsAppBot() {
             />
             <button className="btn-broadcast" onClick={handleBroadcast} disabled={actionLoading || !broadcastTitle || !broadcastMessage}>
               {actionLoading ? <Loader size={16} className="spin" /> : <Radio size={16} />}
-              Send Broadcast
+              Broadcast to All Users
+            </button>
+          </div>
+        </div>
+
+        {/* ===== Broadcast to All Active Groups ===== */}
+        <div className="card">
+          <div className="card-header">
+            <Radio size={18} />
+            <h3>Broadcast to Groups</h3>
+            <span className="badge">{activeGroups.length} active</span>
+          </div>
+          <div className="card-body">
+            <div className="warning-box">
+              <AlertCircle size={18} />
+              <span>This will send to ALL {activeGroups.length} active groups!</span>
+            </div>
+            <textarea
+              placeholder="Broadcast message..."
+              value={broadcastGroupMessage}
+              onChange={(e) => setBroadcastGroupMessage(e.target.value)}
+              rows="4"
+            />
+            <button className="btn-broadcast" onClick={handleBroadcastToGroups} disabled={actionLoading || !broadcastGroupMessage.trim() || activeGroups.length === 0}>
+              {actionLoading ? <Loader size={16} className="spin" /> : <Radio size={16} />}
+              Broadcast to {activeGroups.length} Groups
             </button>
           </div>
         </div>
       </div>
 
+      {/* ==================== STYLES ==================== */}
       <style>{`
         .whatsapp-container {
           padding: 24px;
@@ -435,6 +742,11 @@ export default function WhatsAppBot() {
           display: flex;
           align-items: center;
           gap: 16px;
+        }
+
+        .header-actions {
+          display: flex;
+          gap: 8px;
         }
 
         .title-icon {
@@ -527,7 +839,7 @@ export default function WhatsAppBot() {
 
         .status-details {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
           gap: 12px;
           margin: 16px 0;
           padding: 16px;
@@ -545,6 +857,7 @@ export default function WhatsAppBot() {
           font-size: 12px;
           color: #94a3b8;
           text-transform: uppercase;
+          font-weight: 600;
         }
 
         .detail-value {
@@ -554,6 +867,7 @@ export default function WhatsAppBot() {
           display: flex;
           align-items: center;
           gap: 8px;
+          word-break: break-all;
         }
 
         .detail-item.error .detail-value {
@@ -566,9 +880,11 @@ export default function WhatsAppBot() {
           cursor: pointer;
           color: #94a3b8;
           padding: 4px;
+          border-radius: 4px;
         }
 
         .copy-btn:hover {
+          background: #f1f5f9;
           color: #0f172a;
         }
 
@@ -818,6 +1134,235 @@ export default function WhatsAppBot() {
           margin-bottom: 16px;
         }
 
+        .groups-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 12px;
+        }
+
+        .group-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 14px 18px;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          background: white;
+          transition: all 0.2s;
+          gap: 12px;
+        }
+
+        .group-item.active {
+          border-color: #22c55e;
+          background: #f0fdf4;
+        }
+
+        .group-item.inactive {
+          border-color: #e2e8f0;
+          background: #f8fafc;
+        }
+
+        .group-item:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .group-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .group-name {
+          font-weight: 600;
+          color: #0f172a;
+          margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .community-badge {
+          font-size: 10px;
+          background: #dbeafe;
+          color: #2563eb;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-weight: 500;
+        }
+
+        .group-details {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          font-size: 12px;
+          color: #64748b;
+        }
+
+        .group-id {
+          font-family: monospace;
+          background: #f1f5f9;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+        }
+
+        .group-members {
+          color: #64748b;
+        }
+
+        .group-desc {
+          color: #94a3b8;
+          font-style: italic;
+          width: 100%;
+        }
+
+        .group-actions {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+
+        .group-status {
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .group-status.active {
+          color: #22c55e;
+        }
+
+        .group-status.inactive {
+          color: #94a3b8;
+        }
+
+        .btn-activate {
+          padding: 4px 14px;
+          background: #22c55e;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+
+        .btn-activate:hover {
+          background: #16a34a;
+        }
+
+        .btn-deactivate {
+          padding: 4px 14px;
+          background: #f1f5f9;
+          color: #64748b;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+
+        .btn-deactivate:hover {
+          background: #e2e8f0;
+        }
+
+        .btn-toggle-members {
+          margin-top: 6px;
+          padding: 2px 12px;
+          background: none;
+          border: none;
+          color: #3b82f6;
+          font-size: 12px;
+          cursor: pointer;
+          text-decoration: underline;
+        }
+
+        .btn-toggle-members:hover {
+          color: #2563eb;
+        }
+
+        .group-members-list {
+          margin-top: 8px;
+          max-height: 200px;
+          overflow-y: auto;
+          background: #f8fafc;
+          border-radius: 8px;
+          padding: 8px 12px;
+        }
+
+        .member-item {
+          padding: 4px 0;
+          font-size: 13px;
+          color: #0f172a;
+          border-bottom: 1px solid #f1f5f9;
+        }
+
+        .member-item:last-child {
+          border-bottom: none;
+        }
+
+        .member-more {
+          font-size: 12px;
+          color: #94a3b8;
+          padding-top: 4px;
+        }
+
+        .badge {
+          background: #f1f5f9;
+          padding: 2px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          color: #64748b;
+          margin-left: auto;
+        }
+
+        .group-select {
+          width: 100%;
+          padding: 10px 14px;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 14px;
+          outline: none;
+          margin-bottom: 12px;
+          background: white;
+        }
+
+        .group-select:focus {
+          border-color: #25D366;
+        }
+
+        .btn-refresh-small {
+          padding: 4px 12px;
+          background: #f1f5f9;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+        }
+
+        .btn-refresh-small:hover {
+          background: #e2e8f0;
+        }
+
+        .btn-refresh-small:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: #94a3b8;
+        }
+
+        .empty-state svg {
+          margin-bottom: 12px;
+          color: #cbd5e1;
+        }
+
         .spin {
           animation: spin 1s linear infinite;
         }
@@ -838,6 +1383,7 @@ export default function WhatsAppBot() {
           font-size: 14px;
           max-width: 90%;
           text-align: center;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         .toast.success { background: #22c55e; }
@@ -851,6 +1397,11 @@ export default function WhatsAppBot() {
           .status-details { grid-template-columns: 1fr; }
           .status-header { flex-direction: column; align-items: flex-start; }
           .page-header { flex-direction: column; align-items: flex-start; }
+          .groups-grid { grid-template-columns: 1fr; }
+          .group-item { flex-direction: column; align-items: stretch; }
+          .group-actions { flex-direction: row; align-items: center; justify-content: space-between; }
+          .header-actions { width: 100%; }
+          .btn-refresh { width: 100%; justify-content: center; }
         }
       `}</style>
     </div>

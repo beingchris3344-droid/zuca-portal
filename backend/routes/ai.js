@@ -497,7 +497,7 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "AI service temporarily unavailable.",
-      reply: "Tumsifu Yesu Kristu! 🙏 I'm having trouble. Please try again."
+      reply: " I'm having trouble. Please try again."
     });
   }
 });

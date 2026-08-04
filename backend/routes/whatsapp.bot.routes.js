@@ -240,7 +240,7 @@ router.post('/broadcast', authenticate, requireAdmin, async (req, res) => {
       });
     }
 
-    const formattedMessage = `📢 *${title}*\n\n${message}\n\n_Tumsifu Yesu Kristu! 🙏_`;
+    const formattedMessage = `📢 *${title}*\n\n${message}\n\n_Tumsifu Y! 🙏_`;
     
     let sent = 0;
     const failed = [];
@@ -341,7 +341,7 @@ router.post('/ai', authenticate, requireAdmin, async (req, res) => {
     }
     
     if (!finalReply.includes('Tumsifu Yesu Kristu')) {
-      finalReply += '\n\n_Tumsifu Yesu Kristu! 🙏_';
+      finalReply += '\n\n__';
     }
     
     res.json({ 

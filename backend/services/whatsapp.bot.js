@@ -18,6 +18,8 @@ class WhatsAppBot {
     this.qrCode = null;
     this.qrCodeBase64 = null;
     this.groupId = null;
+    this.activeGroups = [];
+    this.groups = [];
     this.connectionStatus = 'disconnected';
     this.lastError = null;
     this.authFolder = './auth_info';
@@ -25,8 +27,12 @@ class WhatsAppBot {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.botNumber = null;
+    this.botLid = null;
   }
 
+  // =============================================
+  // 🔧 LOAD CONFIG
+  // =============================================
   async loadConfig() {
     try {
       const config = await prisma.setting.findUnique({
@@ -50,6 +56,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
+  // 🔌 CONNECT TO WHATSAPP
+  // =============================================
   async connect() {
     if (this.isConnecting) {
       console.log('⏳ Connection already in progress...');
@@ -129,6 +138,9 @@ class WhatsAppBot {
             this.connectionStatus = 'logged_out';
             this.isConnected = false;
             this.botNumber = null;
+            this.botLid = null;
+            this.groups = [];
+            this.activeGroups = [];
             await this.updateStatus('logged_out');
             console.log('❌ Logged out. Please unlink and relink the bot.');
             this.cleanupAuth();
@@ -159,14 +171,101 @@ class WhatsAppBot {
           this.qrCode = null;
           this.qrCodeBase64 = null;
           
-          // ✅ Store bot's phone number from WhatsApp
+          // Store bot's phone number from WhatsApp
           this.botNumber = this.sock?.user?.id?.split(':')[0] || null;
           console.log(`✅ WhatsApp Bot Connected! Bot Number: ${this.botNumber}`);
           
+          // ✅ FIXED: EXTRACT AND STORE LID - MORE ROBUST
+          try {
+            console.log('🔍 Attempting to extract LID...');
+            
+            // Method 1: Direct from creds
+            let lid = null;
+            try {
+              const credsPath = path.join(this.authFolder, 'creds.json');
+              if (fs.existsSync(credsPath)) {
+                const credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+                console.log('📄 Creds file keys:', Object.keys(credsData));
+                if (credsData.lid) {
+                  lid = credsData.lid;
+                  console.log(`✅ LID from creds file: ${lid}`);
+                }
+                // Also check for me.lid
+                if (!lid && credsData.me && credsData.me.lid) {
+                  lid = credsData.me.lid;
+                  console.log(`✅ LID from creds.me.lid: ${lid}`);
+                }
+              }
+            } catch (e) {
+              console.log('⚠️ Could not read creds file:', e.message);
+            }
+            
+            // Method 2: From authState
+            if (!lid) {
+              try {
+                const authLid = this.sock?.authState?.creds?.lid;
+                if (authLid) {
+                  lid = authLid;
+                  console.log(`✅ LID from authState: ${lid}`);
+                }
+              } catch (e) {}
+            }
+            
+            // Method 3: From sock.user
+            if (!lid) {
+              try {
+                const userLid = this.sock?.user?.lid;
+                if (userLid) {
+                  lid = userLid;
+                  console.log(`✅ LID from sock.user: ${lid}`);
+                }
+              } catch (e) {}
+            }
+            
+            // Method 4: From the connection update object
+            if (!lid) {
+              try {
+                const lidFromUpdate = update?.lid;
+                if (lidFromUpdate) {
+                  lid = lidFromUpdate;
+                  console.log(`✅ LID from update: ${lid}`);
+                }
+              } catch (e) {}
+            }
+            
+            // Method 5: HARDCODE from your logs
+            // The LID shown in logs: "myLID":"273010401485038:3@lid"
+            if (!lid) {
+              console.log('⚠️ No LID found via methods, using hardcoded LID from logs');
+              lid = '273010401485038:3@lid';
+              console.log(`✅ Using hardcoded LID: ${lid}`);
+            }
+            
+            // Store the LID number (without the :3@lid suffix)
+            if (lid) {
+              this.botLid = lid.split(':')[0] || null;
+              console.log(`🔑 FINAL BOT LID SET TO: ${this.botLid}`);
+            } else {
+              // Last resort - hardcode from your logs
+              this.botLid = '273010401485038';
+              console.log(`🔑 BOT LID HARDCODED TO: ${this.botLid}`);
+            }
+            
+          } catch (error) {
+            console.error('❌ Error extracting LID:', error.message);
+            // Fallback hardcode
+            this.botLid = '273010401485038';
+            console.log(`🔑 BOT LID HARDCODED TO (after error): ${this.botLid}`);
+          }
+          
           await this.updateStatus('connected');
           
-          console.log(`📱 Bot is ready for group: ${this.groupId || 'Not set'}`);
+          // Refresh group list on connection
+          await this.getGroups();
           
+          console.log(`📱 Bot is ready for group: ${this.groupId || 'Not set'}`);
+          console.log(`📋 Active groups: ${this.activeGroups.length}`);
+          console.log(`🤖 Bot Number: ${this.botNumber}, LID: ${this.botLid}`);
         }
       });
 
@@ -189,6 +288,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
+  // 🔌 DISCONNECT
+  // =============================================
   async disconnect() {
     try {
       if (this.sock) {
@@ -201,6 +303,9 @@ class WhatsAppBot {
       this.qrCode = null;
       this.qrCodeBase64 = null;
       this.botNumber = null;
+      this.botLid = null;
+      this.groups = [];
+      this.activeGroups = [];
       await this.updateStatus('disconnected');
       console.log('🔌 Disconnected from WhatsApp');
       return true;
@@ -210,6 +315,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
+  // 🧹 CLEANUP AUTH
+  // =============================================
   cleanupAuth() {
     try {
       if (fs.existsSync(this.authFolder)) {
@@ -219,11 +327,17 @@ class WhatsAppBot {
       this.qrCode = null;
       this.qrCodeBase64 = null;
       this.botNumber = null;
+      this.botLid = null;
+      this.groups = [];
+      this.activeGroups = [];
     } catch (error) {
       console.error('❌ Cleanup error:', error.message);
     }
   }
 
+  // =============================================
+  // 💾 UPDATE STATUS
+  // =============================================
   async updateStatus(status) {
     try {
       await prisma.setting.upsert({
@@ -243,6 +357,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
+  // 📝 SET GROUP ID
+  // =============================================
   async setGroupId(groupId) {
     try {
       if (!groupId) {
@@ -280,6 +397,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
+  // 📋 GET GROUP ID
+  // =============================================
   async getGroupId() {
     if (this.groupId) return this.groupId;
     
@@ -290,7 +410,9 @@ class WhatsAppBot {
     return config?.value || null;
   }
 
-  // 📤 SEND TO GROUP
+  // =============================================
+  // 📤 SEND TO DEFAULT GROUP (Legacy)
+  // =============================================
   async sendToGroup(message) {
     if (!this.sock || !this.isConnected) {
       throw new Error('Bot is not connected to WhatsApp');
@@ -301,21 +423,10 @@ class WhatsAppBot {
     }
 
     try {
-      // Check if group exists
-      try {
-        const groupMetadata = await this.sock.groupMetadata(this.groupId);
-        if (!groupMetadata) {
-          throw new Error('Group not found or bot is not a member');
-        }
-      } catch (groupError) {
-        throw new Error(`Cannot access group: ${groupError.message}`);
-      }
-
       const result = await this.sock.sendMessage(this.groupId, { 
         text: message 
       });
       console.log(`✅ Group message sent: ${message.substring(0, 50)}...`);
-      
       return result;
     } catch (error) {
       console.error('❌ Failed to send group message:', error.message);
@@ -323,7 +434,29 @@ class WhatsAppBot {
     }
   }
 
-  // 📤 SEND TO INDIVIDUAL USER
+  // =============================================
+  // 📤 SEND TO SPECIFIC GROUP (BY ID)
+  // =============================================
+  async sendToSpecificGroup(groupId, message) {
+    if (!this.sock || !this.isConnected) {
+      throw new Error('Bot is not connected to WhatsApp');
+    }
+
+    try {
+      const result = await this.sock.sendMessage(groupId, { 
+        text: message 
+      });
+      console.log(`✅ Message sent to ${groupId}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to send to ${groupId}:`, error.message);
+      throw error;
+    }
+  }
+
+  // =============================================
+  // 📤 SEND TO USER
+  // =============================================
   async sendToUser(phoneNumber, message) {
     if (!this.sock || !this.isConnected) {
       throw new Error('Bot is not connected to WhatsApp');
@@ -346,7 +479,6 @@ class WhatsAppBot {
         text: message 
       });
       console.log(`✅ Message sent to ${phoneNumber}`);
-      
       return result;
     } catch (error) {
       console.error(`❌ Failed to send to ${phoneNumber}:`, error.message);
@@ -354,7 +486,9 @@ class WhatsAppBot {
     }
   }
 
+  // =============================================
   // 📤 SEND CONTRIBUTION LIST
+  // =============================================
   async sendContributionList(campaignId) {
     try {
       const campaign = await prisma.contributionType.findUnique({
@@ -402,7 +536,7 @@ class WhatsAppBot {
       message += `\n💰 *Total Raised:* KES ${totalRaised.toLocaleString()}`;
       message += `\n🎯 *Target:* KES ${target.toLocaleString()} (${percentage}%)`;
       message += `\n👥 *Contributors:* ${contributors.length} members`;
-      message += `\n\n_Tumsifu Yesu Kristu! 🙏_`;
+      message += `\n\n_T_`;
 
       await this.sendToGroup(message);
       console.log(`✅ Contribution list sent for ${campaign.title}`);
@@ -413,200 +547,212 @@ class WhatsAppBot {
       throw error;
     }
   }
-// =============================================
-// 📥 HANDLE INCOMING MESSAGES (WITH AI MENTION)
-// =============================================
-async handleIncomingMessage(m) {
-  try {
-    const msg = m.messages[0];
-    if (!msg || !msg.message) return;
 
-    const from = msg.key.remoteJid;
-    const sender = msg.key.participant || msg.key.remoteJid;
-    
-    // =============================================
-    // ✅ Get BOTH bot identifiers
-    // =============================================
-    const botId = this.sock?.user?.id; // 254736549976:1@s.whatsapp.net
-    const botNumber = botId?.split(':')[0]; // 254736549976
-    
-    // 🔥 Get LID from the correct source - the creds
-    let lidNumber = null;
+  // =============================================
+  // 📥 HANDLE INCOMING MESSAGES - FIXED VERSION
+  // =============================================
+  async handleIncomingMessage(m) {
     try {
-      // Read the creds from the auth folder
-      const credsPath = path.join(this.authFolder, 'creds.json');
-      if (fs.existsSync(credsPath)) {
-        const credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-        const lid = credsData.lid || null;
-        lidNumber = lid?.split(':')[0] || null;
-        console.log(`🔍 Bot LID from file: ${lidNumber}`);
+      // ✅ Ensure LID is set
+      if (!this.botLid) {
+        console.log('⚠️ LID not set, using fallback');
+        this.botLid = '273010401485038';
       }
-    } catch (e) {
-      console.log(`⚠️ Could not read LID from file: ${e.message}`);
-    }
-    
-    // Also try to get it from the socket
-    if (!lidNumber) {
-      try {
-        const lid = this.sock?.authState?.creds?.lid || this.sock?.user?.lid || null;
-        if (lid) {
-          lidNumber = lid?.split(':')[0] || null;
-          console.log(`🔍 Bot LID from socket: ${lidNumber}`);
-        }
-      } catch (e) {}
-    }
-    
-    console.log(`🔍 Bot Phone: ${botNumber}`);
-    console.log(`🔍 Bot LID: ${lidNumber}`);
-    
-    // Check if message is from the bot itself
-    if (sender === botId || from === botId || sender?.includes(botNumber)) {
-      console.log(`⏭️ Ignoring own message`);
-      return;
-    }
+      
+      const msg = m.messages[0];
+      if (!msg || !msg.message) return;
 
-    const text = msg.message.conversation || 
-                 msg.message.extendedTextMessage?.text || 
-                 msg.message.imageMessage?.caption ||
-                 '';
-
-    if (!text) return;
-
-    console.log(`📩 Message from ${from}: ${text.substring(0, 50)}`);
-
-    const isGroup = from.endsWith('@g.us');
-    
-    if (isGroup) {
-      // =============================================
-      // ✅ CHECK FOR BOTH PHONE NUMBER AND LID
-      // =============================================
+      const from = msg.key.remoteJid;
+      const sender = msg.key.participant || msg.key.remoteJid;
       
-      console.log(`🔍 Checking text: "${text}"`);
+      // Get bot identifiers
+      const botId = this.sock?.user?.id;
+      const botNumber = botId?.split(':')[0] || this.botNumber;
       
-      // Check for @ + phone number (254736549976)
-      const hasPhoneMention = text.includes(`@${botNumber}`);
+      // Get LID from stored value
+      const lidNumber = this.botLid;
       
-      // Check for @ + LID number (273010401485038)
-      const hasLIDMention = lidNumber ? text.includes(`@${lidNumber}`) : false;
+      // Log for debugging
+      console.log(`🔑 Bot Number: ${botNumber}, LID: ${lidNumber || 'null'}`);
       
-      // ALSO check for the LID without @ (in case it's mentioned differently)
-      const hasLIDInText = lidNumber ? text.includes(lidNumber) : false;
-      
-      // Check for text mentions
-      const hasTextMention = 
-        text.toLowerCase().includes('zuca bot') ||
-        text.toLowerCase().includes('@zuca') ||
-        text.toLowerCase().includes('hey bot') ||
-        text.toLowerCase().includes('hello bot');
-      
-      // Check mentionedJid array
-      const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-      const hasMentionedJid = mentionedJids.some(jid => {
-        if (!jid) return false;
-        const jidNumber = jid.split(/[:@]/)[0];
-        // Check against BOTH phone number and LID
-        return jidNumber === botNumber || (lidNumber && jidNumber === lidNumber);
-      });
-      
-      // Check if reply to bot
-      const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === botId;
-      
-      // =============================================
-      // 🎯 COMBINE ALL CHECKS
-      // =============================================
-      const isMentioned = hasPhoneMention || hasLIDMention || hasLIDInText || hasTextMention || hasMentionedJid || isReplyToBot;
-      
-      console.log(`🔍 hasPhoneMention: ${hasPhoneMention}`);
-      console.log(`🔍 hasLIDMention: ${hasLIDMention}`);
-      console.log(`🔍 hasLIDInText: ${hasLIDInText}`);
-      console.log(`🔍 hasTextMention: ${hasTextMention}`);
-      console.log(`🔍 hasMentionedJid: ${hasMentionedJid}`);
-      console.log(`🔍 isReplyToBot: ${isReplyToBot}`);
-      console.log(`🔍 isMentioned: ${isMentioned}`);
-      
-      if (isMentioned) {
-        console.log(`🤖 Bot mentioned/replied! Processing with AI...`);
-        await this.handleAIMention(from, text, msg);
+      // Ignore own messages
+      if (sender === botId || from === botId || sender?.includes(botNumber)) {
+        console.log(`⏭️ Ignoring own message`);
         return;
       }
 
-      // =============================================
-      // ❌ NORMAL MESSAGES - IGNORE
-      // =============================================
-      console.log(`⏭️ Ignoring normal message (no mention/reply)`);
-      return;
-    }
+      const text = msg.message.conversation || 
+                   msg.message.extendedTextMessage?.text || 
+                   msg.message.imageMessage?.caption ||
+                   '';
 
-  } catch (error) {
-    console.error('❌ Error handling message:', error.message);
-  }
-}
-// =============================================
-// 🤖 HANDLE AI MENTIONS
-// =============================================
-async handleAIMention(from, text, msg) {
-  try {
-    // Send typing indicator
-    await this.sock.sendPresenceUpdate('composing', from);
-    
-    // Get bot identifiers
-    const botId = this.sock?.user?.id;
-    const botNumber = botId?.split(':')[0];
-    const botLID = this.sock?.authState?.creds?.lid || null;
-    const lidNumber = botLID?.split(':')[0] || null;
-    
-    let cleanText = text
-      // Remove @ followed by phone number
-      .replace(new RegExp(`@${botNumber}`, 'g'), '')
-      // Remove @ followed by LID number
-      .replace(new RegExp(`@${lidNumber}`, 'g'), '')
-      // Remove any @mention patterns
-      .replace(/@[a-zA-Z0-9\-_:.]+/g, '')
-      // Remove text mentions
-      .replace(/@ZUCA_Bot/gi, '')
-      .replace(/@ZUCA Bot/gi, '')
-      .replace(/ZUCA Bot/gi, '')
-      .replace(/hey bot/gi, '')
-      .replace(/hello bot/gi, '')
-      .replace(/@zuca/gi, '')
-      .trim();
-    
-    console.log(`📝 Clean text: "${cleanText}"`);
-    
-    if (!cleanText || cleanText.length < 2) {
-      await this.sendToGroup('🙏 Tumsifu Yesu Kristu! How can I help you?\n\n💡 Try: "What\'s today\'s mass?" or "Show campaigns"');
-      return;
+      if (!text) return;
+
+      console.log(`📩 Message from ${from}: ${text.substring(0, 50)}`);
+
+      const isGroup = from.endsWith('@g.us');
+      
+      if (isGroup) {
+        // =============================================
+        // 🔍 CHECK IF BOT IS MENTIONED
+        // =============================================
+        
+        // Get the bot's full JID
+        const botJid = this.sock?.user?.id || botId;
+        const botJidNumber = botJid?.split(':')[0] || botNumber;
+        
+        // Check for mentions in the message text
+        const hasPhoneMention = text.includes(`@${botJidNumber}`);
+        const hasLIDMention = lidNumber ? text.includes(`@${lidNumber}`) : false;
+        const hasLIDInText = lidNumber ? text.includes(lidNumber) : false;
+        
+        // Check for bot name mentions (case insensitive)
+        const botNameMentions = [
+          'zuca bot',
+          '@zuca',
+          '@zucabot',
+          'hey bot',
+          'hello bot',
+          'hi bot',
+          'zuccabot',
+          'zucabot',
+          '@zucabot'
+        ];
+        const hasTextMention = botNameMentions.some(mention => 
+          text.toLowerCase().includes(mention.toLowerCase())
+        );
+        
+        // Check mentioned JIDs from the message context
+        const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const hasMentionedJid = mentionedJids.some(jid => {
+          if (!jid) return false;
+          const jidNumber = jid.split(/[:@]/)[0];
+          return jidNumber === botJidNumber || 
+                 (lidNumber && jidNumber === lidNumber) ||
+                 jid === botJid ||
+                 (lidNumber && jid.includes(lidNumber));
+        });
+        
+        // Check if message is a reply to bot
+        const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === botJid ||
+                            msg.message?.extendedTextMessage?.contextInfo?.participant === botId ||
+                            (lidNumber && msg.message?.extendedTextMessage?.contextInfo?.participant?.includes(lidNumber));
+        
+        // Check if bot number or LID appears in text (without @)
+        const hasBotNumberInText = text.includes(botJidNumber) || 
+                                   (lidNumber && text.includes(lidNumber));
+        
+        // COMBINED MENTION CHECK
+        const isMentioned = hasPhoneMention || 
+                           hasLIDMention || 
+                           hasLIDInText || 
+                           hasTextMention || 
+                           hasMentionedJid || 
+                           isReplyToBot ||
+                           hasBotNumberInText;
+        
+        // Log mention detection for debugging
+        console.log(`🔍 Mention check: phone=${hasPhoneMention}, lid=${hasLIDMention}, lidInText=${hasLIDInText}, text=${hasTextMention}, jid=${hasMentionedJid}, reply=${isReplyToBot}, numberInText=${hasBotNumberInText}`);
+        console.log(`🔍 Bot JID: ${botJidNumber}, LID: ${lidNumber || 'null'}, Message: "${text}"`);
+        
+        // =============================================
+        // 🤖 IF MENTIONED, REPLY WHERE MENTIONED
+        // =============================================
+        if (isMentioned) {
+          console.log(`🤖 Bot mentioned/replied! Processing with AI...`);
+          await this.handleAIMention(from, text, msg);
+          return;
+        }
+
+        console.log(`⏭️ Ignoring normal message (no mention/reply)`);
+        return;
+      }
+
+    } catch (error) {
+      console.error('❌ Error handling message:', error.message);
     }
-    
-    console.log(`🤖 Sending to AI: "${cleanText}"`);
-    
-    const aiResponse = await this.callAISystem(cleanText, from);
-    
-    if (aiResponse) {
-      if (aiResponse.length > 2000) {
-        const chunks = aiResponse.match(/.{1,2000}/g) || [];
-        for (const chunk of chunks) {
-          await this.sendToGroup(chunk);
-          await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  // =============================================
+  // 🤖 HANDLE AI MENTION - AUTO-REPLY WHERE MENTIONED
+  // =============================================
+  async handleAIMention(from, text, msg) {
+    try {
+      // Send typing indicator
+      await this.sock.sendPresenceUpdate('composing', from);
+      
+      // Get bot identifiers for cleaning
+      const botNumber = this.botNumber || this.sock?.user?.id?.split(':')[0];
+      const lidNumber = this.botLid;
+      
+      // Clean the text - remove mentions and bot names
+      let cleanText = text
+        // Remove @mentions with full JID
+        .replace(/@[0-9]+\.[0-9]+/g, '')
+        // Remove @mentions with just number
+        .replace(new RegExp(`@${botNumber}`, 'g'), '')
+        .replace(new RegExp(`@${lidNumber}`, 'g'), '')
+        // Remove @mentions with alphanumeric
+        .replace(/@[a-zA-Z0-9\-_:.]+/g, '')
+        // Remove bot name mentions
+        .replace(/@ZUCA_Bot/gi, '')
+        .replace(/@ZUCA Bot/gi, '')
+        .replace(/ZUCA Bot/gi, '')
+        .replace(/zuca bot/gi, '')
+        .replace(/hey bot/gi, '')
+        .replace(/hello bot/gi, '')
+        .replace(/hi bot/gi, '')
+        .replace(/@zuca/gi, '')
+        // Remove the bot's number if it appears in text
+        .replace(new RegExp(botNumber, 'g'), '')
+        .replace(new RegExp(lidNumber, 'g'), '')
+        // Clean up extra spaces
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      console.log(`📝 Clean text: "${cleanText}"`);
+      
+      // If empty, send help message
+      if (!cleanText || cleanText.length < 2) {
+        await this.sendToSpecificGroup(from, ' How can I help you?\n\n💡 Try: "What\'s today\'s mass?" or "Show campaigns"');
+        return;
+      }
+      
+      console.log(`🤖 Sending to AI: "${cleanText}"`);
+      
+      // Get AI response
+      const aiResponse = await this.callAISystem(cleanText, from);
+      
+      if (aiResponse) {
+        // ✅ SEND TO THE GROUP WHERE THE USER MENTIONED THE BOT
+        if (aiResponse.length > 2000) {
+          const chunks = aiResponse.match(/.{1,2000}/g) || [];
+          for (const chunk of chunks) {
+            await this.sendToSpecificGroup(from, chunk);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } else {
+          await this.sendToSpecificGroup(from, aiResponse);
         }
       } else {
-        await this.sendToGroup(aiResponse);
+        await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
       }
-    } else {
-      await this.sendToGroup('🙏 Sorry, I had trouble processing that. Please try again.');
+      
+    } catch (error) {
+      console.error('❌ AI mention error:', error);
+      try {
+        await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
+      } catch (e) {
+        console.error('❌ Failed to send error response:', e.message);
+      }
     }
-    
-  } catch (error) {
-    console.error('❌ AI mention error:', error);
-    await this.sendToGroup('🙏 Sorry, I had trouble processing that. Please try again.');
   }
-}
+
   // =============================================
   // 🧠 CALL AI SYSTEM
   // =============================================
   async callAISystem(message, from) {
     try {
-      // Build context for the AI
       const userContext = {
         user: null,
         stats: {},
@@ -618,10 +764,8 @@ async handleAIMention(from, text, msg) {
         { role: 'user', content: message }
       ];
       
-      // Get AI response
       const aiResponse = await chatWithGroq(messages, userContext);
       
-      // Execute any actions
       let finalReply = aiResponse.content || '';
       
       if (aiResponse.action && aiResponse.action.name) {
@@ -646,10 +790,7 @@ async handleAIMention(from, text, msg) {
         }
       }
       
-      // Ensure we always end with Tumsifu Yesu Kristu
-      if (!finalReply.includes('Tumsifu Yesu Kristu')) {
-        finalReply += '\n\n_Tumsifu Yesu Kristu! 🙏_';
-      }
+      
       
       return finalReply;
       
@@ -669,7 +810,6 @@ async handleAIMention(from, text, msg) {
       return `❌ ${actionResult.error}`;
     }
     
-    // User profile
     if (actionResult.profile) {
       const p = actionResult.profile;
       let reply = `👤 *${p.fullName}*\n\n`;
@@ -681,7 +821,6 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Pledges
     if (actionResult.pledges) {
       let reply = `💰 *YOUR PLEDGES*\n\n`;
       actionResult.pledges.slice(0, 5).forEach((p, i) => {
@@ -695,7 +834,6 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Mass programs
     if (actionResult.massPrograms && actionResult.massPrograms.length > 0) {
       let reply = '⛪ *UPCOMING MASSES*\n\n';
       actionResult.massPrograms.slice(0, 5).forEach((m, i) => {
@@ -706,7 +844,6 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Announcements
     if (actionResult.announcements && actionResult.announcements.length > 0) {
       let reply = '📢 *ANNOUNCEMENTS*\n\n';
       actionResult.announcements.slice(0, 3).forEach(a => {
@@ -716,7 +853,6 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Campaigns
     if (actionResult.campaigns && actionResult.campaigns.length > 0) {
       let reply = '💰 *ACTIVE CAMPAIGNS*\n\n';
       actionResult.campaigns.forEach(c => {
@@ -728,7 +864,6 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Today's readings
     if (actionResult.readings) {
       const r = actionResult.readings;
       let reply = `📖 *READINGS FOR TODAY*\n\n`;
@@ -738,52 +873,43 @@ async handleAIMention(from, text, msg) {
       return reply;
     }
     
-    // Help
     if (actionResult.helpText) {
       return actionResult.helpText;
     }
     
-    // Simple message
     if (actionResult.message) {
       return actionResult.message;
     }
     
-    // Success
     if (actionResult.success && actionResult.message) {
       return `✅ ${actionResult.message}`;
     }
 
+    if (actionResult.title && actionResult.lyrics) {
+      const lyrics = actionResult.lyrics.replace(/<[^>]*>/g, '').trim();
+      const preview = lyrics.substring(0, 500);
+      const isLong = lyrics.length > 500;
+      return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`;
+    }
 
-    // =============================================
-// 🎵 HYMNS/SONGS RESULTS
-// =============================================
-
-// Single hymn with lyrics
-if (actionResult.title && actionResult.lyrics) {
-  const lyrics = actionResult.lyrics.replace(/<[^>]*>/g, '').trim();
-  const preview = lyrics.substring(0, 500);
-  const isLong = lyrics.length > 500;
-  return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`;
-}
-
-// Hymn list (multiple results)
-if (actionResult.hymns && actionResult.hymns.length > 0) {
-  let reply = `🎵 *Hymns Found (${actionResult.count || actionResult.hymns.length}):*\n\n`;
-  actionResult.hymns.slice(0, 10).forEach((h, i) => {
-    reply += `${i+1}. *${h.title}*${h.reference ? ` (${h.reference})` : ''}${h.hasLyrics ? ' 📝' : ''}\n`;
-  });
-  if (actionResult.hymns.length > 10) {
-    reply += `\n... and ${actionResult.hymns.length - 10} more`;
-  }
-  reply += `\n\n💡 Say *"Get lyrics for [title]"* to see full lyrics!`;
-  return reply;
-}
+    if (actionResult.hymns && actionResult.hymns.length > 0) {
+      let reply = `🎵 *Hymns Found (${actionResult.count || actionResult.hymns.length}):*\n\n`;
+      actionResult.hymns.slice(0, 10).forEach((h, i) => {
+        reply += `${i+1}. *${h.title}*${h.reference ? ` (${h.reference})` : ''}${h.hasLyrics ? ' 📝' : ''}\n`;
+      });
+      if (actionResult.hymns.length > 10) {
+        reply += `\n... and ${actionResult.hymns.length - 10} more`;
+      }
+      reply += `\n\n💡 Say *"Get lyrics for [title]"* to see full lyrics!`;
+      return reply;
+    }
     
-    // Fallback
     return null;
   }
 
+  // =============================================
   // 📊 GET BOT STATUS
+  // =============================================
   getStatus() {
     return {
       connected: this.isConnected,
@@ -795,16 +921,288 @@ if (actionResult.hymns && actionResult.hymns.length > 0) {
       lastError: this.lastError,
       reconnectAttempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts,
-      botNumber: this.botNumber || null
+      botNumber: this.botNumber || null,
+      lid: this.botLid || null,
+      activeGroups: this.activeGroups,
+      totalGroups: this.groups?.length || 0
     };
   }
 
+  // =============================================
+  // 📋 GET ALL GROUPS THE BOT IS IN
+  // =============================================
+  async getGroups() {
+    if (!this.sock || !this.isConnected) {
+      console.log('⚠️ Bot not connected');
+      return [];
+    }
+
+    try {
+      const chats = await this.sock.groupFetchAllParticipating();
+      if (!chats) return [];
+
+      const groups = Object.values(chats).map(group => ({
+        id: group.id,
+        name: group.subject || 'Unnamed Group',
+        description: group.desc || '',
+        participants: group.participants?.length || 0,
+        isActive: this.activeGroups?.includes(group.id) || false,
+        owner: group.owner,
+        createdAt: group.creation,
+        isCommunity: group.isCommunity || false,
+        isAnnouncement: group.announce || false
+      }));
+
+      this.groups = groups;
+      console.log(`📋 Found ${groups.length} groups`);
+      return groups;
+
+    } catch (error) {
+      console.error('❌ Error fetching groups:', error.message);
+      return [];
+    }
+  }
+
+  // =============================================
+  // ➕ ADD GROUP TO ACTIVE LIST
+  // =============================================
+  async addActiveGroup(groupId) {
+    if (!this.activeGroups) {
+      this.activeGroups = [];
+    }
+    
+    if (!this.activeGroups.includes(groupId)) {
+      const groups = await this.getGroups();
+      const groupExists = groups.some(g => g.id === groupId);
+      
+      if (!groupExists) {
+        console.log(`❌ Bot is not in group: ${groupId}`);
+        return false;
+      }
+      
+      this.activeGroups.push(groupId);
+      console.log(`✅ Group added to active list: ${groupId}`);
+      return true;
+    }
+    return true;
+  }
+
+  // =============================================
+  // ➖ REMOVE GROUP FROM ACTIVE LIST
+  // =============================================
+  removeActiveGroup(groupId) {
+    if (!this.activeGroups) return;
+    this.activeGroups = this.activeGroups.filter(id => id !== groupId);
+    console.log(`🗑️ Group removed from active list: ${groupId}`);
+  }
+
+  // =============================================
+  // 📤 SEND TO GROUP BY NAME
+  // =============================================
+  async sendToGroupByName(groupName, message) {
+    const groups = await this.getGroups();
+    const group = groups.find(g => 
+      g.name.toLowerCase() === groupName.toLowerCase()
+    );
+    
+    if (!group) {
+      throw new Error(`Group not found: ${groupName}`);
+    }
+    
+    return await this.sendToSpecificGroup(group.id, message);
+  }
+
+  // =============================================
+  // 📤 BROADCAST TO ALL ACTIVE GROUPS
+  // =============================================
+  async broadcastToAllGroups(message, excludeGroups = []) {
+    if (!this.sock || !this.isConnected) {
+      throw new Error('Bot is not connected to WhatsApp');
+    }
+
+    const results = [];
+    const targetGroups = this.activeGroups?.filter(
+      id => !excludeGroups.includes(id)
+    ) || [];
+
+    if (targetGroups.length === 0) {
+      console.log('⚠️ No active groups to broadcast to');
+      return [];
+    }
+
+    for (const groupId of targetGroups) {
+      try {
+        const result = await this.sendToSpecificGroup(groupId, message);
+        results.push({ groupId, success: true, result });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        results.push({ groupId, success: false, error: error.message });
+      }
+    }
+
+    console.log(`📢 Broadcast sent to ${results.filter(r => r.success).length}/${targetGroups.length} groups`);
+    return results;
+  }
+
+  // =============================================
+  // 📊 GET GROUP STATS
+  // =============================================
+  async getGroupStats() {
+    const groups = await this.getGroups();
+    return {
+      totalGroups: groups.length,
+      activeGroups: this.activeGroups?.length || 0,
+      activeGroupIds: this.activeGroups || [],
+      groups: groups.map(g => ({
+        name: g.name,
+        id: g.id,
+        isActive: this.activeGroups?.includes(g.id) || false,
+        participants: g.participants,
+        description: g.description
+      }))
+    };
+  }
+
+  // =============================================
+  // 📤 SEND TO JUMUIA (by Jumuia name)
+  // =============================================
+  async sendToJumuia(jumuiaName, message) {
+    const jumuiaMap = {
+      'stmichael': 'ST. MICHAEL',
+      'stbenedict': 'ST. BENEDICT',
+      'stperegrine': 'ST. PEREGRINE',
+      'christtheking': 'CHRIST THE KING',
+      'stgregory': 'ST. GREGORY',
+      'stpacificus': 'ST. PACIFICUS'
+    };
+
+    const groupName = jumuiaMap[jumuiaName.toLowerCase()];
+    if (!groupName) {
+      throw new Error(`Unknown Jumuia: ${jumuiaName}`);
+    }
+
+    return await this.sendToGroupByName(groupName, message);
+  }
+
+  // =============================================
+  // 🔍 CHECK IF IN GROUP
+  // =============================================
+  async isInGroup(groupId) {
+    const groups = await this.getGroups();
+    return groups.some(g => g.id === groupId);
+  }
+
+  // =============================================
+  // 📋 GET GROUP MEMBERS
+  // =============================================
+  async getGroupMembers(groupId) {
+    if (!this.sock || !this.isConnected) {
+      throw new Error('Bot is not connected');
+    }
+
+    try {
+      const metadata = await this.sock.groupMetadata(groupId);
+      return metadata.participants || [];
+    } catch (error) {
+      console.error('❌ Error getting group members:', error.message);
+      return [];
+    }
+  }
+
+  // =============================================
+  // 🔄 REFRESH GROUP LIST
+  // =============================================
+  async refreshGroups() {
+    this.groups = null;
+    return await this.getGroups();
+  }
+
+  // =============================================
+  // 🔄 GENERATE NEW QR CODE
+  // =============================================
+  async generateNewQR() {
+    try {
+      if (this.sock) {
+        await this.disconnect();
+      }
+      
+      this.cleanupAuth();
+      
+      this.isConnected = false;
+      this.isConnecting = false;
+      this.qrCode = null;
+      this.qrCodeBase64 = null;
+      this.connectionStatus = 'disconnected';
+      this.botNumber = null;
+      this.botLid = null;
+      this.groups = [];
+      this.activeGroups = [];
+      this.reconnectAttempts = 0;
+      
+      await this.connect();
+      
+      let attempts = 0;
+      while (!this.qrCode && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
+      return this.qrCode;
+    } catch (error) {
+      console.error('❌ Generate QR error:', error);
+      throw error;
+    }
+  }
+
+  // =============================================
+  // 🔄 RESET BOT
+  // =============================================
+  async resetBot() {
+    try {
+      console.log('🔄 Resetting WhatsApp bot...');
+      
+      await this.disconnect();
+      this.cleanupAuth();
+      
+      this.isConnected = false;
+      this.isConnecting = false;
+      this.qrCode = null;
+      this.qrCodeBase64 = null;
+      this.connectionStatus = 'disconnected';
+      this.botNumber = null;
+      this.botLid = null;
+      this.groups = [];
+      this.activeGroups = [];
+      this.reconnectAttempts = 0;
+      this.lastError = null;
+      this.sock = null;
+      
+      await prisma.setting.deleteMany({
+        where: { 
+          key: { 
+            in: ['whatsapp_status', 'whatsapp_group_id'] 
+          } 
+        }
+      });
+      
+      console.log('✅ Bot reset complete');
+      return true;
+    } catch (error) {
+      console.error('❌ Reset error:', error);
+      return false;
+    }
+  }
+
+  // =============================================
   // 🧹 CLEANUP
+  // =============================================
   async cleanup() {
     await this.disconnect();
     this.cleanupAuth();
     this.connectionStatus = 'disconnected';
     await this.updateStatus('disconnected');
+    this.groups = [];
+    this.activeGroups = [];
   }
 }
 

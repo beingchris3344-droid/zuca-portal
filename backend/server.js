@@ -910,7 +910,10 @@ app.use('/api/jumuia', jumuiaMembersRoutes);
 const deleteAccountRoutes = require("./routes/deleteAccount");
 app.use("/api", deleteAccountRoutes);
 
-
+// ==================== WHATSAPP ADMIN ROUTES ====================
+const whatsappAdminRoutes = require('./routes/whatsapp.admin');
+app.use('/api/admin/whatsapp', whatsappAdminRoutes);
+console.log('✅ WhatsApp Admin routes mounted');
 
 //whatsapp
 

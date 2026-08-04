@@ -6,7 +6,7 @@ import {
   Settings, AlertCircle, CheckCircle, XCircle,
   Loader, Copy, Check, Phone, Radio, Globe,
   ChevronDown, ChevronRight, Database, Hash,
-  UserPlus, UserMinus, List, Layers
+  UserPlus, UserMinus, List, Layers, Sparkles, Wand2
 } from 'lucide-react';
 import { api } from '../../api';
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +36,13 @@ export default function WhatsAppBot() {
   const [expandedGroupId, setExpandedGroupId] = useState(null);
   const [groupMembers, setGroupMembers] = useState({});
   const [showGroupMembers, setShowGroupMembers] = useState({});
+
+  // ✅ AI Message Assistant States
+  const [aiMessageInput, setAiMessageInput] = useState('');
+  const [aiMessageOutput, setAiMessageOutput] = useState('');
+  const [aiMessageLoading, setAiMessageLoading] = useState(false);
+  const [aiMessageType, setAiMessageType] = useState('polish');
+  const [aiMessageTone, setAiMessageTone] = useState('professional');
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -117,7 +124,6 @@ export default function WhatsAppBot() {
   const handleLink = async () => {
     setLoading(true);
     try {
-      // Use /link endpoint to generate QR
       const response = await api.post('/api/admin/whatsapp/link', {}, { headers });
       if (response.data.success) {
         showToast('WhatsApp linking initiated! Scan the QR code with your phone.');
@@ -159,7 +165,6 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      // Use /group endpoint (matches backend)
       await api.post('/api/admin/whatsapp/group', { groupId: newGroupId }, { headers });
       showToast('Default Group ID set successfully!');
       setGroupId(newGroupId);
@@ -221,7 +226,6 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      // Use /test-group endpoint
       await api.post('/api/admin/whatsapp/test-group', { message }, { headers });
       showToast('Message sent to default group!');
       setMessage('');
@@ -240,7 +244,6 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      // Use /send endpoint with groupId
       await api.post('/api/admin/whatsapp/send', { 
         groupId: selectedGroupId, 
         message: groupMessage 
@@ -262,7 +265,6 @@ export default function WhatsAppBot() {
     
     setActionLoading(true);
     try {
-      // Use /test-user endpoint
       await api.post('/api/admin/whatsapp/test-user', { 
         phoneNumber, 
         message: personalMessage 
@@ -333,6 +335,63 @@ export default function WhatsAppBot() {
     }
   };
 
+  // ==================== AI MESSAGE ASSISTANT ====================
+  const handleAIPolishMessage = async () => {
+    if (!aiMessageInput.trim()) {
+      showToast('Please enter a message to polish', 'error');
+      return;
+    }
+
+    setAiMessageLoading(true);
+    try {
+      const response = await api.post('/api/admin/ai/polish-message', {
+        message: aiMessageInput,
+        tone: aiMessageTone,
+        type: aiMessageType
+      }, { headers });
+
+      if (response.data.success) {
+        setAiMessageOutput(response.data.polished);
+        showToast('✅ Message polished successfully!');
+      } else {
+        showToast('Failed to polish message: ' + (response.data.error || 'Unknown error'), 'error');
+      }
+    } catch (error) {
+      console.error('AI polish error:', error);
+      showToast('Failed to polish message: ' + (error.response?.data?.error || error.message), 'error');
+    } finally {
+      setAiMessageLoading(false);
+    }
+  };
+
+  const handleUsePolishedMessage = (targetField) => {
+    if (!aiMessageOutput) {
+      showToast('Please generate a polished message first', 'error');
+      return;
+    }
+
+    switch(targetField) {
+      case 'group':
+        setMessage(aiMessageOutput);
+        break;
+      case 'specificGroup':
+        setGroupMessage(aiMessageOutput);
+        break;
+      case 'user':
+        setPersonalMessage(aiMessageOutput);
+        break;
+      case 'broadcast':
+        setBroadcastMessage(aiMessageOutput);
+        break;
+      case 'broadcastGroup':
+        setBroadcastGroupMessage(aiMessageOutput);
+        break;
+      default:
+        break;
+    }
+    showToast('✅ Message copied to field!');
+  };
+
   // ==================== UTILITY ====================
 
   const copyToClipboard = (text) => {
@@ -386,6 +445,106 @@ export default function WhatsAppBot() {
           <button className="btn-refresh" onClick={() => { fetchStatus(); fetchGroups(); }}>
             <RefreshCw size={18} /> Refresh
           </button>
+        </div>
+      </div>
+
+      {/* ==================== AI MESSAGE ASSISTANT ==================== */}
+      <div className="card full-width ai-assistant-card">
+        <div className="card-header">
+          <Sparkles size={18} style={{ color: '#8b5cf6' }} />
+          <h3>AI Message Assistant</h3>
+          <span className="badge">✨ Polish • Formal • Announcement</span>
+        </div>
+        <div className="card-body">
+          <div className="ai-assistant-grid">
+            <div className="ai-input-section">
+              <div className="ai-controls">
+                <select
+                  value={aiMessageType}
+                  onChange={(e) => setAiMessageType(e.target.value)}
+                  className="ai-select"
+                >
+                  <option value="polish">✨ Polish</option>
+                  <option value="formal">🎩 Formal</option>
+                  <option value="casual">💬 Casual</option>
+                  <option value="announcement">📢 Announcement</option>
+                  <option value="prayer">🙏 Prayer</option>
+                </select>
+                <select
+                  value={aiMessageTone}
+                  onChange={(e) => setAiMessageTone(e.target.value)}
+                  className="ai-select"
+                >
+                  <option value="professional">Professional</option>
+                  <option value="friendly">Friendly</option>
+                  <option value="warm">Warm</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+                <button 
+                  className="btn-ai-generate"
+                  onClick={handleAIPolishMessage}
+                  disabled={aiMessageLoading || !aiMessageInput.trim()}
+                >
+                  {aiMessageLoading ? <Loader size={16} className="spin" /> : <Wand2 size={16} />}
+                  {aiMessageLoading ? 'Generating...' : 'Generate'}
+                </button>
+              </div>
+              <textarea
+                placeholder="Describe what you want to say... e.g., 'Tell members about the mass this Sunday at 10am'"
+                value={aiMessageInput}
+                onChange={(e) => setAiMessageInput(e.target.value)}
+                rows="3"
+                className="ai-textarea"
+              />
+              <div className="ai-hint">
+                <AlertCircle size={14} />
+                <span>Describe your message naturally, and AI will polish it for you</span>
+              </div>
+            </div>
+            <div className="ai-output-section">
+              {aiMessageOutput ? (
+                <>
+                  <div className="ai-output-header">
+                    <span className="ai-output-label">✨ Polished Message</span>
+                    <button 
+                      className="btn-copy-output"
+                      onClick={() => copyToClipboard(aiMessageOutput)}
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <div className="ai-output-content">
+                    {aiMessageOutput}
+                  </div>
+                  <div className="ai-output-actions">
+                    <span className="ai-action-label">Use in:</span>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('group')}>
+                      Default Group
+                    </button>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('specificGroup')}>
+                      Specific Group
+                    </button>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('user')}>
+                      User
+                    </button>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('broadcast')}>
+                      Broadcast
+                    </button>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('broadcastGroup')}>
+                      Group Broadcast
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="ai-empty-state">
+                  <Sparkles size={48} style={{ color: '#cbd5e1' }} />
+                  <p>Describe your message above and click Generate</p>
+                  <p className="ai-empty-sub">AI will help you craft a professional message</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -586,6 +745,9 @@ export default function WhatsAppBot() {
           <div className="card-header">
             <Send size={18} />
             <h3>Send to Default Group</h3>
+            {message && aiMessageOutput && (
+              <span className="badge ai-badge">✨ AI</span>
+            )}
           </div>
           <div className="card-body">
             <textarea
@@ -606,6 +768,9 @@ export default function WhatsAppBot() {
           <div className="card-header">
             <Globe size={18} />
             <h3>Send to Specific Group</h3>
+            {groupMessage && aiMessageOutput && (
+              <span className="badge ai-badge">✨ AI</span>
+            )}
           </div>
           <div className="card-body">
             <select 
@@ -638,6 +803,9 @@ export default function WhatsAppBot() {
           <div className="card-header">
             <Phone size={18} />
             <h3>Send to User</h3>
+            {personalMessage && aiMessageOutput && (
+              <span className="badge ai-badge">✨ AI</span>
+            )}
           </div>
           <div className="card-body">
             <input
@@ -664,6 +832,9 @@ export default function WhatsAppBot() {
           <div className="card-header">
             <Users size={18} />
             <h3>Broadcast to All Users</h3>
+            {broadcastMessage && aiMessageOutput && (
+              <span className="badge ai-badge">✨ AI</span>
+            )}
           </div>
           <div className="card-body">
             <div className="warning-box">
@@ -695,6 +866,9 @@ export default function WhatsAppBot() {
             <Radio size={18} />
             <h3>Broadcast to Groups</h3>
             <span className="badge">{activeGroups.length} active</span>
+            {broadcastGroupMessage && aiMessageOutput && (
+              <span className="badge ai-badge">✨ AI</span>
+            )}
           </div>
           <div className="card-body">
             <div className="warning-box">
@@ -725,6 +899,206 @@ export default function WhatsAppBot() {
           min-height: 100vh;
         }
 
+        /* ==================== AI ASSISTANT STYLES ==================== */
+        .ai-assistant-card {
+          border-color: #8b5cf6;
+          background: linear-gradient(135deg, #faf5ff 0%, #ffffff 100%);
+        }
+
+        .ai-assistant-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+        }
+
+        .ai-controls {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+
+        .ai-select {
+          padding: 8px 14px;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 13px;
+          background: white;
+          outline: none;
+          flex: 1;
+          min-width: 120px;
+        }
+
+        .ai-select:focus {
+          border-color: #8b5cf6;
+        }
+
+        .btn-ai-generate {
+          padding: 8px 20px;
+          background: #8b5cf6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 600;
+          font-size: 13px;
+          white-space: nowrap;
+        }
+
+        .btn-ai-generate:hover:not(:disabled) {
+          background: #7c3aed;
+        }
+
+        .btn-ai-generate:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .ai-textarea {
+          width: 100%;
+          padding: 12px 14px;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 14px;
+          outline: none;
+          font-family: inherit;
+          resize: vertical;
+          background: white;
+        }
+
+        .ai-textarea:focus {
+          border-color: #8b5cf6;
+        }
+
+        .ai-hint {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          background: #f5f3ff;
+          border-radius: 8px;
+          font-size: 12px;
+          color: #6d28d9;
+          margin-top: 8px;
+        }
+
+        .ai-output-section {
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 16px;
+          min-height: 180px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .ai-output-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .ai-output-label {
+          font-weight: 600;
+          font-size: 14px;
+          color: #4b5563;
+        }
+
+        .btn-copy-output {
+          padding: 4px 12px;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+        }
+
+        .btn-copy-output:hover {
+          background: #f1f5f9;
+        }
+
+        .ai-output-content {
+          flex: 1;
+          padding: 12px;
+          background: white;
+          border-radius: 8px;
+          white-space: pre-wrap;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #1e293b;
+          border: 1px solid #e2e8f0;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .ai-output-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 12px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .ai-action-label {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 500;
+        }
+
+        .btn-use-message {
+          padding: 4px 12px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 11px;
+          color: #475569;
+          transition: all 0.2s;
+        }
+
+        .btn-use-message:hover {
+          background: #8b5cf6;
+          color: white;
+          border-color: #8b5cf6;
+        }
+
+        .ai-empty-state {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: #94a3b8;
+          text-align: center;
+          padding: 20px;
+        }
+
+        .ai-empty-state p {
+          margin: 8px 0 0;
+          font-size: 14px;
+        }
+
+        .ai-empty-sub {
+          font-size: 12px !important;
+          color: #cbd5e1 !important;
+        }
+
+        .ai-badge {
+          background: #f5f3ff;
+          color: #7c3aed;
+          font-size: 10px;
+          padding: 2px 8px;
+          border-radius: 10px;
+          margin-left: auto;
+        }
+
+        /* ==================== EXISTING STYLES ==================== */
         .page-header {
           display: flex;
           justify-content: space-between;
@@ -1402,6 +1776,27 @@ export default function WhatsAppBot() {
           .group-actions { flex-direction: row; align-items: center; justify-content: space-between; }
           .header-actions { width: 100%; }
           .btn-refresh { width: 100%; justify-content: center; }
+          
+          .ai-assistant-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .ai-controls {
+            flex-direction: column;
+          }
+          
+          .ai-select {
+            width: 100%;
+          }
+          
+          .ai-output-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .btn-use-message {
+            text-align: center;
+          }
         }
       `}</style>
     </div>

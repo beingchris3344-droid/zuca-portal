@@ -6,7 +6,7 @@ import io from "socket.io-client";
 import { FiMessageSquare,  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
   FiDollarSign, FiMusic, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, } from "react-icons/fi";
-  import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs, } from "react-icons/fa";
+  import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs,  FaWhatsapp } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
 import badgeManager from '../../utils/badgeManager';
@@ -205,6 +205,7 @@ export default function AdminLayout() {
     { label: "Admin View", path: "", icon: <FaShieldAlt color="#000000"/>, bg: "#eff6ff", color: "#3b82f6" },
     { label: "Attendance Management", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
     { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
+    { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="#000000"/>, bg: "#dcfce7", color: "#22c55e" },
                      { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
 
     { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },

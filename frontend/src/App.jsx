@@ -109,6 +109,7 @@ import AdminAttendanceOverview from './pages/admin/attendance/AdminAttendanceOve
 import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
 import EmailManagement from './pages/admin/EmailManagement';
 import EmailDashboard from "./pages/admin/EmailDashboard";
+import WhatsAppBot from './pages/admin/WhatsAppBot';
 
 import { initializeDark } from "./utils/darkReader";
 
@@ -569,6 +570,7 @@ useEffect(() => {
           <Route path="email-settings" element={<EmailManagement />} />
           <Route path="bank-payments" element={<BankPayments />} />
           <Route path="/admin/email" element={<EmailDashboard />} />
+          <Route path="/admin/whatsapp" element={<WhatsAppBot />} />
 
 
 

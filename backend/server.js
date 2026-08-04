@@ -910,6 +910,20 @@ app.use('/api/jumuia', jumuiaMembersRoutes);
 const deleteAccountRoutes = require("./routes/deleteAccount");
 app.use("/api", deleteAccountRoutes);
 
+
+
+//whatsapp
+
+const whatsappBotRoutes = require('./routes/whatsapp.bot.routes');
+const bot = require('./services/whatsapp.bot');
+
+app.use('/api/whatsapp/bot', whatsappBotRoutes);
+
+setTimeout(() => {
+  console.log('🤖 Starting WhatsApp Bot...');
+  bot.connect().catch(err => console.error('Bot start error:', err));
+}, 3000);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

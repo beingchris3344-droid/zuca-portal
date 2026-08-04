@@ -4600,6 +4600,192 @@ case "query_database": {
   }
 }
 
+
+// ==================== HYMNS/SONGS ====================
+case "search_hymns": {
+  const { query, limit = 10 } = args;
+  
+  if (!query) {
+    return { error: "Please specify a hymn title to search." };
+  }
+  
+  console.log(`🎵 Searching for: "${query}"`);
+  
+  // ✅ Check if the query is a number (user wants lyrics for a specific hymn from the list)
+  const isNumber = /^\d+$/.test(query.trim());
+  
+  let hymns = [];
+  
+  if (isNumber) {
+    // If it's a number, try to find by reference first (e.g., "K. 42:2")
+    const num = parseInt(query);
+    hymns = await prisma.song.findMany({
+      where: {
+        OR: [
+          { reference: { contains: `K. ${num}`, mode: "insensitive" } },
+          { reference: { contains: `K. ${num}:`, mode: "insensitive" } },
+          { reference: { contains: `#${num}`, mode: "insensitive" } },
+          { reference: { contains: `${num}`, mode: "insensitive" } }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true
+      },
+      take: 1
+    });
+    
+    // If no hymn found by reference, try to find by title containing the number
+    if (hymns.length === 0) {
+      hymns = await prisma.song.findMany({
+        where: {
+          title: { contains: query, mode: "insensitive" }
+        },
+        select: {
+          id: true,
+          title: true,
+          reference: true,
+          lyrics: true,
+          createdAt: true
+        },
+        take: 1
+      });
+    }
+  } else {
+    // Regular search by title, lyrics, or reference
+    hymns = await prisma.song.findMany({
+      where: {
+        OR: [
+          { title: { contains: query, mode: "insensitive" } },
+          { lyrics: { contains: query, mode: "insensitive" } },
+          { reference: { contains: query, mode: "insensitive" } }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true
+      },
+      take: parseInt(limit)
+    });
+  }
+  
+  if (hymns.length === 0) {
+    return { 
+      message: `❌ No hymn found matching "${query}". Try searching with a different title or check the hymn book in the app.` 
+    };
+  }
+  
+  // If only one result, return full lyrics
+  if (hymns.length === 1) {
+    const hymn = hymns[0];
+    let lyrics = hymn.lyrics || "Lyrics not available yet.";
+    // Clean HTML tags if any
+    lyrics = lyrics.replace(/<[^>]*>/g, '').trim();
+    
+    return {
+      title: hymn.title,
+      reference: hymn.reference || "No reference",
+      lyrics: lyrics,
+      message: `🎵 *${hymn.title}*${hymn.reference ? ` (${hymn.reference})` : ''}\n\n${lyrics.substring(0, 1000)}${lyrics.length > 1000 ? '\n\n... (full lyrics available in the hymn book)' : ''}`,
+      action: "navigate",
+      path: `/hymn/${hymn.id}`
+    };
+  }
+  
+  // Multiple results - show list with numbers for reference
+  const hymnList = hymns.map((h, i) => {
+    const num = i + 1;
+    const ref = h.reference ? ` (${h.reference})` : '';
+    return `${num}. *${h.title}*${ref}`;
+  }).join('\n');
+  
+  return {
+    hymns: hymns.map(h => ({
+      id: h.id,
+      title: h.title,
+      reference: h.reference,
+      hasLyrics: !!h.lyrics
+    })),
+    count: hymns.length,
+    message: `🎵 *Hymns Found (${hymns.length}):*\n\n${hymnList}\n\n💡 Say *"Get lyrics for [number]"* to see full lyrics! (e.g., "Get lyrics for 1")`,
+    action: "navigate",
+    path: "/hymns"
+  };
+}
+
+
+// ==================== GET HYMN BY NUMBER ====================
+case "get_hymn_by_number":
+case "get_lyrics_by_number": {
+  const { number } = args;
+  
+  if (!number) {
+    return { error: "Please specify a hymn number from the list." };
+  }
+  
+  console.log(`🎵 Getting hymn number: "${number}"`);
+  
+  // Try to find the hymn by reference first
+  const num = parseInt(number);
+  let hymn = await prisma.song.findFirst({
+    where: {
+      OR: [
+        { reference: { contains: `K. ${num}`, mode: "insensitive" } },
+        { reference: { contains: `K. ${num}:`, mode: "insensitive" } },
+        { reference: { contains: `#${num}`, mode: "insensitive" } },
+        { reference: { contains: `${num}`, mode: "insensitive" } }
+      ]
+    },
+    select: {
+      id: true,
+      title: true,
+      reference: true,
+      lyrics: true,
+      createdAt: true
+    }
+  });
+  
+  // If not found by reference, try to find by title containing the number
+  if (!hymn) {
+    hymn = await prisma.song.findFirst({
+      where: {
+        title: { contains: number, mode: "insensitive" }
+      },
+      select: {
+        id: true,
+        title: true,
+        reference: true,
+        lyrics: true,
+        createdAt: true
+      }
+    });
+  }
+  
+  if (!hymn) {
+    return { 
+      message: `❌ No hymn found with number "${number}". Please specify the full title or check the hymn book.` 
+    };
+  }
+  
+  let lyrics = hymn.lyrics || "Lyrics not available yet.";
+  lyrics = lyrics.replace(/<[^>]*>/g, '').trim();
+  
+  return {
+    title: hymn.title,
+    reference: hymn.reference || "No reference",
+    lyrics: lyrics,
+    message: `🎵 *${hymn.title}*${hymn.reference ? ` (${hymn.reference})` : ''}\n\n${lyrics.substring(0, 1000)}${lyrics.length > 1000 ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`,
+    action: "navigate",
+    path: `/hymn/${hymn.id}`
+  };
+}
+
       
 
       default:

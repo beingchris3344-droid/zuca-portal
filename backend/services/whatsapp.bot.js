@@ -507,6 +507,23 @@ class WhatsAppBot {
         text: message 
       });
       console.log(`✅ Group message sent: ${message.substring(0, 50)}...`);
+      
+      // ✅ Track message
+      if (result && result.key && result.key.id) {
+        await prisma.whatsAppMessage.create({
+          data: {
+            messageId: result.key.id,
+            groupId: this.groupId,
+            message: message,
+            originalMessage: message,
+            type: 'group',
+            status: 'sent',
+            sentAt: new Date()
+          }
+        });
+        console.log(`📝 Message tracked: ${result.key.id}`);
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ Failed to send group message:', error.message);
@@ -527,6 +544,23 @@ class WhatsAppBot {
         text: message 
       });
       console.log(`✅ Message sent to ${groupId}`);
+      
+      // ✅ Track message
+      if (result && result.key && result.key.id) {
+        await prisma.whatsAppMessage.create({
+          data: {
+            messageId: result.key.id,
+            groupId: groupId,
+            message: message,
+            originalMessage: message,
+            type: 'group',
+            status: 'sent',
+            sentAt: new Date()
+          }
+        });
+        console.log(`📝 Message tracked: ${result.key.id}`);
+      }
+      
       return result;
     } catch (error) {
       console.error(`❌ Failed to send to ${groupId}:`, error.message);
@@ -559,6 +593,23 @@ class WhatsAppBot {
         text: message 
       });
       console.log(`✅ Message sent to ${phoneNumber}`);
+      
+      // ✅ Track message
+      if (result && result.key && result.key.id) {
+        await prisma.whatsAppMessage.create({
+          data: {
+            messageId: result.key.id,
+            phoneNumber: phoneNumber,
+            message: message,
+            originalMessage: message,
+            type: 'user',
+            status: 'sent',
+            sentAt: new Date()
+          }
+        });
+        console.log(`📝 Message tracked: ${result.key.id}`);
+      }
+      
       return result;
     } catch (error) {
       console.error(`❌ Failed to send to ${phoneNumber}:`, error.message);
@@ -618,7 +669,7 @@ class WhatsAppBot {
       message += `\n👥 *Contributors:* ${contributors.length} members`;
       message += `\n\n_T_`;
 
-      await this.sendToGroup(message);
+      const result = await this.sendToGroup(message);
       console.log(`✅ Contribution list sent for ${campaign.title}`);
       return true;
 
@@ -1195,6 +1246,23 @@ if (actionResult.grouped && actionResult.total !== undefined) {
       try {
         const result = await this.sendToSpecificGroup(groupId, message);
         results.push({ groupId, success: true, result });
+        
+        // ✅ Track broadcast message
+        if (result && result.key && result.key.id) {
+          await prisma.whatsAppMessage.create({
+            data: {
+              messageId: result.key.id,
+              groupId: groupId,
+              message: message,
+              originalMessage: message,
+              type: 'broadcast_group',
+              status: 'sent',
+              sentAt: new Date()
+            }
+          });
+          console.log(`📝 Broadcast message tracked: ${result.key.id}`);
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
         results.push({ groupId, success: false, error: error.message });
@@ -1269,6 +1337,32 @@ if (actionResult.grouped && actionResult.total !== undefined) {
       return [];
     }
   }
+
+
+  // =============================================
+// ✏️ EDIT MESSAGE
+// =============================================
+async editMessage(groupId, messageId, newText) {
+  if (!this.sock || !this.isConnected) {
+    throw new Error('Bot is not connected to WhatsApp');
+  }
+
+  try {
+    const result = await this.sock.sendMessage(groupId, {
+      text: newText,
+      edit: {
+        remoteJid: groupId,
+        fromMe: true,
+        id: messageId
+      }
+    });
+    console.log(`✅ Message ${messageId} edited successfully`);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to edit message:', error.message);
+    throw error;
+  }
+}
 
   // =============================================
   // 🔄 REFRESH GROUP LIST
@@ -1374,5 +1468,8 @@ if (actionResult.grouped && actionResult.total !== undefined) {
     this.activeGroups = [];
   }
 }
+
+
+
 
 module.exports = new WhatsAppBot();

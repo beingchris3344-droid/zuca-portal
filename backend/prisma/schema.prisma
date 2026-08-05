@@ -1907,3 +1907,24 @@ model WhatsAppAuth {
 
   @@map("whatsapp_auth")
 }
+
+model WhatsAppMessage {
+  id               String   @id @default(cuid())
+  messageId        String?  // WhatsApp message ID for editing
+  groupId          String?  // Group ID where sent
+  phoneNumber      String?  // Phone number if sent to user
+  message          String   @db.Text
+  originalMessage  String?  @db.Text // For tracking edits
+  title            String?  // For broadcasts
+  type             String   @default("group") // group | user | broadcast | broadcast_group
+  status           String   @default("sent") // sent | edited | deleted | failed
+  sentBy           String?  // Admin user ID who sent it
+  editedAt         DateTime?
+  sentAt           DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("whatsapp_messages")
+  @@index([messageId])
+  @@index([groupId])
+  @@index([sentAt])
+}

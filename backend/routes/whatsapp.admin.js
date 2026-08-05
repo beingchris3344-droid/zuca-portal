@@ -209,6 +209,197 @@ router.get('/groups/:groupId/members', authenticate, requireAdmin, async (req, r
   }
 });
 
+
+// =============================================
+// 📋 GET MESSAGE HISTORY
+// =============================================
+router.get('/messages', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, type, search } = req.query;
+    
+    const where = {};
+    if (type && type !== 'all') where.type = type;
+    if (search) {
+      where.message = { contains: search, mode: 'insensitive' };
+    }
+    
+    const [messages, total] = await Promise.all([
+      prisma.whatsAppMessage.findMany({
+        where,
+        orderBy: { sentAt: 'desc' },
+        take: parseInt(limit),
+        skip: parseInt(offset)
+      }),
+      prisma.whatsAppMessage.count({ where })
+    ]);
+    
+    res.json({
+      success: true,
+      messages,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('❌ Get messages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// ✏️ EDIT MESSAGE (Within 15 minutes)
+// =============================================
+router.put('/messages/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    
+    const existing = await prisma.whatsAppMessage.findUnique({
+      where: { id }
+    });
+    
+    if (!existing) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    
+    // Check if within 15 minutes
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    if (new Date(existing.sentAt) < fifteenMinutesAgo) {
+      return res.status(400).json({ 
+        error: 'Cannot edit message older than 15 minutes' 
+      });
+    }
+    
+    // Edit the message in WhatsApp
+    if (existing.messageId && existing.groupId) {
+      try {
+        await bot.editMessage(existing.groupId, existing.messageId, message);
+      } catch (editError) {
+        console.error('❌ WhatsApp edit error:', editError);
+        // Continue anyway to update the database
+      }
+    }
+    
+    // Update the database
+    const updated = await prisma.whatsAppMessage.update({
+      where: { id },
+      data: {
+        message: message,
+        originalMessage: existing.message,
+        status: 'edited',
+        editedAt: new Date()
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: 'Message updated successfully',
+      data: updated
+    });
+  } catch (error) {
+    console.error('❌ Edit message error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// 🗑️ DELETE MESSAGE
+// =============================================
+router.delete('/messages/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permanent } = req.query;
+    
+    const existing = await prisma.whatsAppMessage.findUnique({
+      where: { id }
+    });
+    
+    if (!existing) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    
+    if (permanent === 'true') {
+      await prisma.whatsAppMessage.delete({ where: { id } });
+      res.json({ success: true, message: 'Message permanently deleted' });
+    } else {
+      await prisma.whatsAppMessage.update({
+        where: { id },
+        data: { status: 'deleted' }
+      });
+      res.json({ success: true, message: 'Message soft deleted' });
+    }
+  } catch (error) {
+    console.error('❌ Delete message error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// 📊 MESSAGE STATS
+// =============================================
+router.get('/messages/stats', authenticate, requireAdmin, async (req, res) => {
+  try {
+    // Total messages
+    const total = await prisma.whatsAppMessage.count();
+    
+    // Messages by type
+    const byType = await prisma.whatsAppMessage.groupBy({
+      by: ['type'],
+      _count: true
+    });
+    
+    // Last 7 days - simple approach
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const last7DaysRaw = await prisma.whatsAppMessage.findMany({
+      where: {
+        sentAt: { gte: sevenDaysAgo }
+      },
+      select: {
+        sentAt: true
+      },
+      orderBy: {
+        sentAt: 'desc'
+      }
+    });
+    
+    // Group by date manually
+    const dayMap = {};
+    last7DaysRaw.forEach(msg => {
+      const date = msg.sentAt.toISOString().split('T')[0];
+      dayMap[date] = (dayMap[date] || 0) + 1;
+    });
+    
+    const last7Days = Object.keys(dayMap).map(date => ({
+      date: date,
+      count: dayMap[date]
+    })).sort((a, b) => b.date.localeCompare(a.date));
+    
+    res.json({
+      success: true,
+      stats: {
+        total,
+        byType: byType.map(item => ({
+          type: item.type,
+          count: item._count
+        })),
+        last7Days
+      }
+    });
+  } catch (error) {
+    console.error('❌ Message stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // =============================================
 // ➖ REMOVE GROUP FROM ACTIVE LIST
 // =============================================

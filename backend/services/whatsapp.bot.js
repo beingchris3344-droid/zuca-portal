@@ -30,6 +30,9 @@ class WhatsAppBot {
     this.botLid = null;
     // ✅ Enable database auth
     this.useDatabaseAuth = true;
+    // Conversation memory
+this.chatMemory = new Map();
+this.maxMemoryMessages = 20;
   }
 
   // =============================================
@@ -503,9 +506,13 @@ class WhatsAppBot {
     }
 
     try {
-      const result = await this.sock.sendMessage(this.groupId, { 
-        text: message 
-      });
+     const result = await this.sock.sendMessage(
+    groupId,
+    {
+        text: message
+    },
+    quoted ? { quoted } : {}
+);
       console.log(`✅ Group message sent: ${message.substring(0, 50)}...`);
       
       // ✅ Track message
@@ -534,15 +541,19 @@ class WhatsAppBot {
   // =============================================
   // 📤 SEND TO SPECIFIC GROUP (BY ID)
   // =============================================
-  async sendToSpecificGroup(groupId, message) {
+ async sendToSpecificGroup(groupId, message, quoted = null) {
     if (!this.sock || !this.isConnected) {
       throw new Error('Bot is not connected to WhatsApp');
     }
 
     try {
-      const result = await this.sock.sendMessage(groupId, { 
-        text: message 
-      });
+     const result = await this.sock.sendMessage(
+    groupId,
+    {
+        text: message
+    },
+    quoted ? { quoted } : {}
+);
       console.log(`✅ Message sent to ${groupId}`);
       
       // ✅ Track message
@@ -589,9 +600,13 @@ class WhatsAppBot {
       
       let jid = `${cleanNumber}@s.whatsapp.net`;
 
-      const result = await this.sock.sendMessage(jid, { 
-        text: message 
-      });
+      const result = await this.sock.sendMessage(
+    groupId,
+    {
+        text: message
+    },
+    quoted ? { quoted } : {}
+);
       console.log(`✅ Message sent to ${phoneNumber}`);
       
       // ✅ Track message
@@ -853,16 +868,16 @@ async handleAIMention(from, text, msg) {
       if (isExecutiveTeam) {
         // ✅ Send executive team as ONE SINGLE MESSAGE
         console.log('📤 Sending executive team as single message');
-        await this.sendToSpecificGroup(from, aiResponse);
+        await this.sendToSpecificGroup(from, aiResponse, msg);
       } else if (aiResponse.length > 2000) {
         // For other long messages, split into chunks
         const chunks = aiResponse.match(/.{1,2000}/g) || [];
         for (const chunk of chunks) {
-          await this.sendToSpecificGroup(from, chunk);
+          await this.sendToSpecificGroup(from, chunk, msg);
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } else {
-        await this.sendToSpecificGroup(from, aiResponse);
+       await this.sendToSpecificGroup(from, aiResponse, msg);
       }
     } else {
       await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
@@ -891,9 +906,19 @@ async callAISystem(message, from) {
       source: 'whatsapp'
     };
     
-    const messages = [
-      { role: 'user', content: message }
-    ];
+    const history = this.getConversationHistory(from);
+
+const messages = [
+  {
+    role: "system",
+    content: "You are ZUCA Bot. Remember previous messages in this conversation and answer follow-up questions naturally."
+  },
+  ...history,
+  {
+    role: "user",
+    content: message
+  }
+];
     
     const aiResponse = await chatWithGroq(messages, userContext);
     
@@ -928,7 +953,10 @@ async callAISystem(message, from) {
       }
     }
     
-    return finalReply;
+   this.saveConversation(from, "user", message);
+this.saveConversation(from, "assistant", finalReply);
+
+return finalReply;
     
   } catch (error) {
     console.error('AI call error:', error);
@@ -1469,6 +1497,33 @@ async editMessage(groupId, messageId, newText) {
       return false;
     }
   }
+
+  // =============================================
+// 💾 SAVE CONVERSATION
+// =============================================
+saveConversation(chatId, role, content) {
+  if (!this.chatMemory.has(chatId)) {
+    this.chatMemory.set(chatId, []);
+  }
+
+  const history = this.chatMemory.get(chatId);
+
+  history.push({
+    role,
+    content
+  });
+
+  if (history.length > this.maxMemoryMessages) {
+    history.splice(0, history.length - this.maxMemoryMessages);
+  }
+}
+
+// =============================================
+// 📚 GET CONVERSATION HISTORY
+// =============================================
+getConversationHistory(chatId) {
+  return this.chatMemory.get(chatId) || [];
+}
 
   // =============================================
   // 🧹 CLEANUP

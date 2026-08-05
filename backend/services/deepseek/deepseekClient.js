@@ -412,7 +412,14 @@ When in doubt about who to send to, ask the user!
 
 // ================== CHAT WITH GROQ WITH AUTO FALLBACK ==================
 async function chatWithGroq(messages, userContext) {
+
+  // ================== CONVERSATION MEMORY ==================
+const conversationHistory = Array.isArray(userContext?.conversationHistory)
+  ? userContext.conversationHistory
+  : [];
   const systemPrompt = buildSystemPrompt(userContext);
+
+  
   
   // If we're within rate limit cooldown, wait
   if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
@@ -432,7 +439,11 @@ async function chatWithGroq(messages, userContext) {
       
       const completion = await groq.chat.completions.create({
         model: model.name,
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        messages: [
+  { role: "system", content: systemPrompt },
+  ...conversationHistory,
+  ...messages,
+],
         temperature: 0.3,
         max_tokens: 1200,
       });

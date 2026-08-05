@@ -761,32 +761,82 @@ async function executeToolCall(toolName, args, context) {
         };
       }
 
-      // ==================== EXECUTIVE MANAGEMENT ====================
-      case "get_executive_team": {
-        const executives = await prisma.executive.findMany({
-          where: { isActive: true },
-          include: {
-            user: { select: { id: true, fullName: true, email: true, phone: true, profileImage: true } },
-            position: true
-          },
-          orderBy: { position: { level: "asc" } }
-        });
-        
-        const grouped = {};
-        executives.forEach(e => {
-          const cat = e.position.category;
-          if (!grouped[cat]) grouped[cat] = [];
-          grouped[cat].push({
-            name: e.user.fullName,
-            position: e.position.title,
-            level: e.position.level,
-            phone: e.customPhone || e.user.phone,
-            email: e.customEmail || e.user.email
-          });
-        });
-        
-        return { executives: grouped, total: executives.length };
+    // ==================== EXECUTIVE MANAGEMENT ====================
+case "get_executive_team": {
+  try {
+    console.log('🔍 Fetching executive team...');
+    
+    const executives = await prisma.executive.findMany({
+      where: { isActive: true },
+      include: {
+        user: { 
+          select: { 
+            id: true, 
+            fullName: true, 
+            email: true, 
+            phone: true,
+            profileImage: true
+          } 
+        },
+        position: true
+      },
+      orderBy: { position: { level: "asc" } }
+    });
+
+    console.log(`📋 Found ${executives.length} active executives`);
+
+    if (!executives || executives.length === 0) {
+      return {
+        message: `👔 *ZUCA EXECUTIVE TEAM*\n\n` +
+                 `No executive team members found. The positions may be vacant or not assigned yet.\n\n` +
+                 `📌 Please check back later or contact the administrator.`
+      };
+    }
+
+    // ✅ Group by category using the position's category field
+    const grouped = {};
+    executives.forEach(e => {
+      // Use the position's category directly
+      let category = e.position?.category || 'Other';
+      
+      // Ensure consistent category names
+      if (category) {
+        // Keep the category as-is from the database
+        // But normalize for grouping
+        if (category.toLowerCase() === 'leadership') category = 'Leadership';
+        else if (category.toLowerCase() === 'organisation') category = 'Organisation';
+        else if (category.toLowerCase() === 'choir') category = 'Choir';
+        else if (category.toLowerCase() === 'jumuia') category = 'Jumuia';
+        else if (category.toLowerCase() === 'media') category = 'Media';
+        else if (category.toLowerCase() === 'voice') category = 'Voice';
       }
+      
+      if (!grouped[category]) grouped[category] = [];
+      
+      grouped[category].push({
+        name: e.user?.fullName || 'Unknown',
+        position: e.position?.title || 'Unknown Position',
+        phone: e.customPhone || e.user?.phone || 'N/A',
+        email: e.customEmail || e.user?.email || 'N/A'
+      });
+    });
+
+    // ✅ Return the data in the format expected by formatActionResult
+    return {
+      success: true,
+      grouped: grouped,
+      total: executives.length
+    };
+  } catch (error) {
+    console.error('❌ get_executive_team error:', error);
+    return {
+      message: `👔 *ZUCA EXECUTIVE TEAM*\n\n` +
+               `I'm having trouble fetching the executive team information.\n` +
+               `Please try again later or contact the administrator.\n\n` +
+               `📌 For urgent matters, please reach out to the admin.`
+    };
+  }
+}
 
       case "assign_executive": {
         const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
@@ -989,19 +1039,9 @@ case "all_users": {
     return { error: "Search term must be at least 2 characters long." };
   }
   
-  let isAuthorized = false;
+  // ✅ For WhatsApp context, we don't require authentication
+  // Just search for the user/position directly
   
-  if (currentUser?.userId) {
-    const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-    if (user) {
-      isAuthorized = true;
-    }
-  }
-
-  if (!isAuthorized) {
-    return { error: "You must be logged in to search users." };
-  }
-
   // ========== SEARCH FOR USERS ==========
   let foundUsers = await prisma.user.findMany({
     where: {

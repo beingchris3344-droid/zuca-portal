@@ -1,0 +1,1 @@
+{"id":"1785906351322-j7h6d","timestamp":"2026-08-05T05:05:51.322Z","error":"HTTP 401","context":{"userId":null,"path":"/.git/config","method":"GET","ip":"127.0.0.1","statusCode":401,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.9"},"resolved":false}

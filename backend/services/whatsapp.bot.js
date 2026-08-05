@@ -28,6 +28,62 @@ class WhatsAppBot {
     this.maxReconnectAttempts = 10;
     this.botNumber = null;
     this.botLid = null;
+    // ✅ Enable database auth
+    this.useDatabaseAuth = true;
+  }
+
+  // =============================================
+  // 💾 SAVE CREDS TO DATABASE
+  // =============================================
+  async saveCredsToDatabase(creds) {
+    try {
+      // Clean the creds for JSON storage
+      const cleanCreds = JSON.parse(JSON.stringify(creds, (key, value) => {
+        // Keep important keys
+        if (['noiseKey', 'signedIdentityKey', 'signedPreKey', 'advSecretKey', 
+             'registrationId', 'account', 'me', 'signalIdentities', 'lid'].includes(key)) {
+          return value;
+        }
+        return value;
+      }));
+      
+      await prisma.whatsAppAuth.upsert({
+        where: { key: 'whatsapp_creds' },
+        update: { 
+          value: JSON.stringify(cleanCreds),
+          updatedAt: new Date()
+        },
+        create: { 
+          key: 'whatsapp_creds', 
+          value: JSON.stringify(cleanCreds) 
+        }
+      });
+      console.log('✅ Creds saved to database');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to save creds to database:', error.message);
+      return false;
+    }
+  }
+
+  // =============================================
+  // 📥 LOAD CREDS FROM DATABASE
+  // =============================================
+  async loadCredsFromDatabase() {
+    try {
+      const record = await prisma.whatsAppAuth.findUnique({
+        where: { key: 'whatsapp_creds' }
+      });
+      if (record && record.value) {
+        console.log('✅ Creds loaded from database');
+        return JSON.parse(record.value);
+      }
+      console.log('ℹ️ No saved creds found in database');
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load creds from database:', error.message);
+      return null;
+    }
   }
 
   // =============================================
@@ -78,7 +134,36 @@ class WhatsAppBot {
         fs.mkdirSync(this.authFolder, { recursive: true });
       }
 
+      // ✅ Try to load saved creds from database
+      let savedCreds = null;
+      if (this.useDatabaseAuth) {
+        savedCreds = await this.loadCredsFromDatabase();
+      }
+
       const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
+
+      // ✅ If we have saved creds, apply them
+      if (savedCreds) {
+        try {
+          Object.assign(state, savedCreds);
+          console.log('✅ Restored creds from database');
+        } catch (error) {
+          console.error('❌ Failed to restore creds:', error.message);
+        }
+      }
+
+      // ✅ Override saveCreds to also save to database
+      const originalSaveCreds = saveCreds;
+      const saveToDb = async (creds) => {
+        try {
+          await originalSaveCreds(creds);
+          if (this.useDatabaseAuth) {
+            await this.saveCredsToDatabase(creds);
+          }
+        } catch (error) {
+          console.error('❌ Error in saveToDb:', error.message);
+        }
+      };
 
       this.sock = makeWASocket({
         auth: state,
@@ -90,7 +175,7 @@ class WhatsAppBot {
         syncFullHistory: false,
       });
 
-      this.sock.ev.on('creds.update', saveCreds);
+      this.sock.ev.on('creds.update', saveToDb);
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -175,7 +260,7 @@ class WhatsAppBot {
           this.botNumber = this.sock?.user?.id?.split(':')[0] || null;
           console.log(`✅ WhatsApp Bot Connected! Bot Number: ${this.botNumber}`);
           
-          // ✅ FIXED: EXTRACT AND STORE LID - MORE ROBUST
+          // ✅ EXTRACT AND STORE LID
           try {
             console.log('🔍 Attempting to extract LID...');
             
@@ -185,12 +270,10 @@ class WhatsAppBot {
               const credsPath = path.join(this.authFolder, 'creds.json');
               if (fs.existsSync(credsPath)) {
                 const credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-                console.log('📄 Creds file keys:', Object.keys(credsData));
                 if (credsData.lid) {
                   lid = credsData.lid;
                   console.log(`✅ LID from creds file: ${lid}`);
                 }
-                // Also check for me.lid
                 if (!lid && credsData.me && credsData.me.lid) {
                   lid = credsData.me.lid;
                   console.log(`✅ LID from creds.me.lid: ${lid}`);
@@ -233,8 +316,7 @@ class WhatsAppBot {
               } catch (e) {}
             }
             
-            // Method 5: HARDCODE from your logs
-            // The LID shown in logs: "myLID":"273010401485038:3@lid"
+            // Method 5: Hardcode fallback
             if (!lid) {
               console.log('⚠️ No LID found via methods, using hardcoded LID from logs');
               lid = '273010401485038:3@lid';
@@ -246,14 +328,12 @@ class WhatsAppBot {
               this.botLid = lid.split(':')[0] || null;
               console.log(`🔑 FINAL BOT LID SET TO: ${this.botLid}`);
             } else {
-              // Last resort - hardcode from your logs
               this.botLid = '273010401485038';
               console.log(`🔑 BOT LID HARDCODED TO: ${this.botLid}`);
             }
             
           } catch (error) {
             console.error('❌ Error extracting LID:', error.message);
-            // Fallback hardcode
             this.botLid = '273010401485038';
             console.log(`🔑 BOT LID HARDCODED TO (after error): ${this.botLid}`);
           }
@@ -674,79 +754,78 @@ class WhatsAppBot {
   }
 
   // =============================================
-  // 🤖 HANDLE AI MENTION - AUTO-REPLY WHERE MENTIONED
-  // =============================================
-  async handleAIMention(from, text, msg) {
-    try {
-      // Send typing indicator
-      await this.sock.sendPresenceUpdate('composing', from);
+// 🤖 HANDLE AI MENTION - AUTO-REPLY WHERE MENTIONED
+// =============================================
+async handleAIMention(from, text, msg) {
+  try {
+    // Send typing indicator
+    await this.sock.sendPresenceUpdate('composing', from);
+    
+    // Get bot identifiers for cleaning
+    const botNumber = this.botNumber || this.sock?.user?.id?.split(':')[0];
+    const lidNumber = this.botLid;
+    
+    // Clean the text - remove mentions and bot names
+    let cleanText = text
+      .replace(/@[0-9]+\.[0-9]+/g, '')
+      .replace(new RegExp(`@${botNumber}`, 'g'), '')
+      .replace(new RegExp(`@${lidNumber}`, 'g'), '')
+      .replace(/@[a-zA-Z0-9\-_:.]+/g, '')
+      .replace(/@ZUCA_Bot/gi, '')
+      .replace(/@ZUCA Bot/gi, '')
+      .replace(/ZUCA Bot/gi, '')
+      .replace(/zuca bot/gi, '')
+      .replace(/hey bot/gi, '')
+      .replace(/hello bot/gi, '')
+      .replace(/hi bot/gi, '')
+      .replace(/@zuca/gi, '')
+      .replace(new RegExp(botNumber, 'g'), '')
+      .replace(new RegExp(lidNumber, 'g'), '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    console.log(`📝 Clean text: "${cleanText}"`);
+    
+    if (!cleanText || cleanText.length < 2) {
+      await this.sendToSpecificGroup(from, ' How can I help you?\n\n💡 Try: "What\'s today\'s mass?" or "Show campaigns"');
+      return;
+    }
+    
+    console.log(`🤖 Sending to AI: "${cleanText}"`);
+    
+    const aiResponse = await this.callAISystem(cleanText, from);
+    
+    if (aiResponse) {
+      // ✅ Check if it's the executive team response
+      const isExecutiveTeam = aiResponse.includes('👔 *ZUCA EXECUTIVE TEAM*');
       
-      // Get bot identifiers for cleaning
-      const botNumber = this.botNumber || this.sock?.user?.id?.split(':')[0];
-      const lidNumber = this.botLid;
-      
-      // Clean the text - remove mentions and bot names
-      let cleanText = text
-        // Remove @mentions with full JID
-        .replace(/@[0-9]+\.[0-9]+/g, '')
-        // Remove @mentions with just number
-        .replace(new RegExp(`@${botNumber}`, 'g'), '')
-        .replace(new RegExp(`@${lidNumber}`, 'g'), '')
-        // Remove @mentions with alphanumeric
-        .replace(/@[a-zA-Z0-9\-_:.]+/g, '')
-        // Remove bot name mentions
-        .replace(/@ZUCA_Bot/gi, '')
-        .replace(/@ZUCA Bot/gi, '')
-        .replace(/ZUCA Bot/gi, '')
-        .replace(/zuca bot/gi, '')
-        .replace(/hey bot/gi, '')
-        .replace(/hello bot/gi, '')
-        .replace(/hi bot/gi, '')
-        .replace(/@zuca/gi, '')
-        // Remove the bot's number if it appears in text
-        .replace(new RegExp(botNumber, 'g'), '')
-        .replace(new RegExp(lidNumber, 'g'), '')
-        // Clean up extra spaces
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      console.log(`📝 Clean text: "${cleanText}"`);
-      
-      // If empty, send help message
-      if (!cleanText || cleanText.length < 2) {
-        await this.sendToSpecificGroup(from, ' How can I help you?\n\n💡 Try: "What\'s today\'s mass?" or "Show campaigns"');
-        return;
-      }
-      
-      console.log(`🤖 Sending to AI: "${cleanText}"`);
-      
-      // Get AI response
-      const aiResponse = await this.callAISystem(cleanText, from);
-      
-      if (aiResponse) {
-        // ✅ SEND TO THE GROUP WHERE THE USER MENTIONED THE BOT
-        if (aiResponse.length > 2000) {
-          const chunks = aiResponse.match(/.{1,2000}/g) || [];
-          for (const chunk of chunks) {
-            await this.sendToSpecificGroup(from, chunk);
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } else {
-          await this.sendToSpecificGroup(from, aiResponse);
+      if (isExecutiveTeam) {
+        // ✅ Send executive team as ONE SINGLE MESSAGE
+        console.log('📤 Sending executive team as single message');
+        await this.sendToSpecificGroup(from, aiResponse);
+      } else if (aiResponse.length > 2000) {
+        // For other long messages, split into chunks
+        const chunks = aiResponse.match(/.{1,2000}/g) || [];
+        for (const chunk of chunks) {
+          await this.sendToSpecificGroup(from, chunk);
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       } else {
-        await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
+        await this.sendToSpecificGroup(from, aiResponse);
       }
-      
-    } catch (error) {
-      console.error('❌ AI mention error:', error);
-      try {
-        await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
-      } catch (e) {
-        console.error('❌ Failed to send error response:', e.message);
-      }
+    } else {
+      await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
+    }
+    
+  } catch (error) {
+    console.error('❌ AI mention error:', error);
+    try {
+      await this.sendToSpecificGroup(from, '🙏 Sorry, I had trouble processing that. Please try again.');
+    } catch (e) {
+      console.error('❌ Failed to send error response:', e.message);
     }
   }
+}
 
   // =============================================
   // 🧠 CALL AI SYSTEM
@@ -790,8 +869,6 @@ class WhatsAppBot {
         }
       }
       
-      
-      
       return finalReply;
       
     } catch (error) {
@@ -801,111 +878,194 @@ class WhatsAppBot {
   }
 
   // =============================================
-  // 📝 FORMAT ACTION RESULTS FOR WHATSAPP
-  // =============================================
-  formatActionResult(actionResult) {
-    if (!actionResult) return null;
-    
-    if (actionResult.error) {
-      return `❌ ${actionResult.error}`;
-    }
-    
-    if (actionResult.profile) {
-      const p = actionResult.profile;
-      let reply = `👤 *${p.fullName}*\n\n`;
-      reply += `📧 ${p.email}\n`;
-      reply += `📱 ${p.phone || 'N/A'}\n`;
-      reply += `🆔 ${p.membershipNumber || 'N/A'}\n`;
-      reply += `🏠 ${p.jumuia || 'None'}\n`;
-      reply += `💰 Paid: KES ${(actionResult.contributions?.totalPaid || 0).toLocaleString()}`;
-      return reply;
-    }
-    
-    if (actionResult.pledges) {
-      let reply = `💰 *YOUR PLEDGES*\n\n`;
-      actionResult.pledges.slice(0, 5).forEach((p, i) => {
-        reply += `${i+1}. *${p.campaign}*\n`;
-        reply += `   Paid: KES ${p.amountPaid.toLocaleString()}\n`;
-        reply += `   Status: ${p.status}\n\n`;
-      });
-      if (actionResult.summary?.totalPaid) {
-        reply += `📊 Total Paid: KES ${actionResult.summary.totalPaid.toLocaleString()}`;
-      }
-      return reply;
-    }
-    
-    if (actionResult.massPrograms && actionResult.massPrograms.length > 0) {
-      let reply = '⛪ *UPCOMING MASSES*\n\n';
-      actionResult.massPrograms.slice(0, 5).forEach((m, i) => {
-        const date = new Date(m.date);
-        reply += `${i+1}. ${date.toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', month: 'short' })} — ${m.venue}\n`;
-        if (m.time) reply += `   🕐 ${m.time}\n`;
-      });
-      return reply;
-    }
-    
-    if (actionResult.announcements && actionResult.announcements.length > 0) {
-      let reply = '📢 *ANNOUNCEMENTS*\n\n';
-      actionResult.announcements.slice(0, 3).forEach(a => {
-        reply += `*${a.title}*\n`;
-        reply += `${(a.content || '').substring(0, 150)}${(a.content || '').length > 150 ? '...' : ''}\n\n`;
-      });
-      return reply;
-    }
-    
-    if (actionResult.campaigns && actionResult.campaigns.length > 0) {
-      let reply = '💰 *ACTIVE CAMPAIGNS*\n\n';
-      actionResult.campaigns.forEach(c => {
-        reply += `*${c.title}*\n`;
-        reply += `🎯 Target: KES ${c.amountRequired?.toLocaleString()}\n`;
-        if (c.totalRaised) reply += `💰 Raised: KES ${c.totalRaised.toLocaleString()}\n`;
-        reply += `\n`;
-      });
-      return reply;
-    }
-    
-    if (actionResult.readings) {
-      const r = actionResult.readings;
-      let reply = `📖 *READINGS FOR TODAY*\n\n`;
-      reply += `📕 ${r.celebration || 'Today\'s Mass'}\n\n`;
-      if (r.firstReading) reply += `📕 ${r.firstReading}\n\n`;
-      if (r.gospel) reply += `✝️ ${r.gospel}\n`;
-      return reply;
-    }
-    
-    if (actionResult.helpText) {
-      return actionResult.helpText;
-    }
-    
-    if (actionResult.message) {
-      return actionResult.message;
-    }
-    
-    if (actionResult.success && actionResult.message) {
-      return `✅ ${actionResult.message}`;
-    }
-
-    if (actionResult.title && actionResult.lyrics) {
-      const lyrics = actionResult.lyrics.replace(/<[^>]*>/g, '').trim();
-      const preview = lyrics.substring(0, 500);
-      const isLong = lyrics.length > 500;
-      return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`;
-    }
-
-    if (actionResult.hymns && actionResult.hymns.length > 0) {
-      let reply = `🎵 *Hymns Found (${actionResult.count || actionResult.hymns.length}):*\n\n`;
-      actionResult.hymns.slice(0, 10).forEach((h, i) => {
-        reply += `${i+1}. *${h.title}*${h.reference ? ` (${h.reference})` : ''}${h.hasLyrics ? ' 📝' : ''}\n`;
-      });
-      if (actionResult.hymns.length > 10) {
-        reply += `\n... and ${actionResult.hymns.length - 10} more`;
-      }
-      reply += `\n\n💡 Say *"Get lyrics for [title]"* to see full lyrics!`;
-      return reply;
-    }
-    
-    return null;
+// 📝 FORMAT ACTION RESULTS FOR WHATSAPP
+// =============================================
+formatActionResult(actionResult) {
+  if (!actionResult) return null;
+  
+  if (actionResult.error) {
+    return `❌ ${actionResult.error}`;
   }
+  
+  if (actionResult.profile) {
+    const p = actionResult.profile;
+    let reply = `👤 *${p.fullName}*\n\n`;
+    reply += `📧 ${p.email}\n`;
+    reply += `📱 ${p.phone || 'N/A'}\n`;
+    reply += `🆔 ${p.membershipNumber || 'N/A'}\n`;
+    reply += `🏠 ${p.jumuia || 'None'}\n`;
+    reply += `💰 Paid: KES ${(actionResult.contributions?.totalPaid || 0).toLocaleString()}`;
+    return reply;
+  }
+  
+  if (actionResult.pledges) {
+    let reply = `💰 *YOUR PLEDGES*\n\n`;
+    actionResult.pledges.slice(0, 5).forEach((p, i) => {
+      reply += `${i+1}. *${p.campaign}*\n`;
+      reply += `   Paid: KES ${p.amountPaid.toLocaleString()}\n`;
+      reply += `   Status: ${p.status}\n\n`;
+    });
+    if (actionResult.summary?.totalPaid) {
+      reply += `📊 Total Paid: KES ${actionResult.summary.totalPaid.toLocaleString()}`;
+    }
+    return reply;
+  }
+  
+  if (actionResult.massPrograms && actionResult.massPrograms.length > 0) {
+    let reply = '⛪ *UPCOMING MASSES*\n\n';
+    actionResult.massPrograms.slice(0, 5).forEach((m, i) => {
+      const date = new Date(m.date);
+      reply += `${i+1}. ${date.toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', month: 'short' })} — ${m.venue}\n`;
+      if (m.time) reply += `   🕐 ${m.time}\n`;
+    });
+    return reply;
+  }
+  
+  if (actionResult.announcements && actionResult.announcements.length > 0) {
+    let reply = '📢 *ANNOUNCEMENTS*\n\n';
+    actionResult.announcements.slice(0, 3).forEach(a => {
+      reply += `*${a.title}*\n`;
+      reply += `${(a.content || '').substring(0, 150)}${(a.content || '').length > 150 ? '...' : ''}\n\n`;
+    });
+    return reply;
+  }
+  
+  if (actionResult.campaigns && actionResult.campaigns.length > 0) {
+    let reply = '💰 *ACTIVE CAMPAIGNS*\n\n';
+    actionResult.campaigns.forEach(c => {
+      reply += `*${c.title}*\n`;
+      reply += `🎯 Target: KES ${c.amountRequired?.toLocaleString()}\n`;
+      if (c.totalRaised) reply += `💰 Raised: KES ${c.totalRaised.toLocaleString()}\n`;
+      reply += `\n`;
+    });
+    return reply;
+  }
+  
+  if (actionResult.readings) {
+    const r = actionResult.readings;
+    let reply = `📖 *READINGS FOR TODAY*\n\n`;
+    reply += `📕 ${r.celebration || 'Today\'s Mass'}\n\n`;
+    if (r.firstReading) reply += `📕 ${r.firstReading}\n\n`;
+    if (r.gospel) reply += `✝️ ${r.gospel}\n`;
+    return reply;
+  }
+  
+  if (actionResult.helpText) {
+    return actionResult.helpText;
+  }
+  
+  if (actionResult.message) {
+    return actionResult.message;
+  }
+  
+  if (actionResult.success && actionResult.message) {
+    return `✅ ${actionResult.message}`;
+  }
+
+  if (actionResult.title && actionResult.lyrics) {
+    const lyrics = actionResult.lyrics.replace(/<[^>]*>/g, '').trim();
+    const preview = lyrics.substring(0, 500);
+    const isLong = lyrics.length > 500;
+    return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`;
+  }
+
+  if (actionResult.hymns && actionResult.hymns.length > 0) {
+    let reply = `🎵 *Hymns Found (${actionResult.count || actionResult.hymns.length}):*\n\n`;
+    actionResult.hymns.slice(0, 10).forEach((h, i) => {
+      reply += `${i+1}. *${h.title}*${h.reference ? ` (${h.reference})` : ''}${h.hasLyrics ? ' 📝' : ''}\n`;
+    });
+    if (actionResult.hymns.length > 10) {
+      reply += `\n... and ${actionResult.hymns.length - 10} more`;
+    }
+    reply += `\n\n💡 Say *"Get lyrics for [title]"* to see full lyrics!`;
+    return reply;
+  }
+  
+  // ✅ Handle executive team response with proper hierarchy
+if (actionResult.grouped && actionResult.total !== undefined) {
+  let reply = "👔 *ZUCA EXECUTIVE TEAM*\n\n";
+  
+  // ✅ Proper hierarchical order based on your data
+  const categoryOrder = [
+    'leadership',     // Chairperson, Vice Chair, Secretary, Treasurer
+    'Organisation',   // Organising Secretary, Welfare, Liturgist
+    'choir',          // Choir Moderator
+    'jumuia',         // All Jumuia Moderators
+    'media',          // Media Moderator
+    'voice'           // Voice Reps
+  ];
+  
+  // Sort categories by the defined order
+  const sortedCategories = Object.keys(actionResult.grouped).sort((a, b) => {
+    const indexA = categoryOrder.indexOf(a.toLowerCase());
+    const indexB = categoryOrder.indexOf(b.toLowerCase());
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+
+  for (const category of sortedCategories) {
+    const members = actionResult.grouped[category] || [];
+    if (members.length === 0) continue;
+    
+    // Format category name properly
+    let displayName = category.charAt(0).toUpperCase() + category.slice(1);
+    if (category.toLowerCase() === 'choir') displayName = 'CHOIR';
+    else if (category.toLowerCase() === 'jumuia') displayName = 'JUMUIA MODERATORS';
+    else if (category.toLowerCase() === 'voice') displayName = 'VOICE REPS';
+    else if (category.toLowerCase() === 'media') displayName = 'MEDIA';
+    
+    reply += `*${displayName.toUpperCase()}*\n`;
+    
+    // Sort members by level within category
+    const sortedMembers = [...members].sort((a, b) => {
+      const levelMap = {
+        'Chairperson': 1,
+        'Vice Chairperson': 2,
+        'Secretary': 3,
+        'Vice Secretary': 4,
+        'Treasurer': 5,
+        'Organising Secretary': 6,
+        'Welfare': 7,
+        'Liturgist': 8,
+        'Choir Moderator': 9,
+        'St. Gregory Moderator': 10,
+        'St. Peregrine Moderator': 11,
+        'St. Benedict Moderator': 12,
+        'St. Michael Moderator': 13,
+        'Christ the King Moderator': 14,
+        'St. Pacificus Moderator': 15,
+        'instumentals': 16,
+        'Media Moderator': 17,
+        'SOPRANO Voice Rep': 18,
+        'ALTO Voice Rep': 19,
+        'TENOR Voice Rep': 20,
+        'BASS Voice Rep': 21
+      };
+      const aLevel = levelMap[a.position] || 99;
+      const bLevel = levelMap[b.position] || 99;
+      return aLevel - bLevel;
+    });
+    
+    sortedMembers.forEach(m => {
+      reply += `  • *${m.position}*: ${m.name}\n`;
+      if (m.phone && m.phone !== 'N/A') {
+        reply += `    📱 ${m.phone}\n`;
+      }
+      if (m.email && m.email !== 'N/A') {
+        reply += `    📧 ${m.email}\n`;
+      }
+    });
+    reply += `\n`;
+  }
+
+  reply += `📌 Total: ${actionResult.total} active executives`;
+  return reply;
+}
+  
+  return null;
+}
 
   // =============================================
   // 📊 GET BOT STATUS
@@ -1184,6 +1344,14 @@ class WhatsAppBot {
           } 
         }
       });
+      
+      // ✅ Also clear WhatsApp auth from database
+      if (this.useDatabaseAuth) {
+        await prisma.whatsAppAuth.deleteMany({
+          where: { key: 'whatsapp_creds' }
+        });
+        console.log('🗑️ WhatsApp auth cleared from database');
+      }
       
       console.log('✅ Bot reset complete');
       return true;

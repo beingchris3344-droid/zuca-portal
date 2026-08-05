@@ -176,6 +176,40 @@ router.post('/groups/activate', authenticate, requireAdmin, async (req, res) => 
 });
 
 // =============================================
+// 📋 GET GROUP MEMBERS
+// =============================================
+router.get('/groups/:groupId/members', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    if (!groupId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Group ID is required' 
+      });
+    }
+    
+    console.log(`📋 Fetching members for group: ${groupId}`);
+    
+    const members = await bot.getGroupMembers(groupId);
+    
+    res.json({
+      success: true,
+      members: members,
+      count: members.length,
+      groupId: groupId,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Get members error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// =============================================
 // ➖ REMOVE GROUP FROM ACTIVE LIST
 // =============================================
 router.post('/groups/deactivate', authenticate, requireAdmin, async (req, res) => {
@@ -439,6 +473,9 @@ router.post('/groups/refresh', authenticate, requireAdmin, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+
 
 console.log('✅ WhatsApp Admin routes loaded');
 

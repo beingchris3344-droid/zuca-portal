@@ -880,60 +880,71 @@ async handleAIMention(from, text, msg) {
 }
 
   // =============================================
-  // 🧠 CALL AI SYSTEM
-  // =============================================
-  async callAISystem(message, from) {
-    try {
-      const userContext = {
-        user: null,
-        stats: {},
-        currentTime: new Date().toISOString(),
-        source: 'whatsapp'
-      };
+// 🧠 CALL AI SYSTEM
+// =============================================
+async callAISystem(message, from) {
+  try {
+    const userContext = {
+      user: null,
+      stats: {},
+      currentTime: new Date().toISOString(),
+      source: 'whatsapp'
+    };
+    
+    const messages = [
+      { role: 'user', content: message }
+    ];
+    
+    const aiResponse = await chatWithGroq(messages, userContext);
+    
+    let finalReply = aiResponse.content || '';
+    
+    if (aiResponse.action && aiResponse.action.name) {
+      console.log(`🔧 Executing action: ${aiResponse.action.name}`);
       
-      const messages = [
-        { role: 'user', content: message }
-      ];
-      
-      const aiResponse = await chatWithGroq(messages, userContext);
-      
-      let finalReply = aiResponse.content || '';
-      
-      if (aiResponse.action && aiResponse.action.name) {
-        console.log(`🔧 Executing action: ${aiResponse.action.name}`);
+      try {
+        const actionResult = await executeToolCall(
+          aiResponse.action.name,
+          aiResponse.action.arguments || {},
+          { user: null, req: null }
+        );
         
-        try {
-          const actionResult = await executeToolCall(
-            aiResponse.action.name,
-            aiResponse.action.arguments || {},
-            { user: null, req: null }
-          );
-          
-          if (actionResult) {
+        console.log('📦 Action result:', JSON.stringify(actionResult, null, 2));
+        
+        if (actionResult) {
+          // ✅ Check for message field first
+          if (actionResult.message) {
+            finalReply = actionResult.message;
+          } else {
             const formatted = this.formatActionResult(actionResult);
             if (formatted) {
               finalReply = formatted;
             }
           }
-        } catch (actionError) {
-          console.error('❌ Action execution error:', actionError);
-          finalReply = finalReply || '🙏 I tried to do that but encountered an issue. Please try again.';
         }
+      } catch (actionError) {
+        console.error('❌ Action execution error:', actionError);
+        finalReply = finalReply || '🙏 I tried to do that but encountered an issue. Please try again.';
       }
-      
-      return finalReply;
-      
-    } catch (error) {
-      console.error('AI call error:', error);
-      return null;
     }
+    
+    return finalReply;
+    
+  } catch (error) {
+    console.error('AI call error:', error);
+    return null;
   }
+}
 
   // =============================================
 // 📝 FORMAT ACTION RESULTS FOR WHATSAPP
 // =============================================
 formatActionResult(actionResult) {
   if (!actionResult) return null;
+
+    if (actionResult.message) {
+    return actionResult.message;
+  }
   
   if (actionResult.error) {
     return `❌ ${actionResult.error}`;
@@ -962,6 +973,9 @@ formatActionResult(actionResult) {
     }
     return reply;
   }
+
+
+  
   
   if (actionResult.massPrograms && actionResult.massPrograms.length > 0) {
     let reply = '⛪ *UPCOMING MASSES*\n\n';
@@ -1018,7 +1032,7 @@ formatActionResult(actionResult) {
     const lyrics = actionResult.lyrics.replace(/<[^>]*>/g, '').trim();
     const preview = lyrics.substring(0, 500);
     const isLong = lyrics.length > 500;
-    return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book!*' : ''}`;
+    return `🎵 *${actionResult.title}*${actionResult.reference ? ` (${actionResult.reference})` : ''}\n\n${preview}${isLong ? '\n\n📖 *Full lyrics available in the hymn book! at https://www.zetechcatholicaction.com/hymns*' : ''}`;
   }
 
   if (actionResult.hymns && actionResult.hymns.length > 0) {
@@ -1112,7 +1126,7 @@ if (actionResult.grouped && actionResult.total !== undefined) {
     reply += `\n`;
   }
 
-  reply += `📌 Total: ${actionResult.total} active executives`;
+  reply += `📌 Total: ${actionResult.total} active executives check full page at   https://www.zetechcatholicaction.com/executive`;
   return reply;
 }
   

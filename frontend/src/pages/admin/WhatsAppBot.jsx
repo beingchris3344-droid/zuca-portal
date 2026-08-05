@@ -1,12 +1,12 @@
 // pages/admin/WhatsAppBot.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Plus, Search, Filter, RefreshCw, Link as LinkIcon, 
   Unlink, QrCode, Send, Users, MessageCircle, 
   Settings, AlertCircle, CheckCircle, XCircle,
   Loader, Copy, Check, Phone, Radio, Globe,
   ChevronDown, ChevronRight, Database, Hash,
-  UserPlus, UserMinus, List, Layers, Sparkles, Wand2
+  UserPlus, UserMinus, List, Layers, Sparkles, Wand2, History as HistoryIcon
 } from 'lucide-react';
 import { api } from '../../api';
 import { useNavigate } from 'react-router-dom';
@@ -44,6 +44,22 @@ export default function WhatsAppBot() {
   const [aiMessageType, setAiMessageType] = useState('polish');
   const [aiMessageTone, setAiMessageTone] = useState('professional');
 
+  // ✅ Cache refs
+  const groupsCache = useRef({
+    data: null,
+    timestamp: 0,
+    ttl: 60000 // 1 minute cache
+  });
+  
+  const statusCache = useRef({
+    data: null,
+    timestamp: 0,
+    ttl: 30000 // 30 seconds cache
+  });
+
+  // ✅ Debounce ref
+  const debounceTimeout = useRef(null);
+
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -58,45 +74,119 @@ export default function WhatsAppBot() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ==================== FETCH STATUS ====================
-  const fetchStatus = useCallback(async () => {
+  // ==================== CACHED FETCH STATUS ====================
+  const fetchStatus = useCallback(async (force = false) => {
+    const now = Date.now();
+    
+    // ✅ Return cached data if not expired and not forced
+    if (!force && statusCache.current.data && 
+        (now - statusCache.current.timestamp) < statusCache.current.ttl) {
+      console.log('📦 Using cached status data');
+      setStatus(statusCache.current.data);
+      return statusCache.current.data;
+    }
+    
     try {
+      console.log('🔄 Fetching fresh status...');
       const response = await api.get('/api/admin/whatsapp/status', { headers });
-      setStatus(response.data.status || response.data);
-      if (response.data.status?.groupId || response.data.groupId) {
-        const gid = response.data.status?.groupId || response.data.groupId;
-        setGroupId(gid);
-        setNewGroupId(gid);
+      const data = response.data.status || response.data;
+      
+      // ✅ Update cache
+      statusCache.current.data = data;
+      statusCache.current.timestamp = now;
+      
+      setStatus(data);
+      if (data.groupId) {
+        setGroupId(data.groupId);
+        setNewGroupId(data.groupId);
       }
-      if (response.data.status?.qrCode || response.data.qrCode) {
-        const qr = response.data.status?.qrCode || response.data.qrCode;
-        setQrCode(qr);
+      if (data.qrCode) {
+        setQrCode(data.qrCode);
         setShowQR(true);
       }
+      return data;
     } catch (error) {
       console.error('Error fetching status:', error);
       showToast('Failed to fetch WhatsApp status', 'error');
+      return null;
     }
   }, []);
 
-  // ==================== FETCH GROUPS ====================
-  const fetchGroups = useCallback(async () => {
+  // ==================== CACHED FETCH GROUPS ====================
+  const fetchGroups = useCallback(async (force = false) => {
+    const now = Date.now();
+    
+    // ✅ Return cached data if not expired and not forced
+    if (!force && groupsCache.current.data && 
+        (now - groupsCache.current.timestamp) < groupsCache.current.ttl) {
+      console.log('📦 Using cached groups data');
+      const groupList = groupsCache.current.data;
+      setGroups(groupList);
+      const active = groupList.filter(g => g.isActive) || [];
+      setActiveGroups(active);
+      return groupList;
+    }
+    
     try {
+      console.log('🔄 Fetching fresh groups...');
       const response = await api.get('/api/admin/whatsapp/groups', { headers });
+      
       if (response.data.success) {
         const groupList = response.data.groups || [];
+        
+        // ✅ Update cache
+        groupsCache.current.data = groupList;
+        groupsCache.current.timestamp = now;
+        
         setGroups(groupList);
         const active = groupList.filter(g => g.isActive) || [];
         setActiveGroups(active);
+        return groupList;
       }
     } catch (error) {
+      // ✅ If rate limited and we have cached data, use it
+      if (error.response?.data?.error === 'rate-overlimit' && groupsCache.current.data) {
+        console.log('⚠️ Rate limited, using cached groups data');
+        const groupList = groupsCache.current.data;
+        setGroups(groupList);
+        const active = groupList.filter(g => g.isActive) || [];
+        setActiveGroups(active);
+        return groupList;
+      }
+      
       console.error('Error fetching groups:', error);
       showToast('Failed to fetch groups', 'error');
+      return null;
     }
   }, []);
 
+  // ==================== DEBOUNCED FETCH ====================
+  const debouncedFetch = useCallback((type, force = false) => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    
+    debounceTimeout.current = setTimeout(() => {
+      if (type === 'status') {
+        fetchStatus(force);
+      } else if (type === 'groups') {
+        fetchGroups(force);
+      } else if (type === 'all') {
+        fetchStatus(force);
+        fetchGroups(force);
+      }
+      debounceTimeout.current = null;
+    }, 300); // 300ms debounce
+  }, [fetchStatus, fetchGroups]);
+
   // ==================== FETCH GROUP MEMBERS ====================
   const fetchGroupMembers = async (groupId) => {
+    // ✅ Check if we already have the members
+    if (groupMembers[groupId]) {
+      console.log('📦 Using cached group members');
+      return;
+    }
+    
     try {
       const response = await api.get(`/api/admin/whatsapp/groups/${groupId}/members`, { headers });
       if (response.data.success) {
@@ -108,29 +198,36 @@ export default function WhatsAppBot() {
     }
   };
 
-// Replace this:
-useEffect(() => {
-  fetchStatus();
-  fetchGroups();
-  const statusInterval = setInterval(fetchStatus, 15000);
-  const groupsInterval = setInterval(fetchGroups, 30000);
-  return () => {
-    clearInterval(statusInterval);
-    clearInterval(groupsInterval);
-  };
-}, [fetchStatus, fetchGroups]);
-
-// With this (slower intervals):
-useEffect(() => {
-  fetchStatus();
-  fetchGroups();
-  const statusInterval = setInterval(fetchStatus, 30000);  // 30 seconds
-  const groupsInterval = setInterval(fetchGroups, 60000);  // 60 seconds
-  return () => {
-    clearInterval(statusInterval);
-    clearInterval(groupsInterval);
-  };
-}, [fetchStatus, fetchGroups]);
+  // ==================== EFFECTS ====================
+  useEffect(() => {
+    // Initial fetch with cache
+    fetchStatus();
+    fetchGroups();
+    
+    // ✅ Longer intervals with cache checking
+    const statusInterval = setInterval(() => {
+      // Only fetch if cache expired
+      const now = Date.now();
+      if ((now - statusCache.current.timestamp) >= statusCache.current.ttl) {
+        fetchStatus();
+      }
+    }, 15000); // Check every 15s but only fetch if expired
+    
+    const groupsInterval = setInterval(() => {
+      const now = Date.now();
+      if ((now - groupsCache.current.timestamp) >= groupsCache.current.ttl) {
+        fetchGroups();
+      }
+    }, 30000); // Check every 30s but only fetch if expired
+    
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(groupsInterval);
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [fetchStatus, fetchGroups]);
 
   // ==================== ACTIONS ====================
 
@@ -144,7 +241,8 @@ useEffect(() => {
           setQrCode(response.data.qrCode);
           setShowQR(true);
         }
-        setTimeout(fetchStatus, 2000);
+        // ✅ Force refresh after link
+        setTimeout(() => fetchStatus(true), 2000);
       }
     } catch (error) {
       showToast('Failed to link WhatsApp: ' + (error.response?.data?.error || error.message), 'error');
@@ -162,7 +260,8 @@ useEffect(() => {
       showToast('WhatsApp unlinked successfully');
       setQrCode(null);
       setShowQR(false);
-      fetchStatus();
+      // ✅ Force refresh after unlink
+      fetchStatus(true);
     } catch (error) {
       showToast('Failed to unlink WhatsApp: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
@@ -181,7 +280,8 @@ useEffect(() => {
       await api.post('/api/admin/whatsapp/group', { groupId: newGroupId }, { headers });
       showToast('Default Group ID set successfully!');
       setGroupId(newGroupId);
-      fetchStatus();
+      // ✅ Force refresh after setting
+      fetchStatus(true);
     } catch (error) {
       showToast('Failed to set group ID: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
@@ -195,7 +295,8 @@ useEffect(() => {
     try {
       await api.post('/api/admin/whatsapp/groups/activate', { groupId }, { headers });
       showToast('Group activated successfully!');
-      fetchGroups();
+      // ✅ Force refresh groups after activation
+      fetchGroups(true);
     } catch (error) {
       showToast('Failed to activate group: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
@@ -208,7 +309,8 @@ useEffect(() => {
     try {
       await api.post('/api/admin/whatsapp/groups/deactivate', { groupId }, { headers });
       showToast('Group deactivated successfully!');
-      fetchGroups();
+      // ✅ Force refresh groups after deactivation
+      fetchGroups(true);
     } catch (error) {
       showToast('Failed to deactivate group: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
@@ -221,7 +323,8 @@ useEffect(() => {
     try {
       await api.post('/api/admin/whatsapp/groups/refresh', {}, { headers });
       showToast('Groups refreshed successfully!');
-      fetchGroups();
+      // ✅ Force refresh after manual refresh
+      fetchGroups(true);
     } catch (error) {
       showToast('Failed to refresh groups', 'error');
     } finally {
@@ -439,6 +542,8 @@ useEffect(() => {
     return info;
   };
 
+
+
   return (
     <div className="whatsapp-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
@@ -455,6 +560,10 @@ useEffect(() => {
           </div>
         </div>
         <div className="header-actions">
+         
+<button className="btn-history" onClick={() => navigate('/admin/message-history')}>
+  <HistoryIcon size={18} /> Message History
+</button>
           <button className="btn-refresh" onClick={() => { fetchStatus(); fetchGroups(); }}>
             <RefreshCw size={18} /> Refresh
           </button>
@@ -948,7 +1057,7 @@ useEffect(() => {
 
         .btn-ai-generate {
           padding: 8px 20px;
-          background: #8b5cf6;
+          background: #3aca0e;
           color: white;
           border: none;
           border-radius: 8px;
@@ -983,7 +1092,7 @@ useEffect(() => {
         }
 
         .ai-textarea:focus {
-          border-color: #8b5cf6;
+          border-color: #1d1f1f;
         }
 
         .ai-hint {
@@ -994,7 +1103,7 @@ useEffect(() => {
           background: #f5f3ff;
           border-radius: 8px;
           font-size: 12px;
-          color: #6d28d9;
+          color: #2ed928;
           margin-top: 8px;
         }
 
@@ -1076,7 +1185,7 @@ useEffect(() => {
         }
 
         .btn-use-message:hover {
-          background: #8b5cf6;
+          background: #141414;
           color: white;
           border-color: #8b5cf6;
         }
@@ -1104,7 +1213,7 @@ useEffect(() => {
 
         .ai-badge {
           background: #f5f3ff;
-          color: #7c3aed;
+          color: #ed3a3a;
           font-size: 10px;
           padding: 2px 8px;
           border-radius: 10px;
@@ -1439,7 +1548,7 @@ useEffect(() => {
 
         .btn-set {
           padding: 10px 20px;
-          background: #3b82f6;
+          background: #092b61;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1474,7 +1583,7 @@ useEffect(() => {
         .btn-broadcast {
           width: 100%;
           padding: 12px;
-          background: #8b5cf6;
+          background: #030303;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1487,7 +1596,7 @@ useEffect(() => {
         }
 
         .btn-broadcast:hover:not(:disabled) {
-          background: #7c3aed;
+          background: #312f35;
         }
 
         .btn-set:disabled,
@@ -1772,6 +1881,23 @@ useEffect(() => {
           text-align: center;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
+
+        .btn-history {
+  padding: 8px 16px;
+  background: #1d1d1f;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.btn-history:hover {
+  background: #171618;
+}
 
         .toast.success { background: #22c55e; }
         .toast.error { background: #ef4444; }

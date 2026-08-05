@@ -110,6 +110,8 @@ import AdminMemberDetail from './pages/admin/attendance/AdminMemberDetail';
 import EmailManagement from './pages/admin/EmailManagement';
 import EmailDashboard from "./pages/admin/EmailDashboard";
 import WhatsAppBot from './pages/admin/WhatsAppBot';
+import MessageHistory from './pages/admin/MessageHistory';
+
 
 import { initializeDark } from "./utils/darkReader";
 
@@ -571,6 +573,8 @@ useEffect(() => {
           <Route path="bank-payments" element={<BankPayments />} />
           <Route path="/admin/email" element={<EmailDashboard />} />
           <Route path="/admin/whatsapp" element={<WhatsAppBot />} />
+          <Route path="/admin/message-history" element={<MessageHistory />} />
+
 
 
 

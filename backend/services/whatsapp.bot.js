@@ -825,6 +825,7 @@ async handleAIMention(from, text, msg) {
       console.error('❌ Failed to send error response:', e.message);
     }
   }
+  
 }
 
   // =============================================

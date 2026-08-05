@@ -108,16 +108,29 @@ export default function WhatsAppBot() {
     }
   };
 
-  useEffect(() => {
-    fetchStatus();
-    fetchGroups();
-    const statusInterval = setInterval(fetchStatus, 15000);
-    const groupsInterval = setInterval(fetchGroups, 30000);
-    return () => {
-      clearInterval(statusInterval);
-      clearInterval(groupsInterval);
-    };
-  }, [fetchStatus, fetchGroups]);
+// Replace this:
+useEffect(() => {
+  fetchStatus();
+  fetchGroups();
+  const statusInterval = setInterval(fetchStatus, 15000);
+  const groupsInterval = setInterval(fetchGroups, 30000);
+  return () => {
+    clearInterval(statusInterval);
+    clearInterval(groupsInterval);
+  };
+}, [fetchStatus, fetchGroups]);
+
+// With this (slower intervals):
+useEffect(() => {
+  fetchStatus();
+  fetchGroups();
+  const statusInterval = setInterval(fetchStatus, 30000);  // 30 seconds
+  const groupsInterval = setInterval(fetchGroups, 60000);  // 60 seconds
+  return () => {
+    clearInterval(statusInterval);
+    clearInterval(groupsInterval);
+  };
+}, [fetchStatus, fetchGroups]);
 
   // ==================== ACTIONS ====================
 

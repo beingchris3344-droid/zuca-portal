@@ -194,7 +194,7 @@ export default function MessageHistory() {
       {/* ==================== HEADER ==================== */}
       <div className="page-header">
         <div className="header-left">
-          <button className="btn-back" onClick={() => navigate('/admin/whatsapp-bot')}>
+          <button className="btn-back" onClick={() => navigate('/admin/whatsapp')}>
             <ArrowLeft size={20} />
           </button>
           <div className="title-icon">

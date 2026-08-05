@@ -5,7 +5,7 @@ import {
   Copy, Check, Loader, MessageCircle, Users, Phone,
   Calendar, Clock, AlertCircle, XCircle, CheckCircle,
   Eye, EyeOff, BarChart3, Download, ChevronLeft, ChevronRight,
-  History as HistoryIcon, Inbox
+  History as HistoryIcon, Inbox, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { api } from '../../api';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +26,7 @@ export default function MessageHistory() {
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(false);
   const [groupNames, setGroupNames] = useState({});
+  const [expandedMessages, setExpandedMessages] = useState({});
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -92,6 +93,14 @@ export default function MessageHistory() {
     fetchGroupNames();
   }, [fetchMessages, fetchStats, fetchGroupNames]);
 
+  // ==================== TOGGLE EXPAND ====================
+  const toggleExpand = (messageId) => {
+    setExpandedMessages(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+
   // ==================== EDIT MESSAGE ====================
   const handleEdit = async (messageId) => {
     if (!editContent.trim()) {
@@ -155,6 +164,13 @@ export default function MessageHistory() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // ==================== TRUNCATE TEXT ====================
+  const truncateText = (text, maxLength = 200) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   // ==================== GET TYPE BADGE ====================
@@ -298,142 +314,162 @@ export default function MessageHistory() {
             <p className="empty-sub">Send a message to start tracking history</p>
           </div>
         ) : (
-         messages.map((msg, index) => {
-  const typeBadge = getTypeBadge(msg.type);
-  const statusBadge = getStatusBadge(msg.status);
-  const isEditing = editingMessage === msg.id;
-  const messageNumber = (offset || 0) + index + 1;
-  
-  // Get the recipient name
-  let recipientName = '';
-  let recipientId = '';
-  let recipientType = '';
-  
-  if (msg.groupId) {
-    recipientName = groupNames[msg.groupId] || msg.groupId.substring(0, 20) + '...';
-    recipientId = msg.groupId;
-    recipientType = 'Group';
-  } else if (msg.phoneNumber) {
-    recipientName = msg.phoneNumber;
-    recipientId = msg.phoneNumber;
-    recipientType = 'User';
-  }
+          messages.map((msg, index) => {
+            const typeBadge = getTypeBadge(msg.type);
+            const statusBadge = getStatusBadge(msg.status);
+            const isEditing = editingMessage === msg.id;
+            const messageNumber = (offset || 0) + index + 1;
+            const isExpanded = expandedMessages[msg.id] || false;
+            const isLongMessage = msg.message && msg.message.length > 200;
+            const displayText = isExpanded ? msg.message : truncateText(msg.message, 200);
+            
+            let recipientName = '';
+            let recipientId = '';
+            let recipientType = '';
+            
+            if (msg.groupId) {
+              recipientName = groupNames[msg.groupId] || msg.groupId.substring(0, 20) + '...';
+              recipientId = msg.groupId;
+              recipientType = 'Group';
+            } else if (msg.phoneNumber) {
+              recipientName = msg.phoneNumber;
+              recipientId = msg.phoneNumber;
+              recipientType = 'User';
+            }
 
-  return (
-    <div key={msg.id} className={`message-item ${msg.status === 'deleted' ? 'deleted' : ''}`}>
-      <div className="message-number">{messageNumber}.</div>
-      
-      <div className="message-details">
-        {/* ===== SENT TO SECTION ===== */}
-        <div className="message-recipient">
-          <div className="recipient-header">
-            <span className="recipient-icon">📨</span>
-            <span className="recipient-label">Sent To:</span>
-            <span className="recipient-name">{recipientName}</span>
-            {recipientId && (
-              <span className="recipient-id" title={recipientId}>
-                ({recipientId})
-              </span>
-            )}
-            <span className="recipient-type">{recipientType}</span>
-          </div>
-        </div>
+            return (
+              <div key={msg.id} className={`message-item ${msg.status === 'deleted' ? 'deleted' : ''}`}>
+                <div className="message-number">{messageNumber}.</div>
+                
+                <div className="message-details">
+                  {/* ===== SENT TO SECTION ===== */}
+                  <div className="message-recipient">
+                    <div className="recipient-header">
+                      <span className="recipient-icon">📨</span>
+                      <span className="recipient-label">Sent To:</span>
+                      <span className="recipient-name">{recipientName}</span>
+                      {recipientId && (
+                        <span className="recipient-id" title={recipientId}>
+                          ({recipientId})
+                        </span>
+                      )}
+                      <span className="recipient-type">{recipientType}</span>
+                    </div>
+                  </div>
 
-        <div className="message-header">
-          <div className="message-meta">
-            <span className={`type-badge`} style={{ background: typeBadge.bg, color: typeBadge.color }}>
-              {typeBadge.label}
-            </span>
-            <span className={`status-badge`} style={{ background: statusBadge.bg, color: statusBadge.color }}>
-              {statusBadge.label}
-            </span>
-            <span className="timestamp">
-              <Clock size={14} /> {formatDate(msg.sentAt)}
-            </span>
-            {msg.editedAt && (
-              <span className="edited-badge">
-                <Edit2 size={12} /> Edited
-              </span>
-            )}
-          </div>
-          <div className="message-actions">
-            <button 
-              className="btn-copy" 
-              onClick={() => copyToClipboard(msg.message)}
-              title="Copy message"
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-            </button>
-            {msg.status !== 'deleted' && msg.type !== 'broadcast' && (
-              <button 
-                className="btn-edit" 
-                onClick={() => {
-                  setEditingMessage(msg.id);
-                  setEditContent(msg.message);
-                }}
-                title="Edit message (within 15 minutes)"
-              >
-                <Edit2 size={16} />
-              </button>
-            )}
-            {msg.status !== 'deleted' && (
-              <button 
-                className="btn-delete" 
-                onClick={() => handleDelete(msg.id, false)}
-                title="Soft delete"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-            {msg.status === 'deleted' && (
-              <button 
-                className="btn-delete-permanent" 
-                onClick={() => handleDelete(msg.id, true)}
-                title="Permanently delete"
-              >
-                <XCircle size={16} />
-              </button>
-            )}
-          </div>
-        </div>
+                  <div className="message-header">
+                    <div className="message-meta">
+                      <span className={`type-badge`} style={{ background: typeBadge.bg, color: typeBadge.color }}>
+                        {typeBadge.label}
+                      </span>
+                      <span className={`status-badge`} style={{ background: statusBadge.bg, color: statusBadge.color }}>
+                        {statusBadge.label}
+                      </span>
+                      <span className="timestamp">
+                        <Clock size={14} /> {formatDate(msg.sentAt)}
+                      </span>
+                      {msg.editedAt && (
+                        <span className="edited-badge">
+                          <Edit2 size={12} /> Edited
+                        </span>
+                      )}
+                    </div>
+                    <div className="message-actions">
+                      <button 
+                        className="btn-copy" 
+                        onClick={() => copyToClipboard(msg.message)}
+                        title="Copy message"
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                      {msg.status !== 'deleted' && msg.type !== 'broadcast' && (
+                        <button 
+                          className="btn-edit" 
+                          onClick={() => {
+                            setEditingMessage(msg.id);
+                            setEditContent(msg.message);
+                          }}
+                          title="Edit message (within 15 minutes)"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      )}
+                      {msg.status !== 'deleted' && (
+                        <button 
+                          className="btn-delete" 
+                          onClick={() => handleDelete(msg.id, false)}
+                          title="Soft delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                      {msg.status === 'deleted' && (
+                        <button 
+                          className="btn-delete-permanent" 
+                          onClick={() => handleDelete(msg.id, true)}
+                          title="Permanently delete"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-        <div className="message-content">
-          {isEditing ? (
-            <div className="edit-form">
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows="3"
-                className="edit-textarea"
-              />
-              <div className="edit-actions">
-                <button className="btn-save-edit" onClick={() => handleEdit(msg.id)}>
-                  <Check size={16} /> Save
-                </button>
-                <button className="btn-cancel-edit" onClick={() => {
-                  setEditingMessage(null);
-                  setEditContent('');
-                }}>
-                  Cancel
-                </button>
+                  <div className="message-content">
+                    {isEditing ? (
+                      <div className="edit-form">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows="3"
+                          className="edit-textarea"
+                        />
+                        <div className="edit-actions">
+                          <button className="btn-save-edit" onClick={() => handleEdit(msg.id)}>
+                            <Check size={16} /> Save
+                          </button>
+                          <button className="btn-cancel-edit" onClick={() => {
+                            setEditingMessage(null);
+                            setEditContent('');
+                          }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="message-text-wrapper">
+                          <p className="message-text">{displayText}</p>
+                        </div>
+                        {isLongMessage && (
+                          <button 
+                            className="btn-toggle-expand"
+                            onClick={() => toggleExpand(msg.id)}
+                          >
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp size={16} /> Show Less
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown size={16} /> Show More ({msg.message.length - 200} more characters)
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {msg.originalMessage && msg.originalMessage !== msg.message && (
+                    <div className="message-original">
+                      <small>Original: {msg.originalMessage.substring(0, 150)}...</small>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="message-text-wrapper">
-              <p className="message-text">{msg.message}</p>
-            </div>
-          )}
-        </div>
-
-        {msg.originalMessage && msg.originalMessage !== msg.message && (
-          <div className="message-original">
-            <small>Original: {msg.originalMessage.substring(0, 150)}...</small>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-})
+            );
+          })
         )}
       </div>
 
@@ -507,7 +543,7 @@ export default function MessageHistory() {
         .title-icon {
           width: 48px;
           height: 48px;
-          background: #8b5cf6;
+          background: #050505;
           border-radius: 14px;
           display: flex;
           align-items: center;
@@ -550,12 +586,161 @@ export default function MessageHistory() {
         }
 
         .btn-stats {
-          background: #8b5cf6;
+          background: #080808;
           color: white;
         }
 
+
+        /* ===== EDIT FORM - MOBILE FIX ===== */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  background: white;
+  line-height: 1.6;
+}
+
+.edit-textarea:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-save-edit {
+  padding: 10px 20px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.btn-save-edit:hover {
+  background: #16a34a;
+}
+
+.btn-cancel-edit {
+  padding: 10px 20px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.btn-cancel-edit:hover {
+  background: #e2e8f0;
+}
+
+/* ===== MOBILE SPECIFIC FIXES ===== */
+@media (max-width: 768px) {
+  .edit-textarea {
+    min-height: 150px;
+    font-size: 16px; /* Prevents iOS zoom */
+    padding: 14px 16px;
+  }
+  
+  .edit-actions {
+    flex-direction: column;
+  }
+  
+  .btn-save-edit,
+  .btn-cancel-edit {
+    flex: none;
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+  }
+  
+  .message-item {
+    padding: 12px 14px;
+  }
+  
+  .message-details {
+    width: 100%;
+  }
+  
+  .message-number {
+    font-size: 14px;
+    min-width: 30px;
+  }
+  
+  .message-text-wrapper {
+    padding: 10px 12px;
+  }
+  
+  .message-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  
+  .message-meta {
+    gap: 4px;
+  }
+  
+  .type-badge, .status-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+  
+  .message-actions button {
+    padding: 6px 10px;
+  }
+  
+  .btn-toggle-expand {
+    font-size: 13px;
+    padding: 8px 14px;
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .recipient-header {
+    flex-wrap: wrap;
+  }
+  
+  .recipient-name {
+    font-size: 13px;
+  }
+  
+  .recipient-id {
+    font-size: 10px;
+    word-break: break-all;
+  }
+}
+
         .btn-stats:hover {
-          background: #7c3aed;
+          background: #080808;
         }
 
         .stats-grid {
@@ -699,6 +884,9 @@ export default function MessageHistory() {
           padding: 16px 20px;
           border: 1px solid #e2e8f0;
           transition: all 0.2s;
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
         }
 
         .message-item:hover {
@@ -708,6 +896,67 @@ export default function MessageHistory() {
         .message-item.deleted {
           opacity: 0.6;
           background: #f8fafc;
+        }
+
+        .message-number {
+          font-size: 18px;
+          font-weight: 700;
+          color: #94a3b8;
+          min-width: 40px;
+          padding-top: 4px;
+          font-family: monospace;
+        }
+
+        .message-details {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .message-recipient {
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          padding: 8px 14px;
+          border-radius: 8px;
+          margin-bottom: 10px;
+          border-left: 4px solid #3b82f6;
+        }
+
+        .recipient-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .recipient-icon {
+          font-size: 16px;
+        }
+
+        .recipient-label {
+          font-weight: 600;
+          font-size: 13px;
+          color: #1e293b;
+        }
+
+        .recipient-name {
+          font-weight: 700;
+          font-size: 14px;
+          color: #0f172a;
+        }
+
+        .recipient-id {
+          font-family: monospace;
+          font-size: 11px;
+          color: #64748b;
+          word-break: break-all;
+        }
+
+        .recipient-type {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 2px 10px;
+          border-radius: 12px;
+          background: #dbeafe;
+          color: #2563eb;
         }
 
         .message-header {
@@ -733,18 +982,6 @@ export default function MessageHistory() {
           font-weight: 600;
         }
 
-        .recipient {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 12px;
-          color: #64748b;
-          max-width: 200px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
         .timestamp {
           display: flex;
           align-items: center;
@@ -764,6 +1001,7 @@ export default function MessageHistory() {
         .message-actions {
           display: flex;
           gap: 4px;
+          flex-shrink: 0;
         }
 
         .message-actions button {
@@ -790,6 +1028,14 @@ export default function MessageHistory() {
           margin-top: 4px;
         }
 
+        .message-text-wrapper {
+          background: #f8fafc;
+          padding: 12px 16px;
+          border-radius: 8px;
+          border-left: 4px solid #8b5cf6;
+          margin-top: 4px;
+        }
+
         .message-text {
           white-space: pre-wrap;
           font-size: 14px;
@@ -797,6 +1043,27 @@ export default function MessageHistory() {
           color: #1e293b;
           margin: 0;
           word-wrap: break-word;
+        }
+
+        .btn-toggle-expand {
+          margin-top: 8px;
+          padding: 4px 12px;
+          background: transparent;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+          color: #64748b;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+
+        .btn-toggle-expand:hover {
+          background: #f1f5f9;
+          border-color: #8b5cf6;
+          color: #020202;
         }
 
         .message-original {
@@ -902,107 +1169,6 @@ export default function MessageHistory() {
           color: #64748b;
         }
 
-        /* ===== RECIPIENT SECTION ===== */
-.message-recipient {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  padding: 8px 14px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  border-left: 4px solid #3b82f6;
-}
-
-.recipient-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.recipient-icon {
-  font-size: 16px;
-}
-
-.recipient-label {
-  font-weight: 600;
-  font-size: 13px;
-  color: #1e293b;
-}
-
-.recipient-name {
-  font-weight: 700;
-  font-size: 14px;
-  color: #0f172a;
-}
-
-.recipient-id {
-  font-family: monospace;
-  font-size: 11px;
-  color: #64748b;
-  word-break: break-all;
-}
-
-.recipient-type {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 12px;
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.message-item {
-  background: white;
-  border-radius: 16px;
-  padding: 16px 20px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s;
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.message-number {
-  font-size: 18px;
-  font-weight: 700;
-  color: #94a3b8;
-  min-width: 40px;
-  padding-top: 4px;
-  font-family: monospace;
-}
-
-.message-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.message-text-wrapper {
-  background: #f8fafc;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border-left: 4px solid #0d0a13;
-  margin-top: 4px;
-}
-
-@media (max-width: 768px) {
-  .message-item {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .message-number {
-    min-width: auto;
-  }
-  
-  .recipient-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .recipient-id {
-    word-break: break-all;
-  }
-}
-
         .loading-state {
           display: flex;
           flex-direction: column;
@@ -1066,9 +1232,12 @@ export default function MessageHistory() {
           .search-box { min-width: auto; }
           .stats-grid { grid-template-columns: 1fr 1fr; }
           .stat-days { flex-wrap: wrap; }
+          .message-item { flex-direction: column; gap: 8px; }
+          .message-number { min-width: auto; }
+          .recipient-header { flex-direction: column; align-items: flex-start; }
+          .recipient-id { word-break: break-all; }
           .message-header { flex-direction: column; }
           .message-actions { width: 100%; justify-content: flex-end; }
-          .recipient { max-width: 150px; }
         }
       `}</style>
     </div>

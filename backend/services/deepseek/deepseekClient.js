@@ -1,6 +1,237 @@
 // ================== GROQ AI CLIENT SETUP ==================
 const OpenAI = require("openai");
 
+// ================== KNOWLEDGE GRAPH LOADER ==================
+const fs = require('fs');
+const path = require('path');
+
+let cachedGraph = null;
+
+function getSystemGraph() {
+  if (cachedGraph) return cachedGraph;
+  
+  try {
+    // Go up from services/deepseek/ to backend/ then into knowledge/
+    const backendPath = path.join(__dirname, '..', '..', 'knowledge', 'backend-graph.json');
+    const frontendPath = path.join(__dirname, '..', '..', 'knowledge', 'frontend-graph.json');
+    
+    const backendData = JSON.parse(fs.readFileSync(backendPath, 'utf8'));
+    const frontendData = JSON.parse(fs.readFileSync(frontendPath, 'utf8'));
+    
+    cachedGraph = { 
+      backend: backendData, 
+      frontend: frontendData,
+      loaded: true,
+      loadedAt: new Date().toISOString()
+    };
+    
+    console.log(`✅ Knowledge graph loaded! Backend: ${backendData.nodes?.length || 0} nodes, Frontend: ${frontendData.nodes?.length || 0} nodes`);
+    return cachedGraph;
+  } catch (e) {
+    console.log('⚠️ Could not load knowledge graph:', e.message);
+    return null;
+  }
+}
+
+// Load at startup
+getSystemGraph();
+
+// ================== QUERY GRAPH DYNAMICALLY ==================
+function queryGraph(query) {
+  const graph = getSystemGraph();
+  if (!graph || !graph.loaded) return null;
+  
+  const backendNodes = graph.backend?.nodes || [];
+  const frontendNodes = graph.frontend?.nodes || [];
+  
+  // Extract keywords from query
+  const keywords = query.toLowerCase().split(' ');
+  const results = {
+    backend: [],
+    frontend: [],
+    models: [],
+    routes: []
+  };
+  
+  // Search backend nodes
+  for (const node of backendNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (keyword.length > 2 && nodeLower.includes(keyword)) {
+        results.backend.push(node.id);
+        break;
+      }
+    }
+  }
+  
+  // Search frontend nodes
+  for (const node of frontendNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (keyword.length > 2 && nodeLower.includes(keyword)) {
+        results.frontend.push(node.id);
+        break;
+      }
+    }
+  }
+  
+  // Find models (Prisma models from the graph)
+  const modelNodes = backendNodes.filter(n => 
+    n.id && n.id.match(/model|schema|prisma/i)
+  );
+  
+  for (const node of modelNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (keyword.length > 2 && nodeLower.includes(keyword)) {
+        results.models.push(node.id);
+        break;
+      }
+    }
+  }
+  
+  // Find routes
+  const routeNodes = backendNodes.filter(n => 
+    n.id && n.id.match(/routes?|controller/i)
+  );
+  
+  for (const node of routeNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (keyword.length > 2 && nodeLower.includes(keyword)) {
+        results.routes.push(node.id);
+        break;
+      }
+    }
+  }
+  
+  return results;
+}
+
+
+// ================== BUILD KNOWLEDGE FROM QUERY ==================
+function buildKnowledgeFromQuery(query) {
+  const results = queryGraph(query);
+  if (!results) return null;
+  
+  let knowledge = '';
+  
+  if (results.routes.length > 0) {
+    knowledge += `\n**Routes found:**\n${results.routes.slice(0, 10).map(r => `- ${r}`).join('\n')}`;
+  }
+  
+  if (results.models.length > 0) {
+    knowledge += `\n\n**Models found:**\n${results.models.slice(0, 10).map(m => `- ${m}`).join('\n')}`;
+  }
+  
+  if (results.backend.length > 0) {
+    knowledge += `\n\n**Backend files:**\n${results.backend.slice(0, 10).map(f => `- ${f}`).join('\n')}`;
+  }
+  
+  if (results.frontend.length > 0) {
+    knowledge += `\n\n**Frontend files:**\n${results.frontend.slice(0, 10).map(f => `- ${f}`).join('\n')}`;
+  }
+  
+  if (!knowledge) {
+    knowledge = "No matches found in the codebase for your question.";
+  }
+  
+  return knowledge;
+}
+
+
+// ================== FRONTEND ROUTES KNOWLEDGE ==================
+function getFrontendRoutes() {
+  return {
+    // Member Routes
+    dashboard: { path: "/dashboard", label: "Dashboard" },
+    attendance: { path: "/member/attendance", label: "Attendance Check-in" },
+    attendanceHistory: { path: "/member/attendance-history", label: "Attendance History" },
+    massPrograms: { path: "/mass-programs", label: "Mass Programs" },
+    hymns: { path: "/hymns", label: "Hymn Book" },
+    hymnDetail: { path: "/hymn/:id", label: "Hymn Lyrics" },
+    contributions: { path: "/contributions", label: "Contributions" },
+    jumuiaContributions: { path: "/jumuia-contributions", label: "My Jumuia Contributions" },
+    chat: { path: "/chat", label: "Community Chat" },
+    messenger: { path: "/messenger", label: "Direct Messages" },
+    gallery: { path: "/gallery", label: "Gallery" },
+    games: { path: "/games", label: "Games" },
+    schedules: { path: "/schedules", label: "Schedules" },
+    youtube: { path: "/youtube", label: "ZUCA/TUBE" },
+    prayer: { path: "/prayer", label: "Prayer Book" },
+    executive: { path: "/executive", label: "Executive Team" },
+    executiveMinutes: { path: "/executive/minutes", label: "Executive Minutes" },
+    joinJumuia: { path: "/join-jumuia", label: "Join Jumuia" },
+    liturgicalCalendar: { path: "/liturgical-calendar", label: "Liturgical Calendar" },
+    jumuiaDetail: { path: "/jumuia/:jumuiaCode", label: "Jumuia Details" },
+    massReadings: { path: "/mass-readings", label: "Mass Readings" },
+    minutes: { path: "/minutes", label: "Meeting Minutes" },
+    
+    // Admin Routes
+    admin: { path: "/admin", label: "Admin Dashboard" },
+    adminUsers: { path: "/admin/users", label: "User Management" },
+    adminAttendance: { path: "/admin/attendance", label: "Attendance Management" },
+    adminAttendanceSheet: { path: "/admin/attendance/sheet/:sheetId", label: "Attendance Sheet Details" },
+    adminAttendanceOverview: { path: "/admin/attendance/overview", label: "Attendance Overview" },
+    adminAnnouncements: { path: "/admin/announcements", label: "Announcements" },
+    adminHymns: { path: "/admin/hymns", label: "Hymn Management" },
+    adminAddHymn: { path: "/admin/hymns/add", label: "Add Hymn" },
+    adminEditHymn: { path: "/admin/hymns/edit/:id", label: "Edit Hymn" },
+    adminPendingSongs: { path: "/admin/pending-songs", label: "Pending Songs" },
+    adminMinutes: { path: "/admin/minutes", label: "Meeting Minutes" },
+    adminMinutesCreate: { path: "/admin/minutes/create", label: "Create Minutes" },
+    adminMinutesEdit: { path: "/admin/minutes/edit/:id", label: "Edit Minutes" },
+    adminExecutive: { path: "/admin/executive", label: "Executive Management" },
+    adminContributions: { path: "/admin/contributions", label: "Contributions Management" },
+    adminMedia: { path: "/admin/media", label: "Gallery Management" },
+    adminSchedules: { path: "/admin/schedules", label: "Schedule Management" },
+    adminMessenger: { path: "/admin/messenger", label: "Admin Messenger" },
+    adminWhatsApp: { path: "/admin/whatsapp", label: "WhatsApp Bot" },
+    adminMessageHistory: { path: "/admin/message-history", label: "Message History" },
+    adminEmail: { path: "/admin/email", label: "Email Dashboard" },
+    adminEmailSettings: { path: "/admin/email-settings", label: "Email Settings" },
+    adminBankPayments: { path: "/admin/bank-payments", label: "Bank Payments" },
+    adminPrayers: { path: "/admin/prayers", label: "Prayer Management" },
+    adminOCR: { path: "/admin/ocr-scanner", label: "OCR Scanner" },
+    adminHealth: { path: "/admin/health-centre", label: "Health Centre" },
+    adminSecurity: { path: "/admin/security", label: "Security" },
+    adminChat: { path: "/admin/chat", label: "Chat Monitor" },
+    adminJumuia: { path: "/admin/jumuia-management", label: "Jumuia Management" },
+    adminRoles: { path: "/admin/roles", label: "Role Management" },
+    adminHistory: { path: "/admin/history", label: "History" },
+    adminActivity: { path: "/admin/activity", label: "Activity" },
+    adminYouTube: { path: "/admin/analytics", label: "YouTube Analytics" },
+    adminSongs: { path: "/admin/songs", label: "Mass Program Songs" },
+    
+    // Role Routes
+    secretary: { path: "/secretary", label: "Secretary Dashboard" },
+    secretaryAnnouncements: { path: "/secretary/announcements", label: "Announcements" },
+    secretarySchedules: { path: "/secretary/schedules", label: "Schedules" },
+    secretaryMinutes: { path: "/secretary/minutes", label: "Minutes" },
+    secretaryAttendance: { path: "/secretary/attendance", label: "Attendance" },
+    
+    treasurer: { path: "/treasurer", label: "Treasurer Dashboard" },
+    treasurerContributions: { path: "/treasurer/contributions", label: "Contributions" },
+    treasurerReports: { path: "/treasurer/reports", label: "Reports" },
+    treasurerNotes: { path: "/treasurer/notes", label: "Notes" },
+    
+    choir: { path: "/choir", label: "Choir Dashboard" },
+    choirSongs: { path: "/choir/songs", label: "Songs" },
+    choirHymns: { path: "/choir/hymns", label: "Hymns" },
+    
+    leader: { path: "/leader", label: "Jumuia Leader Dashboard" },
+    
+    mediaModerator: { path: "/media-moderator", label: "Media Moderator Dashboard" },
+    mediaModeratorMedia: { path: "/media-moderator/media", label: "Media Management" }
+  };
+}
+
+
+
 const groq = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
   apiKey: process.env.GROQ_API_KEY,
@@ -93,8 +324,123 @@ function buildSystemPrompt(userContext) {
   let sourceInstruction = '';
   let responseStyle = '';
 
+
+    // ================== ADD GRAPH KNOWLEDGE ==================
+  let graphKnowledge = '';
+  
+  // Get the user's query from context
+  const userQuery = userContext?.query || '';
+  
+  if (userQuery) {
+    // Dynamically search the graph for the user's question
+    const knowledge = buildKnowledgeFromQuery(userQuery);
+    if (knowledge) {
+      graphKnowledge = `
+## 📊 RELEVANT SYSTEM KNOWLEDGE (Found in your code)
+
+${knowledge}
+
+### 🎯 HOW TO ANSWER:
+1. ONLY mention what's listed above
+2. Use the actual file names shown
+3. Don't invent features or files
+4. If something isn't listed, say "I don't see that in the codebase"
+5. Be honest - only talk about what you see in the code
+`;
+    } else {
+      graphKnowledge = `
+⚠️ No matches found in the codebase for "${userQuery}".
+
+I'll answer based on general knowledge, but I may not know specific ZUCA features.
+`;
+    }
+  } else {
+    // Fallback - show available features
+    const graph = getSystemGraph();
+    if (graph && graph.loaded) {
+      const backendNodes = graph.backend?.nodes || [];
+      
+      // Get all unique file types
+      const routeFiles = backendNodes
+        .filter(n => n.id && n.id.includes('routes'))
+        .map(n => n.id)
+        .slice(0, 20);
+      
+      graphKnowledge = `
+## 📊 SYSTEM OVERVIEW (From your code)
+
+**Files found:** ${backendNodes.length} backend nodes
+
+**Route files include:** ${routeFiles.join(', ')}
+
+### 🎯 HOW TO ANSWER:
+- Ask me about a specific feature
+- I'll search the codebase and tell you what I find
+- I only know what's actually in your code
+- Don't invent features
+`;
+    } else {
+      graphKnowledge = `
+⚠️ System knowledge graph not loaded.
+`;
+    }
+    }
+
+  // ================== ADD ROUTE NAVIGATION KNOWLEDGE ==================
+  const routes = getFrontendRoutes();
+  let routeKnowledge = '';
+
+  // Build route list dynamically
+  const memberRoutes = [];
+  const adminRoutes = [];
+  const roleRoutes = [];
+
+  for (const [key, route] of Object.entries(routes)) {
+    if (key.startsWith('admin')) {
+      adminRoutes.push(route);
+    } else if (['secretary', 'treasurer', 'choir', 'leader', 'mediaModerator'].some(r => key.startsWith(r))) {
+      roleRoutes.push(route);
+    } else {
+      memberRoutes.push(route);
+    }
+  }
+
+  routeKnowledge = `
+## 🗺️ NAVIGATION ROUTES
+
+### Member Pages:
+${memberRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+
+### Admin Pages:
+${adminRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+
+### Role Pages (Secretary, Treasurer, Choir, Leader):
+${roleRoutes.slice(0, 10).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+
+### 🎯 HOW TO NAVIGATE:
+When a user asks "Where do I find X?" or "How do I go to X?":
+1. Find the matching route from the list above
+2. Tell them the exact path
+3. If they're an admin, suggest admin routes
+4. If they're a member, suggest member routes
+5. If they have a special role, suggest role routes
+
+### Example:
+User: "Where do I check in for attendance?"
+→ "Go to **/member/attendance** to check in"
+
+User: "How do I manage hymns?"
+→ "Go to **/admin/hymns** to manage hymns"
+
+User: "Where are contributions?"
+→ "Go to **/contributions** to view your pledges"
+`;
+
+
+
   // ✅ FIXED: Single if block with both assignments
   if (source === 'whatsapp') {
+      
     sourceInstruction = `
 ## WHATSAPP MODE 🟢
 - You are responding to a WhatsApp message in the ZUCA group
@@ -127,6 +473,8 @@ function buildSystemPrompt(userContext) {
 
 ${sourceInstruction}
 ${responseStyle}
+${graphKnowledge}
+${routeKnowledge}
 
 ## 🚨 THE MOST IMPORTANT RULE 🚨
 - ONLY output [ACTION:...] when the user is explicitly asking you to DO something

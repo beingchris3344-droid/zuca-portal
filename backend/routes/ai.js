@@ -402,7 +402,8 @@ router.post("/deepseek/chat", authenticateAI, async (req, res) => {
     const conversation = conversations.get(convId);
     conversation.lastActive = Date.now();
 
-    const userContext = await buildUserContext(userId);
+   const userContext = await buildUserContext(userId);
+userContext.query = message; // Pass the user's question to the AI
 
     conversation.messages.push({ role: "user", content: message });
     if (conversation.messages.length > 20) {

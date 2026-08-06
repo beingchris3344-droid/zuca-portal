@@ -442,6 +442,32 @@ export default function WhatsAppBot() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+
+  // ==================== FORMAT MEMBER NAME ====================
+const formatMemberName = (member) => {
+  if (!member) return 'Unknown Member';
+  
+  let name = member.name || member.id || 'Unknown Member';
+  
+  // If it's a LID (Linked Device ID)
+  if (name.includes('@lid')) {
+    const lidNumber = name.replace('@lid', '');
+    return `👤 User ${lidNumber.slice(-6)}`;
+  }
+  
+  // If it's a phone number
+  if (name.includes('@s.whatsapp.net')) {
+    const phone = name.replace('@s.whatsapp.net', '');
+    if (phone.startsWith('254')) {
+      const formatted = phone.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
+      return `📱 ${formatted}`;
+    }
+    return `📱 ${phone}`;
+  }
+  
+  return name;
+};
+
   const toggleGroupMembers = (groupId) => {
     setShowGroupMembers(prev => ({ ...prev, [groupId]: !prev[groupId] }));
     if (!groupMembers[groupId]) {
@@ -718,18 +744,29 @@ export default function WhatsAppBot() {
                     >
                       {showGroupMembers[group.id] ? 'Hide Members' : 'Show Members'}
                     </button>
-                    {showGroupMembers[group.id] && groupMembers[group.id] && (
-                      <div className="group-members-list">
-                        {groupMembers[group.id].slice(0, 20).map(member => (
-                          <div key={member.id} className="member-item">
-                            <span>{member.name || member.id}</span>
-                          </div>
-                        ))}
-                        {groupMembers[group.id].length > 20 && (
-                          <div className="member-more">... and {groupMembers[group.id].length - 20} more</div>
-                        )}
-                      </div>
-                    )}
+               {showGroupMembers[group.id] && groupMembers[group.id] && (
+  <div className="group-members-list">
+    {groupMembers[group.id].slice(0, 20).map((member, index) => {
+      // ✅ Use the formatMemberName function
+      const displayName = formatMemberName(member);
+      
+      // Check if it's the bot itself
+      const isBot = member.id === status?.botNumber || 
+                    member.id?.includes(status?.botNumber) ||
+                    member.id === status?.lid;
+      
+      return (
+        <div key={member.id || index} className={`member-item ${isBot ? 'bot-member' : ''}`}>
+          <span>{displayName}</span>
+          {isBot && <span className="bot-badge">🤖 Bot</span>}
+        </div>
+      );
+    })}
+    {groupMembers[group.id].length > 20 && (
+      <div className="member-more">... and {groupMembers[group.id].length - 20} more</div>
+    )}
+  </div>
+)}
                   </div>
                   <div className="group-actions">
                     <span className={`group-status ${group.isActive ? 'active' : 'inactive'}`}>
@@ -1239,6 +1276,23 @@ export default function WhatsAppBot() {
         .detail-item.error .detail-value {
           color: #ef4444;
         }
+
+
+
+        .member-item.bot-member {
+  background: #dbeafe;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.bot-badge {
+  font-size: 10px;
+  background: #3b82f6;
+  color: white;
+  padding: 1px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
 
         .copy-btn {
           background: none;

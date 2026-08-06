@@ -33,6 +33,10 @@ class WhatsAppBot {
     // Conversation memory
 this.chatMemory = new Map();
 this.maxMemoryMessages = 20;
+    // ✅ CACHE for groups to prevent rate limiting
+    this.groupsCache = null;
+    this.groupsCacheTime = null;
+    this.groupsCacheTTL = 5 * 60 * 1000; // 5 minutes
   }
 
   // =============================================
@@ -50,7 +54,7 @@ this.maxMemoryMessages = 20;
         return value;
       }));
       
-      await prisma.whatsAppAuth.upsert({
+      await prisma.WhatsAppAuth.upsert({ 
         where: { key: 'whatsapp_creds' },
         update: { 
           value: JSON.stringify(cleanCreds),
@@ -69,12 +73,15 @@ this.maxMemoryMessages = 20;
     }
   }
 
-  // =============================================
+  
+
+
+    // =============================================
   // 📥 LOAD CREDS FROM DATABASE
   // =============================================
   async loadCredsFromDatabase() {
     try {
-      const record = await prisma.whatsAppAuth.findUnique({
+    const record = await prisma.WhatsAppAuth.findUnique({
         where: { key: 'whatsapp_creds' }
       });
       if (record && record.value) {
@@ -89,6 +96,24 @@ this.maxMemoryMessages = 20;
     }
   }
 
+
+    // =============================================
+  // 🗑️ CLEAR CREDS FROM DATABASE
+  // =============================================
+  async clearCreds() {
+    try {
+      await prisma.WhatsAppAuth.deleteMany({
+        where: { key: 'whatsapp_creds' }
+      });
+      console.log('🗑️ Creds cleared from database');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to clear creds:', error.message);
+      return false;
+    }
+  }
+
+ 
   // =============================================
   // 🔧 LOAD CONFIG
   // =============================================
@@ -115,261 +140,246 @@ this.maxMemoryMessages = 20;
     }
   }
 
-  // =============================================
-  // 🔌 CONNECT TO WHATSAPP
-  // =============================================
-  async connect() {
-    if (this.isConnecting) {
-      console.log('⏳ Connection already in progress...');
-      return;
-    }
-
-    this.isConnecting = true;
-    this.connectionStatus = 'connecting';
-    await this.updateStatus('connecting');
-
-    try {
-      await this.loadConfig();
-      
-      console.log('🔌 Connecting to WhatsApp...');
-      
-      if (!fs.existsSync(this.authFolder)) {
-        fs.mkdirSync(this.authFolder, { recursive: true });
-      }
-
-      // ✅ Try to load saved creds from database
-      let savedCreds = null;
-      if (this.useDatabaseAuth) {
-        savedCreds = await this.loadCredsFromDatabase();
-      }
-
-      const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
-
-      // ✅ If we have saved creds, apply them
-      if (savedCreds) {
-        try {
-          Object.assign(state, savedCreds);
-          console.log('✅ Restored creds from database');
-        } catch (error) {
-          console.error('❌ Failed to restore creds:', error.message);
-        }
-      }
-
-      // ✅ Override saveCreds to also save to database
-      const originalSaveCreds = saveCreds;
-      const saveToDb = async (creds) => {
-        try {
-          await originalSaveCreds(creds);
-          if (this.useDatabaseAuth) {
-            await this.saveCredsToDatabase(creds);
-          }
-        } catch (error) {
-          console.error('❌ Error in saveToDb:', error.message);
-        }
-      };
-
-      this.sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false,
-        browser: ['ZUCA Bot', 'Chrome', '120.0.0.0'],
-        defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000,
-        markOnlineOnConnect: true,
-        syncFullHistory: false,
-      });
-
-      this.sock.ev.on('creds.update', saveToDb);
-
-      this.sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-          this.qrCode = qr;
-          try {
-            this.qrCodeBase64 = await QRCode.toDataURL(qr, {
-              width: 300,
-              margin: 2,
-              color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-              }
-            });
-            console.log('✅ QR Code generated for web display');
-          } catch (qrError) {
-            console.error('❌ QR generation error:', qrError);
-          }
-          
-          try {
-            const publicDir = path.join(__dirname, '../public');
-            if (!fs.existsSync(publicDir)) {
-              fs.mkdirSync(publicDir, { recursive: true });
-            }
-            await QRCode.toFile(path.join(publicDir, 'qr-code.png'), qr, {
-              width: 300,
-              margin: 2
-            });
-          } catch (fileError) {
-            console.error('❌ QR file save error:', fileError);
-          }
-          
-          this.connectionStatus = 'qr_required';
-          await this.updateStatus('qr_required');
-        }
-
-        if (connection === 'close') {
-          const statusCode = (lastDisconnect?.error)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-          
-          console.log(`🔴 Connection closed. Status: ${statusCode}`);
-          
-          if (statusCode === DisconnectReason.loggedOut) {
-            this.connectionStatus = 'logged_out';
-            this.isConnected = false;
-            this.botNumber = null;
-            this.botLid = null;
-            this.groups = [];
-            this.activeGroups = [];
-            await this.updateStatus('logged_out');
-            console.log('❌ Logged out. Please unlink and relink the bot.');
-            this.cleanupAuth();
-          } else if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            const delay = Math.min(5000 * Math.pow(1.5, this.reconnectAttempts), 60000);
-            console.log(`🔄 Reconnecting in ${delay/1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-            this.connectionStatus = 'reconnecting';
-            await this.updateStatus('reconnecting');
-            
-            setTimeout(() => {
-              this.isConnecting = false;
-              this.connect();
-            }, delay);
-          } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            this.connectionStatus = 'error';
-            this.lastError = 'Max reconnection attempts reached';
-            await this.updateStatus('error');
-            console.log('❌ Max reconnection attempts reached. Manual intervention required.');
-          }
-        }
-
-        if (connection === 'open') {
-          this.isConnected = true;
-          this.isConnecting = false;
-          this.reconnectAttempts = 0;
-          this.connectionStatus = 'connected';
-          this.qrCode = null;
-          this.qrCodeBase64 = null;
-          
-          // Store bot's phone number from WhatsApp
-          this.botNumber = this.sock?.user?.id?.split(':')[0] || null;
-          console.log(`✅ WhatsApp Bot Connected! Bot Number: ${this.botNumber}`);
-          
-          // ✅ EXTRACT AND STORE LID
-          try {
-            console.log('🔍 Attempting to extract LID...');
-            
-            // Method 1: Direct from creds
-            let lid = null;
-            try {
-              const credsPath = path.join(this.authFolder, 'creds.json');
-              if (fs.existsSync(credsPath)) {
-                const credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-                if (credsData.lid) {
-                  lid = credsData.lid;
-                  console.log(`✅ LID from creds file: ${lid}`);
-                }
-                if (!lid && credsData.me && credsData.me.lid) {
-                  lid = credsData.me.lid;
-                  console.log(`✅ LID from creds.me.lid: ${lid}`);
-                }
-              }
-            } catch (e) {
-              console.log('⚠️ Could not read creds file:', e.message);
-            }
-            
-            // Method 2: From authState
-            if (!lid) {
-              try {
-                const authLid = this.sock?.authState?.creds?.lid;
-                if (authLid) {
-                  lid = authLid;
-                  console.log(`✅ LID from authState: ${lid}`);
-                }
-              } catch (e) {}
-            }
-            
-            // Method 3: From sock.user
-            if (!lid) {
-              try {
-                const userLid = this.sock?.user?.lid;
-                if (userLid) {
-                  lid = userLid;
-                  console.log(`✅ LID from sock.user: ${lid}`);
-                }
-              } catch (e) {}
-            }
-            
-            // Method 4: From the connection update object
-            if (!lid) {
-              try {
-                const lidFromUpdate = update?.lid;
-                if (lidFromUpdate) {
-                  lid = lidFromUpdate;
-                  console.log(`✅ LID from update: ${lid}`);
-                }
-              } catch (e) {}
-            }
-            
-            // Method 5: Hardcode fallback
-            if (!lid) {
-              console.log('⚠️ No LID found via methods, using hardcoded LID from logs');
-              lid = '273010401485038:3@lid';
-              console.log(`✅ Using hardcoded LID: ${lid}`);
-            }
-            
-            // Store the LID number (without the :3@lid suffix)
-            if (lid) {
-              this.botLid = lid.split(':')[0] || null;
-              console.log(`🔑 FINAL BOT LID SET TO: ${this.botLid}`);
-            } else {
-              this.botLid = '273010401485038';
-              console.log(`🔑 BOT LID HARDCODED TO: ${this.botLid}`);
-            }
-            
-          } catch (error) {
-            console.error('❌ Error extracting LID:', error.message);
-            this.botLid = '273010401485038';
-            console.log(`🔑 BOT LID HARDCODED TO (after error): ${this.botLid}`);
-          }
-          
-          await this.updateStatus('connected');
-          
-          // Refresh group list on connection
-          await this.getGroups();
-          
-          console.log(`📱 Bot is ready for group: ${this.groupId || 'Not set'}`);
-          console.log(`📋 Active groups: ${this.activeGroups.length}`);
-          console.log(`🤖 Bot Number: ${this.botNumber}, LID: ${this.botLid}`);
-        }
-      });
-
-      // Listen for incoming messages
-      this.sock.ev.on('messages.upsert', async (m) => {
-        await this.handleIncomingMessage(m);
-      });
-
-    } catch (error) {
-      console.error('❌ Connection error:', error.message);
-      this.connectionStatus = 'error';
-      this.lastError = error.message;
-      this.isConnecting = false;
-      await this.updateStatus('error');
-      
-      setTimeout(() => {
-        this.isConnecting = false;
-        this.connect();
-      }, 5000);
-    }
+// =============================================
+// 🔌 CONNECT TO WHATSAPP (File Auth + Database Backup)
+// =============================================
+async connect() {
+  if (this.isConnecting) {
+    console.log('⏳ Connection already in progress...');
+    return;
   }
+
+  this.isConnecting = true;
+  this.connectionStatus = 'connecting';
+  await this.updateStatus('connecting');
+
+  try {
+    await this.loadConfig();
+    
+    console.log('🔌 Connecting to WhatsApp...');
+    
+    // ✅ Ensure auth folder exists
+    if (!fs.existsSync(this.authFolder)) {
+      fs.mkdirSync(this.authFolder, { recursive: true });
+      console.log('📁 Auth folder created');
+    }
+
+    // ✅ USE FILE-BASED AUTH (RELIABLE)
+    const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
+    
+    // ✅ Save to database as backup
+    const saveToDb = async (creds) => {
+      try {
+        await this.saveCredsToDatabase(creds);
+        console.log('💾 Creds backed up to database');
+      } catch (error) {
+        console.error('❌ Failed to save creds to database:', error.message);
+      }
+    };
+
+    // ✅ Create socket with file-based auth
+    this.sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      browser: ['ZUCA Bot', 'Chrome', '120.0.0.0'],
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 10000,
+      markOnlineOnConnect: true,
+      syncFullHistory: false,
+    });
+
+    // ✅ Listen for creds updates - save to both file and database
+    this.sock.ev.on('creds.update', async (creds) => {
+      try {
+        await saveCreds(creds);
+        await saveToDb(creds);
+        console.log('💾 Creds saved to file and database');
+      } catch (error) {
+        console.error('❌ Error saving creds:', error.message);
+      }
+    });
+
+    // ✅ CONNECTION UPDATE HANDLER
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        this.qrCode = qr;
+        try {
+          this.qrCodeBase64 = await QRCode.toDataURL(qr, {
+            width: 300,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          console.log('✅ QR Code generated for web display');
+        } catch (qrError) {
+          console.error('❌ QR generation error:', qrError);
+        }
+        
+        try {
+          const publicDir = path.join(__dirname, '../public');
+          if (!fs.existsSync(publicDir)) {
+            fs.mkdirSync(publicDir, { recursive: true });
+          }
+          await QRCode.toFile(path.join(publicDir, 'qr-code.png'), qr, {
+            width: 300,
+            margin: 2
+          });
+        } catch (fileError) {
+          console.error('❌ QR file save error:', fileError);
+        }
+        
+        this.connectionStatus = 'qr_required';
+        await this.updateStatus('qr_required');
+      }
+
+      if (connection === 'close') {
+        const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        console.log(`🔴 Connection closed. Status: ${statusCode}`);
+        
+        if (statusCode === DisconnectReason.loggedOut) {
+          this.connectionStatus = 'logged_out';
+          this.isConnected = false;
+          this.botNumber = null;
+          this.botLid = null;
+          this.groups = [];
+          this.activeGroups = [];
+          await this.updateStatus('logged_out');
+          console.log('❌ Logged out. Please unlink and relink the bot.');
+          
+          // Clear database creds on logout
+          if (this.useDatabaseAuth) {
+            try {
+              await this.clearCreds();
+              console.log('🗑️ Database creds cleared on logout');
+            } catch (e) {
+              console.error('❌ Failed to clear database creds:', e.message);
+            }
+          }
+          
+          this.cleanupAuth();
+        } else if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = Math.min(5000 * Math.pow(1.5, this.reconnectAttempts), 60000);
+          console.log(`🔄 Reconnecting in ${delay/1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          this.connectionStatus = 'reconnecting';
+          await this.updateStatus('reconnecting');
+          
+          setTimeout(() => {
+            this.isConnecting = false;
+            this.connect();
+          }, delay);
+        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.connectionStatus = 'error';
+          this.lastError = 'Max reconnection attempts reached';
+          await this.updateStatus('error');
+          console.log('❌ Max reconnection attempts reached. Manual intervention required.');
+        }
+      }
+
+      if (connection === 'open') {
+        this.isConnected = true;
+        this.isConnecting = false;
+        this.reconnectAttempts = 0;
+        this.connectionStatus = 'connected';
+        this.qrCode = null;
+        this.qrCodeBase64 = null;
+        
+        // Store bot's phone number from WhatsApp
+        this.botNumber = this.sock?.user?.id?.split(':')[0] || null;
+        console.log(`✅ WhatsApp Bot Connected! Bot Number: ${this.botNumber}`);
+        
+        // Extract and store LID
+        try {
+          console.log('🔍 Attempting to extract LID...');
+          
+          let lid = null;
+          try {
+            const dbCreds = await this.loadCredsFromDatabase();
+            if (dbCreds && dbCreds.lid) {
+              lid = dbCreds.lid;
+              console.log(`✅ LID from database creds: ${lid}`);
+            }
+            if (!lid && dbCreds && dbCreds.me && dbCreds.me.lid) {
+              lid = dbCreds.me.lid;
+              console.log(`✅ LID from database creds.me.lid: ${lid}`);
+            }
+          } catch (e) {
+            console.log('⚠️ Could not read database creds:', e.message);
+          }
+          
+          if (!lid) {
+            try {
+              const authLid = this.sock?.authState?.creds?.lid;
+              if (authLid) {
+                lid = authLid;
+                console.log(`✅ LID from authState: ${lid}`);
+              }
+            } catch (e) {}
+          }
+          
+          if (!lid) {
+            try {
+              const userLid = this.sock?.user?.lid;
+              if (userLid) {
+                lid = userLid;
+                console.log(`✅ LID from sock.user: ${lid}`);
+              }
+            } catch (e) {}
+          }
+          
+          if (!lid) {
+            console.log('⚠️ No LID found via methods, using hardcoded LID');
+            lid = '273010401485038:3@lid';
+          }
+          
+          if (lid) {
+            this.botLid = lid.split(':')[0] || null;
+            console.log(`🔑 FINAL BOT LID SET TO: ${this.botLid}`);
+          } else {
+            this.botLid = '273010401485038';
+            console.log(`🔑 BOT LID HARDCODED TO: ${this.botLid}`);
+          }
+          
+        } catch (error) {
+          console.error('❌ Error extracting LID:', error.message);
+          this.botLid = '273010401485038';
+        }
+        
+        await this.updateStatus('connected');
+        
+        // Refresh group list on connection (force refresh)
+        await this.getGroups(true);
+        
+        console.log(`📱 Bot is ready for group: ${this.groupId || 'Not set'}`);
+        console.log(`📋 Active groups: ${this.activeGroups.length}`);
+        console.log(`🤖 Bot Number: ${this.botNumber}, LID: ${this.botLid}`);
+      }
+    });
+
+    // Listen for incoming messages
+    this.sock.ev.on('messages.upsert', async (m) => {
+      await this.handleIncomingMessage(m);
+    });
+
+  } catch (error) {
+    console.error('❌ Connection error:', error.message);
+    this.connectionStatus = 'error';
+    this.lastError = error.message;
+    this.isConnecting = false;
+    await this.updateStatus('error');
+    
+    setTimeout(() => {
+      this.isConnecting = false;
+      this.connect();
+    }, 5000);
+  }
+}
 
   // =============================================
   // 🔌 DISCONNECT
@@ -399,24 +409,39 @@ this.maxMemoryMessages = 20;
   }
 
   // =============================================
-  // 🧹 CLEANUP AUTH
-  // =============================================
-  cleanupAuth() {
-    try {
-      if (fs.existsSync(this.authFolder)) {
-        fs.rmSync(this.authFolder, { recursive: true, force: true });
-        console.log('🧹 Auth folder cleaned up');
-      }
-      this.qrCode = null;
-      this.qrCodeBase64 = null;
-      this.botNumber = null;
-      this.botLid = null;
-      this.groups = [];
-      this.activeGroups = [];
-    } catch (error) {
-      console.error('❌ Cleanup error:', error.message);
+// 🧹 CLEANUP AUTH
+// =============================================
+cleanupAuth() {
+  try {
+    // Clean file-based auth (if any)
+    if (fs.existsSync(this.authFolder)) {
+      fs.rmSync(this.authFolder, { recursive: true, force: true });
+      console.log('🧹 Auth folder cleaned up');
     }
+    
+    // ✅ Also clear database auth
+    if (this.useDatabaseAuth) {
+      prisma.WhatsAppAuth.deleteMany({
+        where: { key: 'whatsapp_creds' }
+      }).then(() => {
+        console.log('🧹 Database auth cleaned up');
+      }).catch((error) => {
+        console.error('❌ Failed to clear database auth:', error.message);
+      });
+    }
+    
+    this.qrCode = null;
+    this.qrCodeBase64 = null;
+    this.botNumber = null;
+    this.botLid = null;
+    this.groups = [];
+    this.activeGroups = [];
+    this.groupsCache = null;
+    this.groupsCacheTime = null;
+  } catch (error) {
+    console.error('❌ Cleanup error:', error.message);
   }
+}
 
   // =============================================
   // 💾 UPDATE STATUS
@@ -1185,37 +1210,54 @@ if (actionResult.grouped && actionResult.total !== undefined) {
   // =============================================
   // 📋 GET ALL GROUPS THE BOT IS IN
   // =============================================
-  async getGroups() {
-    if (!this.sock || !this.isConnected) {
-      console.log('⚠️ Bot not connected');
-      return [];
-    }
-
-    try {
-      const chats = await this.sock.groupFetchAllParticipating();
-      if (!chats) return [];
-
-      const groups = Object.values(chats).map(group => ({
-        id: group.id,
-        name: group.subject || 'Unnamed Group',
-        description: group.desc || '',
-        participants: group.participants?.length || 0,
-        isActive: this.activeGroups?.includes(group.id) || false,
-        owner: group.owner,
-        createdAt: group.creation,
-        isCommunity: group.isCommunity || false,
-        isAnnouncement: group.announce || false
-      }));
-
-      this.groups = groups;
-      console.log(`📋 Found ${groups.length} groups`);
-      return groups;
-
-    } catch (error) {
-      console.error('❌ Error fetching groups:', error.message);
-      return [];
+async getGroups(forceRefresh = false) {
+  // ✅ Return cached data if still valid (prevents rate limiting)
+  if (!forceRefresh && this.groupsCache && this.groupsCacheTime) {
+    const age = Date.now() - this.groupsCacheTime;
+    if (age < this.groupsCacheTTL) {
+      console.log(`📋 Returning cached groups (${Math.round(age/1000)}s old)`);
+      return this.groupsCache;
     }
   }
+
+  if (!this.sock || !this.isConnected) {
+    console.log('⚠️ Bot not connected');
+    return this.groupsCache || [];
+  }
+
+  try {
+    console.log('🔄 Fetching fresh groups from WhatsApp...');
+    const chats = await this.sock.groupFetchAllParticipating();
+    if (!chats) {
+      this.groupsCache = [];
+      this.groupsCacheTime = Date.now();
+      return [];
+    }
+
+    const groups = Object.values(chats).map(group => ({
+      id: group.id,
+      name: group.subject || 'Unnamed Group',
+      description: group.desc || '',
+      participants: group.participants?.length || 0,
+      isActive: this.activeGroups?.includes(group.id) || false,
+      owner: group.owner,
+      createdAt: group.creation,
+      isCommunity: group.isCommunity || false,
+      isAnnouncement: group.announce || false
+    }));
+
+    this.groupsCache = groups;
+    this.groupsCacheTime = Date.now();
+    this.groups = groups;
+    console.log(`📋 Found ${groups.length} groups (cached)`);
+    return groups;
+
+  } catch (error) {
+    console.error('❌ Error fetching groups:', error.message);
+    // ✅ Return cached data even if expired, rather than failing
+    return this.groupsCache || [];
+  }
+}
 
   // =============================================
   // ➕ ADD GROUP TO ACTIVE LIST
@@ -1484,7 +1526,7 @@ async editMessage(groupId, messageId, newText) {
       
       // ✅ Also clear WhatsApp auth from database
       if (this.useDatabaseAuth) {
-        await prisma.whatsAppAuth.deleteMany({
+        await prisma.WhatsAppAuth.deleteMany({
           where: { key: 'whatsapp_creds' }
         });
         console.log('🗑️ WhatsApp auth cleared from database');

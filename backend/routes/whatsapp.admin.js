@@ -123,10 +123,29 @@ router.post('/group', authenticate, requireAdmin, async (req, res) => {
 });
 
 // =============================================
-// 📋 GET ALL GROUPS
+// 📋 GET ALL GROUPS (with rate limit protection)
 // =============================================
+let lastGroupFetch = 0;
+const FETCH_COOLDOWN = 60000; // 1 minute minimum between API calls
+
 router.get('/groups', authenticate, requireAdmin, async (req, res) => {
   try {
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastGroupFetch;
+    
+    // ✅ If less than 1 minute since last fetch, return cached data
+    if (timeSinceLastFetch < FETCH_COOLDOWN && bot.groupsCache) {
+      console.log(`⏳ Rate limit: Returning cached groups (${Math.round(timeSinceLastFetch/1000)}s since last fetch)`);
+      return res.json({
+        success: true,
+        groups: bot.groupsCache,
+        stats: await bot.getGroupStats(),
+        cached: true,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    lastGroupFetch = now;
     const groups = await bot.getGroups();
     const stats = await bot.getGroupStats();
     
@@ -134,6 +153,7 @@ router.get('/groups', authenticate, requireAdmin, async (req, res) => {
       success: true,
       groups: groups,
       stats: stats,
+      cached: false,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -154,6 +174,9 @@ router.post('/groups/activate', authenticate, requireAdmin, async (req, res) => 
     }
     
     const result = await bot.addActiveGroup(groupId);
+
+      bot.groupsCache = null;
+    bot.groupsCacheTime = null;
     
     if (result) {
       res.json({
@@ -174,6 +197,8 @@ router.post('/groups/activate', authenticate, requireAdmin, async (req, res) => 
     res.status(500).json({ error: error.message });
   }
 });
+
+
 
 // =============================================
 // 📋 GET GROUP MEMBERS
@@ -412,6 +437,8 @@ router.post('/groups/deactivate', authenticate, requireAdmin, async (req, res) =
     }
     
     bot.removeActiveGroup(groupId);
+    bot.groupsCache = null;
+    bot.groupsCacheTime = null;
     
     res.json({
       success: true,

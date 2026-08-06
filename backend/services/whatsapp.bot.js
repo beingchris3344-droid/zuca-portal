@@ -97,6 +97,35 @@ this.maxMemoryMessages = 20;
     }
   }
 
+
+  // =============================================
+// 🔄 RESTORE CREDS FROM DATABASE TO FILE
+// =============================================
+async restoreCredsFromDatabase() {
+  try {
+    const creds = await this.loadCredsFromDatabase();
+    
+    if (creds) {
+      // Ensure auth folder exists
+      if (!fs.existsSync(this.authFolder)) {
+        fs.mkdirSync(this.authFolder, { recursive: true });
+      }
+      
+      // Write creds to file
+      const credsPath = path.join(this.authFolder, 'creds.json');
+      fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2));
+      console.log(`✅ Creds restored from database (${JSON.stringify(creds).length} chars)`);
+      return true;
+    } else {
+      console.log('ℹ️ No creds in database to restore');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Failed to restore creds:', error.message);
+    return false;
+  }
+}
+
     // =============================================
   // 🗑️ CLEAR CREDS FROM DATABASE
   // =============================================
@@ -171,6 +200,8 @@ async connect() {
     await this.loadConfig();
     
     console.log('🔌 Connecting to WhatsApp...');
+
+    await this.restoreCredsFromDatabase(); 
     
     // ✅ Ensure auth folder exists
     if (!fs.existsSync(this.authFolder)) {

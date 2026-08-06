@@ -4,8 +4,8 @@ const OpenAI = require("openai");
 
 // ================== DOMAIN CONFIGURATION ==================
 const DOMAIN = process.env.DOMAIN || 'www.zetechcatholicaction.com';
-const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-const FRONTEND_URL = `${PROTOCOL}://${DOMAIN}`;
+const PROTOCOL = process.env.NODE_ENV === 'production' ? 's' : '';
+const FRONTEND_URL = `${PROTOCOL} ${DOMAIN}`;
 
 console.log(`🌐 AI Frontend URL: ${FRONTEND_URL}`);
 

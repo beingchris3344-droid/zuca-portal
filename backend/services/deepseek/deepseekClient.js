@@ -245,15 +245,28 @@ const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// ================== MODEL LIST (IN ORDER OF PREFERENCE) ==================
+// ================== MODEL LIST (ALL AVAILABLE MODELS - IN ORDER OF PREFERENCE) ==================
 const MODEL_LIST = [
+  // 🏆 BEST QUALITY - Primary models
+  { name: "llama-3.3-70b-versatile", quality: "best" },
   { name: "openai/gpt-oss-120b", quality: "best" },
-  { name: "llama-3.3-70b-versatile", quality: "excellent" },
+  
+  // ⚡ GOOD QUALITY - Secondary models
   { name: "openai/gpt-oss-20b", quality: "good" },
-  { name: "llama-3.1-8b-instant", quality: "fast" },
-  { name: "qwen/qwen3-32b", quality: "good" },
   { name: "qwen/qwen3.6-27b", quality: "good" },
   { name: "meta-llama/llama-4-scout-17b-16e-instruct", quality: "good" },
+  
+  // 🚀 FAST MODELS - Quick responses
+  { name: "llama-3.1-8b-instant", quality: "fast" },
+  { name: "allam-2-7b", quality: "fast" },
+  
+  // 🛡️ SAFETY MODELS - Content moderation
+  { name: "meta-llama/llama-prompt-guard-2-86m", quality: "safety" },
+  { name: "meta-llama/llama-prompt-guard-2-22m", quality: "safety" },
+  { name: "openai/gpt-oss-safeguard-20b", quality: "safety" },
+  
+  // 🔄 BACKUP - Last resort
+  { name: "qwen/qwen3-32b", quality: "backup" },
 ];
 
 // Track rate limit reset time

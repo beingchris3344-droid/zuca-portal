@@ -492,7 +492,7 @@ async function executeToolCall(toolName, args, context) {
           reference: hymn.reference,
           lyrics: hymn.lyrics,
           action: "navigate",
-          path: `/hymn/${hymn.id}`
+          path: `/hymn/${encodeURIComponent(hymn.title)}`  // Changed from hymn.title to hymn.id
         };
       }
 
@@ -2477,10 +2477,13 @@ case "navigate_to_hymn": {
   
   if (!hymn) return { error: "Hymn not found." };
   
-  return {
+   return {
     action: "navigate",
-    path: `/hymn/${hymn.title.replace(/\s+/g, '-')}`,
-    message: `Opening "${hymn.title}"`
+    path: `/hymn/${encodeURIComponent(hymn.title)}`,  // Changed from hymn.id
+    title: hymn.title,
+    lyrics: hymn.lyrics,
+    reference: hymn.reference,
+    notFound: false
   };
 }
 

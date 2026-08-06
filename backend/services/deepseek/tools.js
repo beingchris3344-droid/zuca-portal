@@ -498,7 +498,7 @@ const tools = [
         properties: {
           userIdentifier: { type: "string", description: "User's name, email, or membership number" },
           newRole: { type: "string", enum: ["admin", "member"], description: "New role" },
-          newSpecialRole: { type: "string", enum: ["treasurer", "secretary", "choir_moderator", "media_moderator", "jumuia_leader", null], description: "New special role (optional)" }
+          newSpecialRole: { type: "string", enum: ["treasurer", "secretary", "choir_moderator", "media_moderator", "jumuia_leader"], description: "New special role (optional - omit to keep current)" }
         },
         required: ["userIdentifier", "newRole"]
       }
@@ -620,6 +620,98 @@ const tools = [
       name: "list_all_contributions",
       description: "List all contributions/campaigns with their progress",
       parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+
+ 
+
+// ==================== ATTENDANCE ====================
+{
+  type: "function",
+  function: {
+    name: "get_my_attendance_records",
+    description: "Get attendance history and records. Works for current user or for a specific user when providing membership number (admin only)",
+    parameters: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Number of records to return (default 20)" },
+        membershipNumber: { type: "string", description: "Optional: user's membership number (e.g., Z#003) - admin only" },
+        userIdentifier: { type: "string", description: "Optional: user's name or email - admin only" }
+      },
+      required: []
+    }
+  }
+},
+  {
+    type: "function",
+    function: {
+      name: "get_attendance_by_date",
+      description: "Get attendance records for a specific date range",
+      parameters: {
+        type: "object",
+        properties: {
+          startDate: { type: "string", description: "Start date in YYYY-MM-DD format" },
+          endDate: { type: "string", description: "End date in YYYY-MM-DD format (optional, defaults to startDate)" }
+        },
+        required: ["startDate"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_attendance_summary",
+      description: "Get attendance summary including monthly stats and upcoming events",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_in",
+      description: "Check in to a mass or event",
+      parameters: {
+        type: "object",
+        properties: {
+          sheetId: { type: "string", description: "Attendance sheet ID (optional - will auto-find today's active sheet)" },
+          signMethod: { type: "string", enum: ["Manual", "QR", "WhatsApp", "Admin"], description: "Method used to check in (default: Manual)" }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_attendance_sheet",
+      description: "View a full attendance sheet with all entries (admin/secretary only)",
+      parameters: {
+        type: "object",
+        properties: {
+          sheetId: { type: "string", description: "Attendance sheet ID" },
+          date: { type: "string", description: "Date in YYYY-MM-DD format (if no sheetId provided)" }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_attendance_stats",
+      description: "Get attendance statistics including total, present, absent, late (admin only)",
+      parameters: {
+        type: "object",
+        properties: {
+          startDate: { type: "string", description: "Start date in YYYY-MM-DD format (default: 30 days ago)" },
+          endDate: { type: "string", description: "End date in YYYY-MM-DD format (default: today)" }
+        },
+        required: []
+      }
     }
   }
 ];

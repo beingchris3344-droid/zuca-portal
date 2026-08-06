@@ -811,43 +811,63 @@ When in doubt about who to send to, ask the user!
 
 }
 
-// ================== CHAT WITH GROQ WITH AUTO FALLBACK ==================
+// ================== CHAT WITH GROQ - INSTANT FALLBACK (NO WAITING) ==================
 async function chatWithGroq(messages, userContext) {
-
-  // ================== CONVERSATION MEMORY ==================
-const conversationHistory = Array.isArray(userContext?.conversationHistory)
-  ? userContext.conversationHistory
-  : [];
+  const conversationHistory = Array.isArray(userContext?.conversationHistory)
+    ? userContext.conversationHistory
+    : [];
   const systemPrompt = buildSystemPrompt(userContext);
 
-  
-  
-  // If we're within rate limit cooldown, wait
-  if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
-    const waitTime = Math.ceil((rateLimitResetTime - Date.now()) / 1000);
-    console.log(`⏳ Rate limit active, waiting ${waitTime}s...`);
-    await new Promise(resolve => setTimeout(resolve, rateLimitResetTime - Date.now()));
+  // Track rate-limited models globally (per model, not global wait)
+  if (!global.rateLimitedModels) {
+    global.rateLimitedModels = new Map();
   }
   
-  // Try models in order until one works
   let lastError = null;
+  let triedModels = [];
   
+  // Try models in order - NO WAITING, instant fallback
   for (let i = 0; i < MODEL_LIST.length; i++) {
     const model = MODEL_LIST[i];
     
+    // Skip models that are currently rate limited
+    if (global.rateLimitedModels.has(model.name)) {
+      const resetTime = global.rateLimitedModels.get(model.name);
+      if (Date.now() < resetTime) {
+        console.log(`⏭️ Skipping ${model.name} (rate limited for ${Math.ceil((resetTime - Date.now()) / 1000)}s)`);
+        continue;
+      } else {
+        // Rate limit expired
+        global.rateLimitedModels.delete(model.name);
+      }
+    }
+    
+    triedModels.push(model.name);
+    
     try {
-      console.log(`🧠 Trying model: ${model.name} (${model.quality})...`);
+      console.log(`🧠 [${i+1}/${MODEL_LIST.length}] Trying: ${model.name} (${model.quality})...`);
       
-      const completion = await groq.chat.completions.create({
+      // ========== TIMEOUT WITH Promise.race ==========
+    const timeoutMs = 5000; // 5 seconds for ALL models
+
+const timeoutPromise = new Promise((_, reject) => 
+  setTimeout(() => reject(new Error(`⏱️ ${model.name} timed out after 5s`)), timeoutMs)
+);
+      
+      const apiCall = groq.chat.completions.create({
         model: model.name,
         messages: [
-  { role: "system", content: systemPrompt },
-  ...conversationHistory,
-  ...messages,
-],
+          { role: "system", content: systemPrompt },
+          ...conversationHistory,
+          ...messages,
+        ],
         temperature: 0.3,
         max_tokens: 1200,
       });
+      
+      // ⚡ RACE: whichever finishes first (API call or timeout)
+      const completion = await Promise.race([apiCall, timeoutPromise]);
+      // ============================================
       
       const message = completion.choices[0].message;
       console.log(`✅ Model ${model.name} succeeded!`);
@@ -861,8 +881,6 @@ const conversationHistory = Array.isArray(userContext?.conversationHistory)
           contentPreview: parsed.content?.substring(0, 50) 
         });
         
-       
-        
         return parsed;
       }
       
@@ -870,22 +888,27 @@ const conversationHistory = Array.isArray(userContext?.conversationHistory)
       
     } catch (error) {
       const errorMsg = error.message || '';
-      console.error(`❌ Model ${model.name} failed:`, errorMsg);
+      console.error(`❌ ${model.name} failed:`, errorMsg.substring(0, 100));
       lastError = errorMsg;
       
-      // Check if it's a rate limit or decommissioned error
+      // ========== HANDLE TIMEOUT ==========
+      if (errorMsg.includes('timed out') || errorMsg.includes('Timeout')) {
+        console.log(`⏱️ ${model.name} timed out - SKIPPING, trying next...`);
+        continue;
+      }
+      // ====================================
+      
+      // Rate limit - track it but DON'T WAIT
       if (errorMsg.includes('rate_limit') || errorMsg.includes('429')) {
-        // Try to parse reset time from error, or default to 60 seconds
         const match = errorMsg.match(/reset in (\d+)/);
         const waitSeconds = match ? parseInt(match[1]) : 60;
-        rateLimitResetTime = Date.now() + (waitSeconds * 1000);
-        console.log(`⏳ Rate limit hit. Reset in ${waitSeconds}s`);
-        // Continue to next model
+        global.rateLimitedModels.set(model.name, Date.now() + (waitSeconds * 1000));
+        console.log(`⏳ ${model.name} rate limited for ${waitSeconds}s - SKIPPING, trying next...`);
         continue;
       }
       
       if (errorMsg.includes('decommissioned') || errorMsg.includes('does not exist')) {
-        console.log(`⚠️ Model ${model.name} is unavailable, trying next...`);
+        console.log(`⚠️ ${model.name} is unavailable, trying next...`);
         continue;
       }
       
@@ -894,10 +917,29 @@ const conversationHistory = Array.isArray(userContext?.conversationHistory)
     }
   }
   
-  // If all models failed
-  console.error(`❌ All models failed. Last error: ${lastError}`);
+  // If all models failed, try to retry with expired rate limits cleared
+  console.error(`❌ All models failed. Tried: ${triedModels.join(', ')}`);
+  
+  // Check if any rate limits have expired
+  const now = Date.now();
+  let hasAvailableModel = false;
+  for (const [model, resetTime] of global.rateLimitedModels) {
+    if (now > resetTime) {
+      global.rateLimitedModels.delete(model);
+      hasAvailableModel = true;
+    }
+  }
+  
+  // If some models are now available, retry once
+  if (hasAvailableModel || global.rateLimitedModels.size < MODEL_LIST.length) {
+    console.log(`🔄 Retrying with available models...`);
+    return chatWithGroq(messages, userContext);
+  }
+  
+  // All models are truly rate limited - return error
+  console.error(`❌ All models rate limited. Please try again later.`);
   return { 
-    content: "Tumsifu Yesu Kristu! 🙏 I'm having trouble connecting. Please try again in a moment.", 
+    content: "Tumsifu Yesu Kristu! 🙏 All AI models are currently busy. Please try again in a moment.", 
     action: null 
   };
 }

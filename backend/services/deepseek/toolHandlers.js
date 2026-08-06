@@ -1023,7 +1023,7 @@ case "all_users": {
         return { users, count: users.length, message: `Showing ${users.length} users` };
       }
 
-   case "find_user": {
+  case "find_user": {
   // ✅ Support both 'searchTerm' and 'query' parameter names
   let searchTerm = args.searchTerm || args.query || args.userIdentifier || args.name || "";
   
@@ -1074,31 +1074,91 @@ case "all_users": {
   }
 
   // ========== SINGLE USER FOUND ==========
-  if (foundUsers.length === 1) {
-    const found = foundUsers[0];
-    
-    // Get total paid
-    const pledges = await prisma.pledge.findMany({
-      where: { userId: found.id },
-      include: { contributionType: true }
-    });
-    const totalPaid = pledges.reduce((s, p) => s + (p.amountPaid || 0), 0);
-    
-    return {
-      user: {
-        id: found.id,
-        fullName: found.fullName,
-        email: found.email,
-        phone: found.phone,
-        membership: found.membership_number,
-        role: found.role,
-        specialRole: found.specialRole,
-        jumuia: found.homeJumuia?.name,
-        totalPaid: totalPaid
-      },
-      message: `👤 *${found.fullName}*\n📧 ${found.email || 'N/A'}\n📱 ${found.phone || 'N/A'}\n🆔 ${found.membership_number || 'N/A'}\n🏠 ${found.homeJumuia?.name || 'None'}\n👑 ${found.role || 'User'}${found.specialRole ? ` (${found.specialRole})` : ''}\n💰 Paid: KES ${totalPaid.toLocaleString()}`
-    };
+if (foundUsers.length === 1) {
+  const found = foundUsers[0];
+  
+  // Get total paid
+  const pledges = await prisma.pledge.findMany({
+    where: { userId: found.id },
+    include: { contributionType: true }
+  });
+  const totalPaid = pledges.reduce((s, p) => s + (p.amountPaid || 0), 0);
+  
+  // ========== GET ATTENDANCE RECORDS ==========
+  const attendanceRecords = await prisma.attendanceEntry.findMany({
+    where: { userId: found.id },
+    include: { 
+      sheet: { 
+        select: { 
+          title: true, 
+          eventDate: true, 
+          location: true 
+        } 
+      } 
+    },
+    orderBy: { signTime: 'desc' },
+    take: 20
+  });
+  
+  // ========== COUNT ATTENDANCE PROPERLY ==========
+  let presentCount = 0;
+  let absentCount = 0;
+  let lateCount = 0;
+  
+  for (const r of attendanceRecords) {
+    const status = (r.status || 'PRESENT').toUpperCase();
+    if (status === 'PRESENT') presentCount++;
+    else if (status === 'ABSENT') absentCount++;
+    else if (status === 'LATE') lateCount++;
+    else presentCount++; // Default to present for unknown status
   }
+  
+  // Format attendance for display
+  let attendanceMessage = '';
+  if (attendanceRecords.length > 0) {
+    attendanceMessage = `\n\n📋 *Attendance:* ${attendanceRecords.length} records\n`;
+    attendanceMessage += `✅ Present: ${presentCount}`;
+    if (lateCount > 0) attendanceMessage += ` | ⏰ Late: ${lateCount}`;
+    if (absentCount > 0) attendanceMessage += ` | ❌ Absent: ${absentCount}`;
+    attendanceMessage += `\n\n📅 *Recent Check-ins:*\n`;
+    
+    attendanceRecords.slice(0, 5).forEach(r => {
+      const date = r.sheet?.eventDate || r.signTime;
+      const formattedDate = new Date(date).toLocaleDateString('en-KE', { 
+        day: 'numeric', month: 'short', year: 'numeric' 
+      });
+      
+      const status = (r.status || 'PRESENT').toUpperCase();
+      const statusEmoji = status === 'PRESENT' ? '✅' : 
+                         status === 'LATE' ? '⏰' : '❌';
+      const event = r.sheet?.title || "Mass/Event";
+      attendanceMessage += `${statusEmoji} ${event} - ${formattedDate}\n`;
+    });
+    
+    if (attendanceRecords.length > 5) {
+      attendanceMessage += `... and ${attendanceRecords.length - 5} more\n`;
+    }
+    attendanceMessage += `📱 *Full details:* https://www.zetechcatholicaction.com/profile`;
+  } else {
+    attendanceMessage = `\n\n📋 *Attendance:* No records found.`;
+  }
+  
+  return {
+    user: {
+      id: found.id,
+      fullName: found.fullName,
+      email: found.email,
+      phone: found.phone,
+      membership: found.membership_number,
+      role: found.role,
+      specialRole: found.specialRole,
+      jumuia: found.homeJumuia?.name,
+      totalPaid: totalPaid
+    },
+    attendance: attendanceRecords,
+    message: `👤 *${found.fullName}*\n📧 ${found.email || 'N/A'}\n📱 ${found.phone || 'N/A'}\n🆔 ${found.membership_number || 'N/A'}\n🏠 ${found.homeJumuia?.name || 'None'}\n👑 ${found.role || 'User'}${found.specialRole ? ` (${found.specialRole})` : ''}\n💰 Paid: KES ${totalPaid.toLocaleString()}${attendanceMessage}`
+  };
+}
 
   // ========== CHECK IF IT'S A POSITION TITLE ==========
   // Map common position names to database titles
@@ -1141,6 +1201,20 @@ case "all_users": {
 
   if (positionMatch) {
     const userData = positionMatch.user;
+    
+    // Get attendance for position holder
+    const attendanceRecords = await prisma.attendanceEntry.findMany({
+      where: { userId: userData.id },
+      include: { sheet: { select: { title: true, eventDate: true } } },
+      orderBy: { signTime: 'desc' },
+      take: 5
+    });
+    
+    let attendanceMsg = '';
+    if (attendanceRecords.length > 0) {
+      attendanceMsg = `\n📋 Recent attendance: ${attendanceRecords.length} check-ins`;
+    }
+    
     return {
       user: {
         id: userData.id,
@@ -1153,7 +1227,7 @@ case "all_users": {
         jumuia: userData.homeJumuia?.name,
         position: positionMatch.position.title
       },
-      message: `👤 *${userData.fullName}*\n👑 Position: ${positionMatch.position.title}\n📧 ${userData.email || 'N/A'}\n📱 ${userData.phone || 'N/A'}\n🏠 ${userData.homeJumuia?.name || 'None'}`,
+      message: `👤 *${userData.fullName}*\n👑 Position: ${positionMatch.position.title}\n📧 ${userData.email || 'N/A'}\n📱 ${userData.phone || 'N/A'}\n🏠 ${userData.homeJumuia?.name || 'None'}${attendanceMsg}`,
       action: "navigate",
       path: `/executive`
     };
@@ -4883,6 +4957,439 @@ case "get_lyrics_by_number": {
     message: `🎵 *${hymn.title}*${hymn.reference ? ` (${hymn.reference})` : ''}\n\n${lyrics.substring(0, 1000)}${lyrics.length > 1000 ? '\n\n📖 *Full lyrics available in the hymn book! at https://www.zetechcatholicaction.com/hymns*' : ''}`,
     action: "navigate",
     path: `/hymn/${hymn.id}`
+  };
+}
+
+
+
+case "get_my_attendance_records":
+case "my_attendance":
+case "attendance_history":
+case "show_attendance":
+case "get_attendance_records":
+case "get_user_attendance":
+case "attendance": {
+  try {
+    let targetUserId = currentUser?.userId;
+    let targetUser = null;
+    
+    // If looking up by membership number or name (WhatsApp users)
+    if (args.membershipNumber || args.userIdentifier || args.userId) {
+      // Find the target user by membership number or name
+      targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { membership_number: args.membershipNumber || args.userId || '' },
+            { fullName: { contains: args.userIdentifier || '', mode: "insensitive" } },
+            { email: { contains: args.userIdentifier || '', mode: "insensitive" } }
+          ]
+        }
+      });
+      
+      if (!targetUser) {
+        return { 
+          message: `❌ User not found with the provided information. Please check your membership number (e.g., Z#003) or full name.` 
+        };
+      }
+      
+      targetUserId = targetUser.id;
+    } 
+    // If no identifier provided, but we have currentUser from web app
+    else if (targetUserId) {
+      targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { fullName: true, membership_number: true }
+      });
+    }
+    // If no user found at all
+    else {
+      return { 
+        message: `📋 *Attendance Records*\n\nPlease provide your membership number (e.g., Z#003) or full name so I can look up your attendance records.\n\nExample: "Get my attendance records. My name is Christopher" or "Z#003 attendance"` 
+      };
+    }
+    
+    if (!targetUserId) {
+      return { 
+        message: `📋 *Attendance Records*\n\nPlease provide your membership number (e.g., Z#003) or full name so I can look up your attendance records.\n\nExample: "Get my attendance records. My name is Christopher" or "Z#003 attendance"` 
+      };
+    }
+    
+    // If targetUser is still null, fetch it
+    if (!targetUser) {
+      targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { fullName: true, membership_number: true }
+      });
+    }
+    
+    // Get user's attendance records
+    const attendanceRecords = await prisma.attendanceEntry.findMany({
+      where: { 
+        userId: targetUserId 
+      },
+      include: {
+        sheet: {
+          select: {
+            title: true,
+            eventDate: true,
+            location: true
+          }
+        }
+      },
+      orderBy: { signTime: 'desc' },
+      take: args.limit || 20
+    });
+    
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      return {
+        success: true,
+        message: `📋 *Attendance Records*\n\n👤 *${targetUser?.fullName || 'User'}*\n🆔 ${targetUser?.membership_number || 'N/A'}\n\nNo attendance records found.\n\n💡 Check in at events to start tracking your attendance!`,
+        records: [],
+        count: 0
+      };
+    }
+    
+    // Calculate stats
+    const totalPresent = attendanceRecords.filter(r => r.status === 'PRESENT' || r.status === 'present').length;
+    const totalAbsent = attendanceRecords.filter(r => r.status === 'ABSENT' || r.status === 'absent').length;
+    const totalLate = attendanceRecords.filter(r => r.status === 'LATE' || r.status === 'late').length;
+    
+    // Format records
+    const formattedRecords = attendanceRecords.map(r => ({
+      date: r.sheet?.eventDate || r.signTime,
+      event: r.sheet?.title || "Mass/Event",
+      location: r.sheet?.location || "N/A",
+      status: r.status || "PRESENT",
+      signMethod: r.signMethod || "Manual",
+      signTime: r.signTime
+    }));
+    
+    // Build response message
+    let message = `📋 *ATTENDANCE RECORDS*\n`;
+    message += `👤 *${targetUser?.fullName || 'User'}*\n`;
+    if (targetUser?.membership_number) message += `🆔 ${targetUser.membership_number}\n`;
+    message += `\n📊 *Stats:*\n`;
+    message += `✅ Present: ${totalPresent}\n`;
+    if (totalLate > 0) message += `⏰ Late: ${totalLate}\n`;
+    if (totalAbsent > 0) message += `❌ Absent: ${totalAbsent}\n`;
+    message += `📝 Total Records: ${attendanceRecords.length}\n\n`;
+    
+    if (attendanceRecords.length > 0) {
+      message += `📅 *Recent Check-ins:*\n`;
+      formattedRecords.slice(0, 5).forEach(r => {
+        const date = new Date(r.signTime).toLocaleDateString('en-KE', { 
+          day: 'numeric', month: 'short', year: 'numeric' 
+        });
+        const statusEmoji = r.status === 'PRESENT' || r.status === 'present' ? '✅' : 
+                           r.status === 'LATE' || r.status === 'late' ? '⏰' : '❌';
+        message += `${statusEmoji} ${r.event} - ${date}\n`;
+      });
+      if (formattedRecords.length > 5) {
+        message += `... and ${formattedRecords.length - 5} more\n`;
+      }
+      message += `\n📱 *For full details, visit:* https://www.zetechcatholicaction.com/profile`;
+    }
+    
+    return {
+      success: true,
+      message,
+      records: formattedRecords,
+      stats: { totalPresent, totalAbsent, totalLate, total: attendanceRecords.length }
+    };
+    
+  } catch (error) {
+    console.error('❌ Attendance fetch error:', error);
+    return { error: "Failed to fetch attendance records. Please try again." };
+  }
+}
+
+case "get_attendance_by_date": {
+  if (!currentUser?.userId) {
+    return { error: "Please log in first." };
+  }
+  
+  const { startDate, endDate } = args;
+  
+  if (!startDate) {
+    return { error: "Please provide a startDate (YYYY-MM-DD)." };
+  }
+  
+  const start = new Date(startDate);
+  const end = endDate ? new Date(endDate) : new Date(start);
+  end.setHours(23, 59, 59, 999);
+  
+  const records = await prisma.attendanceEntry.findMany({
+    where: {
+      userId: currentUser.userId,
+      signTime: { gte: start, lte: end }
+    },
+    include: {
+      sheet: { select: { title: true, eventDate: true, location: true } }
+    },
+    orderBy: { signTime: 'desc' }
+  });
+  
+  if (records.length === 0) {
+    return {
+      message: `📋 No attendance records found from ${startDate}${endDate ? ` to ${endDate}` : ''}.`,
+      records: []
+    };
+  }
+  
+  return {
+    success: true,
+    dateRange: { startDate, endDate: endDate || startDate },
+    count: records.length,
+    records: records.map(r => ({
+      date: r.sheet?.eventDate || r.signTime,
+      event: r.sheet?.title || "Mass/Event",
+      status: r.status || "PRESENT",
+      signMethod: r.signMethod || "Manual"
+    }))
+  };
+}
+
+case "get_attendance_summary": {
+  if (!currentUser?.userId) {
+    return { error: "Please log in first." };
+  }
+  
+  // Get current month stats
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  monthEnd.setHours(23, 59, 59, 999);
+  
+  const [monthRecords, totalRecords, upcomingEvents] = await Promise.all([
+    prisma.attendanceEntry.findMany({
+      where: {
+        userId: currentUser.userId,
+        signTime: { gte: monthStart, lte: monthEnd }
+      }
+    }),
+    prisma.attendanceEntry.count({
+      where: { userId: currentUser.userId }
+    }),
+    prisma.attendanceSheet.findMany({
+      where: {
+        eventDate: { gte: new Date() },
+        isActive: true
+      },
+      orderBy: { eventDate: 'asc' },
+      take: 3
+    })
+  ]);
+  
+  const present = monthRecords.filter(r => r.status === 'PRESENT' || r.status === 'present').length;
+  const absent = monthRecords.filter(r => r.status === 'ABSENT' || r.status === 'absent').length;
+  const late = monthRecords.filter(r => r.status === 'LATE' || r.status === 'late').length;
+  
+  let message = `📊 *ATTENDANCE SUMMARY*\n\n`;
+  message += `📅 *This Month:*\n`;
+  message += `✅ Present: ${present}\n`;
+  message += `⏰ Late: ${late}\n`;
+  message += `❌ Absent: ${absent}\n`;
+  message += `📝 Total: ${monthRecords.length}\n\n`;
+  message += `📊 *All Time:* ${totalRecords} check-ins\n\n`;
+  
+  if (upcomingEvents.length > 0) {
+    message += `📅 *Upcoming Events:*\n`;
+    upcomingEvents.forEach(e => {
+      const date = e.eventDate.toLocaleDateString('en-KE', { 
+        day: 'numeric', month: 'short' 
+      });
+      message += `• ${e.title} - ${date}\n`;
+    });
+  }
+  
+  return {
+    success: true,
+    message,
+    stats: {
+      month: { present, absent, late, total: monthRecords.length },
+      total: totalRecords,
+      upcomingEvents: upcomingEvents.map(e => ({
+        title: e.title,
+        date: e.eventDate,
+        location: e.location
+      }))
+    }
+  };
+}
+
+case "check_in": {
+  if (!currentUser?.userId) {
+    return { error: "Please log in first." };
+  }
+  
+  const { sheetId, signMethod = "Manual" } = args;
+  
+  if (!sheetId) {
+    // Find today's active sheet
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const sheet = await prisma.attendanceSheet.findFirst({
+      where: {
+        eventDate: { gte: today, lt: tomorrow },
+        isActive: true
+      }
+    });
+    
+    if (!sheet) {
+      return { 
+        message: "📋 No active attendance sheet found for today. Please check with the secretary." 
+      };
+    }
+    
+    // Check if already checked in
+    const existing = await prisma.attendanceEntry.findFirst({
+      where: {
+        userId: currentUser.userId,
+        sheetId: sheet.id
+      }
+    });
+    
+    if (existing) {
+      return {
+        message: `✅ You already checked in for "${sheet.title}" at ${new Date(existing.signTime).toLocaleTimeString()}`,
+        alreadyCheckedIn: true
+      };
+    }
+    
+    const entry = await prisma.attendanceEntry.create({
+      data: {
+        userId: currentUser.userId,
+        sheetId: sheet.id,
+        fullName: currentUser.fullName,
+        signMethod: signMethod,
+        signTime: new Date(),
+        status: "PRESENT"
+      }
+    });
+    
+    return {
+      success: true,
+      message: `✅ Check-in successful for "${sheet.title}" at ${new Date(entry.signTime).toLocaleTimeString()}!`,
+      entry: {
+        id: entry.id,
+        event: sheet.title,
+        time: entry.signTime
+      }
+    };
+  }
+  
+  // Check in with specific sheet ID
+  const sheet = await prisma.attendanceSheet.findUnique({
+    where: { id: sheetId }
+  });
+  
+  if (!sheet) {
+    return { error: "Attendance sheet not found." };
+  }
+  
+  const existing = await prisma.attendanceEntry.findFirst({
+    where: {
+      userId: currentUser.userId,
+      sheetId: sheet.id
+    }
+  });
+  
+  if (existing) {
+    return {
+      message: `✅ You already checked in for "${sheet.title}" at ${new Date(existing.signTime).toLocaleTimeString()}`,
+      alreadyCheckedIn: true
+    };
+  }
+  
+  const entry = await prisma.attendanceEntry.create({
+    data: {
+      userId: currentUser.userId,
+      sheetId: sheet.id,
+      fullName: currentUser.fullName,
+      signMethod: signMethod,
+      signTime: new Date(),
+      status: "PRESENT"
+    }
+  });
+  
+  return {
+    success: true,
+    message: `✅ Check-in successful for "${sheet.title}"!`,
+    entry: {
+      id: entry.id,
+      event: sheet.title,
+      time: entry.signTime
+    }
+  };
+}
+
+case "get_attendance_sheet": {
+  const { sheetId, date } = args;
+  
+  let sheet;
+  if (sheetId) {
+    sheet = await prisma.attendanceSheet.findUnique({
+      where: { id: sheetId },
+      include: {
+        entries: {
+          include: {
+            user: { select: { fullName: true, membership_number: true, phone: true } }
+          },
+          orderBy: { signTime: 'asc' }
+        }
+      }
+    });
+  } else if (date) {
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    sheet = await prisma.attendanceSheet.findFirst({
+      where: {
+        eventDate: { gte: targetDate, lt: nextDay }
+      },
+      include: {
+        entries: {
+          include: {
+            user: { select: { fullName: true, membership_number: true, phone: true } }
+          },
+          orderBy: { signTime: 'asc' }
+        }
+      }
+    });
+  }
+  
+  if (!sheet) {
+    return { error: "Attendance sheet not found." };
+  }
+  
+  const present = sheet.entries.filter(e => e.status === 'PRESENT' || e.status === 'present').length;
+  const absent = sheet.entries.filter(e => e.status === 'ABSENT' || e.status === 'absent').length;
+  const late = sheet.entries.filter(e => e.status === 'LATE' || e.status === 'late').length;
+  
+  return {
+    success: true,
+    sheet: {
+      id: sheet.id,
+      title: sheet.title,
+      eventDate: sheet.eventDate,
+      location: sheet.location,
+      totalEntries: sheet.entries.length,
+      present,
+      absent,
+      late
+    },
+    entries: sheet.entries.map(e => ({
+      name: e.user.fullName,
+      membership: e.user.membership_number,
+      status: e.status || "PRESENT",
+      signMethod: e.signMethod,
+      signTime: e.signTime
+    }))
   };
 }
 

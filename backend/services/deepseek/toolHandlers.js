@@ -2479,7 +2479,7 @@ case "navigate_to_hymn": {
   
   return {
     action: "navigate",
-    path: `/hymn/${hymn.id}`,
+    path: `/hymn/${hymn.title.replace(/\s+/g, '-')}`,
     message: `Opening "${hymn.title}"`
   };
 }

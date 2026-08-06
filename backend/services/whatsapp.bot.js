@@ -144,12 +144,26 @@ this.maxMemoryMessages = 20;
 // 🔌 CONNECT TO WHATSAPP (File Auth + Database Backup)
 // =============================================
 async connect() {
+  // ✅ Prevent multiple connection attempts
   if (this.isConnecting) {
     console.log('⏳ Connection already in progress...');
     return;
   }
 
+  // ✅ If already connected, don't try again
+  if (this.isConnected) {
+    console.log('✅ Already connected');
+    return;
+  }
+
+  // ✅ If reconnecting too fast, delay
+  if (this._lastReconnectAttempt && Date.now() - this._lastReconnectAttempt < 5000) {
+    console.log('⏳ Reconnecting too fast, waiting...');
+    return;
+  }
+
   this.isConnecting = true;
+  this._lastReconnectAttempt = Date.now();
   this.connectionStatus = 'connecting';
   await this.updateStatus('connecting');
 
@@ -167,11 +181,20 @@ async connect() {
     // ✅ USE FILE-BASED AUTH (RELIABLE)
     const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
     
-    // ✅ Save to database as backup
+    // ✅ Save to database as backup - read from file directly
     const saveToDb = async (creds) => {
       try {
-        await this.saveCredsToDatabase(creds);
-        console.log('💾 Creds backed up to database');
+        // Read the complete creds from the file
+        const credsPath = path.join(this.authFolder, 'creds.json');
+        if (fs.existsSync(credsPath)) {
+          const fileCreds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+          await this.saveCredsToDatabase(fileCreds);
+          console.log(`💾 Creds backed up to database from file (${JSON.stringify(fileCreds).length} chars)`);
+        } else {
+          // Fallback to the passed creds
+          await this.saveCredsToDatabase(creds);
+          console.log('💾 Creds backed up to database (fallback)');
+        }
       } catch (error) {
         console.error('❌ Failed to save creds to database:', error.message);
       }
@@ -242,6 +265,29 @@ async connect() {
         
         console.log(`🔴 Connection closed. Status: ${statusCode}`);
         
+        // ✅ QR timeout - stop reconnecting
+        if (statusCode === 408) {
+          console.log('⏰ QR code timed out. Waiting for user to scan.');
+          this.connectionStatus = 'qr_required';
+          await this.updateStatus('qr_required');
+          this.isConnecting = false;
+          return;
+        }
+        
+        // ✅ Conflict - wait longer with exponential backoff
+        if (statusCode === 440 || statusCode === 409) {
+          console.log('⚠️ Conflict detected - waiting before reconnecting...');
+          this.reconnectAttempts++;
+          // Increase delay for each attempt
+          const delay = Math.min(10000 * Math.pow(2, this.reconnectAttempts), 120000);
+          console.log(`⏳ Waiting ${delay/1000}s before retry (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          this.isConnecting = false;
+          setTimeout(() => {
+            this.connect();
+          }, delay);
+          return;
+        }
+        
         if (statusCode === DisconnectReason.loggedOut) {
           this.connectionStatus = 'logged_out';
           this.isConnected = false;
@@ -263,29 +309,38 @@ async connect() {
           }
           
           this.cleanupAuth();
-        } else if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.isConnecting = false;
+          return;
+        }
+        
+        // ✅ Only reconnect if we haven't exceeded max attempts
+        if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
+          // Exponential backoff with cap
           const delay = Math.min(5000 * Math.pow(1.5, this.reconnectAttempts), 60000);
           console.log(`🔄 Reconnecting in ${delay/1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
           this.connectionStatus = 'reconnecting';
           await this.updateStatus('reconnecting');
+          this.isConnecting = false;
           
           setTimeout(() => {
-            this.isConnecting = false;
             this.connect();
           }, delay);
         } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           this.connectionStatus = 'error';
           this.lastError = 'Max reconnection attempts reached';
           await this.updateStatus('error');
+          this.isConnecting = false;
           console.log('❌ Max reconnection attempts reached. Manual intervention required.');
         }
       }
 
       if (connection === 'open') {
+        // ✅ Reset reconnect attempts on successful connection
         this.isConnected = true;
         this.isConnecting = false;
         this.reconnectAttempts = 0;
+        this._lastReconnectAttempt = null;
         this.connectionStatus = 'connected';
         this.qrCode = null;
         this.qrCodeBase64 = null;
@@ -350,6 +405,20 @@ async connect() {
           console.error('❌ Error extracting LID:', error.message);
           this.botLid = '273010401485038';
         }
+
+        // ✅ Wait 10 seconds, then save complete creds from file to database
+        setTimeout(async () => {
+          try {
+            const credsPath = path.join(this.authFolder, 'creds.json');
+            if (fs.existsSync(credsPath)) {
+              const fileCreds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+              await this.saveCredsToDatabase(fileCreds);
+              console.log(`💾 Complete creds saved to database (${JSON.stringify(fileCreds).length} chars)`);
+            }
+          } catch (error) {
+            console.error('❌ Failed to save complete creds:', error.message);
+          }
+        }, 3000);
         
         await this.updateStatus('connected');
         

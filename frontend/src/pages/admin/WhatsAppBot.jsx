@@ -4,7 +4,7 @@ import {
   Plus, Search, Filter, RefreshCw, Link as LinkIcon, 
   Unlink, QrCode, Send, Users, MessageCircle, 
   Settings, AlertCircle, CheckCircle, XCircle,
-  Loader, Copy, Check, Phone, Radio, Globe,
+  Loader, Copy, Check, Radio, Globe,
   ChevronDown, ChevronRight, Database, Hash,
   UserPlus, UserMinus, List, Layers, Sparkles, Wand2, History as HistoryIcon
 } from 'lucide-react';
@@ -19,10 +19,6 @@ export default function WhatsAppBot() {
   const [groupId, setGroupId] = useState('');
   const [newGroupId, setNewGroupId] = useState('');
   const [message, setMessage] = useState('');
-  const [broadcastTitle, setBroadcastTitle] = useState('');
-  const [broadcastMessage, setBroadcastMessage] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [personalMessage, setPersonalMessage] = useState('');
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -78,7 +74,6 @@ export default function WhatsAppBot() {
   const fetchStatus = useCallback(async (force = false) => {
     const now = Date.now();
     
-    // ✅ Return cached data if not expired and not forced
     if (!force && statusCache.current.data && 
         (now - statusCache.current.timestamp) < statusCache.current.ttl) {
       console.log('📦 Using cached status data');
@@ -91,7 +86,6 @@ export default function WhatsAppBot() {
       const response = await api.get('/api/admin/whatsapp/status', { headers });
       const data = response.data.status || response.data;
       
-      // ✅ Update cache
       statusCache.current.data = data;
       statusCache.current.timestamp = now;
       
@@ -116,7 +110,6 @@ export default function WhatsAppBot() {
   const fetchGroups = useCallback(async (force = false) => {
     const now = Date.now();
     
-    // ✅ Return cached data if not expired and not forced
     if (!force && groupsCache.current.data && 
         (now - groupsCache.current.timestamp) < groupsCache.current.ttl) {
       console.log('📦 Using cached groups data');
@@ -134,7 +127,6 @@ export default function WhatsAppBot() {
       if (response.data.success) {
         const groupList = response.data.groups || [];
         
-        // ✅ Update cache
         groupsCache.current.data = groupList;
         groupsCache.current.timestamp = now;
         
@@ -144,7 +136,6 @@ export default function WhatsAppBot() {
         return groupList;
       }
     } catch (error) {
-      // ✅ If rate limited and we have cached data, use it
       if (error.response?.data?.error === 'rate-overlimit' && groupsCache.current.data) {
         console.log('⚠️ Rate limited, using cached groups data');
         const groupList = groupsCache.current.data;
@@ -176,12 +167,11 @@ export default function WhatsAppBot() {
         fetchGroups(force);
       }
       debounceTimeout.current = null;
-    }, 300); // 300ms debounce
+    }, 300);
   }, [fetchStatus, fetchGroups]);
 
   // ==================== FETCH GROUP MEMBERS ====================
   const fetchGroupMembers = async (groupId) => {
-    // ✅ Check if we already have the members
     if (groupMembers[groupId]) {
       console.log('📦 Using cached group members');
       return;
@@ -200,25 +190,22 @@ export default function WhatsAppBot() {
 
   // ==================== EFFECTS ====================
   useEffect(() => {
-    // Initial fetch with cache
     fetchStatus();
     fetchGroups();
     
-    // ✅ Longer intervals with cache checking
     const statusInterval = setInterval(() => {
-      // Only fetch if cache expired
       const now = Date.now();
       if ((now - statusCache.current.timestamp) >= statusCache.current.ttl) {
         fetchStatus();
       }
-    }, 15000); // Check every 15s but only fetch if expired
+    }, 15000);
     
     const groupsInterval = setInterval(() => {
       const now = Date.now();
       if ((now - groupsCache.current.timestamp) >= groupsCache.current.ttl) {
         fetchGroups();
       }
-    }, 30000); // Check every 30s but only fetch if expired
+    }, 30000);
     
     return () => {
       clearInterval(statusInterval);
@@ -241,7 +228,6 @@ export default function WhatsAppBot() {
           setQrCode(response.data.qrCode);
           setShowQR(true);
         }
-        // ✅ Force refresh after link
         setTimeout(() => fetchStatus(true), 2000);
       }
     } catch (error) {
@@ -260,7 +246,6 @@ export default function WhatsAppBot() {
       showToast('WhatsApp unlinked successfully');
       setQrCode(null);
       setShowQR(false);
-      // ✅ Force refresh after unlink
       fetchStatus(true);
     } catch (error) {
       showToast('Failed to unlink WhatsApp: ' + (error.response?.data?.error || error.message), 'error');
@@ -280,7 +265,6 @@ export default function WhatsAppBot() {
       await api.post('/api/admin/whatsapp/group', { groupId: newGroupId }, { headers });
       showToast('Default Group ID set successfully!');
       setGroupId(newGroupId);
-      // ✅ Force refresh after setting
       fetchStatus(true);
     } catch (error) {
       showToast('Failed to set group ID: ' + (error.response?.data?.error || error.message), 'error');
@@ -295,7 +279,6 @@ export default function WhatsAppBot() {
     try {
       await api.post('/api/admin/whatsapp/groups/activate', { groupId }, { headers });
       showToast('Group activated successfully!');
-      // ✅ Force refresh groups after activation
       fetchGroups(true);
     } catch (error) {
       showToast('Failed to activate group: ' + (error.response?.data?.error || error.message), 'error');
@@ -309,7 +292,6 @@ export default function WhatsAppBot() {
     try {
       await api.post('/api/admin/whatsapp/groups/deactivate', { groupId }, { headers });
       showToast('Group deactivated successfully!');
-      // ✅ Force refresh groups after deactivation
       fetchGroups(true);
     } catch (error) {
       showToast('Failed to deactivate group: ' + (error.response?.data?.error || error.message), 'error');
@@ -323,7 +305,6 @@ export default function WhatsAppBot() {
     try {
       await api.post('/api/admin/whatsapp/groups/refresh', {}, { headers });
       showToast('Groups refreshed successfully!');
-      // ✅ Force refresh after manual refresh
       fetchGroups(true);
     } catch (error) {
       showToast('Failed to refresh groups', 'error');
@@ -334,7 +315,7 @@ export default function WhatsAppBot() {
 
   // ==================== SEND MESSAGES ====================
 
-  const handleSendToGroup = async () => {
+  const handleSendToDefaultGroup = async () => {
     if (!message.trim()) {
       showToast('Please enter a message', 'error');
       return;
@@ -368,55 +349,6 @@ export default function WhatsAppBot() {
       setGroupMessage('');
     } catch (error) {
       showToast('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSendToUser = async () => {
-    if (!phoneNumber || !personalMessage) {
-      showToast('Phone number and message are required', 'error');
-      return;
-    }
-    
-    setActionLoading(true);
-    try {
-      await api.post('/api/admin/whatsapp/test-user', { 
-        phoneNumber, 
-        message: personalMessage 
-      }, { headers });
-      showToast(`Message sent to ${phoneNumber}!`);
-      setPhoneNumber('');
-      setPersonalMessage('');
-    } catch (error) {
-      showToast('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleBroadcast = async () => {
-    if (!broadcastTitle || !broadcastMessage) {
-      showToast('Title and message are required', 'error');
-      return;
-    }
-    
-    if (!confirm(`Send broadcast to ALL users? This will send to everyone with a phone number.`)) return;
-    
-    setActionLoading(true);
-    try {
-      const response = await api.post('/api/admin/whatsapp/broadcast', {
-        title: broadcastTitle,
-        message: broadcastMessage
-      }, { headers });
-      
-      if (response.data.success) {
-        showToast(`Broadcast sent to ${response.data.sent || response.data.total} users!`);
-        setBroadcastTitle('');
-        setBroadcastMessage('');
-      }
-    } catch (error) {
-      showToast('Broadcast failed: ' + (error.response?.data?.error || error.message), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -487,19 +419,13 @@ export default function WhatsAppBot() {
     }
 
     switch(targetField) {
-      case 'group':
+      case 'defaultGroup':
         setMessage(aiMessageOutput);
         break;
       case 'specificGroup':
         setGroupMessage(aiMessageOutput);
         break;
-      case 'user':
-        setPersonalMessage(aiMessageOutput);
-        break;
-      case 'broadcast':
-        setBroadcastMessage(aiMessageOutput);
-        break;
-      case 'broadcastGroup':
+      case 'groupBroadcast':
         setBroadcastGroupMessage(aiMessageOutput);
         break;
       default:
@@ -542,8 +468,6 @@ export default function WhatsAppBot() {
     return info;
   };
 
-
-
   return (
     <div className="whatsapp-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
@@ -560,10 +484,9 @@ export default function WhatsAppBot() {
           </div>
         </div>
         <div className="header-actions">
-         
-<button className="btn-history" onClick={() => navigate('/admin/message-history')}>
-  <HistoryIcon size={18} /> Message History
-</button>
+          <button className="btn-history" onClick={() => navigate('/admin/message-history')}>
+            <HistoryIcon size={18} /> Message History
+          </button>
           <button className="btn-refresh" onClick={() => { fetchStatus(); fetchGroups(); }}>
             <RefreshCw size={18} /> Refresh
           </button>
@@ -641,19 +564,13 @@ export default function WhatsAppBot() {
                   </div>
                   <div className="ai-output-actions">
                     <span className="ai-action-label">Use in:</span>
-                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('group')}>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('defaultGroup')}>
                       Default Group
                     </button>
                     <button className="btn-use-message" onClick={() => handleUsePolishedMessage('specificGroup')}>
                       Specific Group
                     </button>
-                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('user')}>
-                      User
-                    </button>
-                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('broadcast')}>
-                      Broadcast
-                    </button>
-                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('broadcastGroup')}>
+                    <button className="btn-use-message" onClick={() => handleUsePolishedMessage('groupBroadcast')}>
                       Group Broadcast
                     </button>
                   </div>
@@ -878,7 +795,7 @@ export default function WhatsAppBot() {
               onChange={(e) => setMessage(e.target.value)}
               rows="3"
             />
-            <button className="btn-send" onClick={handleSendToGroup} disabled={actionLoading || !message.trim()}>
+            <button className="btn-send" onClick={handleSendToDefaultGroup} disabled={actionLoading || !message.trim()}>
               {actionLoading ? <Loader size={16} className="spin" /> : <Send size={16} />}
               Send to Default Group
             </button>
@@ -916,68 +833,6 @@ export default function WhatsAppBot() {
             <button className="btn-send" onClick={handleSendToSpecificGroup} disabled={actionLoading || !selectedGroupId || !groupMessage.trim()}>
               {actionLoading ? <Loader size={16} className="spin" /> : <Send size={16} />}
               Send to Selected Group
-            </button>
-          </div>
-        </div>
-
-        {/* ===== Send to User ===== */}
-        <div className="card">
-          <div className="card-header">
-            <Phone size={18} />
-            <h3>Send to User</h3>
-            {personalMessage && aiMessageOutput && (
-              <span className="badge ai-badge">✨ AI</span>
-            )}
-          </div>
-          <div className="card-body">
-            <input
-              type="text"
-              placeholder="Phone number (e.g., 254712345678)"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-            />
-            <textarea
-              placeholder="Type your message..."
-              value={personalMessage}
-              onChange={(e) => setPersonalMessage(e.target.value)}
-              rows="2"
-            />
-            <button className="btn-send" onClick={handleSendToUser} disabled={actionLoading || !phoneNumber || !personalMessage}>
-              {actionLoading ? <Loader size={16} className="spin" /> : <Send size={16} />}
-              Send to User
-            </button>
-          </div>
-        </div>
-
-        {/* ===== Broadcast to All Users ===== */}
-        <div className="card">
-          <div className="card-header">
-            <Users size={18} />
-            <h3>Broadcast to All Users</h3>
-            {broadcastMessage && aiMessageOutput && (
-              <span className="badge ai-badge">✨ AI</span>
-            )}
-          </div>
-          <div className="card-body">
-            <div className="warning-box">
-              <AlertCircle size={18} />
-              <span>This will send to ALL users with phone numbers!</span>
-            </div>
-            <input
-              type="text"
-              placeholder="Broadcast Title"
-              value={broadcastTitle}
-              onChange={(e) => setBroadcastTitle(e.target.value)}
-            />
-            <textarea
-              placeholder="Broadcast Message"
-              value={broadcastMessage}
-              onChange={(e) => setBroadcastMessage(e.target.value)}
-              rows="4"
-            />
-            <button className="btn-broadcast" onClick={handleBroadcast} disabled={actionLoading || !broadcastTitle || !broadcastMessage}>
-              {actionLoading ? <Loader size={16} className="spin" /> : <Radio size={16} />}
-              Broadcast to All Users
             </button>
           </div>
         </div>
@@ -1021,7 +876,6 @@ export default function WhatsAppBot() {
           min-height: 100vh;
         }
 
-        /* ==================== AI ASSISTANT STYLES ==================== */
         .ai-assistant-card {
           border-color: #8b5cf6;
           background: linear-gradient(135deg, #faf5ff 0%, #ffffff 100%);
@@ -1057,7 +911,7 @@ export default function WhatsAppBot() {
 
         .btn-ai-generate {
           padding: 8px 20px;
-          background: #3aca0e;
+          background: #7c3aed;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1071,7 +925,7 @@ export default function WhatsAppBot() {
         }
 
         .btn-ai-generate:hover:not(:disabled) {
-          background: #7c3aed;
+          background: #6d28d9;
         }
 
         .btn-ai-generate:disabled {
@@ -1092,7 +946,7 @@ export default function WhatsAppBot() {
         }
 
         .ai-textarea:focus {
-          border-color: #1d1f1f;
+          border-color: #8b5cf6;
         }
 
         .ai-hint {
@@ -1103,7 +957,7 @@ export default function WhatsAppBot() {
           background: #f5f3ff;
           border-radius: 8px;
           font-size: 12px;
-          color: #2ed928;
+          color: #6d28d9;
           margin-top: 8px;
         }
 
@@ -1185,7 +1039,7 @@ export default function WhatsAppBot() {
         }
 
         .btn-use-message:hover {
-          background: #141414;
+          background: #8b5cf6;
           color: white;
           border-color: #8b5cf6;
         }
@@ -1213,14 +1067,13 @@ export default function WhatsAppBot() {
 
         .ai-badge {
           background: #f5f3ff;
-          color: #ed3a3a;
+          color: #7c3aed;
           font-size: 10px;
           padding: 2px 8px;
           border-radius: 10px;
           margin-left: auto;
         }
 
-        /* ==================== EXISTING STYLES ==================== */
         .page-header {
           display: flex;
           justify-content: space-between;
@@ -1283,6 +1136,23 @@ export default function WhatsAppBot() {
 
         .btn-refresh:hover {
           background: #e2e8f0;
+        }
+
+        .btn-history {
+          padding: 8px 16px;
+          background: #1e293b;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+        }
+
+        .btn-history:hover {
+          background: #0f172a;
         }
 
         .status-card {
@@ -1548,7 +1418,7 @@ export default function WhatsAppBot() {
 
         .btn-set {
           padding: 10px 20px;
-          background: #092b61;
+          background: #2563eb;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1558,7 +1428,7 @@ export default function WhatsAppBot() {
         }
 
         .btn-set:hover:not(:disabled) {
-          background: #2563eb;
+          background: #1d4ed8;
         }
 
         .btn-send {
@@ -1583,7 +1453,7 @@ export default function WhatsAppBot() {
         .btn-broadcast {
           width: 100%;
           padding: 12px;
-          background: #030303;
+          background: #7c3aed;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1596,7 +1466,7 @@ export default function WhatsAppBot() {
         }
 
         .btn-broadcast:hover:not(:disabled) {
-          background: #312f35;
+          background: #6d28d9;
         }
 
         .btn-set:disabled,
@@ -1881,23 +1751,6 @@ export default function WhatsAppBot() {
           text-align: center;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-
-        .btn-history {
-  padding: 8px 16px;
-  background: #1d1d1f;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.btn-history:hover {
-  background: #171618;
-}
 
         .toast.success { background: #22c55e; }
         .toast.error { background: #ef4444; }

@@ -415,6 +415,121 @@ router.put('/messages/bulk-edit', authenticate, requireAdmin, async (req, res) =
   }
 });
 
+
+// =============================================
+// 🗑️ DELETE ALL MESSAGES
+// =============================================
+router.delete('/messages/clear-all', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { confirm } = req.body;
+    
+    // Require confirmation to prevent accidental deletion
+    if (confirm !== 'DELETE_ALL') {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation required. Send confirm: "DELETE_ALL" to proceed.'
+      });
+    }
+
+    // Get count before deletion
+    const count = await prisma.whatsAppMessage.count();
+    
+    // Delete all messages
+    await prisma.whatsAppMessage.deleteMany({});
+    
+    // Also delete any broadcast records if they exist
+    await prisma.whatsAppBroadcast?.deleteMany({});
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${count} messages from history`,
+      deletedCount: count,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Clear all messages error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+
+// =============================================
+// 🗑️ CLEAR BROADCASTS ONLY
+// =============================================
+router.delete('/messages/clear-broadcasts', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { confirm } = req.body;
+    
+    if (confirm !== 'DELETE_ALL') {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation required. Send confirm: "DELETE_ALL" to proceed.'
+      });
+    }
+
+    const count = await prisma.whatsAppMessage.count({
+      where: { 
+        type: { in: ['broadcast', 'broadcast_group'] }
+      }
+    });
+    
+    await prisma.whatsAppMessage.deleteMany({
+      where: { 
+        type: { in: ['broadcast', 'broadcast_group'] }
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${count} broadcast messages`,
+      deletedCount: count
+    });
+  } catch (error) {
+    console.error('❌ Clear broadcasts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================
+// 🗑️ CLEAR NORMAL MESSAGES ONLY
+// =============================================
+router.delete('/messages/clear-messages', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { confirm } = req.body;
+    
+    if (confirm !== 'DELETE_ALL') {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation required. Send confirm: "DELETE_ALL" to proceed.'
+      });
+    }
+
+    const count = await prisma.whatsAppMessage.count({
+      where: { 
+        type: { notIn: ['broadcast', 'broadcast_group'] }
+      }
+    });
+    
+    await prisma.whatsAppMessage.deleteMany({
+      where: { 
+        type: { notIn: ['broadcast', 'broadcast_group'] }
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${count} normal messages`,
+      deletedCount: count
+    });
+  } catch (error) {
+    console.error('❌ Clear messages error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =============================================
 // 🗑️ BULK DELETE MESSAGES
 // =============================================

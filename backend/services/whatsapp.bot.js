@@ -39,54 +39,55 @@ this.maxMemoryMessages = 20;
     this.groupsCacheTTL = 5 * 60 * 1000; // 5 minutes
   }
 
-  // =============================================
-  // 💾 SAVE CREDS TO DATABASE
+    // =============================================
+  // 💾 SAVE CREDS TO DATABASE (SAVE EVERYTHING)
   // =============================================
   async saveCredsToDatabase(creds) {
     try {
-      // Clean the creds for JSON storage
-      const cleanCreds = JSON.parse(JSON.stringify(creds, (key, value) => {
-        // Keep important keys
-        if (['noiseKey', 'signedIdentityKey', 'signedPreKey', 'advSecretKey', 
-             'registrationId', 'account', 'me', 'signalIdentities', 'lid'].includes(key)) {
-          return value;
-        }
-        return value;
-      }));
+      // ✅ Save ALL creds - NO FILTERING
+      // Just stringify the entire creds object
+      const fullCredsJson = JSON.stringify(creds);
       
       await prisma.WhatsAppAuth.upsert({ 
         where: { key: 'whatsapp_creds' },
         update: { 
-          value: JSON.stringify(cleanCreds),
+          value: fullCredsJson,
           updatedAt: new Date()
         },
         create: { 
           key: 'whatsapp_creds', 
-          value: JSON.stringify(cleanCreds) 
+          value: fullCredsJson 
         }
       });
-      console.log('✅ Creds saved to database');
+      console.log(`✅ Full creds saved to database (${fullCredsJson.length} characters)`);
       return true;
     } catch (error) {
       console.error('❌ Failed to save creds to database:', error.message);
       return false;
     }
   }
-
   
 
-
-    // =============================================
+  // =============================================
   // 📥 LOAD CREDS FROM DATABASE
   // =============================================
   async loadCredsFromDatabase() {
     try {
-    const record = await prisma.WhatsAppAuth.findUnique({
+      const record = await prisma.WhatsAppAuth.findUnique({
         where: { key: 'whatsapp_creds' }
       });
       if (record && record.value) {
-        console.log('✅ Creds loaded from database');
-        return JSON.parse(record.value);
+        const parsed = JSON.parse(record.value);
+        
+        // ✅ Check if we have the required encryption keys
+        if (parsed.noiseKey && parsed.registrationId && parsed.me) {
+          console.log(`✅ Full creds loaded from database (${record.value.length} chars)`);
+          return parsed;
+        } else {
+          console.log('⚠️ Creds in database are incomplete, clearing...');
+          await this.clearCreds();
+          return null;
+        }
       }
       console.log('ℹ️ No saved creds found in database');
       return null;
@@ -95,7 +96,6 @@ this.maxMemoryMessages = 20;
       return null;
     }
   }
-
 
     // =============================================
   // 🗑️ CLEAR CREDS FROM DATABASE

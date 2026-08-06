@@ -142,6 +142,106 @@ async restoreCredsFromDatabase() {
     }
   }
 
+
+  // =============================================
+// 💾 SAVE GROUP TO DATABASE
+// =============================================
+async saveGroupToDatabase(groupId, isActive, groupName = null, participants = null) {
+  try {
+    // Get group info if not provided
+    if (!groupName || participants === null) {
+      const groups = await this.getGroups();
+      const group = groups.find(g => g.id === groupId);
+      groupName = groupName || group?.name || null;
+      participants = participants || group?.participants || 0;
+    }
+
+    const result = await prisma.whatsAppGroup.upsert({
+      where: { groupId: groupId },
+      update: {
+        isActive: isActive,
+        groupName: groupName || undefined,
+        participants: participants || 0,
+        activatedAt: isActive ? new Date() : undefined,
+        deactivatedAt: !isActive ? new Date() : undefined,
+        updatedAt: new Date()
+      },
+      create: {
+        groupId: groupId,
+        groupName: groupName,
+        isActive: isActive,
+        participants: participants || 0,
+        activatedAt: isActive ? new Date() : undefined,
+      }
+    });
+
+    // Update in-memory array
+    if (isActive && !this.activeGroups.includes(groupId)) {
+      this.activeGroups.push(groupId);
+    } else if (!isActive) {
+      this.activeGroups = this.activeGroups.filter(id => id !== groupId);
+    }
+
+    console.log(`✅ Group ${groupId} ${isActive ? 'activated' : 'deactivated'}`);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to save group:', error.message);
+    return null;
+  }
+}
+
+// =============================================
+// 📥 LOAD ACTIVE GROUPS FROM DATABASE
+// =============================================
+async loadActiveGroupsFromDatabase() {
+  try {
+    const dbGroups = await prisma.whatsAppGroup.findMany({
+      where: { isActive: true }
+    });
+
+    this.activeGroups = dbGroups.map(g => g.groupId);
+    console.log(`✅ Loaded ${this.activeGroups.length} active groups from database`);
+    return this.activeGroups;
+  } catch (error) {
+    console.error('❌ Failed to load active groups:', error.message);
+    return [];
+  }
+}
+
+// =============================================
+// 🔄 SYNC ALL GROUPS TO DATABASE
+// =============================================
+async syncAllGroups() {
+  try {
+    const groups = await this.getGroups(true);
+    let updated = 0;
+    
+    for (const group of groups) {
+      await prisma.whatsAppGroup.upsert({
+        where: { groupId: group.id },
+        update: {
+          groupName: group.name,
+          participants: group.participants,
+          updatedAt: new Date()
+        },
+        create: {
+          groupId: group.id,
+          groupName: group.name,
+          participants: group.participants,
+          isActive: false
+        }
+      });
+      updated++;
+    }
+    
+    console.log(`✅ Synced ${updated} groups to database`);
+    return updated;
+  } catch (error) {
+    console.error('❌ Failed to sync groups:', error.message);
+    return 0;
+  }
+}
+
  
   // =============================================
   // 🔧 LOAD CONFIG
@@ -437,7 +537,10 @@ async connect() {
           this.botLid = '273010401485038';
         }
 
-        // ✅ Wait 10 seconds, then save complete creds from file to database
+        await this.loadActiveGroupsFromDatabase();
+  
+  await this.syncAllGroups();
+
         setTimeout(async () => {
           try {
             const credsPath = path.join(this.authFolder, 'creds.json');
@@ -1359,38 +1462,62 @@ async getGroups(forceRefresh = false) {
   }
 }
 
-  // =============================================
-  // ➕ ADD GROUP TO ACTIVE LIST
-  // =============================================
-  async addActiveGroup(groupId) {
-    if (!this.activeGroups) {
-      this.activeGroups = [];
-    }
-    
-    if (!this.activeGroups.includes(groupId)) {
-      const groups = await this.getGroups();
-      const groupExists = groups.some(g => g.id === groupId);
-      
-      if (!groupExists) {
-        console.log(`❌ Bot is not in group: ${groupId}`);
-        return false;
-      }
-      
-      this.activeGroups.push(groupId);
-      console.log(`✅ Group added to active list: ${groupId}`);
-      return true;
-    }
-    return true;
+
+// =============================================
+// 📋 GET GROUPS WITH STATUS FROM DATABASE
+// =============================================
+async getGroupsWithStatus(forceRefresh = false) {
+  const whatsappGroups = await this.getGroups(forceRefresh);
+  
+  const dbGroups = await prisma.whatsAppGroup.findMany();
+  const statusMap = {};
+  dbGroups.forEach(g => {
+    statusMap[g.groupId] = {
+      isActive: g.isActive,
+      activatedAt: g.activatedAt,
+      deactivatedAt: g.deactivatedAt,
+      groupName: g.groupName,
+      participants: g.participants
+    };
+  });
+
+  return whatsappGroups.map(group => ({
+    ...group,
+    isActive: statusMap[group.id]?.isActive || false,
+    activatedAt: statusMap[group.id]?.activatedAt || null,
+    deactivatedAt: statusMap[group.id]?.deactivatedAt || null,
+    dbGroupName: statusMap[group.id]?.groupName || null,
+    dbParticipants: statusMap[group.id]?.participants || group.participants
+  }));
+}
+
+// =============================================
+// ➕ ADD/ACTIVATE GROUP (Database Persisted)
+// =============================================
+async addActiveGroup(groupId) {
+  // Verify bot is in the group
+  const groups = await this.getGroups();
+  const group = groups.find(g => g.id === groupId);
+  
+  if (!group) {
+    console.log(`❌ Bot is not in group: ${groupId}`);
+    return false;
   }
 
-  // =============================================
-  // ➖ REMOVE GROUP FROM ACTIVE LIST
-  // =============================================
-  removeActiveGroup(groupId) {
-    if (!this.activeGroups) return;
-    this.activeGroups = this.activeGroups.filter(id => id !== groupId);
-    console.log(`🗑️ Group removed from active list: ${groupId}`);
-  }
+  // Save to database
+  await this.saveGroupToDatabase(groupId, true, group.name, group.participants);
+  console.log(`✅ Group activated: ${groupId}`);
+  return true;
+}
+
+// =============================================
+// ➖ REMOVE/DEACTIVATE GROUP (Database Persisted)
+// =============================================
+async removeActiveGroup(groupId) {
+  await this.saveGroupToDatabase(groupId, false);
+  console.log(`🗑️ Group deactivated: ${groupId}`);
+  return true;
+}
 
   // =============================================
   // 📤 SEND TO GROUP BY NAME

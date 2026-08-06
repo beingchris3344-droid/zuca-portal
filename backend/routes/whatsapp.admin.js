@@ -31,7 +31,6 @@ router.post('/link', authenticate, requireAdmin, async (req, res) => {
   try {
     console.log('🔗 Admin requested QR code...');
     
-    // Force a fresh connection with new QR
     const qrCode = await bot.generateNewQR();
     
     if (qrCode) {
@@ -133,20 +132,20 @@ router.get('/groups', authenticate, requireAdmin, async (req, res) => {
     const now = Date.now();
     const timeSinceLastFetch = now - lastGroupFetch;
     
-    // ✅ If less than 1 minute since last fetch, return cached data
     if (timeSinceLastFetch < FETCH_COOLDOWN && bot.groupsCache) {
       console.log(`⏳ Rate limit: Returning cached groups (${Math.round(timeSinceLastFetch/1000)}s since last fetch)`);
+      const stats = await bot.getGroupStats();
       return res.json({
         success: true,
         groups: bot.groupsCache,
-        stats: await bot.getGroupStats(),
+        stats: stats,
         cached: true,
         timestamp: new Date().toISOString()
       });
     }
     
     lastGroupFetch = now;
-    const groups = await bot.getGroups();
+    const groups = await bot.getGroupsWithStatus();
     const stats = await bot.getGroupStats();
     
     res.json({
@@ -163,7 +162,7 @@ router.get('/groups', authenticate, requireAdmin, async (req, res) => {
 });
 
 // =============================================
-// ➕ ADD GROUP TO ACTIVE LIST
+// ➕ ACTIVATE GROUP (Database Persisted)
 // =============================================
 router.post('/groups/activate', authenticate, requireAdmin, async (req, res) => {
   try {
@@ -174,26 +173,56 @@ router.post('/groups/activate', authenticate, requireAdmin, async (req, res) => 
     }
     
     const result = await bot.addActiveGroup(groupId);
-
-      bot.groupsCache = null;
+    bot.groupsCache = null;
     bot.groupsCacheTime = null;
     
     if (result) {
+      const stats = await bot.getGroupStats();
       res.json({
         success: true,
         message: `Group activated successfully: ${groupId}`,
-        activeGroups: bot.activeGroups,
+        activeGroups: stats.activeGroups,
+        activeGroupIds: stats.activeGroupIds,
         timestamp: new Date().toISOString()
       });
     } else {
       res.status(400).json({
         success: false,
-        message: 'Failed to activate group. Bot may not be a member.',
-        activeGroups: bot.activeGroups
+        message: 'Failed to activate group. Bot may not be a member.'
       });
     }
   } catch (error) {
     console.error('❌ Activate group error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// ➖ DEACTIVATE GROUP (Database Persisted)
+// =============================================
+router.post('/groups/deactivate', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { groupId } = req.body;
+    
+    if (!groupId) {
+      return res.status(400).json({ error: 'Group ID is required' });
+    }
+    
+    await bot.removeActiveGroup(groupId);
+    bot.groupsCache = null;
+    bot.groupsCacheTime = null;
+    
+    const stats = await bot.getGroupStats();
+    
+    res.json({
+      success: true,
+      message: `Group deactivated: ${groupId}`,
+      activeGroups: stats.activeGroups,
+      activeGroupIds: stats.activeGroupIds,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Deactivate group error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -233,7 +262,6 @@ router.get('/groups/:groupId/members', authenticate, requireAdmin, async (req, r
     });
   }
 });
-
 
 // =============================================
 // 📋 GET MESSAGE HISTORY
@@ -291,7 +319,6 @@ router.put('/messages/:id', authenticate, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
     
-    // Check if within 15 minutes
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
     if (new Date(existing.sentAt) < fifteenMinutesAgo) {
       return res.status(400).json({ 
@@ -299,17 +326,14 @@ router.put('/messages/:id', authenticate, requireAdmin, async (req, res) => {
       });
     }
     
-    // Edit the message in WhatsApp
     if (existing.messageId && existing.groupId) {
       try {
         await bot.editMessage(existing.groupId, existing.messageId, message);
       } catch (editError) {
         console.error('❌ WhatsApp edit error:', editError);
-        // Continue anyway to update the database
       }
     }
     
-    // Update the database
     const updated = await prisma.whatsAppMessage.update({
       where: { id },
       data: {
@@ -368,16 +392,13 @@ router.delete('/messages/:id', authenticate, requireAdmin, async (req, res) => {
 // =============================================
 router.get('/messages/stats', authenticate, requireAdmin, async (req, res) => {
   try {
-    // Total messages
     const total = await prisma.whatsAppMessage.count();
     
-    // Messages by type
     const byType = await prisma.whatsAppMessage.groupBy({
       by: ['type'],
       _count: true
     });
     
-    // Last 7 days - simple approach
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
@@ -393,7 +414,6 @@ router.get('/messages/stats', authenticate, requireAdmin, async (req, res) => {
       }
     });
     
-    // Group by date manually
     const dayMap = {};
     last7DaysRaw.forEach(msg => {
       const date = msg.sentAt.toISOString().split('T')[0];
@@ -422,33 +442,6 @@ router.get('/messages/stats', authenticate, requireAdmin, async (req, res) => {
       success: false, 
       error: error.message 
     });
-  }
-});
-
-// =============================================
-// ➖ REMOVE GROUP FROM ACTIVE LIST
-// =============================================
-router.post('/groups/deactivate', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { groupId } = req.body;
-    
-    if (!groupId) {
-      return res.status(400).json({ error: 'Group ID is required' });
-    }
-    
-    bot.removeActiveGroup(groupId);
-    bot.groupsCache = null;
-    bot.groupsCacheTime = null;
-    
-    res.json({
-      success: true,
-      message: `Group deactivated: ${groupId}`,
-      activeGroups: bot.activeGroups,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('❌ Deactivate group error:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -576,7 +569,7 @@ router.post('/send-jumuia', authenticate, requireAdmin, async (req, res) => {
 });
 
 // =============================================
-// 📤 SEND TEST TO GROUP (Legacy)
+// 📤 SEND TEST TO DEFAULT GROUP
 // =============================================
 router.post('/test-group', authenticate, requireAdmin, async (req, res) => {
   try {
@@ -603,38 +596,6 @@ router.post('/test-group', authenticate, requireAdmin, async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Test group error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// =============================================
-// 📤 SEND TEST TO USER
-// =============================================
-router.post('/test-user', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { phoneNumber, message } = req.body;
-    
-    if (!phoneNumber || !message) {
-      return res.status(400).json({ error: 'Phone number and message are required' });
-    }
-
-    const result = await bot.sendToUser(phoneNumber, message);
-    
-    if (result) {
-      res.json({
-        success: true,
-        message: `Test message sent to ${phoneNumber}`,
-        result: result,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to send test message. Bot may not be connected.'
-      });
-    }
-  } catch (error) {
-    console.error('❌ Test user error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -691,9 +652,6 @@ router.post('/groups/refresh', authenticate, requireAdmin, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-
-
 
 console.log('✅ WhatsApp Admin routes loaded');
 

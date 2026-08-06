@@ -1,6 +1,14 @@
 // ================== GROQ AI CLIENT SETUP ==================
 const OpenAI = require("openai");
 
+
+// ================== DOMAIN CONFIGURATION ==================
+const DOMAIN = process.env.DOMAIN || 'www.zetechcatholicaction.com';
+const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+const FRONTEND_URL = `${PROTOCOL}://${DOMAIN}`;
+
+console.log(`🌐 AI Frontend URL: ${FRONTEND_URL}`);
+
 // ================== KNOWLEDGE GRAPH LOADER ==================
 const fs = require('fs');
 const path = require('path');
@@ -409,31 +417,63 @@ I'll answer based on general knowledge, but I may not know specific ZUCA feature
 ## 🗺️ NAVIGATION ROUTES
 
 ### Member Pages:
-${memberRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+${memberRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${FRONTEND_URL}${r.path}\``).join('\n')}
 
 ### Admin Pages:
-${adminRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+${adminRoutes.slice(0, 15).map(r => `- **${r.label}**: \`${FRONTEND_URL}${r.path}\``).join('\n')}
 
 ### Role Pages (Secretary, Treasurer, Choir, Leader):
-${roleRoutes.slice(0, 10).map(r => `- **${r.label}**: \`${r.path}\``).join('\n')}
+${roleRoutes.slice(0, 10).map(r => `- **${r.label}**: \`${FRONTEND_URL}${r.path}\``).join('\n')}
 
 ### 🎯 HOW TO NAVIGATE:
 When a user asks "Where do I find X?" or "How do I go to X?":
 1. Find the matching route from the list above
-2. Tell them the exact path
+2. Tell them the full URL with ${FRONTEND_URL}
 3. If they're an admin, suggest admin routes
 4. If they're a member, suggest member routes
 5. If they have a special role, suggest role routes
 
 ### Example:
 User: "Where do I check in for attendance?"
-→ "Go to **/member/attendance** to check in"
+→ "Go to **${FRONTEND_URL}/member/attendance** to check in"
 
 User: "How do I manage hymns?"
-→ "Go to **/admin/hymns** to manage hymns"
+→ "Go to **${FRONTEND_URL}/admin/hymns** to manage hymns"
 
 User: "Where are contributions?"
-→ "Go to **/contributions** to view your pledges"
+→ "Go to **${FRONTEND_URL}/contributions** to view your pledges"
+`;
+
+
+  // ================== DOMAIN KNOWLEDGE ==================
+  const domainKnowledge = `
+## 🌐 DOMAIN INFORMATION
+
+**Frontend URL:** ${FRONTEND_URL}
+
+### Full URLs:
+- Homepage: ${FRONTEND_URL}
+- Dashboard: ${FRONTEND_URL}/dashboard
+- Attendance: ${FRONTEND_URL}/member/attendance
+- Mass Programs: ${FRONTEND_URL}/mass-programs
+- Hymn Book: ${FRONTEND_URL}/hymns
+- Contributions: ${FRONTEND_URL}/contributions
+- Gallery: ${FRONTEND_URL}/gallery
+- Admin: ${FRONTEND_URL}/admin
+- Chat: ${FRONTEND_URL}/chat
+- Messenger: ${FRONTEND_URL}/messenger
+- Games: ${FRONTEND_URL}/games
+- Schedules: ${FRONTEND_URL}/schedules
+- YouTube: ${FRONTEND_URL}/youtube
+- Prayer: ${FRONTEND_URL}/prayer
+- Executive: ${FRONTEND_URL}/executive
+- Jumuia: ${FRONTEND_URL}/join-jumuia
+
+### 🎯 HOW TO USE:
+When a user asks for a link to any page:
+1. Use ${FRONTEND_URL} + the route path
+2. Example: "Go to ${FRONTEND_URL}/member/attendance"
+3. Always provide full URLs when sharing links
 `;
 
 
@@ -475,7 +515,7 @@ ${sourceInstruction}
 ${responseStyle}
 ${graphKnowledge}
 ${routeKnowledge}
-
+${domainKnowledge}
 ## 🚨 THE MOST IMPORTANT RULE 🚨
 - ONLY output [ACTION:...] when the user is explicitly asking you to DO something
 - If the user asks a question (starts with "what", "who", "where", "when", "why", "how", "does", "is", "are", "can"), just ANSWER with words, NO ACTION

@@ -355,6 +355,112 @@ router.put('/messages/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+
+// =============================================
+// 📤 BULK EDIT MESSAGES
+// =============================================
+router.put('/messages/bulk-edit', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { broadcastIds, message } = req.body;
+    
+    if (!broadcastIds || !broadcastIds.length) {
+      return res.status(400).json({ error: 'No broadcasts selected' });
+    }
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    let updated = 0;
+    for (const broadcastId of broadcastIds) {
+      // Find all messages with this broadcastId
+      const messages = await prisma.whatsAppMessage.findMany({
+        where: { 
+          OR: [
+            { id: broadcastId },
+            { broadcastId: broadcastId }
+          ]
+        }
+      });
+
+      for (const msg of messages) {
+        // Update each message in WhatsApp and database
+        if (msg.messageId && msg.groupId) {
+          try {
+            await bot.editMessage(msg.groupId, msg.messageId, message);
+          } catch (e) {
+            console.error('WhatsApp edit error:', e);
+          }
+        }
+        await prisma.whatsAppMessage.update({
+          where: { id: msg.id },
+          data: {
+            message: message,
+            originalMessage: msg.message,
+            status: 'edited',
+            editedAt: new Date()
+          }
+        });
+        updated++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Updated ${updated} messages across ${broadcastIds.length} broadcasts`,
+      updated
+    });
+  } catch (error) {
+    console.error('❌ Bulk edit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// 🗑️ BULK DELETE MESSAGES
+// =============================================
+router.delete('/messages/bulk-delete', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { broadcastIds, permanent } = req.body;
+    
+    if (!broadcastIds || !broadcastIds.length) {
+      return res.status(400).json({ error: 'No broadcasts selected' });
+    }
+
+    let deleted = 0;
+    for (const broadcastId of broadcastIds) {
+      const messages = await prisma.whatsAppMessage.findMany({
+        where: { 
+          OR: [
+            { id: broadcastId },
+            { broadcastId: broadcastId }
+          ]
+        }
+      });
+
+      for (const msg of messages) {
+        if (permanent) {
+          await prisma.whatsAppMessage.delete({ where: { id: msg.id } });
+        } else {
+          await prisma.whatsAppMessage.update({
+            where: { id: msg.id },
+            data: { status: 'deleted' }
+          });
+        }
+        deleted++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${permanent ? 'Permanently deleted' : 'Soft deleted'} ${deleted} messages from ${broadcastIds.length} broadcasts`,
+      deleted
+    });
+  } catch (error) {
+    console.error('❌ Bulk delete error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // =============================================
 // 🗑️ DELETE MESSAGE
 // =============================================

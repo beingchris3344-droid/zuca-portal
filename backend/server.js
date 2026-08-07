@@ -147,6 +147,11 @@ function getDeepLinkUrl(type, data = {}) {
     
     // ==================== JUMUIA ====================
     'jumuia': '/jumuia',
+
+
+        // ✅ ==================== FEEDBACK ====================
+    'feedback_new': '/admin/feedback',
+    'feedback_updated': '/feedback/history',
     
     // ==================== SYSTEM ====================
     'test': '/dashboard',
@@ -1627,6 +1632,11 @@ setTimeout(() => {
   console.log('🤖 Starting WhatsApp Bot...');
   bot.connect().catch(err => console.error('Bot start error:', err));
 }, 3000);
+
+//feedback
+// In app.js or server.js
+const feedbackRoutes = require('./routes/feedback.routes');
+app.use('/api/feedback', feedbackRoutes);
 
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 

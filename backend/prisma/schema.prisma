@@ -99,6 +99,9 @@ model User {
       prayerFavorites  UserFavorite[]
   prayerNotes      UserPrayerNote[]
 
+  //fb
+  feedback         Feedback[] 
+
     treasurerTransactions TreasurerTransaction[]
 
     //bank
@@ -1944,4 +1947,62 @@ model WhatsAppGroup {
   @@index([groupId])
   @@index([isActive])
   @@map("whatsapp_groups")
+}
+
+// ==================== FEEDBACK SYSTEM ====================
+
+enum FeedbackType {
+  FEEDBACK
+  COMPLAINT
+  SUGGESTION
+  BUG_REPORT
+}
+
+enum FeedbackStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+  REJECTED
+}
+
+enum FeedbackPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Feedback {
+  id             String          @id @default(uuid())
+  userId         String          @map("user_id")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type           FeedbackType
+  category       String
+  subject        String
+  description    String          @db.Text
+  priority       FeedbackPriority @default(MEDIUM)
+  
+  status         FeedbackStatus  @default(PENDING)
+  
+  adminResponse  String?         @db.Text
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  
+  attachments    Json?
+  
+  isAnonymous    Boolean         @default(false)
+  deviceInfo     String?
+  pageUrl        String?
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now())  // ✅ FIXED: removed @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("feedback")
 }

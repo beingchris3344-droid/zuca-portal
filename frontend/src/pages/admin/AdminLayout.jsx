@@ -206,6 +206,7 @@ export default function AdminLayout() {
     { label: "Attendance Management", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
     { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
     { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="#000000"/>, bg: "#dcfce7", color: "#22c55e" },
+     { label: "Feedback Management", path: "feedback", icon: <FaComments color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
                      { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
 
     { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },

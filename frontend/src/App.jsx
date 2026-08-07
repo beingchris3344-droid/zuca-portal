@@ -64,6 +64,9 @@ import MassReadingEdit from './pages/MassReadingEdit';
 import FloatingAIAssistantButton from "./components/FloatingAIAssistantButton";
 import ExecutiveMinutes from './pages/ExecutiveMinutes';
 import ExecutiveMinutesView from './pages/ExecutiveMinutesView';
+import Feedback from './pages/Feedback';
+import FeedbackHistory from './pages/FeedbackHistory';
+import FeedbackDetail from './pages/FeedbackDetail';
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -111,6 +114,8 @@ import EmailManagement from './pages/admin/EmailManagement';
 import EmailDashboard from "./pages/admin/EmailDashboard";
 import WhatsAppBot from './pages/admin/WhatsAppBot';
 import MessageHistory from './pages/admin/MessageHistory';
+import AdminFeedback from './pages/admin/AdminFeedback';
+import AdminFeedbackDetail from './pages/admin/AdminFeedbackDetail';
 
 
 import { initializeDark } from "./utils/darkReader";
@@ -491,6 +496,9 @@ useEffect(() => {
           <Route path="/schedules" element={<UserSchedules />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
                   <Route path="/executive" element={<ExecutivePage />} />
+                  <Route path="/feedback" element={<Feedback />} />
+<Route path="/feedback/history" element={<FeedbackHistory />} />
+<Route path="/feedback/:id" element={<FeedbackDetail />} />
 
           
 
@@ -574,6 +582,10 @@ useEffect(() => {
           <Route path="/admin/email" element={<EmailDashboard />} />
           <Route path="/admin/whatsapp" element={<WhatsAppBot />} />
           <Route path="/admin/message-history" element={<MessageHistory />} />
+       
+
+<Route path="/admin/feedback" element={<AdminFeedback />} />
+<Route path="/admin/feedback/:id" element={<AdminFeedbackDetail />} />
 
 
 

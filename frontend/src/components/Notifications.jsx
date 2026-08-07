@@ -237,6 +237,8 @@ export default function Notifications({ userId }) {
       'role_change': '/dashboard',
       'welcome': '/dashboard',
       'api_notify': '/dashboard',
+       'feedback_new': '/admin/feedback',      
+    'feedback_updated': '/feedback/history',
       'default': '/dashboard'
     };
     return paths[type] || paths['default'];
@@ -249,6 +251,9 @@ export default function Notifications({ userId }) {
     const markNotificationsForCurrentPage = async () => {
       let pageType = null;
       let pagePath = location.pathname;
+
+
+      
 
       // Attendance (Member)
       if (pagePath.includes('/member/attendance')) {
@@ -313,6 +318,17 @@ export default function Notifications({ userId }) {
       else if (pagePath.includes('/jumuia')) {
         pageType = 'jumuia';
       }
+      else if (pagePath.includes('/admin/feedback')) {
+      pageType = 'feedback_new';
+    }
+    else if (pagePath.includes('/feedback/history')) {
+      pageType = 'feedback_updated';
+    }
+    else if (pagePath.includes('/feedback')) {
+      pageType = 'feedback_new';
+    }
+
+      
       // Dashboard - don't mark anything
       else if (pagePath.includes('/dashboard')) {
         return;
@@ -637,8 +653,7 @@ export default function Notifications({ userId }) {
       
       // Jumuia
       case 'jumuia':
-      case 'jumuia_announcement':
-      case 'jumuia_contribution':
+      
         return '🏠';
       
       // Mass Readings
@@ -652,6 +667,11 @@ export default function Notifications({ userId }) {
       case 'welcome':
       case 'api_notify':
         return '🔔';
+
+         case 'feedback_new':
+      return '📋';
+    case 'feedback_updated':
+      return '✉️';
       
       default:
         return '🔔';

@@ -492,7 +492,7 @@ async function executeToolCall(toolName, args, context) {
           reference: hymn.reference,
           lyrics: hymn.lyrics,
           action: "navigate",
-          path: `/hymn/${encodeURIComponent(hymn.title)}`  // Changed from hymn.title to hymn.id
+          path: `https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}`  // Changed from hymn.title to hymn.id
         };
       }
 

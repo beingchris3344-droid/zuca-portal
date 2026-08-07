@@ -315,14 +315,12 @@ async connect() {
     // ✅ Save to database as backup - read from file directly
     const saveToDb = async (creds) => {
       try {
-        // Read the complete creds from the file
         const credsPath = path.join(this.authFolder, 'creds.json');
         if (fs.existsSync(credsPath)) {
           const fileCreds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
           await this.saveCredsToDatabase(fileCreds);
           console.log(`💾 Creds backed up to database from file (${JSON.stringify(fileCreds).length} chars)`);
         } else {
-          // Fallback to the passed creds
           await this.saveCredsToDatabase(creds);
           console.log('💾 Creds backed up to database (fallback)');
         }
@@ -388,6 +386,7 @@ async connect() {
         
         this.connectionStatus = 'qr_required';
         await this.updateStatus('qr_required');
+        this.isConnecting = false; // QR shown, can accept new connections
       }
 
       if (connection === 'close') {
@@ -402,6 +401,7 @@ async connect() {
           this.connectionStatus = 'qr_required';
           await this.updateStatus('qr_required');
           this.isConnecting = false;
+          this.isConnected = false;
           return;
         }
         
@@ -409,10 +409,10 @@ async connect() {
         if (statusCode === 440 || statusCode === 409) {
           console.log('⚠️ Conflict detected - waiting before reconnecting...');
           this.reconnectAttempts++;
-          // Increase delay for each attempt
           const delay = Math.min(10000 * Math.pow(2, this.reconnectAttempts), 120000);
           console.log(`⏳ Waiting ${delay/1000}s before retry (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
           this.isConnecting = false;
+          this.isConnected = false;
           setTimeout(() => {
             this.connect();
           }, delay);
@@ -429,7 +429,6 @@ async connect() {
           await this.updateStatus('logged_out');
           console.log('❌ Logged out. Please unlink and relink the bot.');
           
-          // Clear database creds on logout
           if (this.useDatabaseAuth) {
             try {
               await this.clearCreds();
@@ -441,20 +440,24 @@ async connect() {
           
           this.cleanupAuth();
           this.isConnecting = false;
+          this.isConnected = false;
           return;
         }
         
         // ✅ Only reconnect if we haven't exceeded max attempts
         if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          // Exponential backoff with cap
           const delay = Math.min(5000 * Math.pow(1.5, this.reconnectAttempts), 60000);
           console.log(`🔄 Reconnecting in ${delay/1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
           this.connectionStatus = 'reconnecting';
           await this.updateStatus('reconnecting');
-          this.isConnecting = false;
+          this.isConnected = false;
+          // ✅ CRITICAL: DON'T set isConnecting = false here!
+          // Keep it true to prevent overlapping reconnections
           
           setTimeout(() => {
+            // ✅ Reset isConnecting before trying to connect
+            this.isConnecting = false;
             this.connect();
           }, delay);
         } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -462,6 +465,7 @@ async connect() {
           this.lastError = 'Max reconnection attempts reached';
           await this.updateStatus('error');
           this.isConnecting = false;
+          this.isConnected = false;
           console.log('❌ Max reconnection attempts reached. Manual intervention required.');
         }
       }
@@ -538,8 +542,7 @@ async connect() {
         }
 
         await this.loadActiveGroupsFromDatabase();
-  
-  await this.syncAllGroups();
+        await this.syncAllGroups();
 
         setTimeout(async () => {
           try {
@@ -575,12 +578,18 @@ async connect() {
     this.connectionStatus = 'error';
     this.lastError = error.message;
     this.isConnecting = false;
+    this.isConnected = false;
     await this.updateStatus('error');
     
-    setTimeout(() => {
-      this.isConnecting = false;
-      this.connect();
-    }, 5000);
+    // ✅ Don't auto-reconnect here - let the connection.update handler do it
+    // Only reconnect if it's a socket creation error
+    if (!this.sock) {
+      console.log('🔄 Socket creation failed, retrying in 5s...');
+      setTimeout(() => {
+        this.isConnecting = false;
+        this.connect();
+      }, 5000);
+    }
   }
 }
 

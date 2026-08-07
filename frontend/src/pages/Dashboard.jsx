@@ -15,7 +15,7 @@ import {
   FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
-  FiChevronRight, FiChevronLeft, FiPhoneCall, FiMessageCircle, FiActivity,
+  FiChevronRight, FiChevronLeft, FiPhoneCall,  FiAlertCircle, FiMessageCircle, FiActivity,
 } from "react-icons/fi";
 import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
 
@@ -795,6 +795,17 @@ useEffect(() => {
               <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
                 <FiMessageSquare size={18} /> Ask zuca
               </button>
+
+               {/* NEW FEEDBACK/COMPLAINTS BUTTON */}
+  <button 
+    className="feedback-btn" 
+    onClick={() => navigate("/feedback")}
+    title="Give Feedback or Report an Issue"
+  >
+    <FiAlertCircle size={18} /> Feedback
+  </button>
+
+
               <button className="logout-btn" onClick={handleLogout}>
                 <FiLogOut size={16} /> Exit
               </button>
@@ -8045,6 +8056,52 @@ useEffect(() => {
 
 .qr-scan-header-btn svg {
   color: #10b981;
+}
+
+/* ============================================
+   FEEDBACK BUTTON - IN HEADER
+   ============================================ */
+
+.feedback-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+ background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+  border: 1px solid color: #ffffff;
+}
+
+.feedback-btn:hover {
+  background: color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.3);
+}
+
+.feedback-btn:active {
+  transform: translateY(0px);
+}
+
+.feedback-btn svg {
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .feedback-btn {
+    padding: 6px 12px;
+    font-size: 10px;
+  }
+  
+  .feedback-btn span {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {

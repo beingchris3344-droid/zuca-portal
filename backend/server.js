@@ -368,37 +368,148 @@ app.get("/api/public/featured-media", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-
 app.get("/hymn/:title", async (req, res) => {
   try {
     const title = decodeURIComponent(req.params.title);
-
-    const hymn = await prisma.song.findFirst({
-      where: {
-        title: {
-          equals: title,
-          mode: "insensitive",
+    
+    // Check if the parameter looks like a UUID (contains dashes)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(title);
+    
+    let hymn;
+    
+    if (isUUID) {
+      hymn = await prisma.song.findUnique({
+        where: {
+          id: title,
         },
-      },
-    });
-
-    if (!hymn) {
-      return res.status(404).send("<h1>Hymn not found</h1>");
+      });
+    } else {
+      hymn = await prisma.song.findFirst({
+        where: {
+          title: {
+            equals: title,
+            mode: "insensitive",
+          },
+        },
+      });
     }
 
-    // Escape HTML
-    const escapeHtml = (text = "") =>
-      text
+    if (!hymn) {
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Hymn Not Found</title>
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 20px; }
+            .error-box { max-width: 500px; background: white; padding: 40px; border-radius: 16px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+            .error-icon { font-size: 48px; color: #ef4444; margin-bottom: 16px; }
+            h1 { color: #1e293b; font-size: 24px; margin-bottom: 8px; }
+            p { color: #64748b; margin-bottom: 20px; }
+            .btn { display: inline-block; padding: 10px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; }
+            .btn:hover { background: #2563eb; }
+            .btn i { margin-right: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="error-box">
+            <div class="error-icon"><i class="fas fa-music"></i></div>
+            <h1>Hymn Not Found</h1>
+            <p>We couldn't find the hymn "${escapeHtml(title)}" in our collection.</p>
+            <a href="https://www.zetechcatholicaction.com/hymns" class="btn"><i class="fas fa-book"></i> Browse Hymns</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    const escapeHtml = (text = "") => {
+      if (!text) return '';
+      return text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
+    };
+
+    // Format lyrics with proper structure
+    const formatLyrics = (text) => {
+      if (!text) return '';
+      
+      const lines = text.split('\n');
+      let formattedLines = [];
+      let chorusLines = [];
+      let inChorus = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        
+        if (line.trim() === '') {
+          if (inChorus && chorusLines.length > 0) {
+            formattedLines.push(`<div class="chorus">${chorusLines.join('\n')}</div>`);
+            chorusLines = [];
+            inChorus = false;
+          }
+          formattedLines.push('<br>');
+          continue;
+        }
+        
+        const hasBold = line.includes('**');
+        let processedLine = line;
+        if (hasBold) {
+          processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        
+        const isBoldLine = hasBold && line.trim().startsWith('**') && line.trim().endsWith('**');
+        
+        if (isBoldLine) {
+          if (!inChorus) {
+            inChorus = true;
+            chorusLines = [];
+          }
+          chorusLines.push(`<div class="lyric-line">${processedLine}</div>`);
+          continue;
+        }
+        
+        if (inChorus && !isBoldLine) {
+          if (chorusLines.length > 0) {
+            formattedLines.push(`<div class="chorus">${chorusLines.join('\n')}</div>`);
+            chorusLines = [];
+          }
+          inChorus = false;
+        }
+        
+        const trimmedLine = line.trim();
+        if (!hasBold && trimmedLine.length > 10 && 
+            (trimmedLine === trimmedLine.toUpperCase() || 
+             (trimmedLine.match(/^[A-Z][a-z]+\s+[A-Z]/) && trimmedLine.endsWith(',')))) {
+          formattedLines.push(`<div class="section-header">${processedLine}</div>`);
+          continue;
+        }
+        
+        if (line.match(/^[0-9]+\./)) {
+          formattedLines.push(`<div class="verse-marker">${processedLine}</div>`);
+          continue;
+        }
+        
+        formattedLines.push(`<div class="lyric-line">${processedLine}</div>`);
+      }
+      
+      if (inChorus && chorusLines.length > 0) {
+        formattedLines.push(`<div class="chorus">${chorusLines.join('\n')}</div>`);
+      }
+      
+      return formattedLines.join('\n');
+    };
 
     const pageTitle = `${hymn.title} Lyrics | Zetech Catholic Action`;
+    const description = `Read the full lyrics of ${hymn.title}${hymn.reference ? ` (${hymn.reference})` : ""} from the Zetech Catholic Action Hymn Book.`;
+    const safeLyrics = formatLyrics(hymn.lyrics);
+    const isSwahili = /[āēīōū]/i.test(hymn.title) || hymn.title.includes('YANGU');
 
-    const description = `Read the full lyrics of ${hymn.title}${
-      hymn.reference ? ` (${hymn.reference})` : ""
-    } from the Zetech Catholic Action Hymn Book.`;
+    // ZUCA Logo URL
+    const ZUCA_LOGO_URL = "https://dcxuxitorpfujfbtyhhn.supabase.co/storage/v1/object/public/profiles/profile_c2dd6c54-4576-41b1-a85d-1af90d88254a_1777067617594.jpg";
 
     res.send(`
 <!DOCTYPE html>
@@ -406,76 +517,661 @@ app.get("/hymn/:title", async (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>${pageTitle}</title>
-
 <meta name="description" content="${description}">
 <meta name="robots" content="index,follow">
-
 <link rel="canonical" href="https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}">
-
 <meta property="og:title" content="${pageTitle}">
 <meta property="og:description" content="${description}">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}">
 
+<!-- Font Awesome Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
 <style>
-body{
-max-width:900px;
-margin:auto;
-padding:30px;
-font-family:Arial,sans-serif;
-line-height:1.8;
-background:#fafafa;
-}
-h1{
-color:#1565c0;
-}
-pre{
-white-space:pre-wrap;
-font-family:inherit;
-font-size:18px;
-}
-.button{
-display:inline-block;
-padding:12px 18px;
-background:#1565c0;
-color:white;
-text-decoration:none;
-border-radius:8px;
-margin-top:25px;
-}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    min-height: 100vh;
+    background: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.8;
+  }
+
+  /* Header */
+  .app-header {
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.95);
+  }
+
+  .header-content {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #3b82f6;
+    flex-shrink: 0;
+  }
+
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .header-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .header-title span {
+    color: #3b82f6;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 16px;
+    text-decoration: none;
+  }
+
+  .icon-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #1e293b;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #3b82f6;
+    text-decoration: none;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .nav-link:hover {
+    background: #f8fafc;
+  }
+
+  .nav-link i {
+    font-size: 14px;
+  }
+
+  /* Main Content */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .content-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* Header Section */
+  .hymn-header {
+    text-align: center;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #f1f5f9;
+    margin-bottom: 30px;
+  }
+
+  .hymn-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+
+  .hymn-title.swahili {
+    color: #7c3aed;
+  }
+
+  .hymn-reference {
+    font-size: 16px;
+    color: #64748b;
+    background: #f1f5f9;
+    display: inline-block;
+    padding: 4px 16px;
+    border-radius: 20px;
+    margin-top: 8px;
+  }
+
+  /* Lyrics */
+  .lyrics-container {
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .lyric-line {
+    padding: 3px 0;
+    font-size: 17px;
+    line-height: 1.8;
+    color: #334155;
+  }
+
+  .lyric-line strong {
+    color: #1e293b;
+    font-weight: 700;
+  }
+
+  .section-header {
+    padding: 12px 0 6px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 12px;
+  }
+
+  .section-header:first-of-type {
+    border-top: none;
+    margin-top: 0;
+  }
+
+  .verse-marker {
+    font-weight: 600;
+    color: #64748b;
+    padding: 10px 0 4px 0;
+    font-size: 15px;
+  }
+
+  .chorus {
+    background: #f8fafc;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin: 12px 0;
+    border-left: 4px solid #7c3aed;
+  }
+
+  .chorus .lyric-line {
+    font-weight: 500;
+  }
+
+  .chorus .lyric-line strong {
+    color: #7c3aed;
+  }
+
+  .swahili-hymn .lyric-line {
+    font-size: 18px;
+  }
+
+  .swahili-hymn .section-header {
+    color: #7c3aed;
+    font-style: italic;
+  }
+
+  .swahili-hymn .chorus {
+    border-left-color: #7c3aed;
+    background: #faf5ff;
+  }
+
+  .swahili-hymn .chorus .lyric-line strong {
+    color: #7c3aed;
+  }
+
+  /* Action Bar */
+  .action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 30px;
+    padding-top: 24px;
+    border-top: 1px solid #e2e8f0;
+    justify-content: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: white;
+    color: #1e293b;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 14px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  }
+
+  .btn i {
+    font-size: 16px;
+  }
+
+  .btn-primary {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+
+  .btn-primary:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: #3b82f6;
+    border-color: #3b82f6;
+  }
+
+  .btn-outline:hover {
+    background: #eff6ff;
+  }
+
+  .btn-success {
+    background: #22c55e;
+    color: white;
+    border-color: #22c55e;
+  }
+
+  .btn-success:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: white;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
+    margin-top: 30px;
+    padding: 20px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .footer a {
+    color: #3b82f6;
+    text-decoration: none;
+  }
+
+  .footer a:hover {
+    text-decoration: underline;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.active {
+    display: flex;
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+    border: 1px solid #e2e8f0;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s ease;
+  }
+
+  .modal-close:hover {
+    background: #e2e8f0;
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 16px;
+  }
+
+  .modal-title i {
+    margin-right: 8px;
+    color: #3b82f6;
+  }
+
+  .share-url-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .share-url-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #f8fafc;
+    color: #1e293b;
+    font-family: monospace;
+  }
+
+  .copy-btn {
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .copy-btn:hover {
+    background: #2563eb;
+  }
+
+  .copy-btn i {
+    margin-right: 6px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 12px; }
+    .content-card { padding: 20px; border-radius: 12px; }
+    .hymn-title { font-size: 24px; }
+    .lyric-line { font-size: 16px; }
+    .swahili-hymn .lyric-line { font-size: 16px; }
+    .action-bar { gap: 8px; }
+    .btn { padding: 8px 14px; font-size: 13px; }
+    .header-title { font-size: 16px; }
+    .header-content { flex-wrap: wrap; gap: 8px; }
+    .modal-content { padding: 20px; margin: 12px; }
+    .logo { width: 32px; height: 32px; }
+  }
+
+  @media print {
+    body { background: white; }
+    .app-header { display: none; }
+    .action-bar { display: none !important; }
+    .content-card { border: none; box-shadow: none; padding: 20px; }
+    .hymn-title { color: #000 !important; }
+    .no-print { display: none !important; }
+  }
 </style>
-
 </head>
-
 <body>
 
-<h1>${escapeHtml(hymn.title)}</h1>
+<!-- Header -->
+<header class="app-header no-print">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">
+        <img src="${ZUCA_LOGO_URL}" alt="ZUCA Logo">
+      </div>
+      <div class="header-title">Zetech <span>Catholic</span> Action</div>
+    </div>
+    <div class="header-right">
+      <a href="https://www.zetechcatholicaction.com/dashboard" class="nav-link">
+        <i class="fas fa-home"></i> Dashboard
+      </a>
+    </div>
+  </div>
+</header>
 
-${
-  hymn.reference
-    ? `<h3>${escapeHtml(hymn.reference)}</h3>`
-    : ""
-}
+<!-- Main Content -->
+<div class="container">
+  <div class="content-card ${isSwahili ? 'swahili-hymn' : ''}">
+    
+    <!-- Hymn Header -->
+    <div class="hymn-header">
+      <h1 class="hymn-title ${isSwahili ? 'swahili' : ''}">
+        ${escapeHtml(hymn.title)}
+      </h1>
+      ${hymn.reference ? `<div class="hymn-reference">${escapeHtml(hymn.reference)}</div>` : ''}
+    </div>
 
-<pre>${escapeHtml(hymn.lyrics)}</pre>
+    <!-- Lyrics -->
+    <div class="lyrics-container">
+      ${safeLyrics}
+    </div>
 
-<a
-class="button"
-href="https://www.zetechcatholicaction.com/hymns">
-Open Zetech Catholic Action
-</a>
+    <!-- Action Buttons -->
+    <div class="action-bar no-print">
+      <a href="https://www.zetechcatholicaction.com/hymns" class="btn">
+        <i class="fas fa-book"></i> All Hymns
+      </a>
+      <a href="https://www.zetechcatholicaction.com/dashboard" class="btn btn-outline">
+        <i class="fas fa-home"></i> Dashboard
+      </a>
+      <button onclick="window.print()" class="btn">
+        <i class="fas fa-print"></i> Print
+      </button>
+      <button onclick="shareHymn()" class="btn btn-outline">
+        <i class="fas fa-share-alt"></i> Share
+      </button>
+      <button onclick="downloadHymn()" class="btn btn-primary">
+        <i class="fas fa-download"></i> Download
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>From the <a href="https://www.zetechcatholicaction.com">Zetech Catholic Action</a> Hymn Book</p>
+      <p style="margin-top: 4px; font-size: 11px;">Zetech Catholic Action Portal</p>
+    </div>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div id="shareModal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    <h3 class="modal-title"><i class="fas fa-share-alt"></i> Share Hymn</h3>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 12px;">
+      Share this hymn with others
+    </p>
+    <div class="share-url-container">
+      <input id="shareUrl" type="text" value="https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}" readonly class="share-url-input">
+      <button onclick="copyShareLink()" class="copy-btn"><i class="fas fa-copy"></i> Copy</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function shareHymn() {
+    if (navigator.share) {
+      navigator.share({
+        title: '${escapeHtml(hymn.title)}',
+        text: 'Check out this hymn: ${escapeHtml(hymn.title)}',
+        url: 'https://www.zetechcatholicaction.com/hymn/${encodeURIComponent(hymn.title)}',
+      }).catch(err => console.log('Share cancelled'));
+    } else {
+      document.getElementById('shareModal').classList.add('active');
+    }
+  }
+
+  function closeModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('shareModal').classList.remove('active');
+  }
+
+  function copyShareLink() {
+    const input = document.getElementById('shareUrl');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; }, 2000);
+    }).catch(() => {
+      document.execCommand('copy');
+      const btn = document.querySelector('.copy-btn');
+      btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; }, 2000);
+    });
+  }
+
+  function downloadHymn() {
+    const html = \`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${escapeHtml(hymn.title)} - Hymn</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.8; }
+          .hymn-title { text-align: center; font-size: 28px; color: #1e293b; }
+          .hymn-reference { text-align: center; color: #64748b; margin-bottom: 30px; }
+          .lyric-line { padding: 2px 0; }
+          .section-header { font-weight: 600; margin-top: 12px; color: #475569; }
+          .verse-marker { font-weight: 600; color: #64748b; padding: 8px 0 4px 0; }
+          .chorus { background: #f8fafc; padding: 12px 16px; border-radius: 8px; margin: 8px 0; border-left: 4px solid #7c3aed; }
+          strong { color: #1e293b; }
+          .footer { text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1 class="hymn-title">${escapeHtml(hymn.title)}</h1>
+        ${hymn.reference ? `<div class="hymn-reference">${escapeHtml(hymn.reference)}</div>` : ''}
+        <div>${safeLyrics}</div>
+        <div class="footer">From the Zetech Catholic Action Hymn Book</div>
+      </body>
+      </html>
+    \`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '${encodeURIComponent(hymn.title)}.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  document.getElementById('shareModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
 
 </body>
 </html>
 `);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 20px; }
+          .error-box { max-width: 500px; background: white; padding: 40px; border-radius: 16px; text-align: center; border: 1px solid #e2e8f0; }
+          .error-icon { font-size: 48px; color: #ef4444; margin-bottom: 16px; }
+          h1 { color: #1e293b; font-size: 24px; margin-bottom: 8px; }
+          p { color: #64748b; margin-bottom: 20px; }
+          .btn { display: inline-block; padding: 10px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; }
+          .btn:hover { background: #2563eb; }
+          .btn i { margin-right: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="error-box">
+          <div class="error-icon"><i class="fas fa-exclamation-triangle"></i></div>
+          <h1>Server Error</h1>
+          <p>We're having trouble loading this hymn. Please try again later.</p>
+          <a href="https://www.zetechcatholicaction.com/dashboard" class="btn"><i class="fas fa-home"></i> Back to Dashboard</a>
+        </div>
+      </body>
+      </html>
+    `);
   }
 });
-
 
 // ================== PUBLIC UPCOMING EVENTS ==================
 app.get("/api/public/upcoming-events", async (req, res) => {

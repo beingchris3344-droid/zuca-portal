@@ -409,24 +409,24 @@ const AdminFeedback = () => {
                               {feedback.description?.length > 100 ? '...' : ''}
                             </p>
                             <div className="feedback-meta">
-                              <span className="meta-item">
-                                <Calendar size={12} />
-                                {formatDate(feedback.createdAt)}
-                              </span>
-                              <span className="meta-item">
-                                <Users size={12} />
-                                {feedback.user?.fullName || 'Unknown'}
-                              </span>
-                              <span 
-                                className="priority-badge"
-                                style={{ 
-                                  color: priority.color,
-                                  background: priority.bg
-                                }}
-                              >
-                                {priority.label}
-                              </span>
-                            </div>
+  <span className="meta-item">
+    <Calendar size={12} />
+    {formatDate(feedback.createdAt)}
+  </span>
+  <span className="meta-item">
+    <Users size={12} />
+    {feedback.isAnonymous ? 'Anonymous' : (feedback.user?.fullName || 'Unknown')}
+  </span>
+  <span 
+    className="priority-badge"
+    style={{ 
+      color: priority.color,
+      background: priority.bg
+    }}
+  >
+    {priority.label}
+  </span>
+</div>
                           </div>
                         </div>
                        <div className="feedback-item-right">

@@ -151,6 +151,126 @@ function buildKnowledgeFromQuery(query) {
   return knowledge;
 }
 
+// ================== BUILD NAVIGATION HELP FROM GRAPH ==================
+function buildNavigationHelp(query, graph) {
+  if (!graph || !graph.loaded) return null;
+  
+  const backendNodes = graph.backend?.nodes || [];
+  const frontendNodes = graph.frontend?.nodes || [];
+  
+  // Extract keywords from query
+  const keywords = query.toLowerCase().split(' ').filter(w => w.length > 2);
+  
+  if (keywords.length === 0) return null;
+  
+  // Find relevant frontend pages
+  let relevantPages = [];
+  for (const node of frontendNodes) {
+    if (!node.label) continue;
+    const nodeLower = node.label.toLowerCase();
+    for (const keyword of keywords) {
+      if (nodeLower.includes(keyword)) {
+        relevantPages.push({
+          name: node.label,
+          id: node.id,
+          match: keyword
+        });
+        break;
+      }
+    }
+  }
+  
+  // Find relevant backend routes
+  let relevantRoutes = [];
+  const routeNodes = backendNodes.filter(n => n.id && n.id.match(/routes?|controller/i));
+  for (const node of routeNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (nodeLower.includes(keyword)) {
+        relevantRoutes.push({
+          name: node.id,
+          id: node.id
+        });
+        break;
+      }
+    }
+  }
+  
+  // Find relevant models
+  let relevantModels = [];
+  const modelNodes = backendNodes.filter(n => n.id && n.id.match(/model|schema|prisma|user|pledge|announcement|notification|attendance/i));
+  for (const node of modelNodes) {
+    if (!node.id) continue;
+    const nodeLower = node.id.toLowerCase();
+    for (const keyword of keywords) {
+      if (nodeLower.includes(keyword)) {
+        relevantModels.push({
+          name: node.id,
+          id: node.id
+        });
+        break;
+      }
+    }
+  }
+  
+  if (relevantPages.length === 0 && relevantRoutes.length === 0 && relevantModels.length === 0) {
+    return null;
+  }
+  
+  // Build dynamic navigation instructions
+  let navigation = `\n## 🗺️ NAVIGATION HELP FOUND IN YOUR CODEBASE\n\n`;
+  navigation += `Based on your question about "${query}", here's what I found in your code:\n\n`;
+  
+  if (relevantPages.length > 0) {
+    navigation += `**📄 Related Pages Found:**\n`;
+    for (const page of relevantPages.slice(0, 5)) {
+      // Try to find the route path
+      let path = '';
+      const routes = getFrontendRoutes();
+      for (const [key, route] of Object.entries(routes)) {
+        if (route.label && route.label.toLowerCase().includes(page.name.toLowerCase()) ||
+            key.toLowerCase().includes(page.name.toLowerCase())) {
+          path = route.path;
+          break;
+        }
+      }
+      if (!path) {
+        path = `/${page.name.toLowerCase().replace(/ /g, '-').replace(/[()]/g, '')}`;
+      }
+      navigation += `- **${page.name}** → \`${FRONTEND_URL}${path}\`\n`;
+    }
+    navigation += `\n`;
+  }
+  
+  if (relevantRoutes.length > 0) {
+    navigation += `**🔗 Related Backend Routes:**\n`;
+    for (const route of relevantRoutes.slice(0, 5)) {
+      navigation += `- ${route.name}\n`;
+    }
+    navigation += `\n`;
+  }
+  
+  if (relevantModels.length > 0) {
+    navigation += `**📊 Related Database Models:**\n`;
+    for (const model of relevantModels.slice(0, 5)) {
+      navigation += `- ${model.name}\n`;
+    }
+    navigation += `\n`;
+  }
+  
+  // Add guidance on how to answer
+  navigation += `### 🎯 HOW TO ANSWER NAVIGATION QUESTIONS:\n`;
+  navigation += `1. Look at the related pages listed above\n`;
+  navigation += `2. Tell the user the exact URL with ${FRONTEND_URL}\n`;
+  navigation += `3. Explain what they can do on that page\n`;
+  navigation += `4. Give step-by-step instructions based on the page name\n`;
+  navigation += `5. Ask if they need help with anything else\n`;
+  navigation += `6. If no pages were found, say "I don't see that page in your codebase"\n`;
+  
+  return navigation;
+}
+
 
 // ================== FRONTEND ROUTES KNOWLEDGE ==================
 function getFrontendRoutes() {
@@ -402,6 +522,7 @@ I'll answer based on general knowledge, but I may not know specific ZUCA feature
 `;
     }
   } else {
+   
     // Fallback - show available features
     const graph = getSystemGraph();
     if (graph && graph.loaded) {
@@ -432,6 +553,16 @@ I'll answer based on general knowledge, but I may not know specific ZUCA feature
 `;
     }
     }
+
+      // ================== ADD DYNAMIC NAVIGATION HELP ==================
+  const graph = getSystemGraph();
+  let navigationHelp = '';
+  if (userQuery && graph && graph.loaded) {
+    const nav = buildNavigationHelp(userQuery, graph);
+    if (nav) {
+      navigationHelp = nav;
+    }
+  }
 
   // ================== ADD ROUTE NAVIGATION KNOWLEDGE ==================
   const routes = getFrontendRoutes();
@@ -552,6 +683,7 @@ When a user asks for a link to any page:
 
 ${sourceInstruction}
 ${responseStyle}
+${navigationHelp}
 ${graphKnowledge}
 ${routeKnowledge}
 ${domainKnowledge}

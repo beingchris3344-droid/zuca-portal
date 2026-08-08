@@ -39,6 +39,41 @@ this.maxMemoryMessages = 20;
     this.groupsCacheTTL = 5 * 60 * 1000; // 5 minutes
   }
 
+ // =============================================
+  // 🧹 CLEAN AI RESPONSE - Remove System Instructions
+  // =============================================
+  cleanAIResponse(text) {
+    if (!text) return '';
+    
+    const systemPhrases = [
+      'Check System Instructions',
+      'I need to be warm',
+      'Offer assistance with ZUCA features',
+      'Keep it under 2000 chars',
+      'Use Sheng naturally',
+      'system prompt',
+      'system instruction',
+      'you are zu ca ai',
+      'you are zuca bot'
+    ];
+    
+    let cleaned = text;
+    for (const phrase of systemPhrases) {
+      const regex = new RegExp(phrase, 'gi');
+      cleaned = cleaned.replace(regex, '');
+    }
+    
+    cleaned = cleaned.replace(/^[\s]*[-•*]\s*(System|Instruction|Check|Offer|Keep|Use)/gmi, '');
+    cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    
+    if (!cleaned || cleaned.length < 3) {
+      return '🙏 How can I help you with ZUCA today?';
+    }
+    
+    return cleaned;
+  } 
+
     // =============================================
   // 💾 SAVE CREDS TO DATABASE (SAVE EVERYTHING)
   // =============================================

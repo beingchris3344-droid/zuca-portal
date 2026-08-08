@@ -240,10 +240,37 @@ function getFrontendRoutes() {
 
 
 
-const groq = new OpenAI({
-  baseURL: "https://api.groq.com/openai/v1",
-  apiKey: process.env.GROQ_API_KEY,
-});
+// =============================================
+// 🔑 MULTIPLE API KEYS FOR ROTATION
+// =============================================
+const API_KEYS = [
+  process.env.GROQ_API_KEY_1,
+  process.env.GROQ_API_KEY_2,
+  process.env.GROQ_API_KEY_3,
+  process.env.GROQ_API_KEY_4,
+  process.env.GROQ_API_KEY_5,
+].filter(key => key && key.length > 0); // Remove empty ones
+
+// If no multiple keys, fallback to single key
+if (API_KEYS.length === 0) {
+  API_KEYS.push(process.env.GROQ_API_KEY);
+}
+
+console.log(`🔑 Loaded ${API_KEYS.length} API keys for rotation`);
+
+// Create clients for each key
+const groqClients = API_KEYS.map((key, index) => ({
+  key: key,
+  client: new OpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey: key,
+  }),
+  isRateLimited: false,
+  rateLimitResetTime: null,
+  index: index + 1
+}));
+
+console.log(`✅ Created ${groqClients.length} Groq clients`);
 
 // ================== MODEL LIST (ALL AVAILABLE MODELS - IN ORDER OF PREFERENCE) ==================
 const MODEL_LIST = [
@@ -254,7 +281,7 @@ const MODEL_LIST = [
   // ⚡ GOOD QUALITY - Secondary models
   { name: "openai/gpt-oss-20b", quality: "good" },
   { name: "qwen/qwen3.6-27b", quality: "good" },
-  { name: "meta-llama/llama-4-scout-17b-16e-instruct", quality: "good" },
+ 
   
   // 🚀 FAST MODELS - Quick responses
   { name: "llama-3.1-8b-instant", quality: "fast" },
@@ -265,8 +292,7 @@ const MODEL_LIST = [
   { name: "meta-llama/llama-prompt-guard-2-22m", quality: "safety" },
   { name: "openai/gpt-oss-safeguard-20b", quality: "safety" },
   
-  // 🔄 BACKUP - Last resort
-  { name: "qwen/qwen3-32b", quality: "backup" },
+ 
 ];
 
 // Track rate limit reset time
@@ -813,9 +839,17 @@ When in doubt about who to send to, ask the user!
 
 // ================== CHAT WITH GROQ - INSTANT FALLBACK (NO WAITING) ==================
 async function chatWithGroq(messages, userContext) {
-  const conversationHistory = Array.isArray(userContext?.conversationHistory)
+  // 🔥 FIX: Only keep the last 8 messages to prevent 413 errors
+  let fullHistory = Array.isArray(userContext?.conversationHistory)
     ? userContext.conversationHistory
     : [];
+  
+  // Keep only the most recent 8 messages
+  const conversationHistory = fullHistory.slice(-8);
+  
+  // Log how many messages we're keeping
+  console.log(`📝 Using ${conversationHistory.length} messages (truncated from ${fullHistory.length})`);
+  
   const systemPrompt = buildSystemPrompt(userContext);
 
   // Track rate-limited models globally (per model, not global wait)
@@ -847,26 +881,108 @@ async function chatWithGroq(messages, userContext) {
     try {
       console.log(`🧠 [${i+1}/${MODEL_LIST.length}] Trying: ${model.name} (${model.quality})...`);
       
-      // ========== TIMEOUT WITH Promise.race ==========
-    const timeoutMs = 5000; // 5 seconds for ALL models
+  // ========== TIMEOUT WITH Promise.race ==========
+// Give more time to bigger models
+let timeoutMs = 5000; // default 5 seconds
+if (model.quality === 'best') {
+  timeoutMs = 20000; // 20 seconds for best models (70B)
+} else if (model.quality === 'good') {
+  timeoutMs = 15000; // 15 seconds for good models
+} else if (model.quality === 'safety') {
+  timeoutMs = 8000; // 8 seconds for safety models
+} else {
+  timeoutMs = 10000; // 10 seconds for fast models
+}
 
 const timeoutPromise = new Promise((_, reject) => 
-  setTimeout(() => reject(new Error(`⏱️ ${model.name} timed out after 5s`)), timeoutMs)
-);
-      
-      const apiCall = groq.chat.completions.create({
-        model: model.name,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...conversationHistory,
-          ...messages,
-        ],
-        temperature: 0.3,
-        max_tokens: 1200,
+  setTimeout(() => reject(new Error(`⏱️ ${model.name} timed out after ${timeoutMs/1000}s`)), timeoutMs)
+); 
+      // Set max_tokens based on model type
+let maxTokens = 1200;
+if (model.quality === 'safety') {
+  maxTokens = 512; // Safety models only allow 512
+}
+
+// 🔑 Try each API key until one works
+let keyError = null;
+let keySuccess = false;
+
+for (let keyIndex = 0; keyIndex < groqClients.length; keyIndex++) {
+  const clientEntry = groqClients[keyIndex];
+  
+  // Skip if this key is rate limited
+  if (clientEntry.isRateLimited) {
+    if (Date.now() < clientEntry.rateLimitResetTime) {
+      console.log(`⏭️ Skipping API key ${clientEntry.index} (rate limited)`);
+      continue;
+    } else {
+      // Reset the rate limit flag
+      clientEntry.isRateLimited = false;
+      clientEntry.rateLimitResetTime = null;
+    }
+  }
+  
+  try {
+    console.log(`🔑 Trying API key ${clientEntry.index}/${groqClients.length} for ${model.name}...`);
+    
+    const apiCall = clientEntry.client.chat.completions.create({
+      model: model.name,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...conversationHistory,
+        ...messages,
+      ],
+      temperature: 0.3,
+      max_tokens: maxTokens,
+    });
+    
+    const completion = await Promise.race([apiCall, timeoutPromise]);
+    
+    // If we got here, this key worked!
+    console.log(`✅ API key ${clientEntry.index} succeeded!`);
+    keySuccess = true;
+    
+    const message = completion.choices[0].message;
+    console.log(`✅ Model ${model.name} succeeded!`);
+    console.log("📤 RAW AI RESPONSE:", message.content?.substring(0, 100));
+    
+    if (message.content) {
+      const parsed = parseActionFromText(message.content);
+      console.log("🔍 PARSED:", { 
+        hasAction: !!parsed.action, 
+        actionName: parsed.action?.name, 
+        contentPreview: parsed.content?.substring(0, 50) 
       });
       
-      // ⚡ RACE: whichever finishes first (API call or timeout)
-      const completion = await Promise.race([apiCall, timeoutPromise]);
+      return parsed;
+    }
+    
+    return { content: message.content, action: null };
+    
+  } catch (error) {
+    const errorMsg = error.message || '';
+    console.error(`❌ API key ${clientEntry.index} failed:`, errorMsg.substring(0, 100));
+    keyError = errorMsg;
+    
+    // If rate limited, mark this key as rate limited
+    if (errorMsg.includes('rate_limit') || errorMsg.includes('429')) {
+      const match = errorMsg.match(/reset in (\d+)/);
+      const waitSeconds = match ? parseInt(match[1]) : 60;
+      clientEntry.isRateLimited = true;
+      clientEntry.rateLimitResetTime = Date.now() + (waitSeconds * 1000);
+      console.log(`⏳ API key ${clientEntry.index} rate limited for ${waitSeconds}s - trying next key...`);
+      continue;
+    }
+    
+    // For other errors, try the next key
+    continue;
+  }
+}
+
+// If all keys failed for this model, try the next model
+console.log(`❌ All API keys failed for ${model.name}`);
+lastError = keyError;
+continue; // Go to next model
       // ============================================
       
       const message = completion.choices[0].message;

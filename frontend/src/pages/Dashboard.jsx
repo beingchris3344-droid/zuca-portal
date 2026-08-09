@@ -1494,6 +1494,21 @@ useEffect(() => {
             {notif.type === "program" && "⛪"}
             {notif.type === "checkin" && "✅"}
             {notif.type === "message" && "💬"}
+            {notif.type === "pledge" && "💰"}
+            {notif.type === "event" && "📅"}
+            {notif.type === "reminder" && "⏰"}
+            {notif.type === "direct_message" && "💬"}
+            {notif.type === "new_media" && "⚠️"}
+            {notif.type === "executive_appointment" && "📅"}
+            {notif.type === "feedback_new" && "📝"}
+            {notif.type === "feedback_updated" && "📝"}
+            {notif.type === "mass_reading" && "📖"}
+            {notif.type === "program" && "⛪"}
+            {notif.type === "attendance_sheet_opened" && "📋"}
+            {notif.type === "attendance_summary" && "📊"}
+            
+
+            {notif.type === "youtube_new_video" && "⚠️"}
              {notif.type === "user_login" && <FaUser />}
             {!notif.type && "🔔"}
           </div>

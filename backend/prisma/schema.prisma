@@ -2006,3 +2006,19 @@ model Feedback {
   @@index([createdAt])
   @@map("feedback")
 }
+
+// ==================== COUNTDOWN SETTINGS ====================
+
+model CountdownSetting {
+  id          String   @id @default(uuid())
+  targetDate  DateTime
+  title       String
+  subtitle    String?
+  icon        String   @default("🎄")
+  isActive    Boolean  @default(false)
+  eventColor  String   @default("#10b981")
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  // Admin user ID who last updated
+
+  @@map("countdown_settings")
+}

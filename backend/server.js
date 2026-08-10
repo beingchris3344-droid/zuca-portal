@@ -1650,6 +1650,13 @@ setTimeout(() => {
 const feedbackRoutes = require('./routes/feedback.routes');
 app.use('/api/feedback', feedbackRoutes);
 
+
+
+
+//countdown
+const countdownRoutes = require('./routes/countdown');
+app.use('/api', countdownRoutes);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

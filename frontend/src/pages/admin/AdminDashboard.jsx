@@ -804,22 +804,25 @@ if (!forceRefresh) {
               <div className="stat-trend"><FiArrowUp /> +{stats.upcomingEvents} upcoming</div>
             </div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon messages"><FiMessageCircle /></div>
-            <div className="stat-info">
-              <span className="stat-value">{stats.totalMessages || 0}</span>
-              <span className="stat-label">CHAT MESSAGES</span>
-              <div className="stat-trend"><FiArrowUp /> +234 this week</div>
-            </div>
-          </div>
+          
           <div className="stat-card">
             <div className="stat-icon hymns"><FiMusic /></div>
             <div className="stat-info">
               <span className="stat-value">{stats.totalSongs}</span>
               <span className="stat-label">HYMNS</span>
               <div className="stat-trend"><FiArrowUp /> +12 added</div>
+              
             </div>
           </div>
+            {/* ===== COUNTDOWN CARD ===== */}
+  <div className="stat-card" onClick={() => navigate('/admin/countdown-settings')} style={{ cursor: 'pointer' }}>
+    <div className="stat-icon countdown"><FiClock /></div>
+    <div className="stat-info">
+      <span className="stat-value">⏰</span>
+      <span className="stat-label">Manage Countdown</span>
+      <div className="stat-trend">⚙️ Configure</div>
+        </div>
+        </div>
         </div>
 
 
@@ -857,6 +860,9 @@ if (!forceRefresh) {
 </button>
 <button className="action-btn" onClick={() => navigate('/admin/health-centre')}>
   <FiSettings size={18} /> System Analysis
+</button>
+<button className="action-btn" onClick={() => navigate('/admin/countdown-settings')}>
+  <FiClock /> Countdown Settings
 </button>
 </div>
         </div>

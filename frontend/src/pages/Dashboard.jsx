@@ -63,6 +63,17 @@ function Dashboard() {
   // New state for latest readings
 const [latestReadings, setLatestReadings] = useState([]);
 
+   
+
+  // ===== COUNTDOWN STATES =====
+  const [countdownSettings, setCountdownSettings] = useState(null);
+  const [countdownTime, setCountdownTime] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+
   // ===== CACHING SYSTEM FOR DASHBOARD =====
   const CACHE_KEY = 'user_dashboard_cache';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -493,6 +504,9 @@ const fetchFeaturedGallery = async () => {
   };
 
 
+   
+
+
    const fetchPublicStats = async () => {
     try {
       const [campaignsRes, usersRes, mediaRes] = await Promise.all([
@@ -752,6 +766,13 @@ const fetchFeaturedGallery = async () => {
         }).catch(() => ({ data: { totalMedia: 0 } }));
         setTotalMedia(mediaStatsRes.data?.totalMedia || 0);
 
+
+                
+
+       
+
+     
+
         // ===== SAVE TO CACHE =====
         const cacheData = {
           announcements: announcementsList.slice(0, 2),
@@ -810,7 +831,70 @@ const fetchFeaturedGallery = async () => {
       clearInterval(timer);
       clearInterval(refreshTimer);
     };
+      }, []);
+
+  // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
+  useEffect(() => {
+    const fetchCountdownImmediately = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/countdown-settings`);
+        if (response.data?.success && response.data?.settings) {
+          setCountdownSettings(response.data.settings);
+          
+          const targetDate = new Date(response.data.settings.targetDate);
+          const now = new Date();
+          const diff = targetDate - now;
+          
+          if (diff <= 0) {
+            setIsCountdownComplete(true);
+            setShowCountdown(false);
+          } else {
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            setCountdownTime({ days, hours, minutes, seconds });
+            setShowCountdown(response.data.settings.isActive);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching countdown settings:", error);
+      }
+    };
+
+    fetchCountdownImmediately();
   }, []);
+
+  // ===== COUNTDOWN TIMER =====
+  useEffect(() => {
+    if (!countdownSettings || !countdownSettings.isActive || isCountdownComplete) {
+      return;
+    }
+
+    const targetDate = new Date(countdownSettings.targetDate);
+    
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diff = targetDate - now;
+      
+      if (diff <= 0) {
+        setIsCountdownComplete(true);
+        setShowCountdown(false);
+        clearInterval(interval);
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setCountdownTime({ days, hours, minutes, seconds });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [countdownSettings, isCountdownComplete]);
 
 
 // ==================== SYNC NOTIFICATIONS WITH BELL ====================
@@ -958,49 +1042,77 @@ useEffect(() => {
             </div>
           </div>
 
-
-          {showCountdown && !isCountdownComplete && (
+{/* ===== DYNAMIC COUNTDOWN - FROM DATABASE ===== */}
+{countdownSettings && countdownSettings.isActive && !isCountdownComplete && (
   <motion.div
     initial={{ opacity: 0, y: -20 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -50 }}
     transition={{ duration: 0.5 }}
     className="countdown-container"
+    style={{ borderLeft: `4px solid ${countdownSettings.eventColor || '#10b981'}` }}
   >
     <div className="countdown-content">
       <div className="countdown-header">
-        <span className="countdown-icon">🚀</span>
-        <span className="countdown-title">ZUCA WEBSITE LAUNCHING HAPPENS IN </span>
-                <span className="countdown-icon">🚀</span>
-
+        <span className="countdown-icon">{countdownSettings.icon || '🎄'}</span>
+        <span className="countdown-title">{countdownSettings.title || 'COUNTDOWN'}</span>
+        <span className="countdown-icon">{countdownSettings.icon || '🎄'}</span>
       </div>
       
       <div className="countdown-grid">
         <div className="countdown-item">
-          <div className="countdown-number">{String(timeRemaining.days).padStart(2, '0')}</div>
+          <div className="countdown-number" style={{ 
+            background: countdownSettings.eventColor || '#10b981',
+            color: 'white',
+            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
+          }}>
+            {String(countdownTime.days).padStart(2, '0')}
+          </div>
           <div className="countdown-label">Days</div>
         </div>
         <div className="countdown-separator">:</div>
         <div className="countdown-item">
-          <div className="countdown-number">{String(timeRemaining.hours).padStart(2, '0')}</div>
+          <div className="countdown-number" style={{ 
+            background: countdownSettings.eventColor || '#10b981',
+            color: 'white',
+            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
+          }}>
+            {String(countdownTime.hours).padStart(2, '0')}
+          </div>
           <div className="countdown-label">Hours</div>
         </div>
         <div className="countdown-separator">:</div>
         <div className="countdown-item">
-          <div className="countdown-number">{String(timeRemaining.minutes).padStart(2, '0')}</div>
+          <div className="countdown-number" style={{ 
+            background: countdownSettings.eventColor || '#10b981',
+            color: 'white',
+            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
+          }}>
+            {String(countdownTime.minutes).padStart(2, '0')}
+          </div>
           <div className="countdown-label">Minutes</div>
         </div>
         <div className="countdown-separator">:</div>
         <div className="countdown-item">
-          <div className="countdown-number">{String(timeRemaining.seconds).padStart(2, '0')}</div>
+          <div className="countdown-number" style={{ 
+            background: countdownSettings.eventColor || '#10b981',
+            color: 'white',
+            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
+          }}>
+            {String(countdownTime.seconds).padStart(2, '0')}
+          </div>
           <div className="countdown-label">Seconds</div>
         </div>
       </div>
 
-      <div className="countdown-event-info">
-        <span><FaCalendar color="fffff0" /> JOIN US ON 12TH JULY AS WE CELEBRATE OUR "BIRTHDAY"</span>
-        <span><FaUsers color="fffff0" /> LETS COME ALL!</span>
-      </div>
+      {countdownSettings.subtitle && (
+        <div className="countdown-event-info">
+          <span>
+            <FaCalendar color={countdownSettings.eventColor || '#10b981'} /> 
+            {countdownSettings.subtitle}
+          </span>
+        </div>
+      )}
     </div>
   </motion.div>
 )}

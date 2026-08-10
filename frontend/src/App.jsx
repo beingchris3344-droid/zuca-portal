@@ -116,6 +116,7 @@ import WhatsAppBot from './pages/admin/WhatsAppBot';
 import MessageHistory from './pages/admin/MessageHistory';
 import AdminFeedback from './pages/admin/AdminFeedback';
 import AdminFeedbackDetail from './pages/admin/AdminFeedbackDetail';
+import CountdownSettings from './pages/admin/CountdownSettings';
 
 
 import { initializeDark } from "./utils/darkReader";
@@ -586,6 +587,7 @@ useEffect(() => {
 
 <Route path="/admin/feedback" element={<AdminFeedback />} />
 <Route path="/admin/feedback/:id" element={<AdminFeedbackDetail />} />
+<Route path="/admin/countdown-settings" element={<CountdownSettings />} />
 
 
 

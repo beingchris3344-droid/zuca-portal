@@ -10,6 +10,7 @@ import BASE_URL from "../../api";
 import backgroundImg from "../../assets/background.png";
 import io from "socket.io-client";
 import SimpleMessageModal from "../SimpleMessageModal";
+import { Fa500Px, FaDonate, FaFileArchive, FaHandHoldingHeart, FaMoneyBill, FaPhoenixSquadron, FaTimes, FaTimesCircle, FaUsers, FaWatchmanMonitoring } from "react-icons/fa";
 
 // Professional icon components
 const Icons = {
@@ -1205,7 +1206,7 @@ useEffect(() => {
               alignItems: 'center',
               gap: '6px'
             }}>
-              <span>💰</span> Treasurer
+              <span></span> Treasurer
             </div>
           )}
 
@@ -1221,7 +1222,7 @@ useEffect(() => {
     cursor: 'pointer'
   }}
 >
-  📝 Notes& Calculator
+  <FaFileArchive size ="17px" color="#ffff" /> Notes& Calculator 
 </button>
 
     
@@ -1334,7 +1335,7 @@ useEffect(() => {
       {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
-          <span className="stat-icon">📊</span>
+          <span className="stat-icon"><FaHandHoldingHeart size= "24px" color="#000000" /> </span>
           <div>
             <span className="stat-value">{summaryStats.totalCampaigns}</span>
             <span className="stat-label">Campaigns</span>
@@ -1344,8 +1345,8 @@ useEffect(() => {
   onClick={() => navigate('/treasurer/reports')}
   style={{
     padding: '10px 20px',
-    background: '#36ad26',
-    color: 'white',
+    background: '#ffffff',
+    color: 'black',
     border: 'none',
     borderRadius: '8px',
         fontWeight: 'bold',
@@ -1354,20 +1355,19 @@ useEffect(() => {
     cursor: 'pointer'
   }}
 >
-  📃 <p1>For Reports?</p1>      
- 🫵 <p2 >(press here)</p2>
+   <p1>View Treasury Reports here</p1>      
   
 </button>
 
         <div className="stat-card">
-          <span className="stat-icon">👥</span>
+          <span className="stat-icon"><FaUsers size = "24px" color = "#000000f3" /> </span>
           <div>
             <span className="stat-value">{summaryStats.totalMembers}</span>
             <span className="stat-label">Contributors</span>
           </div>
         </div>
         <div className="stat-card">
-          <span className="stat-icon">⏳</span>
+          <span className="stat-icon"><FaPhoenixSquadron/></span>
           <div>
             <span className="stat-value">{summaryStats.pendingCount}</span>
             <span className="stat-label">Pending</span>
@@ -1381,7 +1381,7 @@ useEffect(() => {
           </div>
         </div>
         <div className="stat-card">
-          <span className="stat-icon">✅</span>
+          <span className="stat-icon"><FaDonate /></span>
           <div>
             <span className="stat-value">{summaryStats.completedCount}</span>
             <span className="stat-label">Completed</span>
@@ -1390,7 +1390,7 @@ useEffect(() => {
         </div>
         
         <div className="stat-card">
-          <span className="stat-icon">💰</span>
+          <span className="stat-icon"><FaMoneyBill /></span>
           <div>
             <span className="stat-value">KES {summaryStats.totalCollected.toLocaleString()}</span>
             <span className="stat-label">Collected</span>

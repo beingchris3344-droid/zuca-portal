@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
+import { FaCalculator, FaFileContract } from 'react-icons/fa';
 
 export default function TreasurerNotes() {
   const navigate = useNavigate();
@@ -182,16 +183,16 @@ export default function TreasurerNotes() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
           <button 
             onClick={() => setShowCalculator(!showCalculator)}
-            style={{ padding: '10px 20px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 20px', background: '#0a0a0a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            🧮 {showCalculator ? 'Hide Calculator' : 'Show Calculator'}
+            <FaCalculator/> {showCalculator ? 'Hide Calculator' : 'Show Calculator'}
           </button>
         </div>
 
         {/* Calculator Panel - Shows when showCalculator is true */}
         {showCalculator && (
           <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginBottom: '16px' }}>🧮 Calculator</h3>
+            <h3 style={{ marginBottom: '16px' }}><FaCalculator/> Calculator</h3>
             <div style={{ fontSize: '36px', textAlign: 'right', padding: '20px', background: '#f1f5f9', borderRadius: '12px', marginBottom: '20px', fontFamily: 'monospace', fontWeight: 'bold' }}>
               {display}
             </div>
@@ -234,19 +235,19 @@ export default function TreasurerNotes() {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
-                <h1 style={{ fontSize: '28px', margin: 0, color: '#1e293b' }}>💰 Treasurer Notes</h1>
-                <p style={{ color: '#64748b', marginTop: '8px' }}>Manage your financial notes and calculations</p>
+                <h1 style={{ fontSize: '28px', margin: 0, color: '#111111' }}> Treasurer Notes</h1>
+                <p style={{ color: '#0d0d0e', marginTop: '8px' }}>Manage your financial notes and calculations</p>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button 
                   onClick={() => navigate(-1)}
-                  style={{ padding: '10px 20px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                  style={{ padding: '10px 20px', background: '#0d0d0e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                 >
                   ← Back
                 </button>
                 <button 
                   onClick={() => openEditor()}
-                  style={{ padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+                  style={{ padding: '10px 24px', background: '#141616', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
                 >
                   + New Note
                 </button>
@@ -255,20 +256,20 @@ export default function TreasurerNotes() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
               <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{notes.length}</div>
-                <div style={{ color: '#64748b' }}>Total Notes</div>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#18181a' }}>{notes.length}</div>
+                <div style={{ color: '#0d0d0e' }}>Total Notes</div>
               </div>
               <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#090a0a' }}>
                   {notes.filter(n => new Date(n.createdAt).toDateString() === new Date().toDateString()).length}
                 </div>
-                <div style={{ color: '#64748b' }}>Created Today</div>
+                <div style={{ color: '#050505' }}>Created Today</div>
               </div>
               <div style={{ background: 'white', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#8b5cf6' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#030303' }}>
                   {notes.filter(n => n.content?.length > 0).length}
                 </div>
-                <div style={{ color: '#64748b' }}>With Notes</div>
+                <div style={{ color: '#131414' }}>With Notes</div>
               </div>
             </div>
 
@@ -276,12 +277,12 @@ export default function TreasurerNotes() {
               <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>Loading notes...</div>
             ) : notes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📝</div>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}><FaFileContract/></div>
                 <h3>No notes yet</h3>
                 <p style={{ color: '#64748b' }}>Click "New Note" to create your first financial note</p>
                 <button 
                   onClick={() => openEditor()}
-                  style={{ marginTop: '16px', padding: '10px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                  style={{ marginTop: '16px', padding: '10px 24px', background: '#121312', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                 >
                   Create First Note
                 </button>

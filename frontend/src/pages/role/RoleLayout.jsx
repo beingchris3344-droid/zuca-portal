@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";          
 import BASE_URL from "../../api"; 
+import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity } from "react-icons/fa";
 
 
 export default function RoleLayout() {
@@ -82,20 +83,20 @@ export default function RoleLayout() {
   return { 
     icon: "💰", 
     name: "Treasurer", 
-    color: "#f59e0b",
+    color: "#0c0c0c",
     description: "Manage contributions & financial reports",
     modules: [
-      { path: `${basePath}/contributions`, icon: "💰", label: "Contributions" },
-      { path: `${basePath}/reports`, icon: "📊", label: "Reports" },
-      { path: `${basePath}/notes`, icon: "📝", label: "Notes" },
-      { path: `/admin/bank-payments`, icon: "🏦", label: "Bank Payments" }
+      { path: `${basePath}/contributions`, icon: <FaHandsHelping size = "23px" /> , label: "Contributions" },
+      { path: `${basePath}/reports`, icon: <FaDashcube  size = "23px" />, label: "Reports" },
+      { path: `${basePath}/notes`, icon: <FaBook size = "23px" />, label: "Notes" },
+      { path: `/treasurer/bank-payments`, icon: <FaUniversity size="23px"/> , label: "Bank Payments" }
     ],
     quickActions: [
-      { action: `${basePath}/notes?new=true`, label: "New Note", icon: "+" },
-      { action: `${basePath}/notes?calculator=true`, label: "Calculator", icon: "🧮" },  
-      { action: `${basePath}/contributions`, label: "Add Contribution", icon: "➕" },
-      { action: `${basePath}/reports`, label: "Generate Report", icon: "📊" },
-      { action: `/admin/bank-payments`, label: "View Bank Payments", icon: "🏦" }
+      { action: `${basePath}/notes?new=true`, label: "New Note", icon: <FaPlus size = "18px"/> },
+      { action: `${basePath}/notes?calculator=true`, label: "Calculator", icon: <FaCalculator size = "18px"/> },  
+      { action: `${basePath}/contributions`, label: "Add Contribution", icon: <FaPlus size = "18px"/> },
+      { action: `${basePath}/reports`, label: "Generate Report", icon: <FaRegFilePowerpoint size = "18px"/> },
+     { action: `/treasurer/bank-payments`, label: "View Bank Payments", icon: <FaUniversity size="25px" /> }
     ]
   };
       case "choir_moderator":
@@ -260,41 +261,64 @@ export default function RoleLayout() {
       <div className="layout-container">
         {/* Desktop Sidebar */}
         {!isMobile && (
-          <aside className="sidebar-compact">
-            <nav className="sidebar-nav-compact">
-              {roleInfo.modules.map((module) => (
-                <NavLink
-                  key={module.path}
-                  to={module.path}
-                  className={({ isActive }) => 
-                    `nav-item-compact ${isActive ? 'active' : ''}`
-                  }
-                >
-                  <span className="nav-icon-compact">{module.icon}</span>
-                  <span className="nav-label-compact">{module.label}</span>
-                </NavLink>
-              ))}
-            </nav>
+  <aside className="sidebar-compact">
+    {/* ===== USER PROFILE SECTION ===== */}
+    <div className="sidebar-user-profile">
+      {user.profileImage ? (
+        <img 
+          src={user.profileImage} 
+          alt={user.fullName || user.name || "User"} 
+          className="sidebar-user-avatar"
+        />
+      ) : (
+        <div className="sidebar-user-avatar-placeholder" style={{ background: roleInfo.color }}>
+          {(user.fullName || user.name || "U").charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="sidebar-user-info">
+        <div className="sidebar-user-name">{user.fullName || user.name || "User"}</div>
+        <div className="sidebar-user-role" style={{ color: roleInfo.color }}>
+          {roleInfo.icon} {roleInfo.name}
+        </div>
+      </div>
+    </div>
 
-            {roleInfo.quickActions.length > 0 && (
-              <div className="quick-actions-compact">
-                <div className="quick-actions-header">
-                  <span>⚡ Quick Actions</span>
-                </div>
-                {roleInfo.quickActions.map((action, idx) => (
-                  <button
-                    key={idx}
-                    className="quick-action-btn"
-                    onClick={() => handleQuickAction(action.action)}
-                  >
-                    <span>{action.icon}</span>
-                    <span>{action.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </aside>
-        )}
+    <div className="sidebar-divider"></div>
+
+    <nav className="sidebar-nav-compact">
+      {roleInfo.modules.map((module) => (
+        <NavLink
+          key={module.path}
+          to={module.path}
+          className={({ isActive }) => 
+            `nav-item-compact ${isActive ? 'active' : ''}`
+          }
+        >
+          <span className="nav-icon-compact">{module.icon}</span>
+          <span className="nav-label-compact">{module.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+
+    {roleInfo.quickActions.length > 0 && (
+      <div className="quick-actions-compact">
+        <div className="quick-actions-header">
+          <span>⚡ Quick Actions</span>
+        </div>
+        {roleInfo.quickActions.map((action, idx) => (
+          <button
+            key={idx}
+            className="quick-action-btn"
+            onClick={() => handleQuickAction(action.action)}
+          >
+            <span>{action.icon}</span>
+            <span>{action.label}</span>
+          </button>
+        ))}
+      </div>
+    )}
+  </aside>
+)}
 
         {/* Main Content */}
         <main className="main-content-compact">
@@ -311,18 +335,29 @@ export default function RoleLayout() {
           />
           <div className={`mobile-menu ${isMobileMenuOpen ? 'open' : ''}`}>
             <div className="mobile-menu-header">
-              <button 
-                className="mobile-menu-close"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                ✕
-              </button>
-              <div className="mobile-user-avatar" style={{ background: roleInfo.color }}>
-                {roleInfo.icon}
-              </div>
-              <span className="mobile-user-name">{user.fullName || user.name || "User"}</span>
-              <span className="mobile-user-role" style={{ color: roleInfo.color }}>{roleInfo.name}</span>
-            </div>
+  <button 
+    className="mobile-menu-close"
+    onClick={() => setIsMobileMenuOpen(false)}
+  >
+    ✕
+  </button>
+  
+  {/* ===== USER PROFILE WITH IMAGE ===== */}
+  {user.profileImage ? (
+    <img 
+      src={user.profileImage} 
+      alt={user.fullName || user.name || "User"} 
+      className="mobile-user-avatar-img"
+    />
+  ) : (
+    <div className="mobile-user-avatar" style={{ background: roleInfo.color }}>
+      {(user.fullName || user.name || "U").charAt(0).toUpperCase()}
+    </div>
+  )}
+  
+  <span className="mobile-user-name">{user.fullName || user.name || "User"}</span>
+  <span className="mobile-user-role" style={{ color: roleInfo.color }}>{roleInfo.name}</span>
+</div>
             
             <nav className="mobile-nav">
               {roleInfo.modules.map((module) => (
@@ -855,6 +890,94 @@ export default function RoleLayout() {
           transform: scale(0.95);
           opacity: 0.9;
         }
+
+        /* ===== SIDEBAR USER PROFILE ===== */
+.sidebar-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 12px;
+}
+
+.sidebar-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.sidebar-user-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-role {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0 16px 12px;
+}
+
+/* ===== MOBILE USER PROFILE IMAGE ===== */
+.mobile-user-avatar-img {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e2e8f0;
+  margin: 0 auto 12px;
+  display: block;
+}
+
+/* Update existing mobile-user-avatar for fallback */
+.mobile-user-avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  margin: 0 auto 12px;
+}
 
         @media (max-width: 768px) {
           .back-to-member-btn {

@@ -635,6 +635,8 @@ useEffect(() => {
           <Route path="contributions" element={<ContributionsPage />} />
           <Route path="reports" element={<TreasurerReports />} />
           <Route path="/treasurer/notes/new" element={<TreasurerNotes />} />
+           <Route path="bank-payments" element={<BankPayments />} />
+          
         </Route>
 
         {/* ================= CHOIR MODERATOR ================= */}

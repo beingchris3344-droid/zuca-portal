@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
+import { FaCircleNotch, FaExclamationCircle, FaFileCsv, FaFilePdf, FaFileWord, FaPaypal, FaRegTimesCircle, FaUnlock } from "react-icons/fa";
+import { FiPlusCircle } from "react-icons/fi";
 
 function BankPayments() {
   const [payments, setPayments] = useState([]);
@@ -387,41 +389,41 @@ const handleExportPDF = async () => {
       {/* Header */}
       <div className="header">
         <div>
-          <h1 className="title">💰 Bank Payments Dashboard</h1>
+          <h1 className="title"> Bank Payments Dashboard</h1>
           <p className="subtitle">Manage all incoming payments from I&M Bank</p>
         </div>
         <div className="header-actions">
-          <button onClick={handleExportCSV} className="export-btn csv">📥 CSV</button>
-          <button onClick={handleExportPDF} className="export-btn pdf">📄 PDF</button>
-          <button onClick={handleExportWord} className="export-btn word">📝 Word</button>
+          <button onClick={handleExportCSV} className="export-btn csv"><FaFileCsv size="18px" /> CSV</button>
+          <button onClick={handleExportPDF} className="export-btn pdf"> <FaFilePdf size= "18px" />PDF</button>
+          <button onClick={handleExportWord} className="export-btn word"><FaFileWord size= "18px" />Word</button>
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">💳</div>
+          <div className="stat-icon"><FaPaypal/></div>
           <div className="stat-content">
-            <span className="stat-value">{stats.total || 0}</span>
-            <span className="stat-label">Total Payments</span>
+            <span className="stat-value"> {stats.total || 0}</span>
+            <span className="stat-label">-Total Payments</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🟢</div>
+          <div className="stat-icon"><FiPlusCircle/></div>
           <div className="stat-content">
             <span className="stat-value">{stats.claimed || 0}</span>
-            <span className="stat-label">Claimed</span>
+            <span className="stat-label">-Claimed</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🔴</div>
+          <div className="stat-icon"><FaCircleNotch/></div>
           <div className="stat-content">
             <span className="stat-value">{stats.unclaimed || 0}</span>
             <span className="stat-label">Unclaimed</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon"><FaExclamationCircle/></div>
           <div className="stat-content">
             <span className="stat-value">KES {stats.totalAmount?.toLocaleString() || 0}</span>
             <span className="stat-label">Total Amount</span>
@@ -813,9 +815,9 @@ const handleExportPDF = async () => {
           font-size: 13px;
           transition: all 0.2s;
         }
-        .export-btn.csv { background: #0f172a; color: white; }
-        .export-btn.pdf { background: #dc2626; color: white; }
-        .export-btn.word { background: #2563eb; color: white; }
+        .export-btn.csv { background: #0f172ac2; color: white; }
+        .export-btn.pdf { background: #000000b6; color: white; }
+        .export-btn.word { background: #000000b9; color: white; }
         .export-btn:hover { transform: translateY(-2px); }
 
         .stats-grid {

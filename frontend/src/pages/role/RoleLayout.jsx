@@ -469,9 +469,9 @@ export default function RoleLayout() {
         /* Layout Container */
         .layout-container {
           display: flex;
-          max-width: 1600px;
+          max-width: auto;
           margin: 0 auto;
-          width: 100%;
+          width: auto;
         }
 
         /* Desktop Sidebar */

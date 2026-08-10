@@ -498,8 +498,8 @@ const exportReportAsWord = () => {
       <div className="treasurer-reports-page">
         <SkeletonLoader />
         <style>{`
-          .treasurer-reports-page { padding: 24px; background: #f8fafc; min-height: 100vh; }
-          .skeleton-wrapper { max-width: 1400px; margin: 0 auto; }
+          .treasurer-reports-page { padding: 24px; background: #f8fafc; min-height: auto; }
+          .skeleton-wrapper { max-width: auto; margin: 0 auto; }
           .skeleton-header { display: flex; justify-content: space-between; margin-bottom: 24px; }
           .skeleton-back-btn, .skeleton-refresh-btn { width: 100px; height: 40px; background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: skeleton-wave 1.5s infinite; border-radius: 8px; }
           .skeleton-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
@@ -1000,9 +1000,9 @@ const exportReportAsWord = () => {
       </AnimatePresence>
 
       <style>{`
-        .treasurer-reports { padding: 24px; max-width: 1400px; margin: 0 auto; background: #f8fafc; min-height: 100vh; }
+        .treasurer-reports { padding: 24px; max-width: auto; margin: 0 auto; background: #f8fafc; min-height: 100vh; }
         .page-header { display: flex; justify-content: space-between; margin-bottom: 24px; }
-        .back-btn, .refresh-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer; }
+        .back-btn, .refresh-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: back; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer; }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .reports-header { text-align: center; margin-bottom: 30px; }

@@ -1273,7 +1273,7 @@ const LiturgicalCalendar = () => {
       <div style={styles.content}>
         <div style={styles.header}>
           <div style={styles.headerLeft}>
-            <img src={logo} alt="ZUCA Logo" style={styles.logo} />
+           <img src={logo} alt="Loading..." style={{ width: '33px', height: '47px' }} />
             <h1 style={styles.title}>Liturgical Calendar</h1>
           </div>
           <div style={styles.headerRight}>
@@ -1450,24 +1450,26 @@ const LiturgicalCalendar = () => {
 // ================== STYLES ==================
 const styles = {
   container: {
-    minHeight: '100vh',
-    background: '#f8fafc',
-    padding: '8px',
-    position: 'relative',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    width: '100%',
-    overflowX: 'hidden',
-    boxSizing: 'border-box',
-  },
+  minHeight: '100vh',
+  background: '#f8fafc',
+  padding: '8px',
+  position: 'relative',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  width: '100%',
+  overflowX: 'hidden',
+  boxSizing: 'border-box',
+  display: 'flex',
+  justifyContent: 'center',
+},
 
-  content: {
-    position: 'relative',
-    zIndex: 1,
-    maxWidth: '1200px',
-    margin: '0 auto',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
+content: {
+  position: 'relative',
+  zIndex: 1,
+  maxWidth: '1200px',
+  width: '100%',
+  padding: '0 8px',
+  boxSizing: 'border-box',
+},
 
   header: {
     display: 'flex',
@@ -1483,6 +1485,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    marginLeft: '15px'
   },
 
   headerRight: {
@@ -1752,19 +1755,16 @@ const styles = {
     },
   },
 
-  calendarGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
- rowGap: '10px',  
-  columnGap: '2px',  
-      width: '90%',
-          marginLeft: '-7px',
-
-
-    '@media (min-width: 768px)': {
-      gap: '2px',
-    },
+calendarGrid: {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, 1fr)',
+  gap: '2px',
+  width: '100%',
+  margin: '0 auto',
+  '@media (min-width: 768px)': {
+    gap: '4px',
   },
+},
 
   dayHeader: {
     textAlign: 'center',
@@ -1780,19 +1780,27 @@ const styles = {
   },
 
   dayCell: {
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'flex',
-    flexDirection: 'column',
-    width: '100%',
-    boxSizing: 'border-box',
-    position: 'relative',
-    ':hover': {
-      transform: 'scale(1.02)',
-      boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-    },
+  borderRadius: '8px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100%',
+  boxSizing: 'border-box',
+  position: 'relative',
+  minHeight: '60px',
+  padding: '4px',
+  aspectRatio: '1 / 1',
+  ':hover': {
+    transform: 'scale(1.02)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
   },
+  '@media (min-width: 768px)': {
+    minHeight: '100px',
+    padding: '10px',
+    aspectRatio: 'auto',
+  },
+},
 
   dayNumber: {},
 

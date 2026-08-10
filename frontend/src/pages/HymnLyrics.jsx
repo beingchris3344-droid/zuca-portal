@@ -439,7 +439,7 @@ const fetchSong = async () => {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
+          {loading && <img src={logo} alt="Loading..." style={{ width: '37px', height: '50px' }} />}
         </motion.div>
         <p style={loadingText}>Loading lyrics...</p>
       </div>

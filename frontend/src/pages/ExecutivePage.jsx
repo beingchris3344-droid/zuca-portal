@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import logo from "../assets/zuca-logo.png"
 import { 
   Crown, Mic, Church, Camera, Music, Users,
   Phone, Mail, Calendar, Shield, Star, Award,
@@ -192,7 +193,7 @@ export default function ExecutivePage() {
 
         <div className="hero-content">
           <div className="hero-badge">
-            <Shield size={20} />
+           <img src={logo} alt="Loading..." style={{ width: '27px', height: '37px' }} />
             <span>ZUCA EXECUTIVE COUNCIL</span>
           </div>
           <h1>Organizational Structure</h1>

@@ -107,13 +107,176 @@ const FeedbackDetail = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  if (loading) {
+    if (loading) {
     return (
-      <div className="feedback-detail-page">
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Loading feedback details...</p>
+      <div className="feedback-history-page">
+        {/* Header Skeleton */}
+        <header className="history-header skeleton-header">
+          <div className="header-content">
+            <div className="header-left">
+              <div className="skeleton-logo"></div>
+              <div className="skeleton-title"></div>
+            </div>
+            <div className="header-right">
+              <div className="skeleton-btn"></div>
+              <div className="skeleton-btn"></div>
+            </div>
+          </div>
+        </header>
+
+        <div className="history-main">
+          <div className="history-container">
+            {/* Page Header Skeleton */}
+            <div className="page-header">
+              <div className="skeleton-back-link"></div>
+              <div className="page-title-row">
+                <div className="skeleton-page-title"></div>
+                <div className="skeleton-count"></div>
+              </div>
+            </div>
+
+            {/* Stats Skeleton */}
+            <div className="stats-row">
+              <div className="skeleton-stat-card"></div>
+              <div className="skeleton-stat-card"></div>
+              <div className="skeleton-stat-card"></div>
+              <div className="skeleton-stat-card"></div>
+            </div>
+
+            {/* Filter Bar Skeleton */}
+            <div className="filter-bar">
+              <div className="skeleton-search"></div>
+              <div className="filter-buttons">
+                <div className="skeleton-filter-btn"></div>
+                <div className="skeleton-filter-btn"></div>
+                <div className="skeleton-filter-btn"></div>
+                <div className="skeleton-filter-btn"></div>
+              </div>
+            </div>
+
+            {/* Feedback List Skeleton */}
+            <div className="feedback-list">
+              <div className="skeleton-feedback-item"></div>
+              <div className="skeleton-feedback-item"></div>
+              <div className="skeleton-feedback-item"></div>
+              <div className="skeleton-feedback-item"></div>
+              <div className="skeleton-feedback-item"></div>
+            </div>
+          </div>
         </div>
+
+        <style>{`
+          /* Skeleton Loading Styles */
+          .skeleton-header {
+            background: white !important;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+          }
+
+          .skeleton-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-title {
+            width: 150px;
+            height: 24px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-btn {
+            width: 80px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-back-link {
+            width: 120px;
+            height: 20px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            margin-bottom: 12px;
+          }
+
+          .skeleton-page-title {
+            width: 200px;
+            height: 32px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-count {
+            width: 60px;
+            height: 24px;
+            border-radius: 20px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-stat-card {
+            height: 80px;
+            border-radius: 12px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-search {
+            flex: 1;
+            min-width: 200px;
+            height: 44px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-filter-btn {
+            width: 80px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          .skeleton-feedback-item {
+            height: 100px;
+            border-radius: 12px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+          }
+
+          @keyframes shimmer {
+            0% {
+              background-position: -200% 0;
+            }
+            100% {
+              background-position: 200% 0;
+            }
+          }
+
+          /* Keep existing loading styles as fallback */
+          .loading-container {
+            display: none;
+          }
+        `}</style>
       </div>
     );
   }
@@ -139,32 +302,18 @@ const FeedbackDetail = () => {
 
   return (
     <div className="feedback-detail-page">
-      {/* Header */}
-      <header className="detail-header">
-        <div className="header-content">
-          <div className="header-left">
-            <img src={logo} alt="ZUCA Logo" className="logo" />
-            <h1>Zetech <span>Catholic</span> Action</h1>
-          </div>
-          <div className="header-right">
-            <Link to="/dashboard" className="nav-link">
-              <Home size={16} /> Dashboard
-            </Link>
-            <Link to="/feedback/history" className="nav-link">
-              <MessageSquare size={16} /> My Feedback
-            </Link>
-          </div>
-        </div>
-      </header>
-
+     
       {/* Main Content */}
       <div className="detail-main">
         <div className="detail-container">
           <div className="page-header">
-            <Link to="/feedback/history" className="back-link">
-              <ArrowLeft size={20} /> Back to History
+            
+            
+            <Link to="/feedback/history" className="nav-link">
+              <MessageSquare size={16} /> Back to My Feedbacks
             </Link>
           </div>
+          
 
           <div className="detail-card">
             {/* Header Section */}
@@ -404,6 +553,8 @@ const FeedbackDetail = () => {
           border: 1px solid #e2e8f0;
           font-size: 14px;
           font-weight: 500;
+          margin-Bottom: 10px;
+          margin-Top: 10px;
           transition: all 0.2s;
         }
 

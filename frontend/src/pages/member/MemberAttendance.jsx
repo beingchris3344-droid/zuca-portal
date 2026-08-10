@@ -7,6 +7,7 @@ import {
   ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
   Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock
 } from 'lucide-react';
+import logo from '../../assets/zuca-logo.png';
 import { FaFileAlt } from 'react-icons/fa';
 import QRScanner from '../../components/member/attendance/QRScanner';
 import CelebrationOverlay from '../../components/CelebrationOverlay';
@@ -925,7 +926,7 @@ export default function MemberAttendance() {
       <div className="history-section-premium">
         <div className="history-content">
           <div className="history-icon-wrapper">
-            <Bell size={24} />
+           <img src={logo} alt="Loading..." style={{ width: '50px', height: '70px' }} />
           </div>
           <div className="history-text">
             <h4>Your Attendance Record</h4>
@@ -1392,12 +1393,12 @@ export default function MemberAttendance() {
         .history-icon-wrapper {
           width: 56px;
           height: 56px;
-          background: linear-gradient(135deg, #eff6ff, #e0f2fe);
+          background: linear-gradient(135deg, #eff6ff04, #e0f2fe04);
           border-radius: 20px;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #3b82f6;
+          color: #3b83f602;
         }
         
         .history-text {

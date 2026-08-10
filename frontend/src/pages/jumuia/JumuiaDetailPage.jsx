@@ -8,6 +8,7 @@ import { saveAs } from 'file-saver';
 import io from 'socket.io-client';
 import BASE_URL from '../../api';
 import axios from 'axios';
+import logo from "../../assets/zuca-logo.png"
 
 // Icons
 const Icons = {
@@ -1014,15 +1015,9 @@ const handleCreateAnnouncement = async () => {
     showNotification(`Export completed: ${data.length} records`, "success");
   };
 
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.spinner} />
-        <p>Loading jumuia details...</p>
-      </div>
-    );
-  }
-
+if (loading) {
+  return <SkeletonLoader jumuiaName={jumuiaCode} />;
+}
   if (error || !jumuia) {
     return (
       <div style={styles.errorContainer}>
@@ -1096,8 +1091,9 @@ const handleCreateAnnouncement = async () => {
           {/* Header */}
       <div style={styles.header}>
         <div>
+          
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <h1 style={{ ...styles.title, margin: 0 }}>{jumuia.name}</h1>
+          <img src={logo} alt="Loading..." style={{ width: '50px', height: '70px' }} />  <h1 style={{ ...styles.title, margin: 0 }}>{jumuia.name}</h1>
             
           {/* ==================== BACK TO MEMBER BUTTON ==================== */}
 {user?.specialRole === "jumuia_leader" && (
@@ -1156,7 +1152,7 @@ const handleCreateAnnouncement = async () => {
   </button>
 )}
           </div>
-          <h1 style={styles.title}>{jumuia.name}</h1>
+          
           <div style={styles.stats}>
             <span style={styles.statBadge}>
               {members.length} Members
@@ -2737,9 +2733,9 @@ function SimpleMessageModal({ pledgeId, userName, onClose }) {
 // ==================== STYLES ====================
 const styles = {
   container: {
-    maxWidth: '1200px',
+    maxWidth: 'auto',
     margin: '0 auto',
-    padding: '24px',
+    padding: '48px 34px',
     background: '#f8fafc',
     minHeight: '100vh',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -3826,12 +3822,334 @@ emptyAnnouncements: {
 },
 };
 
-// Add global keyframes
+// ==================== SKELETON LOADER ====================
+const SkeletonLoader = ({ jumuiaName }) => {
+  // Format: "stperegrine" -> "St. Peregrine", "christtheking" -> "Christ The King"
+  const formatName = (name) => {
+    if (!name) return 'Jumuia';
+    
+    let formatted = name;
+    
+    // ===== HANDLE "st" + ANY NAME =====
+    // stperegrine -> St. Peregrine
+    // stmichael -> St. Michael
+    // stgregory -> St. Gregory
+    // stpacifius -> St. Pacifius
+    // stbenedict -> St. Benedict
+    formatted = formatted.replace(/^st([a-z]+)/i, (match, rest) => {
+      return 'St. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // Handle "st" with space (st peregrine -> St. Peregrine)
+    formatted = formatted.replace(/^st\s+([a-z]+)/i, (match, rest) => {
+      return 'St. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // ===== HANDLE "christtheking" =====
+    // christtheking -> Christ The King
+    formatted = formatted.replace(/^christtheking$/i, 'Christ The King');
+    formatted = formatted.replace(/^christ\s*the\s*king$/i, 'Christ The King');
+    
+    // ===== HANDLE OTHER COMMON PATTERNS =====
+    // mtkenya -> Mt. Kenya
+    formatted = formatted.replace(/^mt([a-z]+)/i, (match, rest) => {
+      return 'Mt. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // srgrace -> Sr. Grace
+    formatted = formatted.replace(/^sr([a-z]+)/i, (match, rest) => {
+      return 'Sr. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // jrjohn -> Jr. John
+    formatted = formatted.replace(/^jr([a-z]+)/i, (match, rest) => {
+      return 'Jr. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // ===== HANDLE ANY OTHER NAMES WITH SPACES =====
+    // If there are underscores or hyphens
+    formatted = formatted.replace(/[-_]/g, ' ');
+    
+    // Capitalize first letter of each word
+    formatted = formatted
+      .split(' ')
+      .map(word => {
+        // Skip if it's already a title (St., Mt., etc.)
+        if (['St.', 'Mt.', 'Sr.', 'Jr.'].includes(word)) return word;
+        // Skip if it's "The" (keep as "The" not "the")
+        if (word.toLowerCase() === 'the') return 'The';
+        // Capitalize first letter
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+    
+    return formatted;
+  };
+
+  const displayName = formatName(jumuiaName);
+
+  return (
+    <div style={skeletonStyles.container}>
+      {/* Loading Text Header */}
+      <div style={skeletonStyles.loadingHeader}>
+        <div style={skeletonStyles.loadingTitleWrapper}>
+          <div style={skeletonStyles.loadingSpinnerIcon}></div>
+          <h2 style={skeletonStyles.loadingTitle}>
+            Opening {displayName}...
+          </h2>
+        </div>
+        <p style={skeletonStyles.loadingSubtitle}>Loading your Jumuia Details</p>
+      </div>
+ 
+      {/* Header Skeleton */}
+      <div style={skeletonStyles.header}>
+        <div style={skeletonStyles.headerLeft}>
+          <div style={{...skeletonStyles.skeletonBox, width: '50px', height: '70px', borderRadius: '8px'}} />
+          <div>
+            <div style={{...skeletonStyles.skeletonBox, width: '200px', height: '32px', marginBottom: '8px'}} />
+            <div style={{...skeletonStyles.skeletonBox, width: '300px', height: '20px'}} />
+          </div>
+        </div>
+        <div style={skeletonStyles.headerRight}>
+          <div style={{...skeletonStyles.skeletonBox, width: '100px', height: '36px', borderRadius: '8px'}} />
+          <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '36px', borderRadius: '8px'}} />
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={skeletonStyles.tabs}>
+        <div style={{...skeletonStyles.skeletonBox, width: '120px', height: '40px', borderRadius: '8px'}} />
+        <div style={{...skeletonStyles.skeletonBox, width: '140px', height: '40px', borderRadius: '8px'}} />
+        <div style={{...skeletonStyles.skeletonBox, width: '160px', height: '40px', borderRadius: '8px'}} />
+      </div>
+
+      {/* Stats Cards */}
+      <div style={skeletonStyles.statsGrid}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} style={skeletonStyles.statCard}>
+            <div style={{...skeletonStyles.skeletonBox, width: '48px', height: '48px', borderRadius: '50%'}} />
+            <div style={skeletonStyles.statContent}>
+              <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '24px'}} />
+              <div style={{...skeletonStyles.skeletonBox, width: '60px', height: '16px'}} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Campaign Cards */}
+      <div style={skeletonStyles.campaigns}>
+        {[1, 2].map(i => (
+          <div key={i} style={skeletonStyles.campaignCard}>
+            <div style={skeletonStyles.campaignHeader}>
+              <div style={skeletonStyles.campaignInfo}>
+                <div style={{...skeletonStyles.skeletonBox, width: '200px', height: '20px'}} />
+                <div style={{...skeletonStyles.skeletonBox, width: '150px', height: '14px'}} />
+              </div>
+              <div style={skeletonStyles.campaignProgress}>
+                <div style={{...skeletonStyles.skeletonBox, width: '60px', height: '18px'}} />
+                <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '14px'}} />
+              </div>
+            </div>
+            <div style={{...skeletonStyles.skeletonBox, width: '100%', height: '6px', borderRadius: '3px', marginBottom: '16px'}} />
+            <div style={skeletonStyles.members}>
+              {[1, 2, 3].map(j => (
+                <div key={j} style={skeletonStyles.memberRow}>
+                  <div style={{...skeletonStyles.skeletonBox, width: '36px', height: '36px', borderRadius: '8px'}} />
+                  <div style={skeletonStyles.memberInfo}>
+                    <div style={{...skeletonStyles.skeletonBox, width: '120px', height: '16px'}} />
+                    <div style={{...skeletonStyles.skeletonBox, width: '180px', height: '12px'}} />
+                  </div>
+                  <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '24px', borderRadius: '12px'}} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Shimmer Overlay */}
+      <div style={skeletonStyles.shimmerOverlay}>
+        <div style={skeletonStyles.shimmer} />
+      </div>
+    </div>
+  );
+};
+
+const skeletonStyles = {
+   loadingHeader: {
+    textAlign: 'center',
+    padding: '40px 20px 30px',
+    marginBottom: '20px',
+    background: 'linear-gradient(135deg, #0a0a0a 0%, #151516 100%)',
+    borderRadius: '16px',
+    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+  },
+  loadingTitleWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    marginBottom: '8px',
+  },
+  loadingSpinnerIcon: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid rgba(255,255,255,0.3)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    color: '#fff',
+    fontSize: 'clamp(24px, 4vw, 32px)',
+    fontWeight: '700',
+    margin: 0,
+  },
+  loadingSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: '16px',
+    margin: '4px 0 0 0',
+  },
+  container: {
+    maxWidth: 'auto',
+    margin: '0 auto',
+    padding: '48px 34px',
+    background: '#f8fafc',
+    minHeight: '100vh',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '32px',
+    flexWrap: 'wrap',
+    gap: '16px',
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  headerRight: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+  },
+  tabs: {
+    display: 'flex',
+    gap: '8px',
+    borderBottom: '2px solid #e2e8f0',
+    paddingBottom: '8px',
+    marginBottom: '24px',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '16px',
+    marginBottom: '24px',
+  },
+  statCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  },
+  statContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  campaigns: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  campaignCard: {
+    background: '#fff',
+    borderRadius: '12px',
+    padding: '20px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  campaignHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  campaignInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    flex: 1,
+  },
+  campaignProgress: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'flex-end',
+  },
+  members: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  memberRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px',
+    background: '#f8fafc',
+    borderRadius: '8px',
+  },
+  memberInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  skeletonBox: {
+    background: '#e2e8f0',
+    borderRadius: '4px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+    overflow: 'hidden',
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    left: '-100%',
+    width: '100%',
+    height: '100%',
+    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+    animation: 'shimmer 2s infinite',
+  },
+};
+
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
   }
   
   .spinning {

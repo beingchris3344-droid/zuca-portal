@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import { FaCalendarAlt, FaFileAlt, FaUserAlt, FaUserCircle, FaUserTie } from 'react-icons/fa';
 import axios from 'axios';
+import logo from "../assets/zuca-logo.png"
 import BASE_URL from '../api';
 
 export default function ExecutiveMinutes() {
@@ -352,7 +353,7 @@ export default function ExecutiveMinutes() {
       <div className="page-header">
         <div className="header-content">
           <h1>
-            <FaFileAlt size={28} /> All  meetings Minutes
+            <img src={logo} alt="Loading..." style={{ width: '40px', height: '57px' }} /> ZUCA  meetings Minutes
           </h1>
           <p className="subtitle">This Page is  Visible to leaders only  View all meeting minutes</p>
         </div>

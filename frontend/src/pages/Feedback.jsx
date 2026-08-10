@@ -226,23 +226,7 @@ const Feedback = () => {
 
   return (
     <div className="feedback-page">
-      {/* Header */}
-      <header className="feedback-header">
-        <div className="header-content">
-          <div className="header-left">
-            <img src={logo} alt="ZUCA Logo" className="logo" />
-            <h1>Zetech <span>Catholic</span> Action</h1>
-          </div>
-          <div className="header-right">
-            <Link to="/dashboard" className="nav-link">
-              <Home size={16} /> Dashboard
-            </Link>
-            <Link to="/feedback/history" className="nav-link">
-              <MessageSquare size={16} /> My Feedback
-            </Link>
-          </div>
-        </div>
-      </header>
+     
 
       {/* Main Content */}
       <div className="feedback-main">
@@ -256,6 +240,10 @@ const Feedback = () => {
               Help us improve ZUCA by sharing your thoughts, suggestions, or reporting issues.
             </p>
           </div>
+          <Link to="/feedback/history" className="nav-link">
+              <MessageSquare size={16} /> View all My Feedbacks
+            </Link>
+            
 
           <div className="feedback-card">
             <form onSubmit={handleSubmit} className="feedback-form">
@@ -518,11 +506,12 @@ const Feedback = () => {
           gap: 6px;
           color: #3b82f6;
           text-decoration: none;
-          padding: 8px 16px;
+          padding: 8px 6px;
           border-radius: 8px;
           border: 1px solid #e2e8f0;
           font-size: 14px;
-          font-weight: 500;
+          font-weight: 700;
+          margin-bottom: 12px;
           transition: all 0.2s;
         }
 

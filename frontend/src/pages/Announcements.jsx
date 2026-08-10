@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
+import logo from "../assets/zuca-logo.png";
 
 // Professional Icon Set
 const Icons = {
@@ -255,7 +256,7 @@ export default function UserAnnouncements() {
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           style={loadingSpinner}
         >
-          <Icons.Announcement />
+         {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}

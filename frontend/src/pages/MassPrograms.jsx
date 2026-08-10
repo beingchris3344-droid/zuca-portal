@@ -962,7 +962,7 @@ const copyLink = (program) => {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          {logo ? <img src={logo} alt="Loading..." style={{ width: 80, height: 80 }} /> : <FaChurch size={60} />}
+          {logo ? <img src={logo} alt="Loading..." style={{ width: 40, height: 60 }} /> : <FaChurch size={60} />}
         </motion.div>
         <p style={loadingText}>Preparing the liturgy...</p>
         <p style={loadingSubtext}>Loading hymns and programs</p>

@@ -468,7 +468,7 @@ function CountdownSettings() {
       <div className="countdown-settings-container">
         {/* Header */}
         <div className="countdown-settings-header">
-          <button className="back-btn" onClick={() => navigate('/admin/dashboard')}>
+          <button className="back-btn" onClick={() => navigate('/admin')}>
             <FiArrowLeft size={20} /> Back to Dashboard
           </button>
           <h1>⏰ Countdown Settings</h1>

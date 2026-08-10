@@ -31,6 +31,7 @@ import {
 import axios from "axios";
 import io from "socket.io-client";
 import BASE_URL from "../../api";
+import { set } from "date-fns";
 
 // Register ChartJS components
 ChartJS.register(
@@ -53,6 +54,9 @@ function AdminDashboard() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState("");
+   const storedUser = JSON.parse(localStorage.getItem("user"));
+         const user = storedUser || {};
+
   
   // REAL DATA STATES
   const [stats, setStats] = useState({
@@ -74,6 +78,13 @@ function AdminDashboard() {
     totalMedia: 0,
     unreadNotifications: 0
   });
+
+  // Health data states
+const [errors, setErrors] = useState([]);
+const [slowRequests, setSlowRequests] = useState([]);
+const [services, setServices] = useState(null);
+const [failedLogins, setFailedLogins] = useState([]);
+const [onlineUsers, setOnlineUsers] = useState(0);
   
   const [recentUsers, setRecentUsers] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
@@ -87,12 +98,73 @@ function AdminDashboard() {
   });
   
   // Chart data states
+  // Chart data states
   const [userGrowthData, setUserGrowthData] = useState({ months: [], counts: [] });
   const [pledgeChartData, setPledgeChartData] = useState(null);
   const [categoryChartData, setCategoryChartData] = useState(null);
+  const [systemHealthData, setSystemHealthData] = useState({ labels: [], scores: [], errors: [] });
   
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+
+
+    // ===== CACHING SYSTEM =====
+  const CACHE_KEY = 'dashboard_cache';
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  let isRefreshing = false; 
+
+  // Get cached data
+  const getCachedData = () => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return null;
+      const data = JSON.parse(cached);
+      if (Date.now() - data.timestamp < CACHE_DURATION) {
+        return data;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Save data to cache
+  const saveToCache = (data) => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        ...data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error('Cache save error:', error);
+    }
+  };
+
+  // Apply cached data to state
+  const applyCachedData = (cached) => {
+    if (!cached) return false;
+    
+    console.log('📦 Loading from cache...');
+    
+    setStats(cached.stats);
+    setErrors(cached.errors || []);
+    setSlowRequests(cached.slowRequests || []);
+    setServices(cached.services || {});
+    setFailedLogins(cached.failedLogins || []);
+    setUserGrowthData(cached.userGrowthData || { months: [], counts: [] });
+    setPledgeChartData(cached.pledgeChartData);
+    setCategoryChartData(cached.categoryChartData);
+    setSystemHealthData(cached.systemHealthData || { labels: [], scores: [], errors: [] });
+    setRecentUsers(cached.recentUsers || []);
+    setPendingApprovals(cached.pendingApprovals || []);
+    setRecentActivities(cached.recentActivities || []);
+    setExecutiveTeam(cached.executiveTeam || []);
+    setSystemHealth(cached.systemHealth || { database: "Connected", api: "Online", storage: 45, lastBackup: null });
+    setOnlineUsers(cached.onlineUsers || 0);
+    
+    return true;
+  };
+         
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -149,226 +221,406 @@ function AdminDashboard() {
     return { months, counts };
   };
 
+  // Calculate health score
+const calculateHealthScore = () => {
+  let score = 100;
+  
+  // Deduct for errors
+  if (errors.length > 50) score -= 20;
+  else if (errors.length > 20) score -= 10;
+  else if (errors.length > 5) score -= 5;
+  
+  // Deduct for slow requests
+  if (slowRequests.length > 20) score -= 15;
+  else if (slowRequests.length > 10) score -= 8;
+  else if (slowRequests.length > 5) score -= 3;
+  
+  // Deduct for down services
+  const downServices = services ? Object.values(services).filter(s => s.status === 'down').length : 0;
+  score -= downServices * 10;
+  
+  // Deduct for failed logins
+  if (failedLogins.length > 20) score -= 10;
+  else if (failedLogins.length > 10) score -= 5;
+  
+  return Math.max(0, Math.min(100, score));
+};
+
   // Fetch REAL data from backend
-  const fetchDashboardData = async () => {
-    try {
-      setError(null);
-      
-      // Fetch users - WITH headers
-      const usersRes = await axios.get(`${BASE_URL}/api/users`, { headers }).catch(() => ({ data: [] }));
-      const usersList = usersRes.data || [];
-      
-      // Fetch announcements - WITH headers
-      const announcementsRes = await axios.get(`${BASE_URL}/api/announcements`, { headers }).catch(() => ({ data: [] }));
-      const announcementsList = announcementsRes.data || [];
-      
-      // Fetch mass programs - WITH headers
-      const programsRes = await axios.get(`${BASE_URL}/api/mass-programs`, { headers }).catch(() => ({ data: [] }));
-      const programsList = programsRes.data || [];
-      
-      // Fetch contributions - WITH headers
-      const contributionsRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers }).catch(() => ({ data: [] }));
-      const contributionsList = contributionsRes.data || [];
-      
-      // Fetch songs - WITH headers
-      const songsRes = await axios.get(`${BASE_URL}/api/songs`, { headers }).catch(() => ({ data: { songs: [], total: 0 } }));
-      const songsList = songsRes.data?.songs || [];
-      
-      // Fetch media - WITH headers
-      const mediaRes = await axios.get(`${BASE_URL}/api/media/public?limit=1`, { headers }).catch(() => ({ data: { media: [] } }));
-      
-      // Fetch unread notifications
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      const notificationsRes = await axios.get(`${BASE_URL}/api/notifications/${userData.id}`, { headers }).catch(() => ({ data: [] }));
-      const unreadNotif = (notificationsRes.data || []).filter(n => !n.read).length;
-      
-      // Fetch executive team - NO headers needed (public)
-      const execRes = await axios.get(`${BASE_URL}/api/executive/team`).catch(() => ({ data: { executives: [] } }));
-      const execList = execRes.data?.executives || [];
-      
-      // Calculate stats
-      const onlineCount = usersList.filter(u => u.online).length;
-      const activeJumuia = new Set(usersList.filter(u => u.jumuiaId).map(u => u.jumuiaId)).size;
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const recentCount = usersList.filter(u => new Date(u.createdAt) >= sevenDaysAgo).length;
-      const upcomingCount = programsList.filter(p => new Date(p.date) >= new Date()).length;
-      
-      // Calculate pledge stats
-      let totalPledged = 0;
-      let totalPaid = 0;
-      let totalPending = 0;
-      let completedPledges = 0;
-      let pendingPledgesCount = 0;
-      
-      contributionsList.forEach(c => {
-        if (c.pledges) {
-          c.pledges.forEach(p => {
-            totalPledged += (p.amountPaid || 0) + (p.pendingAmount || 0);
-            totalPaid += (p.amountPaid || 0);
-            totalPending += (p.pendingAmount || 0);
-            if (p.status === "COMPLETED" || (p.amountPaid >= c.amountRequired)) {
-              completedPledges++;
-            }
-            if (p.status === "PENDING" && p.pendingAmount > 0) {
-              pendingPledgesCount++;
-            }
-          });
-        }
-      });
-      
-      setStats({
-        totalUsers: usersList.length,
-        totalAnnouncements: announcementsList.length,
-        totalPrograms: programsList.length,
-        totalMessages: 0,
-        totalPledged,
-        totalPaid,
-        totalPending,
-        activeJumuia,
-        onlineUsers: onlineCount,
-        recentUsers: recentCount,
-        upcomingEvents: upcomingCount,
-        completedPledges,
-        pendingPledges: pendingPledgesCount,
-        totalContributions: contributionsList.length,
-        totalSongs: songsList.length,
-        totalMedia: mediaRes.data?.media?.length || 0,
-        unreadNotifications: unreadNotif
-      });
-      
-      // Calculate user growth for chart
-      const growth = calculateUserGrowth(usersList);
-      setUserGrowthData(growth);
-      
-      // Prepare pledge chart data
-      setPledgeChartData({
-        labels: ['Total Pledged', 'Total Paid', 'Total Pending'],
-        datasets: [{
-          data: [totalPledged, totalPaid, totalPending],
-          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
-          borderWidth: 0,
-          borderRadius: 10
-        }]
-      });
-      
-      // Prepare category chart data
-      setCategoryChartData({
-        labels: ['Users', 'Announcements', 'Programs', 'Songs', 'Contributions'],
-        datasets: [{
-          label: 'Count',
-          data: [usersList.length, announcementsList.length, programsList.length, songsList.length, contributionsList.length],
-          backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981', '#ec4899'],
-          borderRadius: 8
-        }]
-      });
-      
-      // Set recent users (last 5)
-      const sortedUsers = [...usersList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setRecentUsers(sortedUsers.slice(0, 5));
-      
-      // Set executive team summary
-      setExecutiveTeam(execList.slice(0, 5));
-      
-      // Generate pending approvals from real data
-      const pending = [];
-      
-      // Pending pledges
-      contributionsList.forEach(c => {
-        if (c.pledges) {
-          c.pledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0).slice(0, 2).forEach(p => {
-            pending.push({
-              id: `pledge-${p.id}`,
-              type: 'pledge',
-              icon: '💰',
-              title: `Pledge: ${c.title}`,
-              description: `${p.user?.fullName || 'Someone'} - KES ${p.pendingAmount?.toLocaleString()}`,
-              amount: p.pendingAmount,
-              user: p.user,
-              action: 'approve'
-            });
-          });
-        }
-      });
-      
-      // Pending songs (if any)
-      const pendingSongsRes = await axios.get(`${BASE_URL}/api/admin/pending-songs`, { headers }).catch(() => ({ data: [] }));
-      (pendingSongsRes.data || []).slice(0, 2).forEach(s => {
-        pending.push({
-          id: `song-${s.id}`,
-          type: 'song',
-          icon: '🎵',
-          title: `New Song: "${s.title}"`,
-          description: `Submitted by Choir`,
-          action: 'approve_song'
+ const fetchDashboardData = async (forceRefresh = false) => {
+  // ===== START TIMER =====
+  const startTime = performance.now();
+  console.log('⏱️ Dashboard data fetch started...');
+  
+  try {
+    setError(null);
+    
+    // ===== CHECK CACHE FIRST (unless force refresh) =====
+if (!forceRefresh) {
+  const cached = getCachedData();
+  if (cached && applyCachedData(cached)) {
+    setLoading(false);
+    console.log(`✅ Dashboard loaded from cache (${new Date(cached.timestamp).toLocaleTimeString()})`);
+    
+    // Still fetch in background to update cache (only if not already refreshing)
+    if (!isRefreshing) {
+      isRefreshing = true;
+      setTimeout(() => {
+        console.log('🔄 Background refresh starting...');
+        fetchDashboardData(true).finally(() => {
+          isRefreshing = false;
         });
-      });
-      
-      setPendingApprovals(pending.slice(0, 3));
-      
-      // Generate recent activities from real data
-      const activities = [];
-      
-      // Recent user joins
-      sortedUsers.slice(0, 3).forEach(u => {
-        if (u.createdAt) {
-          activities.push({
-            id: `user-${u.id}`,
-            type: 'user',
-            icon: '🟢',
-            text: `User ${u.fullName} joined ZUCA`,
-            time: u.createdAt
-          });
-        }
-      });
-      
-      // Recent announcements
-      announcementsList.slice(0, 2).forEach(a => {
-        if (a.createdAt) {
-          activities.push({
-            id: `ann-${a.id}`,
-            type: 'announcement',
-            icon: '📢',
-            text: `New announcement "${a.title}" posted`,
-            time: a.createdAt
-          });
-        }
-      });
-      
-      // Recent pledges
-      contributionsList.forEach(c => {
-        if (c.pledges) {
-          c.pledges.filter(p => p.createdAt).slice(0, 2).forEach(p => {
-            activities.push({
-              id: `pledge-${p.id}`,
-              type: 'pledge',
-              icon: '💰',
-              text: `${p.user?.fullName || 'Someone'} pledged KES ${(p.pendingAmount || 0).toLocaleString()} for ${c.title}`,
-              time: p.createdAt
-            });
-          });
-        }
-      });
-      
-      // Sort and set
-      activities.sort((a, b) => new Date(b.time) - new Date(a.time));
-      setRecentActivities(activities.slice(0, 6));
-      
-      // System health
-      setSystemHealth({
-        database: "Connected",
-        api: "Online",
-        storage: 45,
-        lastBackup: new Date(Date.now() - 2 * 60 * 60 * 1000)
-      });
-      
-    } catch (err) {
-      console.error("Error fetching admin data:", err);
-      setError("Failed to load dashboard data");
-    } finally {
-      setLoading(false);
+      }, 100);
     }
-  };
+    return;
+  }
+}
+    
+    console.log('🔄 Fetching fresh data...');
+    
+    // ===== FETCH ALL DATA IN PARALLEL =====
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    // ===== START API CALLS TIMER =====
+    const apiStartTime = performance.now();
+    
+    const [
+      usersRes,
+      errorsRes,
+      slowRes,
+      servicesRes,
+      failedRes,
+      announcementsRes,
+      programsRes,
+      contributionsRes,
+      songsRes,
+      mediaRes,
+      notificationsRes,
+      execRes,
+      pendingSongsRes
+    ] = await Promise.all([
+      axios.get(`${BASE_URL}/api/users`, { headers }).catch(() => ({ data: [] })),
+      axios.get(`${BASE_URL}/api/admin/health/errors?limit=50`, { headers }).catch(() => ({ data: { errors: [] } })),
+      axios.get(`${BASE_URL}/api/admin/health/slow-requests?limit=20`, { headers }).catch(() => ({ data: { requests: [] } })),
+      axios.get(`${BASE_URL}/api/admin/health/services`, { headers }).catch(() => ({ data: { services: {} } })),
+      axios.get(`${BASE_URL}/api/admin/health/failed-logins`, { headers }).catch(() => ({ data: { attempts: [] } })),
+      axios.get(`${BASE_URL}/api/announcements`, { headers }).catch(() => ({ data: [] })),
+      axios.get(`${BASE_URL}/api/mass-programs`, { headers }).catch(() => ({ data: [] })),
+      axios.get(`${BASE_URL}/api/contribution-types`, { headers }).catch(() => ({ data: [] })),
+      axios.get(`${BASE_URL}/api/songs`, { headers }).catch(() => ({ data: { songs: [], total: 0 } })),
+      axios.get(`${BASE_URL}/api/media/public?limit=1`, { headers }).catch(() => ({ data: { media: [] } })),
+      axios.get(`${BASE_URL}/api/notifications/${userData.id}`, { headers }).catch(() => ({ data: [] })),
+      axios.get(`${BASE_URL}/api/executive/team`).catch(() => ({ data: { executives: [] } })),
+      axios.get(`${BASE_URL}/api/admin/pending-songs`, { headers }).catch(() => ({ data: [] }))
+    ]);
+
+    // ===== API CALLS COMPLETE =====
+    const apiEndTime = performance.now();
+    console.log(`✅ API calls completed in: ${(apiEndTime - apiStartTime).toFixed(2)}ms (${((apiEndTime - apiStartTime) / 1000).toFixed(2)}s)`);
+    
+    // Log individual API response sizes
+    console.log('📊 API Response Summary:', {
+      users: usersRes.data?.length || 0,
+      errors: errorsRes.data?.errors?.length || 0,
+      slow: slowRes.data?.requests?.length || 0,
+      announcements: announcementsRes.data?.length || 0,
+      programs: programsRes.data?.length || 0,
+      contributions: contributionsRes.data?.length || 0,
+      songs: songsRes.data?.songs?.length || 0,
+      media: mediaRes.data?.media?.length || 0,
+      notifications: notificationsRes.data?.length || 0,
+      executives: execRes.data?.executives?.length || 0,
+      pendingSongs: pendingSongsRes.data?.length || 0,
+    });
+
+    // Extract all data
+    const usersList = usersRes.data || [];
+    const errorsList = errorsRes.data.errors || [];
+    const slowList = slowRes.data.requests || [];
+    const servicesList = servicesRes.data.services || {};
+    const failedList = failedRes.data.attempts || [];
+    const announcementsList = announcementsRes.data || [];
+    const programsList = programsRes.data || [];
+    const contributionsList = contributionsRes.data || [];
+    const songsList = songsRes.data?.songs || [];
+    const mediaList = mediaRes.data?.media || [];
+    const notificationsList = notificationsRes.data || [];
+    const execList = execRes.data?.executives || [];
+    const pendingSongsList = pendingSongsRes.data || [];
+
+    // ===== START PROCESSING TIMER =====
+    const processStartTime = performance.now();
+
+    // Set health states
+    setErrors(errorsList);
+    setSlowRequests(slowList);
+    setServices(servicesList);
+    setFailedLogins(failedList);
+
+    // ===== GENERATE HEALTH TREND DATA =====
+    const healthLabels = [];
+    const healthScores = [];
+    const healthErrors = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toLocaleDateString('en-US', { weekday: 'short' });
+      healthLabels.push(dateStr);
+      
+      const dayErrors = errorsList.filter(e => {
+        const errorDate = new Date(e.timestamp);
+        return errorDate.toDateString() === date.toDateString();
+      });
+      
+      healthErrors.push(dayErrors.length);
+      
+      let dayScore = 100;
+      if (dayErrors.length > 10) dayScore -= 30;
+      else if (dayErrors.length > 5) dayScore -= 20;
+      else if (dayErrors.length > 2) dayScore -= 10;
+      else if (dayErrors.length > 0) dayScore -= 5;
+      
+      const daySlow = slowList.filter(s => {
+        const slowDate = new Date(s.timestamp);
+        return slowDate.toDateString() === date.toDateString();
+      });
+      if (daySlow.length > 5) dayScore -= 10;
+      else if (daySlow.length > 2) dayScore -= 5;
+      
+      healthScores.push(Math.max(0, Math.min(100, dayScore)));
+    }
+
+    setSystemHealthData({
+      labels: healthLabels,
+      scores: healthScores,
+      errors: healthErrors
+    });
+
+    // Calculate unread notifications
+    const unreadNotif = notificationsList.filter(n => !n.read).length;
+    
+    // Calculate stats
+    const onlineCount = usersList.filter(u => u.online).length;
+    const activeJumuia = new Set(usersList.filter(u => u.jumuiaId).map(u => u.jumuiaId)).size;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentCount = usersList.filter(u => new Date(u.createdAt) >= sevenDaysAgo).length;
+    const upcomingCount = programsList.filter(p => new Date(p.date) >= new Date()).length;
+    
+    // Calculate pledge stats
+    let totalPledged = 0;
+    let totalPaid = 0;
+    let totalPending = 0;
+    let completedPledges = 0;
+    let pendingPledgesCount = 0;
+    
+    contributionsList.forEach(c => {
+      if (c.pledges) {
+        c.pledges.forEach(p => {
+          totalPledged += (p.amountPaid || 0) + (p.pendingAmount || 0);
+          totalPaid += (p.amountPaid || 0);
+          totalPending += (p.pendingAmount || 0);
+          if (p.status === "COMPLETED" || (p.amountPaid >= c.amountRequired)) {
+            completedPledges++;
+          }
+          if (p.status === "PENDING" && p.pendingAmount > 0) {
+            pendingPledgesCount++;
+          }
+        });
+      }
+    });
+    
+    const newStats = {
+      totalUsers: usersList.length,
+      totalAnnouncements: announcementsList.length,
+      totalPrograms: programsList.length,
+      totalMessages: 0,
+      totalPledged,
+      totalPaid,
+      totalPending,
+      activeJumuia,
+      onlineUsers: onlineCount,
+      recentUsers: recentCount,
+      upcomingEvents: upcomingCount,
+      completedPledges,
+      pendingPledges: pendingPledgesCount,
+      totalContributions: contributionsList.length,
+      totalSongs: songsList.length,
+      totalMedia: mediaList.length || 0,
+      unreadNotifications: unreadNotif
+    };
+
+    setStats(newStats);
+
+    // Calculate user growth for chart
+    const growth = calculateUserGrowth(usersList);
+    setUserGrowthData(growth);
+    
+    // Prepare pledge chart data
+    const pledgeData = {
+      labels: ['Total Pledged', 'Total Paid', 'Total Pending'],
+      datasets: [{
+        data: [totalPledged, totalPaid, totalPending],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
+        borderWidth: 0,
+        borderRadius: 10
+      }]
+    };
+    setPledgeChartData(pledgeData);
+    
+    // Prepare category chart data
+    const categoryData = {
+      labels: ['Users', 'Announcements', 'Programs', 'Songs', 'Contributions'],
+      datasets: [{
+        label: 'Count',
+        data: [usersList.length, announcementsList.length, programsList.length, songsList.length, contributionsList.length],
+        backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981', '#ec4899'],
+        borderRadius: 8
+      }]
+    };
+    setCategoryChartData(categoryData);
+    
+    // Set recent users (last 5)
+    const sortedUsers = [...usersList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    setRecentUsers(sortedUsers.slice(0, 5));
+    
+    // Set executive team summary
+    setExecutiveTeam(execList.slice(0, 5));
+    
+    // Generate pending approvals from real data
+    const pending = [];
+    
+    // Pending pledges
+    contributionsList.forEach(c => {
+      if (c.pledges) {
+        c.pledges.filter(p => p.status === "PENDING" && p.pendingAmount > 0).slice(0, 2).forEach(p => {
+          pending.push({
+            id: `pledge-${p.id}`,
+            type: 'pledge',
+            icon: '💰',
+            title: `Pledge: ${c.title}`,
+            description: `${p.user?.fullName || 'Someone'} - KES ${p.pendingAmount?.toLocaleString()}`,
+            amount: p.pendingAmount,
+            user: p.user,
+            action: 'approve'
+          });
+        });
+      }
+    });
+    
+    // Pending songs (if any)
+    (pendingSongsList || []).slice(0, 2).forEach(s => {
+      pending.push({
+        id: `song-${s.id}`,
+        type: 'song',
+        icon: '🎵',
+        title: `New Song: "${s.title}"`,
+        description: `Submitted by Choir`,
+        action: 'approve_song'
+      });
+    });
+    
+    setPendingApprovals(pending.slice(0, 3));
+    
+    // Generate recent activities from real data
+    const activities = [];
+    
+    // Recent user joins
+    sortedUsers.slice(0, 3).forEach(u => {
+      if (u.createdAt) {
+        activities.push({
+          id: `user-${u.id}`,
+          type: 'user',
+          icon: '🟢',
+          text: `User ${u.fullName} joined ZUCA`,
+          time: u.createdAt
+        });
+      }
+    });
+    
+    // Recent announcements
+    announcementsList.slice(0, 2).forEach(a => {
+      if (a.createdAt) {
+        activities.push({
+          id: `ann-${a.id}`,
+          type: 'announcement',
+          icon: '📢',
+          text: `New announcement "${a.title}" posted`,
+          time: a.createdAt
+        });
+      }
+    });
+    
+    // Recent pledges
+    contributionsList.forEach(c => {
+      if (c.pledges) {
+        c.pledges.filter(p => p.createdAt).slice(0, 2).forEach(p => {
+          activities.push({
+            id: `pledge-${p.id}`,
+            type: 'pledge',
+            icon: '💰',
+            text: `${p.user?.fullName || 'Someone'} pledged KES ${(p.pendingAmount || 0).toLocaleString()} for ${c.title}`,
+            time: p.createdAt
+          });
+        });
+      }
+    });
+    
+    // Sort and set
+    activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+    setRecentActivities(activities.slice(0, 6));
+    
+    // System health
+    const healthStatus = {
+      database: "Connected",
+      api: "Online",
+      storage: 45,
+      lastBackup: new Date(Date.now() - 2 * 60 * 60 * 1000)
+    };
+    setSystemHealth(healthStatus);
+
+    // ===== PROCESSING COMPLETE =====
+    const processEndTime = performance.now();
+    console.log(`⚙️ Data processing took: ${(processEndTime - processStartTime).toFixed(2)}ms`);
+    
+    // ===== SAVE TO CACHE =====
+    const cacheData = {
+      stats: newStats,
+      errors: errorsList,
+      slowRequests: slowList,
+      services: servicesList,
+      failedLogins: failedList,
+      userGrowthData: growth,
+      pledgeChartData: pledgeData,
+      categoryChartData: categoryData,
+      systemHealthData: { labels: healthLabels, scores: healthScores, errors: healthErrors },
+      recentUsers: sortedUsers.slice(0, 5),
+      pendingApprovals: pending.slice(0, 3),
+      recentActivities: activities.slice(0, 6),
+      executiveTeam: execList.slice(0, 5),
+      systemHealth: healthStatus,
+      onlineUsers: onlineCount
+    };
+    
+    saveToCache(cacheData);
+    console.log('💾 Data saved to cache');
+    
+    // ===== TOTAL TIME =====
+    const totalEndTime = performance.now();
+    console.log(`🏁 TOTAL dashboard load time: ${(totalEndTime - startTime).toFixed(2)}ms (${((totalEndTime - startTime) / 1000).toFixed(2)}s)`);
+    console.log(`📊 Breakdown:`);
+    console.log(`   - API calls: ${(apiEndTime - apiStartTime).toFixed(2)}ms (${((apiEndTime - apiStartTime) / 1000).toFixed(2)}s)`);
+    console.log(`   - Processing: ${(processEndTime - processStartTime).toFixed(2)}ms`);
+    console.log(`   - Total: ${(totalEndTime - startTime).toFixed(2)}ms`);
+    
+  } catch (err) {
+    console.error("Error fetching admin data:", err);
+    setError("Failed to load dashboard data");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Socket connection for real-time updates
   useEffect(() => {
@@ -414,10 +666,10 @@ function AdminDashboard() {
   }, [token]);
   
   const refreshData = async () => {
-    setRefreshing(true);
-    await fetchDashboardData();
-    setRefreshing(false);
-  };
+  setRefreshing(true);
+  await fetchDashboardData(true); // Force refresh
+  setRefreshing(false);
+};
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -487,11 +739,19 @@ function AdminDashboard() {
         {/* Header */}
         <div className="admin-header">
           <div className="header-left">
-            <h1 className="greeting">
-              {greeting}, <span className="admin-name">WELCOME TO SYSTEM CONTROL PANNEL</span>
-              <span className="wave"></span>
-            </h1>
-            <p className="date">{formatDate(currentTime)}</p>
+           <h1 className="greeting">
+  {greeting},{" "}
+  <span className="admin-name">
+    {user.name || user.fullName?.split(" ")[0] || "Admin"}
+  </span>{" "}
+  Welcome to{" "}
+  <span className="admin-name portal-name">(ZUCA) Portal</span>{" "}
+  <span className="control-panel">System Control Panel 😊</span>
+
+  <span className="wave"></span>
+</h1>
+
+<p className="date">{formatDate(currentTime)}</p>
           </div>
           <div className="header-right">
             <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
@@ -561,76 +821,10 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
-        
-        {/* CHARTS SECTION */}
-        <div className="charts-section">
-          <div className="chart-card">
-            <div className="chart-header">
-              <div>
-                <h3><FaChartLine /> User Growth</h3>
-                <p>Last 6 months</p>
-              </div>
-              <FiTrendingUp size={20} />
-            </div>
-            <div className="chart-container">
-              {userGrowthData.counts?.some(v => v > 0) ? (
-                <Line data={{
-                  labels: userGrowthData.months,
-                  datasets: [{
-                    label: 'New Users',
-                    data: userGrowthData.counts,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    pointBackgroundColor: '#3b82f6',
-                    pointBorderColor: 'white',
-                    pointBorderWidth: 2,
-                    pointRadius: 4
-                  }]
-                }} options={lineChartOptions} />
-              ) : (
-                <div className="no-data">No user data available</div>
-              )}
-            </div>
-          </div>
-          
-          <div className="chart-card">
-            <div className="chart-header">
-              <div>
-                <h3> Contribution Overview</h3>
-                <p>Total: KES {stats.totalPledged.toLocaleString()}</p>
-              </div>
-              <FiPieChart size={20} />
-            </div>
-            <div className="chart-container doughnut">
-              {pledgeChartData ? (
-                <Doughnut data={pledgeChartData} options={doughnutOptions} />
-              ) : (
-                <div className="no-data">No contribution data</div>
-              )}
-            </div>
-          </div>
-          
-          <div className="chart-card">
-            <div className="chart-header">
-              <div>
-                <h3>ZUCA Metrics</h3>
-                <p>Content distribution</p>
-              </div>
-              <FiBarChart2 size={20} />
-            </div>
-            <div className="chart-container">
-              {categoryChartData ? (
-                <Bar data={categoryChartData} options={barOptions} />
-              ) : (
-                <div className="no-data">No statistics data</div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        {/* Quick Actions */}
+
+
+
+         {/* Quick Actions */}
         <div className="quick-actions-section">
           <div className="section-header">
             <h3>QUICK ACTIONS</h3>
@@ -666,6 +860,156 @@ function AdminDashboard() {
 </button>
 </div>
         </div>
+        
+        
+       {/* CHARTS SECTION - 4 CHARTS IN 2x2 GRID */}
+<div className="charts-section">
+  {/* Chart 1: User Growth */}
+  <div className="chart-card">
+    <div className="chart-header">
+      <div>
+        <h3><FaChartLine /> User Growth</h3>
+        <p>Last 6 months</p>
+      </div>
+      <FiTrendingUp size={20} />
+    </div>
+    <div className="chart-container">
+      {userGrowthData.counts?.some(v => v > 0) ? (
+        <Line data={{
+          labels: userGrowthData.months,
+          datasets: [{
+            label: 'New Users',
+            data: userGrowthData.counts,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: 'white',
+            pointBorderWidth: 2,
+            pointRadius: 4
+          }]
+        }} options={lineChartOptions} />
+      ) : (
+        <div className="no-data">No user data available</div>
+      )}
+    </div>
+  </div>
+  
+  {/* Chart 2: Contribution Overview */}
+  <div className="chart-card">
+    <div className="chart-header">
+      <div>
+        <h3> Contribution Overview</h3>
+        <p>Total: KES {stats.totalPledged.toLocaleString()}</p>
+      </div>
+      <FiPieChart size={20} />
+    </div>
+    <div className="chart-container doughnut">
+      {pledgeChartData ? (
+        <Doughnut data={pledgeChartData} options={doughnutOptions} />
+      ) : (
+        <div className="no-data">No contribution data</div>
+      )}
+    </div>
+  </div>
+  
+  
+  {/* Chart 3: ZUCA Metrics */}
+  <div className="chart-card">
+    <div className="chart-header">
+      <div>
+        <h3>ZUCA Metrics</h3>
+        <p>Content distribution</p>
+      </div>
+      <FiBarChart2 size={20} />
+    </div>
+    <div className="chart-container">
+      {categoryChartData ? (
+        <Bar data={categoryChartData} options={barOptions} />
+      ) : (
+        <div className="no-data">No statistics data</div>
+      )}
+    </div>
+  </div>
+
+    {/* Chart 4: System Health Trend - Line Chart */}
+  <div className="chart-card">
+    <div className="chart-header">
+      <div>
+        <h3><FiActivity /> System Health</h3>
+        <p>Health score trend</p>
+      </div>
+      <FiActivity size={20} color="#10b981" />
+    </div>
+    <div className="chart-container">
+      {systemHealthData?.labels?.length > 0 ? (
+        <Line
+          data={{
+            labels: systemHealthData.labels,
+            datasets: [
+              {
+                label: 'Health Score',
+                data: systemHealthData.scores,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#10b981',
+                pointBorderColor: 'white',
+                pointBorderWidth: 2,
+                pointRadius: 4
+              },
+              {
+                label: 'Errors',
+                data: systemHealthData.errors,
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                tension: 0.4,
+                fill: false,
+                pointBackgroundColor: '#ef4444',
+                pointBorderColor: 'white',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                borderDash: [5, 5]
+              }
+            ]
+          }}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                position: 'top', 
+                labels: { 
+                  font: { size: 10 },
+                  boxWidth: 12,
+                  padding: 8
+                } 
+              },
+              tooltip: { 
+                backgroundColor: '#1e293b', 
+                titleColor: '#fff', 
+                bodyColor: '#fff' 
+              }
+            },
+            scales: {
+              y: { 
+                beginAtZero: true, 
+                grid: { color: '#e2e8f0' },
+                ticks: { stepSize: 10 }
+              },
+              x: { grid: { display: false } }
+            }
+          }}
+        />
+      ) : (
+        <div className="no-data">No health data available</div>
+      )}
+    </div>
+</div>
+        
+       </div>
         
         {/* Two Column Layout */}
         <div className="two-columns">
@@ -755,7 +1099,6 @@ function AdminDashboard() {
               ))
             )}
           </div>
-        </div>
         
         {/* Two Column - Executive & System */}
         <div className="two-columns">
@@ -778,6 +1121,7 @@ function AdminDashboard() {
                 );
               })}
             </div>
+          </div>
           </div>
           
           {/* System Health */}
@@ -869,19 +1213,30 @@ function AdminDashboard() {
           gap: 16px;
         }
         
-        .greeting {
-          color: white;
-          font-size: 22px;
-          font-weight: 600;
-          margin-bottom: 4px;
-        }
-        
-        .admin-name {
-          background: linear-gradient(135deg, #60a5fa, #c084fc);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
+       .greeting {
+  color: white;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.admin-name {
+  background: linear-gradient(135deg, #29f00f, #3fe914);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-style: tahoma;
+  color: transparent;
+}
+
+.portal-name {
+  font-weight: 700;
+  font-style: tahoma;
+}
+
+.control-panel {
+  font-weight: 600;
+}
         
         .date {
           color: #94a3b8;
@@ -989,13 +1344,52 @@ function AdminDashboard() {
         .stat-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-trend { font-size: 9px; color: #10b981; display: flex; align-items: center; gap: 2px; margin-top: 4px; }
         
-        /* Charts Section */
-        .charts-section {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-bottom: 24px;
-        }
+       .charts-section {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+/* Make charts better on desktop */
+@media (min-width: 1200px) {
+  .charts-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+  
+  .chart-card {
+    padding: 24px;
+  }
+  
+  .chart-container {
+    height: 220px;
+  }
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .charts-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  
+  .chart-container {
+    height: 180px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .chart-container {
+    height: 200px;
+  }
+}
         
         .chart-card {
           background: white;
@@ -1080,8 +1474,8 @@ function AdminDashboard() {
           display: flex;
           align-items: center;
           gap: 10px;
-          font-size: 13px;
-          font-weight: 500;
+          font-size: 12px;
+          font-weight: 600;
           color: #1e293b;
           cursor: pointer;
           transition: all 0.2s;

@@ -63,6 +63,69 @@ function Dashboard() {
   // New state for latest readings
 const [latestReadings, setLatestReadings] = useState([]);
 
+  // ===== CACHING SYSTEM FOR DASHBOARD =====
+  const CACHE_KEY = 'user_dashboard_cache';
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  const getCachedDashboardData = () => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return null;
+      const data = JSON.parse(cached);
+      if (Date.now() - data.timestamp < CACHE_DURATION) {
+        return data;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveDashboardToCache = (data) => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        ...data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error('Cache save error:', error);
+    }
+  };
+
+  const applyCachedDashboardData = (cached) => {
+    if (!cached) return false;
+    
+    console.log('📦 Loading dashboard from cache...');
+    
+    setAnnouncements(cached.announcements || []);
+    setMassPrograms(cached.massPrograms || []);
+    setActivePledges(cached.activePledges || []);
+    setJumuiaInfo(cached.jumuiaInfo || null);
+    setFeaturedGallery(cached.featuredGallery || []);
+    setRecentHymns(cached.recentHymns || []);
+    setGameInvites(cached.gameInvites || []);
+    setOnlineMembers(cached.onlineMembers || []);
+    setRecentChats(cached.recentChats || []);
+    setRecentNotifications(cached.recentNotifications || []);
+    setExecutiveTeam(cached.executiveTeam || []);
+    setUpcomingSchedules(cached.upcomingSchedules || []);
+    setTodaysReading(cached.todaysReading || null);
+    setLatestReadings(cached.latestReadings || []);
+    setTotalUsers(cached.totalUsers || 0);
+    setTotalMessages(cached.totalMessages || 0);
+    setTotalHymns(cached.totalHymns || 0);
+    setTotalMedia(cached.totalMedia || 0);
+    setGalleryItems(cached.galleryItems || 0);
+    setTotalPledged(cached.totalPledged || 0);
+    setTotalPaid(cached.totalPaid || 0);
+    setTotalPending(cached.totalPending || 0);
+    setActiveCampaigns(cached.activeCampaigns || 0);
+    setUnreadNotificationsCount(cached.unreadNotificationsCount || 0);
+    setActiveSheets(cached.activeSheets || []);
+    
+    return true;
+  };
+
 
   //attendance states
 
@@ -80,36 +143,6 @@ const [isCountdownComplete, setIsCountdownComplete] = useState(false);
 const [showScanner, setShowScanner] = useState(false);
   
 
-// ==================== SIMPLE GLOBAL CACHE FOR DASHBOARD ====================
-const dashboardCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-const cachedFetch = async (url, config) => {
-  const cacheKey = `${url}_${JSON.stringify(config)}`;
-  const cached = dashboardCache.get(cacheKey);
-  
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log(`📦 Cache hit: ${url}`);
-    return { data: cached.data, status: 200, statusText: 'OK' };
-  }
-  
-  console.log(`🌐 Fetching: ${url}`);
-  const response = await originalGet(url, config);
-  dashboardCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
-  return response;
-};
-
-// Save original axios.get
-const originalGet = axios.get;
-
-// Override axios.get to use cache
-axios.get = function(url, config) {
-  // Only cache GET requests to our API
-  if (typeof url === 'string' && url.includes('/api/') && !url.includes('/upload')) {
-    return cachedFetch(url, config);
-  }
-  return originalGet.call(this, url, config);
-};
 
 
 
@@ -525,9 +558,9 @@ const fetchFeaturedGallery = async () => {
     return `https://wa.me/${phone}`;
   };
 
-  // Main fetch
+    // ===== MAIN FETCH WITH CACHING =====
   useEffect(() => {
-    const fetchAllData = async () => {
+    const fetchAllData = async (forceRefresh = false) => {
       const token = localStorage.getItem("token");
       const storedUser = JSON.parse(localStorage.getItem("user"));
       
@@ -539,6 +572,24 @@ const fetchFeaturedGallery = async () => {
       setUser(storedUser);
       setProfileImage(storedUser.profileImage);
 
+      // ===== CHECK CACHE FIRST =====
+      if (!forceRefresh) {
+        const cached = getCachedDashboardData();
+        if (cached && applyCachedDashboardData(cached)) {
+          setLoading(false);
+          console.log('✅ Dashboard loaded from cache');
+          
+          // Background refresh
+          setTimeout(() => {
+            console.log('🔄 Background refresh starting...');
+            fetchAllData(true);
+          }, 500);
+          return;
+        }
+      }
+
+      console.log('🔄 Fetching fresh dashboard data...');
+
       try {
         const userRes = await axios.get(`${BASE_URL}/api/me`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -547,57 +598,192 @@ const fetchFeaturedGallery = async () => {
         setProfileImage(userRes.data.profileImage);
         localStorage.setItem("user", JSON.stringify(userRes.data));
 
-
-
-
-
-               // Check if user is admin or treasurer
+        // Check if user is admin or treasurer
         const isAdmin = storedUser.role === "admin";
         const isTreasurer = storedUser.specialRole === "treasurer";
         
-        // Use admin endpoints for admin/treasurer, public endpoints for regular users
-        if (isAdmin || isTreasurer) {
-          await Promise.all([
-            fetchAnnouncements(),
-            fetchMassPrograms(),
-            fetchMyPledges(),
-            fetchActiveCampaigns(),
-            fetchJumuiaInfo(),
-            fetchFeaturedGallery(),
-            fetchRecentHymns(),
-            fetchGameInvites(),
-            fetchOnlineMembers(),
-            fetchRecentChats(),
-            fetchExecutiveTeam(),
-            fetchUpcomingSchedules(),
-            fetchTodaysReading(),
-            fetchSystemStats(),
-             fetchActiveSheets(),   
-    fetchLatestReadings() 
-          ]);
-        } else {
-          await Promise.all([
-            fetchAnnouncements(),
-            fetchMassPrograms(),
-            fetchMyPledges(),
-            fetchPublicStats(),  
-            fetchJumuiaInfo(),
-            fetchFeaturedGallery(),
-            fetchRecentHymns(),
-            fetchGameInvites(),
-            fetchOnlineMembers(),
-            fetchRecentChats(),
-            fetchExecutiveTeam(),
-            fetchUpcomingSchedules(),
-            fetchTodaysReading(),
-            fetchActiveSheets(),
-            fetchLatestReadings()
-           
-          ]);
+        // ===== FETCH ALL DATA IN PARALLEL =====
+        const [
+          announcementsData,
+          massProgramsData,
+          pledgesData,
+          campaignsData,
+          jumuiaData,
+          galleryData,
+          hymnsData,
+          gamesData,
+          onlineData,
+          chatsData,
+          execData,
+          schedulesData,
+          readingData,
+          statsData,
+          sheetsData,
+          readingsData,
+          notifData
+        ] = await Promise.all([
+          axios.get(`${BASE_URL}/api/announcements`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/mass-programs`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/my-pledges`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/contribution-types`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: {} })),
+          axios.get(`${BASE_URL}/api/media/public?limit=16`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { media: [] } })),
+          axios.get(`${BASE_URL}/api/songs?limit=3`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { songs: [], total: 0 } })),
+          axios.get(`${BASE_URL}/api/games/invites`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/chat/online`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/chat/enhanced`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/executive/team`).catch(() => ({ data: { executives: [] } })),
+          axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/calendar/today`).catch(() => ({ data: null })),
+          axios.get(`${BASE_URL}/api/users`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/attendance/active`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { sheets: [] } })),
+          axios.get(`${BASE_URL}/api/mass-readings?limit=2`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { readings: [] } })),
+          axios.get(`${BASE_URL}/api/notifications/${userRes.data.id}`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
+        ]);
+
+        // Extract all data
+        const announcementsList = announcementsData.data || [];
+        const programsList = massProgramsData.data || [];
+        const pledgesList = pledgesData.data || [];
+        const campaignsList = campaignsData.data || [];
+        const userMeData = jumuiaData.data || {};
+        const galleryList = galleryData.data?.media || [];
+        const hymnsList = hymnsData.data?.songs || [];
+        const hymnsTotal = hymnsData.data?.total || 0;
+        const gamesList = gamesData.data || [];
+        const onlineList = onlineData.data || [];
+        const chatsList = chatsData.data || [];
+        const execList = execData.data?.executives || [];
+        const schedulesList = schedulesData.data || [];
+        const readingDataObj = readingData.data || null;
+        const usersList = statsData.data || [];
+        const sheetsList = sheetsData.data?.sheets || [];
+        const readingsList = readingsData.data?.readings || [];
+        const notifList = notifData.data || [];
+
+        // Process announcements
+        setAnnouncements(announcementsList.slice(0, 2));
+        
+        // Process mass programs
+        const now = new Date();
+        const upcoming = programsList.filter(p => new Date(p.date) >= now).slice(0, 2);
+        setMassPrograms(upcoming);
+        
+        // Process pledges
+        const active = pledgesList.filter(p => p.status !== "COMPLETED").slice(0, 2);
+        setActivePledges(active);
+        
+        // Calculate financial stats
+        const pledged = pledgesList.reduce((sum, p) => sum + (p.amountPaid || 0) + (p.pendingAmount || 0), 0);
+        const paid = pledgesList.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+        const pending = pledgesList.reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
+        setTotalPledged(pledged);
+        setTotalPaid(paid);
+        setTotalPending(pending);
+        
+        // Process campaigns
+        const activeCampaignsCount = campaignsList.filter(c => {
+          if (!c.deadline) return true;
+          return new Date(c.deadline) > new Date();
+        }).length;
+        setActiveCampaigns(activeCampaignsCount);
+        
+        // Process Jumuia
+        if (userMeData.homeJumuia) {
+          const jumuiaRes = await axios.get(`${BASE_URL}/api/jumuia/${userMeData.homeJumuia.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setJumuiaInfo({
+            id: jumuiaRes.data.id,
+            name: jumuiaRes.data.name,
+            leaderName: jumuiaRes.data.leaders?.[0]?.fullName || "TBA",
+            memberCount: jumuiaRes.data._count?.members || 0,
+            nextMeeting: jumuiaRes.data.nextMeeting || null
+          });
         }
         
-        await fetchNotifications();
+        // Process gallery
+        const imagesOnly = galleryList.filter(item => 
+          item.type === 'image' || 
+          item.mediaType === 'image' ||
+          (item.mimeType && item.mimeType.startsWith('image/'))
+        );
+        setFeaturedGallery(imagesOnly.slice(0, 16));
+        setGalleryItems(imagesOnly.length);
         
+        // Process hymns
+        setRecentHymns(hymnsList);
+        setTotalHymns(hymnsTotal);
+        
+        // Process games
+        setGameInvites(gamesList);
+        
+        // Process online members
+        setOnlineMembers(onlineList);
+        
+        // Process chats
+        setRecentChats(chatsList.slice(0, 2));
+        setTotalMessages(chatsList.length);
+        
+        // Process executive team
+        setExecutiveTeam(execList.slice(0, 6));
+        
+        // Process schedules
+        setUpcomingSchedules(schedulesList);
+        
+        // Process reading
+        setTodaysReading(readingDataObj);
+        
+        // Process latest readings
+        setLatestReadings(readingsList);
+        
+        // Process attendance sheets
+        setActiveSheets(sheetsList);
+        
+        // Process notifications
+        const unread = notifList.filter(n => !n.read);
+        setUnreadNotificationsCount(unread.length);
+        setRecentNotifications(notifList.slice(0, 3));
+        
+        // Process stats
+        setTotalUsers(usersList.length);
+        const mediaStatsRes = await axios.get(`${BASE_URL}/api/admin/media/stats`, { 
+          headers: { Authorization: `Bearer ${token}` } 
+        }).catch(() => ({ data: { totalMedia: 0 } }));
+        setTotalMedia(mediaStatsRes.data?.totalMedia || 0);
+
+        // ===== SAVE TO CACHE =====
+        const cacheData = {
+          announcements: announcementsList.slice(0, 2),
+          massPrograms: upcoming,
+          activePledges: active,
+          jumuiaInfo: jumuiaInfo,
+          featuredGallery: imagesOnly.slice(0, 16),
+          recentHymns: hymnsList,
+          gameInvites: gamesList,
+          onlineMembers: onlineList,
+          recentChats: chatsList.slice(0, 2),
+          recentNotifications: notifList.slice(0, 3),
+          executiveTeam: execList.slice(0, 6),
+          upcomingSchedules: schedulesList,
+          todaysReading: readingDataObj,
+          latestReadings: readingsList,
+          totalUsers: usersList.length,
+          totalMessages: chatsList.length,
+          totalHymns: hymnsTotal,
+          totalMedia: mediaStatsRes.data?.totalMedia || 0,
+          galleryItems: imagesOnly.length,
+          totalPledged: pledged,
+          totalPaid: paid,
+          totalPending: pending,
+          activeCampaigns: activeCampaignsCount,
+          unreadNotificationsCount: unread.length,
+          activeSheets: sheetsList
+        };
+        
+        saveDashboardToCache(cacheData);
+        console.log('💾 Dashboard data saved to cache');
+
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -613,58 +799,18 @@ const fetchFeaturedGallery = async () => {
     else setGreeting("Good Evening");
 
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-
-  useEffect(() => {
-  const targetDate = new Date('2026-07-12T12:00:00');
-
-  const calculateTimeRemaining = () => {
-    const now = new Date();
-    const difference = targetDate - now;
-
-    if (difference <= 0) {
-      setIsCountdownComplete(true);
-      setShowCountdown(false);
-      return {
-        days: 0,
-        hours: 0,
-        minutes: 0,
-        seconds: 0
-      };
-    }
-
-    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-    return {
-      days,
-      hours,
-      minutes,
-      seconds
-    };
-  };
-
-  setTimeRemaining(calculateTimeRemaining());
-
-  const timer = setInterval(() => {
-    const newTime = calculateTimeRemaining();
-    setTimeRemaining(newTime);
     
-    if (newTime.days === 0 && newTime.hours === 0 && 
-        newTime.minutes === 0 && newTime.seconds === 0) {
-      setIsCountdownComplete(true);
-      setTimeout(() => {
-        setShowCountdown(false);
-      }, 500);
-    }
-  }, 1000);
-
-  return () => clearInterval(timer);
-}, []);
+    // ===== AUTO-REFRESH CACHE EVERY 5 MINUTES =====
+    const refreshTimer = setInterval(() => {
+      console.log('🔄 Auto-refreshing dashboard cache...');
+      fetchAllData(true);
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => {
+      clearInterval(timer);
+      clearInterval(refreshTimer);
+    };
+  }, []);
 
 
 // ==================== SYNC NOTIFICATIONS WITH BELL ====================

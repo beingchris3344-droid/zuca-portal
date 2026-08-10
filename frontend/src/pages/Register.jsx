@@ -1,8 +1,9 @@
+
 // frontend/src/pages/Register.jsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-// Slideshow images (same as Landing2.jsx)
+
 import slide1 from "../assets/background2.webp";
 import slide2 from "../assets/2.jpg";
 import slide3 from "../assets/3.jpg";
@@ -15,17 +16,21 @@ import slide9 from "../assets/9.jpg";
 import slide10 from "../assets/10.jpg";
 import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
-import logo from "../assets/zuca-logo.png";
 
+import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
 import WelcomeModal from "../components/WelcomeModal";
+import { FaLock, FaUser, FaUserAlt } from "react-icons/fa";
 
 function Register() {
   const navigate = useNavigate();
 
-  // Slideshow state
+  // ------------------------------------------------------------
+  // SLIDESHOW
+  // ------------------------------------------------------------
+
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying] = useState(true);
   const slideIntervalRef = useRef(null);
 
   const slides = [
@@ -43,120 +48,160 @@ function Register() {
     { id: 12, image: slide12 },
   ];
 
-  // Auto-play slideshow
   useEffect(() => {
-    if (isPlaying) {
-      slideIntervalRef.current = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % slides.length);
-      }, 5000);
-    }
+    if (!isPlaying) return;
+
+    slideIntervalRef.current = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+
     return () => {
-      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
+      if (slideIntervalRef.current) {
+        clearInterval(slideIntervalRef.current);
+      }
     };
   }, [isPlaying, slides.length]);
 
-  // Registration form states
+  // ------------------------------------------------------------
+  // REGISTRATION FORM
+  // ------------------------------------------------------------
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const [focusedField, setFocusedField] = useState(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordMatch, setPasswordMatch] = useState(null);
-  
-  // Verification modal states
+
+  // ------------------------------------------------------------
+  // VERIFICATION
+  // ------------------------------------------------------------
+
   const [showVerification, setShowVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
-  const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""]);
+  const [verificationCode, setVerificationCode] = useState([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verificationError, setVerificationError] = useState("");
   const [verificationTimer, setVerificationTimer] = useState(300);
-  
-  // Welcome modal states
+
+  // ------------------------------------------------------------
+  // WELCOME
+  // ------------------------------------------------------------
+
   const [showWelcome, setShowWelcome] = useState(false);
   const [newUserName, setNewUserName] = useState("");
-  const [registrationData, setRegistrationData] = useState(null);
 
-  // Force full name to uppercase - convert on every change
+  // ------------------------------------------------------------
+  // FULL NAME
+  // ------------------------------------------------------------
+
   const handleFullNameChange = (e) => {
-    const inputValue = e.target.value;
-    const uppercaseValue = inputValue.toUpperCase();
-    setFullName(uppercaseValue);
+    setFullName(e.target.value.toUpperCase());
   };
 
-  // Password strength checker
+  // ------------------------------------------------------------
+  // PASSWORD STRENGTH
+  // ------------------------------------------------------------
+
   useEffect(() => {
     if (password.length === 0) {
       setPasswordStrength(0);
       return;
     }
-    
+
     let strength = 0;
+
     if (password.length >= 8) strength += 1;
     if (/[A-Z]/.test(password)) strength += 1;
     if (/[0-9]/.test(password)) strength += 1;
     if (/[^A-Za-z0-9]/.test(password)) strength += 1;
-    
+
     setPasswordStrength(strength);
   }, [password]);
 
-  // Password match checker
+  // ------------------------------------------------------------
+  // PASSWORD MATCH
+  // ------------------------------------------------------------
+
   useEffect(() => {
     if (confirmPassword.length === 0) {
       setPasswordMatch(null);
       return;
     }
-    
-    if (password === confirmPassword) {
-      setPasswordMatch(true);
-    } else {
-      setPasswordMatch(false);
-    }
+
+    setPasswordMatch(password === confirmPassword);
   }, [password, confirmPassword]);
 
-  // Timer for verification code
+  // ------------------------------------------------------------
+  // VERIFICATION TIMER
+  // ------------------------------------------------------------
+
   useEffect(() => {
     if (!showVerification) return;
-    
+
     const interval = setInterval(() => {
       setVerificationTimer((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
           return 0;
         }
+
         return prev - 1;
       });
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [showVerification]);
+
+  // ------------------------------------------------------------
+  // TIME FORMAT
+  // ------------------------------------------------------------
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
+
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  // ------------------------------------------------------------
+  // VERIFICATION INPUT
+  // ------------------------------------------------------------
+
   const handleVerificationCodeChange = (element, index) => {
-    if (isNaN(element.value)) return;
+    const value = element.value.replace(/\D/g, "").slice(-1);
+
     const newCode = [...verificationCode];
-    newCode[index] = element.value;
+    newCode[index] = value;
+
     setVerificationCode(newCode);
-    
-    // Auto-focus next input
-    if (element.value !== "" && index < 5) {
-      document.getElementById(`verify-code-${index + 1}`)?.focus();
+
+    if (value !== "" && index < 5) {
+      document
+        .getElementById(`verify-code-${index + 1}`)
+        ?.focus();
     }
-    
-    // Auto-verify when all 6 digits are filled (typing)
+
     const fullCode = newCode.join("");
-    if (fullCode.length === 6 && newCode.every(d => d !== "")) {
+
+    if (
+      fullCode.length === 6 &&
+      newCode.every((digit) => digit !== "")
+    ) {
       setTimeout(() => {
         handleVerifyEmailAuto(fullCode);
       }, 100);
@@ -166,56 +211,131 @@ function Register() {
   const handleVerificationKeyDown = (e, index) => {
     if (e.key === "Backspace") {
       if (verificationCode[index] === "" && index > 0) {
-        document.getElementById(`verify-code-${index - 1}`)?.focus();
+        document
+          .getElementById(`verify-code-${index - 1}`)
+          ?.focus();
       }
+    }
+
+    if (e.key === "ArrowLeft" && index > 0) {
+      document
+        .getElementById(`verify-code-${index - 1}`)
+        ?.focus();
+    }
+
+    if (e.key === "ArrowRight" && index < 5) {
+      document
+        .getElementById(`verify-code-${index + 1}`)
+        ?.focus();
     }
   };
 
+  // ------------------------------------------------------------
+  // PASTE VERIFICATION CODE
+  // ------------------------------------------------------------
+
   const handlePasteCode = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text/plain').trim();
-    
+
+    const pastedData = e.clipboardData
+      .getData("text/plain")
+      .trim();
+
     if (/^\d{6}$/.test(pastedData)) {
-      const digits = pastedData.split('');
+      const digits = pastedData.split("");
+
       setVerificationCode(digits);
-      
+
       setTimeout(() => {
         handleVerifyEmailAuto(pastedData);
       }, 100);
     } else {
-      setVerificationError("Please paste a valid 6-digit code");
-      setTimeout(() => setVerificationError(""), 2000);
+      setVerificationError(
+        "Please paste a valid 6-digit code."
+      );
+
+      setTimeout(() => {
+        setVerificationError("");
+      }, 2000);
     }
   };
 
+  // ------------------------------------------------------------
+  // VERIFY EMAIL
+  // ------------------------------------------------------------
+
   const handleVerifyEmailAuto = async (fullCode) => {
+    if (verificationLoading) return;
+
     setVerificationLoading(true);
     setVerificationError("");
-    
+
     try {
-      const res = await fetch(`${BASE_URL}/api/verify-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: verificationEmail, code: fullCode }),
-      });
-      
+      const res = await fetch(
+        `${BASE_URL}/api/verify-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: verificationEmail,
+            code: fullCode,
+          }),
+        }
+      );
+
       const data = await res.json();
-      
+
       if (res.ok && data.token) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        
+        localStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
+        );
+
         setShowVerification(false);
         setShowWelcome(true);
-        setNewUserName(data.user?.fullName?.split(" ")[0] || "Member");
+
+        setNewUserName(
+          data.user?.fullName?.split(" ")[0] ||
+            "Member"
+        );
       } else {
-        setVerificationError(data.error || "Invalid verification code");
-        setVerificationCode(["", "", "", "", "", ""]);
-        document.getElementById('verify-code-0')?.focus();
+        setVerificationError(
+          data.error || "Invalid verification code."
+        );
+
+        setVerificationCode([
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+
+        setTimeout(() => {
+          document
+            .getElementById("verify-code-0")
+            ?.focus();
+        }, 50);
       }
     } catch (err) {
-      setVerificationError("Network error. Please try again.");
-      setVerificationCode(["", "", "", "", "", ""]);
+      console.error("Verification error:", err);
+
+      setVerificationError(
+        "Network error. Please try again."
+      );
+
+      setVerificationCode([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
     } finally {
       setVerificationLoading(false);
     }
@@ -223,975 +343,2035 @@ function Register() {
 
   const handleVerifyEmail = async () => {
     const fullCode = verificationCode.join("");
+
     if (fullCode.length !== 6) {
-      setVerificationError("Please enter the complete 6-digit code");
+      setVerificationError(
+        "Please enter the complete 6-digit code."
+      );
       return;
     }
+
     await handleVerifyEmailAuto(fullCode);
   };
+
+  // ------------------------------------------------------------
+  // RESEND VERIFICATION
+  // ------------------------------------------------------------
 
   const handleResendVerification = async () => {
     setVerificationLoading(true);
     setVerificationError("");
-    
+
     try {
-      const res = await fetch(`${BASE_URL}/api/resend-verification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: verificationEmail }),
-      });
-      
+      const res = await fetch(
+        `${BASE_URL}/api/resend-verification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: verificationEmail,
+          }),
+        }
+      );
+
       const data = await res.json();
-      
+
       if (res.ok) {
         setVerificationTimer(300);
-        setVerificationCode(["", "", "", "", "", ""]);
-        document.getElementById('verify-code-0')?.focus();
-        showToast("New verification code sent!", "success");
+
+        setVerificationCode([
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+
+        setTimeout(() => {
+          document
+            .getElementById("verify-code-0")
+            ?.focus();
+        }, 50);
+
+        showToast(
+          "A new verification code has been sent.",
+          "success"
+        );
       } else {
-        setVerificationError(data.error || "Failed to resend code");
+        setVerificationError(
+          data.error || "Failed to resend code."
+        );
       }
     } catch (err) {
-      setVerificationError("Network error");
+      console.error("Resend error:", err);
+
+      setVerificationError(
+        "Network error. Please try again."
+      );
     } finally {
       setVerificationLoading(false);
     }
   };
 
-  const showToast = (message, type = "success") => {
-    const toast = document.createElement('div');
+  // ------------------------------------------------------------
+  // TOAST
+  // ------------------------------------------------------------
+
+  const showToast = (
+    message,
+    type = "success"
+  ) => {
+    const toast = document.createElement("div");
+
     toast.textContent = message;
+
     toast.style.cssText = `
       position: fixed;
-      bottom: 20px;
       left: 50%;
+      bottom: 24px;
       transform: translateX(-50%);
-      background: ${type === "success" ? "#10b981" : "#ef4444"};
-      color: white;
-      padding: 12px 24px;
-      border-radius: 40px;
+      background: ${
+        type === "success"
+          ? "#15803d"
+          : "#dc2626"
+      };
+      color: #ffffff;
+      padding: 13px 20px;
+      border-radius: 12px;
       font-size: 14px;
+      font-weight: 600;
       z-index: 10001;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      animation: fadeInUp 0.3s ease;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+      animation: registerToastIn 0.25s ease;
     `;
+
     document.body.appendChild(toast);
+
     setTimeout(() => {
-      toast.style.animation = "fadeOutDown 0.3s ease";
-      setTimeout(() => toast.remove(), 300);
+      toast.style.animation =
+        "registerToastOut 0.25s ease";
+
+      setTimeout(() => {
+        toast.remove();
+      }, 250);
     }, 3000);
   };
+
+  // ------------------------------------------------------------
+  // REGISTER
+  // ------------------------------------------------------------
 
   const handleRegister = async (e) => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      showToast("Passwords do not match", "error");
+      showToast(
+        "Passwords do not match.",
+        "error"
+      );
       return;
     }
 
-    // Ensure full name is uppercase before sending
-    const upperCaseFullName = fullName.toUpperCase();
+    if (password.length < 8) {
+      showToast(
+        "Your password must contain at least 8 characters.",
+        "error"
+      );
+      return;
+    }
+
+    const upperCaseFullName =
+      fullName.toUpperCase();
 
     let formattedPhone = phone;
+
     if (phone.startsWith("07")) {
-      formattedPhone = "+254" + phone.slice(1);
-    } else if (phone.startsWith("7") && phone.length === 9) {
-      formattedPhone = "+254" + phone;
+      formattedPhone =
+        "+254" + phone.slice(1);
+    } else if (
+      phone.startsWith("7") &&
+      phone.length === 9
+    ) {
+      formattedPhone =
+        "+254" + phone;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/api/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: upperCaseFullName, email, password, phone: formattedPhone }),
-      });
+      const res = await fetch(
+        `${BASE_URL}/api/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fullName: upperCaseFullName,
+            email,
+            password,
+            phone: formattedPhone,
+          }),
+        }
+      );
 
       const data = await res.json();
 
       if (res.ok && data.success) {
         setVerificationEmail(email);
-        setVerificationCode(["", "", "", "", "", ""]);
+        setVerificationCode([
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
         setVerificationError("");
         setVerificationTimer(300);
         setShowVerification(true);
-        setRegistrationData({ fullName: upperCaseFullName, email });
-        
+
         setFullName("");
         setEmail("");
         setPhone("");
         setPassword("");
         setConfirmPassword("");
+
+        setTimeout(() => {
+          document
+            .getElementById("verify-code-0")
+            ?.focus();
+        }, 250);
       } else {
-        showToast(data.error || "Registration failed", "error");
+        showToast(
+          data.error || "Registration failed.",
+          "error"
+        );
       }
     } catch (err) {
-      console.error("Registration Error:", err);
-      showToast("Network error. Please check your connection.", "error");
+      console.error(
+        "Registration Error:",
+        err
+      );
+
+      showToast(
+        "Network error. Please check your connection.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  // ------------------------------------------------------------
+  // WELCOME
+  // ------------------------------------------------------------
 
   const handleWelcomeAccept = () => {
     setShowWelcome(false);
     navigate("/dashboard");
   };
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.2
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: { type: "spring", stiffness: 120, damping: 15 }
-    }
-  };
-
-  const getStrengthColor = () => {
-    switch(passwordStrength) {
-      case 0: return "#94a3b8";
-      case 1: return "#ef4444";
-      case 2: return "#f59e0b";
-      case 3: return "#10b981";
-      case 4: return "#06b6d4";
-      default: return "#94a3b8";
-    }
-  };
+  // ------------------------------------------------------------
+  // PASSWORD STRENGTH
+  // ------------------------------------------------------------
 
   const getStrengthText = () => {
-    switch(passwordStrength) {
-      case 0: return "";
-      case 1: return "Weak";
-      case 2: return "Fair";
-      case 3: return "Good";
-      case 4: return "Strong";
-      default: return "";
+    switch (passwordStrength) {
+      case 1:
+        return "Weak";
+      case 2:
+        return "Fair";
+      case 3:
+        return "Good";
+      case 4:
+        return "Strong";
+      default:
+        return "";
     }
   };
+
+  // ------------------------------------------------------------
+  // UI
+  // ------------------------------------------------------------
 
   return (
     <>
-      <div style={styles.pageWrapper}>
-        {/* Slideshow Background */}
-        <div className="register-slideshow-container">
+      <div className="register-page">
+
+        {/* Background slideshow */}
+        <div className="register-background">
           {slides.map((slide, index) => (
             <div
               key={slide.id}
-              className={`register-slide ${index === currentSlide ? 'active' : ''}`}
+              className={`register-slide ${
+                index === currentSlide
+                  ? "active"
+                  : ""
+              }`}
             >
               <img
                 src={slide.image}
-                alt="background"
-                className="register-slide-image"
-                loading="lazy"
+                alt=""
               />
             </div>
           ))}
+
+          <div className="register-background-overlay" />
         </div>
 
-        <div style={styles.container}>
-          <div style={styles.backgroundOverlay} />
-          
-          {/* Floating particles */}
-          <div style={styles.particlesContainer}>
-            {[...Array(8)].map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.particle,
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  width: `${6 + Math.random() * 12}px`,
-                  height: `${6 + Math.random() * 12}px`,
-                  animationDelay: `${i * 1.5}s`,
-                  animationDuration: `${12 + Math.random() * 10}s`
-                }}
-              />
-            ))}
-          </div>
+        {/* Main layout */}
+        <div className="register-layout">
 
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={containerVariants}
-            style={styles.card}
+          {/* LEFT BRANDING PANEL */}
+          <motion.section
+            className="register-brand-panel"
+            initial={{
+              opacity: 0,
+              x: -30,
+            }}
+            animate={{
+              opacity: 1,
+              x: 0,
+            }}
+            transition={{
+              duration: 0.6,
+            }}
           >
-            <div style={styles.cardInner} />
+            <div className="brand-panel-content">
 
-            <motion.div variants={itemVariants} style={styles.logoContainer}>
-              <img src={logo} alt="ZUCA Logo" style={styles.logo} />
-              <div style={styles.logoUnderline} />
-            </motion.div>
+              <div className="brand-logo-wrap">
+                <img src={logo} alt="Loading..." style={{ width: '50px', height: '70px' }} 
+                />
+              </div>
 
-            <motion.h2 variants={itemVariants} style={styles.title}>
-              Create Account
-            </motion.h2>
+              <div className="brand-copy">
+                <span className="brand-label">
+                  ZETECH UNIVERSITY CATHOLIC ACTION
+                </span>
 
-            <form onSubmit={handleRegister} style={styles.form}>
-              {/* Full Name Field - FORCED TO UPPERCASE */}
-              <motion.div variants={itemVariants} style={styles.inputGroup}>
-                <label style={styles.label}>
-                  <span style={{ color: focusedField === "name" ? "#3b82f6" : "#ffffff" }}>
-                    Full Name (Uppercase)
-                  </span>
-                </label>
-                <div style={styles.inputWrapper}>
-                  <input
-                    type="text"
-                    placeholder="FULL NAME"
-                    value={fullName}
-                    onChange={handleFullNameChange}
-                    onFocus={() => setFocusedField("name")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...styles.input,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      fontWeight: "500",
-                      borderColor: focusedField === "name" ? "#3b82f6" : "#ffffff"
-                    }}
-                    required
-                  />
-                  {fullName.length > 0 && (
-                    <div style={styles.capsIndicator}>
-                      <span style={styles.capsIcon}>🔠</span>
-                    </div>
-                  )}
+                <h1>
+                  ZUCA
+                  <br />
+                  <span>PORTAL</span>
+                </h1>
+
+                <p>
+                  Your digital home for
+                  Zetech University Catholic
+                  Action.
+                </p>
+              </div>
+
+              <div className="brand-divider" />
+
+              <div className="brand-message">
+                <span className="brand-cross">
+                  ✝
+                </span>
+
+                <div>
+                  <strong>
+                    Welcome to our club
+                  </strong>
+
+                  <p>
+                    Connect, participate and
+                    stay informed through the
+                    ZUCA Portal.
+                  </p>
                 </div>
-                <div style={styles.hintText}>
-                  <span>⚠️ Kindly use your official names above</span>
-                </div>
-              </motion.div>
+              </div>
 
-              {/* Email Field */}
-              <motion.div variants={itemVariants} style={styles.inputGroup}>
-                <label style={styles.label}>
-                  <span style={{ color: focusedField === "email" ? "#3b82f6" : "#ffffff" }}>
-                    Email Address:<p/>⚠️ please avoid using <strong>example@students.zetech.ac.ke</strong><p/>
-                  </span>
-                </label>
-                <div style={styles.inputWrapper}>
-                  <input
-                    type="email"
-                    placeholder="use your official email for verification"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onFocus={() => setFocusedField("email")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...styles.input,
-                      borderColor: focusedField === "email" ? "#3b82f6" : "#ffffff"
-                    }}
-                    required
-                  />
-                </div>
-              </motion.div>
+            </div>
 
-              {/* Phone Field */}
-              <motion.div variants={itemVariants} style={styles.inputGroup}>
-                <label style={styles.label}>
-                  <span style={{ color: focusedField === "phone" ? "#3b82f6" : "#ffffff" }}>
-                    Phone Number
-                  </span>
-                </label>
-                <div style={styles.inputWrapper}>
-                  <input
-                    type="tel"
-                    placeholder="07xx3456xx"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    onFocus={() => setFocusedField("phone")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...styles.input,
-                      borderColor: focusedField === "phone" ? "#3b82f6" : "#ffffff"
-                    }}
-                    required
+            <div className="brand-footer">
+              <span>
+                ZUCA Portal
+              </span>
+
+              <span className="brand-dot">
+                •
+              </span>
+
+              <span>
+                Official Member Platform
+              </span>
+            </div>
+          </motion.section>
+
+          {/* RIGHT FORM PANEL */}
+          <motion.section
+            className="register-form-panel"
+            initial={{
+              opacity: 0,
+              x: 30,
+            }}
+            animate={{
+              opacity: 1,
+              x: 0,
+            }}
+            transition={{
+              duration: 0.6,
+              delay: 0.1,
+            }}
+          >
+            <div className="register-form-card">
+
+              <div className="form-header">
+
+                <div className="mobile-logo">
+                  <img
+                    src={logo}
+                    alt="ZUCA"
                   />
                 </div>
-              </motion.div>
 
-              {/* Password Field */}
-              <motion.div variants={itemVariants} style={styles.inputGroup}>
-                <label style={styles.label}>
-                  <span style={{ color: focusedField === "password" ? "#3b82f6" : "#ffffff" }}>
-                    Password
+                <div>
+                  <span className="form-eyebrow">
+                    ZUCA MEMBER REGISTRATION
                   </span>
-                </label>
-                <div style={styles.inputWrapper}>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Use a Password you will remember"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setFocusedField("password")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...styles.input,
-                      paddingRight: "45px",
-                      borderColor: focusedField === "password" ? "#3b82f6" : "#ffffff"
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
+
+                  <h2>
+                    Create your ZUCA account
+                  </h2>
+
+                  <p>
+                    Register to access the
+                    ZUCA Portal.
+                  </p>
+                </div>
+
+              </div>
+
+              <form
+                onSubmit={handleRegister}
+                className="register-form"
+              >
+
+                {/* NAME */}
+                <div
+                  className={`field ${
+                    focusedField === "name"
+                      ? "focused"
+                      : ""
+                  }`}
+                >
+                  <label htmlFor="fullName">
+                    Full name
+                  </label>
+
+                  <div className="input-shell">
+                    <span className="field-icon">
+                      <FaUser/>
+                    </span>
+
+                    <input
+                      id="fullName"
+                      type="text"
+                      placeholder="Your Official full name"
+                      value={fullName}
+                      onChange={
+                        handleFullNameChange
+                      }
+                      onFocus={() =>
+                        setFocusedField("name")
+                      }
+                      onBlur={() =>
+                        setFocusedField(null)
+                      }
+                      autoComplete="name"
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Please use your official
+                    names.
+                  </small>
+                </div>
+
+                {/* EMAIL */}
+                <div
+                  className={`field ${
+                    focusedField === "email"
+                      ? "focused"
+                      : ""
+                  }`}
+                >
+                  <label htmlFor="email">
+                    Email address
+                  </label>
+
+                  <div className="input-shell">
+                    <span className="field-icon">
+                      ✉
+                    </span>
+
+                    <input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) =>
+                        setEmail(
+                          e.target.value
+                        )
+                      }
+                      onFocus={() =>
+                        setFocusedField("email")
+                      }
+                      onBlur={() =>
+                        setFocusedField(null)
+                      }
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Use an email address you
+                    can access for verification.
+                  </small>
+                </div>
+
+                {/* PHONE */}
+                <div
+                  className={`field ${
+                    focusedField === "phone"
+                      ? "focused"
+                      : ""
+                  }`}
+                >
+                  <label htmlFor="phone">
+                    Phone number
+                  </label>
+
+                  <div className="input-shell">
+                    <span className="field-icon">
+                      ☎
+                    </span>
+
+                    <input
+                      id="phone"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="07XX XXX XXX (mpesa or whatsapp number will be better)"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(
+                          e.target.value
+                        )
+                      }
+                      onFocus={() =>
+                        setFocusedField("phone")
+                      }
+                      onBlur={() =>
+                        setFocusedField(null)
+                      }
+                      autoComplete="tel"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* PASSWORD ROW */}
+                <div className="password-row">
+
+                  {/* PASSWORD */}
+                  <div
+                    className={`field ${
+                      focusedField ===
+                      "password"
+                        ? "focused"
+                        : ""
+                    }`}
                   >
-                    {showPassword ? "👁️" : "👁️‍🗨️"}
-                  </button>
-                </div>
-                
-                {/* Password Strength Indicator */}
-                <AnimatePresence>
-                  {password.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      style={styles.strengthContainer}
-                    >
-                      <div style={styles.strengthBars}>
-                        {[1, 2, 3, 4].map((level) => (
-                          <div
-                            key={level}
-                            style={{
-                              ...styles.strengthBar,
-                              backgroundColor: level <= passwordStrength ? getStrengthColor() : "#334155",
-                              width: `${25}%`
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <span style={{ ...styles.strengthText, color: getStrengthColor() }}>
-                        {getStrengthText()}
+                    <label htmlFor="password">
+                      Password
+                    </label>
+
+                    <div className="input-shell">
+                      <span className="field-icon">
+                        <FaLock/>
                       </span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
 
-              {/* Confirm Password Field */}
-              <motion.div variants={itemVariants} style={styles.inputGroup}>
-                <label style={styles.label}>
-                  <span style={{ color: focusedField === "confirm" ? "#3b82f6" : "#ffffff" }}>
-                    Confirm Password
-                  </span>
-                </label>
-                <div style={styles.inputWrapper}>
-                  <input
-                    type={showConfirm ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    onFocus={() => setFocusedField("confirm")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...styles.input,
-                      paddingRight: "45px",
-                      borderColor: focusedField === "confirm" ? "#3b82f6" : "#ffffff"
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    style={styles.eyeButton}
+                      <input
+                        id="password"
+                        type={
+                          showPassword
+                            ? "text"
+                            : "password"
+                        }
+                        placeholder="Create password you'll remember"
+                        value={password}
+                        onChange={(e) =>
+                          setPassword(
+                            e.target.value
+                          )
+                        }
+                        onFocus={() =>
+                          setFocusedField(
+                            "password"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocusedField(null)
+                        }
+                        autoComplete="new-password"
+                        required
+                      />
+
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() =>
+                          setShowPassword(
+                            !showPassword
+                          )
+                        }
+                        aria-label={
+                          showPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {showPassword
+                          ? "Hide"
+                          : "Show"}
+                      </button>
+                    </div>
+
+                    {password.length > 0 && (
+                      <div className="password-strength">
+
+                        <div className="strength-track">
+                          {[1, 2, 3, 4].map(
+                            (level) => (
+                              <span
+                                key={level}
+                                className={
+                                  level <=
+                                  passwordStrength
+                                    ? `strength-${passwordStrength}`
+                                    : ""
+                                }
+                              />
+                            )
+                          )}
+                        </div>
+
+                        <span>
+                          {getStrengthText()}
+                        </span>
+
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CONFIRM */}
+                  <div
+                    className={`field ${
+                      focusedField ===
+                      "confirm"
+                        ? "focused"
+                        : ""
+                    }`}
                   >
-                    {showConfirm ? "👁️" : "👁️‍🗨️"}
-                  </button>
-                </div>
-                
-                {/* Password Match Indicator */}
-                <AnimatePresence>
-                  {passwordMatch !== null && password.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -5 }}
-                      style={{
-                        ...styles.matchIndicator,
-                        color: passwordMatch ? "#10b981" : "#ef4444"
-                      }}
-                    >
-                      {passwordMatch ? "✓ Passwords match" : "✗ Passwords don't match"}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+                    <label htmlFor="confirmPassword">
+                      Confirm password
+                    </label>
 
-              {/* Register Button */}
-              <motion.div variants={itemVariants}>
+                    <div className="input-shell">
+                      <span className="field-icon">
+                        <FaLock/>
+                      </span>
+
+                      <input
+                        id="confirmPassword"
+                        type={
+                          showConfirm
+                            ? "text"
+                            : "password"
+                        }
+                        placeholder="Repeat password"
+                        value={
+                          confirmPassword
+                        }
+                        onChange={(e) =>
+                          setConfirmPassword(
+                            e.target.value
+                          )
+                        }
+                        onFocus={() =>
+                          setFocusedField(
+                            "confirm"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocusedField(null)
+                        }
+                        autoComplete="new-password"
+                        required
+                      />
+
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() =>
+                          setShowConfirm(
+                            !showConfirm
+                          )
+                        }
+                        aria-label={
+                          showConfirm
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {showConfirm
+                          ? "Hide"
+                          : "Show"}
+                      </button>
+                    </div>
+
+                    {passwordMatch !==
+                      null && (
+                      <div
+                        className={`password-match ${
+                          passwordMatch
+                            ? "match"
+                            : "no-match"
+                        }`}
+                      >
+                        {passwordMatch
+                          ? "✓ Passwords match"
+                          : "Passwords do not match"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* PASSWORD REQUIREMENTS */}
+                <div className="requirements">
+                  <div className="requirements-title">
+                    Password requirements
+                  </div>
+
+                  <div className="requirements-grid">
+                    <span
+                      className={
+                        password.length >= 8
+                          ? "complete"
+                          : ""
+                      }
+                    >
+                      {password.length >= 8
+                        ? "✓"
+                        : "○"}{" "}
+                      8+ characters
+                    </span>
+
+                    <span
+                      className={
+                        /[A-Z]/.test(
+                          password
+                        )
+                          ? "complete"
+                          : ""
+                      }
+                    >
+                      {/[A-Z]/.test(
+                        password
+                      )
+                        ? "✓"
+                        : "○"}{" "}
+                      Uppercase letter
+                    </span>
+
+                    <span
+                      className={
+                        /[0-9]/.test(password)
+                          ? "complete"
+                          : ""
+                      }
+                    >
+                      {/[0-9]/.test(password)
+                        ? "✓"
+                        : "○"}{" "}
+                      Number
+                    </span>
+
+                    <span
+                      className={
+                        /[^A-Za-z0-9]/.test(
+                          password
+                        )
+                          ? "complete"
+                          : ""
+                      }
+                    >
+                      {/[^A-Za-z0-9]/.test(
+                        password
+                      )
+                        ? "✓"
+                        : "○"}{" "}
+                      Special character
+                    </span>
+                  </div>
+                </div>
+
+                {/* SUBMIT */}
                 <motion.button
                   type="submit"
+                  className="register-submit"
                   disabled={loading}
-                  style={styles.registerButton}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{
+                    y: -1,
+                  }}
+                  whileTap={{
+                    scale: 0.99,
+                  }}
                 >
                   {loading ? (
-                    <div style={styles.buttonLoading}>
-                      <span style={styles.buttonSpinner}>⟳</span>
-                      <span>Creating account...</span>
-                    </div>
+                    <>
+                      <span className="spinner" />
+                      Creating account...
+                    </>
                   ) : (
-                    "Create Account"
+                    <>
+                      Create account
+                      <span className="submit-arrow">
+                        →
+                      </span>
+                    </>
                   )}
                 </motion.button>
-              </motion.div>
-            </form>
 
-            {/* Login Link */}
-            <motion.div variants={itemVariants} style={styles.loginSection}>
-              <p style={styles.loginText}>
-                Already have an account?{" "}
-                <Link to="/login" style={styles.loginLink}>
+              </form>
+
+              {/* SIGN IN */}
+              <div className="signin-area">
+                <span>
+                  Already have an account?
+                </span>
+
+                <Link to="/login">
                   Sign in
                 </Link>
-              </p>
-            </motion.div>
+              </div>
 
-            <div style={styles.faithText}>
-              "I can do all things through Christ who strengthens me" ✝
+              {/* FOOTER */}
+              <div className="form-footer">
+                <span className="footer-cross">
+                  ✝
+                </span>
+
+                <span>
+                  ZUCA Portal · Zetech
+                  University Catholic Action
+                </span>
+              </div>
+
             </div>
-          </motion.div>
+          </motion.section>
         </div>
       </div>
 
-      {/* Verification Modal */}
+      {/* ========================================================
+          EMAIL VERIFICATION MODAL
+      ======================================================== */}
+
       <AnimatePresence>
         {showVerification && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={styles.modalOverlay}
+            className="verification-overlay"
+            initial={{
+              opacity: 0,
+            }}
+            animate={{
+              opacity: 1,
+            }}
+            exit={{
+              opacity: 0,
+            }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 30 }}
-              transition={{ type: "spring", damping: 25 }}
-              style={styles.modal}
+              className="verification-modal"
+              initial={{
+                opacity: 0,
+                y: 25,
+                scale: 0.97,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                scale: 1,
+              }}
+              exit={{
+                opacity: 0,
+                y: 25,
+                scale: 0.97,
+              }}
             >
-              <div style={styles.modalHeader}>
-                <img src={logo} alt="ZUCA" style={styles.modalLogo} />
-                <h2 style={styles.modalTitle}>Verify Your Email</h2>
-                <p style={styles.modalSubtitle}>
-                  We sent a 6-digit code to:
-                  
-                  <br />
-                  <strong style={styles.modalEmail}>{verificationEmail}</strong>
-                </p>
-                <p style={styles.modalSubtitle}>
-                  please check your inbox or if you cant see it, check inside your
-                  
-                  <h2 style={styles.modalTitle}>spam folder </h2>
-                  and enter it below
-                  <abbr title="Verification Code"></abbr> to verify your email.
-                </p>
+
+              <button
+                className="verification-close"
+                onClick={() =>
+                  setShowVerification(false)
+                }
+                aria-label="Close"
+              >
+                ×
+              </button>
+
+              <div className="verification-brand">
+                <img
+                  src={logo}
+                  alt="ZUCA"
+                />
               </div>
-              
-              <div style={styles.codeContainer}>
-                {verificationCode.map((digit, index) => (
-                  <input
-                    key={index}
-                    id={`verify-code-${index}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength="1"
-                    value={digit}
-                    onChange={(e) => handleVerificationCodeChange(e.target, index)}
-                    onKeyDown={(e) => handleVerificationKeyDown(e, index)}
-                    onPaste={(e) => handlePasteCode(e)}
-                    style={{
-                      ...styles.codeInput,
-                      borderColor: digit ? "#3b82f6" : "#334155"
-                    }}
-                    autoFocus={index === 0}
-                  />
-                ))}
+
+              <div className="verification-badge">
+                ✉
               </div>
-              
+
+              <span className="verification-eyebrow">
+                EMAIL VERIFICATION
+              </span>
+
+              <h2>
+                Check your inbox
+              </h2>
+
+              <p className="verification-description">
+                We sent a 6-digit verification
+                code to
+              </p>
+
+              <strong className="verification-email">
+                {verificationEmail}
+              </strong>
+
+              <p className="verification-help">
+                Enter the code below to
+                activate your account. If you
+                don't see the email, check your
+                <strong> spam folder</strong>.
+              </p>
+
+              {/* CODE */}
+              <div
+                className="verification-code"
+                onPaste={handlePasteCode}
+              >
+                {verificationCode.map(
+                  (digit, index) => (
+                    <input
+                      key={index}
+                      id={`verify-code-${index}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength="1"
+                      value={digit}
+                      onChange={(e) =>
+                        handleVerificationCodeChange(
+                          e.target,
+                          index
+                        )
+                      }
+                      onKeyDown={(e) =>
+                        handleVerificationKeyDown(
+                          e,
+                          index
+                        )
+                      }
+                      autoFocus={
+                        index === 0
+                      }
+                      aria-label={`Verification digit ${
+                        index + 1
+                      }`}
+                    />
+                  )
+                )}
+              </div>
+
+              {/* ERROR */}
               <AnimatePresence>
                 {verificationError && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    style={styles.modalError}
+                    className="verification-error"
+                    initial={{
+                      opacity: 0,
+                      y: -5,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -5,
+                    }}
                   >
-                    ⚠️ {verificationError}
+                    ⚠ {verificationError}
                   </motion.div>
                 )}
               </AnimatePresence>
-              
+
+              {/* VERIFY */}
               <button
-                onClick={handleVerifyEmail}
-                disabled={verificationLoading}
-                style={{
-                  ...styles.modalButton,
-                  opacity: verificationLoading ? 0.7 : 1
-                }}
+                className="verify-submit"
+                onClick={
+                  handleVerifyEmail
+                }
+                disabled={
+                  verificationLoading
+                }
               >
                 {verificationLoading ? (
-                  <div style={styles.buttonLoading}>
-                    <span style={styles.buttonSpinner}>⟳</span>
-                    <span>Verifying...</span>
-                  </div>
+                  <>
+                    <span className="spinner light" />
+                    Verifying...
+                  </>
                 ) : (
-                  "Verify Email"
+                  "Verify email"
                 )}
               </button>
-              
-              <div style={styles.resendSection}>
-                {verificationTimer > 0 ? (
-                  <p style={styles.timerText}>
-                    Resend code in <span style={styles.timer}>{formatTime(verificationTimer)}</span>
-                  </p>
+
+              {/* TIMER */}
+              <div className="resend-area">
+                {verificationTimer >
+                0 ? (
+                  <span>
+                    Didn't receive it?
+                    <strong>
+                      {" "}
+                      Resend in{" "}
+                      {formatTime(
+                        verificationTimer
+                      )}
+                    </strong>
+                  </span>
                 ) : (
                   <button
-                    onClick={handleResendVerification}
-                    disabled={verificationLoading}
-                    style={styles.resendButton}
+                    onClick={
+                      handleResendVerification
+                    }
+                    disabled={
+                      verificationLoading
+                    }
                   >
-                    Resend Code
+                    Resend verification code
                   </button>
                 )}
               </div>
-              
+
               <button
-                onClick={() => setShowVerification(false)}
-                style={styles.modalCancel}
+                className="verification-cancel"
+                onClick={() =>
+                  setShowVerification(false)
+                }
               >
-                Cancel
+                Back to registration
               </button>
+
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Welcome Modal */}
+      {/* WELCOME MODAL */}
       <WelcomeModal
         isOpen={showWelcome}
         onClose={handleWelcomeAccept}
         userName={newUserName}
       />
 
+      {/* ========================================================
+          STYLES
+      ======================================================== */}
+
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.3; }
-          50% { transform: translateY(-30px) translateX(15px); opacity: 0.6; }
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-          to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        @keyframes fadeOutDown {
-          from { opacity: 1; transform: translateX(-50%) translateY(0); }
-          to { opacity: 0; transform: translateX(-50%) translateY(20px); }
-        }
-        input::placeholder {
-          color: #ffffff69;
+        * {
+          box-sizing: border-box;
         }
 
-        /* Slideshow styles */
-        .register-slideshow-container {
-          position: fixed;
-          top: 0;
-          left: 0;
+        .register-page {
+          min-height: 100vh;
           width: 100%;
-          height: 100%;
+          position: relative;
+          overflow-x: hidden;
+          font-family:
+            Inter,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+          background: #f4f7fb;
+        }
+
+        /* -------------------------------------------------------
+           BACKGROUND
+        ------------------------------------------------------- */
+
+        .register-background {
+          position: fixed;
+          inset: 0;
           z-index: 0;
           overflow: hidden;
         }
+
         .register-slide {
           position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          inset: 0;
           opacity: 0;
-          transition: opacity 1s ease-in-out;
+          transition: opacity 1.2s ease;
         }
+
         .register-slide.active {
           opacity: 1;
-          z-index: 1;
         }
-        .register-slide-image {
+
+        .register-slide img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           object-position: center;
         }
-        
+
+        .register-background-overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(
+              90deg,
+              rgba(7, 25, 54, 0.55),
+              rgba(7, 25, 54, 0.51) 48%,
+              rgba(247, 249, 252, 0.92) 100%
+            );
+        }
+
+        /* -------------------------------------------------------
+           MAIN LAYOUT
+        ------------------------------------------------------- */
+
+        .register-layout {
+          position: relative;
+          z-index: 2;
+          min-height: 100vh;
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(350px, 0.9fr) minmax(540px, 1.1fr);
+          align-items: center;
+          gap: 40px;
+          padding: 45px 7%;
+        }
+
+        /* -------------------------------------------------------
+           BRAND PANEL
+        ------------------------------------------------------- */
+
+        .register-brand-panel {
+          color: white;
+          min-height: 620px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 35px 15px 35px 25px;
+        }
+
+        .brand-panel-content {
+          max-width: 480px;
+        }
+
+        .brand-logo-wrap {
+          width: 80px;
+          height: 82px;
+          background: rgba(255, 255, 255, 0.88);
+          border-radius: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          box-shadow:
+            0 15px 35px rgba(0,0,0,0.2);
+          margin-bottom: 38px;
+        }
+
+        .brand-logo-wrap img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+
+        .brand-label {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          opacity: 0.78;
+          margin-bottom: 14px;
+        }
+
+        .brand-copy h1 {
+          font-size: clamp(52px, 6vw, 86px);
+          line-height: 0.87;
+          letter-spacing: -4px;
+          margin: 0;
+          font-weight: 800;
+        }
+
+        .brand-copy h1 span {
+          font-weight: 400;
+          opacity: 0.86;
+        }
+
+        .brand-copy p {
+          max-width: 390px;
+          font-size: 18px;
+          line-height: 1.65;
+          color: rgba(255,255,255,0.82);
+          margin: 30px 0 0;
+        }
+
+        .brand-divider {
+          width: 65px;
+          height: 3px;
+          background: white;
+          opacity: 0.7;
+          margin: 35px 0;
+          border-radius: 10px;
+        }
+
+        .brand-message {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          max-width: 420px;
+        }
+
+        .brand-cross {
+          width: 38px;
+          height: 38px;
+          flex: 0 0 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(255,255,255,0.35);
+          border-radius: 50%;
+          font-size: 17px;
+        }
+
+        .brand-message strong {
+          display: block;
+          font-size: 14px;
+          margin-bottom: 5px;
+        }
+
+        .brand-message p {
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.55;
+          color: rgba(255,255,255,0.68);
+        }
+
+        .brand-footer {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: rgba(255,255,255,0.65);
+          font-size: 12px;
+        }
+
+        .brand-dot {
+          opacity: 0.4;
+        }
+
+        /* -------------------------------------------------------
+           FORM PANEL
+        ------------------------------------------------------- */
+
+        .register-form-panel {
+          display: flex;
+          justify-content: center;
+        }
+
+        .register-form-card {
+          width: 100%;
+          max-width: 620px;
+          background: rgba(255,255,255,0.97);
+          border: 1px solid rgba(255,255,255,0.85);
+          border-radius: 28px;
+          padding: 42px 46px 28px;
+          box-shadow:
+            0 30px 80px rgba(5,20,45,0.18);
+        }
+
+        .form-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 18px;
+          margin-bottom: 30px;
+        }
+
+        .mobile-logo {
+          display: none;
+        }
+
+        .form-eyebrow {
+          display: block;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 1.6px;
+          margin-bottom: 7px;
+        }
+
+        .form-header h2 {
+          color: #14213d;
+          font-size: 30px;
+          line-height: 1.15;
+          letter-spacing: -0.8px;
+          margin: 0 0 8px;
+          font-weight: 750;
+        }
+
+        .form-header p {
+          color: #64748b;
+          font-size: 14px;
+          margin: 0;
+        }
+
+        /* -------------------------------------------------------
+           FORM
+        ------------------------------------------------------- */
+
+        .register-form {
+          display: flex;
+          flex-direction: column;
+          gap: 17px;
+        }
+
+        .field {
+          min-width: 0;
+        }
+
+        .field label {
+          display: block;
+          color: #27364d;
+          font-size: 12px;
+          font-weight: 700;
+          margin: 0 0 7px 2px;
+        }
+
+        .input-shell {
+          height: 50px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid #d9e1ec;
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 0 13px;
+          transition:
+            border-color 0.18s ease,
+            box-shadow 0.18s ease,
+            background 0.18s ease;
+        }
+
+        .field.focused .input-shell {
+          background: white;
+          border-color: #2563eb;
+          box-shadow:
+            0 0 0 3px rgba(37,99,235,0.10);
+        }
+
+        .field-icon {
+          width: 22px;
+          text-align: center;
+          opacity: 0.6;
+          font-size: 14px;
+          flex: 0 0 22px;
+        }
+
+        .input-shell input {
+          width: 100%;
+          min-width: 0;
+          height: 100%;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #172033;
+          font-size: 14px;
+          font-family: inherit;
+        }
+
+        .input-shell input::placeholder {
+          color: #9aa7b8;
+        }
+
+        .field small {
+          display: block;
+          color: #8290a3;
+          font-size: 10.5px;
+          margin: 6px 2px 0;
+        }
+
+        .password-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+
+        .password-toggle {
+          border: 0;
+          background: transparent;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          padding: 4px;
+        }
+
+        .password-strength {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 7px;
+        }
+
+        .strength-track {
+          flex: 1;
+          display: flex;
+          gap: 3px;
+        }
+
+        .strength-track span {
+          height: 3px;
+          flex: 1;
+          border-radius: 10px;
+          background: #e2e8f0;
+        }
+
+        .strength-track span.strength-1 {
+          background: #ef4444;
+        }
+
+        .strength-track span.strength-2 {
+          background: #f59e0b;
+        }
+
+        .strength-track span.strength-3 {
+          background: #10b981;
+        }
+
+        .strength-track span.strength-4 {
+          background: #0891b2;
+        }
+
+        .password-strength > span {
+          font-size: 10px;
+          font-weight: 700;
+          color: #64748b;
+          min-width: 36px;
+          text-align: right;
+        }
+
+        .password-match {
+          font-size: 10.5px;
+          margin-top: 6px;
+          font-weight: 600;
+        }
+
+        .password-match.match {
+          color: #15803d;
+        }
+
+        .password-match.no-match {
+          color: #dc2626;
+        }
+
+        /* -------------------------------------------------------
+           REQUIREMENTS
+        ------------------------------------------------------- */
+
+        .requirements {
+          background: #f5f8fc;
+          border: 1px solid #e5eaf1;
+          border-radius: 12px;
+          padding: 12px 14px;
+        }
+
+        .requirements-title {
+          color: #475569;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          margin-bottom: 8px;
+        }
+
+        .requirements-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px 12px;
+        }
+
+        .requirements-grid span {
+          color: #8a97a8;
+          font-size: 10.5px;
+        }
+
+        .requirements-grid span.complete {
+          color: #15803d;
+          font-weight: 600;
+        }
+
+        /* -------------------------------------------------------
+           SUBMIT
+        ------------------------------------------------------- */
+
+        .register-submit {
+          height: 52px;
+          width: 100%;
+          border: 0;
+          border-radius: 12px;
+          background: #1d4ed8;
+          color: white;
+          font-family: inherit;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          box-shadow:
+            0 8px 18px rgba(29,78,216,0.20);
+          transition:
+            background 0.2s ease,
+            box-shadow 0.2s ease;
+        }
+
+        .register-submit:hover:not(:disabled) {
+          background: #1e40af;
+          box-shadow:
+            0 11px 22px rgba(29,78,216,0.25);
+        }
+
+        .register-submit:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        .submit-arrow {
+          font-size: 18px;
+          line-height: 1;
+        }
+
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(29,78,216,0.2);
+          border-top-color: #1d4ed8;
+          border-radius: 50%;
+          animation: registerSpin 0.7s linear infinite;
+        }
+
+        .spinner.light {
+          border-color: rgba(255,255,255,0.3);
+          border-top-color: white;
+        }
+
+        /* -------------------------------------------------------
+           SIGN IN
+        ------------------------------------------------------- */
+
+        .signin-area {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 5px;
+          margin-top: 22px;
+          color: #7b8798;
+          font-size: 12px;
+        }
+
+        .signin-area a {
+          color: #1d4ed8;
+          font-weight: 700;
+          text-decoration: none;
+        }
+
+        .signin-area a:hover {
+          text-decoration: underline;
+        }
+
+        .form-footer {
+          border-top: 1px solid #edf0f4;
+          margin-top: 24px;
+          padding-top: 17px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 7px;
+          color: #9aa5b4;
+          font-size: 9.5px;
+          text-align: center;
+        }
+
+        .footer-cross {
+          color: #64748b;
+        }
+
+        /* -------------------------------------------------------
+           VERIFICATION MODAL
+        ------------------------------------------------------- */
+
+        .verification-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(15,23,42,0.52);
+          backdrop-filter: blur(8px);
+        }
+
+        .verification-modal {
+          position: relative;
+          width: 100%;
+          max-width: 440px;
+          background: white;
+          border-radius: 24px;
+          padding: 34px;
+          text-align: center;
+          box-shadow:
+            0 30px 80px rgba(0,0,0,0.25);
+        }
+
+        .verification-close {
+          position: absolute;
+          right: 18px;
+          top: 15px;
+          border: 0;
+          background: transparent;
+          color: #94a3b8;
+          font-size: 25px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .verification-brand {
+          width: 48px;
+          height: 48px;
+          padding: 7px;
+          border-radius: 12px;
+          background: #f1f5f9;
+          margin: 0 auto 18px;
+        }
+
+        .verification-brand img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+
+        .verification-badge {
+          width: 42px;
+          height: 42px;
+          margin: 0 auto 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: #eff6ff;
+          color: #2563eb;
+          font-size: 17px;
+        }
+
+        .verification-eyebrow {
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 1.2px;
+        }
+
+        .verification-modal h2 {
+          margin: 6px 0 8px;
+          color: #14213d;
+          font-size: 25px;
+          letter-spacing: -0.4px;
+        }
+
+        .verification-description {
+          color: #718096;
+          font-size: 12px;
+          margin: 0;
+        }
+
+        .verification-email {
+          display: block;
+          color: #1d4ed8;
+          font-size: 13px;
+          margin-top: 4px;
+          overflow-wrap: anywhere;
+        }
+
+        .verification-help {
+          color: #8a96a7;
+          font-size: 11px;
+          line-height: 1.6;
+          margin: 14px auto 20px;
+          max-width: 340px;
+        }
+
+        .verification-help strong {
+          color: #64748b;
+        }
+
+        .verification-code {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          margin-bottom: 18px;
+        }
+
+        .verification-code input {
+          width: 47px;
+          height: 55px;
+          border: 1px solid #d7dfeb;
+          background: #f8fafc;
+          border-radius: 11px;
+          outline: none;
+          text-align: center;
+          font-size: 22px;
+          font-weight: 750;
+          color: #14213d;
+          transition:
+            border-color 0.18s ease,
+            box-shadow 0.18s ease;
+        }
+
+        .verification-code input:focus {
+          background: white;
+          border-color: #2563eb;
+          box-shadow:
+            0 0 0 3px rgba(37,99,235,0.10);
+        }
+
+        .verification-error {
+          background: #fff1f2;
+          color: #be123c;
+          border: 1px solid #fecdd3;
+          padding: 10px 12px;
+          border-radius: 9px;
+          font-size: 11px;
+          margin-bottom: 14px;
+        }
+
+        .verify-submit {
+          width: 100%;
+          height: 49px;
+          border: 0;
+          border-radius: 11px;
+          background: #1d4ed8;
+          color: white;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .verify-submit:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        .resend-area {
+          min-height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #94a3b8;
+          font-size: 10.5px;
+          margin-top: 13px;
+        }
+
+        .resend-area strong {
+          color: #475569;
+        }
+
+        .resend-area button {
+          border: 0;
+          background: transparent;
+          color: #1d4ed8;
+          font-family: inherit;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .resend-area button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .verification-cancel {
+          border: 0;
+          background: transparent;
+          color: #94a3b8;
+          font-family: inherit;
+          font-size: 10.5px;
+          cursor: pointer;
+          margin-top: 5px;
+        }
+
+        .verification-cancel:hover {
+          color: #475569;
+        }
+
+        /* -------------------------------------------------------
+           ANIMATIONS
+        ------------------------------------------------------- */
+
+        @keyframes registerSpin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @keyframes registerToastIn {
+          from {
+            opacity: 0;
+            transform:
+              translateX(-50%)
+              translateY(12px);
+          }
+
+          to {
+            opacity: 1;
+            transform:
+              translateX(-50%)
+              translateY(0);
+          }
+        }
+
+        @keyframes registerToastOut {
+          from {
+            opacity: 1;
+            transform:
+              translateX(-50%)
+              translateY(0);
+          }
+
+          to {
+            opacity: 0;
+            transform:
+              translateX(-50%)
+              translateY(12px);
+          }
+        }
+
+        /* -------------------------------------------------------
+           TABLET
+        ------------------------------------------------------- */
+
+        @media (max-width: 1050px) {
+          .register-layout {
+            grid-template-columns: 0.65fr 1fr;
+            padding: 35px;
+          }
+
+          .register-brand-panel {
+            padding-left: 0;
+          }
+
+          .brand-copy h1 {
+            font-size: 62px;
+          }
+
+          .register-form-card {
+            padding: 35px;
+          }
+        }
+
+        /* -------------------------------------------------------
+           MOBILE
+        ------------------------------------------------------- */
+
+        @media (max-width: 800px) {
+          .register-page {
+            background: #f4f7fb;
+          }
+
+          .register-background {
+            position: absolute;
+            height: 245px;
+          }
+
+          .register-background-overlay {
+            background:
+              linear-gradient(
+                180deg,
+                rgba(7, 25, 54, 0.07),
+                rgba(7, 25, 54, 0.32)
+              );
+          }
+
+          .register-layout {
+            display: block;
+            padding: 0;
+            min-height: 100vh;
+          }
+
+          .register-brand-panel {
+            min-height: 245px;
+            padding: 25px 24px 28px;
+            justify-content: flex-start;
+          }
+
+          .brand-logo-wrap {
+            width: 55px;
+            height: 55px;
+            padding: 8px;
+            border-radius: 15px;
+            margin-bottom: 18px;
+          }
+
+          .brand-label {
+            font-size: 9px;
+            letter-spacing: 1.3px;
+            margin-bottom: 5px;
+          }
+
+          .brand-copy h1 {
+            font-size: 39px;
+            letter-spacing: -2px;
+          }
+
+          .brand-copy p,
+          .brand-divider,
+          .brand-message,
+          .brand-footer {
+            display: none;
+          }
+
+          .register-form-panel {
+            position: relative;
+            z-index: 5;
+            margin-top: 0;
+          }
+
+          .register-form-card {
+            max-width: none;
+            min-height: calc(100vh - 210px);
+            border-radius: 25px 25px 0 0;
+            padding: 30px 22px 22px;
+            box-shadow:
+              0 -12px 35px rgba(0,0,0,0.10);
+          }
+
+          .form-header {
+            margin-bottom: 25px;
+          }
+
+          .mobile-logo {
+            display: none;
+          }
+
+          .form-header h2 {
+            font-size: 25px;
+          }
+
+          .form-header p {
+            font-size: 13px;
+          }
+
+          .password-row {
+            grid-template-columns: 1fr;
+            gap: 17px;
+          }
+
+          .requirements-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+
+        /* -------------------------------------------------------
+           SMALL PHONES
+        ------------------------------------------------------- */
+
+        @media (max-width: 430px) {
+          .register-brand-panel {
+            height: 205px;
+            min-height: 205px;
+          }
+
+          .register-background {
+            height: 205px;
+          }
+
+          .brand-copy h1 {
+            font-size: 34px;
+          }
+
+          .register-form-card {
+            min-height: calc(100vh - 180px);
+            padding: 27px 18px 20px;
+          }
+
+          .form-header h2 {
+            font-size: 23px;
+          }
+
+          .verification-modal {
+            padding: 28px 18px;
+            border-radius: 20px;
+          }
+
+          .verification-code {
+            gap: 5px;
+          }
+
+          .verification-code input {
+            width: 43px;
+            height: 52px;
+          }
+
+          .form-footer {
+            font-size: 8.5px;
+          }
+        }
+
+        /* -------------------------------------------------------
+           VERY SMALL SCREENS
+        ------------------------------------------------------- */
+
+        @media (max-width: 360px) {
+          .verification-code input {
+            width: 39px;
+            height: 48px;
+          }
+
+          .requirements-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </>
   );
 }
-
-const styles = {
-  pageWrapper: {
-    minHeight: "100vh",
-    width: "100%",
-    overflow: "hidden",
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    position: "relative"
-  },
-  container: {
-    position: "relative",
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "20px",
-    zIndex: 2
-  },
-  backgroundOverlay: {
-    position: "absolute",
-    inset: 0,
-    background: "linear-gradient(135deg, rgba(26, 40, 71, 0), rgba(30, 27, 75, 0.8))",
-    zIndex: 1
-  },
-  particlesContainer: {
-    position: "absolute",
-    inset: 0,
-    overflow: "hidden",
-    pointerEvents: "none",
-    zIndex: 1
-  },
-  particle: {
-    position: "absolute",
-    background: "rgba(59,130,246,0.15)",
-    borderRadius: "50%",
-    pointerEvents: "none",
-    animation: "float 10s ease-in-out infinite"
-  },
-  card: {
-    position: "relative",
-    zIndex: 2,
-    width: "100%",
-    maxWidth: "440px",
-    background: "rgba(15, 23, 42, 0.62)",
-    backdropFilter: "blur(5px)",
-    borderRadius: "32px",
-    padding: "0px 28px",
-    marginBottom: "30px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
-  },
-  cardInner: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: "32px",
-    background: "radial-gradient(circle at 50% 0%, rgba(59, 131, 246, 0.06), transparent 70%)",
-    pointerEvents: "none"
-  },
-  logoContainer: {
-    textAlign: "center",
-    marginBottom: "24px"
-  },
-  logo: {
-    width: "75px",
-    height: "auto",
-    marginBottom: "12px",
-    filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))"
-  },
-  logoUnderline: {
-    width: "50px",
-    height: "2px",
-    background: "linear-gradient(90deg, transparent, #3b82f6, transparent)",
-    margin: "0 auto"
-  },
-  title: {
-    textAlign: "center",
-    fontSize: "28px",
-    fontWeight: 700,
-    background: "linear-gradient(135deg, #f1f5f9, #94a3b8)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    marginBottom: "32px",
-    letterSpacing: "-0.5px"
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "20px"
-  },
-  inputGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px"
-  },
-  label: {
-    fontSize: "13px",
-    fontWeight: 500,
-    marginLeft: "4px"
-  },
-  inputWrapper: {
-    position: "relative"
-  },
-  input: {
-    width: "100%",
-    padding: "14px 16px",
-    backgroundColor: "rgba(30,41,59,0.6)",
-    border: "1px solid",
-    borderRadius: "16px",
-    color: "#f1f5f9",
-    fontSize: "14px",
-    outline: "none",
-    transition: "all 0.2s ease",
-    boxSizing: "border-box"
-  },
-  capsIndicator: {
-    position: "absolute",
-    right: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    opacity: 0.5,
-    pointerEvents: "none"
-  },
-  capsIcon: {
-    fontSize: "16px"
-  },
-  hintText: {
-    fontSize: "10px",
-    color: "#fbbf24",
-    marginTop: "4px",
-    marginLeft: "4px",
-    display: "flex",
-    alignItems: "center",
-    gap: "4px"
-  },
-  eyeButton: {
-    position: "absolute",
-    right: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    background: "none",
-    border: "none",
-    fontSize: "18px",
-    cursor: "pointer",
-    opacity: 0.6,
-    padding: 0,
-    color: "#94a3b8"
-  },
-  strengthContainer: {
-    marginTop: "8px"
-  },
-  strengthBars: {
-    display: "flex",
-    gap: "6px",
-    marginBottom: "4px"
-  },
-  strengthBar: {
-    height: "4px",
-    borderRadius: "2px",
-    transition: "background-color 0.2s ease"
-  },
-  strengthText: {
-    fontSize: "11px",
-    fontWeight: 500
-  },
-  matchIndicator: {
-    fontSize: "11px",
-    marginTop: "4px",
-    marginLeft: "4px"
-  },
-  registerButton: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "40px",
-    border: "none",
-    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-    color: "white",
-    fontWeight: 600,
-    fontSize: "15px",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    marginTop: "8px"
-  },
-  buttonLoading: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px"
-  },
-  buttonSpinner: {
-    display: "inline-block",
-    animation: "spin 1s linear infinite"
-  },
-  loginSection: {
-    textAlign: "center",
-    marginTop: "24px",
-    paddingTop: "20px",
-    borderTop: "1px solid rgba(255,255,255,0.08)"
-  },
-  loginText: {
-    fontSize: "14px",
-    color: "#94a3b8"
-  },
-  loginLink: {
-    color: "#3b82f6",
-    textDecoration: "none",
-    fontWeight: 600,
-    transition: "color 0.2s"
-  },
-  faithText: {
-    textAlign: "center",
-    fontSize: "11px",
-    color: "#475569",
-    marginTop: "24px",
-    fontStyle: "italic"
-  },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: "rgba(17, 17, 17, 0.18)",
-    backdropFilter: "blur(10px)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10000,
-    padding: "20px"
-  },
-  modal: {
-    background: "linear-gradient(135deg, #1e293b, #0f172a)",
-    borderRadius: "28px",
-    padding: "36px 32px",
-    maxWidth: "480px",
-    width: "100%",
-    textAlign: "center",
-    border: "1px solid rgba(59,130,246,0.3)",
-    boxShadow: "0 25px 50px rgba(0,0,0,0.5)"
-  },
-  modalHeader: {
-    marginBottom: "28px"
-  },
-  modalLogo: {
-    width: "60px",
-    height: "auto",
-    marginBottom: "16px"
-  },
-  modalTitle: {
-    color: "white",
-    fontSize: "24px",
-    fontWeight: 600,
-    marginBottom: "8px"
-  },
-  modalSubtitle: {
-    color: "#94a3b8",
-    fontSize: "14px",
-    lineHeight: 1.5
-  },
-  modalEmail: {
-    color: "#00fa36",
-    fontSize: "15px"
-  },
-  codeContainer: {
-    display: "flex",
-    gap: "10px",
-    justifyContent: "center",
-    marginBottom: "24px",
-    flexWrap: "nowrap"
-  },
-  codeInput: {
-    width: "48px",
-    height: "56px",
-    textAlign: "center",
-    fontSize: "28px",
-    fontWeight: "bold",
-    borderRadius: "16px",
-    border: "2px solid",
-    background: "rgba(30,41,59,0.8)",
-    color: "white",
-    outline: "none",
-    transition: "all 0.2s"
-  },
-  modalError: {
-    background: "rgba(239,68,68,0.1)",
-    border: "1px solid rgba(239,68,68,0.3)",
-    borderRadius: "12px",
-    padding: "12px",
-    marginBottom: "20px",
-    color: "#ef4444",
-    fontSize: "13px"
-  },
-  modalButton: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "40px",
-    border: "none",
-    background: "linear-gradient(135deg, #3bf683, #2563eb)",
-    color: "white",
-    fontWeight: 600,
-    fontSize: "15px",
-    cursor: "pointer",
-    marginBottom: "16px"
-  },
-  resendSection: {
-    marginBottom: "16px"
-  },
-  timerText: {
-    color: "#94a3b8",
-    fontSize: "13px"
-  },
-  timer: {
-    color: "#fbbf24",
-    fontWeight: "bold"
-  },
-  resendButton: {
-    background: "none",
-    border: "none",
-    color: "#f63b3b",
-    cursor: "pointer",
-    fontSize: "14px",
-    textDecoration: "underline"
-  },
-  modalCancel: {
-    background: "none",
-    border: "none",
-    color: "#64748b",
-    cursor: "pointer",
-    fontSize: "13px",
-    transition: "color 0.2s"
-  }
-};
-
-// Add hover styles for links
-const styleSheet = document.createElement('style');
-styleSheet.textContent = `
-  a:hover {
-    color: #60a5fa !important;
-  }
-  input:focus {
-    background-color: rgba(30,41,59,0.8) !important;
-  }
-  button {
-    font-family: inherit;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
-document.head.appendChild(styleSheet);
 
 export default Register;

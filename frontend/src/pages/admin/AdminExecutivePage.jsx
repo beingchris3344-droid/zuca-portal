@@ -803,15 +803,25 @@ const handleDeleteCategory = async (category) => {
                                         <Search size={12} />
                                         <input type="text" placeholder="Search user..." value={searchUserTerm} onChange={(e) => setSearchUserTerm(e.target.value)} autoFocus />
                                       </div>
-                                      <div className="assign-users">
-                                        {inlineFilteredUsers.slice(0, 5).map(user => (
-                                          <div key={user.id} className={`assign-user ${selectedUserId === user.id ? 'selected' : ''}`} onClick={() => setSelectedUserId(user.id)}>
-                                            <div className="assign-user-avatar">{user.fullName.charAt(0)}</div>
-                                            <div className="assign-user-name">{user.fullName.split(' ')[0]}</div>
-                                          </div>
-                                        ))}
-                                        {inlineFilteredUsers.length === 0 && <div className="no-users-match">No users found</div>}
-                                      </div>
+                                     <div className="assign-users">
+  {inlineFilteredUsers.map(user => (
+    <div 
+      key={user.id} 
+      className={`assign-user ${selectedUserId === user.id ? 'selected' : ''}`} 
+      onClick={() => setSelectedUserId(user.id)}
+    >
+      <div className="assign-user-avatar">
+        {user.profileImage ? (
+          <img src={user.profileImage} alt={user.fullName} className="assign-user-image" />
+        ) : (
+          <span>{user.fullName.charAt(0)}</span>
+        )}
+      </div>
+      <div className="assign-user-name">{user.fullName}</div>
+    </div>
+  ))}
+  {inlineFilteredUsers.length === 0 && <div className="no-users-match">No users found</div>}
+</div>
                                       <div className="assign-buttons">
                                         <button className="assign-cancel" onClick={() => { setAssigningPosition(null); setSelectedUserId(''); setSearchUserTerm(''); }}>Cancel</button>
                                         <button className="assign-confirm" onClick={() => handleAssign(position.id)} disabled={!selectedUserId || saving}>
@@ -1126,11 +1136,75 @@ const handleDeleteCategory = async (category) => {
         .inline-assign { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px; min-width: 260px; }
         .assign-search { display: flex; align-items: center; gap: 6px; padding: 8px; background: #f8fafc; border-radius: 12px; margin-bottom: 10px; }
         .assign-search input { flex: 1; border: none; background: transparent; outline: none; font-size: 12px; }
-        .assign-users { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; max-height: 120px; overflow-y: auto; }
-        .assign-user { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 12px; cursor: pointer; min-width: 60px; }
-        .assign-user.selected { background: #eff6ff; }
-        .assign-user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
-        .assign-user-name { font-size: 10px; text-align: center; }
+        .assign-users {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+       .assign-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.assign-user:hover {
+  background: #f1f5f9;
+}
+      .assign-user.selected {
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+}
+        .assign-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.assign-user-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+       .assign-user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+  /* Scrollbar styling */
+.assign-users::-webkit-scrollbar {
+  width: 4px;
+}
+
+.assign-users::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.assign-users::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
         .no-users-match { padding: 12px; text-align: center; font-size: 11px; color: #94a3b8; }
         .assign-buttons { display: flex; gap: 8px; justify-content: flex-end; }
         .assign-cancel, .assign-confirm { padding: 5px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: none; }

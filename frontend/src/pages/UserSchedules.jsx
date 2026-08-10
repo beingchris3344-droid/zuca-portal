@@ -5,7 +5,7 @@ import { api } from "../api";
 import { motion, AnimatePresence } from "framer-motion";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import { FaCalendarDay } from "react-icons/fa";
+import { FaCalendarDay, FaEye } from "react-icons/fa";
 import { FiCalendar, FiList } from "react-icons/fi";
 
 function UserSchedules() {
@@ -373,7 +373,7 @@ function UserSchedules() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  👁️ View Schedule
+                  <FaEye color="#ffffff"/> View Schedule
                 </motion.button>
               </motion.div>
             );

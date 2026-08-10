@@ -5,6 +5,8 @@ import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
 import SimpleMessageModal from "./SimpleMessageModal";
+import { Users } from "lucide-react";
+import { FaFileAlt } from "react-icons/fa";
 
 function Contributions() {
   const [contributions, setContributions] = useState([]);
@@ -340,7 +342,7 @@ const handleClaim = async (contributionId) => {
       <div className="header">
         <div className="header-left">
           <h1 className="title">My Contributions</h1>
-          <p className="subtitle">USE PLEDGE FOR RECORD(mpesa STK push coming soon) </p>
+          <p className="subtitle"> Welcome back, we'll notify you when new contributions are available! </p>
         </div>
         <button 
           onClick={() => fetchContributions(true)}
@@ -447,7 +449,7 @@ const handleClaim = async (contributionId) => {
       {!loading && !error && filteredContributions.length === 0 && (
         <div className="empty-state">
           <div className="empty-icon">
-            {filter === 'pending' ? '⏳' : filter === 'approved' ? '✓' : filter === 'completed' ? '🎉' : '📋'}
+            {filter === 'pending' ? '⏳' : filter === 'approved' ? '✓' : filter === 'completed' ? '🎉' : <FaFileAlt/>}
           </div>
           <h3>No {filter === 'all' ? '' : filter} contributions</h3>
           <p>

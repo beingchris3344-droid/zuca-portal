@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import logo from "../assets/zuca-logo.png";
 import { 
   Search, X, Users, Check, Loader, Info, AlertCircle, 
   MessageCircle, Link as LinkIcon, ArrowLeft, Sparkles,
@@ -128,7 +129,7 @@ useEffect(() => {
           <div style={styles.loadingAnimation}>
             <div style={styles.loadingRing}></div>
             <div style={styles.loadingRingInner}></div>
-            <Users size={32} style={styles.loadingIcon} />
+             {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
           </div>
 <h2 style={styles.loadingTitle}>Hey {user?.fullName?.split(" ")[0] || "User"} Please wait </h2>          <p style={styles.loadingSubtitle}>Loading jumuia groups...</p>
         </div>

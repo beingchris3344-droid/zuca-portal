@@ -352,7 +352,7 @@ export default function ExecutiveMinutes() {
       <div className="page-header">
         <div className="header-content">
           <h1>
-            <FaFileAlt size={28} /> All Leaders meetings Minutes
+            <FaFileAlt size={28} /> All  meetings Minutes
           </h1>
           <p className="subtitle">This Page is  Visible to leaders only  View all meeting minutes</p>
         </div>

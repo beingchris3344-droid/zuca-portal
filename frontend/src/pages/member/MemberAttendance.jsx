@@ -7,6 +7,7 @@ import {
   ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
   Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock
 } from 'lucide-react';
+import { FaFileAlt } from 'react-icons/fa';
 import QRScanner from '../../components/member/attendance/QRScanner';
 import CelebrationOverlay from '../../components/CelebrationOverlay';
 
@@ -789,7 +790,7 @@ export default function MemberAttendance() {
       {/* Meetings List */}
       {activeSheets.length === 0 ? (
         <div className="empty-state-premium">
-          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-icon"><FaFileAlt/></div>
           <h3>No Active Meetings</h3>
           <p>There are no active attendance sheets at the moment.</p>
           <div className="empty-state-decoration">

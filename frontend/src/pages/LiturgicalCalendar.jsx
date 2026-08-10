@@ -1260,8 +1260,7 @@ const LiturgicalCalendar = () => {
           <div style={styles.loadingAnimation}>
             <div style={styles.loadingRing}></div>
             <div style={styles.loadingRingInner}></div>
-            <Church style={styles.loadingIcon} />
-          </div>
+{loading && <img src={logo} alt="Loading..." style={{ width: '50px', height: '70px' }} />}          </div>
           <h2 style={styles.loadingTitle}>Loading Liturgical Calendar</h2>
           <p style={styles.loadingSubtitle}>Fetching {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}...</p>
         </div>

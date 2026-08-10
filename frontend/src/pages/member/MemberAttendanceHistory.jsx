@@ -7,6 +7,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadialBarChart, RadialBar
 } from 'recharts';
+import { FiFileText} from 'react-icons/fi';
 import { FaCalendarAlt } from 'react-icons/fa';
 
 export default function MemberAttendanceHistory() {
@@ -624,7 +625,7 @@ const fetchAllSemesters = async () => {
             </div>
             {filteredMeetings.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-icon">📋</div>
+                <div className="empty-icon"><FiFileText/></div>
                 <h3>No Meetings Found</h3>
                 <p>No meetings have been scheduled yet.</p>
               </div>

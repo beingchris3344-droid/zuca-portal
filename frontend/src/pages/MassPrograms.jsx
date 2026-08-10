@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import logo from "../assets/zuca-logo.png";
 import {FaChurch, FaMusic, FaBook, FaSun, FaMoon, FaPray, FaPeace, FaHeart, FaStar, FaEnvelope, FaShareAlt} from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
@@ -55,7 +56,7 @@ import {
 } from "react-icons/gi";
 import { MdOutlineRestore, MdOutlineFormatQuote } from "react-icons/md";
 import { IoTimeOutline, IoDocumentTextOutline, IoMusicalNotesOutline } from "react-icons/io5";
-import { FaTelegramPlane, FaRegKeyboard, FaFileWord, FaFilePdf, FaFileAlt } from "react-icons/fa";
+import { FaTelegramPlane, FaRegKeyboard, FaFileWord, FaFilePdf, FaFileAlt, FaFacebook } from "react-icons/fa";
 import BASE_URL from "../api";
 
 // Helper function to parse semicolon-separated songs into array
@@ -736,43 +737,46 @@ const shareImageToWhatsApp = async (program) => {
     showToast("HTML saved - use Ctrl+P to save as PDF");
   };
 
-  // ========== SHARE FUNCTIONALITY ==========
-  const shareProgram = (program, platform) => {
-    const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
-      weekday: 'long',
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-    
-    let shareText = `MASS PROGRAM\n📅 ${formattedDate}\n📍 ${program.venue}\n\n`;
-    
-    songFields.forEach(field => {
-      const songsArray = getSongsArray(program, field.key);
-      if (songsArray.length > 0) {
-        shareText += `${field.icon} ${field.label}: `;
-        if (songsArray.length === 1) {
-          shareText += `${songsArray[0]}\n`;
-        } else {
-          shareText += songsArray.map((s, i) => `\n  ${i+1}. ${s}`).join('') + '\n';
-        }
-      }
-    });
-    
-    shareText += `\nZetech Catholic Action | ZUCA Portal`;
-    
-    if (platform === 'whatsapp') {
-      window.open('https://wa.me/?text=' + encodeURIComponent(shareText), '_blank');
-    } else if (platform === 'telegram') {
-      window.open('https://t.me/share/url?url=&text=' + encodeURIComponent(shareText), '_blank');
-    } else if (platform === 'twitter') {
-      window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText.substring(0, 280)), '_blank');
-    } else if (platform === 'email') {
-      window.open('mailto:?subject=Mass Program - ' + formattedDate + '&body=' + encodeURIComponent(shareText));
-    } else {
-      setShareModal(program);
-    }
-  };
+ // ========== GENERATE SHARE LINK ==========
+const generateShareLink = (program) => {
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/mass-programs?program=${program.id}`;
+};
+
+// ========== SHARE LINK TO PLATFORMS ==========
+const shareLink = (program, platform) => {
+  const link = generateShareLink(program);
+  const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
+    weekday: 'long',
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  const message = `📋 Mass Program\n📅 ${formattedDate}\n📍 ${program.venue}\n\nView full program: ${link}`;
+  
+  if (platform === 'whatsapp') {
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  } else if (platform === 'telegram') {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`Mass Program - ${formattedDate}`)}`, '_blank');
+  } else if (platform === 'twitter') {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Mass Program ${formattedDate}`)}&url=${encodeURIComponent(link)}`, '_blank');
+  } else if (platform === 'facebook') {
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, '_blank');
+  } else if (platform === 'email') {
+    window.open(`mailto:?subject=Mass Program - ${formattedDate}&body=${encodeURIComponent(message)}`, '_blank');
+  } else {
+    navigator.clipboard.writeText(link);
+    showToast('🔗 Link copied to clipboard!');
+  }
+};
+
+// ========== COPY LINK ==========
+const copyLink = (program) => {
+  const link = generateShareLink(program);
+  navigator.clipboard.writeText(link);
+  showToast('🔗 Link copied to clipboard!');
+};
 
   const copyToClipboard = (program) => {
     const formattedDate = new Date(program.date).toLocaleDateString('en-US', { 
@@ -958,7 +962,7 @@ const shareImageToWhatsApp = async (program) => {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          ⛪
+          {logo ? <img src={logo} alt="Loading..." style={{ width: 80, height: 80 }} /> : <FaChurch size={60} />}
         </motion.div>
         <p style={loadingText}>Preparing the liturgy...</p>
         <p style={loadingSubtext}>Loading hymns and programs</p>
@@ -976,7 +980,7 @@ const shareImageToWhatsApp = async (program) => {
       <div style={headerSection}>
         <div style={headerTop}>
           <div style={titleWrapper}>
-            <div style={titleIcon}><FaChurch /></div>
+            <div style={titleIcon}>{logo ? <img src={logo} alt="Logo" style={{ width: 40, height: 50 }} /> : <FaChurch size={40} />}</div>
             <div>
               <h1 style={title}>Mass Programs</h1>
               <p style={titleSub}>{stats.totalHymns} hymns • {stats.venues} venues</p>
@@ -1279,84 +1283,82 @@ const shareImageToWhatsApp = async (program) => {
 
                 {/* Action Buttons */}
                 {!isCollapsed && (
-                  <div style={actionButtons}>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => copyToClipboard(p)}
-                      style={actionButton}
-                    >
-                      <FiCopy size={14} />
-                      <span>Copy</span>
-                    </motion.button>
-                    
-                   <motion.button
-  whileTap={{ scale: 0.95 }}
-  onClick={() => shareImageToWhatsApp(p)}  // ← NEW
-  style={{ ...actionButton, background: "#25D366", color: "white" }}
-  disabled={generatingImage}
->
-  <BsWhatsapp size={14} />
-  <span>{generatingImage ? "Preparing..." : "WhatsApp"}</span>
-</motion.button>
+                 <div style={actionButtons}>
+  <motion.button
+    whileTap={{ scale: 0.95 }}
+    onClick={() => copyLink(p)}
+    style={actionButton}
+  >
+    <FiCopy size={14} />
+    <span>Copy Link</span>
+  </motion.button>
+  
+  <motion.button
+    whileTap={{ scale: 0.95 }}
+    onClick={() => shareLink(p, 'whatsapp')}
+    style={{ ...actionButton, background: "#25D366", color: "white" }}
+  >
+    <BsWhatsapp size={14} />
+    <span>WhatsApp</span>
+  </motion.button>
 
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => shareProgram(p)}
-                      style={actionButton}
-                    >
-                      <FiShare2 size={14} />
-                      <span>Share</span>
-                    </motion.button>
+  <motion.button
+    whileTap={{ scale: 0.95 }}
+    onClick={() => setShareModal(p)}
+    style={actionButton}
+  >
+    <FiShare2 size={14} />
+    <span>Share</span>
+  </motion.button>
 
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => printProgram(p)}
-                      style={{ ...actionButton, background: "#10b981", color: "white" }}
-                    >
-                      <FiPrinter size={14} />
-                      <span>Print</span>
-                    </motion.button>
+  <motion.button
+    whileTap={{ scale: 0.95 }}
+    onClick={() => printProgram(p)}
+    style={{ ...actionButton, background: "#10b981", color: "white" }}
+  >
+    <FiPrinter size={14} />
+    <span>Print</span>
+  </motion.button>
 
-                    {/* Download Dropdown */}
-                    <div style={downloadDropdownContainer} ref={downloadMenuRef}>
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowDownloadMenu(showDownloadMenu === p.id ? null : p.id)}
-                        style={{
-                          ...actionButton,
-                          background: showDownloadMenu === p.id ? '#4f46e5' : '#f8fafc',
-                          color: showDownloadMenu === p.id ? 'white' : '#475569',
-                          gridColumn: 'span 4',
-                        }}
-                      >
-                        <FiDownload size={14} />
-                        <span>Save as...</span>
-                        <FiChevronDown size={10} style={{ marginLeft: '2px' }} />
-                      </motion.button>
-                      
-                      <AnimatePresence>
-                        {showDownloadMenu === p.id && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                            transition={{ duration: 0.15 }}
-                            style={downloadMenu}
-                          >
-                            <button onClick={() => handleDownloadClick(p, 'word')}>
-                              <FaFileWord /> Word Document (.doc)
-                            </button>
-                            <button onClick={() => handleDownloadClick(p, 'pdf')}>
-                              <FaFilePdf /> PDF Document
-                            </button>
-                            <button onClick={() => handleDownloadClick(p, 'image')} disabled={generatingImage}>
-                              <BsFileImage /> Image (.png)
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
+  <div style={downloadDropdownContainer} ref={downloadMenuRef}>
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={() => setShowDownloadMenu(showDownloadMenu === p.id ? null : p.id)}
+      style={{
+        ...actionButton,
+        background: showDownloadMenu === p.id ? '#4f46e5' : '#f8fafc',
+        color: showDownloadMenu === p.id ? 'white' : '#475569',
+        gridColumn: 'span 4',
+      }}
+    >
+      <FiDownload size={14} />
+      <span>Save as...</span>
+      <FiChevronDown size={10} style={{ marginLeft: '2px' }} />
+    </motion.button>
+    
+    <AnimatePresence>
+      {showDownloadMenu === p.id && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+          transition={{ duration: 0.15 }}
+          style={downloadMenu}
+        >
+          <button onClick={() => handleDownloadClick(p, 'word')}>
+            <FaFileWord /> Word Document (.doc)
+          </button>
+          <button onClick={() => handleDownloadClick(p, 'pdf')}>
+            <FaFilePdf /> PDF Document
+          </button>
+          <button onClick={() => handleDownloadClick(p, 'image')} disabled={generatingImage}>
+            <BsFileImage /> Image (.png)
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+</div>                       
                 )}
               </motion.div>
             );
@@ -1382,48 +1384,73 @@ const shareImageToWhatsApp = async (program) => {
       {/* Share Modal */}
       <AnimatePresence>
         {shareModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={modalOverlay}
-            onClick={() => setShareModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              style={modalContent}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={modalTitle}>Share Mass Program</h3>
-              
-              <div style={modalOptions}>
-                <button onClick={() => shareProgram(shareModal, 'whatsapp')} style={modalOption}>
-                  <BsWhatsapp size={24} color="#25D366" />
-                  <span>WhatsApp</span>
-                </button>
-                
-                <button onClick={() => shareProgram(shareModal, 'telegram')} style={modalOption}>
-                  <FaTelegramPlane size={24} color="#0088cc" />
-                  <span>Telegram</span>
-                </button>
-                
-                <button onClick={() => shareProgram(shareModal, 'twitter')} style={modalOption}>
-                  <BsTwitter size={24} color="#1DA1F2" />
-                  <span>Twitter</span>
-                </button>
-                
-                <button onClick={() => shareProgram(shareModal, 'email')} style={modalOption}>
-                  <FiMail size={24} color="#EA4335" />
-                  <span>Email</span>
-                </button>
-              </div>
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    style={modalOverlay}
+    onClick={() => setShareModal(null)}
+  >
+    <motion.div
+      initial={{ scale: 0.9, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.9, y: 20 }}
+      style={modalContent}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <h3 style={modalTitle}>🔗 Share Mass Program Link</h3>
+      
+      <div style={linkDisplayContainer}>
+        <input 
+          type="text" 
+          value={generateShareLink(shareModal)} 
+          readOnly 
+          style={linkInput}
+          onClick={() => copyLink(shareModal)}
+        />
+        <button onClick={() => copyLink(shareModal)} style={copyLinkButton}>
+          <FiCopy size={16} />
+        </button>
+      </div>
+      
+      <div style={modalOptions}>
+        <button onClick={() => shareLink(shareModal, 'whatsapp')} style={modalOption}>
+          <BsWhatsapp size={24} color="#25D366" />
+          <span>WhatsApp</span>
+        </button>
+        
+        <button onClick={() => shareLink(shareModal, 'telegram')} style={modalOption}>
+          <FaTelegramPlane size={24} color="#0088cc" />
+          <span>Telegram</span>
+        </button>
+        
+        <button onClick={() => shareLink(shareModal, 'twitter')} style={modalOption}>
+          <BsTwitter size={24} color="#1DA1F2" />
+          <span>Twitter</span>
+        </button>
+        
+        <button onClick={() => shareLink(shareModal, 'facebook')} style={modalOption}>
+          <FaFacebook size={24} color="#1877F2" />
+          <span>Facebook</span>
+        </button>
+        
+        <button onClick={() => shareLink(shareModal, 'email')} style={modalOption}>
+          <FiMail size={24} color="#EA4335" />
+          <span>Email</span>
+        </button>
+        
+        <button onClick={() => shareLink(shareModal, 'copy')} style={modalOption}>
+          <FiCopy size={24} color="#4f46e5" />
+          <span>Copy Link</span>
+        </button>
+      </div>
 
-              <button onClick={() => setShareModal(null)} style={modalClose}>Close</button>
-            </motion.div>
-          </motion.div>
-        )}
+      <button onClick={() => setShareModal(null)} style={modalClose}>
+        Close
+      </button>
+    </motion.div>
+  </motion.div>
+)}
       </AnimatePresence>
 
       <style>
@@ -1527,7 +1554,7 @@ const songLoadingText = {
 const headerSection = { marginBottom: "16px" };
 const headerTop = { marginBottom: "12px" };
 const titleWrapper = { display: "flex", alignItems: "center", gap: "8px" };
-const titleIcon = { width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", color: "#ffffff" };
+const titleIcon = { width: "44px", height: "44px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", color: "#ffffff" };
 const title = { fontSize: "22px", fontWeight: "700", color: "#0f172a", margin: 0 };
 const titleSub = { fontSize: "12px", color: "#64748b", margin: 0 };
 const compactStats = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginBottom: "12px" };
@@ -1584,5 +1611,40 @@ const modalContent = { background: "#ffffff", borderRadius: "24px", padding: "24
 const modalTitle = { fontSize: "18px", fontWeight: "700", color: "#0f172a", marginBottom: "20px", textAlign: "center" };
 const modalOptions = { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "20px" };
 const modalOption = { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", cursor: "pointer", fontSize: "12px", color: "#0f172a" };
+
+const linkDisplayContainer = {
+  display: 'flex',
+  gap: '8px',
+  marginBottom: '20px',
+  alignItems: 'center',
+};
+
+const linkInput = {
+  flex: 1,
+  padding: '10px 12px',
+  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  fontSize: '12px',
+  color: '#0f172a',
+  background: '#f8fafc',
+  outline: 'none',
+  cursor: 'pointer',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const copyLinkButton = {
+  padding: '10px 14px',
+  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#4f46e5',
+  transition: 'all 0.2s',
+};
 const modalClose = { width: "100%", padding: "14px", background: "#4f46e5", border: "none", borderRadius: "14px", color: "#ffffff", fontSize: "14px", fontWeight: "600", cursor: "pointer" };
 const toastStyle = `position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f172a; color: white; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: 500; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); z-index: 9999; animation: slideIn 0.3s ease; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis;`;

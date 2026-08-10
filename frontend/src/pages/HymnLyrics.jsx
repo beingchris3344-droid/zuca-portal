@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import axios from "axios";
+import logo from "../assets/zuca-logo.png";
 
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
@@ -438,7 +439,7 @@ const fetchSong = async () => {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          🎵
+          {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
         </motion.div>
         <p style={loadingText}>Loading lyrics...</p>
       </div>

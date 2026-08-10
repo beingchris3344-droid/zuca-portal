@@ -11,6 +11,7 @@ import {
   FiClock, FiMessageCircle, FiBell, FiUsers, FiTrendingUp,
   FiSend, FiCopy, FiDownload, FiShare2, FiMoreVertical
 } from "react-icons/fi";
+import { FaFileAlt } from "react-icons/fa";
 
 function JumuiaDashboard() {
   const navigate = useNavigate();
@@ -792,7 +793,7 @@ const handleSendMessage = async () => {
             {/* Empty State */}
             {!loading && !error && filteredContributions.length === 0 && (
               <div style={styles.emptyState}>
-                <div style={styles.emptyIcon}>📋</div>
+                <div style={styles.emptyIcon}><FaFileAlt/></div>
                 <h3>No contributions found</h3>
                 <p>No contributions available for this filter.</p>
                 {filter !== 'all' && (

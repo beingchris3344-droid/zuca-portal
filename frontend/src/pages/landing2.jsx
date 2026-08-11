@@ -1512,7 +1512,7 @@ useEffect(() => {
     <div className="story-copy">
       <span className="section-kicker">OUR STORY</span>
       <h2>
-        More than a portal. A community.
+        More than a portal. A Big Family.
       </h2>
       
       {loadingHistory ? (

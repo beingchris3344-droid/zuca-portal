@@ -4186,4 +4186,3 @@ background: linear-gradient(
 }
 
 export default Landing2;
-

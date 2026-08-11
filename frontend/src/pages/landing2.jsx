@@ -1,46 +1,50 @@
 // frontend/src/pages/Landing2.jsx
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import BASE_URL from "../api";
-import { 
-  FaInstagram, 
-  FaFacebookF, 
-  FaYoutube, 
-  FaTiktok, 
-  FaEnvelope,
-  FaPhone,
-  FaMapMarkerAlt,
-  FaChurch,
-  FaMusic,
-  FaLaptop,
-  FaUsers,
-  FaHandsHelping,
-  FaHeart,
-  FaPray,
-  FaClock,
-  FaLocationArrow,
-  FaDownload,
-  FaUserPlus,
-  FaSignInAlt,
+import axios from "axios";
+import {
+  FaArrowRight,
   FaBars,
-  FaTimes,
-  FaChevronDown,
+  FaCalendarAlt,
   FaChevronLeft,
   FaChevronRight,
-  FaPause,
+  FaChurch,
+  FaClock,
+  FaDownload,
+  FaEnvelope,
+  FaFacebookF,
+  FaFilePdf,
+  FaHandsHelping,
+  FaHeart,
   FaImage,
-  FaCalendarAlt,
+  FaInstagram,
+  FaLaptop,
+  FaLocationArrow,
+  FaMapMarkerAlt,
+  FaMusic,
+  FaPause,
+  FaPhone,
   FaPlay,
-  FaAppStore,
-  FaAppStoreIos,
-  FaGooglePlay
+  FaPray,
+  FaSearch,
+  FaSignInAlt,
+  FaTimes,
+  FaTiktok,
+  FaUserPlus,
+  FaUsers,
+  FaYoutube,
+  FaFileWord,
+  FaPrayingHands,
 } from "react-icons/fa";
-import { useEffect, useState, useRef } from "react";
+
+import BASE_URL from "../api";
 import logo from "../assets/zuca-logo.png";
-// Slideshow images 
-import slide2 from "../assets/2.jpg"; 
-import slide3 from "../assets/3.jpg"; 
-import slide4 from "../assets/4.jpg"; 
-import slide5 from "../assets/5.jpg"; 
+import NotificationPrompt from "../components/NotificationPrompt";
+
+import slide2 from "../assets/2.jpg";
+import slide3 from "../assets/3.jpg";
+import slide4 from "../assets/4.jpg";
+import slide5 from "../assets/5.jpg";
 import slide6 from "../assets/6.jpg";
 import slide7 from "../assets/7.jpg";
 import slide8 from "../assets/8.jpg";
@@ -48,4142 +52,1756 @@ import slide9 from "../assets/9.jpg";
 import slide10 from "../assets/10.jpg";
 import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
-import NotificationPrompt from '../components/NotificationPrompt';
-import axios from 'axios';
+import { Navigate } from "react-router-dom";
+
+import "./Landing2.css";
+
+// ------------------------------------------------------------
+// Hero slide copy — one line of editorial copy per photo
+// ------------------------------------------------------------
+const slides = [
+  { image: slide2, eyebrow: "UNITY • IN • PORPOSE", title: "Growing together in faith and uniting in purpose.", text: "Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. " },
+  { image: slide3, eyebrow: "CLUB", title: "Who are we?.", text: " Our mission is to spread the message of hope, love, and faith within our campus community and beyond." },
+  { image: slide4, eyebrow: "SINGING", title: "We Come together to show case our voices.", text: "Our songs will be an  expression of our devotion and a call to all to embrace God’s grace." },
+  { image: slide5, eyebrow: "ZETECH UNIVERSITY CATHOLIC ACTION", title: "A place to belong wewe uko? .", text: "Join us as we make this journey of music inspirering uplifting." },
+  { image: slide6, eyebrow: "LET'S MEET!", title: "Make your university journey meaningful by joining us.", text: "Don't forget to like, share, and subscribe for more inspiring content from Zetech Catholic Action!" },
+  { image: slide7, eyebrow: "LETS SERVE", title: "Faith expressed through action We take part in community work and charity works.", text: "#ZetechCatholicAction #Evangelism #FaithThroughMusic #ChristianStudents #NewRelease#harmonyinvoices" },
+  { image: slide8, eyebrow: "LEARN ABOUT US!", title: "Understand our purpose.", text: "Here you Access resources, prayers, hymns and relevant content for your spiritual growth as a catholic." },
+  { image: slide9, eyebrow: "ZUCA", title: "Catholic Students online.", text: "One place for the information, resources and connections that keep ZUCA moving." },
+  { image: slide10, eyebrow: "HARMONY IN VOICES• UNITY IN PORPOSE", title: "Discover. Connect. Serve.", text: "Take an active part in a vibrant Catholic student club here we accept everyone." },
+  { image: slide11, eyebrow: "STUDENTS LIFE", title: "There is a place for you here.", text: "Meet, pray, sing and serve with the ZUCA family we are all one." },
+  { image: slide12, eyebrow: "WELCOME TO ZUCA", title: "Your journey starts here.", text: "Create your account and become part of the Zetech University Catholic Action club." },
+];
+
+const navItems = [
+  ["home", "Home"],
+  ["media", "Media"],
+  ["youtube", "Videos"],
+  ["events", "Events"],
+  ["hymns", "Hymns"],
+  ["about", "About"],
+  ["connect", "Connect"],
+  ["mass", "Mass"],
+  ["contact", "Contact"],
+];
 
 function Landing2() {
   const navigate = useNavigate();
-  const [scrollY, setScrollY] = useState(0);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstallButton, setShowInstallButton] = useState(true);
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState('home');
+
+  // ---------------- Hero / slideshow ----------------
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [touchStart, setTouchStart] = useState(null);
-  const heroRef = useRef(null);
-  const aboutRef = useRef(null);
-  const massRef = useRef(null);
-  const connectRef = useRef(null);
-  const contactRef = useRef(null);
-  const mediaRef = useRef(null);      
-const eventsRef = useRef(null);    
-const hymnsRef = useRef(null);      
-const youtubeRef = useRef(null);
-  const slideIntervalRef = useRef(null);
-  const slideshowRef = useRef(null);
-  const [featuredMedia, setFeaturedMedia] = useState([]);
-const [loadingMedia, setLoadingMedia] = useState(true);
-const [selectedMedia, setSelectedMedia] = useState(null);
-const [isModalOpen, setIsModalOpen] = useState(false);
-const [latestVideo, setLatestVideo] = useState([]);
-const [loadingVideo, setLoadingVideo] = useState(true);
-const [upcomingEvents, setUpcomingEvents] = useState([]);
-const [loadingEvents, setLoadingEvents] = useState(true);
-const [hymns, setHymns] = useState([]);
-const [loadingHymns, setLoadingHymns] = useState(true);
-const [hymnSearch, setHymnSearch] = useState('');
-const [searchResults, setSearchResults] = useState([]);
-const [isSearching, setIsSearching] = useState(false);
-const [selectedHymn, setSelectedHymn] = useState(null);
-const [showHymnModal, setShowHymnModal] = useState(false);
-const [hymnsPage, setHymnsPage] = useState(1);
-const [hasMoreHymns, setHasMoreHymns] = useState(false);
-const [searchSuggestions, setSearchSuggestions] = useState([]);
-const [showSuggestions, setShowSuggestions] = useState(false);
-const [isSearchingLive, setIsSearchingLive] = useState(false);
-const [downloading, setDownloading] = useState(false);
-const [loadingHymnDetails, setLoadingHymnDetails] = useState(false);
-const [selectedVideo, setSelectedVideo] = useState(null);
-const [showVideoModal, setShowVideoModal] = useState(false);
+  const [playing, setPlaying] = useState(true);
+  const touchStart = useRef(null);
 
-const [historyEntries, setHistoryEntries] = useState([]);
-const [loadingHistory, setLoadingHistory] = useState(true);
+  // ---------------- Nav / chrome ----------------
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
 
-  // Slideshow images array
-  const slides = [
-    { id: 2, image: slide2, title: "Community Prayer", description: "Join us in worship" },
-    { id: 3, image: slide3, title: "Youth in Action", description: "Building a stronger faith community" },
-    { id: 4, image: slide4, title: "Mass & Celebrations", description: "Come together in faith" },
-    { id: 5, image: slide5, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 6, image: slide6, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 7, image: slide7, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 8, image: slide8, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 9, image: slide9, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 10, image: slide10, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 11, image: slide11, title: "Zetech Catholic Action", description: "Growing in faith and service" },
-    { id: 12, image: slide12, title: "Zetech Catholic Action", description: "Growing in faith and service" }    
+  // ---------------- Featured media ----------------
+  const [media, setMedia] = useState([]);
+  const [loadingMedia, setLoadingMedia] = useState(true);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
 
-  ];
+  // ---------------- YouTube videos ----------------
+  const [videos, setVideos] = useState([]);
+  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
-  // Slideshow navigation functions
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  // ---------------- Events ----------------
+  const [events, setEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
+  // ---------------- History / About ----------------
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  // ---------------- Hymns ----------------
+  const [hymns, setHymns] = useState([]);
+  const [loadingHymns, setLoadingHymns] = useState(true);
+  const [hymnsPage, setHymnsPage] = useState(1);
+  const [hasMoreHymns, setHasMoreHymns] = useState(false);
+
+  const [hymnSearch, setHymnSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingLive, setIsSearchingLive] = useState(false);
+
+  const [selectedHymn, setSelectedHymn] = useState(null);
+  const [showHymnModal, setShowHymnModal] = useState(false);
+  const [loadingHymnDetails, setLoadingHymnDetails] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // ---------------- PWA install ----------------
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstall, setShowInstall] = useState(true);
+
+
+  // ---------------- Executive Positions ----------------
+const [executivePositions, setExecutivePositions] = useState([]);
+const [loadingExecutives, setLoadingExecutives] = useState(true);
+
+// Helper function to get icon based on position title
+const getPositionIcon = (title) => {
+  const iconMap = {
+    'Chairperson': <FaPhone />,
+    'Vice Chairperson': <FaPhone />,
+    'Secretary': <FaEnvelope />,
+    'Vice Secretary': <FaEnvelope />,
+    'Treasurer': <FaPhone />,
+    'Organising Secretary': <FaCalendarAlt />,
+    'Welfare': <FaHandsHelping />,
+    'Liturgist': <FaChurch />,
+    'Choir Moderator': <FaMusic />,
+    'Vice Choir Moderator': <FaMusic />,
+    'Media Moderator': <FaLaptop />,
+    'instrumentals': <FaMusic />,
+    'St. Michael Moderator': <FaUsers />,
+    'St. Benedict Moderator': <FaUsers />,
+    'St. Peregrine Moderator': <FaUsers />,
+    'Christ the King Moderator': <FaUsers />,
+    'St. Gregory Moderator': <FaUsers />,
+    'St. Pacificus Moderator': <FaUsers />,
+    'SOPRANO Voice Rep': <FaMusic />,
+    'ALTO Voice Rep': <FaMusic />,
+    'TENOR Voice Rep': <FaMusic />,
+    'BASS Voice Rep': <FaMusic />
   };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const goToSlide = (index) => {
-    setCurrentSlide(index);
-  };
-
-  const togglePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
-
-  // Touch handlers for mobile swipe
-  const handleTouchStart = (e) => {
-    setTouchStart(e.touches[0].clientX);
-  };
-
-  const handleTouchEnd = (e) => {
-    if (touchStart === null) return;
-    const touchEnd = e.changedTouches[0].clientX;
-    const diff = touchStart - touchEnd;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
-    }
-    setTouchStart(null);
-  };
-
-  const openMediaModal = (media) => {
-  setSelectedMedia(media);
-  setIsModalOpen(true);
-  document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+  return iconMap[title] || <FaUsers />;
 };
-
-const closeMediaModal = () => {
-  setIsModalOpen(false);
-  setSelectedMedia(null);
-  document.body.style.overflow = 'auto'; // Restore scrolling
-};
-
-
-
- // Fetch hymns
-const fetchHymns = async (page = 1, search = '') => {
-  try {
-    if (search) {
-      const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(search)}?limit=20`);
-      if (response.data.success) {
-        setSearchResults(response.data.hymns);
-        setIsSearching(true);
-      }
-    } else {
-      const response = await axios.get(`${BASE_URL}/api/public/hymns?page=${page}&limit=12`);
-      if (response.data.success) {
-        if (page === 1) {
-          setHymns(response.data.hymns);
-        } else {
-          setHymns(prev => [...prev, ...response.data.hymns]);
-        }
-        setHasMoreHymns(response.data.hasMore);
-      }
-    }
-  } catch (err) {
-    console.error('Error fetching hymns:', err);
-  } finally {
-    setLoadingHymns(false);
-  }
-};
-
-// View hymn details
-const viewHymn = async (id) => {
-  try {
-    setLoadingHymnDetails(true);
-    const response = await axios.get(`${BASE_URL}/api/public/hymns/${id}`);
-    if (response.data.success) {
-      setSelectedHymn(response.data.hymn);
-      setShowHymnModal(true);
-      document.body.style.overflow = 'hidden';
-    }
-  } catch (err) {
-    console.error('Error fetching hymn details:', err);
-    alert('Failed to load hymn details. Please try again.');
-  } finally {
-    setLoadingHymnDetails(false);
-  }
-};
-
-const closeHymnModal = () => {
-  setShowHymnModal(false);
-  setSelectedHymn(null);
-  document.body.style.overflow = 'auto';
-};
-
-const handleHymnSearch = (e) => {
-  e.preventDefault();
-  if (hymnSearch.trim().length >= 2) {
-    setLoadingHymns(true);
-    setIsSearching(true);
-    fetchHymns(1, hymnSearch);
-  }
-};
-
-const clearSearch = () => {
-  setHymnSearch('');
-  setIsSearching(false);
-  setSearchResults([]);
-  setLoadingHymns(true);
-  fetchHymns(1, '');
-};
-
-const loadMoreHymns = () => {
-  if (hasMoreHymns && !isSearching) {
-    const nextPage = hymnsPage + 1;
-    setHymnsPage(nextPage);
-    fetchHymns(nextPage, '');
-  }
-};
-
-// Live search as user types
-const handleSearchInput = async (e) => {
-  const value = e.target.value;
-  setHymnSearch(value);
   
-  if (value.trim().length >= 2) {
-    setIsSearchingLive(true);
-    setShowSuggestions(true);
-    
-    try {
-      const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(value)}?limit=8`);
-      if (response.data.success) {
-        setSearchSuggestions(response.data.hymns);
-      }
-    } catch (err) {
-      console.error('Live search error:', err);
-      setSearchSuggestions([]);
-    } finally {
-      setIsSearchingLive(false);
-    }
-  } else {
-    setShowSuggestions(false);
-    setSearchSuggestions([]);
-  }
-};
 
-const selectSuggestion = async (suggestion) => {
-  setHymnSearch(suggestion.title);
-  setShowSuggestions(false);
-  setIsSearching(true);
-  setLoadingHymns(true);
-  
-  // Fetch the hymn immediately
-  try {
-    const response = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(suggestion.title)}?limit=20`);
-    if (response.data.success) {
-      setSearchResults(response.data.hymns);
-    }
-  } catch (err) {
-    console.error('Error fetching suggested hymn:', err);
-  } finally {
-    setLoadingHymns(false);
-  }
-};
+  // ---------------- Notifications ----------------
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
-
-// Download hymn as Image
-const downloadHymnAsImage = async (hymn) => {
-  try {
-    setDownloading(true);
-    
-    // Create a temporary container for the hymn content
-    const element = document.createElement('div');
-    element.style.cssText = `
-      padding: 40px;
-      background: white;
-      font-family: 'Georgia', 'Times New Roman', serif;
-      max-width: 600px;
-      margin: 0 auto;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    `;
-    
-    // Format lyrics with proper line breaks
-    const lyricsHtml = hymn.lyrics ? hymn.lyrics.split('\n').map(line => 
-      `<p style="margin: 8px 0; text-align: center; font-size: 16px; line-height: 1.6;">${line || ' '}</p>`
-    ).join('') : '<p style="text-align: center; color: #999;">Lyrics not available</p>';
-    
-    element.innerHTML = `
-      <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #4f46e5; font-size: 28px; margin-bottom: 10px;">${hymn.title}</h1>
-        ${hymn.reference ? `<p style="color: #64748b; font-size: 14px;">${hymn.reference}</p>` : ''}
-        <div style="width: 60px; height: 3px; background: linear-gradient(90deg, #4f46e5, #7c3aed); margin: 20px auto;"></div>
-      </div>
-      <div style="margin-bottom: 30px;">
-        ${lyricsHtml}
-      </div>
-      <div style="text-align: center; margin-top: 40px; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
-        ZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}
-      </div>
-    `;
-    
-    document.body.appendChild(element);
-    
-    // Use html2canvas to convert to image
-    const html2canvas = (await import('html2canvas')).default;
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      logging: false
-    });
-    
-    document.body.removeChild(element);
-    
-    // Download as PNG
-    const link = document.createElement('a');
-    link.download = `${hymn.title.replace(/[^a-z0-9]/gi, '_')}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    
-    alert('✅ Image downloaded successfully!');
-  } catch (error) {
-    console.error('Image download failed:', error);
-    alert('❌ Failed to download image. Please try again.');
-  } finally {
-    setDownloading(false);
-  }
-};
-
-// Download hymn as PDF
-const downloadHymnAsPDF = async (hymn) => {
-  try {
-    setDownloading(true);
-    
-    // Dynamically import jspdf
-    const { jsPDF } = await import('jspdf');
-    
-    const pdf = new jsPDF({
-      unit: 'pt',
-      format: 'a4',
-    });
-    
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const margin = 40;
-    const contentWidth = pageWidth - (margin * 2);
-    
-    let y = margin + 20;
-    
-    // Title
-    pdf.setFontSize(24);
-    pdf.setTextColor(79, 70, 229);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(hymn.title, pageWidth / 2, y, { align: 'center' });
-    y += 30;
-    
-    // Reference
-    if (hymn.reference) {
-      pdf.setFontSize(14);
-      pdf.setTextColor(100, 116, 139);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(hymn.reference, pageWidth / 2, y, { align: 'center' });
-      y += 40;
-    } else {
-      y += 20;
-    }
-    
-    // Divider line
-    pdf.setDrawColor(79, 70, 229);
-    pdf.line(margin + 100, y - 10, pageWidth - margin - 100, y - 10);
-    
-    // Lyrics
-    pdf.setFontSize(14);
-    pdf.setTextColor(30, 41, 59);
-    pdf.setFont('helvetica', 'normal');
-    
-    if (hymn.lyrics) {
-      const cleanLyrics = hymn.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
-      const lines = cleanLyrics.split('\n');
-      
-      for (const line of lines) {
-        if (line.trim() === '') {
-          y += 12;
-        } else {
-          if (y > pdf.internal.pageSize.getHeight() - margin) {
-            pdf.addPage();
-            y = margin + 20;
-          }
-          pdf.text(line, pageWidth / 2, y, { align: 'center' });
-          y += 20;
-        }
-      }
-    }
-    
-    // Footer
-    y = pdf.internal.pageSize.getHeight() - margin;
-    pdf.setFontSize(10);
-    pdf.setTextColor(148, 163, 184);
-    pdf.text('ZUCA Hymn Book', margin, y);
-    pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth - margin - 150, y);
-    
-    // Save PDF
-    pdf.save(`${hymn.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
-    alert('✅ PDF downloaded successfully!');
-  } catch (error) {
-    console.error('PDF download failed:', error);
-    alert('❌ Failed to download PDF. Please try again.');
-  } finally {
-    setDownloading(false);
-  }
-};
-
-const openVideoModal = (video) => {
-  setSelectedVideo(video);
-  setShowVideoModal(true);
-  document.body.style.overflow = 'hidden';
-};
-
-const closeVideoModal = () => {
-  setShowVideoModal(false);
-  setSelectedVideo(null);
-  document.body.style.overflow = 'auto';
-};
-
-
-
-// Fetch featured media
-useEffect(() => {
-  const fetchFeaturedMedia = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/public/featured-media?limit=10`);
-      // Handle both response formats (with or without wrapper)
-      const mediaData = response.data.media || response.data;
-      setFeaturedMedia(mediaData);
-    } catch (err) {
-      console.error('Error fetching featured media:', err);
-      setFeaturedMedia([]);
-    } finally {
-      setLoadingMedia(false);
-    }
+  const refs = {
+    home: useRef(null),
+    media: useRef(null),
+    youtube: useRef(null),
+    events: useRef(null),
+    hymns: useRef(null),
+    about: useRef(null),
+    connect: useRef(null),
+    mass: useRef(null),
+    contact: useRef(null),
   };
-  
-  fetchFeaturedMedia();
-}, []);
 
-// Format YouTube duration (PT1H2M10S -> 1:02:10)
-const formatDuration = (duration) => {
-  if (!duration) return '';
-  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-  const hours = match[1] ? parseInt(match[1]) : 0;
-  const minutes = match[2] ? parseInt(match[2]) : 0;
-  const seconds = match[3] ? parseInt(match[3]) : 0;
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
+  const current = slides[currentSlide];
 
-// Fetch upcoming events
-useEffect(() => {
-  const fetchUpcomingEvents = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/public/upcoming-events?limit=4`);
-      console.log('Events response:', response.data);
-      
-      // Access the events array from the response
-      if (response.data && response.data.events) {
-        setUpcomingEvents(response.data.events);
-      } else if (Array.isArray(response.data)) {
-        setUpcomingEvents(response.data);
-      } else {
-        setUpcomingEvents([]);
-      }
-    } catch (err) {
-      console.error('Error fetching upcoming events:', err);
-      setUpcomingEvents([]);
-    } finally {
-      setLoadingEvents(false);
-    }
+  // ------------------------------------------------------------
+  // Toast helper — used instead of window.alert throughout
+  // ------------------------------------------------------------
+  const showToast = (message, type = "success") => {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    toast.className = `zuca-toast ${type === "error" ? "zuca-toast-error" : ""}`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("zuca-toast-out");
+      setTimeout(() => toast.remove(), 250);
+    }, 3200);
   };
-  
-  fetchUpcomingEvents();
-}, []);
 
-
-
-// Fetch history content
-useEffect(() => {
-  const fetchHistory = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/history/public`);
-      if (response.data.success) {
-        setHistoryEntries(response.data.history);
-      }
-    } catch (err) {
-      console.error('Error fetching history:', err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-  
-  fetchHistory();
-}, []);
-
-
-// Fetch top watched YouTube videos
-useEffect(() => {
-  const fetchTopVideos = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/public/youtube-top?limit=3`);
-      console.log('YouTube response:', response.data);
-      
-      if (response.data.success && response.data.videos && response.data.videos.length > 0) {
-        setLatestVideo(response.data.videos); // Store all videos, not just first
-      } else {
-        setLatestVideo([]);
-      }
-    } catch (err) {
-      console.error('YouTube API error:', err.message);
-      setLatestVideo([]);
-    } finally {
-      setLoadingVideo(false);
-    }
-  };
-  
-  fetchTopVideos();
-}, []);
-
-// Load hymns on mount
-useEffect(() => {
-  fetchHymns(1, '');
-}, []);
-
-  // Auto-play slideshow
-  useEffect(() => {
-    if (isPlaying) {
-      slideIntervalRef.current = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % slides.length);
-      }, 5000);
-    }
-    return () => {
-      if (slideIntervalRef.current) {
-        clearInterval(slideIntervalRef.current);
-      }
-    };
-  }, [isPlaying, slides.length]);
+  // ------------------------------------------------------------
+  // Slideshow controls
+  // ------------------------------------------------------------
+  const nextSlide = () => setCurrentSlide((s) => (s + 1) % slides.length);
+  const prevSlide = () => setCurrentSlide((s) => (s - 1 + slides.length) % slides.length);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
-      updateActiveSection();
-    };
-    
-    window.addEventListener("scroll", handleScroll);
+    if (!playing) return;
+    const timer = setInterval(nextSlide, 5500);
+    return () => clearInterval(timer);
+  }, [playing]);
 
-
-   
-    
-    // Fade-in on scroll observer
-    const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("fade-in");
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-    
-    document.querySelectorAll(".fade-section").forEach(section => observer.observe(section));
-    
-    // Check if already installed
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    if (isPWA) {
-      setShowInstallButton(false);
-    }
-    
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      observer.disconnect();
-    };
-  }, []);
-
- const updateActiveSection = () => {
-  const sections = [
-    { id: 'home', ref: heroRef },
-    { id: 'media', ref: mediaRef },
-    { id: 'youtube', ref: youtubeRef },
-    { id: 'events', ref: eventsRef },
-    { id: 'hymns', ref: hymnsRef },
-    { id: 'about', ref: aboutRef },
-    { id: 'connect', ref: connectRef },
-    { id: 'mass', ref: massRef },
-    { id: 'contact', ref: contactRef }
-  ];
-
-    const scrollPosition = window.scrollY + 100;
-
-    for (const section of sections) {
-      if (section.ref.current) {
-        const { offsetTop, offsetHeight } = section.ref.current;
-        if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
-          setActiveSection(section.id);
+  // ------------------------------------------------------------
+  // Scroll spy
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 30);
+      const y = window.scrollY + 160;
+      for (const [id, ref] of Object.entries(refs)) {
+        if (!ref.current) continue;
+        const top = ref.current.offsetTop;
+        const bottom = top + ref.current.offsetHeight;
+        if (y >= top && y < bottom) {
+          setActiveSection(id);
           break;
         }
       }
-    }
-  };
-
- const scrollToSection = (sectionId) => {
-  const sectionRef = {
-    home: heroRef,
-    media: mediaRef,
-    youtube: youtubeRef,
-    events: eventsRef,
-    hymns: hymnsRef,
-    about: aboutRef,
-    connect: connectRef,
-    mass: massRef,
-    contact: contactRef
-  }[sectionId];
-
-    if (sectionRef?.current) {
-      const offset = 70;
-      const elementPosition = sectionRef.current.offsetTop - offset;
-      window.scrollTo({
-        top: elementPosition,
-        behavior: 'smooth'
-      });
-    }
-    setMobileMenuOpen(false);
-  };
-
-  // Helper to format Kenyan date
-const formatEventDate = (dateString) => {
-  const date = new Date(dateString);
-  return {
-    day: date.getDate(),
-    month: date.toLocaleString('default', { month: 'short' }),
-    weekday: date.toLocaleString('default', { weekday: 'short' }),
-    full: date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
-  };
-};
-
-  // PWA Install Prompt Handler
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallButton(true);
     };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Notification prompt
+  const scrollTo = (id) => {
+    refs[id]?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMenuOpen(false);
+  };
+  const go = (path) => navigate(path);
+
+  // ------------------------------------------------------------
+  // 1. GET /api/public/featured-media?limit=10
+  // ------------------------------------------------------------
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const notificationsPrompted = localStorage.getItem('notificationsPrompted');
-    
-    if (token && !notificationsPrompted && 'Notification' in window && Notification.permission === 'default') {
-      const timer = setTimeout(() => {
-        setShowNotificationPrompt(true);
-      }, 5000);
+    const fetchFeaturedMedia = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/public/featured-media?limit=10`);
+        const data = response.data.media || response.data;
+        setMedia(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Error fetching featured media:", err);
+        setMedia([]);
+      } finally {
+        setLoadingMedia(false);
+      }
+    };
+    fetchFeaturedMedia();
+  }, []);
+
+  // ------------------------------------------------------------
+  // 2. GET /api/public/upcoming-events?limit=4
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const fetchUpcomingEvents = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/public/upcoming-events?limit=4`);
+        if (response.data && response.data.events) {
+          setEvents(response.data.events);
+        } else if (Array.isArray(response.data)) {
+          setEvents(response.data);
+        } else {
+          setEvents([]);
+        }
+      } catch (err) {
+        console.error("Error fetching upcoming events:", err);
+        setEvents([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+    fetchUpcomingEvents();
+  }, []);
+
+  // ------------------------------------------------------------
+  // 3. GET /api/public/youtube-top?limit=3
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const fetchTopVideos = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/public/youtube-top?limit=3`);
+        if (response.data.success && response.data.videos && response.data.videos.length > 0) {
+          setVideos(response.data.videos);
+        } else {
+          setVideos([]);
+        }
+      } catch (err) {
+        console.error("YouTube API error:", err.message);
+        setVideos([]);
+      } finally {
+        setLoadingVideos(false);
+      }
+    };
+    fetchTopVideos();
+  }, []);
+
+  // ------------------------------------------------------------
+  // 4. GET /api/history/public
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/history/public`);
+        if (response.data.success) {
+          setHistory(response.data.history);
+        }
+      } catch (err) {
+        console.error("Error fetching history:", err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    fetchHistory();
+  }, []);
+
+
+  // ------------------------------------------------------------
+// GET /api/executive/team - Get current executive team
+// ------------------------------------------------------------
+const [executiveTeam, setExecutiveTeam] = useState([]);
+
+
+useEffect(() => {
+  const fetchExecutiveTeam = async () => {
+    try {
+      console.log("🔍 Fetching executive team...");
+      const response = await axios.get(`${BASE_URL}/api/executive/team`);
+      console.log("📊 Response:", response.data);
       
-      return () => clearTimeout(timer);
+      if (response.data && response.data.executives) {
+        // The API returns executives array with user data
+        const allExecutives = response.data.executives.map(exec => ({
+          id: exec.id,
+          name: exec.name || exec.user?.fullName || 'Unknown',
+          role: exec.role || exec.position?.title || 'Member',
+          category: exec.category || exec.position?.category || 'general',
+          level: exec.level || exec.position?.level || 0,
+          description: exec.description || exec.position?.description || '',
+          phone: exec.phone || exec.user?.phone || null,
+          email: exec.email || exec.user?.email || null,
+          profileImage: exec.profileImage || exec.user?.profileImage || null,
+          whatsappLink: exec.whatsappLink || null,
+          callLink: exec.callLink || null
+        }));
+        setExecutiveTeam(allExecutives);
+        console.log("✅ Executive team loaded:", allExecutives.length, "members");
+        console.log("📋 First member:", allExecutives[0]);
+      } else {
+        console.warn("⚠️ No executives found in response");
+        setExecutiveTeam([]);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching executive team:", err);
+      setExecutiveTeam([]);
+    } finally {
+      setLoadingExecutives(false);
     }
+  };
+  fetchExecutiveTeam();
+}, []);
+
+  // ------------------------------------------------------------
+  // 5. GET /api/public/hymns?page=1&limit=12
+  // 6. GET /api/public/hymns/search/{query}?limit=20
+  // ------------------------------------------------------------
+  const fetchHymns = async (page = 1, search = "") => {
+    try {
+      if (search) {
+        const response = await axios.get(
+          `${BASE_URL}/api/public/hymns/search/${encodeURIComponent(search)}?limit=20`
+        );
+        if (response.data.success) {
+          setSearchResults(response.data.hymns);
+          setIsSearching(true);
+        }
+      } else {
+        const response = await axios.get(`${BASE_URL}/api/public/hymns?page=${page}&limit=12`);
+        if (response.data.success) {
+          if (page === 1) {
+            setHymns(response.data.hymns);
+          } else {
+            setHymns((prev) => [...prev, ...response.data.hymns]);
+          }
+          setHasMoreHymns(response.data.hasMore);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching hymns:", err);
+    } finally {
+      setLoadingHymns(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHymns(1, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setShowInstallButton(false);
+  const handleHymnSearch = (e) => {
+    e.preventDefault();
+    if (hymnSearch.trim().length >= 2) {
+      setLoadingHymns(true);
+      setIsSearching(true);
+      fetchHymns(1, hymnSearch);
+    }
+  };
+
+  const clearSearch = () => {
+    setHymnSearch("");
+    setIsSearching(false);
+    setSearchResults([]);
+    setLoadingHymns(true);
+    fetchHymns(1, "");
+  };
+
+  const loadMoreHymns = () => {
+    if (hasMoreHymns && !isSearching) {
+      const nextPage = hymnsPage + 1;
+      setHymnsPage(nextPage);
+      fetchHymns(nextPage, "");
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 7. GET /api/public/hymns/search/{query}?limit=8  (live suggestions)
+  // ------------------------------------------------------------
+  const handleSearchInput = async (e) => {
+    const value = e.target.value;
+    setHymnSearch(value);
+
+    if (value.trim().length >= 2) {
+      setIsSearchingLive(true);
+      setShowSuggestions(true);
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/api/public/hymns/search/${encodeURIComponent(value)}?limit=8`
+        );
+        if (response.data.success) {
+          setSearchSuggestions(response.data.hymns);
+        }
+      } catch (err) {
+        console.error("Live search error:", err);
+        setSearchSuggestions([]);
+      } finally {
+        setIsSearchingLive(false);
       }
     } else {
-      alert(
-        '📱 To install ZUCA Portal on your device:\n\n' +
-        '🔵 Android (Chrome):\n' +
-        '• Tap the menu button (⋮) at top right\n' +
-        '• Select "Add to Home screen"\n' +
-        '• Tap "Add" or "Install"\n\n' +
-        '🍎 iPhone/iPad (Safari):\n' +
-        '• Tap the Share button (📤) at bottom\n' +
-        '• Scroll down and tap "Add to Home Screen"\n' +
-        '• Tap "Add" in top right\n\n' +
-        '💻 Desktop (Chrome/Edge):\n' +
-        '• Click the install icon (➕) in address bar\n' +
-        '• Click "Install"'
+      setShowSuggestions(false);
+      setSearchSuggestions([]);
+    }
+  };
+
+  const selectSuggestion = async (suggestion) => {
+    setHymnSearch(suggestion.title);
+    setShowSuggestions(false);
+    setIsSearching(true);
+    setLoadingHymns(true);
+    try {
+      const response = await axios.get(
+        `${BASE_URL}/api/public/hymns/search/${encodeURIComponent(suggestion.title)}?limit=20`
+      );
+      if (response.data.success) {
+        setSearchResults(response.data.hymns);
+      }
+    } catch (err) {
+      console.error("Error fetching suggested hymn:", err);
+    } finally {
+      setLoadingHymns(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 8. GET /api/public/hymns/{id}
+  // ------------------------------------------------------------
+  const viewHymn = async (id) => {
+    try {
+      setLoadingHymnDetails(true);
+      const response = await axios.get(`${BASE_URL}/api/public/hymns/${id}`);
+      if (response.data.success) {
+        setSelectedHymn(response.data.hymn);
+        setShowHymnModal(true);
+        document.body.style.overflow = "hidden";
+      }
+    } catch (err) {
+      console.error("Error fetching hymn details:", err);
+      showToast("Couldn't load that hymn. Please try again.", "error");
+    } finally {
+      setLoadingHymnDetails(false);
+    }
+  };
+
+  const closeHymnModal = () => {
+    setShowHymnModal(false);
+    setSelectedHymn(null);
+    document.body.style.overflow = "auto";
+  };
+
+  // ------------------------------------------------------------
+  // Hymn download — image
+  // ------------------------------------------------------------
+  const downloadHymnAsImage = async (hymn) => {
+    try {
+      setDownloading(true);
+      const element = document.createElement("div");
+      element.style.cssText = `
+        padding: 40px;
+        background: #ffffff;
+        font-family: 'Georgia', 'Times New Roman', serif;
+        max-width: 600px;
+        margin: 0 auto;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      `;
+
+      const lyricsHtml = hymn.lyrics
+        ? hymn.lyrics
+            .split("\n")
+            .map(
+              (line) =>
+                `<p style="margin: 8px 0; text-align: center; font-size: 16px; line-height: 1.6; color:#111827;">${
+                  line || " "
+                }</p>`
+            )
+            .join("")
+        : '<p style="text-align: center; color: #999;">Lyrics not available</p>';
+
+      element.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #5b21b6; font-size: 28px; margin-bottom: 10px;">${hymn.title}</h1>
+          ${hymn.reference ? `<p style="color: #667085; font-size: 14px;">${hymn.reference}</p>` : ""}
+          <div style="width: 60px; height: 3px; background: #d5a63b; margin: 20px auto;"></div>
+        </div>
+        <div style="margin-bottom: 30px;">${lyricsHtml}</div>
+        <div style="text-align: center; margin-top: 40px; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+          ZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}
+        </div>
+      `;
+
+      document.body.appendChild(element);
+
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff", logging: false });
+
+      document.body.removeChild(element);
+
+      const link = document.createElement("a");
+      link.download = `${hymn.title.replace(/[^a-z0-9]/gi, "_")}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+
+      showToast("Image downloaded successfully.");
+    } catch (error) {
+      console.error("Image download failed:", error);
+      showToast("Failed to download image. Please try again.", "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // Hymn download — PDF
+  // ------------------------------------------------------------
+  const downloadHymnAsPDF = async (hymn) => {
+    try {
+      setDownloading(true);
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 40;
+      let y = margin + 20;
+
+      pdf.setFontSize(24);
+      pdf.setTextColor(91, 33, 182);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(hymn.title, pageWidth / 2, y, { align: "center" });
+      y += 30;
+
+      if (hymn.reference) {
+        pdf.setFontSize(14);
+        pdf.setTextColor(100, 116, 139);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(hymn.reference, pageWidth / 2, y, { align: "center" });
+        y += 40;
+      } else {
+        y += 20;
+      }
+
+      pdf.setDrawColor(213, 166, 59);
+      pdf.line(margin + 100, y - 10, pageWidth - margin - 100, y - 10);
+
+      pdf.setFontSize(14);
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFont("helvetica", "normal");
+
+      if (hymn.lyrics) {
+        const cleanLyrics = hymn.lyrics.replace(/\*\*([^*]+)\*\*/g, "$1");
+        const lines = cleanLyrics.split("\n");
+        for (const line of lines) {
+          if (line.trim() === "") {
+            y += 12;
+          } else {
+            if (y > pdf.internal.pageSize.getHeight() - margin) {
+              pdf.addPage();
+              y = margin + 20;
+            }
+            pdf.text(line, pageWidth / 2, y, { align: "center" });
+            y += 20;
+          }
+        }
+      }
+
+      y = pdf.internal.pageSize.getHeight() - margin;
+      pdf.setFontSize(10);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text("ZUCA Hymn Book", margin, y);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth - margin - 150, y);
+
+      pdf.save(`${hymn.title.replace(/[^a-z0-9]/gi, "_")}.pdf`);
+      showToast("PDF downloaded successfully.");
+    } catch (error) {
+      console.error("PDF download failed:", error);
+      showToast("Failed to download PDF. Please try again.", "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // Media modal
+  // ------------------------------------------------------------
+  const openMediaModal = (item) => {
+    setSelectedMedia(item);
+    setIsMediaModalOpen(true);
+    document.body.style.overflow = "hidden";
+  };
+  const closeMediaModal = () => {
+    setIsMediaModalOpen(false);
+    setSelectedMedia(null);
+    document.body.style.overflow = "auto";
+  };
+
+  // ------------------------------------------------------------
+  // Video modal
+  // ------------------------------------------------------------
+  const openVideoModal = (video) => {
+    setSelectedVideo(video);
+    setIsVideoModalOpen(true);
+    document.body.style.overflow = "hidden";
+  };
+  const closeVideoModal = () => {
+    setIsVideoModalOpen(false);
+    setSelectedVideo(null);
+    document.body.style.overflow = "auto";
+  };
+
+  const formatDuration = (duration) => {
+    if (!duration) return "";
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    const hours = match[1] ? parseInt(match[1]) : 0;
+    const minutes = match[2] ? parseInt(match[2]) : 0;
+    const seconds = match[3] ? parseInt(match[3]) : 0;
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const formatEventDate = (dateString) => {
+    const d = new Date(dateString);
+    return {
+      day: d.getDate(),
+      month: d.toLocaleString("default", { month: "short" }),
+      weekday: d.toLocaleString("default", { weekday: "short" }),
+      full: d.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+    };
+  };
+
+  // ------------------------------------------------------------
+  // PWA install
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const beforeInstall = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstall);
+
+    const isPWA =
+      window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+    if (isPWA) setShowInstall(false);
+
+    return () => window.removeEventListener("beforeinstallprompt", beforeInstall);
+  }, []);
+
+  const installPortal = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") {
+        setInstallPrompt(null);
+        setShowInstall(false);
+      }
+    } else {
+      showToast(
+        "Use your browser menu → “Add to Home Screen” / “Install App” to install ZUCA Portal.",
+        "success"
       );
     }
   };
 
+  // ------------------------------------------------------------
+  // Notification prompt
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const notificationsPrompted = localStorage.getItem("notificationsPrompted");
+    if (
+      token &&
+      !notificationsPrompted &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      const timer = setTimeout(() => setShowNotificationPrompt(true), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   return (
-    <div className="landing-wrapper">
-      {/* Top Bar - Hidden on mobile */}
-      <div className="top-bar">
-        <div className="top-bar-content">
-          <div className="top-bar-left">
-            <FaHandsHelping className="top-bar-icon" />
-            <span>Zetech Catholic Action • Faith & Fellowship</span>
-          </div>
-          <div className="top-bar-right">
-            <span className="mass-badge">Weekly Mass: Wednesday 4:30 PM</span>
-          </div>
+    <div className="zuca-landing">
+      <div className="zuca-topbar">
+        <div className="zuca-shell zuca-topbar-inner">
+          <span>
+            <FaChurch /> Zetech University Catholic Action
+          </span>
+          <span>Weekly Mass · Wednesday 4:30 PM</span>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className={`navbar ${scrollY > 50 ? 'navbar-scrolled' : ''}`}>
-        <div className="nav-container">
-          <div className="logo-container" onClick={() => scrollToSection('home')} style={{ cursor: 'pointer' }}>
-            <img src={logo} alt="ZUCA Logo" className="logo-img" />
-            <span className="logo-text">ZUCA</span>
-          </div>
-          
-         <div className="nav-links-desktop">
-  <button onClick={() => scrollToSection('home')} className={`nav-link ${activeSection === 'home' ? 'active' : ''}`}>Home</button>
-  <button onClick={() => scrollToSection('media')} className={`nav-link ${activeSection === 'media' ? 'active' : ''}`}>Media</button>
-  <button onClick={() => scrollToSection('youtube')} className={`nav-link ${activeSection === 'youtube' ? 'active' : ''}`}>Videos</button>
-  <button onClick={() => scrollToSection('events')} className={`nav-link ${activeSection === 'events' ? 'active' : ''}`}>Events</button>
-  <button onClick={() => scrollToSection('hymns')} className={`nav-link ${activeSection === 'hymns' ? 'active' : ''}`}>Hymns</button>
-  <button onClick={() => scrollToSection('about')} className={`nav-link ${activeSection === 'about' ? 'active' : ''}`}>About</button>
-  <button onClick={() => scrollToSection('connect')} className={`nav-link ${activeSection === 'connect' ? 'active' : ''}`}>Connect</button>
-  <button onClick={() => scrollToSection('mass')} className={`nav-link ${activeSection === 'mass' ? 'active' : ''}`}>Mass</button>
-  <button onClick={() => scrollToSection('contact')} className={`nav-link ${activeSection === 'contact' ? 'active' : ''}`}>Contact</button>
-</div>
-          
-          {/* Mobile Menu Button */}
-          <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            {mobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+      <header className={`zuca-navbar ${scrolled ? "is-scrolled" : ""}`}>
+        <div className="zuca-shell zuca-nav-inner">
+          <button className="zuca-brand" onClick={() => scrollTo("home")} aria-label="ZUCA Home">
+            <img src={logo} alt="ZUCA" />
+            <span>
+              <strong>ZUCA</strong>
+              <small>Zetech University Catholic Action</small>
+            </span>
           </button>
-        </div>
-        
-     <div className={`nav-links-mobile ${mobileMenuOpen ? 'open' : ''}`}>
-  <button onClick={() => scrollToSection('home')} className="nav-link-mobile">Home</button>
-  <button onClick={() => scrollToSection('media')} className="nav-link-mobile">Media</button>
-  <button onClick={() => scrollToSection('youtube')} className="nav-link-mobile">Videos</button>
-  <button onClick={() => scrollToSection('events')} className="nav-link-mobile">Events</button>
-  <button onClick={() => scrollToSection('hymns')} className="nav-link-mobile">Hymns</button>
-  <button onClick={() => scrollToSection('about')} className="nav-link-mobile">About</button>
-  <button onClick={() => scrollToSection('connect')} className="nav-link-mobile">Connect</button>
-  <button onClick={() => scrollToSection('mass')} className="nav-link-mobile">Mass</button>
-  <button onClick={() => scrollToSection('contact')} className="nav-link-mobile">Contact</button>
-</div>
-      </nav>
 
-      {/* Hero Section with Slideshow */}
-      <section id="home" ref={heroRef} className="hero-section">
-        {/* Slideshow Background */}
-        <div 
-          className="slideshow-container"
-          ref={slideshowRef}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          {slides.map((slide, index) => (
-            <div 
-              key={slide.id}
-              className={`slide ${index === currentSlide ? 'active' : ''}`}
-              style={{ backgroundImage: `url(${slide.image})` }}
-            >
-              <div className="slide-overlay"></div>
-            </div>
-          ))}
-          
-          {/* Slideshow Navigation Arrows */}
-          <button className="slideshow-nav slideshow-nav-prev" onClick={prevSlide}>
-            <FaChevronLeft />
-          </button>
-          <button className="slideshow-nav slideshow-nav-next" onClick={nextSlide}>
-            <FaChevronRight />
-          </button>
-          
-          {/* Slideshow Dots */}
-          <div className="slideshow-dots">
-            {slides.map((_, index) => (
+          <nav className="zuca-desktop-nav">
+            {navItems.map(([id, label]) => (
               <button
-                key={index}
-                className={`dot ${index === currentSlide ? 'active' : ''}`}
-                onClick={() => goToSlide(index)}
-              />
+                key={id}
+                className={activeSection === id ? "active" : ""}
+                onClick={() => scrollTo(id)}
+              >
+                {label}
+              </button>
             ))}
+          </nav>
+
+          <div className="zuca-nav-actions">
+            <button className="zuca-login" onClick={() => go("/login")}>
+              <FaSignInAlt /> Sign In
+            </button>
+            <button className="zuca-register" onClick={() => go("/register")}>
+              <FaUserPlus /> Register
+            </button>
           </div>
-          
-          {/* Play/Pause Button */}
-          <button className="slideshow-play-pause" onClick={togglePlayPause}>
-            {isPlaying ? <FaPause /> : <FaPlay />}
+
+          <button className="zuca-menu-button" onClick={() => setMenuOpen((v) => !v)} aria-label="Toggle menu">
+            {menuOpen ? <FaTimes /> : <FaBars />}
           </button>
         </div>
 
-        <div className="hero-container">
-          {/* Action Buttons Row - Independently arranged */}
-          <div className="action-buttons-row">
-            {showInstallButton && (
-              <button onClick={handleInstallClick} className="action-btn action-btn-install">
-                <FaDownload /> Install Our App
+        {menuOpen && (
+          <div className="zuca-mobile-menu">
+            {navItems.map(([id, label]) => (
+              <button key={id} onClick={() => scrollTo(id)}>
+                {label}
               </button>
-            )}
-            <button onClick={() => navigate("/gallery")} className="action-btn action-btn-gallery">
-              📷 Our Gallery
-            </button>
-            <button onClick={() => navigate("/liturgical-calendar")} className="action-btn action-btn-calendar">
-              📅 Liturgical Calendar
-            </button>
-            <button onClick={() => navigate("/user-manual")} className="action-btn action-btn-register">
-              <FaUserPlus /> 📚 Our User's Manual
-            </button>
-          </div>
-
-          {/* Welcome Card */}
-          <div className="welcome-card">
-            <div className="welcome-header">
-              <img src={logo} alt="ZUCA Logo" className="welcome-logo" />
-              <h2 className="welcome-title">Zetech University</h2>
-            </div>
-            <div className="welcome-subtitle">CATHOLIC ACTION</div>
-            <div className="zuca-name">(Z.U.C.A)</div>
-         <p className="welcome-text">
-  Welcome to the Zetech University Catholic Action official web dashbord.
-  <br /><br />
-  Zetech Catholic Action is a vibrant student community committed to evangelism, faith, and fellowship through the power of music and service. Our mission is to spread hope, love, and faith within our campus and beyond.
- 
-</p>
-            <div className="welcome-buttons">
-              <button onClick={() => navigate("/register")} className="btn-primary">
-                <FaUserPlus /> CREATE  <strong> ZUCA </strong> ACCOUNT
+            ))}
+            <div className="mobile-menu-actions">
+              <button onClick={() => go("/login")}>
+                <FaSignInAlt /> Sign In
               </button>
-              <p>OR</p>
-              <button onClick={() => navigate("/login")} className="btn-secondary">
-                <FaSignInAlt /> MEMBER LOGIN
+              <button onClick={() => go("/register")}>
+                <FaUserPlus /> Create Account
               </button>
             </div>
           </div>
-
-
-               
-
-          {/* Mass Info Card */}
-          <div className="mass-info-card">
-            <FaGooglePlay className="mass-info-icon" />
-            <div className="mass-info-text">
-              <strong>Remember to install our  PWA app using the orange button above  </strong>
-              <span className="mass-location"></span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-       {/* Featured Media Section */}
-     <section ref={mediaRef} id="media" className="section featured-media-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <FaImage className="section-icon" />
-            <h2 className="section-title">ZUCAS' top content</h2>
-            <p className="section-subtitle">View  our latest shots from our gallery</p>
-          </div>
-
-          {loadingMedia ? (
-            <div className="loading-spinner">
-              <div className="spinner"></div>
-              <p>Loading featured media...</p>
-            </div>
-          ) : featuredMedia.length === 0 ? (
-            <div className="no-media">
-              <p>No content available yet.</p>
-            </div>
-          ) : (
-            <div className="media-grid">
-              {featuredMedia.map((media) => (
-               <div 
-  key={media.id} 
-  className="media-card"
-  onClick={() => openMediaModal(media)}  // ← Add this
->
-  {media.type === 'image' ? (
-    <img 
-      src={media.url} 
-      alt={media.title || 'Featured media'} 
-      className="media-image"
-    />
-  ) : (
-    <video 
-      src={media.url} 
-      className="media-video"
-      controls
-      preload="metadata"
-      onClick={(e) => e.stopPropagation()} // Prevent opening modal when clicking video controls
-    />
-  )}
-  <div className="media-overlay">
-    <h3 className="media-title">{media.title}</h3>
-    <div className="media-stats">
-      <span>❤️ {media._count?.likes || 0}</span>
-      <span>👁️ {media._count?.views || 0}</span>
-    </div>
-  </div>
-</div>
-              ))}
-            </div>
-          )}
-          
-          <div className="view-all-container">
-            <button 
-              onClick={() => navigate("/gallery")} 
-              className="view-all-btn"
-            >
-              View All Content →
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Full Screen Media Modal */}
-{isModalOpen && selectedMedia && (
-  <div className="media-modal" onClick={closeMediaModal}>
-    <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
-      <button className="modal-close-btn" onClick={closeMediaModal}>
-        &times;
-      </button>
-      {selectedMedia.type === 'image' ? (
-        <img 
-          src={selectedMedia.url} 
-          alt={selectedMedia.title} 
-          className="modal-image"
-        />
-      ) : (
-        <video 
-          src={selectedMedia.url} 
-          className="modal-video"
-          controls
-          autoPlay
-          preload="metadata"
-        />
-      )}
-      <div className="modal-info">
-        <h3 className="modal-title">{selectedMedia.title}</h3>
-        {selectedMedia.description && (
-          <p className="modal-description">{selectedMedia.description}</p>
         )}
-        <div className="modal-stats">
-          <span>❤️ {selectedMedia._count?.likes || 0}</span>
-          <span>👁️ {selectedMedia._count?.views || 0}</span>
-          <span>📅 {new Date(selectedMedia.createdAt).toLocaleDateString()}</span>
-        </div>
-        <button 
-          className="modal-gallery-btn"
-          onClick={() => {
-            closeMediaModal();
-            navigate("/gallery");
+      </header>
+
+      <main>
+        {/* HERO */}
+        <section
+          ref={refs.home}
+          className="zuca-hero"
+          onTouchStart={(e) => (touchStart.current = e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            if (touchStart.current == null) return;
+            const diff = touchStart.current - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 50) (diff > 0 ? nextSlide() : prevSlide());
+            touchStart.current = null;
           }}
         >
-          View Full Gallery →
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+          {slides.map((slide, i) => (
+            <div
+              key={slide.image}
+              className={`hero-slide ${i === currentSlide ? "visible" : ""}`}
+              style={{ backgroundImage: `url(${slide.image})` }}
+            />
+          ))}
+          <div className="hero-overlay" />
 
+          <div className="zuca-shell hero-content">
+            <div className="hero-copy">
+              <div className="hero-eyebrow">
+                <span />
+                {current.eyebrow}
+              </div>
+              <h1>{current.title}</h1>
+              <p>{current.text}</p>
 
-     {/* Top Watched YouTube Videos Section */}
-<section ref={youtubeRef} id="youtube" className="section youtube-section fade-section">
-  <div className="container">
-    <div className="section-header">
-      <FaYoutube className="section-icon youtube-icon" />
-      <h2 className="section-title">Top Watched Videos</h2>
-      <p className="section-subtitle">Top Youtube  content</p>
-    </div>
+              <div className="hero-actions">
+                <button className="hero-primary" onClick={() => go("/register")}>
+                  <strong>Join ZUCA </strong><FaArrowRight />
+                </button>
+                <button className="hero-secondary" onClick={() => go("/login")}>
+                  <FaSignInAlt /> <strong>Log In</strong>
+                </button>
+              </div>
 
-    {loadingVideo ? (
-      <div className="loading-spinner">
-        <div className="spinner"></div>
-        <p>Loading videos...</p>
-      </div>
-    ) : latestVideo.length > 0 ? (
-      <div className="youtube-grid">
-        {latestVideo.map((video, index) => (
-         <div key={video.id} className="youtube-card" style={{ animationDelay: `${index * 0.1}s` }}>
-  <div className="video-thumbnail-container" onClick={() => openVideoModal(video)}>
-    <img 
-      src={video.thumbnail} 
-      alt={video.title} 
-      className="youtube-thumbnail"
-    />
-    <div className="youtube-play-overlay">
-      <div className="play-button">▶</div>
-    </div>
-    <div className="video-duration-badge">
-      {formatDuration(video.duration)}
-    </div>
-  </div>
-  <div className="youtube-info">
-    <h3 className="youtube-title">{video.title}</h3>
-    <div className="youtube-stats">
-      <span>👁️ {video.views?.toLocaleString() || 0} views</span>
-      <span>❤️ {video.likes?.toLocaleString() || 0} likes</span>
-    </div>
-    <button 
-      onClick={() => openVideoModal(video)} 
-      className="watch-now-btn"
-    >
-      🎬 Watch Now
-    </button>
-  </div>
-</div>
-        ))}
-      </div>
-    ) : (
-      <div className="no-video">
-        <p>No videos available yet. Check back soon!</p>
-        <a 
-          href="https://www.youtube.com/@zetechUniversityCatholic" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="subscribe-btn"
-        >
-          Subscribe to our Channel <FaYoutube />
-        </a>
-      </div>
-    )}
-  </div>
-</section>
-
-
-            {/* Upcoming Events Section */}
-      <section ref={eventsRef} id="events" className="section events-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <FaCalendarAlt className="section-icon" />
-            <h2 className="section-title">Upcoming Events</h2>
-            <p className="section-subtitle">Join us in our jumuias  and our activities in genereal</p>
-          </div>
-
-          {loadingEvents ? (
-            <div className="loading-spinner">
-              <div className="spinner"></div>
-              <p>Loading upcoming events...</p>
+              <button className="hero-explore" onClick={() => navigate('/home')}>
+  Explore the portal <FaArrowRight />
+</button>
             </div>
-          ) : upcomingEvents.length > 0 ? (
-            <div className="events-grid">
-              {upcomingEvents.map((event, index) => {
-                const eventDate = formatEventDate(event.eventDate);
-                return (
-                  <div key={event.id} className="event-card" style={{ animationDelay: `${index * 0.1}s` }}>
-                    <div className="event-date">
-                      <div className="event-day">{eventDate.day}</div>
-                      <div className="event-month">{eventDate.month}</div>
-                    </div>
-                    <div className="event-details">
-                      <h3 className="event-title">{event.title}</h3>
-                      <div className="event-meta">
-                        <div className="event-meta-item">
-                          <FaClock className="meta-icon" />
-                          <span>{event.eventTime || '4:30 PM'}</span>
-                        </div>
-                        <div className="event-meta-item">
-                          <FaLocationArrow className="meta-icon" />
-                          <span>{event.location || 'Annex Building 002'}</span>
-                        </div>
-                        <div className="event-meta-item">
-                          <FaCalendarAlt className="meta-icon" />
-                          <span>{eventDate.weekday}, {eventDate.full}</span>
-                        </div>
-                      </div>
-                      {event.description && (
-                        <p className="event-description">{event.description}</p>
-                      )}
-                      <div className="event-actions">
-                        <button 
-                          className="event-reminder-btn"
-                          onClick={() => {
-                            // Add to calendar functionality
-                            const eventData = {
-                              title: event.title,
-                              start: event.eventDate,
-                              end: event.eventDate,
-                              location: event.location || 'Annex Building 002',
-                              description: event.description || ''
-                            };
-                            // You can implement calendar download here
-                            alert(`📅 Event: ${event.title}\n📆 Date: ${eventDate.full}\n⏰ Time: ${event.eventTime || '4:30 PM'}\n📍 Location: ${event.location || 'Annex Building 002'}\n\nAdd to your calendar!`);
-                          }}
-                        >
-                          <FaClock /> Set Reminder
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="no-events">
-              <FaCalendarAlt className="no-events-icon" />
-              <p>No upcoming events at the moment.</p>
-              <p className="no-events-sub">Check back soon for updates!</p>
-            </div>
-          )}
-          
-          <div className="view-all-events">
-            <button 
-              onClick={() => navigate("/schedules")} 
-              className="view-all-events-btn"
-            >
-              View All Events →
-            </button>
-          </div>
-        </div>
-      </section>
 
-
-            {/* Hymn Browser Section */}
-      <section ref={hymnsRef} id="hymns" className="section hymns-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <FaMusic className="section-icon" />
-            <h2 className="section-title">Hymn Browser</h2>
-            <p className="section-subtitle">Search Lyrics of diffrent songs all here at zuca</p>
-          </div>
-
-          {/* Search Bar */}
-          <form onSubmit={handleHymnSearch} className="hymn-search-form">
-            <div className="search-input-wrapper" style={{ position: 'relative' }}>
- <input
-  type="text"
-  placeholder="Search hymns by title or lyrics..."
-  value={hymnSearch}
-  onChange={handleSearchInput}
-  onFocus={() => {
-    if (hymnSearch.trim().length >= 2) {
-      setShowSuggestions(true);
-    }
-  }}
-  onBlur={() => {
-    // Delay hiding so click on suggestion registers
-    setTimeout(() => setShowSuggestions(false), 200);
-  }}
-  className="hymn-search-input"
-/>
-  <button type="submit" className="hymn-search-btn" onClick={handleHymnSearch}>
-    🔍 Search
-  </button>
-  {isSearching && (
-    <button type="button" onClick={clearSearch} className="hymn-clear-btn">
-      ✕ Clear
-    </button>
-  )}
-  
-  {/* Suggestions Dropdown */}
-  {showSuggestions && searchSuggestions.length > 0 && (
-    <div className="search-suggestions">
-      {searchSuggestions.map((suggestion, index) => (
-       <div
-  key={suggestion.id}
-  className="suggestion-item"
-  onClick={() => selectSuggestion(suggestion)}
-  onMouseDown={(e) => e.preventDefault()}  // Add this to prevent input blur
-  style={{ animationDelay: `${index * 0.03}s` }}
->
-  <div className="suggestion-icon">🎵</div>
-  <div className="suggestion-content">
-    <div className="suggestion-title">{suggestion.title}</div>
-    {suggestion.preview && (
-      <div className="suggestion-preview">{suggestion.preview.substring(0, 60)}...</div>
-    )}
-  </div>
-</div>
-      ))}
-    </div>
-  )}
-  
-  {/* Loading indicator for live search */}
-  {isSearchingLive && (
-    <div className="search-loading">
-      <div className="search-spinner"></div>
-      <span>Searching...</span>
-    </div>
-  )}
-</div>
-          </form>
-
-          {loadingHymns ? (
-            <div className="loading-spinner">
-              <div className="spinner"></div>
-              <p>Loading hymns...</p>
-            </div>
-          ) : (
-            <>
-              <div className="hymns-grid">
-                {(isSearching ? searchResults : hymns).map((hymn, index) => (
-                  <div 
-  key={hymn.id} 
-  className={`hymn-card ${loadingHymnDetails ? 'loading' : ''}`}
-  onClick={() => viewHymn(hymn.id)}
-  style={{ animationDelay: `${index * 0.05}s` }}
->
-  <div className="hymn-icon">
-    {loadingHymnDetails ? (
-      <div className="mini-spinner"></div>
-    ) : (
-      <FaMusic />
-    )}
-  </div>
-  <div className="hymn-content">
-    <h3 className="hymn-title">{hymn.title}</h3>
-    {hymn.reference && (
-      <span className="hymn-reference">{hymn.reference}</span>
-    )}
-    {hymn.preview && (
-      <p className="hymn-preview">{hymn.preview}...</p>
-    )}
-    <div className="hymn-read-more">
-      {loadingHymnDetails ? 'Loading...' : 'Read Lyrics →'}
-    </div>
-  </div>
-</div>
+            <div className="hero-bottom">
+              <div className="hero-dots">
+                {slides.map((_, i) => (
+                  <button
+                    key={i}
+                    aria-label={`Go to slide ${i + 1}`}
+                    className={i === currentSlide ? "active" : ""}
+                    onClick={() => setCurrentSlide(i)}
+                  />
                 ))}
               </div>
 
-              {!isSearching && hasMoreHymns && (
-                <div className="load-more-container">
-                  <button onClick={loadMoreHymns} className="load-more-btn">
-                    Load More Hymns
-                  </button>
+              <div className="hero-controls">
+                <span>
+                  {String(currentSlide + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+                </span>
+                <button onClick={prevSlide} aria-label="Previous">
+                  <FaChevronLeft />
+                </button>
+                <button onClick={() => setPlaying((v) => !v)} aria-label="Play or pause">
+                  {playing ? <FaPause /> : <FaPlay />}
+                </button>
+                <button onClick={nextSlide} aria-label="Next">
+                  <FaChevronRight />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ABOUT / INTRO */}
+        <section ref={refs.about} className="zuca-section zuca-intro">
+          <div className="zuca-shell intro-grid">
+            <div>
+              <span className="section-kicker">WELCOME TO ZUCA</span>
+              <h2>
+                A Catholic students club built  around faith and Unity.
+              </h2>
+            </div>
+            <div className="intro-text">
+              <p>
+                Zetech Catholic Action is a vibrant student group committed to evangelism, faith, and fellowship through music and action. Our mission is to spread the message of hope, love, and faith within our campus community and beyond. . The ZUCA Portal makes the Club easier to discover and stay
+                connected with our media, hymns, events and Mass information, all in one place <strong><em>"THE ZUCA PORTAL</em>"</strong>                     
+              </p>
+              <button className="text-link" onClick={() => go("/register")}>
+                Become part of our club online? <FaArrowRight />
+              </button>
+            </div>
+          </div>
+
+          <div className="zuca-shell feature-grid">
+            <article>
+              <div className="feature-icon">
+                <FaPray />
+              </div>
+              <h3>Prayer</h3>
+              <p>Join Us everyday from monday as we gather to pray the holy Rosary together.</p>
+            </article>
+            <article>
+              <div className="feature-icon">
+                <FaUsers />
+              </div>
+              <h3>Interactive ZUCA</h3>
+              <p>Engage with us and be able to Connect with fellow students and even get a better university experience.</p>
+            </article>
+            <article>
+              <div className="feature-icon">
+                <FaHandsHelping />
+              </div>
+              <h3>Service to others</h3>
+              <p>As ZUCA, it's all through compassion and service, we usually enage ourself in community service as we purpose also to serve others who are less fortunate by charitable visits and donations.</p>
+            </article>
+            <article>
+              <div className="feature-icon">
+                <FaMusic />
+              </div>
+              <h3>Hymn book</h3>
+              <p>Search, read and download hymns from the ZUCA hymn book.</p>
+            </article>
+          </div>
+        </section>
+
+        {/* FEATURED MEDIA */}
+        <section ref={refs.media} id="media" className="zuca-section">
+          <div className="zuca-shell">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">FROM OUR FAVORITE CONTENT</span>
+                <h2>Moments worth remembering</h2>
+              </div>
+              <button className="outline-button" onClick={() => go("/gallery")}>
+                Explore our gallery <FaArrowRight />
+              </button>
+            </div>
+
+            {loadingMedia ? (
+              <div className="state-block">Loading featured media…</div>
+            ) : media.length ? (
+              <div className="media-grid">
+                {media.slice(0, 5).map((item, i) => (
+                  <article
+                    className={`media-card media-${i + 1}`}
+                    key={item.id || i}
+                    onClick={() => openMediaModal(item)}
+                  >
+                    {item.type === "video" ? (
+                      <video src={item.url} className="media-card-video" muted playsInline preload="metadata" />
+                    ) : (
+                      <img src={item.url || item.thumbnail} alt={item.title || "ZUCA community"} />
+                    )}
+                    <div className="media-caption">
+                      <span>ZUCA</span>
+                      <h3>{item.title || "Community moment"}</h3>
+                      <div className="media-caption-stats">
+                        <span>♥ {item._count?.likes || 0}</span>
+                        <span>◎ {item._count?.views || 0}</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-card">
+                <FaHeart />
+                <h3>Our community moments</h3>
+                <p>Photos and featured media will appear here.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Full-screen media modal */}
+        {isMediaModalOpen && selectedMedia && (
+          <div className="zuca-modal" onClick={closeMediaModal}>
+            <div className="zuca-modal-card" onClick={(e) => e.stopPropagation()}>
+              <button className="zuca-modal-close" onClick={closeMediaModal}>
+                <FaTimes />
+              </button>
+              {selectedMedia.type === "video" ? (
+                <video src={selectedMedia.url} className="zuca-modal-media" controls autoPlay preload="metadata" />
+              ) : (
+                <img src={selectedMedia.url} alt={selectedMedia.title} className="zuca-modal-media" />
+              )}
+              <div className="zuca-modal-body">
+                <h3>{selectedMedia.title}</h3>
+                {selectedMedia.description && <p>{selectedMedia.description}</p>}
+                <div className="zuca-modal-stats">
+                  <span>♥ {selectedMedia._count?.likes || 0} likes</span>
+                  <span>◎ {selectedMedia._count?.views || 0} views</span>
+                  {selectedMedia.createdAt && (
+                    <span>{new Date(selectedMedia.createdAt).toLocaleDateString()}</span>
+                  )}
+                </div>
+                <button
+                  className="hero-primary"
+                  onClick={() => {
+                    closeMediaModal();
+                    go("/gallery");
+                  }}
+                >
+                  View full gallery <FaArrowRight />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIDEOS */}
+        <section className="zuca-video-section" ref={refs.youtube} id="youtube">
+          <div className="zuca-shell video-grid">
+            <div className="video-copy">
+              <span className="section-kicker">WATCH &amp; LISTEN FROM OUR ONLINE PLATFORMS</span>
+              <h2>connect us wherever you are By subscribing to our online platforms.</h2>
+              <p>Catch up with our latest updates, events and content from ZUCA.</p>
+              <a
+                className="hero-primary dark-button"
+                href="https://www.youtube.com/@zetechUniversityCatholic"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Subscribe on YouTube <FaYoutube size="20px" color="#f70000" />
+
+              </a>
+            </div>
+            <div className="video-list">
+              {loadingVideos ? (
+                <div className="video-empty">Loading videos…</div>
+              ) : videos.length ? (
+                videos.map((video, i) => (
+                  <article
+                    className="video-item"
+                    key={video.id || i}
+                    onClick={() => openVideoModal(video)}
+                  >
+                    <div className="video-thumb">
+                      <img src={video.thumbnail} alt={video.title} />
+                      <span>
+                        <FaPlay />
+                      </span>
+                      <em>{formatDuration(video.duration)}</em>
+                    </div>
+                    <div>
+                      <small>YouTube</small>
+                      <h3>{video.title || "ZUCA video"}</h3>
+                      <div className="video-item-stats">
+                        <span>{(video.views || 0).toLocaleString()} views</span>
+                        <span>{(video.likes || 0).toLocaleString()} likes</span>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="video-empty">
+                  No videos available yet.
+                  <a
+                    href="https://www.youtube.com/@zetechUniversityCatholic"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Subscribe to our channel
+                  </a>
                 </div>
               )}
+            </div>
+          </div>
+        </section>
 
-              
+        {/* Video modal */}
+        {isVideoModalOpen && selectedVideo && (
+          <div className="zuca-modal" onClick={closeVideoModal}>
+            <div className="zuca-modal-card zuca-modal-card-wide" onClick={(e) => e.stopPropagation()}>
+              <button className="zuca-modal-close" onClick={closeVideoModal}>
+                <FaTimes />
+              </button>
+              <div className="zuca-video-frame">
+                <iframe
+                  src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1`}
+                  title={selectedVideo.title}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+              <div className="zuca-modal-body">
+                <h3>{selectedVideo.title}</h3>
+                <div className="zuca-modal-stats">
+                  <span>{(selectedVideo.views || 0).toLocaleString()} views</span>
+                  <span>{(selectedVideo.likes || 0).toLocaleString()} likes</span>
+                  <span>{(selectedVideo.comments || 0).toLocaleString()} comments</span>
+                </div>
+                {selectedVideo.description && (
+                  <p>{selectedVideo.description.substring(0, 220)}…</p>
+                )}
+                <div className="zuca-modal-actions">
+                  <a
+                    className="hero-primary"
+                    href={`https://www.youtube.com/watch?v=${selectedVideo.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open on YouTube <FaYoutube />
+                  </a>
+                  <button className="hero-secondary dark-outline" onClick={closeVideoModal}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-              {(isSearching ? searchResults : hymns).length === 0 && !loadingHymns && (
-                <div className="no-hymns">
-                  <FaMusic className="no-hymns-icon" />
-                  <p>No hymns found</p>
+        {/* EVENTS */}
+        <section ref={refs.events} id="events" className="zuca-section soft-section">
+          <div className="zuca-shell">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker"> ZUCA UPCOMING EVENTS</span>
+                <h2>Which events are to take place?</h2>
+              </div>
+              <button className="outline-button" onClick={() => go("/schedules")}>
+                View all events <FaArrowRight />
+              </button>
+            </div>
+
+            {loadingEvents ? (
+              <div className="state-block">Loading upcoming events…</div>
+            ) : events.length ? (
+              <div className="events-grid">
+                {events.map((event, i) => {
+                  const date = formatEventDate(event.eventDate);
+                  return (
+                    <article className="event-card" key={event.id || i}>
+                      <div className="event-date">
+                        <strong>{date.day}</strong>
+                        <span>{date.month}</span>
+                      </div>
+                      <div>
+                        <span className="event-weekday">{date.weekday}</span>
+                        <h3>{event.title}</h3>
+                        <div className="event-meta">
+                          <span>
+                            <FaClock /> {event.eventTime || "4:30 PM"}
+                          </span>
+                          <span>
+                            <FaLocationArrow /> {event.location || "Annex Building 002"}
+                          </span>
+                        </div>
+                        {event.description && <p>{event.description}</p>}
+                        <button
+                          className="event-remind"
+                          onClick={() =>
+                            showToast(
+                              `${event.title} — ${date.weekday}, ${date.full || ""} at ${
+                                event.eventTime || "4:30 PM"
+                              }, ${event.location || "Annex Building 002"}.`
+                            )
+                          }
+                        >
+                          <FaClock /> Set reminder
+                        </button>
+                      </div>
+                      <FaArrowRight 
+  className="event-arrow" 
+  style={{ cursor: 'pointer' }}
+  onClick={(e) => {
+    e.stopPropagation();
+    navigate('/schedules', { 
+      state: { 
+        eventId: event.id,
+        title: event.title,
+        location: event.location || "Annex Building 002",
+        eventTime: event.eventTime || "4:30 PM",
+        description: event.description,
+        eventDate: event.eventDate
+      } 
+    });
+  }}
+/>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty-card">
+                <FaCalendarAlt />
+                <h3>No upcoming events yet</h3>
+                <p>Check back soon for the next ZUCA  event.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* HYMNS */}
+        <section ref={refs.hymns} id="hymns" className="zuca-section hymn-section">
+          <div className="zuca-shell hymn-layout">
+            <div className="hymn-copy">
+              <div className="hymn-symbol">
+                <FaMusic />
+              </div>
+              <span className="section-kicker">ZUCA LRICS BOOK</span>
+              <h2>Find the Lyrics of a catholic song you need.</h2>
+              <p>Search From our  collection, read the lyrics and keep a copy by downloading as <FaFilePdf color="#ff0000"/> PDF or <FaFileWord color="#221ef3" /> WORD document.</p>
+              <button className="outline-button" onClick={() => go("/hymns")}>
+                Open hymn book <FaArrowRight />
+              </button>
+            </div>
+
+            <div className="hymn-panel">
+              <form className="hymn-search" onSubmit={handleHymnSearch}>
+                <FaSearch />
+                <input
+                  value={hymnSearch}
+                  onChange={handleSearchInput}
+                  onFocus={() => {
+                    if (hymnSearch.trim().length >= 2) setShowSuggestions(true);
+                  }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder="  Search hymns by title or lyrics…"
+                />
+                <button type="submit"><FaSearch size="15px" color="#fff"/>     Search</button>
+                {isSearching && (
+                  <button type="button" className="hymn-clear" onClick={clearSearch}>
+                    Clear
+                  </button>
+                )}
+
+                {showSuggestions && searchSuggestions.length > 0 && (
+                  <div className="hymn-suggestions">
+                    {searchSuggestions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="hymn-suggestion-item"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s)}
+                      >
+                        <FaMusic />
+                        <div>
+                          <strong>{s.title}</strong>
+                          {s.preview && <small>{s.preview.substring(0, 60)}…</small>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isSearchingLive && <div className="hymn-suggestions hymn-suggestions-loading">Searching…</div>}
+              </form>
+
+              {loadingHymns ? (
+                <div className="hymn-loading">Loading hymn book…</div>
+              ) : (isSearching ? searchResults : hymns).length ? (
+                <>
+                  <div className="hymn-list">
+                    {(isSearching ? searchResults : hymns).map((hymn, i) => (
+                      <button className="hymn-row" key={hymn.id || i} onClick={() => viewHymn(hymn.id)}>
+                        <span className="hymn-number">{String(i + 1).padStart(2, "0")}</span>
+                        <span>
+                          <strong>{hymn.title}</strong>
+                          <small>{hymn.reference || "ZUCA Hymn Book"}</small>
+                        </span>
+                        <FaArrowRight />
+                      </button>
+                    ))}
+                  </div>
+                  {!isSearching && hasMoreHymns && (
+                    <button className="hymn-load-more" onClick={loadMoreHymns}>
+                      Load more hymns
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="hymn-loading">
+                  No hymns found.
                   {isSearching && (
-                    <button onClick={clearSearch} className="clear-search-btn">
-                      Browse All Hymns
+                    <button className="text-link" onClick={clearSearch}>
+                      Browse all hymns
                     </button>
                   )}
                 </div>
               )}
-            </>
-          )}
+            </div>
+          </div>
+        </section>
 
-          <div className="view-all-hymns">
-            <button 
-              onClick={() => navigate("/hymns")} 
-              className="view-all-hymns-btn"
-            >
-              View Full Hymn Book →
-            </button>
-          </div>
-        </div>
-      </section>
+        {/* Hymn detail modal */}
+        {(showHymnModal || loadingHymnDetails) && (
+          <div className="zuca-modal" onClick={closeHymnModal}>
+            <div className="zuca-modal-card zuca-hymn-modal-card" onClick={(e) => e.stopPropagation()}>
+              <button className="zuca-modal-close" onClick={closeHymnModal}>
+                <FaTimes />
+              </button>
 
-     {/* Hymn Detail Modal */}
-{(showHymnModal || loadingHymnDetails) && (
-  <div className="hymn-modal" onClick={closeHymnModal}>
-    <div className="hymn-modal-content" onClick={(e) => e.stopPropagation()}>
-      <button className="hymn-modal-close" onClick={closeHymnModal}>×</button>
-      
-      {loadingHymnDetails ? (
-        // Loading State
-        <div className="hymn-modal-loading">
-          <div className="hymn-loading-spinner"></div>
-          <p>Loading hymn lyrics...</p>
-        </div>
-      ) : (
-        // Content State
-        <>
-          <div className="hymn-modal-header">
-            <FaMusic className="hymn-modal-icon" />
-            <h2>{selectedHymn?.title}</h2>
-            {selectedHymn?.reference && (
-              <span className="hymn-modal-reference">{selectedHymn.reference}</span>
-            )}
+              {loadingHymnDetails ? (
+                <div className="hymn-modal-loading">Loading hymn lyrics…</div>
+              ) : (
+                <>
+                  <div className="hymn-modal-header">
+                    <FaMusic />
+                    <h2>{selectedHymn?.title}</h2>
+                    {selectedHymn?.reference && <span>{selectedHymn.reference}</span>}
+                  </div>
+                  <div className="hymn-modal-lyrics">
+                    {selectedHymn?.lyrics ? (
+                      selectedHymn.lyrics.split("\n").map((line, i) => <p key={i}>{line || <br />}</p>)
+                    ) : (
+                      <p className="hymn-modal-empty">Lyrics not available yet.</p>
+                    )}
+                  </div>
+                  <div className="hymn-modal-actions">
+                    <button onClick={() => downloadHymnAsImage(selectedHymn)} disabled={downloading}>
+                      <FaImage /> Save as image
+                    </button>
+                    <button onClick={() => downloadHymnAsPDF(selectedHymn)} disabled={downloading}>
+                      <FaFilePdf /> Save as PDF
+                    </button>
+                  </div>
+                  <button
+                    className="hero-primary"
+                    onClick={() => {
+                      closeHymnModal();
+                      go("/hymns");
+                    }}
+                  >
+                    View all hymns <FaArrowRight />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-          
-          <div className="hymn-modal-lyrics">
-            {selectedHymn?.lyrics ? (
-              selectedHymn.lyrics.split('\n').map((line, i) => (
-                <p key={i}>{line || <br />}</p>
-              ))
-            ) : (
-              <p className="no-lyrics">Lyrics not available yet.</p>
-            )}
-          </div>
-          
-          <div className="hymn-download-buttons">
-            <button 
-              className="hymn-download-btn image-btn"
-              onClick={() => downloadHymnAsImage(selectedHymn)}
-              disabled={downloading}
-            >
-              📸 Download as Image
-            </button>
-            <button 
-              className="hymn-download-btn pdf-btn"
-              onClick={() => downloadHymnAsPDF(selectedHymn)}
-              disabled={downloading}
-            >
-              📄 Download as PDF
-            </button>
-          </div>
-          
-          <button 
-            className="hymn-modal-view-all"
-            onClick={() => {
-              closeHymnModal();
-              navigate("/hymns");
-            }}
-          >
-            🎵 View All Hymns →
-          </button>
-        </>
-      )}
-    </div>
-  </div>
-)}
-
-{/* YouTube Video Modal */}
-{showVideoModal && selectedVideo && (
-  <div className="video-modal" onClick={closeVideoModal}>
-    <div className="video-modal-content" onClick={(e) => e.stopPropagation()}>
-      <button className="video-modal-close" onClick={closeVideoModal}>×</button>
-      
-      <div className="video-container">
-        <iframe
-          src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1`}
-          title={selectedVideo.title}
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="video-iframe"
-        ></iframe>
-      </div>
-      
-      <div className="video-modal-info">
-        <h3 className="video-modal-title">{selectedVideo.title}</h3>
-        <div className="video-modal-stats">
-          <span>👁️ {selectedVideo.views?.toLocaleString() || 0} views</span>
-          <span>❤️ {selectedVideo.likes?.toLocaleString() || 0} likes</span>
-          <span>💬 {selectedVideo.comments?.toLocaleString() || 0} comments</span>
-        </div>
-        {selectedVideo.description && (
-          <p className="video-modal-description">{selectedVideo.description.substring(0, 200)}...</p>
         )}
-        <div className="video-modal-buttons">
-          <a 
-            href={`https://www.youtube.com/watch?v=${selectedVideo.id}`} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="video-open-youtube"
-          >
-            Open on YouTube <FaYoutube />
-          </a>
-          <button onClick={closeVideoModal} className="video-close-btn">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
 
-      {/* Mass Schedule Section */}
-      <section id="mass" ref={massRef} className="section mass-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <FaPray className="section-icon" />
-            <h2 className="section-title">Weekly Mass & Choir Practice</h2>
-            <p className="section-subtitle"></p>
-          </div>
-
-          <div className="mass-cards">
-            <div className="mass-card">
-              <FaChurch className="card-icon" />
-              <h3 className="card-title">Wednesday Mass</h3>
-              <div className="card-info">
-                <FaClock className="info-icon" />
-                <span>4:30 PM</span>
-              </div>
-              <div className="card-info">
-                <FaLocationArrow className="info-icon" />
-                <span>Annex Building 002</span>
-              </div>
-              <p className="card-note">come join us!</p>
+        {/* MASS + CHOIR */}
+        <section className="zuca-mass-strip" ref={refs.mass} id="mass">
+          <div className="zuca-shell mass-inner">
+            <div className="mass-icon">
+              <FaChurch />
             </div>
-
-            <div className="mass-card">
-              <FaPray className="card-icon" />
-              <h3 className="card-title">Daily Choir Practice</h3>
-              <div className="card-info">
-                <FaClock className="info-icon" />
-                <span>4:00 PM - 6:00 PM</span>
-              </div>
-              <div className="card-info">
-                <FaLocationArrow className="info-icon" />
-                <span>ZETECH ANNEX 002</span>
-              </div>
-              <p className="card-note">All are welcome to attend</p>
+            <div>
+              <span>WEEKLY MASS</span>
+              <strong>In ZUCA we usually have our mass on Wednesdays at  · 4:30 PM at the Zetech Universiry Ruiru Campus join us as we animate In the Holy Mass <FaPrayingHands/></strong>
+            </div>
+            <div className="mass-location">
+              <FaMapMarkerAlt /> Annex Building 002, Zetech University
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Social Media Section */}
-      <section id="connect" ref={connectRef} className="section social-section fade-section">
-        <div className="container">
-          <div className="section-header">
-            <FaHeart className="section-icon" />
-            <h2 className="section-title-light">Connect With Us</h2>
-            <p className="section-subtitle-light">We apper in social media platforms as follows please follow, like, share and subscribe</p>
+          <div className="zuca-shell mass-cards">
+            <article>
+              <img src={logo} alt="Loading..." style={{ width: '34px', height: '50px' }} />
+              <h3>Wednesday Mass</h3>
+              <p>
+                <FaClock /> 4:30 PM
+              </p>
+              <p>
+                <FaLocationArrow /> Annex Building 002
+              </p>
+              <span>Come join us!</span>
+            </article>
+            <article>
+              <FaMusic color="#991bb3" />
+              <h3>Daily choir practice</h3>
+              <p>
+                <FaClock /> 4:00 PM – 6:00 PM
+              </p>
+              <p>
+                <FaLocationArrow /> Zetech Annex 002
+              </p>
+              <span>All are welcome to attend</span>
+            </article>
           </div>
+        </section>
 
-          <div className="social-grid">
-            <a href="https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3" target="_blank" rel="noopener noreferrer" className="social-card">
-              <div className="social-icon-circle instagram">
-                <FaInstagram />
+        {/* CONNECT / SOCIAL */}
+        <section ref={refs.connect} id="connect" className="zuca-section connect-section">
+          <div className="zuca-shell">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">FOLLOW ALONG</span>
+                <h2>Follow us on All our social media Platforms;</h2>
               </div>
-              <span className="social-platform">Instagram</span>
-              <span className="social-handle">@zetechcatholicaction</span>
-            </a>
-
-            <a href="https://www.facebook.com/share/1ELDK56qEJ" target="_blank" rel="noopener noreferrer" className="social-card">
-              <div className="social-icon-circle facebook">
-                <FaFacebookF />
-              </div>
-              <span className="social-platform">Facebook</span>
-              <span className="social-handle">Zetech Catholic Action</span>
-            </a>
-
-            <a href="https://www.youtube.com/@zetechUniversityCatholic" target="_blank" rel="noopener noreferrer" className="social-card">
-              <div className="social-icon-circle youtube">
-                <FaYoutube />
-              </div>
-              <span className="social-platform">YouTube</span>
-              <span className="social-handle">Subscribe for New Releases</span>
-            </a>
-
-            <a href="https://www.tiktok.com/@zetechcatholicaction?_t=ZM-8yeypKK8YpM&_r=1" target="_blank" rel="noopener noreferrer" className="social-card">
-              <div className="social-icon-circle tiktok">
-                <FaTiktok />
-              </div>
-              <span className="social-platform">TikTok</span>
-              <span className="social-handle">@zetechcatholicaction</span>
-            </a>
-          </div>
-        </div>
-      </section>
-
-     {/* About Section - Dynamic from Database */}
-<section id="about" ref={aboutRef} className="section about-section fade-section">
-  <div className="container">
-    <div className="section-header">
-      <img src={logo} alt="ZUCA Logo" className="about-logo" />
-      <h2 className="section-title-dark">Our History</h2>
-    </div>
-
-    <div className="about-content">
-      {loadingHistory ? (
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading history...</p>
-        </div>
-      ) : historyEntries.length > 0 ? (
-        <>
-          {historyEntries.map((entry) => (
-            <div key={entry.id} className="history-entry">
-              <h3 className="history-title">{entry.title}</h3>
-              <p className="about-text">{entry.content}</p>
             </div>
-          ))}
-        </>
-      ) : (
-        <p className="about-text">History content coming soon...</p>
-      )}
+
+            <div className="connect-grid">
+              <a
+                href="https://www.instagram.com/zetechcatholicaction?igsh=d211Y2htZW9qbGU3"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="connect-card"
+              >
+                <span className="connect-icon connect-instagram">
+                  <FaInstagram />
+                </span>
+                <strong>Instagram</strong>
+                <small>@zetechcatholicaction</small>
+              </a>
+              <a
+                href="https://www.facebook.com/share/1ELDK56qEJ"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="connect-card"
+              >
+                <span className="connect-icon connect-facebook">
+                  <FaFacebookF />
+                </span>
+                <strong>Facebook</strong>
+                <small>Zetech Catholic Action</small>
+              </a>
+              <a
+                href="https://www.youtube.com/@zetechUniversityCatholic"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="connect-card"
+              >
+                <span className="connect-icon connect-youtube">
+                  <FaYoutube />
+                </span>
+                <strong>YouTube</strong>
+                <small>Subscribe for new releases</small>
+              </a>
+              <a
+                href="https://www.tiktok.com/@zetechcatholicaction?_t=ZM-8yeypKK8YpM&_r=1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="connect-card"
+              >
+                <span className="connect-icon connect-tiktok">
+                  <FaTiktok />
+                </span>
+                <strong>TikTok</strong>
+                <small>@zetechcatholicaction</small>
+              </a>
+            </div>
+          </div>
+        </section>
+
+       {/* ABOUT / HISTORY */}
+<section className="zuca-section story-section">
+  <div className="zuca-shell story-grid">
+    <div className="story-image">
+      {/* First image - main image */}
+      <img src={slide4} alt="ZUCA community" className="story-image-main" />
+      {/* Second image - below the first one */}
+      <img src={slide7} alt="ZUCA community service" className="story-image-secondary" />
       
-      <div className="activities-grid">
-        <div className="activity-item">
-          <FaChurch className="activity-icon" />
-          <span>OUR ACTIVITIES</span>
-        </div>
-        <div className="activity-item">
-          <FaMusic className="activity-icon" />
-          <span>Choir Practice/Mass Animations</span>
-        </div>
-        <div className="activity-item">
-          <FaUsers className="activity-icon" />
-          <span>Jumuia Groups</span>
-        </div>
-        <div className="activity-item">
-          <FaHandsHelping className="activity-icon" />
-          <span>Outdoor and Indoor functions</span>
-        </div>
+      {/* Second image - below the first one */}
+      <img src={slide10} alt="ZUCA community service" className="story-image-secondary1" />
+        {/* Second image - below the first one */}
+      <img src={slide8} alt="ZUCA community service" className="story-image-secondary1" />
+    </div>
+    
+    <div className="story-copy">
+      <span className="section-kicker">OUR STORY</span>
+      <h2>
+        More than a portal. A community.
+      </h2>
+      
+      {loadingHistory ? (
+        <p>Loading our history…</p>
+      ) : history.length ? (
+        history.map((entry) => (
+          <div key={entry.id} className="story-entry">
+            <h4>{entry.title}</h4>
+            <p>{entry.content}</p>
+          </div>
+        ))
+      ) : (
+        <p>
+          ZUCA is a community of young Catholics growing in faith, friendship and service at
+          Zetech University.
+        </p>
+      )}
+
+      <div className="story-tags">
+        <span>
+          <FaMusic /> Choir practice / Mass animations
+        </span>
+        <span>
+          <FaUsers /> Jumuia groups
+        </span>
+        <span>
+          <FaHandsHelping /> Outdoor &amp; indoor functions
+        </span>
       </div>
     </div>
   </div>
 </section>
-      {/* Contact Section */}
-      <section className="section contact-section fade-section" ref={contactRef}>
-        <div className="container">
-          <div className="section-header">
-            <FaEnvelope className="section-icon-light" />
-            <h2 className="section-title-light">Get In Touch</h2>
+
+      {/* CONTACT */}
+<section ref={refs.contact} id="contact" className="zuca-section soft-section">
+  <div className="zuca-shell">
+    <div className="section-heading">
+      <div>
+        <span className="section-kicker">REACH US</span>
+        <h2>Get in touch</h2>
+      </div>
+    </div>
+
+    {loadingExecutives ? (
+      <div className="state-block">Loading contact information…</div>
+    ) : executiveTeam.length === 0 ? (
+      <div className="state-block">No executive team found</div>
+    ) : (
+      <div className="contact-grid">
+        {/* Email 1 */}
+        <div className="contact-item">
+          <FaEnvelope style={{ fontSize: '24px', color: '#2d2a35' }} />
+          <a href="mailto:zuca406@gmail.com" style={{ fontWeight: '600' }}>zuca406@gmail.com</a>
+        </div>
+        
+        {/* Email 2 */}
+        <div className="contact-item">
+          <FaEnvelope style={{ fontSize: '24px', color: '#2d2a35' }} />
+          <a href="mailto:zucaportal2025@gmail.com" style={{ fontWeight: '600' }}>zucaportal2025@gmail.com</a>
+        </div>
+        
+        {/* Show Chairperson, Vice Chairperson, and Christopher Maina */}
+        {executiveTeam
+          .filter(member => {
+            const role = member.role?.toLowerCase() || '';
+            const name = member.name?.toLowerCase() || '';
+            return role === 'chairperson' || 
+                   role === 'vice chairperson' || 
+                   name === 'christopher maina' ||
+                   name.includes('christopher maina') ||
+                   name === 'chris maina' ||
+                   name.includes('chris maina');
+          })
+          .sort((a, b) => {
+            const aRole = a.role?.toLowerCase() || '';
+            const bRole = b.role?.toLowerCase() || '';
+            const aName = a.name?.toLowerCase() || '';
+            const bName = b.name?.toLowerCase() || '';
+            
+            const aIsChris = aName === 'christopher maina' || aName.includes('christopher maina');
+            const bIsChris = bName === 'christopher maina' || bName.includes('christopher maina');
+            
+            if (aRole === 'chairperson') return -1;
+            if (bRole === 'chairperson') return 1;
+            if (aRole === 'vice chairperson') return -1;
+            if (bRole === 'vice chairperson') return 1;
+            if (aIsChris && !bIsChris) return 1;
+            if (!aIsChris && bIsChris) return -1;
+            return 0;
+          })
+          .map((member) => {
+            const isChris = member.name?.toLowerCase() === 'christopher maina' || 
+                           member.name?.toLowerCase().includes('christopher maina');
+            return (
+              <div className="contact-item" key={member.id}>
+                {member.profileImage ? (
+                  <img 
+                    src={member.profileImage} 
+                    alt={member.name} 
+                    style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ 
+                    width: '50px', 
+                    height: '50px', 
+                    borderRadius: '50%', 
+                    background: isChris ? '#2d2a35' : '#d5a63b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '20px',
+                    fontWeight: 'bold',
+                    color: '#fff'
+                  }}>
+                    {member.name?.charAt(0) || '?'}
+                  </div>
+                )}
+                <span style={{ fontWeight: '700', fontSize: '15px' }}>{member.name}</span>
+                <span style={{ 
+                  fontWeight: '600', 
+                  fontSize: '13px', 
+                  color: isChris ? '#2d2a35' : '#d5a63b' 
+                }}>
+                  {isChris ? 'IT Support' : member.role}
+                </span>
+                {member.phone && (
+                  <a href={`tel:${member.phone}`} style={{ fontSize: '12px', color: '#667085' }}>
+                    <FaPhone style={{ marginRight: '4px' }} /> {member.phone}
+                  </a>
+                )}
+                {member.email && (
+                  <a href={`mailto:${member.email}`} style={{ fontSize: '11px', color: '#667085' }}>
+                    {member.email}
+                  </a>
+                )}
+                {isChris && (
+                  <span style={{ 
+                    background: '#2d2a35', 
+                    color: '#fff', 
+                    padding: '2px 12px', 
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase'
+                  }}>
+                    Tech Support
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        
+        {/* Map - Always showing, spans full width */}
+        <div className="contact-item" style={{ gridColumn: '1 / -1', padding: '0', overflow: 'hidden' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            padding: '16px 20px',
+            background: '#f7f7f9',
+            width: '100%',
+            justifyContent: 'center',
+            borderBottom: '1px solid var(--zuca-border)'
+          }}>
+            <FaMapMarkerAlt style={{ fontSize: '20px', color: '#d5a63b' }} />
+            <span style={{ fontWeight: '600' }}>Zetech University, Ruiru Campus</span>
+            <a 
+              href="https://www.google.com/maps/search/?api=1&query=Zetech+University+Ruiru+Kenya"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ 
+                fontSize: '12px', 
+                color: '#d5a63b', 
+                textDecoration: 'none',
+                fontWeight: '600'
+              }}
+            >
+              Open in Maps ↗
+            </a>
           </div>
-
-          <div className="contact-grid">
-            <div className="contact-item">
-              <FaMapMarkerAlt className="contact-icon" />
-              <span>Zetech University , Ruiru</span>
-            </div>
-            <div className="contact-item">
-              <FaEnvelope className="contact-icon" />
-                            <a href="mailto:zucaportal2025@gmail.com" className="contact-link">zuca406@gmail.com</a>
-            </div><div className="contact-item">
-              <FaPhone className="contact-icon" />
-              <a href="tel:+254 798 139 693" className="contact-link">+254 798 139 693</a>(Tonny) Chair person
-            </div>
-             <div className="contact-item">
-              <FaPhone className="contact-icon" />
-              <a href="tel:+254 758 134 200" className="contact-link">+254 758 134 200</a>(Cecilia) Vice Chair person
-            </div>
-             <div className="contact-item">
-              <FaPhone className="contact-icon" />
-              <a href="tel:+254 746 893 181" className="contact-link">+254 746 893 181</a> <FaLaptop className="contact-icon" />(Chris) IT support
-
-              <span></span>
-            </div>
+          <div style={{ 
+            width: '100%', 
+            height: '250px',
+            backgroundColor: '#e8e8ed'
+          }}>
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d255282.35853743783!2d36.68297465390024!3d-1.3028610000000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f1172d84d49a7%3A0xf7cf0254b297924c!2sZetech%20University%20-%20Ruiru%20Campus!5e0!3m2!1sen!2ske!4v1700000000000"
+              width="100%"
+              height="250"
+              style={{ border: 0 }}
+              allowFullScreen=""
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="ZUCA Location"
+            />
           </div>
         </div>
-      </section>
+      </div>
+    )}
+    
+    {/* View all button - navigates to /executive */}
+    {!loadingExecutives && executiveTeam.length > 0 && (
+      <div style={{ textAlign: 'center', marginTop: '30px' }}>
+        <button 
+          className="outline-button"
+          onClick={() => navigate('/executive')}
+        >
+          View all {executiveTeam.length} executives <FaArrowRight />
+        </button>
+      </div>
+    )}
+  </div>
+</section>
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-content">
-          <div className="footer-social">
-            <a href="https://www.instagram.com/zetechcatholicaction" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
-              <FaInstagram />
-            </a>
-            <a href="https://www.facebook.com/share/1ELDK56qEJ" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
-              <FaFacebookF />
-            </a>
-            <a href="https://www.youtube.com/@zetechUniversityCatholic" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
-              <FaYoutube />
-            </a>
-            <a href="https://www.tiktok.com/@zetechcatholicaction" target="_blank" rel="noopener noreferrer" className="footer-social-icon">
-              <FaTiktok />
-            </a>
-          </div>
-
-          {showInstallButton && (
-            <div className="footer-install">
-              <button onClick={handleInstallClick} className="btn-install-footer">
-                <FaDownload /> Install ZUCA App
+        {/* CTA */}
+        <section className="zuca-cta">
+          <div className="zuca-shell cta-inner">
+            <span className="section-kicker">YOUR JOURNEY STARTS HERE</span>
+            <h2>Find your place in the ZUCA family today ! </h2>
+            <p> create an account and connect access the full portal.</p>
+            <div className="cta-actions">
+              <button className="hero-primary" onClick={() => go("/register")}>
+                <FaUserPlus /> Create your account
+              </button>
+              <button className="cta-login" onClick={() => go("/login")}>
+                Already a member? Sign in
               </button>
             </div>
-          )}
+          </div>
+        </section>
 
-          <div className="footer-credit">
-            <span></span>
-            
-            <span></span>
-            <span className="credit-name"></span>
+        {showInstall && (
+          <div className="install-banner">
+            <div>
+              <FaDownload />
+              <span>
+                <strong>Install ZUCA Portal</strong>
+                <small>Keep ZUCA one tap away.</small>
+              </span>
+            </div>
+            <button onClick={installPortal}>Install</button>
+            <button className="install-close" onClick={() => setShowInstall(false)}>
+              <FaTimes />
+            </button>
+          </div>
+        )}
+      </main>
+
+      <footer className="zuca-footer">
+        <div className="zuca-shell footer-grid">
+          <div className="footer-brand">
+            <img src={logo} alt="ZUCA" />
+            <h3>Zetech University Catholic Action</h3>
+            <p>Harmony in Voices · Unity in Purpose</p>
+            <div className="socials">
+              <a
+                href="https://www.instagram.com/zetechcatholicaction"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+              >
+                <FaInstagram />
+              </a>
+              <a
+                href="https://www.facebook.com/share/1ELDK56qEJ"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+              >
+                <FaFacebookF />
+              </a>
+              <a
+                href="https://www.youtube.com/@zetechUniversityCatholic"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="YouTube"
+              >
+                <FaYoutube />
+              </a>
+              <a
+                href="https://www.tiktok.com/@zetechcatholicaction"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TikTok"
+              >
+                <FaTiktok />
+              </a>
+            </div>
           </div>
 
-          <div className="footer-copyright">
-            <p>© {new Date().getFullYear()} Zetech Catholic Action Portal</p>
-            <p>Built by @CHRISTECH WEBSYS</p>
+          <div>
+            <h4>Explore</h4>
+            <button onClick={() => scrollTo("about")}>About ZUCA</button>
+            <button onClick={() => scrollTo("events")}>Events</button>
+            <button onClick={() => scrollTo("media")}>Media</button>
+            <button onClick={() => scrollTo("hymns")}>Hymns</button>
           </div>
+          <div>
+            <h4>Account</h4>
+            <button onClick={() => go("/login")}>Sign In</button>
+            <button onClick={() => go("/register")}>Register</button>
+            <button onClick={installPortal}>Install Portal</button>
+          </div>
+          <div>
+            <h4>Contact</h4>
+            <p>
+              <FaEnvelope /> zuca406@gmail.com
+            </p>
+            <p>
+              <FaPhone /> +254 798 139 693
+            </p>
+            <p>
+              <FaMapMarkerAlt /> Zetech University, Ruiru
+            </p>
+          </div>
+        </div>
+
+        <div className="zuca-shell footer-bottom">
+          <span>© {new Date().getFullYear()} Zetech University Catholic Action</span>
+          <span>Built by @CHRISTECH WEBSYS</span>
         </div>
       </footer>
 
-      {/* Notification Prompt */}
       {showNotificationPrompt && (
-        <NotificationPrompt onClose={() => {
-          setShowNotificationPrompt(false);
-          localStorage.setItem('notificationsPrompted', 'true');
-        }} />
+        <NotificationPrompt
+          onClose={() => {
+            setShowNotificationPrompt(false);
+            localStorage.setItem("notificationsPrompted", "true");
+          }}
+        />
       )}
-
-      <style jsx>{`
-        /* Reset and Base Styles */
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        .landing-wrapper {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'TimesNewRoman', Roboto, sans-serif;
-          color: #ffffff;
-          overflow-x: hidden;
-          min-height: 100vh;
-          background: #0a0a1e;
-        }
-
-        /* Top Bar */
-        .top-bar {
-          background: rgba(30, 46, 192, 0.95);
-          padding: 8px 20px;
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 1001;
-          backdrop-filter: blur(10px);
-        }
-
-        .top-bar-content {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 12px;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-
-        .top-bar-left {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .top-bar-icon {
-          color: #ffd700;
-          font-size: 12px;
-        }
-
-        .mass-badge {
-          background: rgba(255, 255, 255, 0.1);
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
-        }
-
-        /* Navigation */
-        .navbar {
-          position: fixed;
-          top: 36px;
-          left: 0;
-          right: 0;
-          z-index: 1000;
-          transition: all 0.3s ease;
-          background: transparent;
-        }
-
-        .navbar-scrolled {
-          background: rgba(11, 11, 31, 0.95);
-          backdrop-filter: blur(10px);
-          top: 0;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        }
-
-        .nav-container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 12px 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .logo-container {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .logo-img {
-          width: 40px;
-          height: auto;
-        }
-
-        .logo-text {
-          font-size: 24px;
-          font-weight: 800;
-          background: linear-gradient(135deg, #fff, #00c6ff);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .nav-links-desktop {
-          display: flex;
-          gap: 30px;
-        }
-
-        .nav-link {
-          background: none;
-          border: none;
-          color: white;
-          font-size: 16px;
-          font-weight: 500;
-          cursor: pointer;
-          padding: 8px 0;
-          position: relative;
-          transition: all 0.3s;
-        }
-
-        .nav-link::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 0;
-          height: 2px;
-          background: linear-gradient(90deg, #00c6ff, #007bff);
-          transition: width 0.3s;
-        }
-
-        .nav-link:hover::after,
-        .nav-link.active::after {
-          width: 100%;
-        }
-
-        .mobile-menu-btn {
-          display: none;
-          background: none;
-          border: none;
-          color: white;
-          cursor: pointer;
-          padding: 8px;
-        }
-
-        .nav-links-mobile {
-          display: none;
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: rgba(11, 11, 31, 0.98);
-          backdrop-filter: blur(10px);
-          flex-direction: column;
-          padding: 20px;
-          gap: 15px;
-          transform: translateY(-100%);
-          transition: transform 0.3s ease;
-        }
-
-        .nav-links-mobile.open {
-          transform: translateY(0);
-          display: flex;
-        }
-
-        .nav-link-mobile {
-          background: none;
-          border: none;
-          color: white;
-          font-size: 18px;
-          padding: 12px;
-          text-align: center;
-          cursor: pointer;
-          border-radius: 10px;
-          transition: background 0.3s;
-        }
-
-        .nav-link-mobile:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        /* Hero Section with Slideshow */
-        .hero-section {
-          min-height: 100vh;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 100px 20px 60px;
-          overflow: hidden;
-        }
-
-        .slideshow-container {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-        }
-
-        .slide {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-          opacity: 0;
-          transition: opacity 1s ease-in-out;
-          z-index: 1;
-        }
-
-        .slide.active {
-          opacity: 1;
-          z-index: 2;
-        }
-
-        .slide-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10, 10, 30, 0.23), rgba(10, 177, 29, 0.2));
-          z-index: 1;
-        }
-
-        /* Slideshow Navigation Arrows */
-        .slideshow-nav {
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          background: rgba(0, 0, 0, 0.03);
-          backdrop-filter: blur(1px);
-          border: none;
-          color: white;
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          z-index: 20;
-          transition: all 0.3s ease;
-          font-size: 20px;
-        }
-
-        .slideshow-nav:hover {
-          background: rgba(0, 198, 255, 0.8);
-          transform: translateY(-50%) scale(1.05);
-        }
-
-        .slideshow-nav-prev {
-          left: 20px;
-        }
-
-        .slideshow-nav-next {
-          right: 20px;
-        }
-
-        /* Slideshow Dots */
-        .slideshow-dots {
-          position: absolute;
-          bottom: 20px;
-          left: 0;
-          right: 0;
-          display: flex;
-          justify-content: center;
-          gap: 12px;
-          z-index: 20;
-          flex-wrap: wrap;
-          padding: 0 16px;
-        }
-
-        .dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.5);
-          border: none;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          padding: 0;
-        }
-
-        .dot.active {
-          background: #00c6ff;
-          width: 24px;
-          border-radius: 10px;
-        }
-
-        /* Play/Pause Button */
-        .slideshow-play-pause {
-          position: absolute;
-          bottom: 20px;
-          right: 20px;
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(4px);
-          border: none;
-          color: white;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          z-index: 20;
-          transition: all 0.3s ease;
-          font-size: 14px;
-        }
-
-        .slideshow-play-pause:hover {
-          background: rgba(0, 198, 255, 0.8);
-          transform: scale(1.05);
-        }
-
-        .hero-container {
-          position: relative;
-          z-index: 10;
-          max-width: 900px;
-          width: 100%;
-          text-align: center;
-        }
-
-        /* Action Buttons Row - Clean independent arrangement */
-        .action-buttons-row {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 16px;
-          flex-wrap: wrap;
-          margin-bottom: 30px;
-        }
-
-        .action-btn {
-          padding: 12px 24px;
-          border-radius: 40px;
-          border: none;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          transition: all 0.3s ease;
-          backdrop-filter: blur(8px);
-          white-space: nowrap;
-        }
-
-        .action-btn:hover {
-          transform: translateY(-3px);
-          filter: brightness(1.05);
-        }
-
-        .action-btn-install {
-          background: linear-gradient(135deg, #ffd700, #ffaa00);
-          color: #1a1a2e;
-          box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
-        }
-
-        .action-btn-gallery {
-          background: linear-gradient(135deg, #0c992d, #0a7a24);
-          color: white;
-          box-shadow: 0 4px 15px rgba(12, 153, 45, 0.3);
-        }
-
-        .action-btn-calendar {
-          background: linear-gradient(135deg, #1e3a8a, #0f172a);
-          color: white;
-          box-shadow: 0 4px 15px rgba(30, 58, 138, 0.3);
-        }
-
-        .action-btn-register {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          color: white;
-          box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
-        }
-
-        /* Welcome Card */
-        .welcome-card {
-background: linear-gradient(
-    135deg,
-    rgba(5, 11, 34, 0.78),
-    rgba(17, 34, 78, 0.55),
-    rgba(18, 18, 19, 0.6)
-);
-          backdrop-filter: blur(10px);
-          border-radius: 24px;
-          padding: clamp(30px, 5vw, 40px) clamp(20px, 4vw, 30px);
-          margin: 0 auto 25px;
-          max-width: 600px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .welcome-header {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 15px;
-          margin-bottom: 15px;
-          flex-wrap: wrap;
-        }
-
-        .welcome-logo {
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          border: 2px solid #00c6ff;
-        }
-
-        .welcome-title {
-          font-size: clamp(20px, 5vw, 24px);
-          font-weight: 800;
-          color: white;
-        }
-
-        .welcome-subtitle {
-          font-size: clamp(24px, 6vw, 32px);
-          font-weight: 900;
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          margin-bottom: 10px;
-        }
-
-        .zuca-name {
-          font-size: clamp(16px, 4vw, 20px);
-          font-weight: 600;
-          color: #cbd5e1;
-          margin-bottom: 20px;
-        }
-
-        .welcome-text {
-          font-size: clamp(14px, 3vw, 16px);
-          color: #cbd5e1;
-          line-height: 1.6;
-          margin-bottom: 30px;
-        }
-
-        .welcome-buttons {
-          display: flex;
-          gap: 15px;
-          justify-content: center;
-          flex-wrap: wrap;
-        }
-
-        .btn-primary,
-        .btn-secondary {
-          padding: 12px 28px;
-          border-radius: 30px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: transform 0.2s;
-        }
-
-        .btn-primary {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          color: white;
-        }
-
-        .btn-secondary {
-          background: transparent;
-          border: 2px solid #00c6ff;
-          color: white;
-        }
-
-        .btn-primary:hover,
-        .btn-secondary:hover {
-          transform: translateY(-2px);
-        }
-
-        /* Mass Info Card */
-        .mass-info-card {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          background: rgba(59, 171, 199, 0.4);
-          backdrop-filter: blur(5px);
-          padding: 12px 24px;
-          border-radius: 50px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          margin: 0 auto;
-        }
-
-        .mass-info-icon {
-          font-size: 20px;
-          color: #fdffff;
-        }
-
-        .mass-info-text {
-          font-size: 14px;
-          text-align: left;
-        }
-
-        .mass-location {
-          display: block;
-          font-size: 12px;
-          color: #94a3b8;
-          margin-top: 2px;
-        }
-
-        /* General Section Styles */
-        .section {
-          padding: 60px 20px;
-        }
-
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-
-        .section-header {
-          text-align: center;
-          margin-bottom: 50px;
-        }
-
-        .section-icon {
-          font-size: 48px;
-          color: #00c6ff;
-          margin-bottom: 20px;
-        }
-
-        .section-icon-light {
-          font-size: 48px;
-          color: #00c6ff;
-          margin-bottom: 20px;
-        }
-
-        .section-title {
-          font-size: clamp(28px, 5vw, 36px);
-          font-weight: 800;
-          margin-bottom: 15px;
-          color: white;
-        }
-
-        .section-title-light {
-          font-size: clamp(28px, 5vw, 36px);
-          font-weight: 800;
-          margin-bottom: 15px;
-          color: white;
-        }
-
-        .section-title-dark {
-          font-size: clamp(28px, 5vw, 36px);
-          font-weight: 800;
-          margin-bottom: 15px;
-          color: #0a0a25;
-        }
-
-        .section-subtitle,
-        .section-subtitle-light {
-          font-size: 16px;
-          color: #ffffff;
-        }
-
-        /* Mass Section */
-        .mass-section {
-          background: linear-gradient(135deg, #1e3a8a, #0f172a);
-        }
-
-        .mass-cards {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 30px;
-          max-width: 700px;
-          margin: 0 auto;
-        }
-
-        .mass-card {
-          background: rgba(255, 255, 255, 0.08);
-          padding: 35px 25px;
-          border-radius: 20px;
-          text-align: center;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          transition: transform 0.3s;
-        }
-
-        .mass-card:hover {
-          transform: translateY(-5px);
-        }
-
-        .card-icon {
-          font-size: 48px;
-          color: #00c6ff;
-          margin-bottom: 20px;
-        }
-
-        .card-title {
-          font-size: 22px;
-          font-weight: 600;
-          margin-bottom: 20px;
-          color: white;
-        }
-
-        .card-info {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          margin-bottom: 12px;
-          color: #cbd5e1;
-          font-size: 14px;
-        }
-
-        .info-icon {
-          font-size: 14px;
-          color: #00c6ff;
-        }
-
-        .card-note {
-          font-size: 13px;
-          color: #94a3b8;
-          font-style: italic;
-          margin-top: 15px;
-        }
-
-        /* Social Section */
-        .social-section {
-          background: #0a0a25;
-        }
-
-        .social-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 25px;
-          max-width: 900px;
-          margin: 0 auto;
-        }
-
-        .social-card {
-          padding: 30px 20px;
-          border-radius: 20px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-          text-decoration: none;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          transition: all 0.3s;
-          cursor: pointer;
-        }
-
-        .social-card:hover {
-          transform: translateY(-5px);
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        .social-icon-circle {
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 28px;
-          margin-bottom: 5px;
-        }
-
-        .social-icon-circle.instagram {
-          background: radial-gradient(circle at 30% 30%, #f09433, #d62976, #962fbf);
-          color: white;
-        }
-
-        .social-icon-circle.facebook {
-          background: #0214dc;
-          color: #ffffff;
-        }
-
-        .social-icon-circle.youtube {
-          background: #FF0000;
-          color: white;
-        }
-
-        .social-icon-circle.tiktok {
-          background: #000000;
-          color: white;
-        }
-
-        .social-platform {
-          font-size: 16px;
-          font-weight: 600;
-          color: white;
-        }
-
-        .social-handle {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        /* About Section */
-        .about-section {
-          background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-        }
-
-        .about-logo {
-          width: 70px;
-          height: auto;
-          margin-bottom: 20px;
-        }
-
-        .about-content {
-          max-width: 800px;
-          margin: 0 auto;
-        }
-
-        .about-text {
-          font-size: 18px;
-          line-height: 1.7;
-          color: #1e293b;
-          text-align: center;
-          margin-bottom: 40px;
-        }
-
-        .activities-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 15px;
-          max-width: 500px;
-          margin: 0 auto;
-        }
-
-        .activity-item {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 12px 20px;
-          background: white;
-          border-radius: 12px;
-          font-size: 14px;
-          color: #1e293b;
-          font-weight: 500;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .activity-icon {
-          font-size: 18px;
-          color: #00c6ff;
-        }
-
-        /* Contact Section */
-        .contact-section {
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-        }
-
-        .contact-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 20px;
-          max-width: 800px;
-          margin: 0 auto;
-        }
-
-        .contact-item {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          padding: 15px;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 12px;
-          font-size: 14px;
-          color: white;
-        }
-
-        .contact-icon {
-          font-size: 18px;
-          color: #00c6ff;
-        }
-
-        .contact-link {
-          color: white;
-          text-decoration: none;
-          transition: color 0.3s;
-        }
-
-        .contact-link:hover {
-          color: #00c6ff;
-        }
-
-        /* Footer */
-        .footer {
-          background: #0f0f1a;
-          padding: 40px 20px 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .footer-content {
-          max-width: 1200px;
-          margin: 0 auto;
-          text-align: center;
-        }
-
-        .footer-social {
-          display: flex;
-          justify-content: center;
-          gap: 15px;
-          margin-bottom: 25px;
-        }
-
-        .footer-social-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 18px;
-          transition: all 0.3s;
-        }
-
-        .footer-social-icon:hover {
-          background: #00c6ff;
-          transform: translateY(-3px);
-        }
-
-        .footer-install {
-          margin-bottom: 25px;
-        }
-
-        .btn-install-footer {
-          padding: 12px 28px;
-          border-radius: 30px;
-          border: none;
-          background: linear-gradient(135deg, #ffd700, #ffaa00);
-          color: #000;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .footer-credit {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          margin-bottom: 15px;
-          font-size: 14px;
-          color: #94a3b8;
-        }
-
-        .credit-heart {
-          color: #ff6b6b;
-        }
-
-        .credit-name {
-          color: #00c6ff;
-          font-weight: 600;
-        }
-
-        .footer-copyright {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        /* Animations */
-        .fade-section {
-          opacity: 0;
-          transform: translateY(30px);
-          transition: all 0.8s ease;
-        }
-
-        .fade-section.fade-in {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-          .top-bar {
-            display: none;
-          }
-
-          .navbar {
-            top: 0;
-          }
-
-          .nav-links-desktop {
-            display: none;
-          }
-
-          .mobile-menu-btn {
-            display: block;
-          }
-
-          .action-buttons-row {
-            gap: 12px;
-          }
-
-          .action-btn {
-            padding: 8px 16px;
-            font-size: 12px;
-          }
-
-          .mass-cards {
-            grid-template-columns: 1fr;
-            gap: 20px;
-          }
-
-          .social-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-          }
-
-          .activities-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .contact-grid {
-            grid-template-columns: 1fr;
-            gap: 12px;
-          }
-
-          .section {
-            padding: 40px 16px;
-          }
-
-          .welcome-buttons {
-            flex-direction: column;
-            gap: 12px;
-          }
-
-          .btn-primary,
-          .btn-secondary {
-            width: 100%;
-            justify-content: center;
-          }
-
-          .slideshow-nav {
-            width: 36px;
-            height: 36px;
-            font-size: 16px;
-          }
-
-          .slideshow-nav-prev {
-            left: 10px;
-          }
-
-          .slideshow-nav-next {
-            right: 10px;
-          }
-
-          .slideshow-play-pause {
-            width: 36px;
-            height: 36px;
-            font-size: 12px;
-            bottom: 15px;
-            right: 15px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .social-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .action-buttons-row {
-            flex-direction: column;
-            width: 100%;
-          }
-
-          .action-btn {
-            width: 100%;
-            justify-content: center;
-          }
-
-          .mass-info-card {
-            flex-direction: column;
-            text-align: center;
-            padding: 15px;
-          }
-
-          .mass-info-text {
-            text-align: center;
-          }
-
-          .slideshow-nav {
-            width: 30px;
-            height: 30px;
-            font-size: 14px;
-          }
-
-          .dot {
-            width: 8px;
-            height: 8px;
-          }
-
-          .dot.active {
-            width: 20px;
-          }
-        }
-
-                /* Featured Media Section */
-        .featured-media-section {
-          background: linear-gradient(135deg, #b5d114cc, #ffffff);
-        }
-
-        .media-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 25px;
-          margin-top: 40px;
-        }
-
-        .media-card {
-          position: relative;
-          border-radius: 16px;
-          overflow: hidden;
-          cursor: pointer;
-          background: rgba(255, 255, 255, 0.05);
-          aspect-ratio: 16/9;
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .media-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 10px 30px rgba(0, 198, 255, 0.2);
-        }
-
-        .media-image,
-        .media-video {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .media-overlay {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-          padding: 20px 15px 10px;
-          transform: translateY(100%);
-          transition: transform 0.3s ease;
-        }
-
-        .media-card:hover .media-overlay {
-          transform: translateY(0);
-        }
-
-        .media-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: white;
-          margin-bottom: 5px;
-        }
-
-        .media-stats {
-          display: flex;
-          gap: 12px;
-          font-size: 12px;
-          color: #cbd5e1;
-        }
-
-        .loading-spinner {
-          text-align: center;
-          padding: 60px 20px;
-        }
-
-        .spinner {
-          width: 50px;
-          height: 50px;
-          border: 3px solid rgba(255, 255, 255, 0.1);
-          border-top-color: #00c6ff;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .no-media {
-          text-align: center;
-          padding: 60px 20px;
-          color: #94a3b8;
-        }
-
-        .view-all-container {
-          text-align: center;
-          margin-top: 50px;
-        }
-
-        .view-all-btn {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          padding: 12px 32px;
-          border-radius: 30px;
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.3s ease;
-        }
-
-        .view-all-btn:hover {
-          transform: translateY(-2px);
-        }
-
-        @media (max-width: 768px) {
-          .media-grid {
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 15px;
-          }
-        }
-
-        /* Full Screen Modal */
-.media-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-  animation: fadeIn 0.3s ease;
-}
-
-.media-modal-content {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  background: #1e293b;
-  border-radius: 20px;
-  overflow: hidden;
-  animation: scaleIn 0.3s ease;
-}
-
-.modal-close-btn {
-  position: absolute;
-  top: 15px;
-  right: 20px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: none;
-  color: white;
-  font-size: 32px;
-  cursor: pointer;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
-}
-
-.modal-image {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  display: block;
-}
-
-.modal-video {
-  max-width: 100%;
-  max-height: 70vh;
-  width: 100%;
-}
-
-.modal-info {
-  padding: 20px;
-  background: #1e293b;
-  color: white;
-}
-
-.modal-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #00c6ff;
-}
-
-.modal-description {
-  font-size: 14px;
-  color: #cbd5e1;
-  margin-bottom: 12px;
-  line-height: 1.5;
-}
-
-.modal-stats {
-  display: flex;
-  gap: 20px;
-  font-size: 14px;
-  color: #94a3b8;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.modal-gallery-btn {
-  background: linear-gradient(135deg, #00c6ff, #007bff);
-  border: none;
-  padding: 12px 24px;
-  border-radius: 30px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-  width: 100%;
-}
-
-.modal-gallery-btn:hover {
-  transform: translateY(-2px);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes scaleIn {
-  from { 
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to { 
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Mobile modal adjustments */
-@media (max-width: 768px) {
-  .media-modal-content {
-    max-width: 95vw;
-    max-height: 95vh;
-    border-radius: 16px;
-  }
-  
-  .modal-image,
-  .modal-video {
-    max-height: 60vh;
-  }
-  
-  .modal-info {
-    padding: 16px;
-  }
-  
-  .modal-title {
-    font-size: 18px;
-  }
-  
-  .modal-close-btn {
-    top: 10px;
-    right: 10px;
-    width: 36px;
-    height: 36px;
-    font-size: 28px;
-  }
-}
-
-        /* YouTube Section */
-        .youtube-section {
-          background: linear-gradient(135deg, #0f172a, #1e1b4b);
-        }
-
-        .youtube-icon {
-          color: #FF0000;
-        }
-
-        .youtube-card {
-          max-width: 800px;
-          margin: 0 auto;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 20px;
-          overflow: hidden;
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .youtube-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .youtube-link {
-          display: block;
-          position: relative;
-          cursor: pointer;
-        }
-
-        .youtube-thumbnail-container {
-          position: relative;
-          width: 100%;
-          aspect-ratio: 16/9;
-          overflow: hidden;
-        }
-
-        .youtube-thumbnail {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transition: transform 0.3s ease;
-        }
-
-        .youtube-card:hover .youtube-thumbnail {
-          transform: scale(1.05);
-        }
-
-        .youtube-play-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background 0.3s ease;
-        }
-
-        .youtube-card:hover .youtube-play-overlay {
-          background: rgba(0, 0, 0, 0.6);
-        }
-
-        .play-button {
-          width: 80px;
-          height: 80px;
-          background: rgba(255, 0, 0, 0.9);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 36px;
-          color: white;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .youtube-card:hover .play-button {
-          transform: scale(1.1);
-          background: #FF0000;
-          box-shadow: 0 8px 30px rgba(255, 0, 0, 0.4);
-        }
-
-        .youtube-info {
-          padding: 24px;
-        }
-
-        .youtube-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: white;
-          margin-bottom: 12px;
-          line-height: 1.4;
-        }
-
-        .youtube-stats {
-          display: flex;
-          gap: 20px;
-          margin-bottom: 16px;
-          font-size: 14px;
-          color: #94a3b8;
-          flex-wrap: wrap;
-        }
-
-        .youtube-description {
-          font-size: 14px;
-          color: #cbd5e1;
-          line-height: 1.6;
-          margin-bottom: 20px;
-        }
-
-        .watch-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 12px 24px;
-          background: linear-gradient(135deg, #FF0000, #cc0000);
-          border: none;
-          border-radius: 30px;
-          color: white;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-decoration: none;
-        }
-
-        .watch-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
-        }
-
-        .subscribe-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px 28px;
-          background: linear-gradient(135deg, #FF0000, #cc0000);
-          border-radius: 30px;
-          color: white;
-          text-decoration: none;
-          font-weight: 600;
-          margin-top: 20px;
-          transition: all 0.3s ease;
-        }
-
-        .subscribe-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
-        }
-
-        .no-video {
-          text-align: center;
-          padding: 60px 20px;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 20px;
-        }
-
-        .no-video p {
-          color: #94a3b8;
-          margin-bottom: 20px;
-        }
-
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-          .play-button {
-            width: 60px;
-            height: 60px;
-            font-size: 28px;
-          }
-
-          .youtube-info {
-            padding: 20px;
-          }
-
-          .youtube-title {
-            font-size: 18px;
-          }
-
-          .youtube-stats {
-            gap: 12px;
-            font-size: 12px;
-          }
-
-          .watch-btn {
-            padding: 10px 20px;
-            font-size: 13px;
-            width: 100%;
-            justify-content: center;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .play-button {
-            width: 50px;
-            height: 50px;
-            font-size: 24px;
-          }
-
-          .youtube-info {
-            padding: 16px;
-          }
-        }
-
-                /* Upcoming Events Section */
-        .events-section {
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-        }
-
-        .events-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 25px;
-          margin-top: 40px;
-        }
-
-        .event-card {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 16px;
-          overflow: hidden;
-          display: flex;
-          transition: all 0.3s ease;
-          animation: fadeInUp 0.6s ease backwards;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .event-card:hover {
-          transform: translateY(-5px);
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(0, 198, 255, 0.3);
-          box-shadow: 0 10px 30px rgba(0, 198, 255, 0.1);
-        }
-
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .event-date {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          padding: 20px 15px;
-          text-align: center;
-          min-width: 80px;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-
-        .event-day {
-          font-size: 32px;
-          font-weight: 800;
-          color: white;
-          line-height: 1;
-        }
-
-        .event-month {
-          font-size: 14px;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
-          text-transform: uppercase;
-          margin-top: 5px;
-        }
-
-        .event-details {
-          flex: 1;
-          padding: 20px;
-        }
-
-        .event-title {
-          font-size: 18px;
-          font-weight: 700;
-          color: white;
-          margin-bottom: 12px;
-          line-height: 1.4;
-        }
-
-        .event-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-
-        .event-meta-item {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 13px;
-          color: #cbd5e1;
-        }
-
-        .meta-icon {
-          font-size: 12px;
-          color: #00c6ff;
-        }
-
-        .event-description {
-          font-size: 13px;
-          color: #94a3b8;
-          line-height: 1.5;
-          margin-bottom: 15px;
-        }
-
-        .event-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .event-reminder-btn {
-          background: rgba(0, 198, 255, 0.1);
-          border: 1px solid rgba(0, 198, 255, 0.3);
-          padding: 8px 16px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #00c6ff;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: all 0.3s ease;
-        }
-
-        .event-reminder-btn:hover {
-          background: rgba(0, 198, 255, 0.2);
-          transform: translateY(-2px);
-        }
-
-        .view-all-events {
-          text-align: center;
-          margin-top: 50px;
-        }
-
-        .view-all-events-btn {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          padding: 12px 32px;
-          border-radius: 30px;
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.3s ease;
-        }
-
-        .view-all-events-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
-        }
-
-        .no-events {
-          text-align: center;
-          padding: 60px 20px;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 20px;
-        }
-
-        .no-events-icon {
-          font-size: 48px;
-          color: #64748b;
-          margin-bottom: 20px;
-        }
-
-        .no-events p {
-          color: #94a3b8;
-          font-size: 16px;
-        }
-
-        .no-events-sub {
-          font-size: 14px;
-          margin-top: 8px;
-        }
-
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-          .events-grid {
-            grid-template-columns: 1fr;
-            gap: 20px;
-          }
-
-          .event-card {
-            flex-direction: column;
-          }
-
-          .event-date {
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 12px;
-          }
-
-          .event-day {
-            font-size: 24px;
-          }
-
-          .event-month {
-            font-size: 12px;
-            margin-top: 0;
-          }
-
-          .event-details {
-            padding: 16px;
-          }
-
-          .event-title {
-            font-size: 16px;
-          }
-
-          .event-meta-item {
-            font-size: 12px;
-          }
-
-          .view-all-events-btn {
-            padding: 10px 24px;
-            font-size: 14px;
-            width: 100%;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .event-date {
-            padding: 10px;
-          }
-
-          .event-day {
-            font-size: 20px;
-          }
-
-          .event-details {
-            padding: 14px;
-          }
-
-          .event-reminder-btn {
-            width: 100%;
-            justify-content: center;
-          }
-        }
-                  /* Hymn Browser Section */
-        .hymns-section {
-          background: linear-gradient(135deg, #0f172a, #1e293b);
-        }
-
-        .hymn-search-form {
-          max-width: 600px;
-          margin: 0 auto 40px;
-        }
-
-        .search-input-wrapper {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .hymn-search-input {
-          flex: 1;
-          padding: 14px 20px;
-          border-radius: 50px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          background: rgba(255, 255, 255, 0.1);
-          color: white;
-          font-size: 14px;
-          outline: none;
-          transition: all 0.3s ease;
-        }
-
-        .hymn-search-input:focus {
-          border-color: #00c6ff;
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .hymn-search-input::placeholder {
-          color: #94a3b8;
-        }
-
-        .hymn-search-btn {
-          padding: 12px 28px;
-          border-radius: 50px;
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          color: white;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.3s ease;
-        }
-
-        .hymn-search-btn:hover {
-          transform: translateY(-2px);
-        }
-
-        .hymn-clear-btn {
-          padding: 12px 24px;
-          border-radius: 50px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: white;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .hymn-clear-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
-        }
-
-        .hymns-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 20px;
-          margin-top: 20px;
-        }
-
-        .hymn-card {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 16px;
-          padding: 20px;
-          display: flex;
-          gap: 15px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          animation: fadeInUp 0.5s ease backwards;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .hymn-card:hover {
-          transform: translateY(-3px);
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(0, 198, 255, 0.3);
-        }
-
-        .hymn-icon {
-          width: 50px;
-          height: 50px;
-          border-radius: 12px;
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          color: white;
-          flex-shrink: 0;
-        }
-
-        .hymn-content {
-          flex: 1;
-        }
-
-        .hymn-title {
-          font-size: 16px;
-          font-weight: 700;
-          color: white;
-          margin-bottom: 5px;
-        }
-
-        .hymn-reference {
-          font-size: 11px;
-          color: #00c6ff;
-          display: inline-block;
-          margin-bottom: 8px;
-        }
-
-        .hymn-preview {
-          font-size: 13px;
-          color: #94a3b8;
-          line-height: 1.5;
-          margin-bottom: 10px;
-        }
-
-        .hymn-read-more {
-          font-size: 12px;
-          color: #00c6ff;
-          font-weight: 500;
-        }
-
-        .load-more-container {
-          text-align: center;
-          margin-top: 40px;
-        }
-
-        .load-more-btn {
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          padding: 12px 32px;
-          border-radius: 30px;
-          color: white;
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .load-more-btn:hover {
-          background: rgba(0, 198, 255, 0.2);
-          border-color: #00c6ff;
-        }
-
-        .no-hymns {
-          text-align: center;
-          padding: 60px 20px;
-        }
-
-        .no-hymns-icon {
-          font-size: 48px;
-          color: #64748b;
-          margin-bottom: 20px;
-        }
-
-        .no-hymns p {
-          color: #94a3b8;
-          margin-bottom: 20px;
-        }
-
-        .clear-search-btn {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          padding: 10px 24px;
-          border-radius: 30px;
-          color: white;
-          cursor: pointer;
-        }
-
-        .view-all-hymns {
-          text-align: center;
-          margin-top: 50px;
-        }
-
-        .view-all-hymns-btn {
-          background: linear-gradient(135deg, #00c6ff, #007bff);
-          border: none;
-          padding: 12px 32px;
-          border-radius: 30px;
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.3s ease;
-        }
-
-        .view-all-hymns-btn:hover {
-          transform: translateY(-2px);
-        }
-
-      /* Hymn Modal */
-.hymn-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 10001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-}
-
-.hymn-modal-content {
-  max-width: 700px;
-  width: 90%;
-  max-height: 85vh;
-  background: #000000;
-  border-radius: 20px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  animation: scaleIn 0.3s ease;
-}
-
-.hymn-modal-header {
-  text-align: center;
-  padding: 30px 20px 20px;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  flex-shrink: 0;
-}
-
-.hymn-modal-lyrics {
-  padding: 30px;
-  overflow-y: auto;
-  color: #cbd5e1;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  flex: 1;
-}
-
-/* Download Buttons */
-.hymn-download-buttons {
-  display: flex;
-  gap: 12px;
-  padding: 0 20px 15px 20px;
-  flex-shrink: 0;
-}
-
-.hymn-download-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  border: none;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.hymn-download-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.hymn-download-btn.image-btn {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-}
-
-.hymn-download-btn.image-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-}
-
-.hymn-download-btn.pdf-btn {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-}
-
-.hymn-download-btn.pdf-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
-}
-
-.hymn-modal-view-all {
-  display: block;
-  margin: 0 20px 20px;
-  padding: 14px;
-  background: linear-gradient(135deg, #00c6ff, #007bff);
-  border: none;
-  border-radius: 30px;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.hymn-modal-view-all:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
-}
-
-@media (max-width: 768px) {
-  .hymn-modal-content {
-    width: 95%;
-    max-height: 90vh;
-  }
-  
-  .hymn-modal-lyrics {
-    padding: 20px;
-    font-size: 14px;
-  }
-  
-  .hymn-download-buttons {
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 16px 12px 16px;
-  }
-  
-  .hymn-download-btn {
-    padding: 10px;
-    font-size: 13px;
-  }
-  
-  .hymn-modal-view-all {
-    margin: 0 16px 16px;
-    padding: 12px;
-  }
-}
-          /* Search Suggestions */
-.search-input-wrapper {
-  position: relative;
-}
-
-.search-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: #1e293b;
-  border-radius: 16px;
-  margin-top: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-  z-index: 1000;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  animation: fadeInUp 0.3s ease backwards;
-}
-
-.suggestion-item:hover {
-  background: rgba(0, 198, 255, 0.1);
-}
-
-.suggestion-icon {
-  font-size: 20px;
-  min-width: 32px;
-}
-
-.suggestion-content {
-  flex: 1;
-}
-
-.suggestion-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  margin-bottom: 4px;
-}
-
-.suggestion-preview {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.search-loading {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: #1e293b;
-  border-radius: 12px;
-  margin-top: 8px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #00c6ff;
-  font-size: 14px;
-}
-
-.search-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(0, 198, 255, 0.2);
-  border-top-color: #00c6ff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Scrollbar styling */
-.search-suggestions::-webkit-scrollbar {
-  width: 6px;
-}
-
-.search-suggestions::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-}
-
-.search-suggestions::-webkit-scrollbar-thumb {
-  background: #00c6ff;
-  border-radius: 3px;
-}
-
-/* YouTube Grid Layout */
-.youtube-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 25px;
-  margin-top: 20px;
-}
-
-.youtube-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  animation: fadeInUp 0.5s ease backwards;
-}
-
-.youtube-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
-
-/* Adjust play button size for cards */
-.youtube-card .play-button {
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-}
-
-.youtube-card .youtube-title {
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-
-.youtube-card .youtube-stats {
-  gap: 12px;
-  font-size: 12px;
-  margin-bottom: 12px;
-}
-
-.youtube-card .watch-btn {
-  padding: 8px 16px;
-  font-size: 13px;
-  width: 100%;
-  justify-content: center;
-}
-
-.youtube-card .youtube-info {
-  padding: 16px;
-}
-
-@media (max-width: 768px) {
-  .youtube-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-
-/* Hymn Download Buttons */
-.hymn-download-buttons {
-  display: flex;
-  gap: 12px;
-  margin: 0 20px 15px;
-}
-
-.hymn-download-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  border: none;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.hymn-download-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.hymn-download-btn.image-btn {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-}
-
-.hymn-download-btn.image-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-}
-
-.hymn-download-btn.pdf-btn {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-}
-
-.hymn-download-btn.pdf-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
-}
-
-@media (max-width: 768px) {
-  .hymn-download-buttons {
-    flex-direction: column;
-    margin: 0 16px 12px;
-  }
-  
-  .hymn-download-btn {
-    padding: 10px;
-    font-size: 13px;
-  }
-}
-
-/* Hymn Modal Loading State */
-.hymn-modal-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  padding: 60px 40px;
-  text-align: center;
-}
-
-.hymn-loading-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid rgba(0, 198, 255, 0.1);
-  border-top-color: #00c6ff;
-  border-radius: 50%;
-  animation: hymnSpin 1s linear infinite;
-  margin-bottom: 20px;
-}
-
-@keyframes hymnSpin {
-  to { transform: rotate(360deg); }
-}
-
-.hymn-modal-loading p {
-  color: #94a3b8;
-  font-size: 16px;
-}
-
-/* Also add a loading state for the hymn cards when clicked */
-.hymn-card.loading {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-  .mini-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: hymnSpin 0.8s linear infinite;
-}
-
-/* YouTube Video Modal */
-.video-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 10002;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-  animation: fadeIn 0.3s ease;
-}
-
-.video-modal-content {
-  max-width: 900px;
-  width: 90%;
-  max-height: 90vh;
-  background: #1e293b;
-  border-radius: 20px;
-  overflow: hidden;
-  animation: scaleIn 0.3s ease;
-}
-
-.video-modal-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: none;
-  color: white;
-  font-size: 28px;
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.3s ease;
-}
-
-.video-modal-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
-}
-
-.video-container {
-  position: relative;
-  width: 100%;
-  padding-bottom: 56.25%; /* 16:9 aspect ratio */
-  background: #000;
-}
-
-.video-iframe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-
-.video-modal-info {
-  padding: 24px;
-  color: white;
-}
-
-.video-modal-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #00c6ff;
-}
-
-.video-modal-stats {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 16px;
-  font-size: 14px;
-  color: #94a3b8;
-  flex-wrap: wrap;
-}
-
-.video-modal-description {
-  font-size: 14px;
-  color: #cbd5e1;
-  line-height: 1.6;
-  margin-bottom: 20px;
-}
-
-.video-modal-buttons {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.video-open-youtube {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 24px;
-  background: linear-gradient(135deg, #FF0000, #cc0000);
-  border: none;
-  border-radius: 30px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.video-open-youtube:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
-}
-
-.video-close-btn {
-  flex: 1;
-  padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 30px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.video-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.video-duration-badge {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: white;
-  z-index: 5;
-}
-
-.video-thumbnail-container {
-  position: relative;
-  cursor: pointer;
-}
-
-.watch-now-btn {
-  width: 100%;
-  padding: 10px;
-  background: linear-gradient(135deg, #00c6ff, #007bff);
-  border: none;
-  border-radius: 30px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 12px;
-}
-
-.watch-now-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
-}
-
-@media (max-width: 768px) {
-  .video-modal-content {
-    width: 95%;
-    max-height: 95vh;
-  }
-  
-  .video-modal-info {
-    padding: 16px;
-  }
-  
-  .video-modal-title {
-    font-size: 18px;
-  }
-  
-  .video-modal-stats {
-    gap: 12px;
-    font-size: 12px;
-  }
-  
-  .video-modal-buttons {
-    flex-direction: column;
-  }
-  
-  .video-modal-close {
-    top: 10px;
-    right: 10px;
-    width: 36px;
-    height: 36px;
-    font-size: 24px;
-  }
-}
-
-/* History Section */
-.history-entry {
-  margin-bottom: 35px;
-}
-
-.history-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1e3a8a;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 3px solid #00c6ff;
-  display: inline-block;
-}
-
-.about-text {
-  font-size: 16px;
-  line-height: 1.7;
-  color: #1e293b;
-  text-align: left;
-  margin-top: 10px;
-}
-
-@media (max-width: 768px) {
-  .history-title {
-    font-size: 18px;
-  }
-  .about-text {
-    font-size: 14px;
-  }
-}
-      `}</style>
     </div>
   );
 }
 
 export default Landing2;
-

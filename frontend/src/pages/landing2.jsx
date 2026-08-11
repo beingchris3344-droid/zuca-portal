@@ -39,6 +39,8 @@ import {
 
 import BASE_URL from "../api";
 import logo from "../assets/zuca-logo.png";
+import fau from "../assets/fau.png"
+import dayson from "../assets/dayson.jpg"
 import NotificationPrompt from "../components/NotificationPrompt";
 
 import slide2 from "../assets/2.jpg";
@@ -1450,19 +1452,19 @@ useEffect(() => {
           </div>
         </section>
 
-       {/* ABOUT / HISTORY */}
+     {/* ABOUT / HISTORY */}
 <section className="zuca-section story-section">
   <div className="zuca-shell story-grid">
     <div className="story-image">
       {/* First image - main image */}
-      <img src={slide4} alt="ZUCA community" className="story-image-main" />
+      <img src={slide8} alt="ZUCA community" className="story-image-main" />
       {/* Second image - below the first one */}
-      <img src={slide7} alt="ZUCA community service" className="story-image-secondary" />
+      <img src={slide10} alt="ZUCA community service" className="story-image-secondary" />
+      <img src={fau} alt="ZUCA community service" className="story-image-secondary1" />
+      <img src={dayson} alt="ZUCA community service" className="story-image-secondary1" /> 
+      <img src={slide2} alt="ZUCA community service" className="story-image-secondary1" /> 
       
-      {/* Second image - below the first one */}
-      <img src={slide10} alt="ZUCA community service" className="story-image-secondary1" />
-        {/* Second image - below the first one */}
-      <img src={slide8} alt="ZUCA community service" className="story-image-secondary1" />
+     
     </div>
     
     <div className="story-copy">
@@ -1474,12 +1476,35 @@ useEffect(() => {
       {loadingHistory ? (
         <p>Loading our history…</p>
       ) : history.length ? (
-        history.map((entry) => (
-          <div key={entry.id} className="story-entry">
-            <h4>{entry.title}</h4>
-            <p>{entry.content}</p>
+        history.map((entry, index) => (
+          <div key={entry.id}>
+            <div className="story-entry">
+              <h4>{entry.title}</h4>
+              <p>{entry.content}</p>
+            </div>
+            
+            {/* Insert images between history entries - mobile only */}
+            {index === 3 && (
+              <div className="story-inline-image mobile-only">
+                <img src={fau} alt="ZUCA community" />
+              </div>
+            )}
+            
+            {index === 4 && (
+              <div className="story-inline-image mobile-only">
+                <img src={dayson} alt="ZUCA community service" />
+              </div>
+            )}
+
+             {index === 5 && (
+              <div className="story-inline-image mobile-only">
+                <img src={slide2} alt="ZUCA community service" />
+              </div>
+            )}
+            
           </div>
         ))
+        
       ) : (
         <p>
           ZUCA is a community of young Catholics growing in faith, friendship and service at

@@ -452,12 +452,125 @@
   .story-image-secondary {
     height: 180px; /* Even smaller on mobile */
   }
+
   
   .story-copy h2 {
     max-width: 100%;
     font-size: 30px;
   }
+
+  /* Mobile - hide extra images, show only 2 */
+@media (max-width: 600px) {
+  /* Hide the 3rd and 4th images on mobile */
+  .story-image-secondary1 
+  
+  {
+    display: none !important;
+  }
+  
+  /* Make the remaining 2 images stack nicely */
+  .story-image {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  
+  .story-image-main {
+    height: 290px !important;
+    width: 100% !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+  }
+  
+  .story-image-secondary {
+    height: 295px !important;
+    width: 100% !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    display: block !important;
+  }
 }
+
+}
+
+/* ============================================
+   MOBILE ONLY FIX - Keep desktop unchanged
+   ============================================ */
+
+@media (max-width: 600px) {
+  /* Fix the story section grid on mobile */
+  .story-grid {
+    margin-top: 0 !important;
+    gap: 30px !important;
+  }
+  
+  /* Reset story image to flex column on mobile */
+  .story-image {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+    max-height: none !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  
+  /* Show only 2 images in sidebar on mobile */
+  .story-image-main {
+    height: 295px !important;
+    width: 100% !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+  }
+  
+  .story-image-secondary {
+    height: 296px !important;
+    width: 100% !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    display: block !important;
+  }
+  
+  /* Hide extra images in sidebar on mobile */
+  .story-image-secondary1 {
+    display: none !important;
+  }
+  
+  /* Show inline images between history entries on mobile */
+  .story-inline-image {
+    display: block !important;
+    margin: 20px 0 !important;
+    width: 100% !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+  }
+  
+  .story-inline-image img {
+    width: 100% !important;
+    height: 290px !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+  }
+  
+  /* Fix story copy on mobile */
+  .story-copy {
+    padding: 0 5px !important;
+  }
+  
+  .story-copy h2 {
+    font-size: 28px !important;
+    max-width: 100% !important;
+  }
+  
+  .story-entry p {
+    font-size: 14px !important;
+    line-height: 1.7 !important;
+  }
+}
+
+
 
 
 
@@ -646,4 +759,63 @@
   .zuca-modal-card { max-height:92vh; }
   .zuca-modal-body { padding:18px; }
   .hymn-modal-actions { flex-direction:column; }
+}
+
+/* ============================================
+   DESKTOP ONLY - Images stacked vertically
+   ============================================ */
+
+/* Desktop and tablet - show 4 images stacked vertically */
+@media (min-width: 601px) {
+  .story-image {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+    overflow: hidden !important;
+    margin-top: 40px !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .story-image-main {
+    width: auto !important;
+    height: auto !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+  }
+  
+  .story-image-secondary {
+    width: 100% !important;
+    height: auto !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+  }
+  
+  .story-image-secondary1 {
+    width: 100% !important;
+    height: auto !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    display: block !important;
+  }
+  
+  /* Hide inline images on desktop */
+  .story-inline-image {
+    display: none !important;
+  }
+}
+
+/* Tablet - slightly smaller heights */
+@media (min-width: 601px) and (max-width: 950px) {
+  .story-image-main {
+    height: auto !important;
+  }
+  
+  .story-image-secondary {
+    height: auto !important;
+  }
+  
+  .story-image-secondary1 {
+    height: auto !important;
+  }
 }

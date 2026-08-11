@@ -54,7 +54,7 @@ import slide11 from "../assets/11.jpg";
 import slide12 from "../assets/12.jpg";
 import { Navigate } from "react-router-dom";
 
-import "./Landing2.css";
+import "./landing2.css";
 
 // ------------------------------------------------------------
 // Hero slide copy — one line of editorial copy per photo

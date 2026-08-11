@@ -663,7 +663,7 @@ function Login() {
                 <span className="brand-cross">✝</span>
 
                 <div>
-                  <strong>Welcome back to our community</strong>
+                  <strong>Welcome back to our catholic action club </strong>
                   <p>
                     Sign in to stay connected, participate and access the
                     ZUCA Portal.

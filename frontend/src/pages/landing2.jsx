@@ -32,6 +32,9 @@ import {
   FaTiktok,
   FaUserPlus,
   FaUsers,
+  FaImages,
+  FaBookOpen,
+  FaCalendarCheck,
   FaYoutube,
   FaFileWord,
   FaPrayingHands,
@@ -769,25 +772,41 @@ useEffect(() => {
           </button>
 
           <nav className="zuca-desktop-nav">
-            {navItems.map(([id, label]) => (
-              <button
-                key={id}
-                className={activeSection === id ? "active" : ""}
-                onClick={() => scrollTo(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+  {navItems.map(([id, label]) => (
+    <button
+      key={id}
+      className={activeSection === id ? "active" : ""}
+      onClick={() => scrollTo(id)}
+    >
+      {label}
+    </button>
+  ))}
+  
+  {/* NEW BUTTONS - Add these after the existing nav items */}
+  <button 
+    className="zuca-nav-link" 
+    onClick={() => navigate("/gallery")}
+  >
+    <FaImages /> Gallery
+  </button>
+  
+  <button 
+    className="zuca-nav-link" 
+    onClick={() => navigate("/prayer")}
+  >
+    <FaBookOpen /> Prayer Book
+  </button>
+  
+  <button 
+    className="zuca-nav-link" 
+    onClick={() => navigate("/liturgical-calendar")}
+  >
+    <FaCalendarCheck /> Calendar
+  </button>
+</nav>
+          
 
-          <div className="zuca-nav-actions">
-            <button className="zuca-login" onClick={() => go("/login")}>
-              <FaSignInAlt /> Sign In
-            </button>
-            <button className="zuca-register" onClick={() => go("/register")}>
-              <FaUserPlus /> Register
-            </button>
-          </div>
+          
 
           <button className="zuca-menu-button" onClick={() => setMenuOpen((v) => !v)} aria-label="Toggle menu">
             {menuOpen ? <FaTimes /> : <FaBars />}
@@ -857,6 +876,29 @@ useEffect(() => {
   Explore the portal <FaArrowRight />
 </button>
             </div>
+
+             {/* NEW - Mobile Feature Buttons Row (visible on all screen sizes but styled for mobile) */}
+    <div className="mobile-feature-row">
+      <button 
+        onClick={() => navigate("/gallery")} 
+        className="mobile-feature-btn-hero"
+      >
+        <FaImages /> Gallery
+      </button>
+      <button 
+        onClick={() => navigate("/prayer")} 
+        className="mobile-feature-btn-hero"
+      >
+        <FaBookOpen /> Prayer Book
+      </button>
+      <button 
+        onClick={() => navigate("/liturgical-calendar")} 
+        className="mobile-feature-btn-hero"
+      >
+        <FaCalendarCheck /> Calendar
+      </button>
+    </div>
+
 
             <div className="hero-bottom">
               <div className="hero-dots">

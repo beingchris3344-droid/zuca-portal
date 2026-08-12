@@ -123,158 +123,6 @@ function Landing2() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
-  //timer
-  const [timerId, setTimerId] = useState(null);
-  // Helper component for formatted toast messages
-const FormattedInstallMessage = ({ timer = null }) => (
-  <div style={{
-    padding: '8px 4px',
-    minWidth: '280px',
-    maxWidth: '400px'
-  }}>
-    {timer !== null && (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: 'rgba(255,215,0,0.2)',
-        padding: '6px 14px',
-        borderRadius: '20px',
-        marginBottom: '12px',
-        justifyContent: 'center',
-        fontWeight: 'bold'
-      }}>
-        <span>⏱️</span>
-        <span style={{
-          fontSize: '20px',
-          color: '#ffd700',
-          minWidth: '30px',
-          textAlign: 'center'
-        }}>{timer}</span>
-        <span style={{ fontSize: '12px', opacity: 0.8 }}>seconds remaining</span>
-      </div>
-    )}
-    
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      fontSize: '16px',
-      fontWeight: 'bold',
-      marginBottom: '12px',
-      paddingBottom: '8px',
-      borderBottom: '2px solid rgba(255,255,255,0.2)'
-    }}>
-      <span style={{ fontSize: '20px' }}>📱</span>
-      <span>Install ZUCA App</span>
-    </div>
-    
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      marginBottom: '12px'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '10px',
-        fontSize: '14px',
-        lineHeight: '1.6'
-      }}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: '24px',
-          height: '24px',
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '50%',
-          fontWeight: 'bold',
-          fontSize: '12px',
-          flexShrink: 0
-        }}>1</span>
-        <span>Refresh the page</span>
-      </div>
-      
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '10px',
-        fontSize: '14px',
-        lineHeight: '1.6'
-      }}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: '24px',
-          height: '24px',
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '50%',
-          fontWeight: 'bold',
-          fontSize: '12px',
-          flexShrink: 0
-        }}>2</span>
-        <span>Click the install button that appears</span>
-      </div>
-      
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '10px',
-        fontSize: '14px',
-        lineHeight: '1.6'
-      }}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: '24px',
-          height: '24px',
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '50%',
-          fontWeight: 'bold',
-          fontSize: '12px',
-          flexShrink: 0
-        }}>3</span>
-        <span>
-          <strong>If not working:</strong> Use your browser menu → 
-          <span style={{
-            background: 'rgba(255,255,255,0.15)',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontWeight: 600,
-            margin: '0 4px'
-          }}>"Add to Home Screen"</span> 
-          then press the 
-          <span style={{
-            background: 'rgba(255,255,255,0.15)',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontWeight: 600,
-            margin: '0 4px'
-          }}>"Install App"</span> button
-        </span>
-      </div>
-    </div>
-    
-    <div style={{
-      marginTop: '12px',
-      paddingTop: '10px',
-      borderTop: '2px solid rgba(255,255,255,0.2)',
-      textAlign: 'center',
-      fontWeight: 'bold',
-      fontSize: '13px',
-      letterSpacing: '0.5px',
-      color: '#ffd700'
-    }}>
-      <span style={{ fontSize: '16px', marginRight: '8px' }}>🔥</span>
-      TRY TODAY AND GET RID OF THE FREQUENT POP-UPS!
-    </div>
-  </div>
-);
-
   // ---------------- Hymns ----------------
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
@@ -353,9 +201,7 @@ const getPositionIcon = (title) => {
   // ------------------------------------------------------------
   // Toast helper — used instead of window.alert throughout
   // ------------------------------------------------------------
-const showToast = (message, type = "success", options = {}) => {
-  // If it's a string, use the simple toast
-  if (typeof message === 'string') {
+  const showToast = (message, type = "success") => {
     const toast = document.createElement("div");
     toast.textContent = message;
     toast.className = `zuca-toast ${type === "error" ? "zuca-toast-error" : ""}`;
@@ -363,43 +209,8 @@ const showToast = (message, type = "success", options = {}) => {
     setTimeout(() => {
       toast.classList.add("zuca-toast-out");
       setTimeout(() => toast.remove(), 250);
-    }, options.duration || 3200);
-    return;
-  }
-
-  // For JSX/React elements, create a container and use ReactDOM
-  const toastContainer = document.createElement("div");
-  toastContainer.className = `zuca-toast ${type === "error" ? "zuca-toast-error" : ""}`;
-  toastContainer.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    background: ${type === 'error' ? '#f44336' : '#000000'};
-    color: white;
-    padding: 16px 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    max-width: 500px;
-    min-width: 300px;
-    animation: slideUp 0.5s ease-in-out;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  `;
-  
-  document.body.appendChild(toastContainer);
-  
-  // Use ReactDOM to render the JSX
-  import('react-dom/client').then(({ createRoot }) => {
-    const root = createRoot(toastContainer);
-    root.render(message);
-    
-    setTimeout(() => {
-      root.unmount();
-      toastContainer.classList.add("zuca-toast-out");
-      setTimeout(() => toastContainer.remove(), 250);
-    }, options.duration || 3200);
-  });
-};
+    }, 3200);
+  };
 
   // ------------------------------------------------------------
   // Slideshow controls
@@ -888,57 +699,39 @@ useEffect(() => {
     };
   };
 
-const installPortal = async () => {
-  if (installPrompt) {
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") {
-      setInstallPrompt(null);
-      setShowInstall(false);
-      showToast("✅ Installation successful!", "success");
+  // ------------------------------------------------------------
+  // PWA install
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const beforeInstall = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstall);
+
+    const isPWA =
+      window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+    if (isPWA) setShowInstall(false);
+
+    return () => window.removeEventListener("beforeinstallprompt", beforeInstall);
+  }, []);
+
+  const installPortal = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") {
+        setInstallPrompt(null);
+        setShowInstall(false);
+      }
+    } else {
+      showToast(
+        "Use your browser menu → “Add to Home Screen” / “Install App” to install ZUCA Portal.",
+        "success"
+      );
     }
-  } else {
-    // Show the formatted message
-    showToast(<FormattedInstallMessage />, "success", { duration: 60000 });
-    
-    // Start a 30-second timer
-    let timer = 60;
-    const timerInterval = setInterval(() => {
-      timer -= 1;
-      
-      if (timer > 0) {
-        // Update the toast with timer
-        showToast(<FormattedInstallMessage timer={timer} />, "success", { duration: 9500 });
-      }
-      
-      if (timer <= 0) {
-        clearInterval(timerInterval);
-        // Show tip message
-        showToast(
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '4px 0'
-          }}>
-            <span style={{ fontSize: '24px' }}>💡</span>
-            <div>
-              <strong>Quick Tip:</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: '14px', opacity: 0.9 }}>
-                Bookmark this page for easier access next time!
-              </p>
-            </div>
-          </div>,
-          "info",
-          { duration: 5000 }
-        );
-      }
-    }, 1000);
-    
-    // Store interval ID to clear if component unmounts
-    setTimerId(timerInterval);
-  }
-};
+  };
 
   // ------------------------------------------------------------
   // Notification prompt
@@ -1979,7 +1772,7 @@ const installPortal = async () => {
             <div>
               <FaDownload />
               <span>
-                <strong>Install ZUCA App</strong>
+                <strong>Install ZUCA Portal</strong>
                 <small>Keep ZUCA one tap away.</small>
               </span>
             </div>

@@ -8,7 +8,7 @@ import {
   FiArrowUp, FiArrowDown, FiGrid, FiImage, FiHome,
   FiLogOut, FiSettings, FiEye, FiTrendingUp, FiPieChart,
   FiBarChart2, FiFileText, FiMail,
-  FiPlusCircle
+  FiPlusCircle, FiArrowRight
 } from "react-icons/fi";
 import { RiAdminLine, RiFileWarningLine } from "react-icons/ri";
 import { useNavigate } from "react-router-dom"; 
@@ -106,8 +106,10 @@ const [onlineUsers, setOnlineUsers] = useState(0);
   
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-
-
+  //adverts
+  const [advertisements, setAdvertisements] = useState([]);
+  
+ 
     // ===== CACHING SYSTEM =====
   const CACHE_KEY = 'dashboard_cache';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -297,7 +299,8 @@ if (!forceRefresh) {
       mediaRes,
       notificationsRes,
       execRes,
-      pendingSongsRes
+      pendingSongsRes,
+      advertisementsRes
     ] = await Promise.all([
       axios.get(`${BASE_URL}/api/users`, { headers }).catch(() => ({ data: [] })),
       axios.get(`${BASE_URL}/api/admin/health/errors?limit=50`, { headers }).catch(() => ({ data: { errors: [] } })),
@@ -311,7 +314,9 @@ if (!forceRefresh) {
       axios.get(`${BASE_URL}/api/media/public?limit=1`, { headers }).catch(() => ({ data: { media: [] } })),
       axios.get(`${BASE_URL}/api/notifications/${userData.id}`, { headers }).catch(() => ({ data: [] })),
       axios.get(`${BASE_URL}/api/executive/team`).catch(() => ({ data: { executives: [] } })),
-      axios.get(`${BASE_URL}/api/admin/pending-songs`, { headers }).catch(() => ({ data: [] }))
+      axios.get(`${BASE_URL}/api/admin/pending-songs`, { headers }).catch(() => ({ data: [] })),
+axios.get(`${BASE_URL}/api/advertisements`, { headers }).catch(() => ({ data: [] }))
+      
     ]);
 
     // ===== API CALLS COMPLETE =====
@@ -347,6 +352,8 @@ if (!forceRefresh) {
     const notificationsList = notificationsRes.data || [];
     const execList = execRes.data?.executives || [];
     const pendingSongsList = pendingSongsRes.data || [];
+    const advertisementsList = advertisementsRes.data || [];
+   setAdvertisements(advertisementsList); 
 
     // ===== START PROCESSING TIMER =====
     const processStartTime = performance.now();
@@ -824,6 +831,171 @@ if (!forceRefresh) {
         </div>
         </div>
         </div>
+
+
+
+
+
+        {/* ============================================
+            ADVERTISEMENT MANAGEMENT CARD
+        ============================================ */}
+        <div className="advertisement-dashboard-card">
+          <div className="advertisement-card-header">
+            <div className="advertisement-card-title">
+              <div className="advertisement-icon">
+                <FiImage />
+              </div>
+
+              <div>
+                <h3>ADVERTISEMENT MANAGEMENT</h3>
+                <p>Manage what is currently being promoted on the portal</p>
+              </div>
+            </div>
+
+            <button
+              className="advertisement-manage-btn"
+              onClick={() => navigate('/admin/advertisements')}
+            >
+              Manage Advertisements
+              <FiArrowRight />
+            </button>
+          </div>
+
+          {advertisements.length === 0 ? (
+            <div className="advertisement-empty">
+              <FiImage size={40} />
+              <div>
+                <h4>No advertisements available</h4>
+                <p>Create an advertisement to display it across the portal.</p>
+              </div>
+
+              <button
+                className="advertisement-create-btn"
+                onClick={() => navigate('/admin/advertisements')}
+              >
+                + Create Advertisement
+              </button>
+            </div>
+          ) : (
+            <div className="advertisement-preview">
+              {advertisements
+                .filter(ad => ad.active)
+                .slice(0, 1)
+                .map(ad => (
+                  <div className="advertisement-current" key={ad.id}>
+
+                    {/* Advertisement Image */}
+                    <div className="advertisement-image-wrapper">
+                      {ad.image ? (
+                        <img
+                          src={ad.image}
+                          alt={ad.title || 'Advertisement'}
+                          className="advertisement-image"
+                        />
+                      ) : (
+                        <div className="advertisement-no-image">
+                          <FiImage size={42} />
+                          <span>No Image</span>
+                        </div>
+                      )}
+
+                      <span className="advertisement-status active">
+                        ● ACTIVE
+                      </span>
+                    </div>
+
+                    {/* Advertisement Information */}
+                    <div className="advertisement-details">
+                      <div className="advertisement-details-top">
+                        <span className="advertisement-label">
+                          CURRENT ADVERTISEMENT
+                        </span>
+
+                        <span className="advertisement-id">
+                          AD #{ad.id}
+                        </span>
+                      </div>
+
+                      <h2>
+                        {ad.title || 'Untitled Advertisement'}
+                      </h2>
+
+                      <p className="advertisement-description">
+                        {ad.description ||
+                          'No description provided for this advertisement.'}
+                      </p>
+
+                      <div className="advertisement-meta">
+                        <div>
+                          <FiCalendar />
+                          <span>
+                            Starts:{' '}
+                            {ad.startDate
+                              ? new Date(ad.startDate).toLocaleDateString()
+                              : 'N/A'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <FiClock />
+                          <span>
+                            Ends:{' '}
+                            {ad.endDate
+                              ? new Date(ad.endDate).toLocaleDateString()
+                              : 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="advertisement-card-footer">
+                        <span className="advertisement-live">
+                          <span className="live-dot"></span>
+                          Currently Active
+                        </span>
+
+                        <button
+                          className="advertisement-edit-btn"
+                          onClick={() =>
+                            navigate('/admin/advertisements')
+                          }
+                        >
+                          View & Manage
+                          <FiArrowRight />
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                ))}
+
+              {/* No active advertisement */}
+              {advertisements.filter(ad => ad.active).length === 0 && (
+                <div className="advertisement-empty">
+                  <FiImage size={40} />
+
+                  <div>
+                    <h4>No active advertisement</h4>
+                    <p>
+                      You have advertisements available, but none are
+                      currently active.
+                    </p>
+                  </div>
+
+                  <button
+                    className="advertisement-create-btn"
+                    onClick={() =>
+                      navigate('/admin/advertisements')
+                    }
+                  >
+                    Manage Advertisements
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+     
 
 
 
@@ -1649,6 +1821,319 @@ if (!forceRefresh) {
         .modal-body select { width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; }
         .modal-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
         .close-btn { padding: 8px 16px; background: #f1f5f9; border: none; border-radius: 8px; cursor: pointer; }
+
+
+
+
+        /* ============================================
+   ADVERTISEMENT DASHBOARD CARD
+============================================ */
+
+.advertisement-dashboard-card {
+  margin: 24px 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.advertisement-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.advertisement-card-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.advertisement-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 22px;
+}
+
+.advertisement-card-title h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.advertisement-card-title p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.advertisement-manage-btn,
+.advertisement-create-btn,
+.advertisement-edit-btn {
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: 0.2s ease;
+}
+
+.advertisement-manage-btn {
+  padding: 11px 16px;
+  border-radius: 10px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advertisement-manage-btn:hover {
+  transform: translateY(-1px);
+  background: #1f2937;
+}
+
+/* Current Advertisement */
+
+.advertisement-current {
+  display: grid;
+  grid-template-columns: minmax(280px, 38%) 1fr;
+  min-height: 280px;
+}
+
+.advertisement-image-wrapper {
+  position: relative;
+  min-height: 280px;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.advertisement-image {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  object-fit: cover;
+  display: block;
+}
+
+.advertisement-no-image {
+  height: 100%;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #9ca3af;
+}
+
+.advertisement-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+
+.advertisement-status.active {
+  background: rgba(16, 185, 129, 0.95);
+  color: white;
+}
+
+.advertisement-details {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+.advertisement-details-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.advertisement-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+}
+
+.advertisement-id {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.advertisement-details h2 {
+  margin: 14px 0 8px;
+  font-size: 25px;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.advertisement-description {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 700px;
+}
+
+.advertisement-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 22px;
+}
+
+.advertisement-meta div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.advertisement-meta svg {
+  color: #2563eb;
+}
+
+.advertisement-card-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.advertisement-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+}
+
+.advertisement-edit-btn {
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.advertisement-edit-btn:hover {
+  background: #dbeafe;
+}
+
+/* Empty State */
+
+.advertisement-empty {
+  min-height: 180px;
+  padding: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #9ca3af;
+}
+
+.advertisement-empty h4 {
+  margin: 0 0 5px;
+  color: #374151;
+  font-size: 15px;
+}
+
+.advertisement-empty p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.advertisement-create-btn {
+  margin-left: 15px;
+  padding: 10px 15px;
+  border-radius: 9px;
+  background: #2563eb;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.advertisement-create-btn:hover {
+  background: #1d4ed8;
+}
+
+/* Responsive */
+
+@media (max-width: 800px) {
+  .advertisement-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .advertisement-manage-btn {
+    width: 100%;
+  }
+
+  .advertisement-current {
+    grid-template-columns: 1fr;
+  }
+
+  .advertisement-image-wrapper,
+  .advertisement-image,
+  .advertisement-no-image {
+    min-height: 210px;
+  }
+
+  .advertisement-details {
+    padding: 20px;
+  }
+
+  .advertisement-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .advertisement-edit-btn {
+    width: 100%;
+  }
+
+  .advertisement-empty {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .advertisement-create-btn {
+    margin-left: 0;
+  }
+}
         
         /* Responsive */
         @media (max-width: 1200px) {

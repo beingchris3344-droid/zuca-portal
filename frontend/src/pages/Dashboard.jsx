@@ -36,6 +36,9 @@ function Dashboard() {
   const [recentHymns, setRecentHymns] = useState([]);
   const [gameInvites, setGameInvites] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
+  //advert
+  const [currentAd, setCurrentAd] = useState(0);
+  const ads = [];
   const [recentChats, setRecentChats] = useState([]);
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [executiveTeam, setExecutiveTeam] = useState([]);
@@ -833,6 +836,14 @@ const fetchFeaturedGallery = async () => {
     };
       }, []);
 
+      useEffect(() => {
+  const adTimer = setInterval(() => {
+    setCurrentAd((prev) => (prev + 1) % 3);
+  }, 5000);
+
+  return () => clearInterval(adTimer);
+}, []);
+
   // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
   useEffect(() => {
     const fetchCountdownImmediately = async () => {
@@ -1116,6 +1127,160 @@ useEffect(() => {
     </div>
   </motion.div>
 )}
+
+
+{/* ===== AUTO ROTATING ADVERTISEMENT ===== */}
+<div className="dashboard-ad-container">
+  <AnimatePresence mode="wait">
+    {currentAd === 0 && (
+      <motion.div
+        key="ad-1"
+        className="dashboard-ad ad-one"
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -30 }}
+        transition={{ duration: 0.45 }}
+        onClick={() => navigate("/contributions")}
+      >
+        <div className="ad-content">
+          <span className="ad-small">ZUCA COMMUNITY</span>
+          <h2>Support Our Mission</h2>
+          <p>Your contribution helps us continue serving our community.</p>
+          <button>Contribute Now →</button>
+        </div>
+
+        <div className="ad-emoji">🙏</div>
+      </motion.div>
+    )}
+
+    {currentAd === 1 && (
+      <motion.div
+        key="ad-2"
+        className="dashboard-ad ad-two"
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -30 }}
+        transition={{ duration: 0.45 }}
+        onClick={() => navigate("/schedules")}
+      >
+        <div className="ad-content">
+          <span className="ad-small">THIS WEEK</span>
+          <h2>Don't Miss Mass</h2>
+          <p>Check the latest Mass and church schedules.</p>
+          <button>View Schedule →</button>
+        </div>
+
+        <div className="ad-emoji">⛪</div>
+      </motion.div>
+    )}
+
+    {currentAd === 2 && (
+      <motion.div
+        key="ad-3"
+        className="dashboard-ad ad-three"
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -30 }}
+        transition={{ duration: 0.45 }}
+        onClick={() => navigate("/songs")}
+      >
+        <div className="ad-content">
+          <span className="ad-small">ZUCA MUSIC</span>
+          <h2>Sing With Us</h2>
+          <p>Discover hymns and songs available in the portal.</p>
+          <button>Explore Songs →</button>
+        </div>
+
+        <div className="ad-emoji">🎵</div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+  <div className="ad-dots">
+    {[0, 1, 2].map((index) => (
+      <button
+        key={index}
+        className={`ad-dot ${currentAd === index ? "active" : ""}`}
+        onClick={() => setCurrentAd(index)}
+        aria-label={`Advertisement ${index + 1}`}
+      />
+    ))}
+  </div>
+</div>
+
+
+{/* ADVERTISEMENT CAROUSEL */}
+{ads.length > 0 && (
+  <div className="dashboard-ad-container">
+    <div className="dashboard-ad">
+      <AnimatePresence mode="wait">
+        {ads[currentAd] && (
+          <motion.div
+            key={ads[currentAd].id}
+            className="dashboard-ad-slide"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.4 }}
+            onClick={() => {
+              if (ads[currentAd].link) {
+                window.location.href = ads[currentAd].link;
+              }
+            }}
+          >
+            {ads[currentAd].image && (
+              <img
+                src={ads[currentAd].image}
+                alt={ads[currentAd].title || "Advertisement"}
+                className="dashboard-ad-image"
+              />
+            )}
+
+            <div className="dashboard-ad-content">
+              {ads[currentAd].title && (
+                <h3>{ads[currentAd].title}</h3>
+              )}
+
+              {ads[currentAd].description && (
+                <p>{ads[currentAd].description}</p>
+              )}
+
+              {ads[currentAd].button && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    if (ads[currentAd].link) {
+                      window.location.href = ads[currentAd].link;
+                    }
+                  }}
+                >
+                  {ads[currentAd].button}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+
+    {ads.length > 1 && (
+      <div className="dashboard-ad-dots">
+        {ads.map((ad, index) => (
+          <button
+            key={ad.id}
+            type="button"
+            className={index === currentAd ? "active" : ""}
+            onClick={() => setCurrentAd(index)}
+            aria-label={`Advertisement ${index + 1}`}
+          />
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+
 
          {/* USER PROFILE CARD */}
 <div className="profile-card">
@@ -8329,6 +8494,128 @@ useEffect(() => {
 
 .qr-scan-header-btn svg {
   color: #10b981;
+}
+
+
+
+/* ============================================
+   GENERIC ADVERTISEMENT CAROUSEL
+   ============================================ */
+
+.dashboard-ad-container {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.dashboard-ad {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-ad-slide {
+  width: 100%;
+  min-height: 190px;
+  display: flex;
+  align-items: stretch;
+  cursor: pointer;
+}
+
+.dashboard-ad-image {
+  width: 45%;
+  min-height: 190px;
+  object-fit: cover;
+  display: block;
+}
+
+.dashboard-ad-content {
+  flex: 1;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dashboard-ad-content h3 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dashboard-ad-content p {
+  margin: 0 0 15px;
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.dashboard-ad-content button {
+  align-self: flex-start;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 16px;
+  background: #0f172a;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-ad-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 0 0;
+}
+
+.dashboard-ad-dots button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.dashboard-ad-dots button.active {
+  width: 20px;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .dashboard-ad-slide {
+    min-height: 150px;
+  }
+
+  .dashboard-ad-image {
+    width: 42%;
+    min-height: 150px;
+  }
+
+  .dashboard-ad-content {
+    padding: 16px;
+  }
+
+  .dashboard-ad-content h3 {
+    font-size: 1rem;
+  }
+
+  .dashboard-ad-content p {
+    font-size: 0.7rem;
+    margin-bottom: 10px;
+  }
+
+  .dashboard-ad-content button {
+    padding: 7px 11px;
+    font-size: 0.65rem;
+  }
 }
 
 /* ============================================

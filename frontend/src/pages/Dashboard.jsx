@@ -1277,34 +1277,35 @@ useEffect(() => {
                 </h2>
               )}
 
-              {/* DESCRIPTION */}
-              {ads[currentAd].description && (
-                <p className="dashboard-ad-description">
-                  {ads[currentAd].description}
-                </p>
-              )}
+            {/* DESCRIPTION */}
+{ads[currentAd].description && (
+  <p className="dashboard-ad-description">
+    {ads[currentAd].description}
+  </p>
+)}
 
-              {/* CTA */}
-              <button
-                type="button"
-                className="dashboard-ad-button"
-                onClick={(e) => {
-                  e.stopPropagation();
+{/* CTA */}
+<button
+  type="button"
+  className="dashboard-ad-button"
+  onClick={(e) => {
+    e.stopPropagation();
 
-                  if (ads[currentAd]?.link) {
-                    window.location.href =
-                      ads[currentAd].link;
-                  }
-                }}
-              >
-                <span>
-                  {ads[currentAd]?.buttonText ||
-                    "Go to Page"}
-                </span>
+    const link = ads[currentAd]?.link;
 
-                <FiArrowRight />
-              </button>
+    console.log("ADVERTISEMENT LINK:", link);
 
+    if (link) {
+      window.location.href = link;
+    }
+  }}
+>
+  <span>
+    {ads[currentAd]?.buttonText || "Go to Page"}
+  </span>
+
+  <FiArrowRight />
+</button>
             </div>
 
           </motion.div>

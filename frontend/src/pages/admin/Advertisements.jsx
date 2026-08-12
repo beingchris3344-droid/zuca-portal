@@ -21,8 +21,16 @@ import {
 import { useNavigate } from "react-router-dom";
 
 const PORTAL_PAGES = [
-  { label: "Default Page", path: "/" },
+  // PUBLIC PAGES
+  { label: "Landing Page", path: "/" },
+  { label: "Home", path: "/home" },
+  { label: "Login", path: "/login" },
+  { label: "Register", path: "/register" },
+  { label: "Forgot Password", path: "/forgot-password" },
+  { label: "Reset Password", path: "/reset-password" },
+  { label: "User Manual", path: "/user-manual" },
 
+  // MEMBER PAGES
   { label: "Dashboard", path: "/dashboard" },
   { label: "Announcements", path: "/announcements" },
   { label: "Mass Programs", path: "/mass-programs" },
@@ -30,21 +38,29 @@ const PORTAL_PAGES = [
   { label: "Jumuia Contributions", path: "/jumuia-contributions" },
   { label: "Join Jumuia", path: "/join-jumuia" },
 
+  // MUSIC & PRAYER
   { label: "Hymn Book", path: "/hymns" },
   { label: "Prayer", path: "/prayer" },
+
+  // MEDIA
   { label: "Gallery", path: "/gallery" },
-  { label: "Schedules", path: "/schedules" },
   { label: "YouTube", path: "/youtube" },
 
+  // SCHEDULES & READINGS
+  { label: "Schedules", path: "/schedules" },
+  { label: "Mass Readings", path: "/mass-readings" },
+  { label: "Liturgical Calendar", path: "/liturgical-calendar" },
+
+  // COMMUNICATION
   { label: "Messenger", path: "/messenger" },
   { label: "Chat", path: "/chat" },
 
+  // GAMES
   { label: "Games", path: "/games" },
-  { label: "Mass Readings", path: "/mass-readings" },
-  { label: "Executive", path: "/executive" },
 
+  // OTHER
+  { label: "Executive", path: "/executive" },
   { label: "Feedback", path: "/feedback" },
-  { label: "User Manual", path: "/user-manual" },
 ];
 
 
@@ -63,7 +79,7 @@ const Advertisements = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({
+const [form, setForm] = useState({
   title: "",
   description: "",
   buttonText: "",
@@ -1214,7 +1230,6 @@ useEffect(() => {
 
               {/* BUTTON */}
 <div className="form-group">
-
   <label>
     Button Link
   </label>
@@ -1223,27 +1238,27 @@ useEffect(() => {
     value={form.link}
     onChange={handlePageSelect}
   >
-    <option value="/">
-  Default Page
-</option>
+    <option value="">
+      Select a page
+    </option>
 
-    {PORTAL_PAGES
-      .filter((page) => page.label !== "Default Page")
-      .map((page) => (
-        <option
-          key={page.path}
-          value={page.path}
-        >
-          {page.label}
-        </option>
-      ))}
+    {PORTAL_PAGES.map((page) => (
+      <option
+        key={page.path}
+        value={page.path}
+      >
+        {page.label}
+      </option>
+    ))}
   </select>
 
   <small className="form-help">
-    Choose the page users will open when they click the advertisement button.
+    Choose the page users will open when they click
+    the advertisement button.
   </small>
-
 </div>
+
+
 
               {/* DATES */}
 

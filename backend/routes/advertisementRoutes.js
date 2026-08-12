@@ -35,7 +35,7 @@ const upload = multer({
 });
 
 // ============================================
-// AUTHENTICATION MIDDLEWARE
+// SIMPLE AUTH - Just verify token exists, NO ROLE CHECK
 // ============================================
 function authenticate(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
@@ -49,44 +49,6 @@ function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized - Invalid token'
-    });
-  }
-}
-
-// ============================================
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR AUTH
-// Same pattern as media endpoint
-// ============================================
-function requireAdminOrMediaModerator(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized - No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Same pattern as media endpoint
-    if (decoded.role !== "admin" && 
-        decoded.specialRole !== "secretary" && 
-        decoded.specialRole !== "treasurer" && 
-        decoded.specialRole !== "media_moderator") {
-      return res.status(403).json({
-        success: false,
-        error: 'Only admins, secretaries, treasurers, and media moderators can manage advertisements'
-      });
-    }
-
     req.user = decoded;
     next();
   } catch (error) {
@@ -220,9 +182,9 @@ router.get('/', async (req, res) => {
 
 // ============================================
 // GET ALL ADVERTISEMENTS
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
-router.get('/admin/all', requireAdminOrMediaModerator, async (req, res) => {
+router.get('/admin/all', authenticate, async (req, res) => {
   try {
     await cleanupExpiredAdvertisements();
 
@@ -248,11 +210,11 @@ router.get('/admin/all', requireAdminOrMediaModerator, async (req, res) => {
 
 // ============================================
 // CREATE ADVERTISEMENT
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
 router.post(
   '/',
-  requireAdminOrMediaModerator,
+  authenticate,
   upload.single('image'),
   async (req, res) => {
     try {
@@ -266,9 +228,6 @@ router.post(
         active
       } = req.body;
 
-      // -----------------------------
-      // Validate dates
-      // -----------------------------
       if (!startDate || !endDate) {
         return res.status(400).json({
           success: false,
@@ -296,9 +255,6 @@ router.post(
         });
       }
 
-      // -----------------------------
-      // Upload image if provided
-      // -----------------------------
       let image = null;
       let cloudinaryId = null;
 
@@ -309,9 +265,6 @@ router.post(
         cloudinaryId = uploaded.public_id;
       }
 
-      // -----------------------------
-      // Create database record
-      // -----------------------------
       const advertisement =
         await prisma.advertisement.create({
           data: {
@@ -348,11 +301,11 @@ router.post(
 
 // ============================================
 // UPDATE ADVERTISEMENT
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
 router.put(
   '/:id',
-  requireAdminOrMediaModerator,
+  authenticate,
   upload.single('image'),
   async (req, res) => {
     try {
@@ -449,9 +402,6 @@ router.put(
         });
       }
 
-      // -----------------------------
-      // Replace image if new one uploaded
-      // -----------------------------
       if (req.file) {
         const uploaded = await uploadToCloudinary(
           req.file.buffer
@@ -460,7 +410,6 @@ router.put(
         data.image = uploaded.secure_url;
         data.cloudinaryId = uploaded.public_id;
 
-        // Delete old image
         await deleteCloudinaryImage(
           existing.cloudinaryId
         );
@@ -490,11 +439,11 @@ router.put(
 
 // ============================================
 // TOGGLE ADVERTISEMENT
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
 router.patch(
   '/:id/toggle',
-  requireAdminOrMediaModerator,
+  authenticate,
   async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -544,11 +493,11 @@ router.patch(
 
 // ============================================
 // DELETE ADVERTISEMENT
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
 router.delete(
   '/:id',
-  requireAdminOrMediaModerator,
+  authenticate,
   async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -565,12 +514,10 @@ router.delete(
         });
       }
 
-      // Delete Cloudinary image first
       await deleteCloudinaryImage(
         existing.cloudinaryId
       );
 
-      // Delete database record
       await prisma.advertisement.delete({
         where: { id }
       });
@@ -592,11 +539,11 @@ router.delete(
 
 // ============================================
 // MANUAL CLEANUP
-// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
+// Authenticated users only - NO ROLE CHECK
 // ============================================
 router.delete(
   '/admin/cleanup-expired',
-  requireAdminOrMediaModerator,
+  authenticate,
   async (req, res) => {
     try {
       const before =

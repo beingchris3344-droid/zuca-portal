@@ -21,7 +21,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 const PORTAL_PAGES = [
-  { label: "Default Page", path: "/landing2" },
+  { label: "Default Page", path: "/" },
 
   { label: "Dashboard", path: "/dashboard" },
   { label: "Announcements", path: "/announcements" },
@@ -64,15 +64,15 @@ const Advertisements = () => {
   const [success, setSuccess] = useState("");
 
   const [form, setForm] = useState({
-    title: "",
-    description: "",
-    buttonText: "",
-link: "/landing2",
-    startDate: "",
-    endDate: "",
-    active: true,
-    image: null
-  });
+  title: "",
+  description: "",
+  buttonText: "",
+  link: "/",
+  startDate: "",
+  endDate: "",
+  active: true,
+  image: null
+});
 
 
   
@@ -223,16 +223,16 @@ useEffect(() => {
   const openCreateModal = () => {
     setEditingAd(null);
 
-    setForm({
-      title: "",
-      description: "",
-      buttonText: "",
-      link: "/landing2",
-      startDate: "",
-      endDate: "",
-      active: true,
-      image: null
-    });
+   setForm({
+  title: "",
+  description: "",
+  buttonText: "",
+  link: "/",
+  startDate: "",
+  endDate: "",
+  active: true,
+  image: null
+});
 
     setError("");
     setShowModal(true);
@@ -1223,7 +1223,7 @@ useEffect(() => {
     value={form.link}
     onChange={handlePageSelect}
   >
-    <option value="/landing2">
+    <option value="/">
   Default Page
 </option>
 

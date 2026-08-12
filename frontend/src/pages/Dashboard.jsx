@@ -15,7 +15,9 @@ import {
   FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
   FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
   FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
-  FiChevronRight, FiChevronLeft, FiPhoneCall,  FiAlertCircle, FiMessageCircle, FiActivity,
+  FiChevronRight, FiChevronLeft, FiPhoneCall,  FiAlertCircle, FiMessageCircle, FiActivity,  FiPause, FiX,
+  FiPlay,
+  FiMaximize2,
 } from "react-icons/fi";
 import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
 
@@ -49,6 +51,10 @@ const [adsLoading, setAdsLoading] = useState(true);
   const [executiveTeam, setExecutiveTeam] = useState([]);
   const [upcomingSchedules, setUpcomingSchedules] = useState([]);
   const [todaysReading, setTodaysReading] = useState(null);
+
+  //pause
+  const [isAdPaused, setIsAdPaused] = useState(false);
+const [showFullAd, setShowFullAd] = useState(false);
   
   // STATS
   const [totalUsers, setTotalUsers] = useState(0);
@@ -71,7 +77,16 @@ const [adsLoading, setAdsLoading] = useState(true);
   // New state for latest readings
 const [latestReadings, setLatestReadings] = useState([]);
 
-   
+   //manual nav
+   const nextAd = () => {
+  setCurrentAd((prev) => (prev + 1) % ads.length);
+};
+
+const previousAd = () => {
+  setCurrentAd(
+    (prev) => (prev - 1 + ads.length) % ads.length
+  );
+};
 
   // ===== COUNTDOWN STATES =====
   const [countdownSettings, setCountdownSettings] = useState(null);
@@ -896,15 +911,17 @@ useEffect(() => {
     };
       }, []);
 
-   useEffect(() => {
-  if (ads.length <= 1) return;
+      //advert
 
-  const adTimer = setInterval(() => {
+  useEffect(() => {
+  if (ads.length <= 1 || isAdPaused) return;
+
+  const interval = setInterval(() => {
     setCurrentAd((prev) => (prev + 1) % ads.length);
   }, 5000);
 
-  return () => clearInterval(adTimer);
-}, [ads.length]);
+  return () => clearInterval(interval);
+}, [ads.length, isAdPaused]);
 
   // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
   useEffect(() => {
@@ -1294,7 +1311,63 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
+      {ads.length > 0 && (
+  <div className="dashboard-ad-controls">
+
+    <div className="dashboard-ad-navigation">
+
+      <button
+        type="button"
+        className="dashboard-ad-nav-button"
+        onClick={previousAd}
+        aria-label="Previous advertisement"
+      >
+        <FiChevronLeft />
+      </button>
+
+      <button
+        type="button"
+        className="dashboard-ad-play-button"
+        onClick={() => setIsAdPaused((prev) => !prev)}
+        aria-label={
+          isAdPaused
+            ? "Play advertisements"
+            : "Pause advertisements"
+        }
+      >
+        {isAdPaused ? <FiPlay /> : <FiPause />}
+
+        <span>
+          {isAdPaused ? "Play" : "Pause"}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="dashboard-ad-nav-button"
+        onClick={nextAd}
+        aria-label="Next advertisement"
+      >
+        <FiChevronRight />
+      </button>
+
     </div>
+
+    <button
+      type="button"
+      className="dashboard-ad-full-button"
+      onClick={() => setShowFullAd(true)}
+    >
+      <FiMaximize2 />
+      View Full Advertisement
+    </button>
+
+  </div>
+)}
+
+    </div>
+
+    
 
 
     {/* ================= DOTS ================= */}
@@ -1321,6 +1394,81 @@ useEffect(() => {
       </div>
     )}
 
+  </div>
+)}
+
+
+{showFullAd && ads[currentAd] && (
+  <div
+    className="dashboard-ad-modal-overlay"
+    onClick={() => setShowFullAd(false)}
+  >
+    <div
+      className="dashboard-ad-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+
+      <button
+        type="button"
+        className="dashboard-ad-modal-close"
+        onClick={() => setShowFullAd(false)}
+        aria-label="Close advertisement"
+      >
+        <FiX />
+      </button>
+
+      {ads[currentAd].image && (
+        <div className="dashboard-ad-modal-image">
+          <img
+            src={ads[currentAd].image}
+            alt={
+              ads[currentAd].title ||
+              "Advertisement"
+            }
+          />
+        </div>
+      )}
+
+      <div className="dashboard-ad-modal-content">
+
+        <span className="dashboard-ad-small">
+          ZETECH . UNIVERSITY . CATHOLIC . ACTION
+        </span>
+
+        {ads[currentAd].title && (
+          <h2>
+            {ads[currentAd].title}
+          </h2>
+        )}
+
+        {ads[currentAd].description && (
+          <p>
+            {ads[currentAd].description}
+          </p>
+        )}
+
+        {ads[currentAd].buttonText && (
+          <button
+            type="button"
+            className="dashboard-ad-button"
+            onClick={() => {
+              if (ads[currentAd]?.link) {
+                window.location.href =
+                  ads[currentAd].link;
+              }
+            }}
+          >
+            <span>
+              {ads[currentAd].buttonText}
+            </span>
+
+            <FiArrowRight />
+          </button>
+        )}
+
+      </div>
+
+    </div>
   </div>
 )}
 
@@ -8931,6 +9079,263 @@ useEffect(() => {
   border-radius: 999px;
 
   background: #0f172a;
+}
+
+/* =========================================================
+   AD CONTROLS
+========================================================= */
+
+.dashboard-ad-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-top: 12px;
+}
+
+.dashboard-ad-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-ad-nav-button,
+.dashboard-ad-play-button,
+.dashboard-ad-full-button {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-ad-nav-button {
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+}
+
+.dashboard-ad-nav-button svg {
+  font-size: 17px;
+}
+
+.dashboard-ad-play-button {
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 0 12px;
+
+  border-radius: 9px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-ad-play-button svg {
+  font-size: 14px;
+}
+
+.dashboard-ad-full-button {
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 0 13px;
+
+  border-radius: 9px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-ad-nav-button:hover,
+.dashboard-ad-play-button:hover,
+.dashboard-ad-full-button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+
+/* =========================================================
+   FULL ADVERTISEMENT MODAL
+========================================================= */
+
+.dashboard-ad-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(15, 23, 42, 0.72);
+
+  backdrop-filter: blur(6px);
+}
+
+.dashboard-ad-modal {
+  position: relative;
+
+  width: min(900px, 100%);
+  max-height: 90vh;
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.25);
+}
+
+.dashboard-ad-modal-close {
+  position: absolute;
+
+  top: 14px;
+  right: 14px;
+
+  z-index: 5;
+
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  color: #0f172a;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-ad-modal-close svg {
+  font-size: 19px;
+}
+
+.dashboard-ad-modal-image {
+  width: 100%;
+  max-height: 480px;
+
+  background: #f8fafc;
+
+  overflow: hidden;
+}
+
+.dashboard-ad-modal-image img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  max-height: 480px;
+
+  object-fit: contain;
+}
+
+.dashboard-ad-modal-content {
+  padding: 30px 34px 34px;
+}
+
+.dashboard-ad-modal-content h2 {
+  margin: 8px 0 12px;
+
+  color: #0f172a;
+
+  font-size: clamp(26px, 4vw, 38px);
+
+  line-height: 1.15;
+}
+
+.dashboard-ad-modal-content p {
+  margin: 0;
+
+  max-width: 720px;
+
+  color: #64748b;
+
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 650px) {
+
+  .dashboard-ad-controls {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-ad-full-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .dashboard-ad-modal-overlay {
+    padding: 12px;
+  }
+
+  .dashboard-ad-modal {
+    max-height: 94vh;
+    border-radius: 16px;
+  }
+
+  .dashboard-ad-modal-image {
+    max-height: 320px;
+  }
+
+  .dashboard-ad-modal-image img {
+    max-height: 320px;
+  }
+
+  .dashboard-ad-modal-content {
+    padding: 23px 20px 25px;
+  }
+
+  .dashboard-ad-modal-content h2 {
+    font-size: 25px;
+  }
+
 }
 
 

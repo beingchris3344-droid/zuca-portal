@@ -2022,3 +2022,20 @@ model CountdownSetting {
 
   @@map("countdown_settings")
 }
+
+model Advertisement {
+  id            Int      @id @default(autoincrement())
+  title         String?
+  description   String?
+  image         String?
+  cloudinaryId  String?
+  buttonText    String?
+  link          String?
+  active        Boolean  @default(true)
+
+  startDate     DateTime
+  endDate       DateTime
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

@@ -1657,6 +1657,12 @@ app.use('/api/feedback', feedbackRoutes);
 const countdownRoutes = require('./routes/countdown');
 app.use('/api', countdownRoutes);
 
+
+//advert
+// Advertisement Routes
+const advertisementRoutes = require('./routes/advertisementRoutes');
+app.use('/api/advertisements', advertisementRoutes);
+
 // ================== IMPROVED PROXY ROUTES (WITH BETTER ERROR HANDLING) ==================
 
 // Proxy for Ora et Labora API (All prayers)

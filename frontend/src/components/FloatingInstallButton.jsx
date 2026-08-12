@@ -209,8 +209,8 @@ After installation, you'll enjoy:
 2. Better access to ZUCA app features
 3. No need to log in every time
 4. All ZUCA links open directly in the app
-5. Unlimited access to all functions
-
+5. No more pop-up(s) just a smooth experience.
+  TRY DOWNLOADING TODAY REFRESH PAGE AND PRESS THE DOWNLOAD AGAIN
 - REGARDS: ZUCA-APP`
     : "Welcome to ZUCA! Install our app for faster access and push notifications.";
 

@@ -684,7 +684,7 @@ useEffect(() => {
           <Route path="advertisements" element={<Advertisements />} />
         </Route>
 
-        {/* ================= CATCH ALL ================= */}
+        {/* ================= CATCHi ALL ================= */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

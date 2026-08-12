@@ -67,7 +67,7 @@ const Advertisements = () => {
     title: "",
     description: "",
     buttonText: "",
-    link: "",
+link: "/landing2",
     startDate: "",
     endDate: "",
     active: true,
@@ -227,7 +227,7 @@ useEffect(() => {
       title: "",
       description: "",
       buttonText: "",
-      link: "",
+      link: "/landing2",
       startDate: "",
       endDate: "",
       active: true,
@@ -1223,9 +1223,9 @@ useEffect(() => {
     value={form.link}
     onChange={handlePageSelect}
   >
-    <option value="/dashboard">
-      Default Page
-    </option>
+    <option value="/landing2">
+  Default Page
+</option>
 
     {PORTAL_PAGES
       .filter((page) => page.label !== "Default Page")

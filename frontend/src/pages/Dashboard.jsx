@@ -36,9 +36,14 @@ function Dashboard() {
   const [recentHymns, setRecentHymns] = useState([]);
   const [gameInvites, setGameInvites] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
-  //advert
-  const [currentAd, setCurrentAd] = useState(0);
-  const ads = [];
+
+  
+  // ==================== ADVERTISEMENTS ====================
+const [ads, setAds] = useState([]);
+const [currentAd, setCurrentAd] = useState(0);
+const [adsLoading, setAdsLoading] = useState(true);
+
+
   const [recentChats, setRecentChats] = useState([]);
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [executiveTeam, setExecutiveTeam] = useState([]);
@@ -208,6 +213,45 @@ const isToday = (dateString) => {
     }
   };
 
+
+
+ // ==================== FETCH ADVERTISEMENTS INDEPENDENTLY ====================
+const fetchAdvertisements = async () => {
+  try {
+    setAdsLoading(true);
+
+    console.log("📢 Fetching advertisements independently...");
+
+    const response = await axios.get(
+      `${BASE_URL}/api/advertisements`
+    );
+
+    console.log("📢 Advertisement API response:", response.data);
+
+    // Backend returns the advertisements directly as an array
+    const realAds = Array.isArray(response.data)
+      ? response.data
+      : [];
+
+    console.log(`📢 Loaded ${realAds.length} active advertisement(s)`);
+
+    setAds(realAds);
+    setCurrentAd(0);
+
+  } catch (error) {
+    console.error(
+      "❌ Advertisement fetch failed:",
+      error.response?.status,
+      error.response?.data || error.message
+    );
+
+    setAds([]);
+    setCurrentAd(0);
+
+  } finally {
+    setAdsLoading(false);
+  }
+};
   // Fetch active attendance sheets
 const fetchActiveSheets = async () => {
   try {
@@ -575,6 +619,22 @@ const fetchFeaturedGallery = async () => {
     return `https://wa.me/${phone}`;
   };
 
+
+  // ==================== ADVERTISEMENT SYSTEM ====================
+useEffect(() => {
+  fetchAdvertisements();
+
+  // Refresh advertisements independently every 5 minutes
+  const refreshAds = setInterval(() => {
+    console.log("🔄 Refreshing advertisements...");
+    fetchAdvertisements();
+  }, 5 * 60 * 1000);
+
+  return () => {
+    clearInterval(refreshAds);
+  };
+}, []);
+
     // ===== MAIN FETCH WITH CACHING =====
   useEffect(() => {
     const fetchAllData = async (forceRefresh = false) => {
@@ -836,13 +896,15 @@ const fetchFeaturedGallery = async () => {
     };
       }, []);
 
-      useEffect(() => {
+   useEffect(() => {
+  if (ads.length <= 1) return;
+
   const adTimer = setInterval(() => {
-    setCurrentAd((prev) => (prev + 1) % 3);
+    setCurrentAd((prev) => (prev + 1) % ads.length);
   }, 5000);
 
   return () => clearInterval(adTimer);
-}, []);
+}, [ads.length]);
 
   // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
   useEffect(() => {
@@ -1128,160 +1190,127 @@ useEffect(() => {
   </motion.div>
 )}
 
-
-{/* ===== AUTO ROTATING ADVERTISEMENT ===== */}
-<div className="dashboard-ad-container">
-  <AnimatePresence mode="wait">
-    {currentAd === 0 && (
-      <motion.div
-        key="ad-1"
-        className="dashboard-ad ad-one"
-        initial={{ opacity: 0, x: 30 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -30 }}
-        transition={{ duration: 0.45 }}
-        onClick={() => navigate("/contributions")}
-      >
-        <div className="ad-content">
-          <span className="ad-small">ZUCA COMMUNITY</span>
-          <h2>Support Our Mission</h2>
-          <p>Your contribution helps us continue serving our community.</p>
-          <button>Contribute Now →</button>
-        </div>
-
-        <div className="ad-emoji">🙏</div>
-      </motion.div>
-    )}
-
-    {currentAd === 1 && (
-      <motion.div
-        key="ad-2"
-        className="dashboard-ad ad-two"
-        initial={{ opacity: 0, x: 30 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -30 }}
-        transition={{ duration: 0.45 }}
-        onClick={() => navigate("/schedules")}
-      >
-        <div className="ad-content">
-          <span className="ad-small">THIS WEEK</span>
-          <h2>Don't Miss Mass</h2>
-          <p>Check the latest Mass and church schedules.</p>
-          <button>View Schedule →</button>
-        </div>
-
-        <div className="ad-emoji">⛪</div>
-      </motion.div>
-    )}
-
-    {currentAd === 2 && (
-      <motion.div
-        key="ad-3"
-        className="dashboard-ad ad-three"
-        initial={{ opacity: 0, x: 30 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -30 }}
-        transition={{ duration: 0.45 }}
-        onClick={() => navigate("/songs")}
-      >
-        <div className="ad-content">
-          <span className="ad-small">ZUCA MUSIC</span>
-          <h2>Sing With Us</h2>
-          <p>Discover hymns and songs available in the portal.</p>
-          <button>Explore Songs →</button>
-        </div>
-
-        <div className="ad-emoji">🎵</div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-
-  <div className="ad-dots">
-    {[0, 1, 2].map((index) => (
-      <button
-        key={index}
-        className={`ad-dot ${currentAd === index ? "active" : ""}`}
-        onClick={() => setCurrentAd(index)}
-        aria-label={`Advertisement ${index + 1}`}
-      />
-    ))}
-  </div>
-</div>
-
-
-{/* ADVERTISEMENT CAROUSEL */}
+{/* ==================== REAL API ADVERTISEMENT ==================== */}
 {ads.length > 0 && (
   <div className="dashboard-ad-container">
-    <div className="dashboard-ad">
+
+    <div className="dashboard-ad-wrapper">
+
       <AnimatePresence mode="wait">
         {ads[currentAd] && (
           <motion.div
             key={ads[currentAd].id}
-            className="dashboard-ad-slide"
-            initial={{ opacity: 0, x: 30 }}
+            className="dashboard-ad-card"
+            initial={{ opacity: 0, x: 35 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -30 }}
-            transition={{ duration: 0.4 }}
+            exit={{ opacity: 0, x: -35 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
             onClick={() => {
               if (ads[currentAd].link) {
                 window.location.href = ads[currentAd].link;
               }
             }}
           >
-            {ads[currentAd].image && (
-              <img
-                src={ads[currentAd].image}
-                alt={ads[currentAd].title || "Advertisement"}
-                className="dashboard-ad-image"
-              />
-            )}
 
-            <div className="dashboard-ad-content">
-              {ads[currentAd].title && (
-                <h3>{ads[currentAd].title}</h3>
+            {/* IMAGE */}
+            <div className="dashboard-ad-visual">
+              {ads[currentAd].image ? (
+                <img
+                  src={ads[currentAd].image}
+                  alt={ads[currentAd].title || "Advertisement"}
+                  className="dashboard-ad-image"
+                />
+              ) : (
+                <div className="dashboard-ad-placeholder">
+                  <span>📢</span>
+                </div>
               )}
 
-              {ads[currentAd].description && (
-                <p>{ads[currentAd].description}</p>
-              )}
+              {/* OPEN / AD LABEL */}
+              <div className="dashboard-ad-label">
+                <span className="dashboard-ad-label-dot"></span>
+                WHAT'S TRENDING
+              </div>
 
-              {ads[currentAd].button && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-
-                    if (ads[currentAd].link) {
-                      window.location.href = ads[currentAd].link;
-                    }
-                  }}
-                >
-                  {ads[currentAd].button}
-                </button>
-              )}
+              {/* IMAGE OVERLAY */}
+              <div className="dashboard-ad-gradient"></div>
             </div>
+
+
+            {/* CONTENT */}
+            <div className="dashboard-ad-content">
+
+              {/* SMALL LABEL */}
+              <span className="dashboard-ad-small">
+                ZETECH . UNIVERSITY . CATHOLIC . ACTION
+              </span>
+
+              {/* TITLE */}
+              {ads[currentAd].title && (
+                <h2 className="dashboard-ad-title">
+                  {ads[currentAd].title}
+                </h2>
+              )}
+
+              {/* DESCRIPTION */}
+              {ads[currentAd].description && (
+                <p className="dashboard-ad-description">
+                  {ads[currentAd].description}
+                </p>
+              )}
+
+             {/* CTA */}
+<button
+  type="button"
+  className="dashboard-ad-button"
+  onClick={(e) => {
+    e.stopPropagation();
+
+    if (ads[currentAd]?.link) {
+      window.location.href = ads[currentAd].link;
+    }
+  }}
+>
+  <span>
+    {ads[currentAd]?.buttonText || "Go to Page"}
+  </span>
+
+  <FiArrowRight />
+</button>
+            </div>
+
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
 
+
+    {/* DOTS */}
     {ads.length > 1 && (
       <div className="dashboard-ad-dots">
+
         {ads.map((ad, index) => (
           <button
             key={ad.id}
             type="button"
-            className={index === currentAd ? "active" : ""}
-            onClick={() => setCurrentAd(index)}
+            className={`dashboard-ad-dot ${
+              index === currentAd ? "active" : ""
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentAd(index);
+            }}
             aria-label={`Advertisement ${index + 1}`}
           />
+
         ))}
+
       </div>
     )}
+
   </div>
 )}
-
-
-
          {/* USER PROFILE CARD */}
 <div className="profile-card">
   <div className="profile-row">
@@ -8497,125 +8526,478 @@ useEffect(() => {
 }
 
 
-
-/* ============================================
-   GENERIC ADVERTISEMENT CAROUSEL
-   ============================================ */
+/* =========================================================
+   DASHBOARD ADVERTISEMENT
+   ========================================================= */
 
 .dashboard-ad-container {
   width: 100%;
-  margin-bottom: 20px;
+  margin: 24px 0;
+  position: relative;
 }
 
-.dashboard-ad {
+.dashboard-ad-wrapper {
   width: 100%;
   overflow: hidden;
-  border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 22px;
 }
 
-.dashboard-ad-slide {
+
+/* =========================================================
+   MAIN CARD
+   ========================================================= */
+
+.dashboard-ad-card {
+  position: relative;
   width: 100%;
-  min-height: 190px;
-  display: flex;
-  align-items: stretch;
+  min-height: 280px;
+
+  display: grid;
+  grid-template-columns: 42% 58%;
+
+  overflow: hidden;
+  border-radius: 22px;
+
+  background: #ffffff;
+
+  border: 1px solid rgba(15, 23, 42, 0.08);
+
+  box-shadow:
+    0 12px 35px rgba(15, 23, 42, 0.08);
+
   cursor: pointer;
+}
+
+
+/* =========================================================
+   IMAGE SIDE
+   ========================================================= */
+
+.dashboard-ad-visual {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
 }
 
 .dashboard-ad-image {
-  width: 45%;
-  min-height: 190px;
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
+
+  min-height: 280px;
+
   display: block;
+
+  object-fit: cover;
+
+  transition: transform 0.6s ease;
 }
+
+.dashboard-ad-card:hover .dashboard-ad-image {
+  transform: scale(1.04);
+}
+
+
+/* IMAGE GRADIENT */
+
+.dashboard-ad-gradient {
+  position: absolute;
+
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.02),
+      rgba(0, 0, 0, 0.15)
+    );
+
+  pointer-events: none;
+}
+
+
+/* PLACEHOLDER */
+
+.dashboard-ad-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fafc,
+      #e2e8f0
+    );
+}
+
+.dashboard-ad-placeholder span {
+  font-size: 55px;
+}
+
+
+/* =========================================================
+   ADVERTISEMENT LABEL
+   ========================================================= */
+
+.dashboard-ad-label {
+  position: absolute;
+
+  top: 18px;
+  left: 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 7px 12px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  color: #334155;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 0.4px;
+
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12);
+
+  z-index: 2;
+}
+
+.dashboard-ad-label-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+
+  box-shadow:
+    0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+
+/* =========================================================
+   CONTENT SIDE
+   ========================================================= */
 
 .dashboard-ad-content {
-  flex: 1;
-  padding: 25px;
+  position: relative;
+
   display: flex;
   flex-direction: column;
+
   justify-content: center;
+
+  padding: 38px 45px;
+
+  background: #ffffff;
 }
 
-.dashboard-ad-content h3 {
-  margin: 0 0 8px;
-  font-size: 1.35rem;
+
+/* SMALL CATEGORY */
+
+.dashboard-ad-small {
+  display: inline-flex;
+
+  align-items: center;
+
+  width: fit-content;
+
+  margin-bottom: 10px;
+
+  font-size: 11px;
+
   font-weight: 800;
-  color: #0f172a;
-}
 
-.dashboard-ad-content p {
-  margin: 0 0 15px;
+  letter-spacing: 1.2px;
+
+  text-transform: uppercase;
+
   color: #64748b;
-  font-size: 0.85rem;
-  line-height: 1.5;
 }
 
-.dashboard-ad-content button {
-  align-self: flex-start;
-  border: none;
-  border-radius: 10px;
-  padding: 9px 16px;
-  background: #0f172a;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
+
+/* TITLE */
+
+.dashboard-ad-title {
+  margin: 0 0 12px;
+
+  max-width: 560px;
+
+  color: #0f172a;
+
+  font-size: clamp(25px, 3vw, 38px);
+
+  line-height: 1.1;
+
+  font-weight: 800;
+
+  letter-spacing: -0.7px;
 }
+
+
+/* DESCRIPTION */
+
+.dashboard-ad-description {
+  margin: 0;
+
+  max-width: 540px;
+
+  color: #64748b;
+
+  font-size: 15px;
+
+  line-height: 1.65;
+
+  font-weight: 400;
+}
+
+
+/* =========================================================
+   CTA BUTTON
+   ========================================================= */
+
+.dashboard-ad-button {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 9px;
+
+  width: fit-content;
+
+  margin-top: 24px;
+
+  padding: 11px 18px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: #111827;
+
+  color: #ffffff;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-ad-button svg {
+  font-size: 16px;
+
+  transition:
+    transform 0.2s ease;
+}
+
+.dashboard-ad-button:hover {
+  background: #000000;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.16);
+}
+
+.dashboard-ad-button:hover svg {
+  transform: translateX(4px);
+}
+
+
+/* =========================================================
+   DOT NAVIGATION
+   ========================================================= */
 
 .dashboard-ad-dots {
   display: flex;
-  justify-content: center;
+
   align-items: center;
-  gap: 6px;
-  padding: 9px 0 0;
+
+  justify-content: center;
+
+  gap: 7px;
+
+  margin-top: 13px;
 }
 
-.dashboard-ad-dots button {
+.dashboard-ad-dot {
   width: 7px;
   height: 7px;
+
   padding: 0;
+
   border: none;
+
   border-radius: 50%;
+
   background: #cbd5e1;
+
   cursor: pointer;
-  transition: all 0.25s ease;
+
+  transition:
+    width 0.25s ease,
+    background 0.25s ease;
 }
 
-.dashboard-ad-dots button.active {
-  width: 20px;
-  border-radius: 10px;
+.dashboard-ad-dot.active {
+  width: 23px;
+
+  border-radius: 999px;
+
   background: #0f172a;
 }
 
-@media (max-width: 640px) {
-  .dashboard-ad-slide {
-    min-height: 150px;
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+  .dashboard-ad-card {
+    grid-template-columns: 45% 55%;
+    min-height: 250px;
   }
 
-  .dashboard-ad-image {
-    width: 42%;
-    min-height: 150px;
+  .dashboard-ad-visual,
+  .dashboard-ad-image,
+  .dashboard-ad-placeholder {
+    min-height: 250px;
   }
 
   .dashboard-ad-content {
-    padding: 16px;
+    padding: 30px;
   }
 
-  .dashboard-ad-content h3 {
-    font-size: 1rem;
+  .dashboard-ad-title {
+    font-size: 28px;
   }
 
-  .dashboard-ad-content p {
-    font-size: 0.7rem;
-    margin-bottom: 10px;
+  .dashboard-ad-description {
+    font-size: 14px;
   }
 
-  .dashboard-ad-content button {
-    padding: 7px 11px;
-    font-size: 0.65rem;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 650px) {
+
+  .dashboard-ad-container {
+    margin: 18px 0;
   }
+
+  .dashboard-ad-card {
+    display: flex;
+
+    flex-direction: column;
+
+    min-height: auto;
+
+    border-radius: 18px;
+  }
+
+  .dashboard-ad-visual {
+    height: 190px;
+
+    min-height: 190px;
+  }
+
+  .dashboard-ad-image,
+  .dashboard-ad-placeholder {
+    height: 190px;
+
+    min-height: 190px;
+  }
+
+  .dashboard-ad-label {
+    top: 13px;
+    left: 13px;
+
+    font-size: 10px;
+  }
+
+  .dashboard-ad-content {
+    padding: 22px 21px 24px;
+  }
+
+  .dashboard-ad-small {
+    margin-bottom: 7px;
+
+    font-size: 10px;
+  }
+
+  .dashboard-ad-title {
+    margin-bottom: 9px;
+
+    font-size: 25px;
+
+    line-height: 1.15;
+  }
+
+  .dashboard-ad-description {
+    font-size: 13px;
+
+    line-height: 1.55;
+  }
+
+  .dashboard-ad-button {
+    margin-top: 18px;
+
+    padding: 10px 15px;
+
+    font-size: 12px;
+  }
+
+}
+
+
+/* =========================================================
+   SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 400px) {
+
+  .dashboard-ad-visual {
+    height: 165px;
+    min-height: 165px;
+  }
+
+  .dashboard-ad-image,
+  .dashboard-ad-placeholder {
+    height: 165px;
+    min-height: 165px;
+  }
+
+  .dashboard-ad-content {
+    padding: 19px;
+  }
+
+  .dashboard-ad-title {
+    font-size: 22px;
+  }
+
 }
 
 /* ============================================

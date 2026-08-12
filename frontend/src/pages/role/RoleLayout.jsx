@@ -130,18 +130,20 @@ export default function RoleLayout() {
           ]
         };
       case "media_moderator":
-        return { 
-          icon: "📸", 
-          name: "Media Moderator", 
-          color: "#3b82f6",
-          description: "Manage gallery & media content",
-          modules: [
-            { path: `${basePath}/media`, icon: "🖼️", label: "Gallery" }
-          ],
-          quickActions: [
-            { action: `${basePath}/media`, label: "Upload Media", icon: "📸" }
-          ]
-        };
+  return { 
+    icon: "📸", 
+    name: "Media Moderator", 
+    color: "#3b82f6",
+    description: "Manage gallery, media & advertisements",
+    modules: [
+      { path: `${basePath}/media`, icon: "🖼️", label: "Gallery" },
+      { path: `${basePath}/advertisements`, icon: "📢", label: "Advertisements" }
+    ],
+    quickActions: [
+      { action: `${basePath}/media`, label: "Upload Media", icon: "📸" },
+      { action: `${basePath}/advertisements`, label: "Manage Ads", icon: "📢" }
+    ]
+  };
       default:
         return { 
           icon: "👤", 

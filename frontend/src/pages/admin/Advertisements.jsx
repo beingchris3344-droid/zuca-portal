@@ -649,13 +649,21 @@ useEffect(() => {
         <div className="advertisements-header-left">
 
           <button
-            className="back-button"
-            onClick={() =>
-              navigate("/admin")
-            }
-          >
-            <FiArrowLeft />
-          </button>
+  className="back-button"
+  onClick={() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.specialRole || user.role;
+    
+    // If Media Moderator, go to their dashboard
+    if (role === 'media_moderator') {
+      navigate('/media-moderator');
+    } else {
+      navigate('/admin');
+    }
+  }}
+>
+  <FiArrowLeft />
+</button>
 
           <div>
             <h1>

@@ -681,6 +681,7 @@ useEffect(() => {
         >
           <Route index element={<Navigate to="media" replace />} />
           <Route path="media" element={<AdminMediaPage />} />
+          <Route path="advertisements" element={<Advertisements />} />
         </Route>
 
         {/* ================= CATCH ALL ================= */}

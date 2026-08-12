@@ -35,9 +35,9 @@ const upload = multer({
 });
 
 // ============================================
-// ADMIN AUTH
+// AUTHENTICATION MIDDLEWARE
 // ============================================
-function requireAdmin(req, res, next) {
+function authenticate(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -49,11 +49,41 @@ function requireAdmin(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized - Invalid token'
+    });
+  }
+}
 
-    if (decoded.role !== 'admin') {
+// ============================================
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR AUTH
+// Same pattern as media endpoint
+// ============================================
+function requireAdminOrMediaModerator(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized - No token provided'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Same pattern as media endpoint
+    if (decoded.role !== "admin" && 
+        decoded.specialRole !== "secretary" && 
+        decoded.specialRole !== "treasurer" && 
+        decoded.specialRole !== "media_moderator") {
       return res.status(403).json({
         success: false,
-        error: 'Forbidden - Admin access required'
+        error: 'Only admins, secretaries, treasurers, and media moderators can manage advertisements'
       });
     }
 
@@ -111,12 +141,6 @@ async function deleteCloudinaryImage(cloudinaryId) {
 // ============================================
 // CLEAN EXPIRED ADVERTISEMENTS
 // ============================================
-// Deletes:
-// 1. Expired database records
-// 2. Their Cloudinary images
-//
-// This runs whenever advertisement routes are accessed.
-// ============================================
 async function cleanupExpiredAdvertisements() {
   try {
     const now = new Date();
@@ -160,7 +184,7 @@ async function cleanupExpiredAdvertisements() {
 
 // ============================================
 // GET ACTIVE ADVERTISEMENTS
-// PUBLIC
+// PUBLIC - No auth required
 // ============================================
 router.get('/', async (req, res) => {
   try {
@@ -196,9 +220,9 @@ router.get('/', async (req, res) => {
 
 // ============================================
 // GET ALL ADVERTISEMENTS
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
-router.get('/admin/all', requireAdmin, async (req, res) => {
+router.get('/admin/all', requireAdminOrMediaModerator, async (req, res) => {
   try {
     await cleanupExpiredAdvertisements();
 
@@ -224,11 +248,11 @@ router.get('/admin/all', requireAdmin, async (req, res) => {
 
 // ============================================
 // CREATE ADVERTISEMENT
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
 router.post(
   '/',
-  requireAdmin,
+  requireAdminOrMediaModerator,
   upload.single('image'),
   async (req, res) => {
     try {
@@ -324,11 +348,11 @@ router.post(
 
 // ============================================
 // UPDATE ADVERTISEMENT
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
 router.put(
   '/:id',
-  requireAdmin,
+  requireAdminOrMediaModerator,
   upload.single('image'),
   async (req, res) => {
     try {
@@ -466,11 +490,11 @@ router.put(
 
 // ============================================
 // TOGGLE ADVERTISEMENT
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
 router.patch(
   '/:id/toggle',
-  requireAdmin,
+  requireAdminOrMediaModerator,
   async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -520,11 +544,11 @@ router.patch(
 
 // ============================================
 // DELETE ADVERTISEMENT
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
 router.delete(
   '/:id',
-  requireAdmin,
+  requireAdminOrMediaModerator,
   async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -568,11 +592,11 @@ router.delete(
 
 // ============================================
 // MANUAL CLEANUP
-// ADMIN
+// ADMIN, SECRETARY, TREASURER, OR MEDIA MODERATOR
 // ============================================
 router.delete(
   '/admin/cleanup-expired',
-  requireAdmin,
+  requireAdminOrMediaModerator,
   async (req, res) => {
     try {
       const before =

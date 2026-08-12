@@ -1194,6 +1194,12 @@ useEffect(() => {
 {ads.length > 0 && (
   <div className="dashboard-ad-container">
 
+    {/* WHAT'S TRENDING — OUTSIDE IMAGE */}
+    <div className="dashboard-ad-label">
+      <span className="dashboard-ad-label-dot"></span>
+      WHAT'S TRENDING
+    </div>
+
     <div className="dashboard-ad-wrapper">
 
       <AnimatePresence mode="wait">
@@ -1204,7 +1210,10 @@ useEffect(() => {
             initial={{ opacity: 0, x: 35 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -35 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
+            transition={{
+              duration: 0.45,
+              ease: "easeOut"
+            }}
             onClick={() => {
               if (ads[currentAd].link) {
                 window.location.href = ads[currentAd].link;
@@ -1212,12 +1221,16 @@ useEffect(() => {
             }}
           >
 
-            {/* IMAGE */}
+            {/* ================= IMAGE ================= */}
             <div className="dashboard-ad-visual">
+
               {ads[currentAd].image ? (
                 <img
                   src={ads[currentAd].image}
-                  alt={ads[currentAd].title || "Advertisement"}
+                  alt={
+                    ads[currentAd].title ||
+                    "Advertisement"
+                  }
                   className="dashboard-ad-image"
                 />
               ) : (
@@ -1226,18 +1239,13 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* OPEN / AD LABEL */}
-              <div className="dashboard-ad-label">
-                <span className="dashboard-ad-label-dot"></span>
-                WHAT'S TRENDING
-              </div>
-
               {/* IMAGE OVERLAY */}
               <div className="dashboard-ad-gradient"></div>
+
             </div>
 
 
-            {/* CONTENT */}
+            {/* ================= CONTENT ================= */}
             <div className="dashboard-ad-content">
 
               {/* SMALL LABEL */}
@@ -1259,24 +1267,27 @@ useEffect(() => {
                 </p>
               )}
 
-             {/* CTA */}
-<button
-  type="button"
-  className="dashboard-ad-button"
-  onClick={(e) => {
-    e.stopPropagation();
+              {/* CTA */}
+              <button
+                type="button"
+                className="dashboard-ad-button"
+                onClick={(e) => {
+                  e.stopPropagation();
 
-    if (ads[currentAd]?.link) {
-      window.location.href = ads[currentAd].link;
-    }
-  }}
->
-  <span>
-    {ads[currentAd]?.buttonText || "Go to Page"}
-  </span>
+                  if (ads[currentAd]?.link) {
+                    window.location.href =
+                      ads[currentAd].link;
+                  }
+                }}
+              >
+                <span>
+                  {ads[currentAd]?.buttonText ||
+                    "Go to Page"}
+                </span>
 
-  <FiArrowRight />
-</button>
+                <FiArrowRight />
+              </button>
+
             </div>
 
           </motion.div>
@@ -1286,7 +1297,7 @@ useEffect(() => {
     </div>
 
 
-    {/* DOTS */}
+    {/* ================= DOTS ================= */}
     {ads.length > 1 && (
       <div className="dashboard-ad-dots">
 
@@ -1295,15 +1306,16 @@ useEffect(() => {
             key={ad.id}
             type="button"
             className={`dashboard-ad-dot ${
-              index === currentAd ? "active" : ""
+              index === currentAd
+                ? "active"
+                : ""
             }`}
             onClick={(e) => {
               e.stopPropagation();
               setCurrentAd(index);
             }}
-            aria-label={`Advertisement ${index + 1}`}
+            aria-label={`View advertisement ${index + 1}`}
           />
-
         ))}
 
       </div>
@@ -1311,6 +1323,8 @@ useEffect(() => {
 
   </div>
 )}
+
+
          {/* USER PROFILE CARD */}
 <div className="profile-card">
   <div className="profile-row">
@@ -8525,10 +8539,9 @@ useEffect(() => {
   color: #10b981;
 }
 
-
 /* =========================================================
    DASHBOARD ADVERTISEMENT
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-container {
   width: 100%;
@@ -8536,26 +8549,75 @@ useEffect(() => {
   position: relative;
 }
 
+
+/* =========================================================
+   WHAT'S TRENDING
+   OUTSIDE THE IMAGE
+========================================================= */
+
+.dashboard-ad-label {
+  display: flex;
+  
+  align-items: center;
+  gap: 7px;
+
+  width: fit-content;
+
+  margin: 0 0 9px 4px;
+
+  color: #334155;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.dashboard-ad-label-dot {
+  width: 7px;
+  height: 7px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+
+  box-shadow:
+    0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+
+/* =========================================================
+   WRAPPER
+========================================================= */
+
 .dashboard-ad-wrapper {
   width: 100%;
+
   overflow: hidden;
+
   border-radius: 22px;
 }
 
 
 /* =========================================================
    MAIN CARD
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-card {
   position: relative;
+
   width: 100%;
   min-height: 280px;
 
   display: grid;
+
   grid-template-columns: 42% 58%;
 
   overflow: hidden;
+
   border-radius: 22px;
 
   background: #ffffff;
@@ -8566,18 +8628,36 @@ useEffect(() => {
     0 12px 35px rgba(15, 23, 42, 0.08);
 
   cursor: pointer;
+
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+.dashboard-ad-card:hover {
+  box-shadow:
+    0 16px 42px rgba(15, 23, 42, 0.12);
 }
 
 
 /* =========================================================
    IMAGE SIDE
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-visual {
   position: relative;
+
   min-height: 280px;
+
   overflow: hidden;
+
+  background: #f1f5f9;
 }
+
+
+/* =========================================================
+   IMAGE
+========================================================= */
 
 .dashboard-ad-image {
   width: 100%;
@@ -8589,15 +8669,21 @@ useEffect(() => {
 
   object-fit: cover;
 
-  transition: transform 0.6s ease;
+  object-position: center;
+
+  transition:
+    transform 0.6s ease;
 }
 
 .dashboard-ad-card:hover .dashboard-ad-image {
-  transform: scale(1.04);
+  transform: scale(1.03);
 }
 
 
-/* IMAGE GRADIENT */
+/* =========================================================
+   IMAGE GRADIENT
+   VERY SUBTLE
+========================================================= */
 
 .dashboard-ad-gradient {
   position: absolute;
@@ -8607,22 +8693,26 @@ useEffect(() => {
   background:
     linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.02),
-      rgba(0, 0, 0, 0.15)
+      rgba(0, 0, 0, 0.015),
+      rgba(0, 0, 0, 0.04)
     );
 
   pointer-events: none;
 }
 
 
-/* PLACEHOLDER */
+/* =========================================================
+   IMAGE PLACEHOLDER
+========================================================= */
 
 .dashboard-ad-placeholder {
   width: 100%;
   height: 100%;
+
   min-height: 280px;
 
   display: flex;
+
   align-items: center;
   justify-content: center;
 
@@ -8640,59 +8730,16 @@ useEffect(() => {
 
 
 /* =========================================================
-   ADVERTISEMENT LABEL
-   ========================================================= */
-
-.dashboard-ad-label {
-  position: absolute;
-
-  top: 18px;
-  left: 18px;
-
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  padding: 7px 12px;
-
-  border-radius: 999px;
-
-  background: rgba(255, 255, 255, 0.94);
-
-  color: #334155;
-
-  font-size: 11px;
-  font-weight: 700;
-
-  letter-spacing: 0.4px;
-
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.12);
-
-  z-index: 2;
-}
-
-.dashboard-ad-label-dot {
-  width: 7px;
-  height: 7px;
-
-  border-radius: 50%;
-
-  background: #22c55e;
-
-  box-shadow:
-    0 0 0 3px rgba(34, 197, 94, 0.15);
-}
-
-
-/* =========================================================
    CONTENT SIDE
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-content {
   position: relative;
 
+  min-width: 0;
+
   display: flex;
+
   flex-direction: column;
 
   justify-content: center;
@@ -8703,30 +8750,34 @@ useEffect(() => {
 }
 
 
-/* SMALL CATEGORY */
+/* =========================================================
+   SMALL CATEGORY
+========================================================= */
 
 .dashboard-ad-small {
-  display: inline-flex;
-
-  align-items: center;
+  display: block;
 
   width: fit-content;
 
-  margin-bottom: 10px;
+  margin-bottom: 11px;
 
-  font-size: 11px;
+  color: #64748b;
+
+  font-size: 10px;
 
   font-weight: 800;
 
-  letter-spacing: 1.2px;
+  line-height: 1.4;
+
+  letter-spacing: 1.4px;
 
   text-transform: uppercase;
-
-  color: #64748b;
 }
 
 
-/* TITLE */
+/* =========================================================
+   TITLE
+========================================================= */
 
 .dashboard-ad-title {
   margin: 0 0 12px;
@@ -8735,17 +8786,25 @@ useEffect(() => {
 
   color: #0f172a;
 
-  font-size: clamp(25px, 3vw, 38px);
+  font-size: clamp(
+    25px,
+    3vw,
+    38px
+  );
 
   line-height: 1.1;
 
   font-weight: 800;
 
   letter-spacing: -0.7px;
+
+  word-break: break-word;
 }
 
 
-/* DESCRIPTION */
+/* =========================================================
+   DESCRIPTION
+========================================================= */
 
 .dashboard-ad-description {
   margin: 0;
@@ -8764,7 +8823,7 @@ useEffect(() => {
 
 /* =========================================================
    CTA BUTTON
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-button {
   display: inline-flex;
@@ -8792,6 +8851,8 @@ useEffect(() => {
   font-size: 13px;
 
   font-weight: 700;
+
+  line-height: 1;
 
   cursor: pointer;
 
@@ -8824,7 +8885,7 @@ useEffect(() => {
 
 /* =========================================================
    DOT NAVIGATION
-   ========================================================= */
+========================================================= */
 
 .dashboard-ad-dots {
   display: flex;
@@ -8854,7 +8915,14 @@ useEffect(() => {
 
   transition:
     width 0.25s ease,
-    background 0.25s ease;
+    background 0.25s ease,
+    transform 0.2s ease;
+}
+
+.dashboard-ad-dot:hover {
+  transform: scale(1.15);
+
+  background: #94a3b8;
 }
 
 .dashboard-ad-dot.active {
@@ -8868,17 +8936,30 @@ useEffect(() => {
 
 /* =========================================================
    TABLET
-   ========================================================= */
+========================================================= */
 
 @media (max-width: 900px) {
 
+  .dashboard-ad-container {
+    margin: 22px 0;
+  }
+
   .dashboard-ad-card {
     grid-template-columns: 45% 55%;
+
+    min-height: 250px;
+
+    border-radius: 20px;
+  }
+
+  .dashboard-ad-visual {
     min-height: 250px;
   }
 
-  .dashboard-ad-visual,
-  .dashboard-ad-image,
+  .dashboard-ad-image {
+    min-height: 250px;
+  }
+
   .dashboard-ad-placeholder {
     min-height: 250px;
   }
@@ -8887,25 +8968,62 @@ useEffect(() => {
     padding: 30px;
   }
 
+  .dashboard-ad-small {
+    font-size: 9px;
+
+    letter-spacing: 1.1px;
+  }
+
   .dashboard-ad-title {
     font-size: 28px;
+
+    line-height: 1.12;
   }
 
   .dashboard-ad-description {
     font-size: 14px;
+
+    line-height: 1.55;
   }
 
+  .dashboard-ad-button {
+    margin-top: 20px;
+  }
 }
 
 
 /* =========================================================
    MOBILE
-   ========================================================= */
+========================================================= */
 
 @media (max-width: 650px) {
 
   .dashboard-ad-container {
     margin: 18px 0;
+  }
+
+
+  /* TRENDING LABEL */
+
+  .dashboard-ad-label {
+    margin: 0 0 9px 2px;
+
+    font-size: 10px;
+
+    letter-spacing: 0.6px;
+    
+  }
+
+  .dashboard-ad-label-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+
+  /* CARD */
+
+  .dashboard-ad-wrapper {
+    border-radius: 18px;
   }
 
   .dashboard-ad-card {
@@ -8918,43 +9036,68 @@ useEffect(() => {
     border-radius: 18px;
   }
 
+
+  /* IMAGE */
+
   .dashboard-ad-visual {
-    height: 190px;
+    width: 100%;
 
-    min-height: 190px;
+    height: 210px;
+
+    min-height: 210px;
   }
 
-  .dashboard-ad-image,
+  .dashboard-ad-image {
+    width: 100%;
+
+    height: 210px;
+
+    min-height: 210px;
+  }
+
   .dashboard-ad-placeholder {
-    height: 190px;
+    width: 100%;
 
-    min-height: 190px;
+    height: 210px;
+
+    min-height: 210px;
   }
 
-  .dashboard-ad-label {
-    top: 13px;
-    left: 13px;
 
-    font-size: 10px;
-  }
+  /* CONTENT */
 
   .dashboard-ad-content {
     padding: 22px 21px 24px;
   }
 
+
+  /* CATEGORY */
+
   .dashboard-ad-small {
     margin-bottom: 7px;
 
-    font-size: 10px;
+    font-size: 9px;
+
+    letter-spacing: 1px;
+
+    line-height: 1.45;
   }
 
+
+  /* TITLE */
+
   .dashboard-ad-title {
-    margin-bottom: 9px;
+    margin: 0 0 9px;
 
     font-size: 25px;
 
     line-height: 1.15;
+
+    letter-spacing: -0.4px;
   }
+
+
+  /* DESCRIPTION */
 
   .dashboard-ad-description {
     font-size: 13px;
@@ -8962,42 +9105,147 @@ useEffect(() => {
     line-height: 1.55;
   }
 
+
+  /* BUTTON */
+
   .dashboard-ad-button {
     margin-top: 18px;
 
     padding: 10px 15px;
 
     font-size: 12px;
+
+    border-radius: 9px;
   }
 
+  .dashboard-ad-button svg {
+    font-size: 14px;
+  }
+
+
+  /* DOTS */
+
+  .dashboard-ad-dots {
+    margin-top: 11px;
+
+    gap: 6px;
+  }
+
+  .dashboard-ad-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .dashboard-ad-dot.active {
+    width: 20px;
+  }
 }
 
 
 /* =========================================================
    SMALL PHONES
-   ========================================================= */
+========================================================= */
 
 @media (max-width: 400px) {
 
-  .dashboard-ad-visual {
-    height: 165px;
-    min-height: 165px;
+  .dashboard-ad-container {
+    margin: 16px 0;
   }
 
-  .dashboard-ad-image,
-  .dashboard-ad-placeholder {
-    height: 165px;
-    min-height: 165px;
+
+  /* IMAGE */
+
+  .dashboard-ad-visual {
+    height: 180px;
+
+    min-height: 180px;
   }
+
+  .dashboard-ad-image {
+    height: 180px;
+
+    min-height: 180px;
+  }
+
+  .dashboard-ad-placeholder {
+    height: 180px;
+
+    min-height: 180px;
+  }
+
+
+  /* CONTENT */
 
   .dashboard-ad-content {
     padding: 19px;
   }
 
+
+  /* TITLE */
+
   .dashboard-ad-title {
     font-size: 22px;
+
+    line-height: 1.15;
   }
 
+
+  /* DESCRIPTION */
+
+  .dashboard-ad-description {
+    font-size: 12.5px;
+
+    line-height: 1.55;
+  }
+
+
+  /* BUTTON */
+
+  .dashboard-ad-button {
+    margin-top: 16px;
+
+    padding: 9px 14px;
+
+    font-size: 11.5px;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL PHONES
+========================================================= */
+
+@media (max-width: 350px) {
+
+  .dashboard-ad-visual {
+    height: 165px;
+
+    min-height: 165px;
+  }
+
+  .dashboard-ad-image {
+    height: 165px;
+
+    min-height: 165px;
+  }
+
+  .dashboard-ad-placeholder {
+    height: 165px;
+
+    min-height: 165px;
+  }
+
+  .dashboard-ad-content {
+    padding: 17px;
+  }
+
+  .dashboard-ad-title {
+    font-size: 20px;
+  }
+
+  .dashboard-ad-description {
+    font-size: 12px;
+  }
 }
 
 /* ============================================

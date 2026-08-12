@@ -690,7 +690,7 @@ useEffect(() => {
 
        <UpdateNotification />
 
-      {/* ========== GLOBAL AI OVERLAY - CHOOSE BASED ON ROLE ========== */}
+      {/* ========== GLOBAL AI OVERLAYi - CHOOSE BASED ON ROLE ========== */}
       {showAI && currentUser && (
         isAdmin ? (
           <AdminAIAssistant 

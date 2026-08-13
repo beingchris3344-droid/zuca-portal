@@ -806,7 +806,7 @@ useEffect(() => {
   const fetchGallery = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/media/public?limit=16`, {
+      const response = await axios.get(`${BASE_URL}/api/media/public?limit=13`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const allMedia = response.data.media || [];
@@ -1968,97 +1968,106 @@ useEffect(() => {
     )}
   </div>
 
-  <div className="events-timeline">
-    {upcomingSchedules.length === 0 ? (
-      <div className="empty-state-calendar">
-        <div className="calendar-icon"><FaCalendar /></div>
-        <p>No upcoming events</p>
-        <span>Check back soon for new schedules</span>
+ <div className="events-timeline">
+  {loadingSchedules ? (
+    <>
+      <div className="skeleton-schedule-item">
+        <div className="skeleton skeleton-schedule-date"></div>
+        <div className="skeleton-schedule-content">
+          <div className="skeleton skeleton-schedule-title"></div>
+          <div className="skeleton-schedule-details">
+            <div className="skeleton skeleton-schedule-chip"></div>
+            <div className="skeleton skeleton-schedule-chip"></div>
+          </div>
+          <div className="skeleton skeleton-schedule-description"></div>
+        </div>
       </div>
-    ) : (
-      upcomingSchedules.slice(0, 2).map((event, index) => (
-        <div key={event.id} className="event-card-premium">
-          {/* Timeline connector */}
-          {index !== upcomingSchedules.length - 1 && (
-            <div className="timeline-connector-dash"></div>
+    </>
+  ) : upcomingSchedules.length === 0 ? (
+    <div className="empty-state-calendar">
+      <div className="calendar-icon"><FaCalendar /></div>
+      <p>No upcoming events</p>
+      <span>Check back soon for new schedules</span>
+    </div>
+  ) : (
+    upcomingSchedules.slice(0, 2).map((event, index) => (
+      <div key={event.id} className="event-card-premium">
+        {index !== upcomingSchedules.length - 1 && (
+          <div className="timeline-connector-dash"></div>
+        )}
+        
+        <div className="event-date-premium">
+          <div className="date-card">
+            <div className="date-day-number">
+              {new Date(event.eventDate).getDate()}
+            </div>
+            <div className="date-month-year">
+              {new Date(event.eventDate).toLocaleString('default', { month: 'short' }).toUpperCase()}
+              <span className="date-year">
+                {new Date(event.eventDate).getFullYear()}
+              </span>
+            </div>
+          </div>
+          {isToday(event.eventDate) && (
+            <div className="today-flare">TODAY</div>
           )}
-          
-          {/* Date section */}
-          <div className="event-date-premium">
-            <div className="date-card">
-              <div className="date-day-number">
-                {new Date(event.eventDate).getDate()}
-              </div>
-              <div className="date-month-year">
-                {new Date(event.eventDate).toLocaleString('default', { month: 'short' }).toUpperCase()}
-                <span className="date-year">
-                  {new Date(event.eventDate).getFullYear()}
-                </span>
-              </div>
+        </div>
+
+        <div className="event-content-premium">
+          <div className="event-header-premium">
+            <h4 className="event-title-premium">{event.title}</h4>
+            <div className="event-type-badge">
+              {getEventBadge(event.type)}
             </div>
-            {isToday(event.eventDate) && (
-              <div className="today-flare">TODAY</div>
+          </div>
+
+          <div className="event-details-premium">
+            <div className="detail-chip">
+              <span className="chip-icon">🕐</span>
+              <span>{event.eventTime || "Time TBA"}</span>
+            </div>
+            <div className="detail-chip">
+              <span className="chip-icon">📍</span>
+              <span>{event.location || "Venue TBD"}</span>
+            </div>
+            {event.duration && (
+              <div className="detail-chip">
+                <span className="chip-icon">⏱️</span>
+                <span>{event.duration}</span>
+              </div>
             )}
           </div>
 
-          {/* Event content */}
-          <div className="event-content-premium">
-            <div className="event-header-premium">
-              <h4 className="event-title-premium">{event.title}</h4>
-              <div className="event-type-badge">
-                {getEventBadge(event.type)}
-              </div>
+          {event.description && (
+            <p className="event-description-premium">
+              {event.description.length > 100 
+                ? `${event.description.substring(0, 100)}...` 
+                : event.description}
+            </p>
+          )}
+
+          <div className="event-footer-premium">
+            <div className="event-organizer">
+              <span className="organizer-icon"><FaUser /></span>
+              <span>{event.organizer || "ZUCA Community"}</span>
             </div>
-
-            <div className="event-details-premium">
-              <div className="detail-chip">
-                <span className="chip-icon">🕐</span>
-                <span>{event.eventTime || "Time TBA"}</span>
-              </div>
-              <div className="detail-chip">
-                <span className="chip-icon">📍</span>
-                <span>{event.location || "Venue TBD"}</span>
-              </div>
-              {event.duration && (
-                <div className="detail-chip">
-                  <span className="chip-icon">⏱️</span>
-                  <span>{event.duration}</span>
-                </div>
-              )}
-            </div>
-
-            {event.description && (
-              <p className="event-description-premium">
-                {event.description.length > 100 
-                  ? `${event.description.substring(0, 100)}...` 
-                  : event.description}
-              </p>
-            )}
-
-            <div className="event-footer-premium">
-              <div className="event-organizer">
-                <span className="organizer-icon"><FaUser /></span>
-                <span>{event.organizer || "ZUCA Community"}</span>
-              </div>
-              <button 
-                className="event-details-btn"
-                onClick={() => navigate(`/schedules`)}
-              >
-                View Details
-                <FiChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-          
-
-          {/* Status indicator */}
-          <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
-            {isToday(event.eventDate) ? '🔥 Live' : '📌 Scheduled'}
+            <button 
+              className="event-details-btn"
+              onClick={() => navigate(`/schedules`)}
+            >
+              View Details
+              <FiChevronRight size={16} />
+            </button>
           </div>
         </div>
-      ))
-    )}
-  </div>
+        
+        <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
+          {isToday(event.eventDate) ? '🔥 Live' : '📌 Scheduled'}
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
   <button className="view-all-schedules" onClick={() => navigate("/schedules")}>
     <span>Browse All Events</span>
@@ -2084,42 +2093,61 @@ useEffect(() => {
   </div>
 
   <div className="readings-dashboard-list">
-    {latestReadings.length === 0 ? (
-      <div className="empty-state-reading">
-        <span><FaBook /></span>
-        <p>No readings available</p>
-        <span className="empty-sub">Check back later for daily readings</span>
+  {loadingReading ? (
+    <>
+      <div className="skeleton-reading-item">
+        <div className="skeleton skeleton-reading-date"></div>
+        <div className="skeleton-reading-content">
+          <div className="skeleton skeleton-reading-title"></div>
+          <div className="skeleton skeleton-reading-desc"></div>
+          <div className="skeleton skeleton-reading-meta"></div>
+        </div>
       </div>
-    ) : (
-      latestReadings.map((reading) => (
-        <motion.div
-          key={reading.id}
-          className="reading-dash-item"
-          onClick={() => navigate(`/mass-readings/${reading.id}`)}
-          whileHover={{ x: 5 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <div className="reading-dash-date">
-            <span className="dash-date-day">{new Date(reading.date).getDate()}</span>
-            <span className="dash-date-month">{new Date(reading.date).toLocaleString('default', { month: 'short' })}</span>
+      <div className="skeleton-reading-item">
+        <div className="skeleton skeleton-reading-date"></div>
+        <div className="skeleton-reading-content">
+          <div className="skeleton skeleton-reading-title"></div>
+          <div className="skeleton skeleton-reading-desc"></div>
+          <div className="skeleton skeleton-reading-meta"></div>
+        </div>
+      </div>
+    </>
+  ) : latestReadings.length === 0 ? (
+    <div className="empty-state-reading">
+      <span><FaBook /></span>
+      <p>No readings available</p>
+      <span className="empty-sub">Check back later for daily readings</span>
+    </div>
+  ) : (
+    latestReadings.map((reading) => (
+      <motion.div
+        key={reading.id}
+        className="reading-dash-item"
+        onClick={() => navigate(`/mass-readings/${reading.id}`)}
+        whileHover={{ x: 5 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="reading-dash-date">
+          <span className="dash-date-day">{new Date(reading.date).getDate()}</span>
+          <span className="dash-date-month">{new Date(reading.date).toLocaleString('default', { month: 'short' })}</span>
+        </div>
+        <div className="reading-dash-content">
+          <h4>{reading.title}</h4>
+          <p>{reading.description || 'Mass Readings'}</p>
+          <div className="reading-dash-meta">
+            <span className="reading-dash-files">
+              {reading.attachments?.length || 0} files
+            </span>
+            <span className="reading-dash-date-text">
+              {new Date(reading.date).toLocaleDateString()}
+            </span>
           </div>
-          <div className="reading-dash-content">
-            <h4>{reading.title}</h4>
-            <p>{reading.description || 'Mass Readings'}</p>
-            <div className="reading-dash-meta">
-              <span className="reading-dash-files">
-                {reading.attachments?.length || 0} files
-              </span>
-              <span className="reading-dash-date-text">
-                {new Date(reading.date).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-          <div className="reading-dash-arrow">→</div>
-        </motion.div>
-      ))
-    )}
-  </div>
+        </div>
+        <div className="reading-dash-arrow">→</div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="upload-reading-btn" onClick={() => navigate("/mass-readings/upload")}>
     <FiUpload size={16} />
@@ -2137,46 +2165,54 @@ useEffect(() => {
         <span className="online-count">{onlineMembers.length}</span>
       </div>
       
-      {onlineMembers.length === 0 ? (
-        <div className="empty-online-state">
-          <span className="empty-online-icon"><FaUser /></span>
-          <p>No one is online right now</p>
-          <span className="empty-online-sub">Check back later</span>
-        </div>
-      ) : (
-        <>
-          <div className="online-members-grid">
-            {onlineMembers.slice(0, 6).map((member, index) => (
-              <motion.div
-                key={member.id}
-                className="online-member-premium"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ y: -3 }}
-              >
-                <div className="online-member-avatar">
-                  {member.profileImage ? (
-                    <img src={member.profileImage} alt={member.fullName} />
-                  ) : (
-                    <span>{member.fullName?.charAt(0).toUpperCase()}</span>
-                  )}
-                  <div className="online-status-dot"></div>
-                </div>
-                <div className="online-member-name">
-                  {member.fullName?.split(' ')[0] || 'Member'}
-                 
-                </div>
-              </motion.div>
-            ))}
+      {loadingOnline ? (
+  <div className="skeleton-online-grid">
+    {[1,2,3,4,5,6].map(i => (
+      <div key={i} className="skeleton-online-item">
+        <div className="skeleton skeleton-online-avatar"></div>
+        <div className="skeleton skeleton-online-name"></div>
+      </div>
+    ))}
+  </div>
+) : onlineMembers.length === 0 ? (
+  <div className="empty-online-state">
+    <span className="empty-online-icon"><FaUser /></span>
+    <p>No one is online right now</p>
+    <span className="empty-online-sub">Check back later</span>
+  </div>
+) : (
+  <>
+    <div className="online-members-grid">
+      {onlineMembers.slice(0, 6).map((member, index) => (
+        <motion.div
+          key={member.id}
+          className="online-member-premium"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: index * 0.05 }}
+          whileHover={{ y: -3 }}
+        >
+          <div className="online-member-avatar">
+            {member.profileImage ? (
+              <img src={member.profileImage} alt={member.fullName} />
+            ) : (
+              <span>{member.fullName?.charAt(0).toUpperCase()}</span>
+            )}
+            <div className="online-status-dot"></div>
           </div>
-          {onlineMembers.length > 6 && (
-            <div className="online-more-indicator">
-              +{onlineMembers.length - 6} more online
-            </div>
-          )}
-        </>
-      )}
+          <div className="online-member-name">
+            {member.fullName?.split(' ')[0] || 'Member'}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+    {onlineMembers.length > 6 && (
+      <div className="online-more-indicator">
+        +{onlineMembers.length - 6} more online
+      </div>
+    )}
+  </>
+)}
       
       <button 
         className="online-action-btn"
@@ -2191,8 +2227,28 @@ useEffect(() => {
 
 
 
-            {/* MY JUMUIA - DASHBOARD CARD */}
-{jumuiaInfo && (
+{loadingJumuia ? (
+  <div className="section-card jumuia-dashboard-card">
+    <div className="skeleton-jumuia-card">
+      <div className="skeleton skeleton-jumuia-name"></div>
+      <div className="skeleton-jumuia-info-grid">
+        <div className="skeleton-jumuia-info-item">
+          <div className="skeleton skeleton-jumuia-label"></div>
+          <div className="skeleton skeleton-jumuia-value"></div>
+        </div>
+        <div className="skeleton-jumuia-info-item">
+          <div className="skeleton skeleton-jumuia-label"></div>
+          <div className="skeleton skeleton-jumuia-value"></div>
+        </div>
+        <div className="skeleton-jumuia-info-item">
+          <div className="skeleton skeleton-jumuia-label"></div>
+          <div className="skeleton skeleton-jumuia-value"></div>
+        </div>
+      </div>
+      <div className="skeleton" style={{width: '100%', height: '36px', borderRadius: '10px', marginTop: '8px'}}></div>
+    </div>
+  </div>
+) : jumuiaInfo && (
   <div className="section-card jumuia-dashboard-card">
     <div className="section-header">
       <div className="header-icon-small">
@@ -2244,12 +2300,11 @@ useEffect(() => {
       </div>
 
       <button 
- 
-  className="jumuia-chat-btn-dashboard"
-  onClick={() => navigate("/jumuia-contributions")}
->
-  View Jumuia Contributions →
-</button>
+        className="jumuia-chat-btn-dashboard"
+        onClick={() => navigate("/jumuia-contributions")}
+      >
+        View Jumuia Contributions →
+      </button>
     </div>
   </div>
 )}
@@ -2331,63 +2386,84 @@ useEffect(() => {
     </div>
   </div>
 
-  <div className="notifications-premium-list">
-    {recentNotifications.length === 0 ? (
-      <div className="empty-notif-state">
-        <span className="empty-notif-icon">🔕</span>
-        <p>No notifications</p>
-        <span className="empty-notif-sub">You're all caught up!</span>
+ <div className="notifications-premium-list">
+  {loadingNotifications ? (
+    <>
+      <div className="skeleton-notif-item">
+        <div className="skeleton skeleton-notif-icon"></div>
+        <div className="skeleton-notif-content">
+          <div className="skeleton skeleton-notif-title"></div>
+          <div className="skeleton skeleton-notif-message"></div>
+        </div>
       </div>
-    ) : (
-      recentNotifications.map((notif, index) => (
-        <motion.div 
-          key={notif.id} 
-          className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.08 }}
-          whileHover={{ x: 4 }}
-          onClick={() => navigate("/announcements")}
-        >
-          <div className="notif-icon-premium">
-            {notif.type === "announcement" && "📢"}
-            {notif.type === "game_invite" && "🎮"}
-            {notif.type === "program" && "⛪"}
-            {notif.type === "checkin" && "✅"}
-            {notif.type === "message" && "💬"}
-            {notif.type === "pledge" && "💰"}
-            {notif.type === "event" && "📅"}
-            {notif.type === "reminder" && "⏰"}
-            {notif.type === "direct_message" && "💬"}
-            {notif.type === "new_media" && "⚠️"}
-            {notif.type === "executive_appointment" && "📅"}
-            {notif.type === "feedback_new" && "📝"}
-            {notif.type === "feedback_updated" && "📝"}
-            {notif.type === "mass_reading" && "📖"}
-            {notif.type === "program" && "⛪"}
-            {notif.type === "attendance_sheet_opened" && "📋"}
-            {notif.type === "attendance_summary" && "📊"}
-            
-
-            {notif.type === "youtube_new_video" && "⚠️"}
-             {notif.type === "user_login" && <FaUser />}
-            {!notif.type && "🔔"}
+      <div className="skeleton-notif-item">
+        <div className="skeleton skeleton-notif-icon"></div>
+        <div className="skeleton-notif-content">
+          <div className="skeleton skeleton-notif-title"></div>
+          <div className="skeleton skeleton-notif-message"></div>
+        </div>
+      </div>
+      <div className="skeleton-notif-item">
+        <div className="skeleton skeleton-notif-icon"></div>
+        <div className="skeleton-notif-content">
+          <div className="skeleton skeleton-notif-title"></div>
+          <div className="skeleton skeleton-notif-message"></div>
+        </div>
+      </div>
+    </>
+  ) : recentNotifications.length === 0 ? (
+    <div className="empty-notif-state">
+      <span className="empty-notif-icon">🔕</span>
+      <p>No notifications</p>
+      <span className="empty-notif-sub">You're all caught up!</span>
+    </div>
+  ) : (
+    recentNotifications.map((notif, index) => (
+      <motion.div 
+        key={notif.id} 
+        className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.08 }}
+        whileHover={{ x: 4 }}
+        onClick={() => navigate("/announcements")}
+      >
+        <div className="notif-icon-premium">
+          {notif.type === "announcement" && "📢"}
+          {notif.type === "game_invite" && "🎮"}
+          {notif.type === "program" && "⛪"}
+          {notif.type === "checkin" && "✅"}
+          {notif.type === "message" && "💬"}
+          {notif.type === "pledge" && "💰"}
+          {notif.type === "event" && "📅"}
+          {notif.type === "reminder" && "⏰"}
+          {notif.type === "direct_message" && "💬"}
+          {notif.type === "new_media" && "⚠️"}
+          {notif.type === "executive_appointment" && "📅"}
+          {notif.type === "feedback_new" && "📝"}
+          {notif.type === "feedback_updated" && "📝"}
+          {notif.type === "mass_reading" && "📖"}
+          {notif.type === "attendance_sheet_opened" && "📋"}
+          {notif.type === "attendance_summary" && "📊"}
+          {notif.type === "youtube_new_video" && "⚠️"}
+          {notif.type === "user_login" && <FaUser />}
+          {!notif.type && "🔔"}
+        </div>
+        <div className="notif-content-premium">
+          <div className="notif-header-premium">
+            <span className="notif-title-premium">{notif.title || 'Update'}</span>
+            {!notif.read && <span className="notif-unread-dot">●</span>}
           </div>
-          <div className="notif-content-premium">
-            <div className="notif-header-premium">
-              <span className="notif-title-premium">{notif.title || 'Update'}</span>
-              {!notif.read && <span className="notif-unread-dot">●</span>}
-            </div>
-            <div className="notif-message-premium">{notif.message}</div>
-            <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
-          </div>
-          <div className="notif-arrow-premium">
-            <FiChevronRight size={16} />
-          </div>
-        </motion.div>
-      ))
-    )}
-  </div>
+          <div className="notif-message-premium">{notif.message}</div>
+          <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
+        </div>
+        <div className="notif-arrow-premium">
+          <FiChevronRight size={16} />
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="notif-action-btn" onClick={() => navigate("/announcements")}>
     <span>🔔 View All Notifications</span>
@@ -2411,41 +2487,58 @@ useEffect(() => {
     )}
   </div>
 
-  <div className="announcements-premium-list">
-    {announcements.length === 0 ? (
-      <div className="empty-state-announcement">
-        <div className="empty-announcement-icon">📭</div>
-        <p>No announcements yet</p>
-        <span>Check back later for updates</span>
+<div className="announcements-premium-list">
+  {loadingAnnouncements ? (
+    <>
+      <div className="skeleton-announcement-item">
+        <div className="skeleton skeleton-announcement-number"></div>
+        <div className="skeleton-announcement-content">
+          <div className="skeleton skeleton-announcement-title"></div>
+          <div className="skeleton skeleton-announcement-message"></div>
+        </div>
       </div>
-    ) : (
-      announcements.map((ann, index) => (
-        <motion.div
-          key={ann.id}
-          className="announcement-premium-item"
-          onClick={() => navigate("/announcements")}
-          whileHover={{ x: 5 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <div className="announcement-premium-number">{index + 1}</div>
-          <div className="announcement-premium-content">
-            <div className="announcement-premium-header">
-              <div className="announcement-premium-title">{ann.title}</div>
-              <div className="announcement-premium-time">
-                {formatRelativeTime(ann.createdAt)}
-              </div>
-            </div>
-            <div className="announcement-premium-message">
-              {ann.content?.substring(0, 80)}...
+      <div className="skeleton-announcement-item">
+        <div className="skeleton skeleton-announcement-number"></div>
+        <div className="skeleton-announcement-content">
+          <div className="skeleton skeleton-announcement-title"></div>
+          <div className="skeleton skeleton-announcement-message"></div>
+        </div>
+      </div>
+    </>
+  ) : announcements.length === 0 ? (
+    <div className="empty-state-announcement">
+      <div className="empty-announcement-icon">📭</div>
+      <p>No announcements yet</p>
+      <span>Check back later for updates</span>
+    </div>
+  ) : (
+    announcements.map((ann, index) => (
+      <motion.div
+        key={ann.id}
+        className="announcement-premium-item"
+        onClick={() => navigate("/announcements")}
+        whileHover={{ x: 5 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="announcement-premium-number">{index + 1}</div>
+        <div className="announcement-premium-content">
+          <div className="announcement-premium-header">
+            <div className="announcement-premium-title">{ann.title}</div>
+            <div className="announcement-premium-time">
+              {formatRelativeTime(ann.createdAt)}
             </div>
           </div>
-          <div className="announcement-premium-arrow">
-            <FiChevronRight size={18} />
+          <div className="announcement-premium-message">
+            {ann.content?.substring(0, 80)}...
           </div>
-        </motion.div>
-      ))
-    )}
-  </div>
+        </div>
+        <div className="announcement-premium-arrow">
+          <FiChevronRight size={18} />
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="view-all-premium" onClick={() => navigate("/announcements")}>
     <span>View All Announcements</span>
@@ -2466,34 +2559,53 @@ useEffect(() => {
   </div>
 
   <div className="pledges-compact-list">
-    {activePledges.length === 0 ? (
-      <div className="empty-state-compact-pledge">
-        <span>◔</span>
-        <p>No active pledges</p>
+  {loadingPledges ? (
+    <>
+      <div className="skeleton-pledge-item">
+        <div className="skeleton-pledge-header">
+          <div className="skeleton skeleton-pledge-title"></div>
+          <div className="skeleton skeleton-pledge-percent"></div>
+        </div>
+        <div className="skeleton skeleton-pledge-bar"></div>
+        <div className="skeleton skeleton-pledge-footer"></div>
       </div>
-    ) : (
-      activePledges.map(pledge => {
-        const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
-        return (
-          <div key={pledge.id} className="pledge-compact-item" onClick={() => navigate("/contributions")}>
-            <div className="pledge-compact-header">
-              <div className="pledge-compact-title">{pledge.title}</div>
-              <div className="pledge-compact-percent">{progress.toFixed(0)}%</div>
-            </div>
-            <div className="progress-bar-compact">
-              <div className="progress-fill-compact" style={{ width: `${progress}%` }}></div>
-            </div>
-            <div className="pledge-compact-footer">
-              <span>KES {pledge.amountPaid.toLocaleString()} / {pledge.amountRequired.toLocaleString()}</span>
-              {pledge.pendingAmount > 0 && (
-                <span className="pledge-pending-compact">Pending: KES {pledge.pendingAmount.toLocaleString()}</span>
-              )}
-            </div>
+      <div className="skeleton-pledge-item">
+        <div className="skeleton-pledge-header">
+          <div className="skeleton skeleton-pledge-title"></div>
+          <div className="skeleton skeleton-pledge-percent"></div>
+        </div>
+        <div className="skeleton skeleton-pledge-bar"></div>
+        <div className="skeleton skeleton-pledge-footer"></div>
+      </div>
+    </>
+  ) : activePledges.length === 0 ? (
+    <div className="empty-state-compact-pledge">
+      <span>◔</span>
+      <p>No active pledges</p>
+    </div>
+  ) : (
+    activePledges.map(pledge => {
+      const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
+      return (
+        <div key={pledge.id} className="pledge-compact-item" onClick={() => navigate("/contributions")}>
+          <div className="pledge-compact-header">
+            <div className="pledge-compact-title">{pledge.title}</div>
+            <div className="pledge-compact-percent">{progress.toFixed(0)}%</div>
           </div>
-        );
-      })
-    )}
-  </div>
+          <div className="progress-bar-compact">
+            <div className="progress-fill-compact" style={{ width: `${progress}%` }}></div>
+          </div>
+          <div className="pledge-compact-footer">
+            <span>KES {pledge.amountPaid.toLocaleString()} / {pledge.amountRequired.toLocaleString()}</span>
+            {pledge.pendingAmount > 0 && (
+              <span className="pledge-pending-compact">Pending: KES {pledge.pendingAmount.toLocaleString()}</span>
+            )}
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
 
   <button className="view-all-compact-pledge" onClick={() => navigate("/contributions")}>
     Make a Pledge →
@@ -2514,55 +2626,79 @@ useEffect(() => {
     )}
   </div>
 
-  <div className="hymns-list">
-    {recentHymns.length === 0 ? (
-      <div className="empty-state-music">
-        <div className="music-note">🎶</div>
-        <p>No hymns available</p>
-        <span>Check back soon for new songs</span>
+ <div className="hymns-list">
+  {loadingHymns ? (
+    <>
+      <div className="skeleton-hymn-item">
+        <div className="skeleton skeleton-hymn-number"></div>
+        <div className="skeleton-hymn-content">
+          <div className="skeleton skeleton-hymn-title"></div>
+          <div className="skeleton skeleton-hymn-preview"></div>
+        </div>
       </div>
-    ) : (
-      recentHymns.map((hymn, index) => (
-        <motion.div
-          key={hymn.id}
-          className="hymn-item"
-          onClick={() => navigate(`/hymn/${hymn.title}`)}
-          whileHover={{ x: 5 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <div className="hymn-number">{index + 1}</div>
-          <div className="hymn-content">
-            <div className="hymn-title-wrapper">
-              <span className="hymn-title">{hymn.title}</span>
-              {hymn.category && (
-                <span className="hymn-category">{hymn.category}</span>
-              )}
-            </div>
-            {hymn.verses && (
-              <div className="hymn-preview">
-                {hymn.verses.split('\n')[0]?.substring(0, 60)}...
-              </div>
+      <div className="skeleton-hymn-item">
+        <div className="skeleton skeleton-hymn-number"></div>
+        <div className="skeleton-hymn-content">
+          <div className="skeleton skeleton-hymn-title"></div>
+          <div className="skeleton skeleton-hymn-preview"></div>
+        </div>
+      </div>
+      <div className="skeleton-hymn-item">
+        <div className="skeleton skeleton-hymn-number"></div>
+        <div className="skeleton-hymn-content">
+          <div className="skeleton skeleton-hymn-title"></div>
+          <div className="skeleton skeleton-hymn-preview"></div>
+        </div>
+      </div>
+    </>
+  ) : recentHymns.length === 0 ? (
+    <div className="empty-state-music">
+      <div className="music-note">🎶</div>
+      <p>No hymns available</p>
+      <span>Check back soon for new songs</span>
+    </div>
+  ) : (
+    recentHymns.map((hymn, index) => (
+      <motion.div
+        key={hymn.id}
+        className="hymn-item"
+        onClick={() => navigate(`/hymn/${hymn.title}`)}
+        whileHover={{ x: 5 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="hymn-number">{index + 1}</div>
+        <div className="hymn-content">
+          <div className="hymn-title-wrapper">
+            <span className="hymn-title">{hymn.title}</span>
+            {hymn.category && (
+              <span className="hymn-category">{hymn.category}</span>
             )}
-            <div className="hymn-meta">
-              {hymn.createdAt && (
-                <span className="hymn-date">
-                  <FaRegCalendar /> {formatRelativeTime(hymn.createdAt)}
-                </span>
-              )}
-              {hymn.numVerses && (
-                <span className="hymn-verses">
-                  <FaBook /> {hymn.numVerses} verses
-                </span>
-              )}
+          </div>
+          {hymn.verses && (
+            <div className="hymn-preview">
+              {hymn.verses.split('\n')[0]?.substring(0, 60)}...
             </div>
+          )}
+          <div className="hymn-meta">
+            {hymn.createdAt && (
+              <span className="hymn-date">
+                <FaRegCalendar /> {formatRelativeTime(hymn.createdAt)}
+              </span>
+            )}
+            {hymn.numVerses && (
+              <span className="hymn-verses">
+                <FaBook /> {hymn.numVerses} verses
+              </span>
+            )}
           </div>
-          <div className="hymn-arrow">
-            <FiChevronRight size={20} />
-          </div>
-        </motion.div>
-      ))
-    )}
-  </div>
+        </div>
+        <div className="hymn-arrow">
+          <FiChevronRight size={20} />
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="view-all-music" onClick={() => navigate("/hymns")}>
     <span>Browse Full Hymn Book</span>
@@ -2591,45 +2727,62 @@ useEffect(() => {
   </div>
 
   <div className="mass-premium-list">
-    {massPrograms.length === 0 ? (
-      <div className="empty-state-mass">
-        <div className="empty-mass-icon">˗ˏˋ ✞ ˎˊ˗</div>
-        <p>No upcoming mass programs  </p>
-        <span>We'll notify you;</span>
+  {loadingMassPrograms ? (
+    <>
+      <div className="skeleton-mass-item">
+        <div className="skeleton skeleton-mass-date"></div>
+        <div className="skeleton-mass-content">
+          <div className="skeleton skeleton-mass-venue"></div>
+          <div className="skeleton skeleton-mass-time"></div>
+        </div>
       </div>
-    ) : (
-      massPrograms.map((prog, index) => (
-        <div 
-          key={prog.id} 
-          className="mass-premium-item"
-          onClick={() => navigate("/mass-programs")}
-        >
-          <div className="mass-premium-date">
-            <div className="mass-date-day">
-              {new Date(prog.date).getDate()}
-            </div>
-            <div className="mass-date-month">
-              {new Date(prog.date).toLocaleString('default', { month: 'short' }).toUpperCase()}
-            </div>
+      <div className="skeleton-mass-item">
+        <div className="skeleton skeleton-mass-date"></div>
+        <div className="skeleton-mass-content">
+          <div className="skeleton skeleton-mass-venue"></div>
+          <div className="skeleton skeleton-mass-time"></div>
+        </div>
+      </div>
+    </>
+  ) : massPrograms.length === 0 ? (
+    <div className="empty-state-mass">
+      <div className="empty-mass-icon">˗ˏˋ ✞ ˎˊ˗</div>
+      <p>No upcoming mass programs  </p>
+      <span>We'll notify you;</span>
+    </div>
+  ) : (
+    massPrograms.map((prog, index) => (
+      <div 
+        key={prog.id} 
+        className="mass-premium-item"
+        onClick={() => navigate("/mass-programs")}
+      >
+        <div className="mass-premium-date">
+          <div className="mass-date-day">
+            {new Date(prog.date).getDate()}
           </div>
-          
-          <div className="mass-premium-content">
-            <div className="mass-premium-venue">{prog.venue}</div>
-            <div className="mass-premium-details">
-              <span className="mass-time">🕐 {prog.time || "10:00 AM"}</span>
-              {prog.presider && (
-                <span className="mass-presider"> {prog.presider}</span>
-              )}
-            </div>
-          </div>
-          
-          <div className="mass-premium-arrow">
-            <FiChevronRight size={18} />
+          <div className="mass-date-month">
+            {new Date(prog.date).toLocaleString('default', { month: 'short' }).toUpperCase()}
           </div>
         </div>
-      ))
-    )}
-  </div>
+        
+        <div className="mass-premium-content">
+          <div className="mass-premium-venue">{prog.venue}</div>
+          <div className="mass-premium-details">
+            <span className="mass-time">🕐 {prog.time || "10:00 AM"}</span>
+            {prog.presider && (
+              <span className="mass-presider"> {prog.presider}</span>
+            )}
+          </div>
+        </div>
+        
+        <div className="mass-premium-arrow">
+          <FiChevronRight size={18} />
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
   <button className="view-all-premium" onClick={() => navigate("/mass-programs")}>
     <span>View Full program</span>
@@ -2656,55 +2809,60 @@ useEffect(() => {
   </div>
 
   <div className="gallery-premium-grid">
-    {featuredGallery.length === 0 ? (
-      <div className="empty-state-gallery">
-        <div className="empty-gallery-icon"><FaPhotoVideo /></div>
-        <p>No gallery items</p>
-        <span>Check back soon for photos</span>
-      </div>
-    ) : (
-      featuredGallery.map((item, idx) => (
-        <motion.div
-          key={item.id}
-          className="gallery-premium-item"
-          onClick={() => navigate(`/gallery/${item.id}`)}
-          whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <div className="gallery-premium-image">
-            {item.url || item.thumbnailUrl ? (
-              <img 
-                src={item.thumbnailUrl || item.url} 
-                alt={item.title || "Gallery image"}
-                loading="lazy"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='20' rx='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='2.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-4-3 3-4-4-5 5'%3E%3C/path%3E%3C/svg%3E";
-                }}
-              />
-            ) : (
-              <div className="gallery-premium-placeholder"><FaPhotoVideo /></div>
-            )}
-            <div className="gallery-premium-overlay">
-              <span className="overlay-icon">🔍</span>
-              <span className="overlay-text">View</span>
-            </div>
+  {loadingGallery ? (
+    <div className="skeleton-gallery-grid">
+      {[1,2,3,4,5,6].map(i => (
+        <div key={i} className="skeleton skeleton-gallery-item"></div>
+      ))}
+    </div>
+  ) : featuredGallery.length === 0 ? (
+    <div className="empty-state-gallery">
+      <div className="empty-gallery-icon"><FaPhotoVideo /></div>
+      <p>No gallery items</p>
+      <span>Check back soon for photos</span>
+    </div>
+  ) : (
+    featuredGallery.map((item, idx) => (
+      <motion.div
+        key={item.id}
+        className="gallery-premium-item"
+        onClick={() => navigate(`/gallery/${item.id}`)}
+        whileHover={{ y: -4 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="gallery-premium-image">
+          {item.url || item.thumbnailUrl ? (
+            <img 
+              src={item.thumbnailUrl || item.url} 
+              alt={item.title || "Gallery image"}
+              loading="lazy"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='20' rx='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='2.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-4-3 3-4-4-5 5'%3E%3C/path%3E%3C/svg%3E";
+              }}
+            />
+          ) : (
+            <div className="gallery-premium-placeholder"><FaPhotoVideo /></div>
+          )}
+          <div className="gallery-premium-overlay">
+            <span className="overlay-icon">🔍</span>
+            <span className="overlay-text">View</span>
           </div>
-          <div className="gallery-premium-info">
-            <div className="gallery-premium-title">
-              {item.title?.substring(0, 25) || "ZUCA Memory"}
-            </div>
-            {item.createdAt && (
-              <div className="gallery-premium-date">
-                {new Date(item.createdAt).toLocaleDateString()}
-              </div>
-            )}
+        </div>
+        <div className="gallery-premium-info">
+          <div className="gallery-premium-title">
+            {item.title?.substring(0, 25) || "ZUCA Memory"}
           </div>
-        </motion.div>
-      ))
-    )}
-  </div>
-
+          {item.createdAt && (
+            <div className="gallery-premium-date">
+              {new Date(item.createdAt).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
   <button className="view-all-premium" onClick={() => navigate("/gallery")}>
     <span>View Full Gallery</span>
     <FiArrowRight className="button-icon" />
@@ -2807,37 +2965,54 @@ useEffect(() => {
     <div className="stats-live-badge">● LIVE</div>
   </div>
 
-  <div className="quick-stats-premium-grid">
-    <motion.div 
-      className="quick-stat-premium"
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
-     
-      
-   
-     
-    
-      <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
-      <div className="stat-premium-content">
-        <div className="stat-premium-value">{totalHymns || 0}</div>
-        <div className="stat-premium-label">Hymns Lyrics</div>
+ <div className="quick-stats-premium-grid">
+  {loadingStats ? (
+    <>
+      <div className="skeleton-quick-stat">
+        <div className="skeleton skeleton-quick-icon"></div>
+        <div className="skeleton-quick-content">
+          <div className="skeleton skeleton-quick-value"></div>
+          <div className="skeleton skeleton-quick-label"></div>
+        </div>
       </div>
-      <div className="stat-premium-trend">↑</div>
-    </motion.div>
+      <div className="skeleton-quick-stat">
+        <div className="skeleton skeleton-quick-icon"></div>
+        <div className="skeleton-quick-content">
+          <div className="skeleton skeleton-quick-value"></div>
+          <div className="skeleton skeleton-quick-label"></div>
+        </div>
+      </div>
+    </>
+  ) : (
+    <>
+      <motion.div 
+        className="quick-stat-premium"
+        whileHover={{ y: -4 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
+        <div className="stat-premium-content">
+          <div className="stat-premium-value">{totalHymns || 0}</div>
+          <div className="stat-premium-label">Hymns Lyrics</div>
+        </div>
+        <div className="stat-premium-trend">↑</div>
+      </motion.div>
 
-    <motion.div 
-      className="quick-stat-premium"
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
-      <div className="stat-premium-icon media-icon"><FaPhotoVideo /></div>
-      <div className="stat-premium-content">
-        <div className="stat-premium-value">{totalMedia || 0}</div>
-        <div className="stat-premium-label">Media</div>
-      </div>
-      <div className="stat-premium-trend">↑</div>
-    </motion.div>
+      <motion.div 
+        className="quick-stat-premium"
+        whileHover={{ y: -4 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="stat-premium-icon media-icon"><FaPhotoVideo /></div>
+        <div className="stat-premium-content">
+          <div className="stat-premium-value">{totalMedia || 0}</div>
+          <div className="stat-premium-label">Media</div>
+        </div>
+        <div className="stat-premium-trend">↑</div>
+      </motion.div>
+    </>
+  )}
+
 
     <motion.div ></motion.div>
   </div>
@@ -2862,69 +3037,79 @@ useEffect(() => {
   </div>
 
   <div className="executive-premium-grid">
-    {executiveTeam.length === 0 ? (
-      <div className="empty-state-executive">
-        <div className="empty-executive-icon"><FaUserTie /></div>
-        <p>No executive team assigned</p>
-        <span>Leadership team coming soon</span>
-      </div>
-    ) : (
-      executiveTeam.map((exec, index) => (
-        <motion.div
-          key={exec.id}
-          className="executive-premium-card"
-          onClick={() => navigate("/executive")}
-          whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <div className="executive-premium-avatar">
-            {exec.profileImage ? (
-              <img src={exec.profileImage} alt={exec.name} />
-            ) : (
-              <div className="executive-avatar-placeholder">
-                {exec.position?.title === "Chairperson" && "👑"}
-                {exec.position?.title === "Secretary" && "📝"}
-                {exec.position?.title === "Treasurer" && "💰"}
-                {exec.position?.title === "Choir Moderator" && "🎵"}
-                {exec.position?.title === "Media Moderator" && "📸"}
-                {!exec.position?.title && "👤"}
-              </div>
-            )}
-          </div>
-          <div className="executive-premium-info">
-            <div className="executive-premium-name">
-              {exec.name?.split(' ')[0] || "Leader"}
+  {loadingExecutive ? (
+    <div className="skeleton-executive-grid">
+      {[1,2,3,4,5].map(i => (
+        <div key={i} className="skeleton-executive-item">
+          <div className="skeleton skeleton-executive-avatar"></div>
+          <div className="skeleton skeleton-executive-name"></div>
+          <div className="skeleton skeleton-executive-role"></div>
+        </div>
+      ))}
+    </div>
+  ) : executiveTeam.length === 0 ? (
+    <div className="empty-state-executive">
+      <div className="empty-executive-icon"><FaUserTie /></div>
+      <p>No executive team assigned</p>
+      <span>Leadership team coming soon</span>
+    </div>
+  ) : (
+    executiveTeam.map((exec, index) => (
+      <motion.div
+        key={exec.id}
+        className="executive-premium-card"
+        onClick={() => navigate("/executive")}
+        whileHover={{ y: -4 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <div className="executive-premium-avatar">
+          {exec.profileImage ? (
+            <img src={exec.profileImage} alt={exec.name} />
+          ) : (
+            <div className="executive-avatar-placeholder">
+              {exec.position?.title === "Chairperson" && "👑"}
+              {exec.position?.title === "Secretary" && "📝"}
+              {exec.position?.title === "Treasurer" && "💰"}
+              {exec.position?.title === "Choir Moderator" && "🎵"}
+              {exec.position?.title === "Media Moderator" && "📸"}
+              {!exec.position?.title && "👤"}
             </div>
-            <div className="executive-premium-role">
-              {exec.position?.title || "Executive Member"}
-            </div>
+          )}
+        </div>
+        <div className="executive-premium-info">
+          <div className="executive-premium-name">
+            {exec.name?.split(' ')[0] || "Leader"}
           </div>
-          <div className="executive-premium-contact">
-            {exec.phone && (
-              <a 
-                href={`tel:${exec.phone}`} 
-                className="executive-call-btn"
-                onClick={(e) => e.stopPropagation()}
-              >
-                📞
-              </a>
-            )}
-            {exec.whatsappLink && (
-              <a 
-                href={exec.whatsappLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="executive-wa-btn"
-                onClick={(e) => e.stopPropagation()}
-              >
-                💬
-              </a>
-            )}
+          <div className="executive-premium-role">
+            {exec.position?.title || "Executive Member"}
           </div>
-        </motion.div>
-      ))
-    )}
-  </div>
+        </div>
+        <div className="executive-premium-contact">
+          {exec.phone && (
+            <a 
+              href={`tel:${exec.phone}`} 
+              className="executive-call-btn"
+              onClick={(e) => e.stopPropagation()}
+            >
+              📞
+            </a>
+          )}
+          {exec.whatsappLink && (
+            <a 
+              href={exec.whatsappLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="executive-wa-btn"
+              onClick={(e) => e.stopPropagation()}
+            >
+              💬
+            </a>
+          )}
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="view-all-premium" onClick={() => navigate("/executive")}>
     <span>View Full Executive Team</span>
@@ -2948,45 +3133,68 @@ useEffect(() => {
   </div>
 
   <div className="chat-activities-premium">
-    {recentChats.length === 0 ? (
-      <div className="empty-chat-state">
-        <span className="empty-chat-icon">💭</span>
-        <p>No recent chat activity</p>
-        <span className="empty-chat-sub">Start a conversation!</span>
+  {loadingChats ? (
+    <>
+      <div className="skeleton-chat-item">
+        <div className="skeleton skeleton-chat-avatar"></div>
+        <div className="skeleton-chat-content">
+          <div className="skeleton-chat-header">
+            <div className="skeleton skeleton-chat-user"></div>
+            <div className="skeleton skeleton-chat-time"></div>
+          </div>
+          <div className="skeleton skeleton-chat-message"></div>
+        </div>
       </div>
-    ) : (
-      recentChats.map((chat, index) => (
-        <motion.div 
-          key={chat.id} 
-          className="chat-item-premium"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.1 }}
-          whileHover={{ x: 4 }}
-        >
-          <div className="chat-avatar-premium">
-            {chat.user?.profileImage ? (
-              <img src={chat.user.profileImage} alt={chat.user.fullName} />
-            ) : (
-              <span>{chat.user?.fullName?.charAt(0).toUpperCase() || 'U'}</span>
-            )}
+      <div className="skeleton-chat-item">
+        <div className="skeleton skeleton-chat-avatar"></div>
+        <div className="skeleton-chat-content">
+          <div className="skeleton-chat-header">
+            <div className="skeleton skeleton-chat-user"></div>
+            <div className="skeleton skeleton-chat-time"></div>
           </div>
-          <div className="chat-content-premium">
-            <div className="chat-header-premium">
-              <span className="chat-user-name">{chat.user?.fullName?.split(' ')[0] || 'User'}</span>
-              <span className="chat-time-premium">{formatRelativeTime(chat.createdAt)}</span>
-            </div>
-            <div className="chat-message-premium">
-              "{chat.content?.substring(0, 60)}{chat.content?.length > 60 ? '...' : ''}"
-            </div>
+          <div className="skeleton skeleton-chat-message"></div>
+        </div>
+      </div>
+    </>
+  ) : recentChats.length === 0 ? (
+    <div className="empty-chat-state">
+      <span className="empty-chat-icon">💭</span>
+      <p>No recent chat activity</p>
+      <span className="empty-chat-sub">Start a conversation!</span>
+    </div>
+  ) : (
+    recentChats.map((chat, index) => (
+      <motion.div 
+        key={chat.id} 
+        className="chat-item-premium"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.1 }}
+        whileHover={{ x: 4 }}
+      >
+        <div className="chat-avatar-premium">
+          {chat.user?.profileImage ? (
+            <img src={chat.user.profileImage} alt={chat.user.fullName} />
+          ) : (
+            <span>{chat.user?.fullName?.charAt(0).toUpperCase() || 'U'}</span>
+          )}
+        </div>
+        <div className="chat-content-premium">
+          <div className="chat-header-premium">
+            <span className="chat-user-name">{chat.user?.fullName?.split(' ')[0] || 'User'}</span>
+            <span className="chat-time-premium">{formatRelativeTime(chat.createdAt)}</span>
           </div>
-          <div className="chat-reply-indicator">
-            <FiChevronRight size={16} />
+          <div className="chat-message-premium">
+            "{chat.content?.substring(0, 60)}{chat.content?.length > 60 ? '...' : ''}"
           </div>
-        </motion.div>
-      ))
-    )}
-  </div>
+        </div>
+        <div className="chat-reply-indicator">
+          <FiChevronRight size={16} />
+        </div>
+      </motion.div>
+    ))
+  )}
+</div>
 
   <button className="chat-action-btn" onClick={() => navigate("/chat")}>
     <span>💬 Go to Chat</span>
@@ -9978,6 +10186,586 @@ useEffect(() => {
   background: #8b5cf6;
   color: white;
   border-color: #8b5cf6;
+}
+
+
+/* ============================================
+   SKELETON LOADERS
+   ============================================ */
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Skeleton for Announcements */
+.skeleton-announcement-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-announcement-number {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-announcement-content {
+  flex: 1;
+}
+
+.skeleton-announcement-title {
+  width: 70%;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-announcement-message {
+  width: 90%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Hymns */
+.skeleton-hymn-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-hymn-number {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-hymn-content {
+  flex: 1;
+}
+
+.skeleton-hymn-title {
+  width: 60%;
+  height: 14px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.skeleton-hymn-preview {
+  width: 80%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Gallery */
+.skeleton-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.skeleton-gallery-item {
+  aspect-ratio: 1;
+  border-radius: 16px;
+}
+
+/* Skeleton for Mass Programs */
+.skeleton-mass-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-mass-date {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.skeleton-mass-content {
+  flex: 1;
+}
+
+.skeleton-mass-venue {
+  width: 50%;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.skeleton-mass-time {
+  width: 40%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Pledges */
+.skeleton-pledge-item {
+  padding: 0.6rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-pledge-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.skeleton-pledge-title {
+  width: 50%;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skeleton-pledge-percent {
+  width: 30px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skeleton-pledge-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+}
+
+.skeleton-pledge-footer {
+  width: 60%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Notifications */
+.skeleton-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-notif-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-notif-content {
+  flex: 1;
+}
+
+.skeleton-notif-title {
+  width: 50%;
+  height: 14px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-notif-message {
+  width: 70%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Online Members */
+.skeleton-online-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.skeleton-online-item {
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.skeleton-online-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  margin: 0 auto 0.3rem;
+}
+
+.skeleton-online-name {
+  width: 40px;
+  height: 8px;
+  border-radius: 4px;
+  margin: 0 auto;
+}
+
+/* Skeleton for Jumuia */
+.skeleton-jumuia-card {
+  padding: 1.25rem;
+}
+
+.skeleton-jumuia-name {
+  width: 60%;
+  height: 20px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.skeleton-jumuia-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.skeleton-jumuia-info-item {
+  padding: 0.5rem;
+  border-radius: 10px;
+}
+
+.skeleton-jumuia-label {
+  width: 60%;
+  height: 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-jumuia-value {
+  width: 40%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Executive Team */
+.skeleton-executive-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+}
+
+.skeleton-executive-item {
+  text-align: center;
+  padding: 0.75rem;
+}
+
+.skeleton-executive-avatar {
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
+  margin: 0 auto 0.6rem;
+}
+
+.skeleton-executive-name {
+  width: 50px;
+  height: 10px;
+  border-radius: 4px;
+  margin: 0 auto 4px;
+}
+
+.skeleton-executive-role {
+  width: 40px;
+  height: 8px;
+  border-radius: 4px;
+  margin: 0 auto;
+}
+
+/* Skeleton for Schedules */
+.skeleton-schedule-item {
+  background: white;
+  border-radius: 20px;
+  padding: 1.2rem;
+  display: flex;
+  gap: 1.25rem;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-schedule-date {
+  width: 80px;
+  height: 70px;
+  border-radius: 18px;
+  flex-shrink: 0;
+}
+
+.skeleton-schedule-content {
+  flex: 1;
+}
+
+.skeleton-schedule-title {
+  width: 60%;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-schedule-details {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 8px;
+}
+
+.skeleton-schedule-chip {
+  width: 80px;
+  height: 20px;
+  border-radius: 30px;
+}
+
+.skeleton-schedule-description {
+  width: 80%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Chat */
+.skeleton-chat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-chat-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-chat-content {
+  flex: 1;
+}
+
+.skeleton-chat-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.skeleton-chat-user {
+  width: 30%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-chat-time {
+  width: 20%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.skeleton-chat-message {
+  width: 70%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Stats */
+.skeleton-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+}
+
+.skeleton-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.skeleton-stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-stat-content {
+  flex: 1;
+}
+
+.skeleton-stat-value {
+  width: 40px;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-stat-label {
+  width: 50px;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Mass Readings */
+.skeleton-reading-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-reading-date {
+  width: 48px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.skeleton-reading-content {
+  flex: 1;
+}
+
+.skeleton-reading-title {
+  width: 50%;
+  height: 14px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-reading-desc {
+  width: 60%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.skeleton-reading-meta {
+  width: 30%;
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Quick Stats */
+.skeleton-quick-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.skeleton-quick-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-quick-content {
+  flex: 1;
+}
+
+.skeleton-quick-value {
+  width: 30px;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-quick-label {
+  width: 40px;
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* Skeleton for Active Meetings */
+.skeleton-meeting-item {
+  padding: 1rem;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.skeleton-meeting-status {
+  width: 60px;
+  height: 20px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+
+.skeleton-meeting-title {
+  width: 70%;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-meeting-details {
+  display: flex;
+  gap: 1rem;
+}
+
+.skeleton-meeting-detail {
+  width: 80px;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-meeting-stats {
+  width: 100px;
+  height: 12px;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.skeleton-meeting-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 12px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .skeleton-executive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .skeleton-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .skeleton-schedule-item {
+    flex-direction: column;
+  }
+  
+  .skeleton-schedule-date {
+    width: 100%;
+    height: 50px;
+  }
 }
 
 @media (max-width: 640px) {

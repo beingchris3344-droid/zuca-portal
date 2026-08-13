@@ -4165,6 +4165,9 @@ app.post("/api/admin/media/upload", authenticate, mediaUpload, async (req, res) 
 
     const { category, tags, isPublic, isFeatured, description } = req.body;
     const uploadedMedia = [];
+    
+    // Store file paths for background processing
+    const filePaths = [];
 
     // Process files - upload to Cloudinary
 for (const file of files) {
@@ -4295,6 +4298,7 @@ for (const file of files) {
     }
   }
 });
+  
 
 // 2. Get all media (Admin panel) - NO CHANGE NEEDED
 app.get("/api/admin/media", authenticate, async (req, res) => {
@@ -7689,6 +7693,9 @@ global.systemMonitor = systemMonitor;
 
 // ================== PROTECTED ROUTES MIDDLEWARE ==================
 app.use(authenticate, updateLastActive);
+
+
+
 
 // ================== DASHBOARD STATS ==================
 app.get("/api/announcements/unread", authenticate, async (req, res) => {

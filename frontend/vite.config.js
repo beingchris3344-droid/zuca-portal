@@ -3,34 +3,37 @@ import react from '@vitejs/plugin-react'
 import viteCompression from 'vite-plugin-compression'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     viteCompression(),
     VitePWA({
-      registerType: 'autoUpdate', // auto-updates the service worker
-      // 👇 ADD THIS WORKBOX CONFIGURATION
-      workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Increase to 5MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+      registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'sw.js',
+      injectManifest: {
+        injectionPoint: undefined,
+      },
+      devOptions: {
+        enabled: false,
       },
       manifest: {
         name: "ZucaPortal",
         short_name: "ZucaPortal",
         description: "ZucaPortal app - manage contributions and users easily",
-        theme_color: "#4F46E5",
+        theme_color: "#ffffff",
         background_color: "#ffffff",
-        display: "standalone",  // opens like a real app
+        display: "standalone",
         start_url: "/",
         icons: [
           {
-            src: "/icons/icon-192x192.png",
+            src: "/android-chrome-192x192.png",
             sizes: "192x192",
             type: "image/png"
           },
           {
-            src: "/icons/icon-512x512.png",
+            src: "/android-chrome-512x512.png",
             sizes: "512x512",
             type: "image/png"
           }
@@ -38,7 +41,16 @@ export default defineConfig({
       }
     })
   ],
-  // 👇 OPTIONAL: Add build configuration for code splitting
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://zuca-backend-iw9p.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      }
+    }
+  },
   build: {
     rollupOptions: {
       output: {

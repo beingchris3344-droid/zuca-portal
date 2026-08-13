@@ -7,6 +7,8 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import io from 'socket.io-client';
 import BASE_URL from '../../api';
+import axios from 'axios';
+import logo from "../../assets/zuca-logo.png"
 
 // Icons
 const Icons = {
@@ -95,6 +97,17 @@ export default function JumuiaDetailPage() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const [paymentLink, setPaymentLink] = useState({ show: false, url: "", campaign: "" });  
+const [generatingLink, setGeneratingLink] = useState(false);
+
+
+  //announcements
+
+  // Announcements state
+const [announcements, setAnnouncements] = useState([]);
+const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
+const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", category: "General" });
+const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -119,7 +132,7 @@ export default function JumuiaDetailPage() {
   }, [navigate]);
 
   // Check if user has modify permissions
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.specialRole === "admin";
   const isLeader = user?.specialRole === "jumuia_leader" && user?.jumuiaCode === jumuiaCode;
   const isTreasurer = user?.specialRole === "treasurer";
   const canModify = isAdmin || isLeader || isTreasurer;
@@ -201,17 +214,17 @@ export default function JumuiaDetailPage() {
       }
     });
 
-    socket.on('member_added', (data) => {
-      if (data.jumuiaId === jumuia?.id) {
-        handleMemberAdded(data);
-      }
-    });
+   socket.on('member_added', (data) => {
+  if (data.jumuiaId === jumuia?.id) {
+    handleMemberAddedRealtime(data);  // ← Rename to this
+  }
+});
 
-    socket.on('member_removed', (data) => {
-      if (data.jumuiaId === jumuia?.id) {
-        handleMemberRemoved(data);
-      }
-    });
+ socket.on('member_removed', (data) => {
+  if (data.jumuiaId === jumuia?.id) {
+    handleMemberRemovedRealtime(data);
+  }
+});
 
     socket.on('leader_assigned', (data) => {
       if (data.jumuiaId === jumuia?.id) {
@@ -350,21 +363,91 @@ export default function JumuiaDetailPage() {
     showNotification(`🗑️ Campaign deleted: ${data.title}`, 'info');
   };
 
-  const handleMemberAdded = (data) => {
-    console.log('Member added:', data);
-    addLiveUpdate('success', `👤 ${data.memberName} joined the jumuia`);
+ const handleMemberAdded = async (userId) => {
+  if (!userId) {
+    showNotification("Please select a user to add", "error");
+    return;
+  }
 
-    setMembers(prev => [...prev, data.member]);
-    showNotification(`👤 ${data.memberName} joined`, 'success');
-  };
+  try {
+    const response = await api.post(
+      `/api/jumuia/${jumuia.id}/members/add`,
+      { userId }
+    );
+    
+    // Update members list with the new member
+    const newMember = response.data.member;
+    setMembers(prev => [...prev, newMember]);
+    
+    // Show success notification
+    showNotification(`👤 ${newMember.fullName} joined the jumuia`, 'success');
+    
+    // Close the modal
+    setShowAddMemberModal(false);
+    
+    // Add live update for other users
+    addLiveUpdate('success', `👤 ${newMember.fullName} joined the jumuia`);
+    
+    // Refresh jumuia data to get updated member count and details
+    await fetchJumuiaDetails();
+    
+  } catch (err) {
+    console.error('Error adding member:', err);
+    showNotification(
+      err.response?.data?.error || "Failed to add member to jumuia", 
+      "error"
+    );
+  }
+};
 
-  const handleMemberRemoved = (data) => {
-    console.log('Member removed:', data);
-    addLiveUpdate('info', `👋 ${data.memberName} left the jumuia`);
+// ==================== REMOVE MEMBER FROM JUMUIA (API CALL) ====================
+const handleMemberRemoved = async (memberId, memberName) => {
+  if (!memberId) {
+    showNotification("Member ID is required", "error");
+    return;
+  }
 
-    setMembers(prev => prev.filter(m => m.id !== data.memberId));
-    showNotification(`👋 ${data.memberName} removed`, 'info');
-  };
+  // Confirm before removing
+  if (!window.confirm(`Are you sure you want to remove ${memberName} from this Jumuia?`)) {
+    return;
+  }
+
+  try {
+    const response = await api.delete(
+      `/api/jumuia/${jumuia.id}/members/${memberId}`
+    );
+    
+    console.log('Remove response:', response.data);
+    
+    // Update members list - remove the member
+    setMembers(prev => prev.filter(m => m.id !== memberId));
+    
+    // Show success notification
+    showNotification(`👋 ${memberName} removed from jumuia`, 'success');
+    
+    // Add live update
+    addLiveUpdate('info', `👋 ${memberName} left the jumuia`);
+    
+    // Refresh jumuia data to get updated member count
+    await fetchJumuiaDetails();
+    
+  } catch (err) {
+    console.error('Error removing member:', err);
+    showNotification(
+      err.response?.data?.error || "Failed to remove member from jumuia", 
+      "error"
+    );
+  }
+};
+
+
+// ==================== SOCKET EVENT HANDLER (REAL-TIME) ====================
+const handleMemberRemovedRealtime = (data) => {
+  console.log('Member removed (realtime):', data);
+  addLiveUpdate('info', `👋 ${data.memberName} left the jumuia`);
+  setMembers(prev => prev.filter(m => m.id !== data.memberId));
+  showNotification(`👋 ${data.memberName} removed`, 'info');
+};
 
   const handleLeaderAssigned = (data) => {
     console.log('Leader assigned:', data);
@@ -727,6 +810,45 @@ export default function JumuiaDetailPage() {
     }
   };
 
+  // Generate payment link for a campaign
+const handleGeneratePaymentLink = async (campaignId, campaignTitle) => {
+  setGeneratingLink(true);
+  
+  try {
+    const response = await api.post(
+      `/api/mpesa/campaigns/${campaignId}/generate-link`,
+      {}
+    );
+    
+    if (response.data.success) {
+      const paymentLinkUrl = `${window.location.origin}/pay/${response.data.slug}`;
+      
+      setPaymentLink({
+        show: true,
+        url: paymentLinkUrl,
+        campaign: campaignTitle
+      });
+      showNotification("Payment link generated successfully!", "success");
+    }
+  } catch (err) {
+    console.error("Failed to generate payment link:", err);
+    showNotification(err.response?.data?.error || "Failed to generate payment link", "error");
+  } finally {
+    setGeneratingLink(false);
+  }
+};
+
+// Copy payment link to clipboard
+const copyPaymentLink = () => {
+  navigator.clipboard.writeText(paymentLink.url);
+  showNotification("Payment link copied to clipboard!", "success");
+};
+
+// Close payment link modal
+const closePaymentLinkModal = () => {
+  setPaymentLink({ show: false, url: "", campaign: "" });
+};
+
   // Filter functions
   const filterPledgesByStatus = (pledges) => {
     if (activeTabContrib === "all") return pledges;
@@ -764,6 +886,48 @@ export default function JumuiaDetailPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
+
+
+  useEffect(() => {
+  if (jumuia?.id && activeTab === 'announcements') {
+    fetchAnnouncements();
+  }
+}, [jumuia?.id, activeTab]);
+
+  const fetchAnnouncements = async () => {
+  if (!jumuia?.id) return;
+  setLoadingAnnouncements(true);
+  try {
+    const response = await api.get(`/api/jumuia/${jumuia.id}/announcements`);
+    setAnnouncements(response.data);
+  } catch (err) {
+    console.error('Error fetching announcements:', err);
+    showNotification("Failed to load announcements", "error");
+  } finally {
+    setLoadingAnnouncements(false);
+  }
+};
+
+const handleCreateAnnouncement = async () => {
+  if (!newAnnouncement.title || !newAnnouncement.content) {
+    showNotification("Title and content are required", "error");
+    return;
+  }
+  
+  setCreatingAnnouncement(true);
+  try {
+    const response = await api.post(`/api/jumuia/${jumuia.id}/announcements`, newAnnouncement);
+    setAnnouncements(prev => [response.data, ...prev]);
+    setNewAnnouncement({ title: "", content: "", category: "General" });
+    showNotification("Announcement posted successfully", "success");
+  } catch (err) {
+    showNotification(err.response?.data?.error || "Failed to post announcement", "error");
+  } finally {
+    setCreatingAnnouncement(false);
+  }
+};
+
+
 
   // ==================== TAB HANDLING ====================
 
@@ -851,15 +1015,9 @@ export default function JumuiaDetailPage() {
     showNotification(`Export completed: ${data.length} records`, "success");
   };
 
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.spinner} />
-        <p>Loading jumuia details...</p>
-      </div>
-    );
-  }
-
+if (loading) {
+  return <SkeletonLoader jumuiaName={jumuiaCode} />;
+}
   if (error || !jumuia) {
     return (
       <div style={styles.errorContainer}>
@@ -930,9 +1088,71 @@ export default function JumuiaDetailPage() {
       )}
 
       {/* Header */}
+          {/* Header */}
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>{jumuia.name}</h1>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
+          <img src={logo} alt="Loading..." style={{ width: '50px', height: '70px' }} />  <h1 style={{ ...styles.title, margin: 0 }}>{jumuia.name}</h1>
+            
+          {/* ==================== BACK TO MEMBER BUTTON ==================== */}
+{user?.specialRole === "jumuia_leader" && (
+  <button
+    onClick={async (e) => {
+      const btn = e.currentTarget;
+      const originalHTML = btn.innerHTML;
+      
+      // Show loading
+      btn.innerHTML = `
+        <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+        Switching...
+      `;
+      btn.style.opacity = "0.7";
+      btn.style.pointerEvents = "none";
+      
+      try {
+        const token = localStorage.getItem("token");
+        const res = await api.post(`${BASE_URL}/api/switch-role`, 
+          { targetRole: "member" },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        localStorage.setItem("token", res.data.token);
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        storedUser.role = "member";
+        localStorage.setItem("user", JSON.stringify(storedUser));
+        
+        window.location.href = "/dashboard";
+      } catch (err) {
+        // Restore on error
+        btn.innerHTML = originalHTML;
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        alert("Failed to switch back");
+      }
+    }}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "6px 14px",
+      background: "linear-gradient(135deg, #0fbb26, #0ba83f)",
+      color: "white",
+      border: "none",
+      borderRadius: "20px",
+      fontSize: "12px",
+      fontWeight: "600",
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: 0,
+      transition: "all 0.2s ease",
+    }}
+  >
+    👤 Back to Member
+  </button>
+)}
+          </div>
+          
           <div style={styles.stats}>
             <span style={styles.statBadge}>
               {members.length} Members
@@ -989,6 +1209,15 @@ export default function JumuiaDetailPage() {
           <Icons.Users /> Members
         </button>
         <button
+  style={{
+    ...styles.tab,
+    ...(activeTab === 'announcements' && styles.activeTab)
+  }}
+  onClick={() => handleTabChange('announcements')}
+>
+  📢 Announcements
+</button>
+        <button
           style={{
             ...styles.tab,
             ...(activeTab === 'contributions' && styles.activeTab)
@@ -998,6 +1227,7 @@ export default function JumuiaDetailPage() {
           💰 Contributions
         </button>
       </div>
+      
 
       {/* Tab Content */}
       <div style={styles.tabContent}>
@@ -1012,6 +1242,86 @@ export default function JumuiaDetailPage() {
             onAddMember={() => setShowAddMemberModal(true)}
           />
         )}
+
+        {activeTab === 'announcements' && (
+  <div style={styles.announcementsContainer}>
+    {/* Create Announcement Form - Only for leaders/admins */}
+    {canModify && (
+      <div style={styles.createAnnouncementCard}>
+        <h3 style={styles.subSectionTitle}>📢 Create New Announcement</h3>
+        <div style={styles.announcementForm}>
+          <input
+            type="text"
+            placeholder="Announcement Title"
+            style={styles.formInput}
+            value={newAnnouncement.title}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
+          />
+          <textarea
+            placeholder="Announcement Content"
+            style={{...styles.formInput, minHeight: '100px'}}
+            value={newAnnouncement.content}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
+          />
+          <select
+            style={styles.formInput}
+            value={newAnnouncement.category}
+            onChange={(e) => setNewAnnouncement({...newAnnouncement, category: e.target.value})}
+          >
+            <option value="General">General</option>
+            <option value="Meeting">Meeting</option>
+            <option value="Event">Event</option>
+            <option value="Important">Important</option>
+            <option value="Prayer">Prayer</option>
+          </select>
+          <button 
+            style={styles.createBtn}
+            onClick={handleCreateAnnouncement}
+            disabled={creatingAnnouncement || !newAnnouncement.title || !newAnnouncement.content}
+          >
+            {creatingAnnouncement ? "Posting..." : "📢 Post Announcement"}
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Announcements List */}
+    {loadingAnnouncements ? (
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner} />
+        <p>Loading announcements...</p>
+      </div>
+    ) : announcements.length === 0 ? (
+      <div style={styles.emptyAnnouncements}>
+        <span style={{ fontSize: '48px' }}>📢</span>
+        <h3>No Announcements Yet</h3>
+        <p>Be the first to post an announcement!</p>
+      </div>
+    ) : (
+      <div style={styles.announcementsList}>
+        {announcements.map((ann) => (
+          <div key={ann.id} style={styles.announcementCard}>
+            <div style={styles.announcementHeader}>
+              <div>
+                <h3 style={styles.announcementTitle}>{ann.title}</h3>
+                <span style={styles.announcementCategory}>{ann.category}</span>
+              </div>
+              <span style={styles.announcementDate}>
+                {new Date(ann.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+            <p style={styles.announcementContent}>{ann.content}</p>
+            <div style={styles.announcementFooter}>
+              <span>By: {ann.author?.fullName || 'Unknown'}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+        
 
         {activeTab === 'contributions' && (
           <ContributionsSection
@@ -1063,6 +1373,8 @@ export default function JumuiaDetailPage() {
             setExportOptions={setExportOptions}
             handleExport={handleExport}
             socketConnected={socketConnected}
+             handleGeneratePaymentLink={handleGeneratePaymentLink}
+    generatingLink={generatingLink}    
           />
         )}
       </div>
@@ -1084,6 +1396,167 @@ export default function JumuiaDetailPage() {
           onClose={() => setPledgeMessageThread(null)}
         />
       )}
+
+     {/* Payment Link Modal - CENTERED */}
+{paymentLink.show && (
+  <div 
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      backdropFilter: 'blur(4px)',
+      zIndex: 10000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+    onClick={closePaymentLinkModal}
+  >
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      style={{
+        maxWidth: '500px',
+        width: '100%',
+        background: 'white',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 24px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white'
+      }}>
+        <h3 style={{ margin: 0, fontSize: '18px' }}>🔗 Payment Link Generated</h3>
+        <button 
+          onClick={closePaymentLinkModal}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            fontSize: '28px',
+            cursor: 'pointer',
+            lineHeight: 1,
+            padding: 0,
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            transition: 'background 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+        >
+          ×
+        </button>
+      </div>
+      
+      <div style={{ padding: '24px' }}>
+        <p style={{ margin: '0 0 16px 0', color: '#334155', fontSize: '14px' }}>
+          Share this link with members for <strong>{paymentLink.campaign}</strong>:
+        </p>
+        
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            readOnly
+            value={paymentLink.url}
+            onClick={(e) => e.target.select()}
+            style={{
+              flex: 1,
+              padding: '12px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '8px',
+              fontSize: '13px',
+              background: '#f8fafc',
+              color: '#1e293b',
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              minWidth: '200px'
+            }}
+          />
+          <button
+            onClick={copyPaymentLink}
+            style={{
+              padding: '12px 20px',
+              background: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            📋 Copy
+          </button>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`💰 Payment link for ${paymentLink.campaign}: ${paymentLink.url}`)}`, '_blank')}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              background: '#25D366',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            📱 Share on WhatsApp
+          </button>
+          <button
+            onClick={() => window.location.href = `mailto:?subject=Payment Link for ${paymentLink.campaign}&body=Please use this link to make your payment: ${paymentLink.url}`}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            ✉️ Share via Email
+          </button>
+        </div>
+        
+        <div style={{
+          background: '#fef3c7',
+          padding: '12px',
+          borderRadius: '8px',
+          borderLeft: '3px solid #f59e0b'
+        }}>
+          <small style={{ color: '#92400e', fontSize: '12px' }}>
+            ⚠️ Anyone with this link can make a payment. Share securely with your Jumuia members.
+          </small>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+)}
+
+
     </div>
   );
 }
@@ -1541,15 +2014,42 @@ function ContributionsSection(props) {
                   </div>
                 </div>
                 
-                <div style={styles.campaignProgressInfo}>
-                  <div style={styles.progressStats}>
-                    <span style={styles.progressPercent}>{stats.completion.toFixed(1)}%</span>
-                    <span style={styles.progressCount}>{stats.contributors}/{stats.totalMembers} members</span>
-                  </div>
-                  <span style={styles.collapseIcon}>{isCollapsed ? "▼" : "▲"}</span>
-                </div>
-              </div>
-
+             <div style={styles.campaignProgressInfo}>
+  {/* Generate Payment Link Button */}
+  {props.canModify && (
+    <button
+      className="generate-link-btn"
+      onClick={(e) => {
+        e.stopPropagation();
+        props.handleGeneratePaymentLink(type.id, type.title);
+      }}
+      disabled={props.generatingLink}
+      style={{
+        padding: '6px 12px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: '500',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginRight: '16px'
+      }}
+    >
+      🔗 Generate Link
+    </button>
+  )}
+  
+  <div style={styles.progressStats}>
+    <span style={styles.progressPercent}>{stats.completion.toFixed(1)}%</span>
+    <span style={styles.progressCount}>{stats.contributors}/{stats.totalMembers} members</span>
+  </div>
+  <span style={styles.collapseIcon}>{isCollapsed ? "▼" : "▲"}</span>
+</div>
+</div>
               {/* Progress Bar */}
               <div style={styles.progressBarContainer}>
                 <div style={styles.progressBar}>
@@ -2052,6 +2552,8 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [addingUserId, setAddingUserId] = useState(null);
 
   useEffect(() => {
     fetchAvailableUsers();
@@ -2060,13 +2562,34 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   const fetchAvailableUsers = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/users');
-      const available = res.data.filter(u => !u.jumuiaId);
-      setUsers(available);
+      setError(null);
+      
+      // Use the new endpoint that only returns users with no Jumuia
+      const res = await api.get('/api/jumuia/available-users');
+      console.log('Users with no Jumuia:', res.data);
+      
+      setUsers(res.data);
+      
+      if (res.data.length === 0) {
+        setError('No available users found. All users may already be in a Jumuia.');
+      }
+      
     } catch (err) {
       console.error('Error fetching users:', err);
+      setError(err.response?.data?.error || 'Failed to load users. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddUser = async (userId) => {
+    setAddingUserId(userId);
+    try {
+      await onAdd(userId);
+      // Parent will close modal on success
+    } catch (err) {
+      console.error('Error adding user:', err);
+      setAddingUserId(null);
     }
   };
 
@@ -2077,15 +2600,29 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
   );
 
   return (
-    <div style={styles.modalOverlay}>
-      <div style={{...styles.modal, maxWidth: '600px'}}>
-        <h3>Add Member to Jumuia</h3>
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={{...styles.modal, maxWidth: '600px'}} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>Add Member to Jumuia</h3>
+          <button 
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#64748b'
+            }}
+          >
+            ×
+          </button>
+        </div>
         
         <div style={styles.searchWrapper}>
           <Icons.Search />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users by name, email, or membership number..."
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -2097,28 +2634,67 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
             <div style={styles.spinner} />
             <p>Loading users...</p>
           </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#ef4444' }}>
+            <p style={{ fontSize: '48px', margin: 0 }}>⚠️</p>
+            <p>{error}</p>
+            <button 
+              onClick={fetchAvailableUsers}
+              style={{
+                marginTop: '12px',
+                padding: '8px 16px',
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           <div style={{ maxHeight: '400px', overflowY: 'auto', marginTop: '16px' }}>
             {filteredUsers.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#94a3b8' }}>No users available</p>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                <p style={{ fontSize: '48px', margin: 0 }}>👤</p>
+                <p>No users found</p>
+                <p style={{ fontSize: '12px' }}>
+                  {searchTerm ? 'Try a different search term' : 'All users are already in a Jumuia'}
+                </p>
+              </div>
             ) : (
               filteredUsers.map(user => (
                 <div key={user.id} style={styles.userRow}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                     <div style={styles.memberAvatarSmall}>
-                      {user.fullName?.charAt(0).toUpperCase()}
+                      {user.fullName?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div>
-                      <div style={{ fontWeight: '600' }}>{user.fullName}</div>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>{user.fullName}</div>
                       <div style={{ fontSize: '12px', color: '#64748b' }}>{user.email}</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>#{user.membership_number}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        #{user.membership_number || 'No membership'}
+                        {user.role === 'admin' && ' 👑 Admin'}
+                      </div>
                     </div>
                   </div>
                   <button
-                    style={styles.addUserBtn}
-                    onClick={() => onAdd(user.id)}
+                    style={{
+                      ...styles.addUserBtn,
+                      opacity: addingUserId === user.id ? 0.7 : 1,
+                      cursor: addingUserId === user.id ? 'not-allowed' : 'pointer'
+                    }}
+                    onClick={() => handleAddUser(user.id)}
+                    disabled={addingUserId === user.id}
                   >
-                    Add
+                    {addingUserId === user.id ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Icons.Spinner /> Adding...
+                      </span>
+                    ) : (
+                      '+ Add'
+                    )}
                   </button>
                 </div>
               ))
@@ -2130,12 +2706,17 @@ function AddMemberModal({ jumuiaId, onClose, onAdd }) {
           <button style={styles.cancelBtn} onClick={onClose}>
             Close
           </button>
+          <button 
+            style={{...styles.confirmBtn, background: '#64748b'}}
+            onClick={fetchAvailableUsers}
+          >
+            🔄 Refresh
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 // SimpleMessageModal component
 function SimpleMessageModal({ pledgeId, userName, onClose }) {
   return (
@@ -2152,9 +2733,9 @@ function SimpleMessageModal({ pledgeId, userName, onClose }) {
 // ==================== STYLES ====================
 const styles = {
   container: {
-    maxWidth: '1200px',
+    maxWidth: 'auto',
     margin: '0 auto',
-    padding: '24px',
+    padding: '48px 34px',
     background: '#f8fafc',
     minHeight: '100vh',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -2182,7 +2763,7 @@ const styles = {
   },
   notification: {
     position: 'fixed',
-    top: '24px',
+    top: '84px',
     right: '24px',
     padding: '12px 24px',
     borderRadius: '8px',
@@ -2631,7 +3212,7 @@ const styles = {
   exportMenu: {
     position: 'absolute',
     top: '100%',
-    right: 0,
+    right: -100,
     marginTop: '8px',
     width: '300px',
     background: '#fff',
@@ -3167,14 +3748,408 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
   },
+  
+  announcementsContainer: {
+  background: '#fff',
+  borderRadius: '12px',
+  padding: '20px',
+},
+createAnnouncementCard: {
+  background: '#f8fafc',
+  borderRadius: '12px',
+  padding: '20px',
+  marginBottom: '24px',
+},
+announcementForm: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  marginTop: '12px',
+},
+announcementsList: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+},
+announcementCard: {
+  border: '1px solid #e2e8f0',
+  borderRadius: '12px',
+  padding: '16px',
+  background: '#fff',
+},
+announcementHeader: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  marginBottom: '12px',
+  flexWrap: 'wrap',
+  gap: '8px',
+},
+announcementTitle: {
+  fontSize: '16px',
+  fontWeight: '600',
+  margin: 0,
+  color: '#0f172a',
+},
+announcementCategory: {
+  fontSize: '11px',
+  padding: '2px 8px',
+  borderRadius: '12px',
+  background: '#e2e8f0',
+  color: '#64748b',
+  marginLeft: '8px',
+},
+announcementDate: {
+  fontSize: '12px',
+  color: '#64748b',
+},
+announcementContent: {
+  fontSize: '14px',
+  lineHeight: '1.5',
+  color: '#475569',
+  margin: '0 0 12px 0',
+},
+announcementFooter: {
+  fontSize: '12px',
+  color: '#94a3b8',
+  borderTop: '1px solid #f1f5f9',
+  paddingTop: '12px',
+},
+emptyAnnouncements: {
+  textAlign: 'center',
+  padding: '60px 20px',
+  color: '#64748b',
+},
 };
 
-// Add global keyframes
+// ==================== SKELETON LOADER ====================
+const SkeletonLoader = ({ jumuiaName }) => {
+  // Format: "stperegrine" -> "St. Peregrine", "christtheking" -> "Christ The King"
+  const formatName = (name) => {
+    if (!name) return 'Jumuia';
+    
+    let formatted = name;
+    
+    // ===== HANDLE "st" + ANY NAME =====
+    // stperegrine -> St. Peregrine
+    // stmichael -> St. Michael
+    // stgregory -> St. Gregory
+    // stpacifius -> St. Pacifius
+    // stbenedict -> St. Benedict
+    formatted = formatted.replace(/^st([a-z]+)/i, (match, rest) => {
+      return 'St. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // Handle "st" with space (st peregrine -> St. Peregrine)
+    formatted = formatted.replace(/^st\s+([a-z]+)/i, (match, rest) => {
+      return 'St. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // ===== HANDLE "christtheking" =====
+    // christtheking -> Christ The King
+    formatted = formatted.replace(/^christtheking$/i, 'Christ The King');
+    formatted = formatted.replace(/^christ\s*the\s*king$/i, 'Christ The King');
+    
+    // ===== HANDLE OTHER COMMON PATTERNS =====
+    // mtkenya -> Mt. Kenya
+    formatted = formatted.replace(/^mt([a-z]+)/i, (match, rest) => {
+      return 'Mt. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // srgrace -> Sr. Grace
+    formatted = formatted.replace(/^sr([a-z]+)/i, (match, rest) => {
+      return 'Sr. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // jrjohn -> Jr. John
+    formatted = formatted.replace(/^jr([a-z]+)/i, (match, rest) => {
+      return 'Jr. ' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    });
+    
+    // ===== HANDLE ANY OTHER NAMES WITH SPACES =====
+    // If there are underscores or hyphens
+    formatted = formatted.replace(/[-_]/g, ' ');
+    
+    // Capitalize first letter of each word
+    formatted = formatted
+      .split(' ')
+      .map(word => {
+        // Skip if it's already a title (St., Mt., etc.)
+        if (['St.', 'Mt.', 'Sr.', 'Jr.'].includes(word)) return word;
+        // Skip if it's "The" (keep as "The" not "the")
+        if (word.toLowerCase() === 'the') return 'The';
+        // Capitalize first letter
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+    
+    return formatted;
+  };
+
+  const displayName = formatName(jumuiaName);
+
+  return (
+    <div style={skeletonStyles.container}>
+      {/* Loading Text Header */}
+      <div style={skeletonStyles.loadingHeader}>
+        <div style={skeletonStyles.loadingTitleWrapper}>
+          <div style={skeletonStyles.loadingSpinnerIcon}></div>
+          <h2 style={skeletonStyles.loadingTitle}>
+            Opening {displayName}...
+          </h2>
+        </div>
+        <p style={skeletonStyles.loadingSubtitle}>Loading your Jumuia Details</p>
+      </div>
+ 
+      {/* Header Skeleton */}
+      <div style={skeletonStyles.header}>
+        <div style={skeletonStyles.headerLeft}>
+          <div style={{...skeletonStyles.skeletonBox, width: '50px', height: '70px', borderRadius: '8px'}} />
+          <div>
+            <div style={{...skeletonStyles.skeletonBox, width: '200px', height: '32px', marginBottom: '8px'}} />
+            <div style={{...skeletonStyles.skeletonBox, width: '300px', height: '20px'}} />
+          </div>
+        </div>
+        <div style={skeletonStyles.headerRight}>
+          <div style={{...skeletonStyles.skeletonBox, width: '100px', height: '36px', borderRadius: '8px'}} />
+          <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '36px', borderRadius: '8px'}} />
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={skeletonStyles.tabs}>
+        <div style={{...skeletonStyles.skeletonBox, width: '120px', height: '40px', borderRadius: '8px'}} />
+        <div style={{...skeletonStyles.skeletonBox, width: '140px', height: '40px', borderRadius: '8px'}} />
+        <div style={{...skeletonStyles.skeletonBox, width: '160px', height: '40px', borderRadius: '8px'}} />
+      </div>
+
+      {/* Stats Cards */}
+      <div style={skeletonStyles.statsGrid}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} style={skeletonStyles.statCard}>
+            <div style={{...skeletonStyles.skeletonBox, width: '48px', height: '48px', borderRadius: '50%'}} />
+            <div style={skeletonStyles.statContent}>
+              <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '24px'}} />
+              <div style={{...skeletonStyles.skeletonBox, width: '60px', height: '16px'}} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Campaign Cards */}
+      <div style={skeletonStyles.campaigns}>
+        {[1, 2].map(i => (
+          <div key={i} style={skeletonStyles.campaignCard}>
+            <div style={skeletonStyles.campaignHeader}>
+              <div style={skeletonStyles.campaignInfo}>
+                <div style={{...skeletonStyles.skeletonBox, width: '200px', height: '20px'}} />
+                <div style={{...skeletonStyles.skeletonBox, width: '150px', height: '14px'}} />
+              </div>
+              <div style={skeletonStyles.campaignProgress}>
+                <div style={{...skeletonStyles.skeletonBox, width: '60px', height: '18px'}} />
+                <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '14px'}} />
+              </div>
+            </div>
+            <div style={{...skeletonStyles.skeletonBox, width: '100%', height: '6px', borderRadius: '3px', marginBottom: '16px'}} />
+            <div style={skeletonStyles.members}>
+              {[1, 2, 3].map(j => (
+                <div key={j} style={skeletonStyles.memberRow}>
+                  <div style={{...skeletonStyles.skeletonBox, width: '36px', height: '36px', borderRadius: '8px'}} />
+                  <div style={skeletonStyles.memberInfo}>
+                    <div style={{...skeletonStyles.skeletonBox, width: '120px', height: '16px'}} />
+                    <div style={{...skeletonStyles.skeletonBox, width: '180px', height: '12px'}} />
+                  </div>
+                  <div style={{...skeletonStyles.skeletonBox, width: '80px', height: '24px', borderRadius: '12px'}} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Shimmer Overlay */}
+      <div style={skeletonStyles.shimmerOverlay}>
+        <div style={skeletonStyles.shimmer} />
+      </div>
+    </div>
+  );
+};
+
+const skeletonStyles = {
+   loadingHeader: {
+    textAlign: 'center',
+    padding: '40px 20px 30px',
+    marginBottom: '20px',
+    background: 'linear-gradient(135deg, #0a0a0a 0%, #151516 100%)',
+    borderRadius: '16px',
+    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+  },
+  loadingTitleWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    marginBottom: '8px',
+  },
+  loadingSpinnerIcon: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid rgba(255,255,255,0.3)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    color: '#fff',
+    fontSize: 'clamp(24px, 4vw, 32px)',
+    fontWeight: '700',
+    margin: 0,
+  },
+  loadingSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: '16px',
+    margin: '4px 0 0 0',
+  },
+  container: {
+    maxWidth: 'auto',
+    margin: '0 auto',
+    padding: '48px 34px',
+    background: '#f8fafc',
+    minHeight: '100vh',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '32px',
+    flexWrap: 'wrap',
+    gap: '16px',
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  headerRight: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+  },
+  tabs: {
+    display: 'flex',
+    gap: '8px',
+    borderBottom: '2px solid #e2e8f0',
+    paddingBottom: '8px',
+    marginBottom: '24px',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '16px',
+    marginBottom: '24px',
+  },
+  statCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  },
+  statContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  campaigns: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  campaignCard: {
+    background: '#fff',
+    borderRadius: '12px',
+    padding: '20px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  campaignHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  campaignInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    flex: 1,
+  },
+  campaignProgress: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'flex-end',
+  },
+  members: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  memberRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px',
+    background: '#f8fafc',
+    borderRadius: '8px',
+  },
+  memberInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  skeletonBox: {
+    background: '#e2e8f0',
+    borderRadius: '4px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+    overflow: 'hidden',
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    left: '-100%',
+    width: '100%',
+    height: '100%',
+    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+    animation: 'shimmer 2s infinite',
+  },
+};
+
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
   }
   
   .spinning {

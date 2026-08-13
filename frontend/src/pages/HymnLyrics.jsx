@@ -1,7 +1,10 @@
 // frontend/src/pages/HymnLyrics.jsx
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import axios from "axios";
+import logo from "../assets/zuca-logo.png";
+
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
   FiHeart, 
@@ -28,6 +31,7 @@ import BASE_URL from "../api";
 export default function HymnLyrics() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const songTitle = decodeURIComponent(id);
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,24 +46,46 @@ export default function HymnLyrics() {
     if (saved) setFavorites(JSON.parse(saved));
   }, []);
 
-  useEffect(() => {
-    fetchSong();
-  }, [id]);
+useEffect(() => {
+  fetchSong();
+}, [songTitle]);
 
-  const fetchSong = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${BASE_URL}/api/songs/${id}`, {
+const fetchSong = async () => {
+  try {
+    setLoading(true);
+    const songTitle = decodeURIComponent(id);
+    
+    const res = await axios.get(`${BASE_URL}/api/public/hymns/search/${encodeURIComponent(songTitle)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    
+    if (res.data && res.data.success && res.data.hymns && res.data.hymns.length > 0) {
+      // Find exact match (case insensitive)
+      const exactMatch = res.data.hymns.find(h => 
+        h.title.toLowerCase() === songTitle.toLowerCase()
+      );
+      
+      const hymnToUse = exactMatch || res.data.hymns[0];
+      
+      // Fetch full details
+      const detailRes = await axios.get(`${BASE_URL}/api/public/hymns/${hymnToUse.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setSong(res.data);
-    } catch (err) {
-      setError("Failed to load song");
-      console.error(err);
-    } finally {
-      setLoading(false);
+      
+      if (detailRes.data.success) {
+        setSong(detailRes.data.hymn);
+        return;
+      }
     }
-  };
+    
+    setError("Song not found");
+  } catch (err) {
+    setError("Failed to load song");
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const toggleFavorite = () => {
     const newFavorites = favorites.includes(id)
@@ -72,23 +98,28 @@ export default function HymnLyrics() {
 
   const copyToClipboard = () => {
     if (!song) return;
-    const text = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${song.lyrics || ''}`;
+    // Strip bold markers for plain text copy
+    const stripBold = (text) => text.replace(/\*\*([^*]+)\*\*/g, '$1');
+    const text = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${stripBold(song.lyrics || '')}`;
     navigator.clipboard.writeText(text);
     showToast("📋 Lyrics copied!");
   };
 
   const shareSong = (platform) => {
-    if (!song) return;
-    const text = `Check out this hymn: ${song.title} ${song.reference ? `(${song.reference})` : ''}`;
-    
-    if (platform === 'whatsapp') {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-    } else if (platform === 'telegram') {
-      window.open(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`, '_blank');
-    } else if (platform === 'twitter') {
-      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
-    }
-  };
+  if (!song) return;
+  
+  const hymnUrl = `${window.location.origin}/hymn/${encodeURIComponent(song.title)}`;
+  const text = `Check out this hymn: ${song.title} ${song.reference ? `(${song.reference})` : ''}`;
+  const fullMessage = `${text}\n\n${hymnUrl}`;
+  
+  if (platform === 'whatsapp') {
+    window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, '_blank');
+  } else if (platform === 'telegram') {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(hymnUrl)}&text=${encodeURIComponent(text)}`, '_blank');
+  } else if (platform === 'twitter') {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(fullMessage)}`, '_blank');
+  }
+};
 
   const showToast = (message) => {
     const toast = document.createElement('div');
@@ -98,7 +129,43 @@ export default function HymnLyrics() {
     setTimeout(() => toast.remove(), 3000);
   };
 
-  // ========== DOWNLOAD FUNCTIONS ==========
+  // NEW: Parse bold text from **markers**
+  const parseBoldText = (line) => {
+    if (!line) return null;
+    
+    // Split by ** markers, keeping them as delimiters
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Bold text - remove the ** markers
+        const boldContent = part.slice(2, -2);
+        return <strong key={index} style={{ fontWeight: '700', color: '#4f46e5' }}>{boldContent}</strong>;
+      }
+      // Normal text
+      return part;
+    });
+  };
+
+  // Format lyrics with bold support
+  const formatLyrics = (lyrics) => {
+    if (!lyrics) return [];
+    // Split by double newlines for verses
+    const verses = lyrics.split(/\n\s*\n/);
+    return verses.filter(verse => verse.trim() !== '');
+  };
+
+  // Render a verse with proper bold formatting
+  const renderVerse = (verse) => {
+    const lines = verse.split('\n');
+    return lines.map((line, lineIndex) => (
+      <p key={lineIndex} style={{ ...verseLine, fontSize: `${fontSize}px` }}>
+        {line.trim() === '' ? '\u00A0' : parseBoldText(line)}
+      </p>
+    ));
+  };
+
+  // ========== DOWNLOAD FUNCTIONS (updated for bold text) ==========
   const downloadAsImage = async () => {
     try {
       showToast("📸 Preparing image...");
@@ -113,13 +180,18 @@ export default function HymnLyrics() {
       element.style.borderRadius = '16px';
       element.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)';
       
-      // Format lyrics
-      const verses = song.lyrics ? song.lyrics.split('\n\n') : [];
-      const lyricsHtml = verses.map(verse => 
-        `<div style="margin-bottom: 24px;">${verse.split('\n').map(line => 
-          `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${line || ' '}</p>`
-        ).join('')}</div>`
-      ).join('');
+      // Format lyrics with bold support
+      const verses = formatLyrics(song.lyrics);
+      const lyricsHtml = verses.map(verse => {
+        const lines = verse.split('\n');
+        const linesHtml = lines.map(line => {
+          // Parse bold markers for HTML
+          const boldRegex = /\*\*([^*]+)\*\*/g;
+          const parsedLine = line.replace(boldRegex, '<strong style="color: #4f46e5;">$1</strong>');
+          return `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${parsedLine || ' '}</p>`;
+        }).join('');
+        return `<div style="margin-bottom: 24px;">${linesHtml}</div>`;
+      }).join('');
       
       element.innerHTML = `
         <div style="text-align: center; margin-bottom: 30px;">
@@ -197,13 +269,15 @@ export default function HymnLyrics() {
         y += 20;
       }
       
-      // Lyrics
+      // Lyrics - strip bold markers for PDF (or keep as bold if using html2pdf)
       pdf.setFontSize(fontSize);
       pdf.setTextColor(30, 41, 59);
       pdf.setFont('helvetica', 'normal');
       
       if (song.lyrics) {
-        const verses = song.lyrics.split('\n\n');
+        // Strip bold markers for clean PDF text
+        const cleanLyrics = song.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
+        const verses = cleanLyrics.split(/\n\s*\n/);
         
         verses.forEach(verse => {
           const lines = verse.split('\n');
@@ -243,13 +317,17 @@ export default function HymnLyrics() {
     try {
       showToast("📝 Preparing Word document...");
       
-      // Format lyrics with proper HTML
-      const verses = song.lyrics ? song.lyrics.split('\n\n') : [];
-      const lyricsHtml = verses.map(verse => 
-        `<div style="margin-bottom: 24px;">${verse.split('\n').map(line => 
-          `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${line || '<br/>'}</p>`
-        ).join('')}</div>`
-      ).join('');
+      // Format lyrics with bold support
+      const verses = formatLyrics(song.lyrics);
+      const lyricsHtml = verses.map(verse => {
+        const lines = verse.split('\n');
+        const linesHtml = lines.map(line => {
+          const boldRegex = /\*\*([^*]+)\*\*/g;
+          const parsedLine = line.replace(boldRegex, '<strong style="color: #4f46e5;">$1</strong>');
+          return `<p style="margin: 4px 0; text-align: center; font-size: ${fontSize}px;">${parsedLine || '<br/>'}</p>`;
+        }).join('');
+        return `<div style="margin-bottom: 24px;">${linesHtml}</div>`;
+      }).join('');
       
       // Create HTML content
       const htmlContent = `
@@ -287,6 +365,9 @@ export default function HymnLyrics() {
               text-align: center;
               font-size: ${fontSize}px;
             }
+            strong {
+              color: #4f46e5;
+            }
             .footer {
               text-align: center;
               margin-top: 40px;
@@ -298,11 +379,7 @@ export default function HymnLyrics() {
         <body>
           <h1>${song.title}</h1>
           ${song.reference ? `<div class="reference">${song.reference}</div>` : ''}
-          ${verses.map(verse => 
-            `<div class="verse">${verse.split('\n').map(line => 
-              `<p>${line || '<br/>'}</p>`
-            ).join('')}</div>`
-          ).join('')}
+          ${lyricsHtml}
           <div class="footer">
             ZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}
           </div>
@@ -332,8 +409,9 @@ export default function HymnLyrics() {
     try {
       showToast("📄 Preparing text file...");
       
-      // Format as plain text
-      const textContent = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${'='.repeat(50)}\n\n${song.lyrics || ''}\n\n${'='.repeat(50)}\nZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}`;
+      // Strip bold markers for plain text
+      const stripBold = (text) => text.replace(/\*\*([^*]+)\*\*/g, '$1');
+      const textContent = `${song.title}\n${song.reference ? `(${song.reference})\n` : ''}\n${'='.repeat(50)}\n\n${stripBold(song.lyrics || '')}\n\n${'='.repeat(50)}\nZUCA Hymn Book • Generated on ${new Date().toLocaleDateString()}`;
       
       // Create blob and download
       const blob = new Blob([textContent], { type: 'text/plain' });
@@ -353,12 +431,6 @@ export default function HymnLyrics() {
     }
   };
 
-  // Format lyrics with proper spacing
-  const formatLyrics = (lyrics) => {
-    if (!lyrics) return [];
-    return lyrics.split('\n\n').filter(verse => verse.trim() !== '');
-  };
-
   if (loading) {
     return (
       <div style={loadingContainer}>
@@ -367,7 +439,7 @@ export default function HymnLyrics() {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          🎵
+          {loading && <img src={logo} alt="Loading..." style={{ width: '37px', height: '50px' }} />}
         </motion.div>
         <p style={loadingText}>Loading lyrics...</p>
       </div>
@@ -389,9 +461,41 @@ export default function HymnLyrics() {
 
   const verses = formatLyrics(song.lyrics);
   const isFavorite = favorites.includes(id);
+  const pageTitle = `${song.title} Lyrics | Zetech Catholic Action`;
+
+const pageDescription = `Read the full lyrics of ${song.title}${
+  song.reference ? ` (${song.reference})` : ""
+} from the Zetech Catholic Action Hymn Book.`;
 
   return (
+  <>
+    <Helmet>
+      <title>{pageTitle}</title>
+
+      <meta name="test-meta" content="HELLO-HYMN-PAGE" />
+
+     <meta
+  name="description"
+  content={pageDescription}
+  key="description"
+/>
+
+      <link
+        rel="canonical"
+        href={`https://zetechcatholicaction.com/hymn/${encodeURIComponent(song.title)}`}
+      />
+
+      <meta property="og:title" content={pageTitle} />
+      <meta property="og:description" content={pageDescription} />
+      <meta
+        property="og:url"
+        content={`https://zetechcatholicaction.com/hymn/${encodeURIComponent(song.title)}`}
+      />
+      <meta property="og:type" content="article" />
+    </Helmet>
+
     <motion.div
+     
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       style={container}
@@ -399,7 +503,8 @@ export default function HymnLyrics() {
       {/* Header with back button and actions */}
       <div style={header}>
         <button onClick={() => navigate(-1)} style={backButton}>
-          <FiChevronLeft size={24} />
+          <FiChevronLeft size={74} />
+          back
         </button>
         <div style={headerActions}>
           <motion.button
@@ -459,21 +564,17 @@ export default function HymnLyrics() {
         )}
       </div>
 
-      {/* Lyrics Display */}
+      {/* Lyrics Display with Bold Support */}
       <div style={lyricsContainer}>
         {verses.length > 0 ? (
           verses.map((verse, index) => (
             <div key={index} style={verseBlock}>
-              {verse.split('\n').map((line, lineIndex) => (
-                <p key={lineIndex} style={{ ...verseLine, fontSize: `${fontSize}px` }}>
-                  {line || '\u00A0'}
-                </p>
-              ))}
+              {renderVerse(verse)}
             </div>
           ))
         ) : (
           <p style={{ ...verseLine, fontSize: `${fontSize}px`, textAlign: 'center' }}>
-            {song.lyrics || 'No lyrics available'}
+            {song.lyrics ? parseBoldText(song.lyrics) : 'No lyrics available'}
           </p>
         )}
       </div>
@@ -558,8 +659,9 @@ export default function HymnLyrics() {
           }
         `}
       </style>
-    </motion.div>
-  );
+       </motion.div>
+  </>
+);
 }
 
 // ====== STYLES ======

@@ -1,11 +1,76 @@
 // frontend/src/components/Layout.jsx
 import { Outlet, NavLink } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
-import bg from "../assets/background1.webp";
 import Notifications from "./Notifications";
+import axios from "axios";
 import BASE_URL from "../api";
+import AnimatedBackground from "./AnimatedBackground";
+import FloatingInstallButton from "./FloatingInstallButton";
+import { 
+  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
+  FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
+  FiAward, FiYoutube, FiMapPin, 
+} from "react-icons/fi";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaRegFilePdf, FaSun} from "react-icons/fa";
+import { api } from "../api";
+import { io } from "socket.io-client";
+import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
+import { toggleDark } from "../utils/darkReader";
+
+
+// Messenger Icon with Badge Component - ADD THIS BEFORE the Layout function
+const MessengerIcon = () => {
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const res = await api.get('/api/messenger/unread/count', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnreadCount(res.data.unreadCount);
+      } catch (err) {
+        console.error('Error fetching unread count:', err);
+      }
+    };
+    
+    fetchUnreadCount();
+    
+    // Setup socket connection for real-time updates
+    const socket = io(BASE_URL, {
+      transports: ['websocket'],
+      auth: { token: localStorage.getItem("token") }
+    });
+    
+    socket.on('dm:new_message', () => {
+      setUnreadCount(prev => prev + 1);
+    });
+    
+    socket.on('dm:message_read', () => {
+      fetchUnreadCount();
+    });
+    
+    return () => socket.disconnect();
+  }, []);
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9l-5.05 1.9z" />
+        <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
+        <path d="M14 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
+      </svg>
+      {unreadCount > 0 && (
+        <span className="messenger-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+      )}
+    </div>
+  );
+};
+
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -16,34 +81,89 @@ function Layout() {
   const scrollContainerRef = useRef(null);
   const userMenuRef = useRef(null);
   const sidebarRef = useRef(null);
+  const [jumuiaName, setJumuiaName] = useState("");
+const [isJumuiaLoading, setIsJumuiaLoading] = useState(true);
+const [isExecutive, setIsExecutive] = useState(false);
+const [loadingExecutive, setLoadingExecutive] = useState(true);
+
+// Fetch user details including jumuia name
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  const fetchUserDetails = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const userData = response.data;
+      if (userData.homeJumuia?.name) {
+        setJumuiaName(userData.homeJumuia.name);
+      }
+      // Optionally update the full user object if you want to keep it fresh
+      setUser(userData);
+    } catch (error) {
+      console.error("Failed to fetch user details", error);
+    } finally {
+      setIsJumuiaLoading(false);
+    }
+  };
+
+  fetchUserDetails();
+}, []); 
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) setUser(storedUser);
   }, []);
 
-  // Handle resize to detect mobile/desktop
+
+  // Check if user has executive position
+useEffect(() => {
+  const checkExecutiveStatus = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLoadingExecutive(false);
+      return;
+    }
+    
+    try {
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      // Check if user has executive position
+      const response = await axios.get(`${BASE_URL}/api/executive/check-user/${userData.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setIsExecutive(response.data.hasPosition || false);
+    } catch (error) {
+      console.error("Error checking executive status:", error);
+      setIsExecutive(false);
+    } finally {
+      setLoadingExecutive(false);
+    }
+  };
+  
+  checkExecutiveStatus();
+}, []);
+
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      // Auto-close sidebar on mobile when resizing from desktop to mobile
       if (mobile) {
         setMenuOpen(false);
       } else {
-        // Auto-open on desktop
         setMenuOpen(true);
       }
     };
     
     window.addEventListener("resize", handleResize);
-    // Set initial state
     handleResize();
     
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Handle click outside to close sidebar on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isMobile && 
@@ -57,7 +177,6 @@ function Layout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobile]);
 
-  // Handle click outside user menu
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -68,7 +187,6 @@ function Layout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Add scroll shadow effect
   useEffect(() => {
     const handleScroll = () => {
       if (scrollContainerRef.current) {
@@ -96,26 +214,54 @@ function Layout() {
   };
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: "🗓️" },
-    { path: "/gallery", label: "gallery", icon: "💾"},
+    { path: "/dashboard", label: "Dashboard", icon: <FaThLarge /> },
+     { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
+  {path: "/jumuia-contributions", 
+    label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
+    icon: <FaDove size={25} color="#4e4939" />
+  },  
+    { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
+  ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin" ? [{
+    path: "/executive/minutes", 
+    label: "Meeting Minutes", 
+    icon: <FaRegFilePdf size={28} color="#141b16" />
+  }] : []),
+    
+             { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
+              { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 33, 226, 0.91)" /> },
+              { path: "/hymns", label: "Lyrics Book", icon: <FiMusic size={28} color="rgba(238, 9, 9, 0.91)" />},
+
+    { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },
+    
+      { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
+    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar size={28}/> },
+       
+{ path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={28} /> },
+        
+    { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
+
+      { path: "/youtube", label: "ZUCA/TUBE", icon: <FaYoutube size={28} color="#ff0000" /> },
+
+{ 
+  path: "/gallery", 
+  label: "Gallery", 
+  icon: <span style={{ color: '#000000' }}><FaImages size={28} /></span> 
+},   
+     
+  { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
+  { path: "/chat", label: "Chat", icon: <FaComments size={28} color="#1a1818" /> },
+ 
   
-    { path: "/join-jumuia", label: "Join Jumuia", icon: "👥" },
-    { path: "/announcements", label: "Announcements", icon: "📢" },
-  
-    { path: "/mass-programs", label: "Mass Programs", icon: "⛪" },
-    { path: "/contributions", label: "Contributions", icon: "💰" },
-    { path: "/hymns", label: "Hymn Book", icon: "🎵" },
-    { path: "/jumuia-contributions", label: "My Jumuia", icon: "🏠" },    
-    { path: "/chat", label: "Chat", icon: "💬" },
+    { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
   ];
 
-  return (
-    <div style={containerStyle(bg)}>
-      {/* Gradient Overlay - Lower z-index */}
-      <div style={overlayStyle} />
 
-      {/* Backdrop for mobile only - Medium z-index */}
+  
+
+  return (
+    <div style={containerStyle}>
+      <AnimatedBackground />
+  
       <AnimatePresence>
         {isMobile && menuOpen && (
           <motion.div
@@ -129,7 +275,6 @@ function Layout() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar - Medium z-index */}
       <motion.aside
         ref={sidebarRef}
         className="sidebar"
@@ -140,22 +285,14 @@ function Layout() {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         style={sidebarStyle}
       >
-        {/* Logo Section */}
         <div style={logoSection}>
-          <motion.img 
-            src={logo} 
-            alt="ZUCA Logo" 
-            style={logoStyle}
-            whileHover={{ scale: 1.05 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          />
+          <img src={logo} alt="ZUCA Logo" style={logoStyle} />
           <div style={logoText}>
             <h3 style={logoTitle}>ZETECH UNIVERSITY</h3>
             <p style={logoSubtitle}>Catholic Action</p>
           </div>
         </div>
 
-        {/* User Info Badge */}
         <div style={userBadgeStyle}>
           {profileImageUrl ? (
             <img src={profileImageUrl} alt={user.fullName} style={userBadgeAvatar} />
@@ -165,12 +302,200 @@ function Layout() {
             </div>
           )}
           <div style={userBadgeInfo}>
-            <span style={userBadgeName}>{user.fullName.split(" ")[0]}</span>
+            <span style={userBadgeName}>{user.fullName.split(" ")[0]} </span>
             <span style={userBadgeRole}>{user.role || "Member"}</span>
           </div>
         </div>
 
-        {/* Navigation Links */}
+{/* ==================== ROLE SWITCHER ==================== */}
+{(user?.specialRole || user?.role === "admin") && (
+  <>
+    {user?.role === "admin" && user?.specialRole ? (
+      /* ========== DROPDOWN for users with BOTH admin account AND specialRole ========== */
+      <div style={{ marginBottom: "16px", position: "relative" }}>
+        <select
+          onChange={async (e) => {
+            const targetRole = e.target.value;
+            if (!targetRole) return;
+            
+            const selectEl = e.target;
+            const wrapperEl = selectEl.parentElement;
+            
+            // Create loading overlay
+            const loadingDiv = document.createElement("div");
+            loadingDiv.innerHTML = `
+              <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              Switching...
+            `;
+            loadingDiv.style.cssText = `
+              position: absolute;
+              inset: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: linear-gradient(135deg, #069b12, #1cf32e);
+              color: white;
+              font-size: 13px;
+              font-weight: 600;
+              borderRadius: 12px;
+              zIndex: 10;
+            `;
+            wrapperEl.appendChild(loadingDiv);
+            selectEl.style.visibility = "hidden";
+            
+            try {
+              const token = localStorage.getItem("token");
+              const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+                { targetRole },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              localStorage.setItem("token", res.data.token);
+              const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+              storedUser.role = res.data.role;
+              storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+              localStorage.setItem("user", JSON.stringify(storedUser));
+              
+              if (targetRole === "member") window.location.href = "/dashboard";
+              else if (targetRole === "jumuia_leader") {
+                const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+                window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+              } else if (targetRole === "admin") window.location.href = "/admin";
+              else if (targetRole === "secretary") window.location.href = "/secretary";
+              else if (targetRole === "treasurer") window.location.href = "/treasurer";
+              else if (targetRole === "choir_moderator") window.location.href = "/choir";
+              else if (targetRole === "media_moderator") window.location.href = "/media-moderator";
+            } catch (err) {
+              loadingDiv.remove();
+              selectEl.style.visibility = "visible";
+              selectEl.value = "";
+              alert("Failed to switch role");
+            }
+          }}
+          style={{
+            width: "100%",
+            padding: "10px 14px",
+            borderRadius: "12px",
+            border: "none",
+            background: "linear-gradient(135deg, #069b12, #1cf32e)",
+            fontSize: "13px",
+            fontWeight: "600",
+            color: "white",
+            cursor: "pointer",
+            outline: "none",
+            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <option value="">🔑 Switch Role...</option>
+          {window.location.pathname.startsWith("/admin") || 
+           window.location.pathname.startsWith("/jumuia") || 
+           window.location.pathname.startsWith("/secretary") || 
+           window.location.pathname.startsWith("/treasurer") || 
+           window.location.pathname.startsWith("/choir") || 
+           window.location.pathname.startsWith("/leader") || 
+           window.location.pathname.startsWith("/media-moderator") ? (
+            <option value="member">👤 Back to Member Mode</option>
+          ) : (
+            <>
+              <option value="admin"> Admin Mode</option>
+              <option value={user.specialRole}>
+                 {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
+              </option>
+            </>
+          )}
+        </select>
+      </div>
+    ) : (
+      /* ========== SINGLE BUTTON for users with only ONE role ========== */
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={async (e) => {
+          const btn = e.currentTarget;
+          const originalHTML = btn.innerHTML;
+          
+          btn.innerHTML = `
+            <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(11, 165, 36, 0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+            Switching...
+          `;
+          btn.style.opacity = "0.7";
+          btn.style.pointerEvents = "none";
+          
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          const isOnRolePage = window.location.pathname.includes("/admin") || 
+                               window.location.pathname.includes("/secretary") || 
+                               window.location.pathname.includes("/treasurer") || 
+                               window.location.pathname.includes("/choir") || 
+                               window.location.pathname.includes("/leader") || 
+                               window.location.pathname.includes("/media-moderator");
+          const targetRole = isOnRolePage ? "member" : (user.specialRole || user.role);
+          
+          try {
+            const token = localStorage.getItem("token");
+            const res = await axios.post(`${BASE_URL}/api/switch-role`, 
+              { targetRole },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            localStorage.setItem("token", res.data.token);
+            storedUser.role = res.data.role;
+            storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+            localStorage.setItem("user", JSON.stringify(storedUser));
+            
+            if (targetRole === "member") {
+              window.location.href = "/dashboard";
+            } else if (targetRole === "jumuia_leader") {
+              const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+              window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+            } else {
+              const rolePaths = {
+                secretary: "/secretary",
+                treasurer: "/treasurer",
+                choir_moderator: "/choir",
+                admin: "/admin",
+                media_moderator: "/media-moderator"
+              };
+              window.location.href = rolePaths[targetRole] || "/dashboard";
+            }
+          } catch (err) {
+            btn.innerHTML = originalHTML;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+            alert(err.response?.data?.error || "Failed to switch role. Please try again.");
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "10px 14px",
+          background: "linear-gradient(135deg, #069b12, #1cf32e)",
+          color: "white",
+          border: "none",
+          borderRadius: "12px",
+          fontSize: "12px",
+          fontWeight: "600",
+          cursor: "pointer",
+          width: "100%",
+          justifyContent: "center",
+          marginBottom: "16px",
+          boxShadow: "0 2px 8px rgba(21, 172, 71, 0.3)",
+          transition: "all 0.2s ease",
+        }}
+      >
+        {window.location.pathname.includes("/admin") || 
+         window.location.pathname.includes("/secretary") || 
+         window.location.pathname.includes("/treasurer") || 
+         window.location.pathname.includes("/choir") || 
+         window.location.pathname.includes("/leader") || 
+         window.location.pathname.includes("/media-moderator")
+          ? "👤 Back to Member Mode" 
+          : `🔑 Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
+      </motion.button>
+    )}
+  </>
+)}
+
         <div
           ref={scrollContainerRef}
           style={navContainer(sidebarShadow)}
@@ -186,15 +511,15 @@ function Layout() {
               >
                 {({ isActive }) => (
                   <motion.div
-                    style={navItemStyle(isActive)}
+                    style={navCardStyle(isActive)}
                     whileHover={{ x: 5 }}
                     whileTap={{ scale: 0.98 }}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <span style={navIconStyle}>{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span style={navCardIcon}>{item.icon}</span>
+                    <span style={navCardLabel(isActive)}>{item.label}</span>
                     {isActive && (
                       <motion.div
                         layoutId="activeIndicator"
@@ -209,13 +534,12 @@ function Layout() {
           </nav>
         </div>
 
-        {/* Sidebar Footer */}
         <div style={sidebarFooterStyle}>
           <div style={sidebarFooterDivider} />
           <motion.button
             onClick={handleLogout}
             style={sidebarLogoutButton}
-            whileHover={{ backgroundColor: "rgba(239,68,68,0.2)" }}
+            whileHover={{ backgroundColor: "#dc2626", color: "#fff" }}
             whileTap={{ scale: 0.95 }}
           >
             <span style={logoutIconStyle}>🚪</span>
@@ -224,9 +548,7 @@ function Layout() {
         </div>
       </motion.aside>
 
-      {/* Main Content */}
       <main style={mainContentStyle(isMobile, menuOpen)}>
-        {/* Top Header */}
         <motion.header
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -234,7 +556,6 @@ function Layout() {
           style={headerStyle}
         >
           <div style={headerLeftStyle}>
-            {/* Hamburger Menu Button - visible on mobile only */}
             <motion.button
               onClick={() => setMenuOpen(!menuOpen)}
               style={hamburgerStyle}
@@ -244,33 +565,34 @@ function Layout() {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-
-            {/* Page Title - can be dynamic based on route */}
             <span style={pageTitleStyle}>Dashboard</span>
           </div>
 
-          <div style={headerRightStyle}>
-            {/* Notifications - Highest z-index component */}
-            <div style={notificationWrapperStyle}>
+        <div style={headerRightStyle}>
+  <button onClick={toggleDark} style={{ backgroundColor: "transparent", border: "none", cursor: "pointer" }}>
+    <FaSun style={{ fontSize: "24px", color: "#f39c12" }} />
+  </button>
+
+            <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
+             
             </div>
 
-            {/* User Menu */}
             <div ref={userMenuRef} style={userMenuContainerStyle}>
               <motion.div
                 style={userMenuTriggerStyle}
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                whileHover={{ backgroundColor: "#f1f5f9" }}
                 whileTap={{ scale: 0.95 }}
               >
                 {profileImageUrl ? (
-                  <img src={profileImageUrl} alt={user.fullName} style={headerAvatarStyle} />
+                  <img src={profileImageUrl} alt={user.fullName.split(" ")[0]} style={headerAvatarStyle} />
                 ) : (
                   <div style={headerAvatarFallbackStyle}>
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span style={userNameStyle}>{user.fullName.split(" ")[0]}</span>
+                <span style={userNameStyle}>{user.fullName.split(" ")[1]}</span>
                 <span style={dropdownArrowStyle}>▼</span>
               </motion.div>
 
@@ -291,7 +613,7 @@ function Layout() {
                     <motion.button
                       onClick={handleLogout}
                       style={userDropdownLogout}
-                      whileHover={{ backgroundColor: "#fee2e2", color: "#ef4444" }}
+                      whileHover={{ backgroundColor: "#fef2f2", color: "#dc2626" }}
                     >
                       <span style={dropdownLogoutIcon}>🚪</span>
                       Sign Out
@@ -303,28 +625,24 @@ function Layout() {
           </div>
         </motion.header>
 
-        {/* Page Content - This is where your pages render */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          style={contentStyle}
-          className="page-content"
-        >
-          <Outlet />
-        </motion.div>
+        {/* REMOVED the motion.div wrapper that was affecting pages */}
+        <Outlet />
       </main>
 
-      {/* Global styles - FIXED FOR NO MARGINS AND OPTIMAL SPACE USAGE */}
+      <FloatingInstallButton />
+
       <style>
         {`
-          @keyframes gradientMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+
+        
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
           }
 
-          /* CRITICAL FIXES: Remove all margins and optimize space */
+
+
           html, body, #root {
             height: 100%;
             width: 100%;
@@ -334,117 +652,40 @@ function Layout() {
           }
 
           body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
           }
 
-          /* Remove default margins from all elements inside content */
-          .page-content * {
-            max-width: 100%;
-          }
-
-          /* FIX: Hide scrollbars but keep functionality */
           main {
-            scrollbar-width: thin; /* Firefox */
-            scrollbar-color: transparent transparent; /* Firefox */
-            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
           }
           
           main::-webkit-scrollbar {
-            width: 0px;  /* Remove scrollbar space */
-            height: 0px;
-            background: transparent;  /* Optional: just make scrollbar invisible */
+            width: 6px;
+            height: 6px;
           }
           
-          /* For the inner content container */
-          .page-content {
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255,255,255,0.2) transparent;
-            -ms-overflow-style: -ms-autohiding-scrollbar;
+          main::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
           }
           
-          .page-content::-webkit-scrollbar {
-            width: 4px;  /* Thin scrollbar */
-            height: 4px;
+          main::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
           }
           
-          .page-content::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 4px;
-          }
-          
-          .page-content::-webkit-scrollbar-track {
-            background: transparent;
+          main::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
           }
 
-          /* Mobile-specific fixes */
           @media (max-width: 900px) {
-            /* Show hamburger menu on mobile */
             .mobile-hamburger {
               display: flex !important;
             }
-            
-            /* Remove all padding/margins on mobile */
-            main {
-              padding: 0 !important;
-              margin: 0 !important;
-            }
-            
-            .page-content {
-              padding: 12px !important; /* Minimal padding for content, not margins */
-            }
-            
-            /* Make cards and tables use full width */
-            .page-content .card,
-            .page-content .table-container,
-            .page-content [class*="card"],
-            .page-content [class*="Card"],
-            .page-content [class*="table"],
-            .page-content [class*="Table"] {
-              margin-left: 0 !important;
-              margin-right: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-              border-radius: 8px !important; /* Slightly smaller radius on mobile */
-            }
-            
-            /* Force tables to not overflow */
-            .page-content table {
-              display: block;
-              width: 100%;
-              overflow-x: auto;
-              -webkit-overflow-scrolling: touch;
-              white-space: nowrap;
-            }
-            
-            /* Make table cells more compact on mobile if needed */
-            .page-content th,
-            .page-content td {
-              padding: 8px !important;
-              white-space: nowrap;
-            }
-            
-            /* Grid layouts should use full width */
-            .page-content .grid,
-            .page-content [class*="grid"] {
-              margin: 0 !important;
-              width: 100% !important;
-            }
           }
 
-          /* Desktop scrollbar styling - minimal but visible */
-          @media (min-width: 901px) {
-            .page-content::-webkit-scrollbar {
-              width: 6px;
-              height: 6px;
-            }
-          }
-
-          /* Sidebar scrollbar - minimal */
-          .sidebar-scroll::-webkit-scrollbar {
-            width: 3px;
-          }
-
-          /* Z-index hierarchy */
           .sidebar {
             z-index: 50 !important;
           }
@@ -454,50 +695,118 @@ function Layout() {
           }
 
           header {
-            z-index: 30 !important;
+            z-index: 10 !important;
           }
 
-          /* Notifications - highest */
           .notifications-dropdown,
           [class*="Notifications"] [style*="position: fixed"],
           [class*="Notifications"] [style*="position: absolute"] {
             z-index: 9999999 !important;
           }
+
+          .ai-btn {
+  background: linear-gradient(135deg, #cf331e, #830707c5);
+  border: none;
+  border-radius: 13px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: white;
+
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.messenger-badge {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  background: #25D366;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+
+        select option {
+          background: #0dac28;
+          color: white;
+          padding: 10px;
+        }
+
+
+                select option {
+          background: #11af0c;
+          color: white;
+          padding: 10px;
+        }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Mobile specific fixes for header */
+@media (max-width: 600px) {
+  .header-right-wrapper {
+    gap: 2px !important;
+  }
+  
+  .notification-wrapper {
+    padding: 2px !important;
+  }
+  
+  .user-menu-trigger {
+    padding: 2px 6px !important;
+  }
+  
+  .user-name-display {
+    display: none !important;
+  }
+}
         `}
       </style>
     </div>
   );
 }
 
-// ==================== Styles ====================
-
-const containerStyle = (bg) => ({
+const containerStyle = {
   height: "100vh",
   width: "100vw",
-  backgroundImage: `url(${bg})`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  backgroundAttachment: "fixed",
+  background: "#f8fafc",
   position: "relative",
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   overflow: "hidden",
   margin: 0,
   padding: 0,
-});
-
-const overlayStyle = {
-  position: "absolute",
-  inset: 0,
-  background: "linear-gradient(-45deg, rgba(49,15,221,0.7), rgba(0,0,0,0.8), rgba(49,15,221,0.7))",
-  backgroundSize: "400% 400%",
-  animation: "gradientMove 15s ease infinite",
-  zIndex: 0,
 };
 
 const backdropStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(13, 13, 13, 0.28)",
+  background: "rgba(0, 0, 0, 0.3)",
   backdropFilter: "blur(4px)",
   zIndex: 40,
 };
@@ -507,15 +816,13 @@ const sidebarStyle = {
   left: 0,
   top: 0,
   height: "100vh",
-  width: "280px",
-  background: "rgba(22, 82, 210, 0.43)",
-  backdropFilter: "blur(10px)",
-  borderRight: "1px solid rgba(255, 255, 255, 0.86)",
+  width: "250px",
+  background: "#ffffff",
+  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.73)",
   padding: "24px 16px",
   display: "flex",
   flexDirection: "column",
   zIndex: 50,
-  boxShadow: "4px 0 20px rgba(0,0,0,0.2)",
   overflowY: "hidden",
 };
 
@@ -523,17 +830,15 @@ const logoSection = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
-  padding: "16px 12px",
-  marginBottom: "20px",
-  background: "rgba(255,255,255,0.05)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.1)",
+  padding: "12px",
+  marginBottom: "24px",
+  borderBottom: "1px solid #e2e8f0",
 };
 
 const logoStyle = {
-  width: "48px",
+  width: "44px",
   height: "auto",
-  borderRadius: "12px",
+  borderRadius: "10px",
 };
 
 const logoText = {
@@ -541,18 +846,19 @@ const logoText = {
 };
 
 const logoTitle = {
-  color: "#fff",
-  fontSize: "14px",
+  color: "#790591",
+  fontSize: "13px",
   fontWeight: "700",
   margin: 0,
-  lineHeight: "1.4",
+  lineHeight: "1.3",
+  letterSpacing: "0.5px",
 };
 
 const logoSubtitle = {
-  color: "rgba(255,255,255,0.6)",
-  fontSize: "15px",
+  color: "#a0a2a5",
+  fontSize: "11px",
   margin: "4px 0 0",
-  fontWeight: "600"
+  fontWeight: "500",
 };
 
 const userBadgeStyle = {
@@ -560,25 +866,25 @@ const userBadgeStyle = {
   alignItems: "center",
   gap: "12px",
   padding: "12px",
-  background: "rgba(255,255,255,0.03)",
+  background: "#f8fafc",
   borderRadius: "12px",
   marginBottom: "24px",
-  border: "1px solid rgba(255,255,255,0.05)",
+  border: "1px solid #e2e8f0",
 };
 
 const userBadgeAvatar = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "40px",
+  width: "44px",
+  height: "44px",
+  borderRadius: "44px",
   objectFit: "cover",
-  border: "2px solid #00c6ff",
+  border: "2px solid #3b83f600",
 };
 
 const userBadgeFallback = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "40px",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
+  width: "44px",
+  height: "44px",
+  borderRadius: "44px",
+  background: "linear-gradient(135deg, #f63b3b, #5025ebc5)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -593,16 +899,16 @@ const userBadgeInfo = {
 
 const userBadgeName = {
   display: "block",
-  color: "#fff",
-  fontSize: "18px",
-  fontWeight: "500",
+  color: "#1e293b",
+  fontSize: "15px",
+  fontWeight: "600",
   marginBottom: "2px",
 };
 
 const userBadgeRole = {
   display: "block",
-  color: "rgba(255,255,255,0.5)",
-  fontSize: "11px",
+  color: "#64748b",
+  fontSize: "10px",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -612,37 +918,44 @@ const navContainer = (shadow) => ({
   overflowY: "auto",
   paddingRight: "4px",
   transition: "box-shadow 0.3s",
-  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.3)" : "none",
+  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
 });
 
 const navStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "4px",
+  gap: "8px",
 };
 
-const navItemStyle = (isActive) => ({
-  padding: "11px 16px",
+// NEW: Card styles for navigation (replaces old navItemStyle)
+const navCardStyle = (isActive) => ({
+  padding: "12px 16px",
   borderRadius: "12px",
   textDecoration: "none",
-  color: isActive ? "#fff" : "#fff",
-  fontWeight: "600",
-  fontSize: "16px",
-  fontFamily: "'Inter', 'Tahoma', Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
-  backgroundColor: isActive ? "rgba(0, 200, 255, 0.63)" : "transparent",
-  border: isActive ? "1px solid rgba(0,198,255,0.3)" : "1px solid transparent",
+  color: isActive ? "#2feb8d" : "#475569",
+  fontWeight: isActive ? "600" : "500",
+  fontSize: "14px",
+  fontFamily: "'Inter', sans-serif",
+  backgroundColor: isActive ? "#9c9c9c" : "#ffffff",
+  border: isActive ? "1px solid #bfdbfe" : "1px solid #e2e8f0",
   display: "flex",
   alignItems: "center",
   gap: "12px",
   position: "relative",
   transition: "all 0.2s",
   cursor: "pointer",
+  boxShadow: isActive ? "0 2px 4px rgba(59, 130, 246, 0.1)" : "none",
 });
 
-const navIconStyle = {
-  fontSize: "18px",
-  width: "24px",
+const navCardIcon = {
+  fontSize: "20px",
+  width: "28px",
 };
+
+const navCardLabel = (isActive) => ({
+  color: isActive ? "#ffffff" : "#475569",
+  fontWeight: isActive ? "600" : "500",
+});
 
 const activeIndicatorStyle = {
   position: "absolute",
@@ -651,7 +964,7 @@ const activeIndicatorStyle = {
   transform: "translateY(-50%)",
   width: "3px",
   height: "20px",
-  background: "linear-gradient(180deg, #00c6ff, #007bff)",
+  background: "#ff0000",
   borderRadius: "0 3px 3px 0",
 };
 
@@ -660,23 +973,25 @@ const sidebarFooterStyle = {
 };
 
 const sidebarFooterDivider = {
-  height: "3px",
-  background: "rgba(255, 255, 255, 0.9)",
-  margin: "19px 0",
+  height: "1px",
+  background: "#e2e8f0",
+  margin: "16px 0",
 };
 
 const sidebarLogoutButton = {
-  width: "70%",
-  padding: "8px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgb(229, 26, 26)",
-  color: "rgba(255, 255, 255, 0.96)",
+  width: "100%",
+  padding: "10px",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  color: "#dc2626",
   fontSize: "14px",
-  fontWeight: "800",
+  fontWeight: "600",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+    marginBottom: "49px",
+
   gap: "8px",
   cursor: "pointer",
   transition: "all 0.2s",
@@ -686,36 +1001,35 @@ const logoutIconStyle = {
   fontSize: "16px",
 };
 
-// FIXED: Main content style - NO MARGINS ON MOBILE
+// CHANGED: Removed padding so pages control their own spacing
 const mainContentStyle = (isMobile, menuOpen) => ({
   marginLeft: isMobile ? 0 : "280px",
-  padding: isMobile ? 0 : "24px", // No padding on mobile
+  padding: 0,  // REMOVED: was "20px" on desktop
   position: "relative",
   zIndex: 1,
-  height: "100vh",
+  height: "100vh",  
   overflowY: "auto",
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
   width: isMobile ? "100%" : `calc(100% - 280px)`,
+  background: "#f8fafc",
 });
 
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
-  background: "rgba(69, 63, 63, 0.36)",
-  backdropFilter: "blur(10px)",
-  borderRadius: "16px",
-  padding: "12px 20px",
-  marginBottom: "24px",
-  border: "1px solid rgba(27, 25, 25, 0.83)",
-  position: "relative",
+  alignItems: "fit-content",
+  background: "#fafafa",
+  borderRadius: "5px",
+  padding: "4px 20px",
+  marginBottom: "0px",
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
+  border: "1px solid #c0c2c4",
+  position: "sticky",
+  top: 1,
+  marginRight: "0px",
   zIndex: 30,
   flexShrink: 0,
-  // Mobile header fixes
-  marginLeft: 0,
-  marginRight: 0,
-  width: "auto",
 };
 
 const headerLeftStyle = {
@@ -724,82 +1038,97 @@ const headerLeftStyle = {
   gap: "16px",
 };
 
-// FIXED: Hamburger style - now visible on mobile
 const hamburgerStyle = {
-  display: "none", // Hidden by default
-  background: "rgba(145, 137, 137, 0.35)",
-  border: "1px solid rgba(255,255,255,0.2)",
+  display: "none",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   borderRadius: "10px",
   width: "40px",
   height: "40px",
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
-  // This media query makes it visible on mobile
   "@media (max-width: 900px)": {
     display: "flex",
   },
 };
 
 const hamburgerIconStyle = {
-  color: "#ffffff",
-  fontSize: "30px",
+  color: "#475569",
+  fontSize: "25px",
+  fontWeight: "800",
 };
 
 const pageTitleStyle = {
-  color: "#ffffff",
-  fontSize: "18px",
+  color: "#1e293b",
+  fontSize: "16px",
   fontWeight: "600",
   "@media (max-width: 900px)": {
     fontSize: "16px",
   },
 };
 
+// Update these styles in your Layout.jsx
+
 const headerRightStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "20px",
-  position: "relative",
-  zIndex: 31,
-  "@media (max-width: 900px)": {
-    gap: "10px",
+  gap: "6px",
+  flexShrink: 0, // Prevents squeezing
+  "@media (max-width: 600px)": {
+    gap: "4px",
   },
 };
 
-const notificationWrapperStyle = {
+const enhancedNotificationWrapperStyle = {
   position: "relative",
   zIndex: 999999,
   isolation: "isolate",
+  background: "#f7f4f4f3",
+  borderRadius: "52px",
+  padding: "0.1px", // Reduced from 0.10px
+  border: "0.1px solid #e2e8f0",
+  transition: "all 0.2s ease",
+  cursor: "pointer",
+  // REMOVED: left: "17px" - this was causing issues
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0, // Prevents squeezing
 };
 
 const userMenuContainerStyle = {
   position: "relative",
   zIndex: 100,
+  // REMOVED: left: "9px" - this was causing issues
+  padding: "4px 4px",
+  flexShrink: 0, // Prevents squeezing
 };
 
 const userMenuTriggerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "10px",
-  padding: "6px 12px",
+  gap: "4px",
+  padding: "4px 10px",
   borderRadius: "40px",
-  background: "rgba(255, 255, 255, 0.22)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   cursor: "pointer",
   position: "relative",
   zIndex: 101,
-  "@media (max-width: 900px)": {
-    padding: "4px 8px",
-    gap: "4px",
+  flexShrink: 0, // Prevents squeezing
+  "@media (max-width: 600px)": {
+    padding: "3px 6px",
+    gap: "2px",
   },
 };
 
 const headerAvatarStyle = {
-  width: "36px",
-  height: "36px",
+  width: "40px",
+  height: "40px",
   borderRadius: "36px",
   objectFit: "cover",
-  border: "2px solid #00c6ff",
+  border: "2px solid #3b83f600",
   "@media (max-width: 900px)": {
     width: "32px",
     height: "32px",
@@ -807,10 +1136,10 @@ const headerAvatarStyle = {
 };
 
 const headerAvatarFallbackStyle = {
-  width: "36px",
-  height: "36px",
+  width: "20px",
+  height: "20px",
   borderRadius: "36px",
-  background: "linear-gradient(135deg, #00c6ff, #007bff)",
+  background: "linear-gradient(135deg, #f3052d, #2563eb)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -818,26 +1147,27 @@ const headerAvatarFallbackStyle = {
   fontWeight: "600",
   color: "#fff",
   "@media (max-width: 900px)": {
-    width: "32px",
+    width: "2px",
     height: "32px",
     fontSize: "14px",
   },
 };
 
+
 const userNameStyle = {
-  color: "#00b2f8",
+  color: "#1e293b",
   fontSize: "14px",
   fontWeight: "800",
   "@media (max-width: 900px)": {
-    display: "none", // Hide username on mobile to save space
+    display: "none",
   },
 };
 
 const dropdownArrowStyle = {
-  color: "rgba(255, 255, 255, 0.16)",
+  color: "#94a3b8",
   fontSize: "10px",
   "@media (max-width: 900px)": {
-    display: "none", // Hide arrow on mobile
+    display: "none",
   },
 };
 
@@ -846,33 +1176,32 @@ const userDropdownStyle = {
   top: "calc(100% + 8px)",
   right: 0,
   width: "240px",
-  background: "#1a658d",
+  background: "#ffffff",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow: "0 10px 25px -5px rgba(0,0,0,0.5)",
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
   zIndex: 102,
   overflow: "hidden",
   "@media (max-width: 900px)": {
     width: "200px",
-    right: "-10px",
   },
 };
 
 const userDropdownHeader = {
   padding: "12px 16px",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.72)",
+  borderBottom: "1px solid #e2e8f0",
 };
 
 const userDropdownEmail = {
   display: "block",
-  color: "rgba(255, 255, 255, 0.93)",
+  color: "#64748b",
   fontSize: "12px",
   marginTop: "4px",
 };
 
 const userDropdownDivider = {
   height: "1px",
-  background: "rgba(255,255,255,0.1)",
+  background: "#e2e8f0",
 };
 
 const userDropdownLogout = {
@@ -880,9 +1209,9 @@ const userDropdownLogout = {
   padding: "12px 16px",
   background: "transparent",
   border: "none",
-  color: "#ed1717",
+  color: "#ef4444",
   fontSize: "14px",
-  fontWeight: "900",
+  fontWeight: "500",
   display: "flex",
   alignItems: "center",
   gap: "8px",
@@ -894,19 +1223,11 @@ const dropdownLogoutIcon = {
   fontSize: "16px",
 };
 
-// FIXED: Content style - minimal padding, full width
-const contentStyle = {
-  height: "calc(100vh - 80px)", // Full height minus header
-  overflowY: "auto",
-  overflowX: "hidden",
-  position: "relative",
-  zIndex: 1,
-  padding: 0, // No padding by default
-  // Mobile specific overrides will be in the global styles
-  "@media (max-width: 900px)": {
-    padding: "12px", // Minimal padding for content on mobile
-    height: "calc(100vh - 70px)", // Slightly adjust for mobile header
-  },
-};
+
+
+
+
+
+// REMOVED: contentStyle - no longer needed since we removed the wrapper
 
 export default Layout;

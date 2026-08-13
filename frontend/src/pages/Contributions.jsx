@@ -5,9 +5,12 @@ import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
 import SimpleMessageModal from "./SimpleMessageModal";
+import { Users } from "lucide-react";
+import { FaFileAlt } from "react-icons/fa";
 
 function Contributions() {
   const [contributions, setContributions] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pledgeInputs, setPledgeInputs] = useState({});
@@ -17,12 +20,21 @@ function Contributions() {
   const [expandedCard, setExpandedCard] = useState(null);
   const [filter, setFilter] = useState("all");
   // NEW: State for message modal
-  const [messageThread, setMessageThread] = useState(null);
+ const [messageThread, setMessageThread] = useState(null);
+const [claimInputs, setClaimInputs] = useState({});
+const [claiming, setClaiming] = useState({});
+const [claimStatus, setClaimStatus] = useState({});
+  
   
   const fetchAttempted = useRef(false);
   const token = localStorage.getItem("token");
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
+ const handlePayNow = (contribution) => {
+  // Use the campaign ID from the contribution
+  const campaignId = contribution.contributionTypeId;
+  const paymentLink = `${window.location.origin}/pay/campaign/${campaignId}`;
+  window.open(paymentLink, '_blank');
+};
   // Socket connection for real-time updates
   useEffect(() => {
     const socket = io(BASE_URL);
@@ -43,7 +55,7 @@ function Contributions() {
         const paidAmount = updatedPledge.amountPaid;
         const remaining = updatedPledge.amountRequired - paidAmount;
         showNotification(
-          `✅ Your pledge of ${updatedPledge.pendingAmount} has been approved! ${
+          `✅ Hi ${user?.fullName?.split(' ')[0] || 'User'}, your pledge of ${updatedPledge.pendingAmount} has been approved! ${
             remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'
           }`, 
           "success"
@@ -86,17 +98,20 @@ function Contributions() {
     return () => clearInterval(interval);
   }, []);
 
-  const silentRefresh = useCallback(async () => {
-    if (!token || refreshing) return;
-    
-    try {
-      const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
-      setContributions(res.data);
-      console.log('Background refresh completed');
-    } catch (err) {
-      console.error("Background refresh error:", err);
-    }
-  }, [token, headers, refreshing]);
+const silentRefresh = useCallback(async () => {
+  if (!token || refreshing) return;
+  
+  try {
+    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { 
+      headers: headers,
+      params: { _t: Date.now() }
+    });
+    setContributions(res.data);
+    console.log('Background refresh completed');
+  } catch (err) {
+    console.error("Background refresh error:", err);
+  }
+}, [token, headers, refreshing]);
 
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
@@ -109,7 +124,8 @@ function Contributions() {
     }
   }, [token]);
 
-  const fetchContributions = useCallback(async (isRefresh = false) => {
+
+const fetchContributions = useCallback(async (isRefresh = false) => {
   if (!token) return;
   
   if (isRefresh) {
@@ -121,36 +137,98 @@ function Contributions() {
   setError(null);
   
   try {
-    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { headers });
+    const res = await axios.get(`${BASE_URL}/api/my-pledges`, { 
+      headers: headers,  // Only your auth header
+      params: {
+        _t: Date.now()   // This prevents caching
+      }
+    });
     
-    // Filter out jumuia-specific contributions
     const userContributions = res.data.filter(c => !c.jumuiaId);
-    
     setContributions(userContributions);
   } catch (err) {
     setError(err.response?.data?.error || "Failed to fetch contributions");
   } finally {
     setLoading(false);
     setRefreshing(false);
-    fetchAttempted.current = true;
   }
 }, [token, headers]);
 
-  useEffect(() => {
-    if (token && !fetchAttempted.current) {
-      fetchContributions();
-    }
-  }, [token, fetchContributions]);
+useEffect(() => {
+  if (token && !fetchAttempted.current) {
+    fetchContributions();
+    fetchAttempted.current = true;
+  }
+}, [token, fetchContributions]);
 
   // FIXED: calculateRemaining now correctly shows what's left to pay
   const calculateRemaining = (contribution) => {
     return contribution.amountRequired - contribution.amountPaid;
   };
 
+  
+
   // NEW: Handle opening message thread
   const handleOpenMessage = (pledgeId, pledgeTitle) => {
     setMessageThread({ pledgeId, pledgeTitle });
   };
+
+  const handleClaimInput = (contributionId, value) => {
+  setClaimInputs(prev => ({
+    ...prev,
+    [contributionId]: value
+  }));
+};
+
+const handleClaim = async (contributionId) => {
+  const code = claimInputs[contributionId]?.trim();
+  if (!code) {
+    showNotification("Please enter an M-PESA code", "error");
+    return;
+  }
+
+  setClaiming(prev => ({ ...prev, [contributionId]: true }));
+  setClaimStatus(prev => ({ ...prev, [contributionId]: { loading: true } }));
+
+  try {
+    const contribution = contributions.find(c => c.id === contributionId);
+    if (!contribution) {
+      setClaimStatus(prev => ({
+        ...prev,
+        [contributionId]: { error: "Contribution not found" }
+      }));
+      return;
+    }
+
+    // ONE API call - directly claim
+    const claimRes = await axios.post(`${BASE_URL}/api/ibm/claim`, {
+      code,
+      contributionTypeId: contribution.contributionTypeId
+    }, { headers });
+
+    if (claimRes.data.success) {
+      setClaimStatus(prev => ({
+        ...prev,
+        [contributionId]: { success: claimRes.data.message }
+      }));
+      setClaimInputs(prev => ({ ...prev, [contributionId]: "" }));
+      showNotification(claimRes.data.message, "success");
+      fetchContributions(true);
+    }
+  } catch (err) {
+    const msg = err.response?.data?.message || "Failed to claim payment";
+    setClaimStatus(prev => ({
+      ...prev,
+      [contributionId]: { error: msg }
+    }));
+    showNotification(msg, "error");
+  } finally {
+    setClaiming(prev => ({ ...prev, [contributionId]: false }));
+    setTimeout(() => {
+      setClaimStatus(prev => ({ ...prev, [contributionId]: null }));
+    }, 5000);
+  }
+};
 
   const optimisticUpdate = (contributionId, updates) => {
     setContributions(prev => 
@@ -244,13 +322,8 @@ function Contributions() {
 
   if (!token) return null;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="contributions-page"
-    >
+ return (
+  <div className="contributions-page">
       {/* Notification */}
       <AnimatePresence>
         {notification.show && (
@@ -269,7 +342,7 @@ function Contributions() {
       <div className="header">
         <div className="header-left">
           <h1 className="title">My Contributions</h1>
-          <p className="subtitle">Track and manage your pledges</p>
+          <p className="subtitle"> Welcome back, we'll notify you when new contributions are available! </p>
         </div>
         <button 
           onClick={() => fetchContributions(true)}
@@ -376,7 +449,7 @@ function Contributions() {
       {!loading && !error && filteredContributions.length === 0 && (
         <div className="empty-state">
           <div className="empty-icon">
-            {filter === 'pending' ? '⏳' : filter === 'approved' ? '✓' : filter === 'completed' ? '🎉' : '📋'}
+            {filter === 'pending' ? '⏳' : filter === 'approved' ? '✓' : filter === 'completed' ? '🎉' : <FaFileAlt/>}
           </div>
           <h3>No {filter === 'all' ? '' : filter} contributions</h3>
           <p>
@@ -400,22 +473,29 @@ function Contributions() {
       {!loading && !error && filteredContributions.length > 0 && (
         <div className="contributions-list">
           {filteredContributions.map((contribution) => (
-            <ContributionCard
-              key={contribution.id}
-              contribution={contribution}
-              pledgeInput={pledgeInputs[contribution.id] || {}}
-              onPledgeChange={(field, value) => 
-                handleInputChange(contribution.id, field, value)
-              }
-              onPledge={() => handlePledge(contribution.id)}
-              isSubmitting={submitting[contribution.id]}
-              remainingAmount={calculateRemaining(contribution)}
-              isExpanded={expandedCard === contribution.id}
-              onToggle={() => setExpandedCard(
-                expandedCard === contribution.id ? null : contribution.id
-              )}
-              onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
-            />
+          <ContributionCard
+  key={contribution.id}
+  contribution={contribution}
+  pledgeInput={pledgeInputs[contribution.id] || {}}
+  onPledgeChange={(field, value) => 
+    handleInputChange(contribution.id, field, value)
+  }
+  onPledge={() => handlePledge(contribution.id)}
+  onPayNow={() => handlePayNow(contribution)} 
+  isSubmitting={submitting[contribution.id]}
+  remainingAmount={calculateRemaining(contribution)}
+  isExpanded={expandedCard === contribution.id}
+  onToggle={() => setExpandedCard(
+    expandedCard === contribution.id ? null : contribution.id
+  )}
+  onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
+  user={user}
+  claimInputs={claimInputs}
+  claimStatus={claimStatus}
+  claiming={claiming}
+  onClaimInput={handleClaimInput}
+  onClaim={handleClaim}
+/>
           ))}
         </div>
       )}
@@ -441,7 +521,7 @@ function Contributions() {
         /* Notification */
         .notification {
           position: fixed;
-          top: 20px;
+          top: 70px;
           right: 20px;
           padding: 12px 20px;
           border-radius: 10px;
@@ -759,21 +839,27 @@ function Contributions() {
           }
         }
       `}</style>
-    </motion.div>
+       </div>
   );
 }
-
 // Contribution Card Component
 const ContributionCard = ({ 
   contribution, 
   pledgeInput, 
   onPledgeChange, 
   onPledge, 
+  onPayNow,
   isSubmitting,
   remainingAmount,
   isExpanded,
   onToggle,
-  onOpenMessage  // NEW prop
+  onOpenMessage,
+  user,
+  claimInputs,
+  claimStatus,
+  claiming,
+  onClaimInput,
+  onClaim
 }) => {
   const completed = contribution.amountPaid >= contribution.amountRequired;
   const status = completed ? "COMPLETED" : contribution.status;
@@ -954,6 +1040,16 @@ const ContributionCard = ({
                     >
                       {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
                     </button>
+
+                      {/* PAY NOW Button - Same style as PLEDGE button */}
+  <button 
+    className={`paynow-btn ${isSubmitting ? 'submitting' : ''}`}
+    onClick={onPayNow}
+    disabled={isSubmitting}
+    style={{ width: '100%' }}
+  >
+    💳 Pay Now with M-PESA
+  </button>
                     
                     {/* NEW: Message button */}
                     <button 
@@ -982,6 +1078,35 @@ const ContributionCard = ({
                 </div>
               </div>
             )}
+
+            {/* Claim Bank Payment */}
+<div className="claim-section">
+  <div className="claim-divider">
+    <span>Claim Bank Payment</span>
+  </div>
+  <div className="claim-form">
+    <input
+      type="text"
+      placeholder="Paste M-PESA code (e.g. QK4T7X9Z2W)"
+      className="claim-input"
+      value={claimInputs[contribution.id] || ""}
+      onChange={(e) => onClaimInput(contribution.id, e.target.value)}
+disabled={claiming[contribution.id]}    />
+    <button
+      className="claim-btn"
+onClick={() => onClaim(contribution.id)}
+disabled={claiming[contribution.id]}    >
+      {claiming[contribution.id] ? "Checking..." : "Claim"}
+    </button>
+  </div>
+  {claimStatus[contribution.id]?.success && (
+    <div className="claim-success">{claimStatus[contribution.id].success}</div>
+  )}
+  {claimStatus[contribution.id]?.error && (
+    <div className="claim-error">{claimStatus[contribution.id].error}</div>
+  )}
+ 
+</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -992,6 +1117,7 @@ const ContributionCard = ({
           border-radius: 30px;
           box-shadow: 0 2px 8px rgba(0,0,0,0.05);
           overflow: hidden;
+          margin-bottom: 40px;
           transition: all 0.2s;
         }
         .contribution-card.submitting {
@@ -1289,7 +1415,111 @@ const ContributionCard = ({
           font-size: 13px;
           color: #475569;
           margin: 0;
-        }
+      }
+
+      /* Claim Section */
+.claim-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 2px solid #f1f5f9;
+}
+
+.claim-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.claim-divider span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.claim-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.claim-form {
+  display: flex;
+  gap: 10px;
+}
+
+.claim-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.claim-input:focus {
+  outline: none;
+  border-color: #0f172a;
+}
+
+.claim-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.claim-btn {
+  padding: 10px 20px;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.claim-btn:hover:not(:disabled) {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.claim-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.claim-success {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 14px;
+}
+
+.claim-error {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.claim-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #64748b;
+  font-style: italic;
+}
 
         @media (max-width: 480px) {
           .card-header {
@@ -1310,6 +1540,31 @@ const ContributionCard = ({
             padding: 16px;
           }
         }
+          /* Pay Now Button - Same style as PLEDGE button */
+.paynow-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #10b981;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.paynow-btn:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+}
+.paynow-btn.submitting {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.paynow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
       `}</style>
     </motion.div>
   );

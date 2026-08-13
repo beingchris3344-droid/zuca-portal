@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
+import logo from "../assets/zuca-logo.png";
 
 // Professional Icon Set
 const Icons = {
@@ -255,7 +256,7 @@ export default function UserAnnouncements() {
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           style={loadingSpinner}
         >
-          <Icons.Announcement />
+         {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -289,7 +290,7 @@ export default function UserAnnouncements() {
                 Announcements
               </h1>
               <p style={titleSub}>
-                Stay informed with the latest updates from your community
+                Stay informed with the latest updates from ZUCA
               </p>
             </div>
           </div>
@@ -368,7 +369,7 @@ export default function UserAnnouncements() {
             </span>
             <input
               type="text"
-              placeholder="Search announcements by title or content..."
+              placeholder="Search announcements "
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={searchInput}
@@ -953,10 +954,10 @@ const iconStyle = {
 
 // Container
 const container = {
-  padding: "0rem",
+  padding: "1.4rem",
   maxWidth: "1400px",
-  margin: "0 auto",
-  marginRight: "9px",
+  margin: "9px auto",
+  marginRight: "0px",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
   minHeight: "80vh",
   position: "relative",
@@ -1038,7 +1039,7 @@ const titleIcon = {
 const title = {
   fontSize: "34px",
   fontWeight: "800",
-  color: "#f3f6fd",
+  color: "#000000",
   marginRight: "2px",
   margin: 0,
   letterSpacing: "-0.02em",
@@ -1046,7 +1047,7 @@ const title = {
 
 const titleSub = {
   fontSize: "1rem",
-  color: "#c7d0db",
+  color: "#000000",
   marginTop: "0.25rem",
   fontWeight: "500",
 };
@@ -1085,7 +1086,7 @@ const statValue = {
 const statLabel = {
   fontSize: "0.8rem",
   fontWeight: "600",
-  color: "#64748b",
+  color: "#000000",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -1360,7 +1361,7 @@ const timelineDot = {
 
 const timelineText = {
   fontSize: "0.9rem",
-  color: "#475569",
+  color: "#0063ee",
   fontWeight: "500",
 };
 

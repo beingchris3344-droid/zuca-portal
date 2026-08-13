@@ -1,81 +1,97 @@
-// C:\Users\HP\zuca-portal\frontend\src\pages\ForgotPassword.jsx
-import { useState } from "react";
+// frontend/src/pages/ForgotPassword.jsx
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import bg from "../assets/background4.webp";
+import { motion } from "framer-motion";
+
+// Slideshow images (same as Register.jsx)
+import slide1 from "../assets/background2.webp";
+import slide2 from "../assets/2.jpg";
+import slide3 from "../assets/3.jpg";
+import slide4 from "../assets/4.jpg";
+import slide5 from "../assets/5.jpg";
+import slide6 from "../assets/6.jpg";
+import slide7 from "../assets/7.jpg";
+import slide8 from "../assets/8.jpg";
+import slide9 from "../assets/9.jpg";
+import slide10 from "../assets/10.jpg";
+import slide11 from "../assets/11.jpg";
+import slide12 from "../assets/12.jpg";
+
 import logo from "../assets/zuca-logo.png";
 import BASE_URL from "../api";
+import { FaEnvelope, FaArrowLeft, FaSpinner, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 
 function ForgotPassword() {
-  const [phone, setPhone] = useState("");
-  const [membershipNumber, setMembershipNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [focusedField, setFocusedField] = useState(null);
   const navigate = useNavigate();
 
-  // Format phone number helper (Kenyan format)
-  const formatPhoneNumber = (phone) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.startsWith("07") && cleaned.length === 10) {
-      return "+254" + cleaned.slice(1);
-    } else if (cleaned.startsWith("7") && cleaned.length === 9) {
-      return "+254" + cleaned;
-    } else if (cleaned.startsWith("254") && cleaned.length === 12) {
-      return "+" + cleaned;
-    }
-    return phone;
-  };
+  // Slideshow state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPlaying] = useState(true);
+  const slideIntervalRef = useRef(null);
+
+  const slides = [
+    { id: 1, image: slide1 },
+    { id: 2, image: slide2 },
+    { id: 3, image: slide3 },
+    { id: 4, image: slide4 },
+    { id: 5, image: slide5 },
+    { id: 6, image: slide6 },
+    { id: 7, image: slide7 },
+    { id: 8, image: slide8 },
+    { id: 9, image: slide9 },
+    { id: 10, image: slide10 },
+    { id: 11, image: slide11 },
+    { id: 12, image: slide12 },
+  ];
+
+  // Auto-play slideshow
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    slideIntervalRef.current = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+
+    return () => {
+      if (slideIntervalRef.current) clearInterval(slideIntervalRef.current);
+    };
+  }, [isPlaying, slides.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
-    if (!phone.trim() || !membershipNumber.trim()) {
-      setError("All fields are required");
+    if (!email.trim()) {
+      setError("Email is required");
       setLoading(false);
       return;
-    }
-
-    const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 9 || phoneDigits.length > 12) {
-      setError("Please enter a valid phone number (e.g., 0712345678)");
-      setLoading(false);
-      return;
-    }
-
-    let formattedMembership = membershipNumber.trim().toUpperCase();
-    if (!formattedMembership.startsWith("Z#") && !formattedMembership.startsWith("Z-")) {
-      if (/^\d+$/.test(formattedMembership)) {
-        formattedMembership = `Z#${formattedMembership.padStart(3, "0")}`;
-      } else {
-        formattedMembership = `Z#${formattedMembership.replace(/[^0-9]/g, "").padStart(3, "0")}`;
-      }
     }
 
     try {
       const res = await fetch(`${BASE_URL}/api/auth/request-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          phone: formatPhoneNumber(phone.trim()), 
-          membershipNumber: formattedMembership 
-        }),
+        body: JSON.stringify({ email: email.trim() }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        sessionStorage.setItem('resetCode', data.code);
-        sessionStorage.setItem('resetCodeExpiry', Date.now() + 15 * 60 * 1000);
-        sessionStorage.setItem('resetPhone', formatPhoneNumber(phone.trim()));
-        sessionStorage.setItem('resetMembership', formattedMembership);
-        navigate("/reset-password");
+        setSuccess("Reset code sent to your email! Redirecting...");
+        setTimeout(() => {
+          navigate("/reset-password", { 
+            state: { email: email.trim() }
+          });
+        }, 2000);
       } else {
-        if (res.status === 404) {
-          setError("No account found with these credentials");
-        } else {
-          setError(data.error || "Something went wrong");
-        }
+        setError(data.error || "Something went wrong");
       }
     } catch (err) {
       setError("Network error. Check if backend is running.");
@@ -84,335 +100,690 @@ function ForgotPassword() {
     }
   };
 
-  // Responsive Styles - Matching ResetPassword page
-  const styles = {
-    page: {
-      minHeight: "100vh",
-      backgroundImage: `url(${bg})`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      position: "relative",
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      padding: "10px",
-    },
-    overlay: {
-      position: "absolute",
-      inset: 0,
-      background: "linear-gradient(135deg, rgba(49,15,221,0.85) 0%, rgba(0,0,0,0.9) 100%)",
-      zIndex: 0,
-    },
-    card: {
-      position: "relative",
-      zIndex: 1,
-      backdropFilter: "blur(10px)",
-      background: "rgba(255, 255, 255, 0.1)",
-      padding: "25px 20px",
-      borderRadius: "24px",
-      width: "100%",
-      maxWidth: "420px",
-      color: "white",
-      boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
-      border: "1px solid rgba(255,255,255,0.1)",
-      margin: "10px",
-      "@media (min-width: 768px)": {
-        padding: "30px 35px",
-        margin: "20px",
-      },
-    },
-    logoContainer: {
-      textAlign: "center",
-      marginBottom: "15px",
-      "@media (min-width: 768px)": {
-        marginBottom: "20px",
-      },
-    },
-    logo: {
-      width: "60px",
-      marginBottom: "5px",
-      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
-      "@media (min-width: 768px)": {
-        width: "80px",
-        marginBottom: "10px",
-      },
-    },
-    title: {
-      fontSize: "18px",
-      margin: 0,
-      color: "white",
-      fontWeight: "600",
-      "@media (min-width: 768px)": {
-        fontSize: "20px",
-      },
-    },
-    heading: {
-      textAlign: "center",
-      marginBottom: "10px",
-      color: "white",
-      fontSize: "22px",
-      fontWeight: "700",
-      "@media (min-width: 768px)": {
-        fontSize: "26px",
-        marginBottom: "15px",
-      },
-    },
-    subheading: {
-      textAlign: "center",
-      fontSize: "13px",
-      marginBottom: "20px",
-      color: "rgba(255,255,255,0.8)",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-        marginBottom: "30px",
-      },
-    },
-    inputGroup: {
-      marginBottom: "15px",
-      "@media (min-width: 768px)": {
-        marginBottom: "20px",
-      },
-    },
-    label: {
-      display: "block",
-      marginBottom: "5px",
-      fontSize: "13px",
-      fontWeight: "500",
-      color: "rgba(255,255,255,0.9)",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-        marginBottom: "8px",
-      },
-    },
-    input: {
-      width: "100%",
-      padding: "12px 14px",
-      borderRadius: "12px",
-      border: "2px solid rgba(255,255,255,0.1)",
-      outline: "none",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "14px",
-      boxSizing: "border-box",
-      "@media (min-width: 768px)": {
-        padding: "14px 16px",
-        fontSize: "15px",
-      },
-    },
-    helperText: {
-      display: "block",
-      fontSize: "10px",
-      color: "rgba(255,255,255,0.5)",
-      marginTop: "4px",
-      "@media (min-width: 768px)": {
-        fontSize: "11px",
-      },
-    },
-    button: {
-      width: "100%",
-      padding: "12px",
-      borderRadius: "12px",
-      border: "none",
-      cursor: loading ? "not-allowed" : "pointer",
-      fontWeight: "bold",
-      fontSize: "15px",
-      background: loading 
-        ? "linear-gradient(135deg, #888 0%, #666 100%)" 
-        : "linear-gradient(135deg, #54dd0f 0%, #3fa30c 100%)",
-      color: "white",
-      marginTop: "10px",
-      opacity: loading ? 0.7 : 1,
-      "@media (min-width: 768px)": {
-        padding: "15px",
-        fontSize: "16px",
-      },
-    },
-    buttonContent: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    spinner: {
-      display: "inline-block",
-      width: "16px",
-      height: "16px",
-      border: "2px solid rgba(255,255,255,0.3)",
-      borderRadius: "50%",
-      borderTopColor: "white",
-      animation: "spin 1s linear infinite",
-      marginRight: "8px",
-    },
-    linksContainer: {
-      marginTop: "15px",
-      textAlign: "center",
-      "@media (min-width: 768px)": {
-        marginTop: "20px",
-      },
-    },
-    link: {
-      color: "#4da6ff",
-      textDecoration: "none",
-      fontSize: "13px",
-      padding: "5px",
-      "@media (min-width: 768px)": {
-        fontSize: "14px",
-      },
-    },
-    divider: {
-      color: "rgba(255,255,255,0.3)",
-      margin: "0 5px",
-      "@media (min-width: 768px)": {
-        margin: "0 10px",
-      },
-    },
-    error: {
-      background: "rgba(255, 68, 68, 0.15)",
-      color: "#ff8a8a",
-      padding: "10px 12px",
-      borderRadius: "12px",
-      marginBottom: "15px",
-      textAlign: "center",
-      fontSize: "13px",
-      border: "1px solid rgba(255, 68, 68, 0.3)",
-      display: "flex",
-      alignItems: "center",
-      gap: "5px",
-      "@media (min-width: 768px)": {
-        padding: "12px 16px",
-        marginBottom: "20px",
-        fontSize: "14px",
-        gap: "8px",
-      },
-    },
-    infoBox: {
-      marginTop: "15px",
-      padding: "10px",
-      background: "rgba(0,0,0,0.3)",
-      borderRadius: "12px",
-      textAlign: "center",
-      border: "1px dashed rgba(255,255,255,0.2)",
-      "@media (min-width: 768px)": {
-        marginTop: "20px",
-        padding: "12px",
-      },
-    },
-    infoText: {
-      margin: 0,
-      fontSize: "11px",
-      color: "rgba(255,255,255,0.7)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "5px",
-      "@media (min-width: 768px)": {
-        fontSize: "12px",
-      },
-    },
-  };
-
-  // Add keyframes to document
-  const styleTag = document.createElement('style');
-  styleTag.textContent = `
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    input:focus {
-      border-color: #54dd0f !important;
-      box-shadow: 0 0 0 3px rgba(84, 221, 15, 0.25) !important;
-    }
-    button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(84, 221, 15, 0.4);
-    }
-  `;
-  document.head.appendChild(styleTag);
-
   return (
-    <div style={styles.page}>
-      <div style={styles.overlay} />
-      <div style={styles.card}>
-        <div style={styles.logoContainer}>
-          <img src={logo} alt="ZUCA Logo" style={styles.logo} />
-          <h1 style={styles.title}>ZUCA Portal</h1>
-        </div>
-
-        <h2 style={styles.heading}>Forgot Password?</h2>
-        <p style={styles.subheading}>
-          Enter your phone number and membership number
-        </p>
-
-        {error && (
-          <div style={styles.error}>
-            <span>⚠️</span>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Phone Number</label>
-            <input
-              type="tel"
-              placeholder="e.g., 0712345678"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={styles.input}
-              required
-              disabled={loading}
-            />
-            <small style={styles.helperText}>
-              Enter your registered phone number
-            </small>
-          </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Membership Number</label>
-            <input
-              type="text"
-              placeholder="e.g., Z#001"
-              value={membershipNumber}
-              onChange={(e) => setMembershipNumber(e.target.value.toUpperCase())}
-              style={styles.input}
-              required
-              disabled={loading}
-            />
-            <small style={styles.helperText}>
-              Enter your membership number (e.g., Z#001)
-            </small>
-          </div>
-
-          <button 
-            style={styles.button} 
-            type="submit" 
-            disabled={loading}
+    <div className="forgot-page">
+      {/* Background slideshow */}
+      <div className="forgot-background">
+        {slides.map((slide, index) => (
+          <div
+            key={slide.id}
+            className={`forgot-slide ${index === currentSlide ? "active" : ""}`}
           >
-            {loading ? (
-              <span style={styles.buttonContent}>
-                <span style={styles.spinner}></span>
-                Sending...
-              </span>
-            ) : "Continue"}
-          </button>
-        </form>
-
-        <div style={styles.linksContainer}>
-          <Link to="/login" style={styles.link}>
-            ← Back to Login
-          </Link>
-          <span style={styles.divider}>|</span>
-          <Link to="/register" style={styles.link}>
-            Create Account
-          </Link>
-        </div>
-
-        <div style={styles.infoBox}>
-          <p style={styles.infoText}>
-            <span>ℹ️</span>
-            You'll receive a 6-digit code on the next page
-          </p>
-        </div>
+            <img src={slide.image} alt="" />
+          </div>
+        ))}
+        <div className="forgot-background-overlay" />
       </div>
+
+      {/* Main layout */}
+      <div className="forgot-layout">
+        {/* LEFT BRANDING PANEL */}
+        <motion.section
+          className="forgot-brand-panel"
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="brand-panel-content">
+            <div className="brand-logo-wrap">
+              <img src={logo} alt="ZUCA" />
+            </div>
+
+            <div className="brand-copy">
+              <span className="brand-label">ZETECH UNIVERSITY CATHOLIC ACTION</span>
+              <h1>
+                ZUCA
+                <br />
+                <span>PORTAL</span>
+              </h1>
+              <p>Enter your email to receive a password reset code.</p>
+            </div>
+
+            <div className="brand-divider" />
+
+            <div className="brand-message">
+              <span className="brand-cross">✝</span>
+              <div>
+                <strong>Need help?</strong>
+                <p>Contact support if you're having trouble accessing your account.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="brand-footer">
+            <span>ZUCA Portal</span>
+            <span className="brand-dot">•</span>
+            <span>Password Recovery</span>
+          </div>
+        </motion.section>
+
+        {/* RIGHT FORM PANEL */}
+        <motion.section
+          className="forgot-form-panel"
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+        >
+          <div className="forgot-form-card">
+            <div className="form-header">
+              <div className="mobile-logo">
+                <img src={logo} alt="ZUCA" />
+              </div>
+              <div>
+                <span className="form-eyebrow">PASSWORD RECOVERY</span>
+                <h2>Forgot Password?</h2>
+                <p>Enter your email to receive a reset code</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="forgot-form">
+              {/* EMAIL FIELD */}
+              <div className={`field ${focusedField === "email" ? "focused" : ""}`}>
+                <label htmlFor="email">Email Address</label>
+                <div className="input-shell">
+                  <span className="field-icon"><FaEnvelope /></span>
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your registered email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setFocusedField("email")}
+                    onBlur={() => setFocusedField(null)}
+                    required
+                    disabled={loading}
+                    autoComplete="email"
+                  />
+                </div>
+                <small>We'll send a 6-digit code to this email</small>
+              </div>
+
+              {/* ERROR / SUCCESS */}
+              {error && (
+                <div className="forgot-error">
+                  <FaTimesCircle /> {error}
+                </div>
+              )}
+              {success && (
+                <div className="forgot-success">
+                  <FaCheckCircle /> {success}
+                </div>
+              )}
+
+              {/* SUBMIT */}
+              <motion.button
+                type="submit"
+                className="forgot-submit"
+                disabled={loading}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.99 }}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <FaEnvelope /> Send Reset Code
+                  </>
+                )}
+              </motion.button>
+            </form>
+
+            {/* LINKS */}
+            <div className="links-area">
+              <Link to="/login" className="link-btn">
+                <FaArrowLeft /> Back to Login
+              </Link>
+              <span className="divider">|</span>
+              <Link to="/register" className="link-btn">
+                Create Account
+              </Link>
+            </div>
+
+            <div className="form-footer">
+              <span className="footer-cross">✝</span>
+              <span>ZUCA Portal · Zetech University Catholic Action</span>
+            </div>
+          </div>
+        </motion.section>
+      </div>
+
+      <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
+        .forgot-page {
+          min-height: 100vh;
+          width: 100%;
+          position: relative;
+          overflow-x: hidden;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: #f4f7fb;
+        }
+
+        /* BACKGROUND */
+        .forgot-background {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          overflow: hidden;
+        }
+
+        .forgot-slide {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          transition: opacity 1.2s ease;
+        }
+
+        .forgot-slide.active {
+          opacity: 1;
+        }
+
+        .forgot-slide img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+        }
+
+        .forgot-background-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, rgba(7, 25, 54, 0.55), rgba(7, 25, 54, 0.51) 48%, rgba(247, 249, 252, 0.92) 100%);
+        }
+
+        /* MAIN LAYOUT */
+        .forgot-layout {
+          position: relative;
+          z-index: 2;
+          min-height: 100vh;
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(350px, 0.9fr) minmax(540px, 1.1fr);
+          align-items: center;
+          gap: 40px;
+          padding: 45px 7%;
+        }
+
+        /* BRAND PANEL */
+        .forgot-brand-panel {
+          color: white;
+          min-height: 620px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 35px 15px 35px 25px;
+        }
+
+        .brand-panel-content {
+          max-width: 480px;
+        }
+
+        .brand-logo-wrap {
+          width: 80px;
+          height: 82px;
+          background: rgba(255, 255, 255, 0.88);
+          border-radius: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+          margin-bottom: 38px;
+        }
+
+        .brand-logo-wrap img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+
+        .brand-label {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          opacity: 0.78;
+          margin-bottom: 14px;
+        }
+
+        .brand-copy h1 {
+          font-size: clamp(52px, 6vw, 86px);
+          line-height: 0.87;
+          letter-spacing: -4px;
+          margin: 0;
+          font-weight: 800;
+        }
+
+        .brand-copy h1 span {
+          font-weight: 400;
+          opacity: 0.86;
+        }
+
+        .brand-copy p {
+          max-width: 390px;
+          font-size: 18px;
+          line-height: 1.65;
+          color: rgba(255,255,255,0.82);
+          margin: 30px 0 0;
+        }
+
+        .brand-divider {
+          width: 65px;
+          height: 3px;
+          background: white;
+          opacity: 0.7;
+          margin: 35px 0;
+          border-radius: 10px;
+        }
+
+        .brand-message {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          max-width: 420px;
+        }
+
+        .brand-cross {
+          width: 38px;
+          height: 38px;
+          flex: 0 0 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(255,255,255,0.35);
+          border-radius: 50%;
+          font-size: 17px;
+        }
+
+        .brand-message strong {
+          display: block;
+          font-size: 14px;
+          margin-bottom: 5px;
+        }
+
+        .brand-message p {
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.55;
+          color: rgba(255,255,255,0.68);
+        }
+
+        .brand-footer {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: rgba(255,255,255,0.65);
+          font-size: 12px;
+        }
+
+        .brand-dot {
+          opacity: 0.4;
+        }
+
+        /* FORM PANEL */
+        .forgot-form-panel {
+          display: flex;
+          justify-content: center;
+        }
+
+        .forgot-form-card {
+          width: 100%;
+          max-width: 620px;
+          background: rgba(255,255,255,0.97);
+          border: 1px solid rgba(255,255,255,0.85);
+          border-radius: 28px;
+          padding: 42px 46px 28px;
+          box-shadow: 0 30px 80px rgba(5,20,45,0.18);
+        }
+
+        .form-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 18px;
+          margin-bottom: 30px;
+        }
+
+        .mobile-logo {
+          display: none;
+        }
+
+        .form-eyebrow {
+          display: block;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 1.6px;
+          margin-bottom: 7px;
+        }
+
+        .form-header h2 {
+          color: #14213d;
+          font-size: 30px;
+          line-height: 1.15;
+          letter-spacing: -0.8px;
+          margin: 0 0 8px;
+          font-weight: 750;
+        }
+
+        .form-header p {
+          color: #64748b;
+          font-size: 14px;
+          margin: 0;
+        }
+
+        /* FORM */
+        .forgot-form {
+          display: flex;
+          flex-direction: column;
+          gap: 17px;
+        }
+
+        .field {
+          min-width: 0;
+        }
+
+        .field label {
+          display: block;
+          color: #27364d;
+          font-size: 12px;
+          font-weight: 700;
+          margin: 0 0 7px 2px;
+        }
+
+        .input-shell {
+          height: 50px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid #d9e1ec;
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 0 13px;
+          transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .field.focused .input-shell {
+          background: white;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37,99,235,0.10);
+        }
+
+        .field-icon {
+          width: 22px;
+          text-align: center;
+          opacity: 0.6;
+          font-size: 14px;
+          flex: 0 0 22px;
+        }
+
+        .input-shell input {
+          width: 100%;
+          min-width: 0;
+          height: 100%;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #172033;
+          font-size: 14px;
+          font-family: inherit;
+        }
+
+        .input-shell input::placeholder {
+          color: #9aa7b8;
+        }
+
+        .field small {
+          display: block;
+          color: #8290a3;
+          font-size: 10.5px;
+          margin: 6px 2px 0;
+        }
+
+        .forgot-error {
+          background: #fff1f2;
+          color: #be123c;
+          border: 1px solid #fecdd3;
+          padding: 10px 12px;
+          border-radius: 9px;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .forgot-success {
+          background: #f0fdf4;
+          color: #15803d;
+          border: 1px solid #bbf7d0;
+          padding: 10px 12px;
+          border-radius: 9px;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .forgot-submit {
+          height: 52px;
+          width: 100%;
+          border: 0;
+          border-radius: 12px;
+          background: #1d4ed8;
+          color: white;
+          font-family: inherit;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          box-shadow: 0 8px 18px rgba(29,78,216,0.20);
+          transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .forgot-submit:hover:not(:disabled) {
+          background: #1e40af;
+          box-shadow: 0 11px 22px rgba(29,78,216,0.25);
+        }
+
+        .forgot-submit:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: forgotSpin 0.7s linear infinite;
+        }
+
+        @keyframes forgotSpin {
+          to { transform: rotate(360deg); }
+        }
+
+        .links-area {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 12px;
+          margin-top: 22px;
+        }
+
+        .link-btn {
+          color: #1d4ed8;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: color 0.2s;
+        }
+
+        .link-btn:hover {
+          color: #1e40af;
+          text-decoration: underline;
+        }
+
+        .divider {
+          color: #d1d5db;
+        }
+
+        .form-footer {
+          border-top: 1px solid #edf0f4;
+          margin-top: 24px;
+          padding-top: 17px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 7px;
+          color: #9aa5b4;
+          font-size: 9.5px;
+          text-align: center;
+        }
+
+        .footer-cross {
+          color: #64748b;
+        }
+
+        /* TABLET */
+        @media (max-width: 1050px) {
+          .forgot-layout {
+            grid-template-columns: 0.65fr 1fr;
+            padding: 35px;
+          }
+
+          .forgot-brand-panel {
+            padding-left: 0;
+          }
+
+          .brand-copy h1 {
+            font-size: 62px;
+          }
+
+          .forgot-form-card {
+            padding: 35px;
+          }
+        }
+
+        /* MOBILE */
+        @media (max-width: 800px) {
+          .forgot-page {
+            background: #f4f7fb;
+          }
+
+          .forgot-background {
+            position: absolute;
+            height: 245px;
+          }
+
+          .forgot-background-overlay {
+            background: linear-gradient(180deg, rgba(7, 25, 54, 0.07), rgba(7, 25, 54, 0.32));
+          }
+
+          .forgot-layout {
+            display: block;
+            padding: 0;
+            min-height: 100vh;
+          }
+
+          .forgot-brand-panel {
+            min-height: 245px;
+            padding: 25px 24px 28px;
+            justify-content: flex-start;
+          }
+
+          .brand-logo-wrap {
+            width: 55px;
+            height: 55px;
+            padding: 8px;
+            border-radius: 15px;
+            margin-bottom: 18px;
+          }
+
+          .brand-label {
+            font-size: 9px;
+            letter-spacing: 1.3px;
+            margin-bottom: 5px;
+          }
+
+          .brand-copy h1 {
+            font-size: 39px;
+            letter-spacing: -2px;
+          }
+
+          .brand-copy p,
+          .brand-divider,
+          .brand-message,
+          .brand-footer {
+            display: none;
+          }
+
+          .forgot-form-panel {
+            position: relative;
+            z-index: 5;
+            margin-top: 0;
+          }
+
+          .forgot-form-card {
+            max-width: none;
+            min-height: calc(100vh - 210px);
+            border-radius: 25px 25px 0 0;
+            padding: 30px 22px 22px;
+            box-shadow: 0 -12px 35px rgba(0,0,0,0.10);
+          }
+
+          .form-header {
+            margin-bottom: 25px;
+          }
+
+          .mobile-logo {
+            display: none;
+          }
+
+          .form-header h2 {
+            font-size: 25px;
+          }
+
+          .form-header p {
+            font-size: 13px;
+          }
+        }
+
+        /* SMALL PHONES */
+        @media (max-width: 430px) {
+          .forgot-brand-panel {
+            height: 205px;
+            min-height: 205px;
+          }
+
+          .forgot-background {
+            height: 205px;
+          }
+
+          .brand-copy h1 {
+            font-size: 34px;
+          }
+
+          .forgot-form-card {
+            min-height: calc(100vh - 180px);
+            padding: 27px 18px 20px;
+          }
+
+          .form-header h2 {
+            font-size: 23px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

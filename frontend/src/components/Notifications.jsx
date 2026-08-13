@@ -1,11 +1,15 @@
 // frontend/src/components/Notifications.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiBell, FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
+import { FaBell } from "react-icons/fa";
+import { FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
+import badgeManager from "../utils/badgeManager";
+import pushService from "../services/pushService";
+import soundManager from "../utils/soundManager";
 
 export default function Notifications({ userId }) {
   const navigate = useNavigate();
@@ -18,14 +22,12 @@ export default function Notifications({ userId }) {
   const socketRef = useRef(null);
   const hasMarkedReadForCurrentPage = useRef(new Set());
   
-  // Store dismissed notifications in localStorage (persists across refreshes)
   const [dismissedIds, setDismissedIds] = useState(() => {
     if (!userId) return new Set();
     const saved = localStorage.getItem(`dismissed_notifications_${userId}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
-  // Save dismissed IDs to localStorage whenever they change
   useEffect(() => {
     if (!userId) return;
     localStorage.setItem(
@@ -34,7 +36,6 @@ export default function Notifications({ userId }) {
     );
   }, [dismissedIds, userId]);
 
-  // Fetch notifications - FILTER OUT DISMISSED ONES
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
     
@@ -45,9 +46,13 @@ export default function Notifications({ userId }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Filter out dismissed notifications
       const filtered = res.data.filter(n => !dismissedIds.has(n.id));
       setNotifications(filtered);
+
+      const unread = filtered.filter(n => !n.read);
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: unread.length }
+      }));
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {
@@ -55,7 +60,6 @@ export default function Notifications({ userId }) {
     }
   }, [userId, dismissedIds]);
 
-  // Connect to Socket.IO for real-time updates
   useEffect(() => {
     if (!userId) return;
 
@@ -73,29 +77,77 @@ export default function Notifications({ userId }) {
     });
 
     socketRef.current.on('new_notification', (notification) => {
-      console.log('🔔 New notification received:', notification);
-      
-      // Don't add if it was previously dismissed
-      if (dismissedIds.has(notification.id)) {
-        console.log('Notification was previously dismissed, ignoring');
-        return;
-      }
-      
-      setNotifications(prev => {
-        const exists = prev.some(n => n.id === notification.id);
-        if (exists) return prev;
+      try {
+        console.log('🔔 New notification received:', notification);
         
-        if (Notification.permission === "granted") {
-          new Notification(notification.title || "New Notification", {
-            body: notification.message,
-            icon: "/favicon.ico",
-            badge: "/favicon.ico",
-            tag: notification.id
-          });
+        if (dismissedIds.has(notification.id)) {
+          console.log('Notification was previously dismissed, ignoring');
+          return;
         }
         
-        return [notification, ...prev];
-      });
+        try {
+          if (soundManager && soundManager.playNotificationSound) {
+            soundManager.playNotificationSound();
+          }
+        } catch(e) { console.log('Sound error:', e); }
+        
+        setNotifications(prev => {
+          const exists = prev.some(n => n.id === notification.id);
+          if (exists) return prev;
+          
+          try {
+            if (window.showInAppToast) {
+              window.showInAppToast({
+                title: notification.title || "New Notification",
+                message: notification.message,
+                body: notification.message,
+                type: notification.type,
+                id: notification.id,
+                entityId: notification.entityId,
+                createdAt: notification.createdAt,
+                data: notification.data
+              });
+            }
+          } catch(e) { console.log('Toast error:', e); }
+          
+          try {
+            if (document.hidden && Notification.permission === "granted") {
+              new Notification(notification.title || "New Notification", {
+                body: notification.message,
+                icon: "/android-chrome-192x192.png",
+                badge: "/favicon.ico",
+                tag: notification.id,
+                vibrate: [200, 100, 200],
+                data: {
+                  url: notification.data?.url || getNotificationPath(notification.type),
+                  id: notification.id,
+                  type: notification.type,
+                  entityId: notification.entityId
+                }
+              });
+            }
+          } catch(e) { console.log('Browser notif error:', e); }
+          
+          try {
+            if (badgeManager && badgeManager.incrementBadge) {
+              badgeManager.incrementBadge();
+            }
+          } catch(e) { console.log('Badge error:', e); }
+
+          window.dispatchEvent(new CustomEvent('newNotification', {
+            detail: { notification }
+          }));
+      
+          window.dispatchEvent(new CustomEvent('notificationUpdate', {
+            detail: { unreadCount: unreadCount + 1 }
+          }));
+          
+          return [notification, ...prev];
+        });
+        
+      } catch(err) {
+        console.error('Notification handler crashed:', err);
+      }
     });
 
     socketRef.current.on('new_notification_batch', () => {
@@ -114,25 +166,85 @@ export default function Notifications({ userId }) {
     };
   }, [userId, dismissedIds, fetchNotifications]);
 
-  // Request notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Update unread count
   useEffect(() => {
     const unread = notifications.filter(n => !n.read).length;
     setUnreadCount(unread);
+    badgeManager.updateBadgeCount(unread);
   }, [notifications]);
 
-  // Auto-mark notifications as read when viewing their pages
+  useEffect(() => {
+    badgeManager.loadCount();
+  }, []);
+
+  // Helper function to get notification path
+  const getNotificationPath = (type) => {
+    const paths = {
+      'attendance_checkin': '/member/attendance',
+      'attendance_thankyou': '/member/attendance',
+      'attendance_missed': '/member/attendance',
+      'attendance_reminder': '/member/attendance',
+      'attendance_automatic_reminder': '/member/attendance',
+      'attendance_sheet_opened': '/admin/attendance',
+      'attendance_summary': '/admin/attendance/overview',
+      'attendance_admin_report': '/admin/attendance/overview',
+      'attendance_bulk_checkin': '/admin/attendance',
+      'meeting_minutes_published': '/minutes',
+      'meeting_minutes_comment': '/minutes',
+      'minutes_published': '/minutes',
+      'announcement': '/announcements',
+      'new_announcement': '/announcements',
+      'jumuia_announcement': '/announcements',
+      'game_invite': '/games',
+      'direct_message': '/messenger',
+      'message': '/messenger',
+      'chat_mention': '/messenger',
+      'pin': '/messenger',
+      'broadcast': '/messenger',
+      'send_email': '/messenger',
+      'report_resolved': '/messenger',
+      'contribution': '/contributions',
+      'pledge_approved': '/contributions',
+      'payment_added': '/contributions',
+      'payment_success': '/contributions',
+      'payment_received': '/contributions',
+      'jumuia_contribution': '/contributions',
+      'pledge_message': '/contributions',
+      'new_pledge': '/contributions',
+      'executive_appointment': '/executive',
+      'executive_removed': '/executive',
+      'new_media': '/gallery',
+      'media_comment': '/gallery',
+      'media_like': '/gallery',
+      'youtube_new_video': '/youtube',
+      'youtube_live': '/youtube',
+      'schedule': '/schedules',
+      'event_reminder': '/schedules',
+      'program': '/mass-programs',
+      'jumuia': '/jumuia',
+      'mass_reading': '/mass-readings',
+      'test': '/dashboard',
+      'user_login': '/dashboard',
+      'role_change': '/dashboard',
+      'welcome': '/dashboard',
+      'api_notify': '/dashboard',
+       'feedback_new': '/admin/feedback',      
+    'feedback_updated': '/feedback/history',
+      'default': '/dashboard'
+    };
+    return paths[type] || paths['default'];
+  };
+
+  // Page type detection for auto-marking as read
   useEffect(() => {
     if (!userId || !location.pathname) return;
 
@@ -140,19 +252,85 @@ export default function Notifications({ userId }) {
       let pageType = null;
       let pagePath = location.pathname;
 
-      if (pagePath.includes('/announcements')) {
+
+      
+
+      // Attendance (Member)
+      if (pagePath.includes('/member/attendance')) {
+        pageType = 'attendance_checkin';
+      }
+      // Attendance (Admin)
+      else if (pagePath.includes('/admin/attendance/overview')) {
+        pageType = 'attendance_summary';
+      }
+      else if (pagePath.includes('/admin/attendance')) {
+        pageType = 'attendance_sheet_opened';
+      }
+      // Minutes
+      else if (pagePath.includes('/minutes')) {
+        pageType = 'minutes_published';
+      }
+      // Announcements
+      else if (pagePath.includes('/announcements')) {
         pageType = 'announcement';
-      } else if (pagePath.includes('/mass-programs')) {
+      }
+      // Mass Programs
+      else if (pagePath.includes('/mass-programs')) {
         pageType = 'program';
-      } else if (pagePath.includes('/chat')) {
+      }
+      // Mass Readings
+      else if (pagePath.includes('/mass-readings')) {
+        pageType = 'mass_reading';
+      }
+      // Messenger
+      else if (pagePath.includes('/messenger')) {
+        pageType = 'direct_message';
+      }
+      // Chat
+      else if (pagePath.includes('/chat')) {
         pageType = 'message';
-      } else if (pagePath.includes('/contributions')) {
+      }
+      // Contributions
+      else if (pagePath.includes('/contributions') || pagePath.includes('/jumuia-contributions')) {
         pageType = 'contribution';
-      } else if (pagePath.includes('/jumuia-contributions')) {
-        pageType = 'contribution';
-      } else if (pagePath.includes('/gallery')) {
+      }
+      // Gallery
+      else if (pagePath.includes('/gallery')) {
         pageType = 'new_media';
-      } else if (pagePath.includes('/dashboard')) {
+      }
+      // YouTube
+      else if (pagePath.includes('/youtube')) {
+        pageType = 'youtube_new_video';
+      }
+      // Schedules
+      else if (pagePath.includes('/schedules')) {
+        pageType = 'schedule';
+      }
+      // Executive
+      else if (pagePath.includes('/executive')) {
+        pageType = 'executive_appointment';
+      }
+      // Games
+      else if (pagePath.includes('/games')) {
+        pageType = 'game_invite';
+      }
+      // Jumuia
+      else if (pagePath.includes('/jumuia')) {
+        pageType = 'jumuia';
+      }
+      else if (pagePath.includes('/admin/feedback')) {
+      pageType = 'feedback_new';
+    }
+    else if (pagePath.includes('/feedback/history')) {
+      pageType = 'feedback_updated';
+    }
+    else if (pagePath.includes('/feedback')) {
+      pageType = 'feedback_new';
+    }
+
+      
+      // Dashboard - don't mark anything
+      else if (pagePath.includes('/dashboard')) {
         return;
       }
 
@@ -199,7 +377,6 @@ export default function Notifications({ userId }) {
     return () => clearTimeout(timer);
   }, [location.pathname, userId, notifications]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -222,6 +399,14 @@ export default function Notifications({ userId }) {
       await axios.put(`${BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      window.dispatchEvent(new CustomEvent('notificationRead', {
+        detail: { notificationId }
+      }));
+    
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: unreadCount - 1 }
+      }));
       
     } catch (err) {
       console.error("Error marking as read:", err);
@@ -235,10 +420,17 @@ export default function Notifications({ userId }) {
         prev.map(n => ({ ...n, read: true }))
       );
 
+      badgeManager.updateBadgeCount(0);
+
       const token = localStorage.getItem("token");
       await axios.put(`${BASE_URL}/api/notifications/${userId}/read-all`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      window.dispatchEvent(new CustomEvent('notificationAllRead'));
+      window.dispatchEvent(new CustomEvent('notificationUpdate', {
+        detail: { unreadCount: 0 }
+      }));
       
     } catch (err) {
       console.error("Error marking all as read:", err);
@@ -246,7 +438,6 @@ export default function Notifications({ userId }) {
     }
   };
 
-  // Dismiss all notifications PERMANENTLY (stored in localStorage)
   const dismissAllFromDropdown = () => {
     const newDismissed = new Set(dismissedIds);
     notifications.forEach(n => newDismissed.add(n.id));
@@ -254,53 +445,111 @@ export default function Notifications({ userId }) {
     
     setNotifications([]);
     setShowDropdown(false);
+    badgeManager.updateBadgeCount(0);
     console.log("All notifications permanently dismissed");
   };
 
-  // Dismiss single notification PERMANENTLY
   const dismissNotification = (notificationId) => {
     const newDismissed = new Set(dismissedIds);
     newDismissed.add(notificationId);
     setDismissedIds(newDismissed);
     
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    
+    const newUnreadCount = notifications.filter(n => n.id !== notificationId && !n.read).length;
+    badgeManager.updateBadgeCount(newUnreadCount);
   };
 
+  // COMPLETE handleNotificationClick with ALL types
   const handleNotificationClick = (notif) => {
     if (!notif.read) {
       markAsRead(notif.id);
     }
     
-    let path = '/dashboard';
+    let path = getNotificationPath(notif.type);
+    let state = {};
+    
+    // Special handling for types with extra data
     switch(notif.type) {
-      case 'announcement':
-        path = '/announcements';
-        break;
-      case 'program':
-        path = '/mass-programs';
-        break;
+      case 'direct_message':
       case 'message':
-        path = '/chat';
+        state = { 
+          conversationId: notif.data?.conversationId,
+          messageId: notif.data?.messageId
+        };
         break;
-      case 'contribution':
-        path = '/contributions';
+      case 'game_invite':
+        state = { 
+          pendingInviteId: notif.data?.inviteId,
+          fromUserId: notif.data?.fromUserId,
+          gameType: notif.data?.gameType
+        };
         break;
-      case 'new_media':
-        path = '/gallery';
-        break;
-      case 'media_comment':
-        if (notif.data?.mediaId) {
-          path = `/gallery?media=${notif.data.mediaId}`;
-        } else {
-          path = '/gallery';
+      case 'mass_reading':
+        if (notif.data?.readingId) {
+          state = { readingId: notif.data.readingId };
         }
         break;
+      case 'attendance_checkin':
+      case 'attendance_thankyou':
+      case 'attendance_missed':
+      case 'attendance_reminder':
+        if (notif.data?.sheetId) {
+          state = { sheetId: notif.data.sheetId };
+        }
+        break;
+      case 'attendance_summary':
+      case 'attendance_admin_report':
+        if (notif.data?.sheetId) {
+          state = { sheetId: notif.data.sheetId };
+        }
+        break;
+      case 'new_media':
+      case 'media_comment':
       case 'media_like':
-        path = '/gallery';
+        if (notif.data?.mediaId) {
+          path = `/gallery?media=${notif.data.mediaId}`;
+        }
+        break;
+      case 'contribution':
+      case 'pledge_approved':
+      case 'payment_added':
+      case 'new_pledge':
+        if (notif.data?.pledgeId) {
+          state = { pledgeId: notif.data.pledgeId };
+        }
+        break;
+      case 'minutes_published':
+        if (notif.data?.minutesId) {
+          state = { minutesId: notif.data.minutesId };
+        }
+        break;
+      case 'youtube_new_video':
+        if (notif.data?.videoId) {
+          state = { videoId: notif.data.videoId };
+        }
+        break;
+      case 'event_reminder':
+        if (notif.data?.eventId) {
+          state = { eventId: notif.data.eventId };
+        }
+        break;
+      case 'schedule':
+        if (notif.data?.scheduleId) {
+          state = { scheduleId: notif.data.scheduleId };
+        }
+        break;
+      case 'announcement':
+      case 'new_announcement':
+        if (notif.data?.announcementId) {
+          state = { announcementId: notif.data.announcementId };
+        }
+        break;
+      default:
         break;
     }
     
-    navigate(path);
+    navigate(path, { state });
     setShowDropdown(false);
   };
 
@@ -325,39 +574,130 @@ export default function Notifications({ userId }) {
     }
   };
 
+  // COMPLETE getNotificationIcon with ALL types
   const getNotificationIcon = (type) => {
     switch(type) {
-      case 'announcement': return '📢';
-      case 'message': return '💬';
-      case 'program': return '⛪';
-      case 'event': return '📅';
-      case 'contribution': return '💰';
-      case 'new_media': return '📸';
-      case 'media_comment': return '💬';
-      case 'media_like': return '❤️';
-      default: return '🔔';
+      // Attendance
+      case 'attendance_checkin':
+      case 'attendance_thankyou':
+      case 'attendance_missed':
+      case 'attendance_reminder':
+      case 'attendance_automatic_reminder':
+      case 'attendance_sheet_opened':
+      case 'attendance_summary':
+      case 'attendance_admin_report':
+      case 'attendance_bulk_checkin':
+        return '✅';
+      
+      // Minutes
+      case 'meeting_minutes_published':
+      case 'meeting_minutes_comment':
+      case 'minutes_published':
+        return '📋';
+      
+      // Announcements
+      case 'announcement':
+      case 'new_announcement':
+      case 'jumuia_announcement':
+        return '📢';
+      
+      // Games
+      case 'game_invite':
+        return '🎮';
+      
+      // Messages
+      case 'direct_message':
+      case 'message':
+      case 'chat_mention':
+      case 'pin':
+      case 'broadcast':
+      case 'send_email':
+      case 'report_resolved':
+        return '💬';
+      
+      // Contributions
+      case 'contribution':
+      case 'pledge_approved':
+      case 'payment_added':
+      case 'payment_success':
+      case 'payment_received':
+      case 'jumuia_contribution':
+      case 'pledge_message':
+      case 'new_pledge':
+        return '💰';
+      
+      // Executive
+      case 'executive_appointment':
+      case 'executive_removed':
+        return '👑';
+      
+      // Media
+      case 'new_media':
+      case 'media_comment':
+      case 'media_like':
+        return '📸';
+      
+      // YouTube
+      case 'youtube_new_video':
+      case 'youtube_live':
+        return '📺';
+      
+      // Schedules
+      case 'schedule':
+      case 'event_reminder':
+        return '📅';
+      
+      // Programs
+      case 'program':
+        return '⛪';
+      
+      // Jumuia
+      case 'jumuia':
+      
+        return '🏠';
+      
+      // Mass Readings
+      case 'mass_reading':
+        return '📖';
+      
+      // System
+      case 'test':
+      case 'user_login':
+      case 'role_change':
+      case 'welcome':
+      case 'api_notify':
+        return '🔔';
+
+         case 'feedback_new':
+      return '📋';
+    case 'feedback_updated':
+      return '✉️';
+      
+      default:
+        return '🔔';
     }
   };
 
+  // Rest of the component (render section remains the same)
   const unreadNotifications = notifications.filter(n => !n.read);
   const readNotifications = notifications.filter(n => n.read);
 
   return (
     <div style={styles.container} ref={dropdownRef}>
       <motion.button
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ scale: 1.05, rotate: 8 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setShowDropdown(!showDropdown)}
         style={styles.bellButton}
       >
-        <FiBell size={20} />
+        <span style={{ fontSize: '22px', lineHeight: 1 }}>🔔</span>
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             style={styles.badge}
           >
-            {unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>
         )}
         {isLoading && unreadCount === 0 && (
@@ -396,7 +736,6 @@ export default function Notifications({ userId }) {
             </div>
 
             <div style={styles.notificationList}>
-              {/* Unread Section */}
               {unreadNotifications.length > 0 && (
                 <>
                   <div style={styles.sectionHeader}>
@@ -442,7 +781,6 @@ export default function Notifications({ userId }) {
                 </>
               )}
 
-              {/* Read Section */}
               {readNotifications.length > 0 && (
                 <>
                   <div style={styles.sectionHeader}>
@@ -494,7 +832,6 @@ export default function Notifications({ userId }) {
                 </>
               )}
 
-              {/* Empty State */}
               {notifications.length === 0 && (
                 <div style={styles.emptyState}>
                   <span style={styles.emptyIcon}>🔔</span>
@@ -515,6 +852,7 @@ export default function Notifications({ userId }) {
   );
 }
 
+
 const styles = {
   container: {
     position: "relative",
@@ -530,7 +868,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "#fff",
     cursor: "pointer",
     position: "relative",
     transition: "all 0.2s",
@@ -538,6 +875,11 @@ const styles = {
     minHeight: "44px",
     outline: "none",
     WebkitTapHighlightColor: "transparent",
+  },
+  
+  // ADDED: Golden bell specific style
+  goldenBell: {
+    filter: "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))",
   },
   
   badge: {
@@ -859,7 +1201,6 @@ const styles = {
   },
 };
 
-// Add global styles
 const style = document.createElement('style');
 style.textContent = `
   @keyframes pulse {

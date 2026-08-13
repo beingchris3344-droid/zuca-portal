@@ -1,12 +1,21 @@
 // frontend/src/pages/JumuiaDashboard.jsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
 import io from "socket.io-client";
 import SimpleMessageModal from "./SimpleMessageModal";
+import { 
+  FiArrowLeft, FiHeart, FiDollarSign, FiCheckCircle, 
+  FiClock, FiMessageCircle, FiBell, FiUsers, FiTrendingUp,
+  FiSend, FiCopy, FiDownload, FiShare2, FiMoreVertical
+} from "react-icons/fi";
+import { FaFileAlt } from "react-icons/fa";
 
 function JumuiaDashboard() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("contributions");
   const [jumuiaName, setJumuiaName] = useState("");
   const [jumuiaId, setJumuiaId] = useState("");
@@ -22,6 +31,7 @@ function JumuiaDashboard() {
   const [expandedCard, setExpandedCard] = useState(null);
   const [filter, setFilter] = useState("all");
   const [messageThread, setMessageThread] = useState(null);
+  const [isJumuiaReady, setIsJumuiaReady] = useState(false);
   
   // Announcements state
   const [announcements, setAnnouncements] = useState([]);
@@ -39,6 +49,115 @@ function JumuiaDashboard() {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const messagesEndRef = useRef(null);
 
+  const goBack = () => navigate('/dashboard');
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+const [showRightArrow, setShowRightArrow] = useState(false);
+const tabsContainerRef = useRef(null);
+
+const checkScrollPosition = () => {
+  if (tabsContainerRef.current) {
+    const { scrollLeft, scrollWidth, clientWidth } = tabsContainerRef.current;
+    setShowLeftArrow(scrollLeft > 20);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 20);
+  }
+};
+
+const scrollTabs = (direction) => {
+  if (tabsContainerRef.current) {
+    const scrollAmount = 200;
+    const newScrollLeft = tabsContainerRef.current.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
+    tabsContainerRef.current.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
+  }
+};
+
+useEffect(() => {
+  const checkScroll = () => checkScrollPosition();
+  window.addEventListener('resize', checkScroll);
+  return () => window.removeEventListener('resize', checkScroll);
+}, []);
+
+useEffect(() => {
+  checkScrollPosition();
+}, [activeTab]);
+
+
+  // Replace your existing useEffect that gets jumuia info (lines 57-70)
+useEffect(() => {
+  const getUserJumuia = async () => {
+    if (!token) return;
+    
+    try {
+      const res = await axios.get(`${BASE_URL}/api/me`, { headers });
+      console.log("User data from /api/me:", res.data);
+      
+      if (res.data.homeJumuia) {
+        setJumuiaId(res.data.homeJumuia.id);
+        setJumuiaName(res.data.homeJumuia.name);
+        console.log("✅ Jumuia ID set from API:", res.data.homeJumuia.id);
+      } else {
+        console.log("User has no jumuia assigned");
+      }
+    } catch (err) {
+      console.error("Failed to get user jumuia:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  getUserJumuia();
+}, [token]);
+
+// Add this near the top with other useEffects (around line 55)
+useEffect(() => {
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    try {
+      const userData = JSON.parse(userStr);
+      setUser(userData);
+      console.log("User loaded from localStorage:", userData.fullName);
+    } catch (e) {
+      console.error("Failed to parse user", e);
+    }
+  }
+}, []);
+useEffect(() => {
+  const loadChat = async () => {
+    console.log("🔵 LOAD CHAT CALLED - activeTab:", activeTab, "jumuiaId:", jumuiaId);
+    
+    if (activeTab !== 'chat' || !jumuiaId) {
+      console.log("⏸️ Skipping chat load - conditions not met");
+      return;
+    }
+    
+    console.log("🟢 Starting chat load...");
+    setLoadingChat(true);
+    const room = await getOrCreateChatRoom();
+    console.log("🟢 Room from getOrCreateChatRoom:", room);
+    
+   if (room) {
+  setChatRoom(room);
+  try {
+    const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
+    setChatMessages(msgRes.data.messages || []);
+    // Force scroll after messages are set
+    setTimeout(() => scrollToBottom(), 300);
+  } catch (err) {
+    console.error("Failed to load messages:", err);
+  }
+} else {
+      console.error("❌ No chat room returned!");
+    }
+    setLoadingChat(false);
+  };
+  
+  loadChat();
+}, [activeTab, jumuiaId]);
+
+
+
   // Get user's jumuia info
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -47,7 +166,6 @@ function JumuiaDashboard() {
         const userData = JSON.parse(userStr);
         if (userData.jumuia) {
           setJumuiaName(userData.jumuia);
-          // Get jumuia ID from code or name
           const jumuiaCode = userData.jumuiaCode || 
             userData.jumuia.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
           fetchJumuiaId(jumuiaCode);
@@ -58,21 +176,23 @@ function JumuiaDashboard() {
     }
   }, []);
 
-  const fetchJumuiaId = async (code) => {
-    try {
-      const res = await axios.get(`${BASE_URL}/api/jumuia/${code}`, { headers });
-      setJumuiaId(res.data.id);
-    } catch (err) {
-      console.error("Failed to fetch jumuia ID:", err);
-    }
-  };
+
+  
+ const fetchJumuiaId = async (code) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/api/jumuia/${code}`, { headers });
+    setJumuiaId(res.data.id);
+    setIsJumuiaReady(true); // ← ADD THIS LINE
+  } catch (err) {
+    console.error("Failed to fetch jumuia ID:", err);
+    setIsJumuiaReady(true); // Also set true on error to prevent infinite loading
+  }
+};
 
   const showNotification = (message, type = "success") => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
   };
-
-  // ==================== CONTRIBUTIONS ====================
 
   // Socket connection for real-time updates
   useEffect(() => {
@@ -93,9 +213,7 @@ function JumuiaDashboard() {
         const paidAmount = updatedPledge.amountPaid;
         const remaining = updatedPledge.amountRequired - paidAmount;
         showNotification(
-          `✅ Your pledge of ${updatedPledge.pendingAmount} has been approved! ${
-            remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'
-          }`, 
+          `✅ Hi ${user?.fullName?.split(' ')[0] || 'User'}, your pledge has been approved! ${remaining > 0 ? `Remaining: KES ${remaining.toLocaleString()}` : 'Fully paid!'}`, 
           "success"
         );
       } else if (updatedPledge.status === "COMPLETED") {
@@ -113,10 +231,7 @@ function JumuiaDashboard() {
     socket.on('new_message', (message) => {
       const pledge = contributions.find(p => p.id === message.pledgeId);
       if (pledge) {
-        showNotification(
-          `💬 New message about "${pledge.title}"`,
-          "info"
-        );
+        showNotification(`💬 New message about "${pledge.title}"`, "info");
       }
     });
 
@@ -140,7 +255,6 @@ function JumuiaDashboard() {
     try {
       const res = await axios.get(`${BASE_URL}/api/contributions/jumuia`, { headers });
       setContributions(res.data);
-      console.log('Background refresh completed');
     } catch (err) {
       console.error("Background refresh error:", err);
     }
@@ -148,9 +262,9 @@ function JumuiaDashboard() {
 
   useEffect(() => {
     if (!token) {
-      window.location.href = "/login";
+      navigate("/login");
     }
-  }, [token]);
+  }, [token, navigate]);
 
   const fetchContributions = useCallback(async (isRefresh = false) => {
     if (!token) return;
@@ -198,100 +312,71 @@ function JumuiaDashboard() {
   };
 
   const handlePledge = async (contributionId) => {
-  const { amount, message } = pledgeInputs[contributionId] || {};
-  const parsedAmount = parseFloat(amount);
+    const { amount, message } = pledgeInputs[contributionId] || {};
+    const parsedAmount = parseFloat(amount);
 
-  const contribution = contributions.find((c) => c.id === contributionId);
-  if (!contribution) return;
+    const contribution = contributions.find((c) => c.id === contributionId);
+    if (!contribution) return;
 
-  console.log("Pledge attempt:", {
-    contributionId,
-    contribution,
-    amount: parsedAmount,
-    message: message?.trim()
-  });
+    if (!amount || parsedAmount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+    
+    const remaining = calculateRemaining(contribution);
+    if (parsedAmount > remaining) {
+      showNotification(`Amount cannot exceed KES ${remaining.toLocaleString()}`, "error");
+      return;
+    }
 
-  if (!amount || parsedAmount <= 0) {
-    showNotification("Please enter a valid amount", "error");
-    return;
-  }
-  
-  const remaining = calculateRemaining(contribution);
-  if (parsedAmount > remaining) {
-    showNotification(`Amount cannot exceed KES ${remaining.toLocaleString()}`, "error");
-    return;
-  }
+    setSubmitting(prev => ({ ...prev, [contributionId]: true }));
 
-  setSubmitting(prev => ({ ...prev, [contributionId]: true }));
+    const originalContribution = { ...contribution };
 
-  // Store original values in case we need to revert
-  const originalContribution = { ...contribution };
-
-  // Optimistic update - show immediately
-  optimisticUpdate(contributionId, {
-    pendingAmount: (contribution.pendingAmount || 0) + parsedAmount,
-    message: message?.trim() || contribution.message
-  });
-
-  setPledgeInputs(prev => ({
-    ...prev,
-    [contributionId]: { amount: "", message: "" }
-  }));
-
-  try {
-    console.log("Sending pledge request to:", `${BASE_URL}/api/pledges/${contribution.id}`);
-    console.log("Request payload:", { 
-      amount: parsedAmount, 
-      message: message?.trim() || "" 
+    optimisticUpdate(contributionId, {
+      pendingAmount: (contribution.pendingAmount || 0) + parsedAmount,
+      message: message?.trim() || contribution.message
     });
 
-    const response = await axios.post(
-      `${BASE_URL}/api/pledges/${contribution.id}`,
-      { 
-        amount: parsedAmount, 
-        message: message?.trim() || "" 
-      },
-      { headers }
-    );
-    
-    console.log("Pledge response:", response.data);
-    
-    // Instead of replacing with response.data, update the specific fields
-    setContributions(prev => 
-      prev.map(c => {
-        if (c.id === contributionId) {
-          // Create updated contribution preserving all fields
-          return {
-            ...c,
-            // Update with response data if available, otherwise keep optimistic update
-            pendingAmount: response.data.pendingAmount ?? c.pendingAmount,
-            amountPaid: response.data.amountPaid ?? c.amountPaid,
-            status: response.data.status ?? c.status,
-            message: response.data.message ?? c.message
-          };
-        }
-        return c;
-      })
-    );
-    
-    showNotification("Pledge submitted successfully!", "success");
-  } catch (err) {
-    console.error("Full error object:", err);
-    console.error("Error response data:", err.response?.data);
-    console.error("Error status:", err.response?.status);
-    
-    // Revert to original values on error
-    setContributions(prev => 
-      prev.map(c => 
-        c.id === contributionId ? originalContribution : c
-      )
-    );
-    
-    showNotification(err.response?.data?.error || "Failed to submit pledge", "error");
-  } finally {
-    setSubmitting(prev => ({ ...prev, [contributionId]: false }));
-  }
-};
+    setPledgeInputs(prev => ({
+      ...prev,
+      [contributionId]: { amount: "", message: "" }
+    }));
+
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/api/pledges/${contribution.id}`,
+        { amount: parsedAmount, message: message?.trim() || "" },
+        { headers }
+      );
+      
+      setContributions(prev => 
+        prev.map(c => {
+          if (c.id === contributionId) {
+            return {
+              ...c,
+              pendingAmount: response.data.pendingAmount ?? c.pendingAmount,
+              amountPaid: response.data.amountPaid ?? c.amountPaid,
+              status: response.data.status ?? c.status,
+              message: response.data.message ?? c.message
+            };
+          }
+          return c;
+        })
+      );
+      
+      showNotification("Pledge submitted successfully!", "success");
+    } catch (err) {
+      setContributions(prev => 
+        prev.map(c => 
+          c.id === contributionId ? originalContribution : c
+        )
+      );
+      showNotification(err.response?.data?.error || "Failed to submit pledge", "error");
+    } finally {
+      setSubmitting(prev => ({ ...prev, [contributionId]: false }));
+    }
+  };
 
   const handleInputChange = (contributionId, field, value) => {
     setPledgeInputs(prev => ({
@@ -326,48 +411,60 @@ function JumuiaDashboard() {
 
   // ==================== ANNOUNCEMENTS ====================
 
-  const fetchAnnouncements = async () => {
-    if (!jumuiaId) {
-      console.log("Cannot fetch: jumuiaId is:", jumuiaId);
-      return;
-    }
-    
-    setLoadingAnnouncements(true);
-    try {
-      console.log("Fetching announcements for jumuiaId:", jumuiaId);
-      const res = await axios.get(`${BASE_URL}/api/jumuia/${jumuiaId}/announcements`, { headers });
-      console.log("Announcements received:", res.data);
-      setAnnouncements(res.data);
-    } catch (err) {
-      console.error("Failed to fetch announcements:", err);
-      showNotification("Failed to load announcements", "error");
-    } finally {
-      setLoadingAnnouncements(false);
-    }
-  };
+ const fetchAnnouncements = async () => {
+  console.log("📢 fetchAnnouncements called, jumuiaId:", jumuiaId);
+  if (!jumuiaId) {
+    console.log("❌ No jumuiaId, skipping");
+    return;
+  }
+  
+  setLoadingAnnouncements(true);
+  try {
+    const res = await axios.get(`${BASE_URL}/api/jumuia/${jumuiaId}/announcements`, { headers });
+    console.log("📢 Announcements response:", res.data);
+    setAnnouncements(res.data);
+  } catch (err) {
+    console.error("Failed to fetch announcements:", err);
+    showNotification("Failed to load announcements", "error");
+  } finally {
+    setLoadingAnnouncements(false);
+  }
+};
+// Change FROM:
+useEffect(() => {
+  if (isJumuiaReady && jumuiaId && activeTab === "announcements") {
+    fetchAnnouncements();
+  }
+}, [isJumuiaReady, jumuiaId, activeTab]);
 
-  useEffect(() => {
-    if (jumuiaId && activeTab === "announcements") {
-      fetchAnnouncements();
-    }
-  }, [jumuiaId, activeTab]);
+// TO:
+useEffect(() => {
+  if (jumuiaId && activeTab === "announcements") {
+    console.log("📢 Fetching announcements for jumuiaId:", jumuiaId);
+    fetchAnnouncements();
+  }
+}, [jumuiaId, activeTab]);
+
+// TO:
+useEffect(() => {
+  if (jumuiaId && activeTab === "announcements") {
+    console.log("📢 Fetching announcements for jumuiaId:", jumuiaId);
+    fetchAnnouncements();
+  }
+}, [jumuiaId, activeTab]);
 
   // ==================== CHAT ====================
 
-  // Function to get or create chat room
   const getOrCreateChatRoom = async () => {
     if (!jumuiaId) return null;
     
     try {
-      // Try to get existing rooms
       const res = await axios.get(`${BASE_URL}/api/jumuia/${jumuiaId}/chat/rooms`, { headers });
       
-      // If rooms exist, use the first one
       if (res.data && res.data.length > 0) {
         return res.data[0];
       }
       
-      // If no rooms, create one
       const createRes = await axios.post(
         `${BASE_URL}/api/jumuia/${jumuiaId}/chat/rooms`,
         { name: 'general', description: 'General chat' },
@@ -380,70 +477,66 @@ function JumuiaDashboard() {
     }
   };
 
-  // Load chat when tab changes
-  useEffect(() => {
-    const loadChat = async () => {
-      if (activeTab !== 'chat' || !jumuiaId) return;
-      
-      setLoadingChat(true);
-      const room = await getOrCreateChatRoom();
-      
-      if (room) {
-        setChatRoom(room);
-        // Load messages
-        try {
-          const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
-          setChatMessages(msgRes.data.messages || []);
-          scrollToBottom();
-        } catch (err) {
-          console.error("Failed to load messages:", err);
-        }
-      }
-      setLoadingChat(false);
-    };
+ useEffect(() => {
+  const loadChat = async () => {
+    if (activeTab !== 'chat' || !isJumuiaReady || !jumuiaId) return;
     
-    loadChat();
-  }, [activeTab, jumuiaId]);
-
-  // Socket for chat
-  useEffect(() => {
-    if (!jumuiaId) return;
-
-    console.log("Setting up socket connection for jumuia:", jumuiaId);
-    const socket = io(BASE_URL);
+    setLoadingChat(true);
+    const room = await getOrCreateChatRoom();
     
-    socket.on('connect', () => {
-      console.log("Socket connected, joining jumuia room:", jumuiaId);
-      socket.emit('join-jumuia', jumuiaId);
-    });
-
-    socket.on('new_jumuia_message', (message) => {
-      console.log("New message received:", message);
-      setChatMessages(prev => [message, ...prev]);
-      scrollToBottom();
-      
-      if (message.userId !== getCurrentUserId()) {
-        showNotification(`💬 New message from ${message.user?.fullName}`, "info");
+    if (room) {
+      setChatRoom(room);
+      try {
+        const msgRes = await axios.get(`${BASE_URL}/api/jumuia/chat/rooms/${room.id}/messages`, { headers });
+        setChatMessages(msgRes.data.messages || []);
+        scrollToBottom();  // ← ADD THIS HERE
+      } catch (err) {
+        console.error("Failed to load messages:", err);
       }
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error("Socket connection error:", err);
-    });
-
-    return () => {
-      console.log("Disconnecting socket");
-      socket.disconnect();
-    };
-  }, [jumuiaId]);
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    }
+    setLoadingChat(false);
   };
+  
+  loadChat();
+}, [activeTab, isJumuiaReady, jumuiaId]);
+
+  useEffect(() => {
+  if (!isJumuiaReady || !jumuiaId) return; // ← Added isJumuiaReady
+
+  const socket = io(BASE_URL);
+  
+  socket.on('connect', () => {
+    socket.emit('join-jumuia', jumuiaId);
+  });
+
+  socket.on('new_jumuia_message', (message) => {
+  setChatMessages(prev => [...prev, message]);  // Add to END, not beginning
+  scrollToBottom();
+  
+  if (message.userId !== getCurrentUserId()) {
+    showNotification(`💬 New message from ${message.user?.fullName}`, "info");
+  }
+});
+
+  return () => socket.disconnect();
+}, [isJumuiaReady, jumuiaId]); // ← Added isJumuiaReady
+
+  // Replace your existing scrollToBottom function (around line 300-310)
+
+const scrollToBottom = () => {
+  setTimeout(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, 100);
+};
+
+  // Auto-scroll to bottom whenever messages change
+useEffect(() => {
+  if (chatMessages.length > 0 && !loadingChat) {
+    scrollToBottom();
+  }
+}, [chatMessages, loadingChat]);
 
   const getCurrentUserId = () => {
     try {
@@ -452,68 +545,59 @@ function JumuiaDashboard() {
       const payload = JSON.parse(atob(token.split(".")[1]));
       return payload.userId;
     } catch (e) {
-      console.error("Failed to get user ID from token:", e);
       return null;
     }
   };
 
-  const handleSendMessage = async () => {
-    console.log("1. Send button clicked");
-    console.log("2. Message content:", newMessage);
-    console.log("3. Chat room:", chatRoom);
-    
-    if (!newMessage.trim() || !chatRoom || sendingMessage) {
-      console.log("4. Validation failed - returning early");
-      return;
-    }
+const handleSendMessage = async () => {
+  console.log("=== SEND MESSAGE DEBUG ===");
+  console.log("newMessage:", newMessage);
+  console.log("chatRoom:", chatRoom);
+  console.log("sendingMessage:", sendingMessage);
+  console.log("jumuiaId:", jumuiaId);
+  
+  // ✅ FIRST: Validate
+  if (!newMessage.trim() || !chatRoom || sendingMessage) {
+    console.log("❌ Cannot send - conditions not met");
+    return;
+  }
 
-    setSendingMessage(true);
-    console.log("5. Sending message...");
+  setSendingMessage(true);
 
-    // Create temp message for instant display
-    const tempMessage = {
-      id: 'temp-' + Date.now(),
-      content: newMessage,
-      userId: getCurrentUserId(),
-      user: { fullName: 'You' },
-      createdAt: new Date().toISOString(),
-      isTemp: true
-    };
-
-    // Show temp message immediately
-    setChatMessages(prev => [tempMessage, ...prev]);
-    setNewMessage('');
-    scrollToBottom();
-
-    try {
-      console.log("6. Making API call to:", `${BASE_URL}/api/jumuia/chat/rooms/${chatRoom.id}/messages`);
-      
-      const res = await axios.post(
-        `${BASE_URL}/api/jumuia/chat/rooms/${chatRoom.id}/messages`,
-        { content: newMessage },
-        { headers }
-      );
-      
-      console.log("7. API response:", res.data);
-      
-      // Replace temp message with real one from server
-      setChatMessages(prev => 
-        prev.map(msg => msg.id === tempMessage.id ? res.data : msg)
-      );
-      console.log("8. Message sent successfully");
-      
-    } catch (err) {
-      console.error("9. Error sending message:", err);
-      console.error("10. Error response:", err.response?.data);
-      
-      // Remove temp message on error
-      setChatMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-      showNotification("Failed to send message", "error");
-    } finally {
-      setSendingMessage(false);
-      console.log("11. Done");
-    }
+  // ✅ THEN: Create temp message
+  const tempMessage = {
+    id: 'temp-' + Date.now(),
+    content: newMessage,
+    userId: getCurrentUserId(),
+    user: { fullName: 'You' },
+    createdAt: new Date().toISOString(),
+    isTemp: true
   };
+
+  // ✅ THEN: Update UI
+  setChatMessages(prev => [...prev, tempMessage]);
+  scrollToBottom();
+  
+  const messageToSend = newMessage;
+  setNewMessage('');
+
+  try {
+    const res = await axios.post(
+      `${BASE_URL}/api/jumuia/chat/rooms/${chatRoom.id}/messages`,
+      { content: messageToSend },
+      { headers }
+    );
+    
+    setChatMessages(prev => 
+      prev.map(msg => msg.id === tempMessage.id ? res.data : msg)
+    );
+  } catch (err) {
+    setChatMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+    showNotification("Failed to send message", "error");
+  } finally {
+    setSendingMessage(false);
+  }
+};
 
   if (!token) return null;
 
@@ -522,17 +606,29 @@ function JumuiaDashboard() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="jumuia-dashboard"
+      style={styles.container}
     >
+      {/* Back Button */}
+      <div style={styles.backButtonContainer}>
+        <motion.button
+          whileHover={{ scale: 1.05, x: -2 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={goBack}
+          style={styles.backButton}
+        >
+          <FiArrowLeft size={20} />
+          <span>Back</span>
+        </motion.button>
+      </div>
+
       {/* Notification */}
       <AnimatePresence>
         {notification.show && (
           <motion.div
-            key={notification.id}
             initial={{ x: 300, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 300, opacity: 0 }}
-            className={`notification ${notification.type}`}
+            style={{...styles.notification, ...styles[notification.type]}}
           >
             {notification.message}
           </motion.div>
@@ -540,58 +636,97 @@ function JumuiaDashboard() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="header">
-        <div className="header-left">
-          <h1 className="title">{jumuiaName || 'My Jumuia'}</h1>
-          <p className="subtitle">Your jumuia community dashboard</p>
+      <div style={styles.header}>
+        <div style={styles.headerLeft}>
+          <h1 style={styles.title}>{jumuiaName || 'My Jumuia'}</h1>
+          <p style={styles.subtitle}> Hey {user?.fullName?.split(" ")[0] || "User"}, welcome to your jumuia dashboard, here you'll find  {jumuiaName || 'your jumuia'} announcements, and cotribution when they are posted by the moderator.</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="tabs">
-        <button
-          className={`tab-btn ${activeTab === 'contributions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('contributions')}
-        >
-          💰 Contributions
-        </button>
-       
-      </div>
-
+     <div style={styles.tabsSection}>
+  {/* Left Arrow */}
+  {showLeftArrow && (
+    <button 
+      style={styles.scrollArrow} 
+      onClick={() => scrollTabs('left')}
+      aria-label="Scroll left"
+    >
+      ◀
+    </button>
+  )}
+  
+  {/* Scrollable Tabs */}
+  <div 
+    ref={tabsContainerRef}
+    style={styles.tabs}
+    onScroll={checkScrollPosition}
+  >
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'contributions' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('contributions')}
+    >
+      <FiHeart size={16} /> Contributions
+    </button>
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'announcements' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('announcements')}
+    >
+      <FiBell size={16} /> Announcements
+    </button>
+    <button 
+      style={{...styles.tabBtn, ...(activeTab === 'chat' ? styles.tabBtnActive : {})}} 
+      onClick={() => setActiveTab('chat')}
+    >
+      <FiMessageCircle size={16} /> Chat
+    </button>
+  </div>
+  
+  {/* Right Arrow */}
+  {showRightArrow && (
+    <button 
+      style={styles.scrollArrow} 
+      onClick={() => scrollTabs('right')}
+      aria-label="Scroll right"
+    >
+      ▶
+    </button>
+  )}
+</div>
       {/* Tab Content */}
-      <div className="tab-content">
+      <div style={styles.tabContent}>
         {/* CONTRIBUTIONS TAB */}
         {activeTab === 'contributions' && (
-          <div className="contributions-tab">
+          <div>
             {/* Stats Cards */}
             {contributions.length > 0 && (
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">💰</div>
-                  <div className="stat-content">
-                    <span className="stat-value">KES {stats.totalPledged.toLocaleString()}</span>
-                    <span className="stat-label">Total Pledged</span>
+              <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>💰</div>
+                  <div style={styles.statContent}>
+                    <span style={styles.statValue}>KES {stats.totalPledged.toLocaleString()}</span>
+                    <span style={styles.statLabel}>Total Pledged</span>
                   </div>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-icon">✅</div>
-                  <div className="stat-content">
-                    <span className="stat-value">KES {stats.totalPaid.toLocaleString()}</span>
-                    <span className="stat-label">Amount Paid</span>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>✅</div>
+                  <div style={styles.statContent}>
+                    <span style={styles.statValue}>KES {stats.totalPaid.toLocaleString()}</span>
+                    <span style={styles.statLabel}>Amount Paid</span>
                   </div>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-icon">⏳</div>
-                  <div className="stat-content">
-                    <span className="stat-value">KES {stats.totalPending.toLocaleString()}</span>
-                    <span className="stat-label">Pending</span>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>⏳</div>
+                  <div style={styles.statContent}>
+                    <span style={styles.statValue}>KES {stats.totalPending.toLocaleString()}</span>
+                    <span style={styles.statLabel}>Pending</span>
                   </div>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-icon">🎯</div>
-                  <div className="stat-content">
-                    <span className="stat-value">{stats.completedCount}/{contributions.length}</span>
-                    <span className="stat-label">Completed</span>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>🎯</div>
+                  <div style={styles.statContent}>
+                    <span style={styles.statValue}>{stats.completedCount}/{contributions.length}</span>
+                    <span style={styles.statLabel}>Completed</span>
                   </div>
                 </div>
               </div>
@@ -599,49 +734,49 @@ function JumuiaDashboard() {
 
             {/* Filters */}
             {contributions.length > 0 && (
-              <div className="filters">
+              <div style={styles.filters}>
                 <button 
-                  className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+                  style={{...styles.filterBtn, ...(filter === 'all' ? styles.filterBtnActive : {})}}
                   onClick={() => setFilter('all')}
                 >
-                  All <span className="filter-count">{contributions.length}</span>
+                  All <span style={styles.filterCount}>{contributions.length}</span>
                 </button>
                 <button 
-                  className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
+                  style={{...styles.filterBtn, ...(filter === 'pending' ? styles.filterBtnActive : {})}}
                   onClick={() => setFilter('pending')}
                 >
-                  Pending <span className="filter-count">{stats.pendingCount}</span>
+                  Pending <span style={styles.filterCount}>{stats.pendingCount}</span>
                 </button>
                 <button 
-                  className={`filter-btn ${filter === 'approved' ? 'active' : ''}`}
+                  style={{...styles.filterBtn, ...(filter === 'approved' ? styles.filterBtnActive : {})}}
                   onClick={() => setFilter('approved')}
                 >
                   Approved
                 </button>
                 <button 
-                  className={`filter-btn ${filter === 'completed' ? 'active' : ''}`}
+                  style={{...styles.filterBtn, ...(filter === 'completed' ? styles.filterBtnActive : {})}}
                   onClick={() => setFilter('completed')}
                 >
-                  Completed <span className="filter-count">{stats.completedCount}</span>
+                  Completed <span style={styles.filterCount}>{stats.completedCount}</span>
                 </button>
               </div>
             )}
 
             {/* Loading State */}
             {loading && (
-              <div className="loading-state">
-                <div className="spinner"></div>
+              <div style={styles.loadingState}>
+                <div style={styles.spinner}></div>
                 <p>Loading your contributions...</p>
               </div>
             )}
 
             {/* Error State */}
             {error && !loading && (
-              <div className="error-state">
-                <div className="error-icon">⚠️</div>
+              <div style={styles.errorState}>
+                <div style={styles.errorIcon}>⚠️</div>
                 <h3>Unable to Load Contributions</h3>
                 <p>{error}</p>
-                <button className="retry-btn" onClick={() => fetchContributions()}>
+                <button style={styles.retryBtn} onClick={() => fetchContributions()}>
                   Try Again
                 </button>
               </div>
@@ -649,30 +784,20 @@ function JumuiaDashboard() {
 
             {/* Refresh Indicator */}
             {refreshing && (
-              <div className="refresh-indicator">
-                <div className="refresh-spinner"></div>
+              <div style={styles.refreshIndicator}>
+                <div style={styles.refreshSpinner}></div>
                 <span>Updating...</span>
               </div>
             )}
 
             {/* Empty State */}
             {!loading && !error && filteredContributions.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-icon">
-                  {filter === 'pending' ? '⏳' : filter === 'approved' ? '✓' : filter === 'completed' ? '🎉' : '📋'}
-                </div>
-                <h3>No {filter === 'all' ? '' : filter} contributions</h3>
-                <p>
-                  {filter === 'all' 
-                    ? "Your jumuia hasn't created any contributions yet." 
-                    : filter === 'pending'
-                    ? "You have no pledges awaiting approval."
-                    : filter === 'approved'
-                    ? "You have no approved pledges."
-                    : "You have no completed contributions."}
-                </p>
+              <div style={styles.emptyState}>
+                <div style={styles.emptyIcon}><FaFileAlt/></div>
+                <h3>No contributions found</h3>
+                <p>No contributions available for this filter.</p>
                 {filter !== 'all' && (
-                  <button className="reset-filter-btn" onClick={() => setFilter('all')}>
+                  <button style={styles.resetFilterBtn} onClick={() => setFilter('all')}>
                     View All
                   </button>
                 )}
@@ -681,7 +806,7 @@ function JumuiaDashboard() {
 
             {/* Contributions List */}
             {!loading && !error && filteredContributions.length > 0 && (
-              <div className="contributions-list">
+              <div style={styles.contributionsList}>
                 {filteredContributions.map((contribution) => (
                   <ContributionCard
                     key={contribution.id}
@@ -698,6 +823,9 @@ function JumuiaDashboard() {
                       expandedCard === contribution.id ? null : contribution.id
                     )}
                     onOpenMessage={() => handleOpenMessage(contribution.id, contribution.title)}
+                    user={user}
+
+                    
                   />
                 ))}
               </div>
@@ -707,34 +835,30 @@ function JumuiaDashboard() {
 
         {/* ANNOUNCEMENTS TAB */}
         {activeTab === 'announcements' && (
-          <div className="announcements-tab">
+          <div>
             {loadingAnnouncements ? (
-              <div className="loading-state">
-                <div className="spinner"></div>
+              <div style={styles.loadingState}>
+                <div style={styles.spinner}></div>
                 <p>Loading announcements...</p>
               </div>
             ) : announcements.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📢</div>
+              <div style={styles.emptyState}>
+                <div style={styles.emptyIcon}>📢</div>
                 <h3>No Announcements</h3>
                 <p>There are no announcements for your jumuia yet.</p>
               </div>
             ) : (
-              <div className="announcements-list">
+              <div style={styles.announcementsList}>
                 {announcements.map((announcement) => (
-                  <div key={announcement.id} className="announcement-card">
-                    <div className="announcement-header">
-                      <h3 className="announcement-title">{announcement.title}</h3>
-                      <span className="announcement-category">{announcement.category}</span>
+                  <div key={announcement.id} style={styles.announcementCard}>
+                    <div style={styles.announcementHeader}>
+                      <h3 style={styles.announcementTitle}>{announcement.title}</h3>
+                      <span style={styles.announcementCategory}>{announcement.category}</span>
                     </div>
-                    <p className="announcement-content">{announcement.content}</p>
-                    <div className="announcement-footer">
-                      <span className="announcement-author">
-                        By: {announcement.author?.fullName || 'Unknown'}
-                      </span>
-                      <span className="announcement-date">
-                        {new Date(announcement.createdAt).toLocaleDateString()}
-                      </span>
+                    <p style={styles.announcementContent}>{announcement.content}</p>
+                    <div style={styles.announcementFooter}>
+                      <span>By: {announcement.author?.fullName || 'Unknown'}</span>
+                      <span>{new Date(announcement.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}
@@ -743,62 +867,152 @@ function JumuiaDashboard() {
           </div>
         )}
 
-        {/* CHAT TAB */}
-        {activeTab === 'chat' && (
-          <div className="chat-tab">
-            {loadingChat ? (
-              <div className="loading-state">
-                <div className="spinner"></div>
-                <p>Loading chat...</p>
+        {/* CHAT TAB - REDESIGNED */}
+  {activeTab === 'chat' && (
+  <div style={styles.chatContainer}>
+    {/* Chat Header */}
+    <div style={styles.chatHeader}>
+      <div style={styles.chatHeaderLeft}>
+        <div style={styles.chatHeaderAvatar}>
+          <FiMessageCircle size={18} />
+        </div>
+        <div>
+          <h3 style={styles.chatHeaderTitle}>{jumuiaName || 'Jumuia'} Chat</h3>
+          <p style={styles.chatHeaderSubtitle}> discussion Forum</p>
+        </div>
+      </div>
+    </div>
+
+    {loadingChat ? (
+      <div style={styles.loadingState}>
+        <div style={styles.spinner}></div>
+        <p>Loading messages...</p>
+      </div>
+    ) : (
+      <>
+        <div style={styles.messagesWrapper}>
+          <div style={styles.messagesContainer}>
+            {chatMessages.length === 0 ? (
+              <div style={styles.emptyChat}>
+                <div style={styles.emptyIcon}>💬</div>
+                <h3>No messages yet</h3>
+                <p>Be the first to start the conversation!</p>
               </div>
             ) : (
-              <div className="chat-container">
-                <div className="messages-list">
-                  {chatMessages.length === 0 ? (
-                    <div className="empty-chat">
-                      <p>No messages yet. Start the conversation!</p>
+              // REMOVED .reverse() - messages should already be in correct order from API
+              chatMessages.map((message) => {
+                const isOwn = message.userId === getCurrentUserId();
+                const isAdmin = message.user?.role === "admin" || message.user?.specialRole === "admin";
+                
+                return (
+                  <div
+                    key={message.id}
+                    style={{
+                      ...styles.messageRow,
+                      ...(isOwn ? styles.messageRowOwn : {})
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={styles.messageAvatar}>
+                      {message.user?.profileImage ? (
+                        <img 
+                          src={message.user.profileImage}
+                          alt={message.user?.fullName}
+                          style={styles.avatarImage}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML = message.user?.fullName?.charAt(0).toUpperCase() || '?';
+                          }}
+                        />
+                      ) : (
+                        <span style={styles.avatarText}>
+                          {message.user?.fullName?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                      )}
+                      {isAdmin && <span style={styles.adminCrown}>👑</span>}
                     </div>
-                  ) : (
-                    chatMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`message-bubble ${message.userId === getCurrentUserId() ? 'own-message' : ''} ${message.isTemp ? 'temp-message' : ''}`}
-                      >
-                        <div className="message-header">
-                          <strong>{message.user?.fullName || 'Unknown'}</strong>
-                          <span className="message-time">
-                            {new Date(message.createdAt).toLocaleTimeString()}
+
+                    {/* Message Bubble */}
+                    <div style={styles.messageBubbleWrapper}>
+                      {!isOwn && (
+                        <span style={styles.messageSenderName}>
+                          {message.user?.fullName}
+                        </span>
+                      )}
+                      
+                      <div style={{
+                        ...styles.messageBubble,
+                        ...(isOwn ? styles.messageBubbleOwn : {})
+                      }}>
+                        {message.isEdited && (
+                          <span style={styles.editedIndicator}>(edited) </span>
+                        )}
+                        <p style={styles.messageText}>{message.content}</p>
+                        
+                        {/* File Attachments */}
+                        {message.attachments?.length > 0 && (
+                          <div style={styles.attachments}>
+                            {message.attachments.map((file, idx) => {
+                              const isImage = file.type?.startsWith('image/');
+                              return isImage ? (
+                                <img 
+                                  key={idx} 
+                                  src={file.url} 
+                                  alt="attachment" 
+                                  style={styles.attachmentImage}
+                                />
+                              ) : (
+                                <a key={idx} href={file.url} style={styles.fileAttachment}>
+                                  📎 {file.name}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                        
+                        <div style={styles.messageFooter}>
+                          <span style={styles.messageTime}>
+                            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p className="message-content">{message.content}</p>
                       </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                <div className="chat-input-area">
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    className="chat-input"
-                    disabled={sendingMessage}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || sendingMessage}
-                    className="send-button"
-                  >
-                    {sendingMessage ? '...' : 'Send'}
-                  </button>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
+            <div ref={messagesEndRef} />
           </div>
-        )}
+        </div>
+
+        {/* Input Area */}
+        <div style={styles.inputWrapper}>
+          <div style={styles.inputContainer}>
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              placeholder="Type a message..."
+              style={styles.messageInput}
+              rows="1"
+              disabled={sendingMessage}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim() || sendingMessage}
+              style={{
+                ...styles.sendButton,
+                ...((!newMessage.trim() || sendingMessage) && styles.sendButtonDisabled)
+              }}
+            >
+              {sendingMessage ? <div style={styles.sendSpinner} /> : <FiSend size={18} />}
+            </button>
+          </div>
+        </div>
+      </>
+    )}
+  </div>
+)}
       </div>
 
       {/* Message Modal */}
@@ -811,451 +1025,13 @@ function JumuiaDashboard() {
       )}
 
       <style>{`
-        .jumuia-dashboard {
-          min-height: 100vh;
-          padding: 40px 15px;
-          border-radius: 35px;
-          background: linear-gradient(135deg, #1f1f21 0%, #264664 100%);
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        /* Notification - Positioned below header */
-        .notification {
-          position: fixed;
-          top: 80px;
-          right: 20px;
-          padding: 12px 20px;
-          border-radius: 10px;
-          color: white;
-          font-size: 14px;
-          font-weight: 500;
-          z-index: 9999;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          max-width: 90%;
-        }
-        .notification.success {
-          background: #10b981;
-        }
-        .notification.error {
-          background: #ef4444;
-        }
-        .notification.info {
-          background: #3b82f6;
-        }
-
-        /* Header */
-        .header {
-          max-width: 1200px;
-          margin: 0 auto 24px;
-          position: relative;
-          z-index: 10;
-        }
-        .title {
-          font-size: 28px;
-          font-weight: 700;
-          color: white;
-          margin: 0 0 4px 0;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .subtitle {
-          font-size: 14px;
-          color: rgba(255,255,255,0.9);
-          margin: 0;
-        }
-
-        /* Tabs */
-        .tabs {
-          max-width: 1200px;
-          margin: 0 auto 24px;
-          display: flex;
-          gap: 8px;
-          border-bottom: 2px solid rgba(255,255,255,0.2);
-          padding-bottom: 8px;
-        }
-        .tab-btn {
-          padding: 10px 20px;
-          border: none;
-          background: none;
-          font-size: 16px;
-          font-weight: 500;
-          color: rgba(255,255,255,0.7);
-          cursor: pointer;
-          border-radius: 8px 8px 0 0;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .tab-btn:hover {
-          color: white;
-          background: rgba(255,255,255,0.1);
-        }
-        .tab-btn.active {
-          color: white;
-          border-bottom: 2px solid white;
-          margin-bottom: -10px;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-          max-width: 1200px;
-          margin: 0 auto 24px;
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
-        }
-        @media (max-width: 640px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-        .stat-card {
-          background: white;
-          border-radius: 16px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .stat-icon {
-          width: 40px;
-          height: 40px;
-          background: #f1f5f9;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 20px;
-        }
-        .stat-content {
-          flex: 1;
-        }
-        .stat-value {
-          display: block;
-          font-size: 18px;
-          font-weight: 700;
-          color: #0f172a;
-          line-height: 1.2;
-        }
-        .stat-label {
-          display: block;
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        /* Filters */
-        .filters {
-          max-width: 1200px;
-          margin: 0 auto 24px;
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .filter-btn {
-          padding: 8px 16px;
-          border: 1px solid rgba(255,255,255,0.3);
-          background: rgba(255,255,255,0.1);
-          border-radius: 30px;
-          font-size: 14px;
-          font-weight: 500;
-          color: white;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .filter-btn:hover {
-          background: rgba(255,255,255,0.2);
-          border-color: rgba(255,255,255,0.5);
-        }
-        .filter-btn.active {
-          background: white;
-          border-color: white;
-          color: #0f172a;
-        }
-        .filter-count {
-          font-size: 12px;
-          background: rgba(255,255,255,0.2);
-          padding: 2px 6px;
-          border-radius: 12px;
-        }
-        .filter-btn.active .filter-count {
-          background: #e2e8f0;
-          color: #0f172a;
-        }
-
-        /* Loading State */
-        .loading-state {
-          max-width: 1200px;
-          margin: 80px auto;
-          text-align: center;
-          color: white;
-        }
-        .spinner {
-          width: 40px;
-          height: 40px;
-          margin: 0 auto 16px;
-          border: 3px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        /* Error State */
-        .error-state {
-          max-width: 400px;
-          margin: 60px auto;
-          text-align: center;
-          padding: 32px 24px;
-          background: white;
-          border-radius: 20px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .error-icon {
-          font-size: 48px;
-          margin-bottom: 16px;
-        }
-        .error-state h3 {
-          font-size: 18px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0 0 8px 0;
-        }
-        .error-state p {
-          font-size: 14px;
-          color: #64748b;
-          margin-bottom: 20px;
-        }
-        .retry-btn {
-          padding: 10px 24px;
-          border: none;
-          border-radius: 10px;
-          background: #0f172a;
-          color: white;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-        }
-
-        /* Refresh Indicator */
-        .refresh-indicator {
-          max-width: 1200px;
-          margin: 0 auto 16px;
-          padding: 12px 16px;
-          background: rgba(255,255,255,0.1);
-          backdrop-filter: blur(10px);
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          color: white;
-          font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .refresh-spinner {
-          width: 18px;
-          height: 18px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        /* Empty State */
-        .empty-state {
-          max-width: 400px;
-          margin: 60px auto;
-          text-align: center;
-          padding: 48px 32px;
-          background: rgba(255,255,255,0.1);
-          backdrop-filter: blur(10px);
-          border-radius: 24px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          color: white;
-        }
-        .empty-icon {
-          font-size: 64px;
-          margin-bottom: 24px;
-        }
-        .empty-state h3 {
-          font-size: 20px;
-          font-weight: 600;
-          color: white;
-          margin: 0 0 8px 0;
-        }
-        .empty-state p {
-          font-size: 14px;
-          color: rgba(255,255,255,0.8);
-          margin-bottom: 24px;
-        }
-        .reset-filter-btn {
-          padding: 10px 24px;
-          border: 1px solid rgba(255,255,255,0.3);
-          background: rgba(255,255,255,0.1);
-          border-radius: 10px;
-          color: white;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-        }
-        .reset-filter-btn:hover {
-          background: rgba(255,255,255,0.2);
-        }
-
-        /* Contributions List */
-        .contributions-list {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        /* Announcements */
-        .announcements-list {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        .announcement-card {
-          background: rgba(255,255,255,0.95);
-          backdrop-filter: blur(10px);
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .announcement-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-        .announcement-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0;
-        }
-        .announcement-category {
-          padding: 4px 12px;
-          background: #f1f5f9;
-          border-radius: 20px;
-          font-size: 12px;
-          color: #64748b;
-        }
-        .announcement-content {
-          font-size: 14px;
-          line-height: 1.6;
-          color: #1e293b;
-          margin: 0 0 16px 0;
-        }
-        .announcement-footer {
-          display: flex;
-          justify-content: space-between;
-          font-size: 12px;
-          color: #94a3b8;
-          border-top: 1px solid #f1f5f9;
-          padding-top: 12px;
-        }
-
-        /* Chat */
-        .chat-container {
-          max-width: 1200px;
-          margin: 0 auto;
-          background: white;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          overflow: hidden;
-          height: 600px;
-          display: flex;
-          flex-direction: column;
-        }
-        .messages-list {
-          flex: 1;
-          overflow-y: auto;
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .message-bubble {
-          max-width: 70%;
-          padding: 12px;
-          background: #f1f5f9;
-          border-radius: 12px;
-          align-self: flex-start;
-        }
-        .message-bubble.own-message {
-          align-self: flex-end;
-          background: #2563eb;
-          color: white;
-        }
-        .message-bubble.temp-message {
-          opacity: 0.7;
-        }
-        .message-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 4px;
-          font-size: 12px;
-        }
-        .own-message .message-header {
-          color: rgba(255,255,255,0.8);
-        }
-        .message-time {
-          font-size: 10px;
-          opacity: 0.7;
-        }
-        .message-content {
-          font-size: 14px;
-          margin: 0;
-        }
-        .empty-chat {
-          text-align: center;
-          color: #94a3b8;
-          padding: 40px;
-        }
-        .chat-input-area {
-          display: flex;
-          padding: 16px;
-          gap: 12px;
-          border-top: 1px solid #e2e8f0;
-          background: white;
-        }
-        .chat-input {
-          flex: 1;
-          padding: 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-          outline: none;
-        }
-        .chat-input:focus {
-          border-color: #2563eb;
-        }
-        .send-button {
-          padding: 12px 24px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-        }
-        .send-button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
     </motion.div>
@@ -1272,9 +1048,11 @@ const ContributionCard = ({
   remainingAmount,
   isExpanded,
   onToggle,
-  onOpenMessage
+  onOpenMessage,
+  user
+
+  
 }) => {
-  // Safely access properties with defaults
   const amountPaid = contribution.amountPaid || 0;
   const pendingAmount = contribution.pendingAmount || 0;
   const amountRequired = contribution.amountRequired || 0;
@@ -1285,9 +1063,7 @@ const ContributionCard = ({
   const paidPercentage = amountRequired > 0 ? Math.min((amountPaid / amountRequired) * 100, 100) : 0;
   const pendingPercentage = amountRequired > 0 ? Math.min((pendingAmount / amountRequired) * 100, 100) : 0;
 
-  const formatNumber = (num) => {
-    return new Intl.NumberFormat('en-US').format(num || 0);
-  };
+  const formatNumber = (num) => new Intl.NumberFormat('en-US').format(num || 0);
 
   const getStatusColor = () => {
     if (completed) return '#059669';
@@ -1314,67 +1090,55 @@ const ContributionCard = ({
     <motion.div
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className={`contribution-card ${isSubmitting ? 'submitting' : ''}`}
+      style={{...styles.contributionCard, ...(isSubmitting ? styles.submitting : {})}}
     >
       {/* Card Header */}
-      <div className="card-header" onClick={onToggle}>
-        <div className="header-main">
-          <h3 className="card-title">{contribution.title}</h3>
+      <div style={styles.cardHeader} onClick={onToggle}>
+        <div style={styles.headerMain}>
+          <h3 style={styles.cardTitle}>{contribution.title}</h3>
           {contribution.description && (
-            <p className="card-description">{contribution.description}</p>
+            <p style={styles.cardDescription}>{contribution.description}</p>
           )}
         </div>
         
-        <div className="header-right">
-          <span 
-            className="status-badge"
-            style={{ 
-              background: getStatusBg(),
-              color: getStatusColor()
-            }}
-          >
+        <div style={styles.headerRight}>
+          <span style={{...styles.statusBadge, background: getStatusBg(), color: getStatusColor()}}>
             {getStatusText()}
           </span>
-          <span className="expand-icon">{isExpanded ? '−' : '+'}</span>
+          <span style={styles.expandIcon}>{isExpanded ? '−' : '+'}</span>
         </div>
       </div>
 
       {/* Progress Overview */}
-      <div className="progress-overview">
-        <div className="progress-stats">
-          <div className="progress-stat">
-            <span className="stat-label">Required</span>
-            <span className="stat-number">KES {formatNumber(amountRequired)}</span>
+      <div style={styles.progressOverview}>
+        <div style={styles.progressStats}>
+          <div style={styles.progressStat}>
+            <span style={styles.statLabel}>Required</span>
+            <span style={styles.statNumber}>KES {formatNumber(amountRequired)}</span>
           </div>
-          <div className="progress-stat">
-            <span className="stat-label">Paid</span>
-            <span className="stat-number paid">KES {formatNumber(amountPaid)}</span>
+          <div style={styles.progressStat}>
+            <span style={styles.statLabel}>Paid</span>
+            <span style={{...styles.statNumber, color: "#10b981"}}>KES {formatNumber(amountPaid)}</span>
           </div>
-          <div className="progress-stat">
-            <span className="stat-label">Pending</span>
-            <span className="stat-number pending">KES {formatNumber(pendingAmount)}</span>
+          <div style={styles.progressStat}>
+            <span style={styles.statLabel}>Pending</span>
+            <span style={{...styles.statNumber, color: "#f59e0b"}}>KES {formatNumber(pendingAmount)}</span>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div 
-              className="progress-segment paid" 
-              style={{ width: `${paidPercentage}%` }}
-            />
-            <div 
-              className="progress-segment pending" 
-              style={{ width: `${pendingPercentage}%` }}
-            />
+        <div style={styles.progressBarContainer}>
+          <div style={styles.progressBar}>
+            <div style={{...styles.progressSegmentPaid, width: `${paidPercentage}%`}} />
+            <div style={{...styles.progressSegmentPending, width: `${pendingPercentage}%`}} />
           </div>
-          <div className="progress-labels">
-            <span className="progress-label">
-              <span className="dot paid"></span>
+          <div style={styles.progressLabels}>
+            <span style={styles.progressLabel}>
+              <span style={{...styles.dot, background: "#10b981"}}></span>
               Paid: {paidPercentage.toFixed(0)}%
             </span>
-            <span className="progress-label">
-              <span className="dot pending"></span>
+            <span style={styles.progressLabel}>
+              <span style={{...styles.dot, background: "#f59e0b"}}></span>
               Pending: {pendingPercentage.toFixed(0)}%
             </span>
           </div>
@@ -1388,88 +1152,90 @@ const ContributionCard = ({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="expanded-content"
+            style={styles.expandedContent}
           >
             {/* Full Description */}
             {contribution.description && (
-              <div className="detail-section">
-                <h4 className="section-title">About</h4>
-                <p className="section-text">{contribution.description}</p>
+              <div style={styles.detailSection}>
+                <h4 style={styles.sectionTitle}>About</h4>
+                <p style={styles.sectionText}>{contribution.description}</p>
               </div>
             )}
 
             {/* Detailed Breakdown */}
-            <div className="detail-section">
-              <h4 className="section-title">Breakdown</h4>
-              <div className="breakdown-list">
-                <div className="breakdown-item">
+            <div style={styles.detailSection}>
+              <h4 style={styles.sectionTitle}>Breakdown</h4>
+              <div style={styles.breakdownList}>
+                <div style={styles.breakdownItem}>
                   <span>Amount Required</span>
-                  <span className="breakdown-value">KES {formatNumber(amountRequired)}</span>
+                  <span>KES {formatNumber(amountRequired)}</span>
                 </div>
-                <div className="breakdown-item">
+                <div style={styles.breakdownItem}>
                   <span>Amount Paid</span>
-                  <span className="breakdown-value paid">KES {formatNumber(amountPaid)}</span>
+                  <span style={{color: "#10b981"}}>KES {formatNumber(amountPaid)}</span>
                 </div>
-                <div className="breakdown-item">
+                <div style={styles.breakdownItem}>
                   <span>Pending Approval</span>
-                  <span className="breakdown-value pending">KES {formatNumber(pendingAmount)}</span>
+                  <span style={{color: "#f59e0b"}}>KES {formatNumber(pendingAmount)}</span>
                 </div>
-                <div className="breakdown-item total">
+                <div style={{...styles.breakdownItem, ...styles.breakdownItemTotal}}>
                   <span>Remaining to Pay</span>
-                  <span className="breakdown-value">KES {formatNumber(remainingAmount)}</span>
+                  <span>KES {formatNumber(remainingAmount)}</span>
                 </div>
               </div>
             </div>
 
             {/* Pledge Form */}
             {!completed && (
-              <div className="detail-section">
-                <h4 className="section-title">Make a Pledge</h4>
-                <div className="pledge-form">
-                  <div className="input-group">
+              <div style={styles.detailSection}>
+                <h4 style={styles.sectionTitle}>Make a Pledge</h4>
+                <div style={styles.pledgeForm}>
+                  <div style={styles.inputGroup}>
                     <input
                       type="number"
                       placeholder="Amount"
-                      className="pledge-input"
+                      style={styles.pledgeInput}
                       value={pledgeInput.amount || ""}
                       onChange={(e) => onPledgeChange("amount", e.target.value)}
                       max={remainingAmount}
                       min={1}
                       disabled={isSubmitting}
                     />
-                    <span className="input-hint">Max: KES {formatNumber(remainingAmount)}</span>
+                    <span style={styles.inputHint}>Max: KES {formatNumber(remainingAmount)}</span>
                   </div>
 
                   <input
                     type="text"
                     placeholder="Add a message (optional)"
-                    className="pledge-input message"
+                    style={{...styles.pledgeInput, ...styles.pledgeInputMessage}}
                     value={pledgeInput.message || ""}
                     onChange={(e) => onPledgeChange("message", e.target.value)}
                     disabled={isSubmitting}
                   />
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className={`pledge-btn ${isSubmitting ? 'submitting' : ''}`}
-                      onClick={onPledge}
-                      disabled={isSubmitting}
-                      style={{ flex: 1 }}
-                    >
-                      {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
-                    </button>
-                    
-                    <button 
-                      className="message-btn"
-                      onClick={onOpenMessage}
-                      disabled={isSubmitting}
-                      title="Ask a question about this pledge"
-                    >
-                      💬
-                    </button>
-                  </div>
+                  <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+  <button style={{...styles.pledgeBtn, flex: 1}} onClick={onPledge} disabled={isSubmitting}>
+    {isSubmitting ? 'Submitting...' : 'Submit Pledge'}
+  </button>
+  
+  {/* NEW: Pay Now Button */}
+  <button 
+    style={styles.payNowBtn}
+    onClick={() => {
+      const paymentLink = `${window.location.origin}/pay/campaign/${contribution.contributionTypeId || contribution.id}`;
+      window.open(paymentLink, '_blank');
+    }}
+    disabled={isSubmitting}
+  >
+    💳 Pay Now
+  </button>
+  
+  <button style={styles.messageBtn} onClick={onOpenMessage} disabled={isSubmitting}>
+    💬
+  </button>
+</div>
                 </div>
-                <p className="form-note">
+                <p style={styles.formNote}>
                   Your pledge will be pending until approved by an administrator.
                 </p>
               </div>
@@ -1477,312 +1243,707 @@ const ContributionCard = ({
 
             {/* Completed Message */}
             {completed && (
-              <div className="completed-message">
-                <span className="completed-icon">🎉</span>
+              <div style={styles.completedMessage}>
+                <span style={styles.completedIcon}>🎉</span>
                 <div>
                   <h4>Contribution Completed!</h4>
-                  <p>Thank you for your generous contribution.</p>
+                  <p>Thank you {user?.fullName?.split(' ')[0] || 'User'} for your generous contribution.</p>
                 </div>
               </div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <style jsx>{`
-        .contribution-card {
-          background: white;
-          border-radius: 30px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-          overflow: hidden;
-          transition: all 0.2s;
-        }
-        .contribution-card.submitting {
-          opacity: 0.7;
-          pointer-events: none;
-        }
-
-        .card-header {
-          padding: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 16px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        .card-header:hover {
-          background: #f8fafc;
-        }
-        .header-main {
-          flex: 1;
-          min-width: 0;
-        }
-        .card-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0 0 4px 0;
-        }
-        .card-description {
-          font-size: 14px;
-          color: #64748b;
-          margin: 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-shrink: 0;
-        }
-        .status-badge {
-          padding: 4px 12px;
-          border-radius: 30px;
-          font-size: 12px;
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .expand-icon {
-          width: 24px;
-          height: 24px;
-          border-radius: 30px;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          font-weight: 500;
-          color: #64748b;
-        }
-
-        .progress-overview {
-          padding: 0 20px 20px;
-        }
-        .progress-stats {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-        .progress-stat {
-          text-align: center;
-        }
-        .stat-label {
-          display: block;
-          font-size: 11px;
-          color: #64748b;
-          margin-bottom: 2px;
-        }
-        .stat-number {
-          display: block;
-          font-size: 16px;
-          font-weight: 600;
-          color: #0f172a;
-        }
-        .stat-number.paid {
-          color: #10b981;
-        }
-        .stat-number.pending {
-          color: #f59e0b;
-        }
-        .progress-bar-container {
-          margin-top: 8px;
-        }
-        .progress-bar {
-          display: flex;
-          height: 8px;
-          background: #f1f5f9;
-          border-radius: 4px;
-          overflow: hidden;
-          margin-bottom: 8px;
-        }
-        .progress-segment {
-          height: 100%;
-          transition: width 0.3s;
-        }
-        .progress-segment.paid {
-          background: #10b981;
-        }
-        .progress-segment.pending {
-          background: #f59e0b;
-        }
-        .progress-labels {
-          display: flex;
-          gap: 16px;
-          font-size: 12px;
-          color: #64748b;
-        }
-        .progress-label {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-        }
-        .dot.paid {
-          background: #10b981;
-        }
-        .dot.pending {
-          background: #f59e0b;
-        }
-
-        .expanded-content {
-          border-top: 1px solid #f1f5f9;
-          padding: 20px;
-        }
-        .detail-section {
-          margin-bottom: 24px;
-        }
-        .detail-section:last-child {
-          margin-bottom: 0;
-        }
-        .section-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0 0 12px 0;
-        }
-        .section-text {
-          font-size: 14px;
-          line-height: 1.6;
-          color: #475569;
-          margin: 0;
-        }
-
-        .breakdown-list {
-          background: #f8fafc;
-          border-radius: 12px;
-          padding: 12px;
-        }
-        .breakdown-item {
-          display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
-          font-size: 14px;
-          color: #475569;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .breakdown-item:last-child {
-          border-bottom: none;
-        }
-        .breakdown-item.total {
-          margin-top: 4px;
-          padding-top: 12px;
-          border-top: 2px solid #e2e8f0;
-          font-weight: 600;
-          color: #0f172a;
-        }
-        .breakdown-value {
-          font-weight: 500;
-        }
-        .breakdown-value.paid {
-          color: #10b981;
-        }
-        .breakdown-value.pending {
-          color: #f59e0b;
-        }
-
-        .pledge-form {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .input-group {
-          position: relative;
-        }
-        .pledge-input {
-          width: 100%;
-          padding: 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 14px;
-          box-sizing: border-box;
-        }
-        .pledge-input:focus {
-          outline: none;
-          border-color: #0f172a;
-        }
-        .input-hint {
-          position: absolute;
-          right: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 11px;
-          color: #94a3b8;
-        }
-        .pledge-btn {
-          padding: 14px;
-          border: none;
-          border-radius: 10px;
-          background: #0f172a;
-          color: white;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .pledge-btn:hover:not(:disabled) {
-          background: #1e293b;
-        }
-        .pledge-btn.submitting {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-        .message-btn {
-          width: 48px;
-          height: 48px;
-          border: none;
-          border-radius: 10px;
-          background: #8b5cf6;
-          color: white;
-          font-size: 20px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-        .message-btn:hover:not(:disabled) {
-          background: #7c3aed;
-        }
-        .form-note {
-          margin-top: 12px;
-          font-size: 12px;
-          color: #94a3b8;
-        }
-
-        .completed-message {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          background: #f0fdf4;
-          border-radius: 12px;
-        }
-        .completed-icon {
-          font-size: 24px;
-        }
-        .completed-message h4 {
-          font-size: 14px;
-          font-weight: 600;
-          color: #059669;
-          margin: 0 0 2px 0;
-        }
-        .completed-message p {
-          font-size: 13px;
-          color: #475569;
-          margin: 0;
-        }
-      `}</style>
     </motion.div>
   );
+};
+
+// ====== STYLES ======
+
+const styles = {
+  container: {
+    minHeight: "100vh",
+    background: "#f8fafc",
+    padding: "20px",
+    marginBottom: "40px",
+    fontFamily: "'Inter', -apple-system, sans-serif",
+  },
+  
+  backButtonContainer: {
+    marginBottom: "20px",
+  },
+  backButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "8px 16px",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "30px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#475569",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  payNowBtn: {
+  flex: 1,
+  padding: "14px",
+  border: "none",
+  borderRadius: "10px",
+  background: "#10b981",
+  color: "white",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+  transition: "all 0.2s",
+},
+  
+  notification: {
+    position: "fixed",
+    top: "100px",
+    right: "20px",
+    padding: "12px 20px",
+    borderRadius: "10px",
+    color: "white",
+    fontSize: "14px",
+    fontWeight: "500",
+    zIndex: 9999,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+  },
+  success: { background: "#10b981" },
+  error: { background: "#ef4444" },
+  info: { background: "#3b82f6" },
+  
+  header: {
+    maxWidth: "1200px",
+    margin: "0 auto 24px",
+  },
+  headerLeft: {
+    marginBottom: "8px",
+  },
+  title: {
+    fontSize: "28px",
+    fontWeight: "700",
+    color: "#1e293b",
+    margin: "0 0 4px 0",
+  },
+  subtitle: {
+    fontSize: "14px",
+    color: "#64748b",
+    margin: 0,
+  },
+  
+ tabs: {
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  display: "flex",
+  gap: "8px",
+  borderBottom: "2px solid #e2e8f0",
+  paddingBottom: "8px",
+  // SCROLLABLE TABS - EASY TO SCROLL
+  overflowX: "auto",
+  overflowY: "hidden",
+  WebkitOverflowScrolling: "touch",  // Smooth momentum scrolling on iOS
+  scrollBehavior: "smooth",          // Smooth scrolling
+  cursor: "grab",                    // Shows grab cursor
+  "&:active": {
+    cursor: "grabbing",              // Shows grabbing when scrolling
+  },
+  // Hide scrollbar but keep functionality (cleaner look)
+  scrollbarWidth: "none",            // Firefox
+  msOverflowStyle: "none",           // IE/Edge
+  "&::-webkit-scrollbar": {
+    display: "none",                 // Chrome/Safari
+  },
+
+  tabsWrapper: {
+  position: "relative",
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  "&::after": {
+    content: "''",
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: "40px",
+    height: "100%",
+    background: "linear-gradient(to right, transparent, #f8fafc)",
+    pointerEvents: "none",
+    display: "none",
+  },
+  "@media (max-width: 768px)": {
+    "&::after": {
+      display: "block",
+    },
+  },
+},
+
+  },
+  tabBtn: {
+    padding: "10px 20px",
+    border: "none",
+    background: "none",
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#64748b",
+    cursor: "pointer",
+    borderRadius: "8px 8px 0 0",
+    transition: "all 0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  tabBtnActive: {
+    color: "#3b82f6",
+    borderBottom: "2px solid #3b82f6",
+    marginBottom: "-10px",
+  },
+  
+  tabContent: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+  },
+  
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "16px",
+    marginBottom: "24px",
+  },
+  statCard: {
+    background: "#ffffff",
+    borderRadius: "16px",
+    padding: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    border: "1px solid #e2e8f0",
+  },
+  statIcon: {
+    width: "44px",
+    height: "44px",
+    background: "#f1f5f9",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+  },
+  statContent: { flex: 1 },
+  statValue: { display: "block", fontSize: "18px", fontWeight: "700", color: "#0f172a", lineHeight: 1.2 },
+  statLabel: { display: "block", fontSize: "11px", color: "#64748b" },
+  
+  filters: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    marginBottom: "24px",
+  },
+  filterBtn: {
+    padding: "8px 16px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    borderRadius: "30px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#475569",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  filterBtnActive: {
+    background: "#3b82f6",
+    borderColor: "#3b82f6",
+    color: "white",
+  },
+
+  tabsSection: {
+  maxWidth: "1200px",
+  margin: "0 auto 24px",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  position: "relative",
+},
+scrollArrow: {
+  width: "32px",
+  height: "32px",
+  borderRadius: "50%",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  fontSize: "14px",
+  color: "#475569",
+  flexShrink: 0,
+  transition: "all 0.2s",
+  "@media (min-width: 769px)": {
+    display: "none",  // Hide arrows on desktop
+  },
+  "&:hover": {
+    background: "#f1f5f9",
+    transform: "scale(1.05)",
+  },
+  "&:active": {
+    transform: "scale(0.95)",
+  },
+},
+tabs: {
+  display: "flex",
+  gap: "8px",
+  borderBottom: "2px solid #e2e8f0",
+  paddingBottom: "8px",
+  overflowX: "auto",
+  overflowY: "hidden",
+  WebkitOverflowScrolling: "touch",
+  scrollBehavior: "smooth",
+  flex: 1,
+  // Hide scrollbar
+  scrollbarWidth: "none",
+  msOverflowStyle: "none",
+  "&::-webkit-scrollbar": {
+    display: "none",
+  },
+},
+  filterCount: {
+    fontSize: "11px",
+    background: "#e2e8f0",
+    padding: "2px 6px",
+    borderRadius: "12px",
+  },
+  
+  loadingState: {
+    textAlign: "center",
+    padding: "60px 20px",
+    color: "#64748b",
+  },
+  spinner: {
+    width: "40px",
+    height: "40px",
+    margin: "0 auto 16px",
+    border: "3px solid #e2e8f0",
+    borderTopColor: "#3b82f6",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  },
+  
+  errorState: {
+    maxWidth: "400px",
+    margin: "60px auto",
+    textAlign: "center",
+    padding: "32px 24px",
+    background: "#ffffff",
+    borderRadius: "20px",
+    border: "1px solid #e2e8f0",
+  },
+  errorIcon: { fontSize: "48px", marginBottom: "16px" },
+  retryBtn: {
+    padding: "10px 24px",
+    border: "none",
+    borderRadius: "10px",
+    background: "#3b82f6",
+    color: "white",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+  },
+  
+  refreshIndicator: {
+    padding: "12px 16px",
+    background: "#ffffff",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    color: "#64748b",
+    fontSize: "13px",
+    marginBottom: "16px",
+    border: "1px solid #e2e8f0",
+  },
+  refreshSpinner: {
+    width: "18px",
+    height: "18px",
+    border: "2px solid #e2e8f0",
+    borderTopColor: "#3b82f6",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  },
+  
+  emptyState: {
+    textAlign: "center",
+    padding: "60px 20px",
+    background: "#ffffff",
+    borderRadius: "24px",
+    border: "1px solid #e2e8f0",
+  },
+  emptyIcon: { fontSize: "64px", marginBottom: "16px" },
+  resetFilterBtn: {
+    padding: "10px 24px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    borderRadius: "10px",
+    color: "#475569",
+    fontSize: "14px",
+    cursor: "pointer",
+  },
+  
+  contributionsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
+  
+  contributionCard: {
+    background: "#ffffff",
+    borderRadius: "20px",
+    border: "1px solid #e2e8f0",
+    overflow: "hidden",
+    transition: "all 0.2s",
+  },
+  submitting: { opacity: 0.7, pointerEvents: "none" },
+  
+  cardHeader: {
+    padding: "20px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "16px",
+    cursor: "pointer",
+  },
+  headerMain: { flex: 1, minWidth: 0 },
+  cardTitle: { fontSize: "18px", fontWeight: "600", color: "#0f172a", margin: "0 0 4px 0" },
+  cardDescription: { fontSize: "13px", color: "#64748b", margin: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
+  headerRight: { display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 },
+  statusBadge: { padding: "4px 12px", borderRadius: "30px", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap" },
+  expandIcon: { width: "24px", height: "24px", borderRadius: "30px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", color: "#64748b" },
+  
+  progressOverview: { padding: "0 20px 20px" },
+  progressStats: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "16px" },
+  progressStat: { textAlign: "center" },
+  statNumber: { display: "block", fontSize: "15px", fontWeight: "600", color: "#0f172a" },
+  
+  progressBarContainer: { marginTop: "8px" },
+  progressBar: { display: "flex", height: "8px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden", marginBottom: "8px" },
+  progressSegmentPaid: { height: "100%", background: "#10b981", transition: "width 0.3s" },
+  progressSegmentPending: { height: "100%", background: "#f59e0b", transition: "width 0.3s" },
+  progressLabels: { display: "flex", gap: "16px", fontSize: "11px", color: "#64748b" },
+  progressLabel: { display: "flex", alignItems: "center", gap: "4px" },
+  dot: { width: "8px", height: "8px", borderRadius: "50%" },
+  
+  expandedContent: { borderTop: "1px solid #f1f5f9", padding: "20px" },
+  detailSection: { marginBottom: "20px" },
+  sectionTitle: { fontSize: "14px", fontWeight: "600", color: "#0f172a", margin: "0 0 12px 0" },
+  sectionText: { fontSize: "13px", lineHeight: 1.6, color: "#475569", margin: 0 },
+  
+  breakdownList: { background: "#f8fafc", borderRadius: "12px", padding: "12px" },
+  breakdownItem: { display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: "13px", color: "#475569", borderBottom: "1px solid #e2e8f0" },
+  breakdownItemTotal: { marginTop: "4px", paddingTop: "12px", borderTop: "2px solid #e2e8f0", fontWeight: "600", color: "#0f172a", borderBottom: "none" },
+  
+  pledgeForm: { display: "flex", flexDirection: "column", gap: "12px" },
+  inputGroup: { position: "relative" },
+  pledgeInput: { width: "100%", padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: "13px", boxSizing: "border-box" },
+  pledgeInputMessage: { marginTop: "0" },
+  inputHint: { position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", color: "#94a3b8" },
+  pledgeBtn: { padding: "14px", border: "none", borderRadius: "10px", background: "#0f172a", color: "white", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
+  pledgeBtnSubmitting: { opacity: 0.7, cursor: "not-allowed" },
+  messageBtn: { width: "48px", height: "48px", border: "none", borderRadius: "10px", background: "#8b5cf6", color: "white", fontSize: "20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  formNote: { marginTop: "12px", fontSize: "11px", color: "#94a3b8" },
+  
+  completedMessage: { display: "flex", alignItems: "center", gap: "12px", padding: "16px", background: "#f0fdf4", borderRadius: "12px" },
+  completedIcon: { fontSize: "24px" },
+  
+  announcementsList: { display: "flex", flexDirection: "column", gap: "16px" },
+  announcementCard: { background: "#ffffff", borderRadius: "16px", padding: "20px", border: "1px solid #e2e8f0" },
+  announcementHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" },
+  announcementTitle: { fontSize: "18px", fontWeight: "600", color: "#0f172a", margin: 0 },
+  announcementCategory: { padding: "4px 12px", background: "#f1f5f9", borderRadius: "20px", fontSize: "11px", color: "#64748b" },
+  announcementContent: { fontSize: "14px", lineHeight: 1.6, color: "#475569", margin: "0 0 16px 0" },
+  announcementFooter: { display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#94a3b8", borderTop: "1px solid #f1f5f9", paddingTop: "12px" },
+  
+  chatContainer: {
+    background: "#ffffff",
+    borderRadius: "16px",
+    border: "1px solid #e2e8f0",
+    overflow: "hidden",
+    height: "550px",
+    display: "flex",
+    flexDirection: "column",
+  },
+  messagesList: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
+  messageBubble: {
+    maxWidth: "70%",
+    padding: "10px 14px",
+    background: "#f1f5f9",
+    borderRadius: "12px",
+    alignSelf: "flex-start",
+  },
+  ownMessage: {
+    alignSelf: "flex-end",
+    background: "#3b82f6",
+    color: "white",
+  },
+  tempMessage: { opacity: 0.7 },
+  messageHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "4px",
+    fontSize: "11px",
+  },
+  messageTime: { fontSize: "9px", opacity: 0.7 },
+  messageContent: { fontSize: "13px", margin: 0, lineHeight: 1.4 },
+  emptyChat: { textAlign: "center", color: "#94a3b8", padding: "40px" },
+  chatInputArea: {
+    display: "flex",
+    padding: "16px",
+    gap: "12px",
+    borderTop: "1px solid #e2e8f0",
+    background: "#ffffff",
+  },
+  chatInput: {
+    flex: 1,
+    padding: "12px",
+    border: "1px solid #e2e8f0",
+    borderRadius: "30px",
+    fontSize: "13px",
+    outline: "none",
+  },
+  sendButton: {
+    width: "44px",
+    height: "44px",
+    background: "#3b82f6",
+    color: "white",
+    border: "none",
+    borderRadius: "50%",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Add these to your styles object (around line 800+, before the closing })
+
+  chatHeader: {
+    padding: "16px 20px",
+    borderBottom: "1px solid #e2e8f0",
+    background: "#ffffff",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: "16px 16px 0 0",
+  },
+  chatHeaderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  chatHeaderAvatar: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+  },
+  chatHeaderTitle: {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#1e293b",
+    margin: 0,
+  },
+  chatHeaderSubtitle: {
+    fontSize: "12px",
+    color: "#64748b",
+    margin: "2px 0 0",
+  },
+  messagesWrapper: {
+    flex: 1,
+    overflow: "hidden",
+    position: "relative",
+  },
+  messagesContainer: {
+    height: "100%",
+    overflowY: "auto",
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
+  messageRow: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "flex-start",
+  },
+  messageRowOwn: {
+    flexDirection: "row-reverse",
+  },
+  messageAvatar: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "white",
+    flexShrink: 0,
+    position: "relative",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  avatarText: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "white",
+  },
+  adminCrown: {
+    position: "absolute",
+    top: "-4px",
+    right: "-4px",
+    fontSize: "12px",
+  },
+  messageBubbleWrapper: {
+    maxWidth: "70%",
+    position: "relative",
+  },
+  messageSenderName: {
+    fontSize: "11px",
+    fontWeight: "600",
+    color: "#3b82f6",
+    marginBottom: "2px",
+    marginLeft: "4px",
+    display: "block",
+  },
+  messageBubble: {
+    background: "#f1f5f9",
+    borderRadius: "18px",
+    padding: "10px 14px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+  },
+  messageBubbleOwn: {
+    background: "#3b82f6",
+    borderColor: "#3b82f6",
+  },
+  editedIndicator: {
+    fontSize: "9px",
+    color: "#94a3b8",
+    fontStyle: "italic",
+    marginRight: "4px",
+  },
+  messageText: {
+    fontSize: "14px",
+    lineHeight: "1.5",
+    margin: 0,
+    color: "#1e293b",
+    wordBreak: "break-word",
+  },
+  attachments: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    marginTop: "8px",
+  },
+  attachmentImage: {
+    maxWidth: "200px",
+    maxHeight: "150px",
+    borderRadius: "8px",
+    objectFit: "cover",
+  },
+  fileAttachment: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 10px",
+    background: "#ffffff",
+    borderRadius: "8px",
+    textDecoration: "none",
+    fontSize: "12px",
+    color: "#475569",
+  },
+  messageFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "4px",
+    marginTop: "4px",
+  },
+  messageTime: {
+    fontSize: "9px",
+    color: "#94a3b8",
+  },
+  inputWrapper: {
+    background: "#ffffff",
+    borderTop: "1px solid #e2e8f0",
+    padding: "12px 16px",
+  },
+  inputContainer: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "flex-end",
+  },
+  messageInput: {
+    flex: 1,
+    padding: "10px 16px",
+    borderRadius: "24px",
+    border: "1px solid #e2e8f0",
+    fontSize: "14px",
+    minHeight: "42px",
+    maxHeight: "100px",
+    fontFamily: "inherit",
+    background: "#f8fafc",
+    resize: "none",
+  },
+  sendButton: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "50%",
+    background: "#3b82f6",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "white",
+    transition: "all 0.2s",
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
+  },
+  sendSpinner: {
+    width: "16px",
+    height: "16px",
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "white",
+    borderRadius: "50%",
+    animation: "spin 0.6s linear infinite",
+  },
+  emptyChat: {
+    textAlign: "center",
+    padding: "60px 20px",
+    color: "#94a3b8",
+  },
 };
 
 export default JumuiaDashboard;

@@ -85,6 +85,7 @@ export default function NotificationPrompt({ onClose }) {
         .notification-prompt {
           position: fixed;
           bottom: 24px;
+          top: 50px;
           right: 24px;
           width: 360px;
           background: white;
@@ -210,6 +211,7 @@ export default function NotificationPrompt({ onClose }) {
             width: calc(100% - 32px);
             bottom: 16px;
             right: 16px;
+            top: 50px;
             left: 16px;
           }
         }

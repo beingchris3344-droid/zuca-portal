@@ -10,6 +10,7 @@ import BASE_URL from "../../api";
 import backgroundImg from "../../assets/background.png";
 import io from "socket.io-client";
 import SimpleMessageModal from "../SimpleMessageModal";
+import { Fa500Px, FaDonate, FaFileArchive, FaHandHoldingHeart, FaMoneyBill, FaPhoenixSquadron, FaTimes, FaTimesCircle, FaUsers, FaWatchmanMonitoring } from "react-icons/fa";
 
 // Professional icon components
 const Icons = {
@@ -99,6 +100,10 @@ function ContributionsPage() {
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const [paymentLink, setPaymentLink] = useState({ show: false, url: "", campaign: "" });
+const [generatingLink, setGeneratingLink] = useState(false);
+
+  
 
   // Check access on mount
   useEffect(() => {
@@ -224,9 +229,8 @@ function ContributionsPage() {
     };
   }, [silentRefresh]);
 
-  // Initial fetch
+   // Initial fetch - no loading state, show empty content immediately
   const fetchAll = async () => {
-    setLoading(true);
     try {
       const typesRes = await axios.get(`${BASE_URL}/api/contribution-types`, { headers });
       // Show ALL contributions for admin/treasurer
@@ -243,6 +247,105 @@ function ContributionsPage() {
       fetchAll();
     }
   }, [token]);
+
+  // Generate payment link for a campaign
+// Generate payment link for a campaign
+const handleGeneratePaymentLink = async (campaignId, campaignTitle) => {
+  setGeneratingLink(true);
+  
+  try {
+    // Call backend to create/update slug
+    const response = await axios.post(
+      `${BASE_URL}/api/mpesa/campaigns/${campaignId}/generate-link`,
+      {},
+      { headers }
+    );
+    
+    if (response.data.success) {
+      // Construct payment link using FRONTEND URL (not backend URL)
+      const paymentLink = `${window.location.origin}/pay/${response.data.slug}`;
+      
+      setPaymentLink({
+        show: true,
+        url: paymentLink,
+        campaign: campaignTitle
+      });
+      showNotification("Payment link generated successfully!", "success");
+    }
+  } catch (err) {
+    console.error("Failed to generate payment link:", err);
+    showNotification(err.response?.data?.error || "Failed to generate payment link", "error");
+  } finally {
+    setGeneratingLink(false);
+  }
+};
+
+// Copy payment link to clipboard
+const copyPaymentLink = () => {
+  navigator.clipboard.writeText(paymentLink.url);
+  showNotification("Payment link copied to clipboard!", "success");
+  setTimeout(() => {
+    setPaymentLink({ show: false, url: "", campaign: "" });
+  }, 2000);
+};
+
+// Close payment link modal
+const closePaymentLinkModal = () => {
+  setPaymentLink({ show: false, url: "", campaign: "" });
+};
+
+
+  // FORCE SIDEBAR VISIBLE - FIXES THE FADING ISSUE
+useEffect(() => {
+  const forceSidebarVisible = () => {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar && window.innerWidth >= 768) {
+      // Remove all transforms
+      sidebar.style.transform = 'none';
+      sidebar.style.transition = 'none';
+      sidebar.style.position = 'fixed';
+      sidebar.style.left = '0';
+      sidebar.style.top = '48px';
+      sidebar.style.display = 'flex';
+      sidebar.style.visibility = 'visible';
+      sidebar.style.opacity = '1';
+      sidebar.style.zIndex = '999';
+    }
+  };
+  
+  // Run immediately
+  forceSidebarVisible();
+  
+  // Run after a delay to catch late changes
+  const timeout1 = setTimeout(forceSidebarVisible, 0);
+  const timeout2 = setTimeout(forceSidebarVisible, 100);
+  const timeout3 = setTimeout(forceSidebarVisible, 500);
+  
+  // Also use MutationObserver to catch any style changes
+  const observer = new MutationObserver(() => {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar && window.innerWidth >= 768) {
+      const transform = sidebar.style.transform;
+      if (transform && transform.includes('translateX')) {
+        sidebar.style.transform = 'none';
+        console.log('Fixed sidebar transform');
+      }
+    }
+  });
+  
+  observer.observe(document.body, { 
+    attributes: true, 
+    attributeFilter: ['style', 'class'],
+    subtree: true 
+  });
+  
+  return () => {
+    clearTimeout(timeout1);
+    clearTimeout(timeout2);
+    clearTimeout(timeout3);
+    observer.disconnect();
+  };
+}, []);
 
   // Accurate summary stats
   const summaryStats = useMemo(() => {
@@ -300,6 +403,9 @@ function ContributionsPage() {
       }));
     });
   };
+
+
+  
 
   // Accurate campaign stats calculation
   const calculateTypeStats = (type) => {
@@ -1045,18 +1151,8 @@ function ContributionsPage() {
     showNotification(`Export completed: ${data.length} records`, "success");
   };
 
-  if (loading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="loading-container"
-      >
-        <div className="spinner" />
-        <p className="loading-text">Loading contributions dashboard...</p>
-      </motion.div>
-    );
-  }
+  // No loading spinner - show content immediately
+  // Data loads in background
 
   return (
     <motion.div
@@ -1064,9 +1160,12 @@ function ContributionsPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
       className="contributions-page"
+      
     >
+      
       {/* Background Image with Overlay */}
       <div className="background" style={{ backgroundImage: `url(${backgroundImg})` }} />
+      
       <div className="background-overlay" />
 
       {/* Notification */}
@@ -1107,10 +1206,26 @@ function ContributionsPage() {
               alignItems: 'center',
               gap: '6px'
             }}>
-              <span>💰</span> Treasurer
+              <span></span> Treasurer
             </div>
           )}
 
+          <button 
+  onClick={() => navigate('/treasurer/notes')}
+  style={{
+    padding: '5px 5px',
+    background: '#f11a1a',
+    color: 'white',
+    border: 'none',
+    fontWeight: 'bold',
+    borderRadius: '8px',
+    cursor: 'pointer'
+  }}
+>
+  <FaFileArchive size ="17px" color="#ffff" /> Notes& Calculator 
+</button>
+
+    
           {/* Export Button with Dropdown */}
           <div className="export-dropdown" ref={exportMenuRef}>
             <button 
@@ -1206,6 +1321,7 @@ function ContributionsPage() {
                     <button className="export-confirm-btn" onClick={handleExport}>
                       Export Now
                     </button>
+                    
                   </div>
                 </motion.div>
               )}
@@ -1214,24 +1330,44 @@ function ContributionsPage() {
         </div>
       </div>
 
+    
+
       {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
-          <span className="stat-icon">📊</span>
+          <span className="stat-icon"><FaHandHoldingHeart size= "24px" color="#000000" /> </span>
           <div>
             <span className="stat-value">{summaryStats.totalCampaigns}</span>
             <span className="stat-label">Campaigns</span>
           </div>
         </div>
+           <button 
+  onClick={() => navigate('/treasurer/reports')}
+  style={{
+    padding: '10px 20px',
+    background: '#ffffff',
+    color: 'black',
+    border: 'none',
+    borderRadius: '8px',
+        fontWeight: 'bold',
+        marginbottom: '90px',
+
+    cursor: 'pointer'
+  }}
+>
+   <p1>View Treasury Reports here</p1>      
+  
+</button>
+
         <div className="stat-card">
-          <span className="stat-icon">👥</span>
+          <span className="stat-icon"><FaUsers size = "24px" color = "#000000f3" /> </span>
           <div>
             <span className="stat-value">{summaryStats.totalMembers}</span>
             <span className="stat-label">Contributors</span>
           </div>
         </div>
         <div className="stat-card">
-          <span className="stat-icon">⏳</span>
+          <span className="stat-icon"><FaPhoenixSquadron/></span>
           <div>
             <span className="stat-value">{summaryStats.pendingCount}</span>
             <span className="stat-label">Pending</span>
@@ -1245,20 +1381,78 @@ function ContributionsPage() {
           </div>
         </div>
         <div className="stat-card">
-          <span className="stat-icon">✅</span>
+          <span className="stat-icon"><FaDonate /></span>
           <div>
             <span className="stat-value">{summaryStats.completedCount}</span>
             <span className="stat-label">Completed</span>
           </div>
+          
         </div>
+        
         <div className="stat-card">
-          <span className="stat-icon">💰</span>
+          <span className="stat-icon"><FaMoneyBill /></span>
           <div>
             <span className="stat-value">KES {summaryStats.totalCollected.toLocaleString()}</span>
             <span className="stat-label">Collected</span>
           </div>
+          
         </div>
       </div>
+      
+
+
+      {/* Payment Link Modal */}
+{paymentLink.show && (
+  <div className="payment-link-modal-overlay" onClick={closePaymentLinkModal}>
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      className="payment-link-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="payment-link-header">
+        <h3>🔗 Payment Link Generated</h3>
+        <button className="close-modal-btn" onClick={closePaymentLinkModal}>×</button>
+      </div>
+      
+      <div className="payment-link-body">
+        <p>Share this link with members for <strong>{paymentLink.campaign}</strong>:</p>
+        
+        <div className="payment-link-url-container">
+          <input
+            type="text"
+            readOnly
+            value={paymentLink.url}
+            className="payment-link-url"
+            onClick={(e) => e.target.select()}
+          />
+          <button className="copy-link-btn" onClick={copyPaymentLink}>
+            📋 Copy
+          </button>
+        </div>
+        
+        <div className="payment-link-actions">
+          <button 
+            className="whatsapp-share-btn"
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`💰 Payment link for ${paymentLink.campaign}: ${paymentLink.url}`)}`, '_blank')}
+          >
+            📱 Share on WhatsApp
+          </button>
+          <button className="email-share-btn"
+            onClick={() => window.location.href = `mailto:?subject=Payment Link for ${paymentLink.campaign}&body=Please use this link to make your payment: ${paymentLink.url}`}
+          >
+            ✉️ Share via Email
+          </button>
+        </div>
+        
+        <div className="payment-link-note">
+          <small>⚠️ Anyone with this link can make a payment. Share securely with your Jumuia members.</small>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+)}
 
       {/* Create Campaign Form */}
       {canModify && (
@@ -1383,43 +1577,73 @@ function ContributionsPage() {
               animate={{ y: 0, opacity: 1 }}
               className="campaign-card"
             >
-              {/* Campaign Header */}
-              <div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
-                <div className="campaign-header-left">
-                  {canModify && (
-                    <input
-                      type="checkbox"
-                      className="campaign-checkbox"
-                      checked={isSelected}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleSelectCampaign(type.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  )}
-                  <div className="campaign-info">
-                    <h3 className="campaign-name">{type.title}</h3>
-                    <div className="campaign-meta">
-                      <span className="campaign-target">KES {type.amountRequired?.toLocaleString()} per member</span>
-                      {type.deadline && (
-                        <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
-                      )}
-                      {type.jumuiaId && (
-                        <span className="campaign-jumuia-badge">Jumuia Campaign</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+             {/* Campaign Header */}
+<div className="campaign-header" onClick={() => setCollapsed({ ...collapsed, [type.id]: !isCollapsed })}>
+  <div className="campaign-header-left">
+    {canModify && (
+      <input
+        type="checkbox"
+        className="campaign-checkbox"
+        checked={isSelected}
+        onChange={(e) => {
+          e.stopPropagation();
+          toggleSelectCampaign(type.id);
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    )}
+    <div className="campaign-info">
+      <h3 className="campaign-name">{type.title}</h3>
+      <div className="campaign-meta">
+        <span className="campaign-target">KES {type.amountRequired?.toLocaleString()} per member</span>
+        {type.deadline && (
+          <span className="campaign-deadline">Due {new Date(type.deadline).toLocaleDateString()}</span>
+        )}
+        {type.jumuia && (
+          <span className="campaign-jumuia-badge" style={{
+            background: '#f59e0b20',
+            color: '#f59e0b',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: '500',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            🏠 {type.jumuia.name}
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+  
+  <div className="campaign-actions-right">
+    {/* NEW: Generate Payment Link Button */}
+    {canModify && (
+      <button
+        className="generate-link-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleGeneratePaymentLink(type.id, type.title);
+        }}
+        title="Generate payment link to share with members"
+      >
+        🔗 Generate Link
+      </button>
+    )}
+    
+    <div className="campaign-progress-info">
+      <div className="progress-stats">
+        <span className="progress-percent">{typeStats.completion.toFixed(1)}%</span>
+        <span className="progress-count">{typeStats.contributors}/{typeStats.totalMembers} members</span>
+      </div>
+      <span className="collapse-icon">{isCollapsed ? "▼" : "▲"}</span>
+    </div>
+  </div>
+</div>
                 
-                <div className="campaign-progress-info">
-                  <div className="progress-stats">
-                    <span className="progress-percent">{typeStats.completion.toFixed(1)}%</span>
-                    <span className="progress-count">{typeStats.contributors}/{typeStats.totalMembers} members</span>
-                  </div>
-                  <span className="collapse-icon">{isCollapsed ? "▼" : "▲"}</span>
-                </div>
-              </div>
+               
 
               {/* Progress Bar */}
               <div className="progress-bar-container">
@@ -1852,844 +2076,1093 @@ function ContributionsPage() {
       )}
 
       <style>{`
-        .contributions-page {
-          min-height: 100vh;
-          padding: 24px;
-          position: relative;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          overflow-y: auto;
-          background: #199dea75;
-          border-radius: 30px;
-        }
+  .contributions-page {
+    min-height: 100vh;
+    padding: 24px;
+    position: relative;
+    margin-left: 0px;
 
-        .background {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-size: cover;
-          background-position: center;
-          z-index: -2;
-        }
+    margin-top: -20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: visible; /* Changed from overflow-y: auto to allow horizontal scroll if needed */
+    background: #f4f4f475;
+    border-radius: 30px;
+  
+  }
 
-        .background-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.98) 100%);
-          z-index: -1;
-        }
+   
 
-        /* Notification */
-        .notification {
-          position: fixed;
-          top: 24px;
-          right: 24px;
-          padding: 12px 24px;
-          border-radius: 8px;
-          color: white;
-          font-size: 14px;
-          z-index: 9999;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        .notification.success { background: #10b981; }
-        .notification.error { background: #ef4444; }
+  .background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: -2;
+  }
 
-        /* Header */
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-        }
-        .title {
-          font-size: 28px;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0 0 4px 0;
-        }
-        .subtitle {
-          font-size: 14px;
-          color: #64748b;
-          margin: 0;
-        }
+  .background-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.98) 100%);
+    z-index: -1;
+  }
 
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
+  /* Notification */
+  .notification {
+    position: fixed;
+    top: 84px;
+    right: 24px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .notification.success { background: #10b981; }
+  .notification.error { background: #ef4444; }
 
-        /* Export Dropdown */
-        .export-dropdown {
-          position: relative;
-        }
-        .export-btn {
-          padding: 10px 20px;
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          color: #1e293b;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        .export-btn:hover {
-          background: #f8fafc;
-        }
-        .chevron {
-          font-size: 12px;
-          color: #94a3b8;
-        }
-        .export-menu {
-          position: absolute;
-          top: 100%;
-          right: 0;
-          margin-top: 8px;
-          width: 400px;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-          border: 1px solid #e2e8f0;
-          padding: 20px;
-          z-index: 100;
-        }
-        @media (max-width: 768px) {
-          .export-menu {
-            width: 300px;
-          }
-        }
-        .export-option {
-          margin-bottom: 20px;
-        }
-        .export-option label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          color: #475569;
-          margin-bottom: 8px;
-        }
-        .format-buttons {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-        }
-        .format-buttons button {
-          padding: 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          background: white;
-          font-size: 12px;
-          color: #64748b;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-        }
-        .format-buttons button.active {
-          background: #2563eb;
-          border-color: #2563eb;
-          color: white;
-        }
-        .export-option select {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-          color: #1e293b;
-        }
-        .date-range {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .date-range input {
-          flex: 1;
-          padding: 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-        .date-range span {
-          color: #94a3b8;
-        }
-        .export-actions {
-          display: flex;
-          gap: 8px;
-          justify-content: flex-end;
-          margin-top: 20px;
-          padding-top: 20px;
-          border-top: 1px solid #e2e8f0;
-        }
-        .cancel-btn {
-          padding: 8px 16px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          background: white;
-          color: #64748b;
-          font-size: 13px;
-          cursor: pointer;
-        }
-        .export-confirm-btn {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 6px;
-          background: #2563eb;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-        }
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 4px 0;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+  }
 
-        /* Stats Grid */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        @media (max-width: 1200px) {
-          .stats-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-        @media (max-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-        .stat-card {
-          background: white;
-          border-radius: 12px;
-          padding: 20px;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .stat-icon {
-          font-size: 24px;
-          width: 48px;
-          height: 48px;
-          background: #f1f5f9;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .stat-value {
-          display: block;
-          font-size: 24px;
-          font-weight: 700;
-          color: #0f172a;
-          line-height: 1.2;
-        }
-        .stat-label {
-          display: block;
-          font-size: 13px;
-          color: #64748b;
-        }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 
-        /* Create Campaign */
-        .create-campaign {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          margin-bottom: 24px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .section-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0 0 16px 0;
-        }
-        .campaign-form {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr auto;
-          gap: 12px;
-        }
-        @media (max-width: 1024px) {
-          .campaign-form {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-        @media (max-width: 768px) {
-          .campaign-form {
-            grid-template-columns: 1fr;
-          }
-        }
-        .form-input {
-          padding: 10px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-        .form-input:focus {
-          outline: none;
-          border-color: #2563eb;
-        }
-        .create-btn {
-          padding: 10px 20px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          white-space: nowrap;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          justify-content: center;
-        }
-        .create-btn:hover:not(:disabled) {
-          background: #1d4ed8;
-        }
-        .create-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
+  /* Export Dropdown - FIXED for all layouts */
+  .export-dropdown {
+    position: relative;
+  }
+  .export-btn {
+    padding: 10px 20px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    white-space: nowrap;
+  }
+  .export-btn:hover {
+    background: #f8fafc;
+  }
+  .chevron {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .export-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-left: -150px;
+    margin-top: 8px;
+    width: 400px;
 
-        /* Campaign Selection Header */
-        .campaign-selection-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          padding: 12px 16px;
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .checkbox-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          color: #0f172a;
-          cursor: pointer;
-        }
-        .campaign-bulk-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .bulk-delete-campaigns-btn, .bulk-duplicate-campaigns-btn {
-          padding: 6px 12px;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .bulk-delete-campaigns-btn {
-          background: #fee2e2;
-          color: #ef4444;
-        }
-        .bulk-delete-campaigns-btn:hover:not(:disabled) {
-          background: #fecaca;
-        }
-        .bulk-duplicate-campaigns-btn {
-          background: #e2e8f0;
-          color: #475569;
-        }
-        .bulk-duplicate-campaigns-btn:hover:not(:disabled) {
-          background: #cbd5e1;
-        }
-        .bulk-delete-campaigns-btn:disabled, .bulk-duplicate-campaigns-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
+    max-width: calc(100vw - 132px);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    border: 1px solid #e2e8f0;
+    padding: 20px 20px;
+    z-index: 1000;
+  }
+  /* Smart positioning for export menu */
+  @media (max-width: 768px) {
+    .export-menu {
+      width: calc(100vw - 32px);
+      right: -16px;
+      left: auto;
+    }
+  }
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .export-menu {
+      width: 380px;
+      right: 0;
+    }
+  }
+  /* If menu would overflow left on very small screens */
+  @media (max-width: 480px) {
+    .export-menu {
+      left: 0%;
+      right: auto;
+      transform: translateX(-50%);
+      width: calc(100vw - 72px);
+    }
+  }
+  .export-option {
+    margin-bottom: 20px;
+  }
+  .export-option label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+    margin-bottom: 8px;
+  }
+  .format-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .format-buttons button {
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 12px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .format-buttons button.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+  }
+  .export-option select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #1e293b;
+  }
+  .date-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .date-range input {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .date-range span {
+    color: #94a3b8;
+  }
+  .export-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+  }
+  .cancel-btn {
+    padding: 8px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    color: #64748b;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .export-confirm-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
 
-        /* Campaigns List */
-        .campaigns-list {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1200px) {
+    .stats-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  @media (max-width: 768px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 480px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .stat-icon {
+    font-size: 24px;
+    width: 48px;
+    height: 48px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .stat-label {
+    display: block;
+    font-size: 13px;
+    color: #64748b;
+  }
 
-        /* Campaign Card */
-        .campaign-card {
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow: hidden;
-        }
-        .campaign-header {
-          padding: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        .campaign-header:hover {
-          background: #f8fafc;
-        }
-        .campaign-header-left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
-        }
-        .campaign-checkbox {
-          width: 18px;
-          height: 18px;
-          cursor: pointer;
-        }
-        .campaign-info {
-          flex: 1;
-        }
-        .campaign-name {
-          font-size: 18px;
-          font-weight: 600;
-          color: #0f172a;
-          margin: 0 0 8px 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .campaign-meta {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-        .campaign-target {
-          font-size: 13px;
-          color: #2563eb;
-          background: #eff6ff;
-          padding: 4px 8px;
-          border-radius: 4px;
-        }
-        .campaign-deadline {
-          font-size: 13px;
-          color: #64748b;
-        }
-        .campaign-jumuia-badge {
-          font-size: 11px;
-          background: #f59e0b20;
-          color: #f59e0b;
-          padding: 2px 8px;
-          border-radius: 12px;
-        }
-        .campaign-progress-info {
-          display: flex;
-          align-items: center;
-          gap: 24px;
-        }
-        .progress-stats {
-          text-align: right;
-        }
-        .progress-percent {
-          display: block;
-          font-size: 20px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-        .progress-count {
-          display: block;
-          font-size: 12px;
-          color: #64748b;
-        }
-        .collapse-icon {
-          font-size: 20px;
-          color: #94a3b8;
-        }
+  /* Create Campaign */
+  .create-campaign {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 16px 0;
+  }
+  .campaign-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr auto;
+    gap: 12px;
+  }
+  @media (max-width: 1024px) {
+    .campaign-form {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 768px) {
+    .campaign-form {
+      grid-template-columns: 1fr;
+    }
+  }
+  .form-input {
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    width: 100%;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: #2563eb;
+  }
+  .create-btn {
+    padding: 10px 20px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+  }
+  .create-btn:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
+  .create-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 
-        /* Progress Bar */
-        .progress-bar-container {
-          padding: 0 20px 20px;
-        }
-        .progress-bar {
-          height: 6px;
-          background: #f1f5f9;
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .progress-fill {
-          height: 100%;
-          background: #2563eb;
-          transition: width 0.3s;
-        }
+  /* Campaign Selection Header */
+  .campaign-selection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    cursor: pointer;
+  }
+  .campaign-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .bulk-delete-campaigns-btn, .bulk-duplicate-campaigns-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bulk-delete-campaigns-btn {
+    background: #fee2e2;
+    color: #ef4444;
+  }
+  .bulk-delete-campaigns-btn:hover:not(:disabled) {
+    background: #fecaca;
+  }
+  .bulk-duplicate-campaigns-btn {
+    background: #e2e8f0;
+    color: #475569;
+  }
+  .bulk-duplicate-campaigns-btn:hover:not(:disabled) {
+    background: #cbd5e1;
+  }
+  .bulk-delete-campaigns-btn:disabled, .bulk-duplicate-campaigns-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 
-        /* Campaign Details */
-        .campaign-details {
-          border-top: 1px solid #f1f5f9;
-        }
+  /* Campaigns List */
+  .campaigns-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
 
-        /* Member Filters */
-        .member-filters {
-          padding: 20px;
-          background: #f8fafc;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .search-wrapper {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 12px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          margin-bottom: 16px;
-          color: #94a3b8;
-        }
-        .member-search {
-          flex: 1;
-          border: none;
-          outline: none;
-          font-size: 14px;
-        }
-        .status-tabs {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
-        }
-        .tab-btn {
-          padding: 8px 16px;
-          border: 1px solid #e2e8f0;
-          background: white;
-          border-radius: 20px;
-          font-size: 13px;
-          font-weight: 500;
-          color: #64748b;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .tab-btn:hover {
-          background: #f1f5f9;
-        }
-        .tab-btn.active {
-          background: #2563eb;
-          border-color: #2563eb;
-          color: white;
-        }
+  /* Campaign Card */
+  .campaign-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  .campaign-header {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .campaign-header:hover {
+    background: #f8fafc;
+  }
+  .campaign-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 200px;
+  }
+  .campaign-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .campaign-info {
+    flex: 1;
+  }
+  .campaign-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .campaign-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .campaign-target {
+    font-size: 13px;
+    color: #2563eb;
+    background: #eff6ff;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .campaign-deadline {
+    font-size: 13px;
+    color: #64748b;
+  }
+  .campaign-jumuia-badge {
+    font-size: 11px;
+    background: #f59e0b20;
+    color: #f59e0b;
+    padding: 2px 8px;
+    border-radius: 12px;
+  }
+  .campaign-progress-info {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .progress-stats {
+    text-align: right;
+  }
+  .progress-percent {
+    display: block;
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .progress-count {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .collapse-icon {
+    font-size: 20px;
+    color: #94a3b8;
+  }
 
-        /* Bulk Actions for Members */
-        .bulk-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          background: #f1f5f9;
-          border-radius: 8px;
-        }
-        .selected-count {
-          font-size: 13px;
-          font-weight: 500;
-          color: #0f172a;
-        }
-        .bulk-approve {
-          padding: 6px 12px;
-          background: #10b981;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .bulk-approve:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
+  /* Progress Bar */
+  .progress-bar-container {
+    padding: 0 20px 20px;
+  }
+  .progress-bar {
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #2563eb;
+    transition: width 0.3s;
+  }
 
-        /* Members List */
-        .members-list {
-          padding: 0 20px;
-        }
-        .member-section {
-          margin-bottom: 24px;
-        }
-        .section-heading {
-          padding: 12px 0;
-          margin: 0 0 12px 0;
-          font-size: 14px;
-          font-weight: 600;
-          border-bottom: 2px solid;
-        }
-        .pending-heading {
-          color: #d97706;
-          border-bottom-color: #fef3c7;
-        }
-        .approved-heading {
-          color: #059669;
-          border-bottom-color: #d1fae5;
-        }
-        .partial-heading {
-          color: #8b5cf6;
-          border-bottom-color: #ede9fe;
-        }
-        .completed-heading {
-          color: #2563eb;
-          border-bottom-color: #dbeafe;
-        }
-        .default-heading {
-          color: #64748b;
-          border-bottom-color: #e2e8f0;
-        }
+  /* Campaign Details */
+  .campaign-details {
+    border-top: 1px solid #f1f5f9;
+  }
 
-        /* Member Row */
-        .member-row {
-          border: 1px solid #f1f5f9;
-          border-radius: 8px;
-          margin-bottom: 8px;
-          position: relative;
-        }
-        .member-row.updating {
-          opacity: 0.7;
-          pointer-events: none;
-        }
-        .member-summary {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        .member-summary:hover {
-          background: #f8fafc;
-        }
-        .member-checkbox {
-          width: 18px;
-          height: 18px;
-          cursor: pointer;
-          flex-shrink: 0;
-        }
-        .member-avatar {
-          width: 36px;
-          height: 36px;
-          background: #2563eb;
-          color: white;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 600;
-          font-size: 14px;
-          flex-shrink: 0;
-        }
-        .member-details {
-          flex: 1;
-          min-width: 0;
-        }
-        .member-name {
-          font-weight: 600;
-          color: #0f172a;
-          margin-bottom: 4px;
-          font-size: 14px;
-        }
-        .member-amounts {
-          display: flex;
-          gap: 16px;
-          font-size: 12px;
-          flex-wrap: wrap;
-        }
-        .amount-paid {
-          color: #059669;
-        }
-        .amount-pending {
-          color: #d97706;
-        }
-        .member-status {
-          margin: 0 12px;
-          flex-shrink: 0;
-        }
-        .status-badge {
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .status-badge.pending {
-          background: #fef3c7;
-          color: #d97706;
-        }
-        .status-badge.approved {
-          background: #d1fae5;
-          color: #059669;
-        }
-        .status-badge.completed {
-          background: #dbeafe;
-          color: #2563eb;
-        }
-        .status-badge.default {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-        .expand-icon {
-          font-size: 16px;
-          color: #94a3b8;
-          flex-shrink: 0;
-        }
+  /* Member Filters */
+  .member-filters {
+    padding: 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .search-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    color: #94a3b8;
+  }
+  .member-search {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+  }
+  .status-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    padding: 8px 16px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover {
+    background: #f1f5f9;
+  }
+  .tab-btn.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+  }
 
-        /* Spinner small */
-        .spinner-small {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
+  /* Bulk Actions for Members */
+  .bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    flex-wrap: wrap;
+  }
+  .selected-count {
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a;
+  }
+  .bulk-approve {
+    padding: 6px 12px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bulk-approve:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 
-        /* Member Expanded View */
-        .member-expanded {
-          padding: 16px;
-          background: #f8fafc;
-          border-top: 1px solid #f1f5f9;
-        }
-        .action-group {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-        .action-input {
-          width: 100px;
-          padding: 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-        .action-btn {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .action-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .action-btn.approve {
-          background: #10b981;
-          color: white;
-        }
-        .action-btn.approve:hover:not(:disabled) {
-          background: #059669;
-        }
-        .action-btn.add {
-          background: #2563eb;
-          color: white;
-        }
-        .action-btn.add:hover:not(:disabled) {
-          background: #1d4ed8;
-        }
-        .action-btn.reset {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-        .action-btn.reset:hover:not(:disabled) {
-          background: #e2e8f0;
-        }
-        .action-btn.message {
-          background: #8b5cf6;
-          color: white;
-        }
-        .action-btn.message:hover:not(:disabled) {
-          background: #7c3aed;
-        }
-        .message-input {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          margin-top: 8px;
-        }
-        .message-field {
-          flex: 1;
-          padding: 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-        .completed-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          background: #d1fae5;
-          color: #059669;
-          border-radius: 6px;
-          font-weight: 500;
-        }
+  /* Members List */
+  .members-list {
+    padding: 0 20px;
+    overflow-x: auto;
+  }
+  .member-section {
+    margin-bottom: 24px;
+  }
+  .section-heading {
+    padding: 12px 0;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 2px solid;
+  }
+  .pending-heading {
+    color: #d97706;
+    border-bottom-color: #fef3c7;
+  }
+  .approved-heading {
+    color: #059669;
+    border-bottom-color: #d1fae5;
+  }
+  .partial-heading {
+    color: #8b5cf6;
+    border-bottom-color: #ede9fe;
+  }
+  .completed-heading {
+    color: #2563eb;
+    border-bottom-color: #dbeafe;
+  }
+  .default-heading {
+    color: #64748b;
+    border-bottom-color: #e2e8f0;
+  }
 
-        /* Campaign Footer */
-        .campaign-footer {
-          padding: 16px 20px;
-          border-top: 1px solid #f1f5f9;
-          text-align: right;
-        }
-        .delete-campaign-btn {
-          padding: 8px 16px;
-          background: #fee2e2;
-          color: #ef4444;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .delete-campaign-btn:hover:not(:disabled) {
-          background: #fecaca;
-        }
-        .delete-campaign-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
+  /* Member Row */
+  .member-row {
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .member-row.updating {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .member-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-wrap: wrap;
+  }
+  .member-summary:hover {
+    background: #f8fafc;
+  }
+  .member-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .member-avatar {
+    width: 36px;
+    height: 36px;
+    background: #2563eb;
+    color: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .member-details {
+    flex: 1;
+    min-width: 150px;
+  }
+  .member-name {
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .member-amounts {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .amount-paid {
+    color: #059669;
+  }
+  .amount-pending {
+    color: #d97706;
+  }
+  .member-status {
+    margin: 0 12px;
+    flex-shrink: 0;
+  }
 
-        /* Loading */
-        .loading-container {
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: #f8fafc;
-        }
-        .spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid #f1f5f9;
-          border-top: 3px solid #2563eb;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-bottom: 16px;
-        }
-        .loading-text {
-          color: #64748b;
-          font-size: 14px;
-        }
-      `}</style>
+  .amount-remaining {
+  color: #8b5cf6;
+}
+.amount-required {
+  color: #64748b;
+}
+  .status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .status-badge.pending {
+    background: #fef3c7;
+    color: #d97706;
+  }
+  .status-badge.approved {
+    background: #d1fae5;
+    color: #059669;
+  }
+  .status-badge.completed {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+  .status-badge.default {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+  .expand-icon {
+    font-size: 16px;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+
+  /* Spinner small */
+  .spinner-small {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Member Expanded View */
+  .member-expanded {
+    padding: 16px;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+  }
+  .action-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .action-input {
+    width: 100px;
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .action-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .action-btn.approve {
+    background: #10b981;
+    color: white;
+  }
+  .action-btn.approve:hover:not(:disabled) {
+    background: #059669;
+  }
+  .action-btn.add {
+    background: #2563eb;
+    color: white;
+  }
+  .action-btn.add:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
+  .action-btn.reset {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+  .action-btn.reset:hover:not(:disabled) {
+    background: #e2e8f0;
+  }
+  .action-btn.message {
+    background: #8b5cf6;
+    color: white;
+  }
+  .action-btn.message:hover:not(:disabled) {
+    background: #7c3aed;
+  }
+  .message-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .message-field {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .completed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #d1fae5;
+    color: #059669;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  /* Campaign Footer */
+  .campaign-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #f1f5f9;
+    text-align: right;
+  }
+  .delete-campaign-btn {
+    padding: 8px 16px;
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .delete-campaign-btn:hover:not(:disabled) {
+    background: #fecaca;
+  }
+  .delete-campaign-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Loading */
+  .loading-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f1f5f9;
+    border-top: 3px solid #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+  .loading-text {
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  /* Campaign Actions */
+.campaign-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.generate-link-btn {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.generate-link-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.generate-link-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Payment Link Modal */
+.payment-link-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.payment-link-modal {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.payment-link-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.payment-link-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.payment-link-body {
+  padding: 24px;
+}
+
+.payment-link-body p {
+  margin: 0 0 16px 0;
+  color: #334155;
+  font-size: 14px;
+}
+
+.payment-link-url-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.payment-link-url {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.payment-link-url:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.copy-link-btn {
+  padding: 12px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.copy-link-btn:hover {
+  background: #059669;
+}
+
+.payment-link-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-share-btn, .email-share-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.whatsapp-share-btn {
+  background: #25D366;
+  color: white;
+}
+
+.whatsapp-share-btn:hover {
+  background: #128C7E;
+}
+
+.email-share-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.email-share-btn:hover {
+  background: #2563eb;
+}
+
+.payment-link-note {
+  background: #fef3c7;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+.payment-link-note small {
+  color: #92400e;
+  font-size: 12px;
+}
+`}</style>
     </motion.div>
   );
 }
@@ -2748,17 +3221,25 @@ function MemberRow({
         <div className="member-details">
           <div className="member-name">{pledge.user?.fullName || "Unknown"}</div>
           <div className="member-amounts">
-            <span className="amount-paid">Paid: KES {pledge.amountPaid?.toLocaleString() || 0}</span>
-            {pledge.pendingAmount > 0 && (
-              <span className="amount-pending">Pending: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
-            )}
-          </div>
+  <span className="amount-paid">💰 Paid: KES {pledge.amountPaid?.toLocaleString() || 0}</span>
+  {pledge.pendingAmount > 0 && (
+    <span className="amount-pending">⏳ Pending Approval: KES {pledge.pendingAmount?.toLocaleString() || 0}</span>
+  )}
+  {!isCompleted && pledge.amountPaid > 0 && pledge.pendingAmount === 0 && (
+    <span className="amount-remaining">📊 Remaining: KES {Math.max(0, type.amountRequired - (pledge.amountPaid || 0)).toLocaleString()}</span>
+  )}
+  {!isCompleted && pledge.amountPaid === 0 && pledge.pendingAmount === 0 && (
+    <span className="amount-required">🎯 Required: KES {type.amountRequired.toLocaleString()}</span>
+  )}
+</div>
         </div>
-        <div className="member-status">
-          <span className={`status-badge ${getStatusStyle(pledge.status, isCompleted)}`}>
-            {status}
-          </span>
-        </div>
+       <div className="member-status">
+  <span className={`status-badge ${getStatusStyle(pledge.status, isCompleted)}`}>
+    {isCompleted ? "✅ COMPLETED" : 
+     pledge.pendingAmount > 0 ? "⏳ PENDING" : 
+     pledge.amountPaid > 0 ? "✓ APPROVED" : "📋 NO PLEDGE"}
+  </span>
+</div>
         <span className="expand-icon">{isExpanded ? "▼" : "▶"}</span>
       </div>
 
@@ -2872,3 +3353,4 @@ function MemberRow({
 }
 
 export default ContributionsPage;
+

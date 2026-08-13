@@ -19,7 +19,6 @@ const FullReadings = () => {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // Clean text function - removes HTML artifacts and podcast/email links
   const cleanText = (text) => {
     if (!text) return '';
     
@@ -46,25 +45,20 @@ const FullReadings = () => {
   }, [date]);
 
   const fetchFullReadings = async () => {
-  setLoading(true);
-  setError(null);
-  
-  try {
-    const [year, month, day] = date.split('-');
-    console.log('Fetching readings for date:', `${year}-${month}-${day}`);
+    setLoading(true);
+    setError(null);
     
-    const response = await publicApi.get(`/api/calendar/readings/${year}/${month}/${day}`);
-    console.log('Received reading for date:', response.data.date);
-    console.log('Celebration:', response.data.celebration);
-    
-    setReadingData(response.data);
-  } catch (err) {
-    console.error('Error fetching readings:', err);
-    setError('Failed to load readings for this date');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const [year, month, day] = date.split('-');
+      const response = await publicApi.get(`/api/calendar/readings/${year}/${month}/${day}`);
+      setReadingData(response.data);
+    } catch (err) {
+      console.error('Error fetching readings:', err);
+      setError('Failed to load readings for this date');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const goToPreviousDay = () => {
     const current = new Date(date);
@@ -86,27 +80,24 @@ const FullReadings = () => {
   };
 
   const formatDate = (dateString) => {
-  // Parse the date
-  const date = new Date(dateString);
-  
-  // Use local methods for correct display
-  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  
-  const weekday = weekdays[date.getDay()];
-  const month = months[date.getMonth()];
-  const day = date.getDate();
-  const year = date.getFullYear();
-  
-  return `${weekday}, ${month} ${day}, ${year}`;
-};
+    const date = new Date(dateString);
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const weekday = weekdays[date.getDay()];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    
+    return `${weekday}, ${month} ${day}, ${year}`;
+  };
 
   const getSeasonColor = (season) => {
     const colors = {
       advent: '#800080',
-      christmas: '#FFFFFF',
+      christmas: '#FFD700',
       lent: '#800080',
-      easter: '#FFFFFF',
+      easter: '#FFD700',
       ordinary: '#008000'
     };
     return colors[season] || '#008000';
@@ -114,13 +105,13 @@ const FullReadings = () => {
 
   const getSeasonBg = (season) => {
     const backgrounds = {
-      advent: 'rgba(128, 0, 128, 0.1)',
-      christmas: 'rgba(255, 255, 255, 0.1)',
-      lent: 'rgba(128, 0, 128, 0.1)',
-      easter: 'rgba(255, 255, 255, 0.1)',
-      ordinary: 'rgba(0, 128, 0, 0.1)'
+      advent: 'rgba(128, 0, 128, 0.08)',
+      christmas: 'rgba(255, 215, 0, 0.08)',
+      lent: 'rgba(128, 0, 128, 0.08)',
+      easter: 'rgba(255, 215, 0, 0.08)',
+      ordinary: 'rgba(0, 128, 0, 0.08)'
     };
-    return backgrounds[season] || 'rgba(0,0,0,0.1)';
+    return backgrounds[season] || 'rgba(0,0,0,0.05)';
   };
 
   const handleShare = async () => {
@@ -144,127 +135,112 @@ const FullReadings = () => {
   };
 
   const handleDownloadImage = async () => {
-  try {
-    // Create a temporary container with the FULL readings content
-    const contentElement = document.createElement('div');
-    contentElement.style.padding = '40px';
-    contentElement.style.background = 'white';
-    contentElement.style.color = 'black';
-    contentElement.style.maxWidth = '800px';
-    contentElement.style.fontFamily = 'Arial, sans-serif';
-    contentElement.style.borderRadius = '12px';
-    contentElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-    contentElement.style.maxHeight = '2000px';
-    contentElement.style.overflowY = 'auto';
-    
-    // Build the content HTML with COMPLETE readings
-    let contentHTML = `
-      <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #800080; margin: 0; font-size: 28px;">${readingData.celebration}</h1>
-        <p style="color: #666; font-size: 18px; margin: 10px 0;">${formatDate(date)}</p>
-        <p style="color: #00c6ff; font-size: 16px; margin: 5px 0;">Liturgical Year: ${readingData.yearCycle || 'Unknown'}</p>
-      </div>
-    `;
-    
-    // First Reading - FULL TEXT
-    if (readingData.readings?.firstReading) {
-      contentHTML += `
-        <div style="margin-bottom: 30px; page-break-inside: avoid;">
-          <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
-            First Reading <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.firstReading.citation}</span>
-          </h2>
-          <div style="line-height: 1.8; color: #333; font-size: 16px; white-space: pre-line;">
-            ${cleanText(readingData.readings.firstReading.text).replace(/\n/g, '<br>')}
-          </div>
+    try {
+      const contentElement = document.createElement('div');
+      contentElement.style.padding = '40px';
+      contentElement.style.background = 'white';
+      contentElement.style.color = 'black';
+      contentElement.style.maxWidth = '800px';
+      contentElement.style.fontFamily = 'Arial, sans-serif';
+      contentElement.style.borderRadius = '12px';
+      contentElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+      
+      let contentHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #800080; margin: 0; font-size: 28px;">${readingData.celebration}</h1>
+          <p style="color: #666; font-size: 18px; margin: 10px 0;">${formatDate(date)}</p>
+          <p style="color: #00c6ff; font-size: 16px; margin: 5px 0;">Liturgical Year: ${readingData.yearCycle || 'Unknown'}</p>
         </div>
       `;
-    }
-    
-    // Psalm - FULL TEXT
-    if (readingData.readings?.responsorialPsalm) {
-      contentHTML += `
-        <div style="margin-bottom: 30px; page-break-inside: avoid;">
-          <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
-            Psalm <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.responsorialPsalm.citation}</span>
-          </h2>
-          ${readingData.readings.responsorialPsalm.response ? 
-            `<p style="color: #800080; font-style: italic; font-size: 17px; margin-bottom: 15px;"><strong>R. ${readingData.readings.responsorialPsalm.response}</strong></p>` : ''}
-          <div style="line-height: 1.8; color: #333; font-size: 16px; white-space: pre-line;">
-            ${cleanText(readingData.readings.responsorialPsalm.text).replace(/\n/g, '<br>')}
+      
+      if (readingData.readings?.firstReading) {
+        contentHTML += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
+              First Reading <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.firstReading.citation}</span>
+            </h2>
+            <div style="line-height: 1.8; color: #333; font-size: 16px;">
+              ${cleanText(readingData.readings.firstReading.text).replace(/\n/g, '<br>')}
+            </div>
           </div>
+        `;
+      }
+      
+      if (readingData.readings?.responsorialPsalm) {
+        contentHTML += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
+              Psalm <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.responsorialPsalm.citation}</span>
+            </h2>
+            ${readingData.readings.responsorialPsalm.response ? 
+              `<p style="color: #800080; font-style: italic; font-size: 17px; margin-bottom: 15px;"><strong>R. ${readingData.readings.responsorialPsalm.response}</strong></p>` : ''}
+            <div style="line-height: 1.8; color: #333; font-size: 16px;">
+              ${cleanText(readingData.readings.responsorialPsalm.text).replace(/\n/g, '<br>')}
+            </div>
+          </div>
+        `;
+      }
+      
+      if (readingData.readings?.secondReading) {
+        contentHTML += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
+              Second Reading <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.secondReading.citation}</span>
+            </h2>
+            <div style="line-height: 1.8; color: #333; font-size: 16px;">
+              ${cleanText(readingData.readings.secondReading.text).replace(/\n/g, '<br>')}
+            </div>
+          </div>
+        `;
+      }
+      
+      if (readingData.readings?.gospel) {
+        contentHTML += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="color: #b8860b; border-bottom: 3px solid #FFD700; padding-bottom: 8px; font-size: 22px;">
+              Gospel <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.gospel.citation}</span>
+            </h2>
+            <div style="line-height: 1.8; color: #333; font-size: 16px; font-weight: 500;">
+              ${cleanText(readingData.readings.gospel.text).replace(/\n/g, '<br>')}
+            </div>
+          </div>
+        `;
+      }
+      
+      contentHTML += `
+        <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
+          <p>Readings Generated by • Zetech Catholic Action Portal</p>
         </div>
       `;
+      
+      contentElement.innerHTML = contentHTML;
+      
+      contentElement.style.position = 'absolute';
+      contentElement.style.left = '-9999px';
+      contentElement.style.top = '-9999px';
+      document.body.appendChild(contentElement);
+      
+      const canvas = await html2canvas(contentElement, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        allowTaint: false,
+        useCORS: true
+      });
+      
+      document.body.removeChild(contentElement);
+      
+      const image = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `readings-${date}.png`;
+      link.href = image;
+      link.click();
+      
+    } catch (error) {
+      console.error('Error generating image:', error);
+      alert('Failed to generate image. Please try again.');
     }
-    
-    // Second Reading - FULL TEXT (if available)
-    if (readingData.readings?.secondReading) {
-      contentHTML += `
-        <div style="margin-bottom: 30px; page-break-inside: avoid;">
-          <h2 style="color: #800080; border-bottom: 3px solid #00c6ff; padding-bottom: 8px; font-size: 22px;">
-            Second Reading <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.secondReading.citation}</span>
-          </h2>
-          <div style="line-height: 1.8; color: #333; font-size: 16px; white-space: pre-line;">
-            ${cleanText(readingData.readings.secondReading.text).replace(/\n/g, '<br>')}
-          </div>
-        </div>
-      `;
-    }
-    
-    // Gospel - FULL TEXT
-    if (readingData.readings?.gospel) {
-      contentHTML += `
-        <div style="margin-bottom: 30px; page-break-inside: avoid;">
-          <h2 style="color: #b8860b; border-bottom: 3px solid #FFD700; padding-bottom: 8px; font-size: 22px;">
-            Gospel <span style="color: #00c6ff; font-size: 16px; margin-left: 10px;">${readingData.readings.gospel.citation}</span>
-          </h2>
-          <div style="line-height: 1.8; color: #333; font-size: 16px; font-weight: 500; white-space: pre-line;">
-            ${cleanText(readingData.readings.gospel.text).replace(/\n/g, '<br>')}
-          </div>
-        </div>
-      `;
-    }
-    
-    // Footer
-    contentHTML += `
-      <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
-        <p>Readings Generated by • Zetech Catholic Action Portal</p>
-      </div>
-    `;
-    
-    contentElement.innerHTML = contentHTML;
-    
-    // Temporarily add to document to render
-    contentElement.style.position = 'absolute';
-    contentElement.style.left = '-9999px';
-    contentElement.style.top = '-9999px';
-    document.body.appendChild(contentElement);
-    
-    // Convert to canvas with higher quality and full height
-    const canvas = await html2canvas(contentElement, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      logging: false,
-      allowTaint: false,
-      useCORS: true,
-      windowWidth: 800,
-      windowHeight: contentElement.scrollHeight
-    });
-    
-    // Remove temporary element
-    document.body.removeChild(contentElement);
-    
-    // Convert to image and download
-    const image = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `readings-${date}.png`;
-    link.href = image;
-    link.click();
-    
-  } catch (error) {
-    console.error('Error generating image:', error);
-    alert('Failed to generate image. Please try again.');
-  }
-};
+  };
 
   const handleDownload = (format = 'txt') => {
     const firstReadingText = cleanText(readingData.readings?.firstReading?.text || '');
@@ -298,11 +274,11 @@ const FullReadings = () => {
   <meta charset="UTF-8">
   <title>${title}</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: white; }
     h1 { color: #800080; }
     h2 { color: #00c6ff; border-bottom: 1px solid #ccc; }
     .citation { color: #800080; font-weight: bold; }
-    .reading { margin-bottom: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .reading { margin-bottom: 30px; background: white; padding: 20px; border-radius: 8px; }
     .gospel { border-left: 4px solid #FFD700; }
     .gospel h2 { color: #b8860b; }
     .psalm-response { color: #800080; font-style: italic; }
@@ -353,7 +329,7 @@ const FullReadings = () => {
         return;
         
       case 'doc':
-  content = `<!DOCTYPE html>
+        content = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -404,9 +380,9 @@ const FullReadings = () => {
   </div>
 </body>
 </html>`;
-  mimeType = 'application/msword';
-  filename += '.doc';
-  break;
+        mimeType = 'application/msword';
+        filename += '.doc';
+        break;
         
       default:
         return;
@@ -426,11 +402,7 @@ const FullReadings = () => {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.loadingContent}>
-          <div style={styles.loadingAnimation}>
-            <div style={styles.loadingRing}></div>
-            <div style={styles.loadingRingInner}></div>
-            <Church style={styles.loadingIcon} />
-          </div>
+          <div style={styles.loadingSpinner}></div>
           <h2 style={styles.loadingTitle}>Loading Daily Readings</h2>
           <p style={styles.loadingSubtitle}>Fetching readings for {formatDate(date)}...</p>
         </div>
@@ -456,11 +428,6 @@ const FullReadings = () => {
 
   return (
     <div style={styles.container}>
-      <div style={styles.floatingBg}>
-        <div style={styles.blob1}></div>
-        <div style={styles.blob2}></div>
-      </div>
-
       <div style={styles.content}>
         <div style={styles.header}>
           <div style={styles.headerLeft}>
@@ -476,34 +443,20 @@ const FullReadings = () => {
             </button>
             
             <div style={{ position: 'relative' }}>
-  <button 
-    onClick={() => setShowDownloadOptions(!showDownloadOptions)} 
-    style={styles.iconButton}
-    title="Download"
-  >
-    <Download size={isMobile ? 18 : 20} />
-  </button>
-  
-  {showDownloadOptions && (
-    <div style={styles.downloadDropdown}>
-      <button onClick={() => handleDownload('txt')}>
-        📄 Text File (.txt)
-      </button>
-      <button onClick={() => handleDownload('html')}>
-        🌐 HTML File (.html)
-      </button>
-      <button onClick={() => handleDownload('pdf')}>
-        📑 Save as PDF
-      </button>
-      <button onClick={() => handleDownload('doc')}>
-        📝 Word Document (.doc)
-      </button>
-      <button onClick={handleDownloadImage}>
-        🖼️ Image (.png)
-      </button>
-    </div>
-  )}
-</div>
+              <button onClick={() => setShowDownloadOptions(!showDownloadOptions)} style={styles.iconButton} title="Download">
+                <Download size={isMobile ? 18 : 20} />
+              </button>
+              
+              {showDownloadOptions && (
+                <div style={styles.downloadDropdown}>
+                  <button onClick={() => handleDownload('txt')}>📄 Text File (.txt)</button>
+                  <button onClick={() => handleDownload('html')}>🌐 HTML File (.html)</button>
+                  <button onClick={() => handleDownload('pdf')}>📑 Save as PDF</button>
+                  <button onClick={() => handleDownload('doc')}>📝 Word Document (.doc)</button>
+                  <button onClick={handleDownloadImage}>🖼️ Image (.png)</button>
+                </div>
+              )}
+            </div>
             
             <Link to="/liturgical-calendar" style={styles.homeLink}>
               <ArrowLeft size={16} />
@@ -515,16 +468,16 @@ const FullReadings = () => {
         <div style={styles.navigation}>
           <button onClick={goToPreviousDay} style={styles.navButton}>
             <ChevronLeft size={isMobile ? 18 : 24} />
-            <span style={isMobile ? styles.navTextMobile : styles.navText}>Previous</span>
+            <span>Previous</span>
           </button>
           
           <div style={styles.dateDisplay}>
-            <Calendar size={isMobile ? 16 : 20} color="#FFD700" />
+            <Calendar size={isMobile ? 16 : 20} color="#3b82f6" />
             <h2 style={styles.dateTitle}>{formatDate(date)}</h2>
           </div>
           
           <button onClick={goToNextDay} style={styles.navButton}>
-            <span style={isMobile ? styles.navTextMobile : styles.navText}>Next</span>
+            <span>Next</span>
             <ChevronRight size={isMobile ? 18 : 24} />
           </button>
         </div>
@@ -553,7 +506,7 @@ const FullReadings = () => {
           {readingData.readings?.firstReading && (
             <div style={styles.readingCard}>
               <div style={styles.readingHeader}>
-                <Book size={20} color="#FFD700" />
+                <Book size={20} color="#3b82f6" />
                 <h4 style={styles.readingTitle}>First Reading</h4>
                 <span style={styles.readingCitation}>
                   {readingData.readings.firstReading.citation}
@@ -561,8 +514,7 @@ const FullReadings = () => {
               </div>
               <div style={styles.readingContent}>
                 <p style={styles.readingText}>
-                  {cleanText(readingData.readings.firstReading.text) || 
-                   "Reading text not available. Please refer to your Bible."}
+                  {cleanText(readingData.readings.firstReading.text) || "Reading text not available. Please refer to your Bible."}
                 </p>
               </div>
             </div>
@@ -571,7 +523,7 @@ const FullReadings = () => {
           {readingData.readings?.responsorialPsalm && (
             <div style={styles.readingCard}>
               <div style={styles.readingHeader}>
-                <Star size={20} color="#FFD700" />
+                <Star size={20} color="#3b82f6" />
                 <h4 style={styles.readingTitle}>Responsorial Psalm</h4>
                 <span style={styles.readingCitation}>
                   {readingData.readings.responsorialPsalm.citation}
@@ -584,9 +536,7 @@ const FullReadings = () => {
                   </p>
                 )}
                 <p style={styles.readingText}>
-                  {cleanText(readingData.readings.responsorialPsalm.text) || 
-                   readingData.readings.responsorialPsalm.verses || 
-                   "Psalm text not available. Please refer to your Bible."}
+                  {cleanText(readingData.readings.responsorialPsalm.text) || readingData.readings.responsorialPsalm.verses || "Psalm text not available. Please refer to your Bible."}
                 </p>
               </div>
             </div>
@@ -595,7 +545,7 @@ const FullReadings = () => {
           {readingData.readings?.secondReading && (
             <div style={styles.readingCard}>
               <div style={styles.readingHeader}>
-                <BookOpen size={20} color="#FFD700" />
+                <BookOpen size={20} color="#3b82f6" />
                 <h4 style={styles.readingTitle}>Second Reading</h4>
                 <span style={styles.readingCitation}>
                   {readingData.readings.secondReading.citation}
@@ -603,8 +553,7 @@ const FullReadings = () => {
               </div>
               <div style={styles.readingContent}>
                 <p style={styles.readingText}>
-                  {cleanText(readingData.readings.secondReading.text) || 
-                   "Reading text not available. Please refer to your Bible."}
+                  {cleanText(readingData.readings.secondReading.text) || "Reading text not available. Please refer to your Bible."}
                 </p>
               </div>
             </div>
@@ -613,7 +562,7 @@ const FullReadings = () => {
           {readingData.readings?.gospel && (
             <div style={styles.readingCard}>
               <div style={styles.readingHeader}>
-                <Sun size={20} color="#FFD700" />
+                <Sun size={20} color="#3b82f6" />
                 <h4 style={styles.readingTitle}>Gospel</h4>
                 <span style={styles.readingCitation}>
                   {readingData.readings.gospel.citation}
@@ -621,8 +570,7 @@ const FullReadings = () => {
               </div>
               <div style={styles.readingContent}>
                 <p style={styles.gospelText}>
-                  {cleanText(readingData.readings.gospel.text) || 
-                   "Gospel text not available. Please refer to your Bible."}
+                  {cleanText(readingData.readings.gospel.text) || "Gospel text not available. Please refer to your Bible."}
                 </p>
               </div>
             </div>
@@ -630,7 +578,7 @@ const FullReadings = () => {
 
           {!readingData.readings?.firstReading && !readingData.readings?.gospel && (
             <div style={styles.noReadingsCard}>
-              <Church size={48} color="rgb(255, 255, 255)" />
+              <Church size={48} color="#94a3b8" />
               <h3 style={styles.noReadingsTitle}>No Readings Available</h3>
               <p style={styles.noReadingsText}>
                 ZUCA does not provide full readings for this date.
@@ -685,53 +633,10 @@ const FullReadings = () => {
           body { background: white; color: black; }
           button, .no-print { display: none !important; }
         }
-
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
-
+        
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes slideUp {
-          from { transform: translateY(50px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-
-        /* Dropdown option colors */
-        select option {
-          background-color: white !important;
-          color: black !important;
-        }
-        
-        select:focus option {
-          background-color: white !important;
-          color: black !important;
-        }
-        
-        select option:hover {
-          background-color: #f0f0f0 !important;
-          color: black !important;
-        }
-        
-        select option:checked {
-          background-color: #00c6ff !important;
-          color: black !important;
-        }
-
-        /* Print styles */
-        @media print {
-          body { background: white; }
-          .no-print { display: none; }
         }
       `}</style>
     </div>
@@ -741,46 +646,11 @@ const FullReadings = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #080308cf 0%, #1a0033 50%, #0a0a1e 100%)',
-    padding: '8px',
-    position: 'relative',
+    background: '#f8fafc',
+    padding: '20px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
-  floatingBg: {
-    position: 'fixed',
-    inset: 0,
-    overflow: 'hidden',
-    pointerEvents: 'none',
-    zIndex: 0,
-  },
-  blob1: {
-    position: 'absolute',
-    width: '500px',
-    height: '500px',
-    top: '-100px',
-    right: '-100px',
-    background: '#800080',
-    borderRadius: '50%',
-    filter: 'blur(80px)',
-    opacity: 0.15,
-    animation: 'float 20s infinite',
-  },
-  blob2: {
-    position: 'absolute',
-    width: '400px',
-    height: '400px',
-    bottom: '-100px',
-    left: '-100px',
-    background: '#008000',
-    borderRadius: '50%',
-    filter: 'blur(80px)',
-    opacity: 0.15,
-    animation: 'float 20s infinite',
-    animationDelay: '-5s',
-  },
   content: {
-    position: 'relative',
-    zIndex: 1,
     maxWidth: '900px',
     margin: '0 auto',
     width: '100%',
@@ -796,36 +666,33 @@ const styles = {
   headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '12px',
   },
   headerRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '10px',
     position: 'relative',
   },
   logo: {
-    width: '35px',
-    height: '35px',
+    width: '40px',
+    height: '40px',
     borderRadius: '50%',
-    border: '2px solid #00c6ff',
+    border: '2px solid #3b82f6',
   },
   title: {
-    color: 'white',
+    color: '#1e293b',
     fontWeight: 'bold',
     margin: 0,
-    fontSize: '20px',
-    background: 'linear-gradient(135deg, #fff, #00c6ff)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
+    fontSize: '24px',
   },
   iconButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '50%',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
     width: '36px',
     height: '36px',
-    color: 'white',
+    color: '#64748b',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -836,66 +703,67 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    color: '#00c6ff',
+    color: '#3b82f6',
     textDecoration: 'none',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '20px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    padding: '8px 12px',
+    background: '#ffffff',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    padding: '8px 14px',
     fontSize: '14px',
+    fontWeight: '500',
   },
   downloadDropdown: {
     position: 'absolute',
     top: '40px',
     right: 0,
-    background: '#1a1a2e',
-    border: '1px solid rgba(255,255,255,0.2)',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
     borderRadius: '8px',
     padding: '8px',
     zIndex: 100,
     minWidth: '180px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   },
   navigation: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '20px',
-    background: 'rgba(255, 255, 255, 0.05)',
-    backdropFilter: 'blur(10px)',
-    borderRadius: '40px',
-    padding: '8px 15px',
+    background: '#ffffff',
+    borderRadius: '12px',
+    padding: '12px 20px',
+    border: '1px solid #e2e8f0',
   },
   navButton: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '30px',
-    padding: '8px 12px',
-    color: 'white',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '8px 16px',
+    color: '#475569',
     cursor: 'pointer',
     fontSize: '14px',
+    fontWeight: '500',
   },
-  navTextMobile: {
-    display: 'none',
-  },
-  navText: {},
   dateDisplay: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
   },
   dateTitle: {
-    color: 'white',
+    color: '#1e293b',
     fontSize: '16px',
     margin: 0,
+    fontWeight: '600',
   },
   celebrationHeader: {
     padding: '20px',
     borderRadius: '12px',
     marginBottom: '20px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
   },
   celebrationHeaderLeft: {
     display: 'flex',
@@ -903,7 +771,7 @@ const styles = {
     gap: '8px',
   },
   celebrationName: {
-    color: 'white',
+    color: '#1e293b',
     fontSize: '22px',
     fontWeight: 'bold',
     margin: 0,
@@ -913,54 +781,56 @@ const styles = {
     gap: '10px',
   },
   seasonBadge: {
-    background: 'rgba(255, 255, 255, 0.1)',
+    background: '#f1f5f9',
     padding: '4px 12px',
     borderRadius: '16px',
     fontSize: '12px',
-    color: 'rgba(255,255,255,0.9)',
+    color: '#475569',
+    fontWeight: '500',
   },
   yearBadge: {
-    background: 'rgba(255, 215, 0, 0.2)',
+    background: '#fef3c7',
     padding: '4px 12px',
     borderRadius: '16px',
     fontSize: '12px',
-    color: '#FFD700',
+    color: '#d97706',
+    fontWeight: '500',
   },
   readingsContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: '20px',
     marginBottom: '30px',
   },
   readingCard: {
-    background: 'rgba(255, 255, 255, 0.03)',
+    background: '#ffffff',
     borderRadius: '12px',
-    padding: '20px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '24px',
+    border: '1px solid #e2e8f0',
   },
   readingHeader: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    marginBottom: '15px',
+    marginBottom: '16px',
     flexWrap: 'wrap',
   },
   readingTitle: {
-    color: 'white',
-    fontSize: '16px',
+    color: '#1e293b',
+    fontSize: '18px',
     fontWeight: '600',
     margin: 0,
   },
   readingCitation: {
-    color: '#00c6ff',
+    color: '#3b82f6',
     fontSize: '14px',
     fontWeight: '500',
     marginLeft: 'auto',
   },
   readingContent: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: '15px',
-    lineHeight: '1.6',
+    color: '#334155',
+    fontSize: '16px',
+    lineHeight: '1.7',
   },
   readingText: {
     margin: 0,
@@ -969,54 +839,56 @@ const styles = {
   gospelText: {
     margin: 0,
     whiteSpace: 'pre-line',
-    color: '#FFD700',
+    color: '#b8860b',
     fontWeight: '500',
   },
   psalmResponse: {
-    color: '#FFD700',
-    marginBottom: '10px',
+    color: '#800080',
+    marginBottom: '12px',
     fontStyle: 'italic',
   },
   noReadingsCard: {
-    background: 'rgba(255, 255, 255, 0.03)',
+    background: '#ffffff',
     borderRadius: '12px',
     padding: '40px',
     textAlign: 'center',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    border: '1px solid #e2e8f0',
   },
   noReadingsTitle: {
-    color: 'white',
+    color: '#1e293b',
     fontSize: '20px',
     margin: '15px 0 10px',
   },
   noReadingsText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#64748b',
     fontSize: '14px',
     marginBottom: '20px',
   },
   calendarButton: {
-    background: 'linear-gradient(135deg, #800080, #00c6ff)',
+    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
     border: 'none',
     borderRadius: '8px',
-    padding: '12px 24px',
+    padding: '10px 20px',
     color: 'white',
     fontSize: '14px',
-    fontWeight: 'bold',
+    fontWeight: '500',
     cursor: 'pointer',
   },
   footer: {
     textAlign: 'center',
-    color: 'rgba(255, 255, 255, 0.3)',
-    fontSize: '11px',
+    color: '#94a3b8',
+    fontSize: '12px',
     marginTop: '30px',
+    padding: '20px',
+    borderTop: '1px solid #e2e8f0',
   },
   credit: {
     marginTop: '5px',
-    fontSize: '10px',
+    fontSize: '11px',
   },
   loadingContainer: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0a0a1e 0%, #1a0033 100%)',
+    background: '#f8fafc',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1024,47 +896,24 @@ const styles = {
   loadingContent: {
     textAlign: 'center',
   },
-  loadingAnimation: {
-    position: 'relative',
-    width: '70px',
-    height: '70px',
-    margin: '0 auto 15px',
-  },
-  loadingRing: {
-    position: 'absolute',
-    inset: 0,
-    border: '3px solid rgba(255, 255, 255, 0.1)',
+  loadingSpinner: {
+    width: '40px',
+    height: '40px',
+    border: '3px solid #e2e8f0',
+    borderTopColor: '#3b82f6',
     borderRadius: '50%',
-  },
-  loadingRingInner: {
-    position: 'absolute',
-    inset: 0,
-    border: '3px solid transparent',
-    borderTopColor: '#800080',
-    borderRightColor: '#008000',
-    borderBottomColor: '#FFFFFF',
-    borderLeftColor: '#00c6ff',
-    borderRadius: '50%',
-    animation: 'spin 1.5s linear infinite',
-  },
-  loadingIcon: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '28px',
-    height: '28px',
-    color: 'white',
+    margin: '0 auto 16px',
+    animation: 'spin 0.8s linear infinite',
   },
   loadingTitle: {
-    color: 'white',
-    fontSize: '16px',
+    color: '#1e293b',
+    fontSize: '18px',
     fontWeight: 'bold',
-    marginBottom: '5px',
+    marginBottom: '8px',
   },
   loadingSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: '12px',
+    color: '#64748b',
+    fontSize: '14px',
   },
   errorContainer: {
     minHeight: '100vh',
@@ -1076,12 +925,12 @@ const styles = {
     textAlign: 'center',
   },
   errorTitle: {
-    color: 'white',
+    color: '#1e293b',
     fontSize: '24px',
     marginBottom: '10px',
   },
   errorMessage: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#64748b',
     fontSize: '16px',
     marginBottom: '20px',
   },
@@ -1089,13 +938,13 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    background: 'linear-gradient(135deg, #800080, #00c6ff)',
+    background: '#3b82f6',
     border: 'none',
     borderRadius: '8px',
-    padding: '12px 24px',
+    padding: '10px 20px',
     color: 'white',
     fontSize: '14px',
-    fontWeight: 'bold',
+    fontWeight: '500',
     cursor: 'pointer',
   },
   modalOverlay: {
@@ -1104,8 +953,8 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    backdropFilter: 'blur(5px)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1113,40 +962,40 @@ const styles = {
     padding: '10px',
   },
   modalContent: {
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: '#ffffff',
     borderRadius: '12px',
-    padding: '20px',
+    padding: '24px',
     maxWidth: '400px',
     width: '90%',
     position: 'relative',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    border: '1px solid #e2e8f0',
   },
   modalClose: {
     position: 'absolute',
-    top: '10px',
-    right: '10px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    top: '12px',
+    right: '12px',
+    background: '#f1f5f9',
+    border: '1px solid #e2e8f0',
     borderRadius: '50%',
     width: '32px',
     height: '32px',
-    color: 'white',
+    color: '#64748b',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
-    color: 'white',
+    color: '#1e293b',
     fontSize: '18px',
     fontWeight: 'bold',
-    marginBottom: '15px',
+    marginBottom: '16px',
   },
   modalBody: {
     marginTop: '10px',
   },
   modalText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#64748b',
     fontSize: '14px',
     marginBottom: '10px',
   },
@@ -1158,18 +1007,19 @@ const styles = {
     flex: 1,
     padding: '10px',
     borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    background: 'rgba(255, 255, 255, 0.05)',
-    color: 'white',
+    border: '1px solid #e2e8f0',
+    background: '#f8fafc',
+    color: '#1e293b',
     fontSize: '12px',
   },
   copyButton: {
-    padding: '10px 15px',
+    padding: '10px 16px',
     borderRadius: '6px',
     border: 'none',
-    background: '#00c6ff',
+    background: '#3b82f6',
     color: 'white',
     cursor: 'pointer',
+    fontWeight: '500',
   },
 };
 

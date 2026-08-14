@@ -1467,7 +1467,7 @@ function PaymentPage() {
           }
 
           .dot.active {
-            width: 20px;
+            width: 19px;
           }
         }
       `}</style>

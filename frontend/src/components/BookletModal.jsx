@@ -1,20 +1,22 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { FiX, FiPrinter, FiBook } from "react-icons/fi";
 import { BsFilePdf, BsFileWord } from "react-icons/bs";
 import axios from "axios";
 import BASE_URL from "../api";
-
 
 const BookletModal = ({ program, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [bookletData, setBookletData] = useState(null);
 
   useEffect(() => {
-    fetchBookletData();
+    if (program?.id) {
+      fetchBookletData();
+    }
   }, [program]);
 
   const fetchBookletData = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem("token");
       const res = await axios.get(`${BASE_URL}/api/mass-programs/${program.id}/booklet-data`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -27,89 +29,296 @@ const BookletModal = ({ program, onClose }) => {
     }
   };
 
-  const formatLyricsWithColumns = (lyrics) => {
-    if (!lyrics || lyrics === "[Pending - Add lyrics]") return "Lyrics not available yet";
+  // Format individual lyric line with HTML
+  const formatLyricLine = (line) => {
+    if (!line || line.trim() === '') {
+      return '<div class="spacer-line">&nbsp;</div>';
+    }
+
+    let trimmedLine = line.trim();
     
-    const lines = lyrics.split('\n');
-    let formattedLines = [];
-    let i = 0;
-    
-    while (i < lines.length) {
-      const line = lines[i];
-      
-      const chorusMatch = line.match(/\*\*\{([^}]+)\}\*\*/);
-      if (chorusMatch) {
-        formattedLines.push(`<div class="chorus-line">${chorusMatch[1]}</div>`);
-        i++;
-        continue;
-      }
-      
-      const boldMatch = line.match(/\*\*([^*]+)\*\*/);
-      if (boldMatch && !line.includes('\\*\\*')) {
-        formattedLines.push(`<div class="bold-line">${boldMatch[1]}</div>`);
-        i++;
-        continue;
-      }
-      
-      if (line.match(/^\d+\./)) {
-        formattedLines.push(`<div class="verse-number">${line}</div>`);
-        i++;
-        continue;
-      }
-      
-      if (line.match(/^\*\*(Sop|Alto|Tenor|Bass)\*\*/i)) {
-        const voiceMatch = line.match(/\*\*(Sop|Alto|Tenor|Bass)\*\*/i);
-        if (voiceMatch) {
-          const restOfLine = line.replace(/\*\*Sop\*\*/i, '').replace(/\*\*Alto\*\*/i, '').replace(/\*\*Tenor\*\*/i, '').replace(/\*\*Bass\*\*/i, '');
-          formattedLines.push(`<div class="voice-part ${voiceMatch[1].toLowerCase()}">${voiceMatch[1]}: ${restOfLine}</div>`);
+    if (trimmedLine.includes('**{') && trimmedLine.includes('}**')) {
+      const match = trimmedLine.match(/\*\*\{([^}]+)\}\*\*/);
+      if (match) {
+        const chorusText = match[1];
+        const repeatMatch = chorusText.match(/(.+?)\s*[xX×]\s*(\d+)/);
+        if (repeatMatch) {
+          return `<div class="chorus-line">${repeatMatch[1].trim()} ×${repeatMatch[2]}</div>`;
         }
-        i++;
-        continue;
+        return `<div class="chorus-line">${chorusText}</div>`;
       }
-      
-      const columnSplit = line.split(/\s{3,}/);
-      if (columnSplit.length >= 2) {
-        formattedLines.push(`
-          <div class="two-columns">
-            <div class="col-left">${columnSplit[0]}</div>
-            <div class="col-right">${columnSplit.slice(1).join('   ')}</div>
-          </div>
-        `);
-      } 
-      else if (line.includes('*2') || line.includes('x2')) {
-        formattedLines.push(`<div class="repeat-line">${line.replace(/\*2/g, '×2').replace(/x2/g, '×2')}</div>`);
-      }
-      else if (line.trim()) {
-        formattedLines.push(`<div class="lyric-line">${line}</div>`);
-      } else {
-        formattedLines.push(`<div class="spacer-line">&nbsp;</div>`);
-      }
-      
-      i++;
     }
     
-    return formattedLines.join('');
+    if (trimmedLine.includes('**') && !trimmedLine.includes('\\*\\*')) {
+      let processedLine = trimmedLine;
+      const boldMatches = trimmedLine.match(/\*\*([^*]+)\*\*/g);
+      if (boldMatches) {
+        boldMatches.forEach(match => {
+          const text = match.replace(/\*\*/g, '');
+          processedLine = processedLine.replace(match, `<strong>${text}</strong>`);
+        });
+      }
+      return `<div class="lyric-line">${processedLine}</div>`;
+    }
+    
+    if (trimmedLine.match(/^(\d+)\./)) {
+      return `<div class="verse-number">${trimmedLine}</div>`;
+    }
+    
+    const repeatMatch = trimmedLine.match(/\{([^}]+)\}\s*[xX×]\s*(\d+)/);
+    if (repeatMatch) {
+      return `<div class="repeat-line">${repeatMatch[1].trim()} ×${repeatMatch[2]}</div>`;
+    }
+    
+    const voiceMatch = trimmedLine.match(/\*\*(Sop|Alto|Tenor|Bass)\*\*/i);
+    if (voiceMatch) {
+      const voice = voiceMatch[1];
+      const restOfLine = trimmedLine
+        .replace(/\*\*Sop\*\*/i, '')
+        .replace(/\*\*Alto\*\*/i, '')
+        .replace(/\*\*Tenor\*\*/i, '')
+        .replace(/\*\*Bass\*\*/i, '')
+        .trim();
+      return `<div class="voice-part ${voice.toLowerCase()}">${voice}: ${restOfLine}</div>`;
+    }
+    
+    const columnSplit = trimmedLine.split(/\s{3,}/);
+    if (columnSplit.length >= 2) {
+      return `
+        <div class="two-columns">
+          <div class="col-left">${columnSplit[0].trim()}</div>
+          <div class="col-right">${columnSplit.slice(1).join('   ').trim()}</div>
+        </div>
+      `;
+    }
+    
+    if (trimmedLine.includes('*2') || trimmedLine.includes('x2') || trimmedLine.includes('×2')) {
+      const repeatLine = trimmedLine
+        .replace(/\*2/g, '×2')
+        .replace(/x2/g, '×2')
+        .replace(/X2/g, '×2');
+      return `<div class="repeat-line">${repeatLine}</div>`;
+    }
+    
+    if (trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length > 3 && !trimmedLine.includes('*')) {
+      return `<div class="section-title-line">${trimmedLine}</div>`;
+    }
+    
+    return `<div class="lyric-line">${trimmedLine}</div>`;
   };
 
-  // Split sections into pages with natural flow
-  const splitIntoPages = (sections) => {
-    const pages = [];
-    let currentPage = { left: [], right: [] };
-    let currentColumn = 'left';
+  // Break everything into individual lines with proper grouping
+  const breakIntoLines = (sections) => {
+    const allLines = [];
     
     sections.forEach((section) => {
-      if (currentColumn === 'left') {
-        currentPage.left.push(section);
-        currentColumn = 'right';
-      } else {
-        currentPage.right.push(section);
-        pages.push(currentPage);
-        currentPage = { left: [], right: [] };
-        currentColumn = 'left';
+      // Section header
+      allLines.push({
+        type: 'section-header',
+        content: section.label || '',
+        html: `<div class="section-header">${section.label || ''}</div>`,
+        lines: 1,
+        group: 'header'
+      });
+      
+      if (section.songs) {
+        section.songs.forEach((song) => {
+          // Song title
+          allLines.push({
+            type: 'song-title',
+            content: song.title || '',
+            html: `<div class="song-title">${song.title || ''}</div>`,
+            lines: 1,
+            group: `song-${song.title || Math.random()}`
+          });
+          
+          // Lyrics
+          if (song.lyrics && song.lyrics !== "[Pending - Add lyrics]") {
+            const lyricLines = song.lyrics.split('\n');
+            lyricLines.forEach((line) => {
+              if (line && line.trim() !== '') {
+                const formattedHtml = formatLyricLine(line);
+                allLines.push({
+                  type: 'lyric',
+                  content: line,
+                  html: `<div class="song-lyrics">${formattedHtml}</div>`,
+                  lines: 1,
+                  group: `song-${song.title || Math.random()}`
+                });
+              } else {
+                allLines.push({
+                  type: 'spacer',
+                  content: '',
+                  html: '<div class="song-lyrics"><div class="spacer-line">&nbsp;</div></div>',
+                  lines: 0.5,
+                  group: `song-${song.title || Math.random()}`
+                });
+              }
+            });
+          } else {
+            allLines.push({
+              type: 'lyric',
+              content: 'Lyrics not available yet',
+              html: '<div class="song-lyrics"><div class="lyric-line">Lyrics not available yet</div></div>',
+              lines: 1,
+              group: `song-${song.title || Math.random()}`
+            });
+          }
+        });
       }
     });
     
-    if (currentPage.left.length > 0) {
+    return allLines;
+  };
+
+  // Flow lines with group awareness
+  const flowLinesIntoPages = (allLines) => {
+    const MAX_LINES_PER_COLUMN = 30;
+    const pages = [];
+    let currentPage = { left: [], right: [] };
+    let currentColumn = 'left';
+    let lineCount = 0;
+    let currentGroup = '';
+    let groupLineCount = 0;
+    
+    for (let i = 0; i < allLines.length; i++) {
+      const line = allLines[i];
+      
+      if (line.group !== currentGroup) {
+        currentGroup = line.group;
+        groupLineCount = 0;
+      }
+      
+      let totalGroupLines = 0;
+      let j = i;
+      while (j < allLines.length && allLines[j].group === currentGroup) {
+        totalGroupLines += allLines[j].lines;
+        j++;
+      }
+      
+      if (line.type === 'section-header') {
+        let nextLines = 0;
+        let k = i + 1;
+        while (k < allLines.length && allLines[k].group === 'header') {
+          nextLines += allLines[k].lines;
+          k++;
+        }
+        while (k < allLines.length && allLines[k].type !== 'song-title') {
+          k++;
+        }
+        if (k < allLines.length) {
+          nextLines += allLines[k].lines;
+        }
+        
+        if (lineCount + nextLines > MAX_LINES_PER_COLUMN) {
+          if (currentColumn === 'left') {
+            currentColumn = 'right';
+            lineCount = 0;
+          } else {
+            pages.push(currentPage);
+            currentPage = { left: [], right: [] };
+            currentColumn = 'left';
+            lineCount = 0;
+          }
+        }
+      }
+      
+      if (line.type === 'song-title' || line.type === 'lyric' || line.type === 'spacer') {
+        const groupTotal = totalGroupLines;
+        
+        if (lineCount + groupTotal <= MAX_LINES_PER_COLUMN) {
+          while (i < allLines.length && allLines[i].group === currentGroup) {
+            const currentLine = allLines[i];
+            if (currentColumn === 'left') {
+              currentPage.left.push(currentLine);
+            } else {
+              currentPage.right.push(currentLine);
+            }
+            lineCount += currentLine.lines;
+            i++;
+          }
+          i--;
+          continue;
+        } else {
+          let linesToAdd = [];
+          let tempLineCount = 0;
+          let tempI = i;
+          
+          if (allLines[tempI] && allLines[tempI].type === 'song-title') {
+            linesToAdd.push(allLines[tempI]);
+            tempLineCount += allLines[tempI].lines;
+            tempI++;
+          }
+          
+          while (tempI < allLines.length && 
+                 allLines[tempI].group === currentGroup && 
+                 tempLineCount + allLines[tempI].lines <= MAX_LINES_PER_COLUMN - lineCount) {
+            linesToAdd.push(allLines[tempI]);
+            tempLineCount += allLines[tempI].lines;
+            tempI++;
+          }
+          
+          if (linesToAdd.length >= 2) {
+            linesToAdd.forEach(lineToAdd => {
+              if (currentColumn === 'left') {
+                currentPage.left.push(lineToAdd);
+              } else {
+                currentPage.right.push(lineToAdd);
+              }
+            });
+            lineCount += tempLineCount;
+            
+            if (lineCount >= MAX_LINES_PER_COLUMN) {
+              if (currentColumn === 'left') {
+                currentColumn = 'right';
+                lineCount = 0;
+              } else {
+                pages.push(currentPage);
+                currentPage = { left: [], right: [] };
+                currentColumn = 'left';
+                lineCount = 0;
+              }
+            }
+            
+            i = tempI - 1;
+            continue;
+          } else {
+            if (currentColumn === 'left') {
+              currentColumn = 'right';
+              lineCount = 0;
+            } else {
+              pages.push(currentPage);
+              currentPage = { left: [], right: [] };
+              currentColumn = 'left';
+              lineCount = 0;
+            }
+            i--;
+            continue;
+          }
+        }
+      }
+      
+      if (lineCount + line.lines > MAX_LINES_PER_COLUMN) {
+        if (currentColumn === 'left') {
+          currentColumn = 'right';
+          lineCount = 0;
+        } else {
+          pages.push(currentPage);
+          currentPage = { left: [], right: [] };
+          currentColumn = 'left';
+          lineCount = 0;
+        }
+      }
+      
+      if (currentColumn === 'left') {
+        currentPage.left.push(line);
+      } else {
+        currentPage.right.push(line);
+      }
+      lineCount += line.lines;
+    }
+    
+    if (currentPage.left.length > 0 || currentPage.right.length > 0) {
       pages.push(currentPage);
     }
     
@@ -119,255 +328,245 @@ const BookletModal = ({ program, onClose }) => {
   const generatePDF = () => {
     if (!bookletData) return;
     
-    const pages = splitIntoPages(bookletData.sections);
+    const allLines = breakIntoLines(bookletData.sections);
+    const pages = flowLinesIntoPages(allLines);
     
     const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups for this site');
+      return;
+    }
+    
+    const styles = `
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { 
+        font-family: 'Times New Roman', Times, serif; 
+        background: white; 
+        margin: 0; 
+        padding: 0; 
+      }
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        background: white;
+        page-break-after: always;
+        break-after: page;
+        min-height: 100vh;
+      }
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .page-content {
+        padding: 40px 35px 25px 35px;
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+      }
+      .cover-page {
+        text-align: center;
+        padding: 60px 40px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: white;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      .cover-logo {
+        max-width: 180px;
+        height: auto;
+        margin-bottom: 30px;
+      }
+      .cover-page h1 {
+        font-size: 52px;
+        margin-bottom: 15px;
+        letter-spacing: 6px;
+        font-weight: bold;
+      }
+      .cover-subtitle {
+        font-size: 20px;
+        opacity: 0.9;
+        margin-bottom: 30px;
+        letter-spacing: 4px;
+      }
+      .cover-divider {
+        width: 120px;
+        height: 2px;
+        background: rgba(255,255,255,0.3);
+        margin: 30px auto;
+      }
+      .cover-date, .cover-venue {
+        font-size: 18px;
+        margin: 8px 0;
+        opacity: 0.9;
+      }
+      .column {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .section-header {
+        font-size: 15px;
+        font-weight: bold;
+        color: #c0392b;
+        border-left: 4px solid #c0392b;
+        padding-left: 12px;
+        margin: 6px 0 8px 0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .song-title {
+        font-size: 12px;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 5px 0 3px 0;
+        padding-bottom: 2px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+      .song-lyrics {
+        font-size: 10px;
+        line-height: 1.6;
+        color: #333;
+        margin-left: 10px;
+        display: block;
+      }
+      .song-lyrics .lyric-line {
+        margin: 1px 0;
+        padding: 0 3px;
+        display: block;
+        line-height: 1.5;
+        font-size: 9.5px;
+      }
+      .song-lyrics .chorus-line {
+        font-style: italic;
+        color: #8b4513;
+        margin: 3px 0 3px 6px;
+        padding: 1px 8px;
+        border-left: 3px solid #8b4513;
+        background: rgba(139, 69, 19, 0.05);
+        border-radius: 0 3px 3px 0;
+        display: block;
+        line-height: 1.5;
+        font-size: 9.5px;
+      }
+      .song-lyrics .verse-number {
+        font-weight: bold;
+        color: #2980b9;
+        margin: 5px 0 1px 0;
+        font-size: 10px;
+        display: block;
+      }
+      .song-lyrics .section-title-line {
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 6px 0 3px 0;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px dashed #ccc;
+        padding-bottom: 2px;
+        display: block;
+      }
+      .song-lyrics .repeat-line {
+        color: #666;
+        font-style: italic;
+        margin: 2px 0;
+        font-size: 9px;
+        padding: 1px 6px;
+        background: #f9f9f9;
+        border-radius: 3px;
+        display: inline-block;
+      }
+      .song-lyrics .voice-part {
+        margin: 2px 0;
+        padding: 1px 6px;
+        font-weight: 500;
+        font-size: 9px;
+        border-radius: 3px;
+        display: block;
+      }
+      .song-lyrics .voice-part.sop { color: #e74c3c; background: rgba(231, 76, 60, 0.08); }
+      .song-lyrics .voice-part.alto { color: #27ae60; background: rgba(39, 174, 96, 0.08); }
+      .song-lyrics .voice-part.tenor { color: #2980b9; background: rgba(41, 128, 185, 0.08); }
+      .song-lyrics .voice-part.bass { color: #8e44ad; background: rgba(142, 68, 173, 0.08); }
+      .song-lyrics .two-columns {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        margin: 2px 0;
+        padding: 2px 6px;
+        background: #f8f8f8;
+        border-radius: 3px;
+      }
+      .song-lyrics .col-left, .song-lyrics .col-right { flex: 1; }
+      .song-lyrics .spacer-line { height: 6px; min-height: 6px; display: block; }
+      .page-number {
+        text-align: center;
+        font-size: 9px;
+        color: #999;
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid #eee;
+        width: 100%;
+      }
+      @media print {
+        body { background: white; padding: 0; margin: 0; }
+        .page { 
+          box-shadow: none; 
+          margin: 0; 
+          page-break-after: always; 
+          break-after: page;
+          min-height: 100vh;
+        }
+        .cover-page {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `;
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Mass Program Booklet Auto Generated by ZUCA PORTAL - ${bookletData.program.formattedDate}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          body {
-            font-family: 'Times New Roman', Times, serif;
-            background: white;
-            margin: 0;
-            padding: 0;
-          }
-          .page {
-            max-width: 1100px;
-            margin: 0 auto;
-            background: white;
-            page-break-after: always;
-            break-after: page;
-          }
-          .page:last-child {
-            page-break-after: auto;
-            break-after: auto;
-          }
-          .page-content {
-            padding: 40px;
-          }
-          .cover-page {
-            text-align: center;
-            padding: 50px 40px;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: white;
-            min-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-          }
-          .cover-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-          }
-          .cover-page h1 {
-            font-size: 48px;
-            margin-bottom: 15px;
-            letter-spacing: 4px;
-          }
-          .cover-subtitle {
-            font-size: 18px;
-            opacity: 0.9;
-            margin-bottom: 30px;
-            letter-spacing: 2px;
-          }
-          .cover-divider {
-            width: 100px;
-            height: 2px;
-            background: rgba(255,255,255,0.3);
-            margin: 30px auto;
-          }
-          .cover-date, .cover-venue {
-            font-size: 16px;
-            margin: 10px 0;
-          }
-          .two-column-layout {
-            display: flex;
-            gap: 40px;
-          }
-          .column {
-            flex: 1;
-          }
-          .section {
-            margin-bottom: 30px;
-          }
-          .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #c0392b;
-            border-left: 4px solid #c0392b;
-            padding-left: 15px;
-            margin: 0 0 15px 0;
-          }
-          .song {
-            margin-bottom: 20px;
-          }
-          .song-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 8px;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #ddd;
-          }
-          .song-lyrics {
-            font-size: 10px;
-            line-height: 1.4;
-            color: #333;
-            margin-left: 12px;
-          }
-          .two-columns {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            margin: 3px 0;
-          }
-          .col-left, .col-right {
-            flex: 1;
-          }
-          .chorus-line {
-            font-style: italic;
-            color: #8b4513;
-            margin: 4px 0;
-            padding-left: 8px;
-            border-left: 2px solid #8b4513;
-          }
-          .bold-line {
-            font-weight: bold;
-            margin: 3px 0;
-          }
-          .verse-number {
-            font-weight: bold;
-            color: #2980b9;
-            margin: 6px 0 2px 0;
-          }
-          .repeat-line {
-            color: #666;
-            font-family: monospace;
-            margin: 1px 0;
-          }
-          .voice-part {
-            margin: 3px 0;
-            padding-left: 6px;
-          }
-          .voice-part.sop { color: #e74c3c; }
-          .voice-part.alto { color: #2ecc71; }
-          .voice-part.tenor { color: #3498db; }
-          .voice-part.bass { color: #9b59b6; }
-          .lyric-line {
-            margin: 1px 0;
-          }
-          .spacer-line {
-            height: 8px;
-            min-height: 8px;
-          }
-          .page-number {
-            text-align: center;
-            font-size: 9px;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-          }
-          @media print {
-            body {
-              background: white;
-              padding: 0;
-              margin: 0;
-            }
-            .page {
-              box-shadow: none;
-              margin: 0;
-              page-break-after: always;
-              break-after: page;
-            }
-            .cover-page {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-        </style>
+        <title>Mass Program Booklet - ${bookletData.program?.formattedDate || 'Mass'}</title>
+        <style>${styles}</style>
       </head>
       <body>
     `);
     
-    // Cover page
+    // Cover page with ZUCA logo (no filter)
     printWindow.document.write(`
       <div class="page">
         <div class="cover-page">
-          <div class="cover-icon"></div>
+          <img src="/zuca-logo.png" alt="ZUCA Logo" class="cover-logo" />
           <h1>MASS PROGRAM</h1>
-          <div class="cover-subtitle">ZUCA</div>
+          <div class="cover-subtitle">Z U C A</div>
           <div class="cover-divider"></div>
-          <div class="cover-date">${bookletData.program.formattedDate}</div>
-          <div class="cover-venue">${bookletData.program.venue || 'St. Camillus Mass'}</div>
+          <div class="cover-date">${bookletData.program?.formattedDate || ''}</div>
+          <div class="cover-venue">${bookletData.program?.venue || 'St. Camillus Mass'}</div>
         </div>
       </div>
     `);
     
-    // Content pages - continuous flow
+    // Content pages
     pages.forEach((page, pageIndex) => {
       printWindow.document.write(`
         <div class="page">
           <div class="page-content">
-            <div class="two-column-layout">
-              <div class="column">
-      `);
-      
-      // Left column
-      page.left.forEach(section => {
-        printWindow.document.write(`
-          <div class="section">
-            <div class="section-title">${section.label}</div>
-        `);
-        section.songs.forEach(song => {
-          const lyrics = song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet";
-          printWindow.document.write(`
-            <div class="song">
-              <div class="song-title">${song.title}</div>
-              <div class="song-lyrics">${formatLyricsWithColumns(lyrics)}</div>
+            <div class="column">
+              ${page.left.map(line => line.html).join('')}
             </div>
-          `);
-        });
-        printWindow.document.write(`</div>`);
-      });
-      
-      printWindow.document.write(`
-              </div>
-              <div class="column">
-      `);
-      
-      // Right column
-      page.right.forEach(section => {
-        printWindow.document.write(`
-          <div class="section">
-            <div class="section-title">${section.label}</div>
-        `);
-        section.songs.forEach(song => {
-          const lyrics = song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet";
-          printWindow.document.write(`
-            <div class="song">
-              <div class="song-title">${song.title}</div>
-              <div class="song-lyrics">${formatLyricsWithColumns(lyrics)}</div>
+            <div class="column">
+              ${page.right.map(line => line.html).join('')}
             </div>
-          `);
-        });
-        printWindow.document.write(`</div>`);
-      });
-      
-      printWindow.document.write(`
-              </div>
-            </div>
-            <div class="page-number">Page ${pageIndex + 1}</div>
           </div>
+          <div class="page-number">Page ${pageIndex + 1}</div>
         </div>
       `);
     });
@@ -378,176 +577,69 @@ const BookletModal = ({ program, onClose }) => {
     `);
     
     printWindow.document.close();
-    printWindow.print();
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
   };
 
   const downloadWord = () => {
     if (!bookletData) return;
     
-    const pages = splitIntoPages(bookletData.sections);
+    const allLines = breakIntoLines(bookletData.sections);
+    const pages = flowLinesIntoPages(allLines);
+    
+    const styles = `
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Times New Roman', Times, serif; background: white; margin: 0; padding: 20px; }
+      .page { max-width: 1100px; margin: 0 auto 30px auto; background: white; page-break-after: always; break-after: page; min-height: 100vh; }
+      .page:last-child { page-break-after: auto; break-after: auto; }
+      .page-content { padding: 40px 35px 25px 35px; display: flex; gap: 40px; align-items: flex-start; }
+      .cover-page { text-align: center; padding: 60px 40px; background: #1a1a2e; color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+      .cover-logo { max-width: 180px; height: auto; margin-bottom: 30px; }
+      .cover-page h1 { font-size: 52px; margin-bottom: 15px; letter-spacing: 6px; }
+      .cover-subtitle { font-size: 20px; opacity: 0.9; margin-bottom: 30px; letter-spacing: 4px; }
+      .cover-divider { width: 120px; height: 1px; background: rgba(255,255,255,0.3); margin: 30px auto; }
+      .cover-date, .cover-venue { font-size: 18px; margin: 8px 0; }
+      .column { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+      .section-header { font-size: 15px; font-weight: bold; color: #c0392b; border-left: 4px solid #c0392b; padding-left: 12px; margin: 6px 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+      .song-title { font-size: 12px; font-weight: bold; color: #2c3e50; margin: 5px 0 3px 0; padding-bottom: 2px; border-bottom: 2px solid #e0e0e0; }
+      .song-lyrics { font-size: 10px; line-height: 1.6; color: #333; margin-left: 10px; display: block; }
+      .song-lyrics .lyric-line { margin: 1px 0; padding: 0 3px; display: block; line-height: 1.5; font-size: 9.5px; }
+      .song-lyrics .chorus-line { font-style: italic; color: #8b4513; margin: 3px 0 3px 6px; padding: 1px 8px; border-left: 3px solid #8b4513; background: rgba(139, 69, 19, 0.05); border-radius: 0 3px 3px 0; display: block; line-height: 1.5; font-size: 9.5px; }
+      .song-lyrics .verse-number { font-weight: bold; color: #2980b9; margin: 5px 0 1px 0; font-size: 10px; display: block; }
+      .song-lyrics .section-title-line { font-weight: bold; color: #2c3e50; margin: 6px 0 3px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px dashed #ccc; padding-bottom: 2px; display: block; }
+      .song-lyrics .repeat-line { color: #666; font-style: italic; margin: 2px 0; font-size: 9px; padding: 1px 6px; background: #f9f9f9; border-radius: 3px; display: inline-block; }
+      .song-lyrics .voice-part { margin: 2px 0; padding: 1px 6px; font-weight: 500; font-size: 9px; border-radius: 3px; display: block; }
+      .song-lyrics .voice-part.sop { color: #e74c3c; background: rgba(231, 76, 60, 0.08); }
+      .song-lyrics .voice-part.alto { color: #27ae60; background: rgba(39, 174, 96, 0.08); }
+      .song-lyrics .voice-part.tenor { color: #2980b9; background: rgba(41, 128, 185, 0.08); }
+      .song-lyrics .voice-part.bass { color: #8e44ad; background: rgba(142, 68, 173, 0.08); }
+      .song-lyrics .two-columns { display: flex; justify-content: space-between; gap: 15px; margin: 2px 0; padding: 2px 6px; background: #f8f8f8; border-radius: 3px; }
+      .song-lyrics .col-left, .song-lyrics .col-right { flex: 1; }
+      .song-lyrics .spacer-line { height: 6px; min-height: 6px; display: block; }
+      .page-number { text-align: center; font-size: 9px; color: #999; margin-top: 20px; padding-top: 12px; border-top: 1px solid #eee; width: 100%; }
+    `;
     
     let content = `<!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>let Auto Generated by ZUCA PORTAL - ${bookletData.program.formattedDate}</title>
-      <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        body {
-          font-family: 'Times New Roman', Times, serif;
-          background: white;
-          margin: 0;
-          padding: 20px;
-        }
-        .page {
-          max-width: 1100px;
-          margin: 0 auto 30px auto;
-          background: white;
-          page-break-after: always;
-          break-after: page;
-        }
-        .page:last-child {
-          page-break-after: auto;
-          break-after: auto;
-        }
-        .page-content {
-          padding: 40px;
-        }
-        .cover-page {
-          text-align: center;
-          padding: 50px 40px;
-          background: #1a1a2e;
-          color: white;
-          min-height: 80vh;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-        .cover-icon {
-          font-size: 80px;
-          margin-bottom: 20px;
-        }
-        .cover-page h1 {
-          font-size: 48px;
-          margin-bottom: 15px;
-        }
-        .cover-subtitle {
-          font-size: 18px;
-          margin-bottom: 30px;
-        }
-        .cover-divider {
-          width: 100px;
-          height: 1px;
-          background: rgba(255,255,255,0.3);
-          margin: 30px auto;
-        }
-        .two-column-layout {
-          display: flex;
-          gap: 40px;
-        }
-        .column {
-          flex: 1;
-        }
-        .section {
-          margin-bottom: 30px;
-        }
-        .section-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: #c0392b;
-          border-left: 4px solid #c0392b;
-          padding-left: 15px;
-          margin: 0 0 15px 0;
-        }
-        .song {
-          margin-bottom: 20px;
-        }
-        .song-title {
-          font-size: 14px;
-          font-weight: bold;
-          color: #2c3e50;
-          margin-bottom: 8px;
-          padding-bottom: 4px;
-          border-bottom: 1px solid #ddd;
-        }
-        .song-lyrics {
-          font-size: 10px;
-          line-height: 1.4;
-          color: #333;
-          margin-left: 12px;
-        }
-        .two-columns {
-          display: flex;
-          justify-content: space-between;
-          gap: 20px;
-          margin: 3px 0;
-        }
-        .col-left, .col-right {
-          flex: 1;
-        }
-        .chorus-line {
-          font-style: italic;
-          color: #8b4513;
-          margin: 4px 0;
-          padding-left: 8px;
-          border-left: 2px solid #8b4513;
-        }
-        .bold-line {
-          font-weight: bold;
-          margin: 3px 0;
-        }
-        .verse-number {
-          font-weight: bold;
-          color: #2980b9;
-          margin: 6px 0 2px 0;
-        }
-        .repeat-line {
-          color: #666;
-          font-family: monospace;
-          margin: 1px 0;
-        }
-        .voice-part {
-          margin: 3px 0;
-          padding-left: 6px;
-        }
-        .voice-part.sop { color: #e74c3c; }
-        .voice-part.alto { color: #2ecc71; }
-        .voice-part.tenor { color: #3498db; }
-        .voice-part.bass { color: #9b59b6; }
-        .lyric-line {
-          margin: 1px 0;
-        }
-        .spacer-line {
-          height: 8px;
-          min-height: 8px;
-        }
-        .page-number {
-          text-align: center;
-          font-size: 9px;
-          color: #999;
-          margin-top: 20px;
-          padding-top: 20px;
-          border-top: 1px solid #eee;
-        }
-      </style>
+      <title>Mass Program Booklet - ${bookletData.program?.formattedDate || 'Mass'}</title>
+      <style>${styles}</style>
     </head>
     <body>
     `;
     
-    // Cover page
+    // Cover page with ZUCA logo (no filter)
     content += `
       <div class="page">
         <div class="cover-page">
-          <div class="cover-icon"></div>
+          <img src="/zuca-logo.png" alt="ZUCA Logo" class="cover-logo" />
           <h1>MASS PROGRAM</h1>
-          <div class="cover-subtitle">ZUCA</div>
+          <div class="cover-subtitle">Z U C A</div>
           <div class="cover-divider"></div>
-          <div class="cover-date">${bookletData.program.formattedDate}</div>
-          <div class="cover-venue">${bookletData.program.venue || 'St. Camillus Mass'}</div>
+          <div class="cover-date">${bookletData.program?.formattedDate || ''}</div>
+          <div class="cover-venue">${bookletData.program?.venue || 'St. Camillus Mass'}</div>
         </div>
       </div>
     `;
@@ -557,57 +649,25 @@ const BookletModal = ({ program, onClose }) => {
       content += `
         <div class="page">
           <div class="page-content">
-            <div class="two-column-layout">
-              <div class="column">
-      `;
-      
-      page.left.forEach(section => {
-        content += `<div class="section">`;
-        content += `<div class="section-title">${section.label}</div>`;
-        section.songs.forEach(song => {
-          let lyrics = song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet";
-          content += `<div class="song">`;
-          content += `<div class="song-title">${song.title}</div>`;
-          content += `<div class="song-lyrics">${formatLyricsWithColumns(lyrics)}</div>`;
-          content += `</div>`;
-        });
-        content += `</div>`;
-      });
-      
-      content += `
-              </div>
-              <div class="column">
-      `;
-      
-      page.right.forEach(section => {
-        content += `<div class="section">`;
-        content += `<div class="section-title">${section.label}</div>`;
-        section.songs.forEach(song => {
-          let lyrics = song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet";
-          content += `<div class="song">`;
-          content += `<div class="song-title">${song.title}</div>`;
-          content += `<div class="song-lyrics">${formatLyricsWithColumns(lyrics)}</div>`;
-          content += `</div>`;
-        });
-        content += `</div>`;
-      });
-      
-      content += `
-              </div>
+            <div class="column">
+              ${page.left.map(line => line.html).join('')}
             </div>
-            <div class="page-number">Page ${pageIndex + 1}</div>
+            <div class="column">
+              ${page.right.map(line => line.html).join('')}
+            </div>
           </div>
+          <div class="page-number">Page ${pageIndex + 1}</div>
         </div>
       `;
     });
     
     content += `</body></html>`;
     
-    const blob = new Blob([content], { type: "application/msword" });
+    const blob = new Blob([content], { type: "application/msword;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Mass_Booklet_${program.date}.doc`;
+    a.download = `Mass_Booklet_${bookletData.program?.date || 'mass'}.doc`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -625,13 +685,14 @@ const BookletModal = ({ program, onClose }) => {
 
   if (!bookletData) return null;
 
-  const pages = splitIntoPages(bookletData.sections);
+  const allLines = breakIntoLines(bookletData.sections);
+  const pages = flowLinesIntoPages(allLines);
 
   return (
     <div className="booklet-overlay" onClick={onClose}>
       <div className="booklet-modal" onClick={(e) => e.stopPropagation()}>
         <div className="booklet-header">
-          <h2><FiBook /> let</h2>
+          <h2><FiBook /> Booklet</h2>
           <div className="booklet-actions">
             <button onClick={downloadWord} className="btn-word"><BsFileWord /> <span>Word</span></button>
             <button onClick={generatePDF} className="btn-pdf"><BsFilePdf /> <span>PDF</span></button>
@@ -642,15 +703,15 @@ const BookletModal = ({ program, onClose }) => {
         
         <div className="booklet-preview">
           <div className="preview-pages">
-            {/* Cover Page Preview */}
+            {/* Cover Page Preview with ZUCA logo (no filter) */}
             <div className="preview-page cover-preview">
               <div className="preview-cover">
-                <div className="preview-icon"></div>
+                <img src="/zuca-logo.png" alt="ZUCA Logo" className="preview-logo" />
                 <h1>MASS PROGRAM</h1>
-                <div className="preview-subtitle">ZUCA</div>
+                <div className="preview-subtitle">Z U C A</div>
                 <div className="preview-divider"></div>
-                <div className="preview-date">{bookletData.program.formattedDate}</div>
-                <div className="preview-venue">{bookletData.program.venue || 'St. Camillus Mass'}</div>
+                <div className="preview-date">{bookletData.program?.formattedDate || ''}</div>
+                <div className="preview-venue">{bookletData.program?.venue || 'St. Camillus Mass'}</div>
               </div>
               <div className="page-label">Cover Page</div>
             </div>
@@ -661,39 +722,13 @@ const BookletModal = ({ program, onClose }) => {
                 <div className="page-header">Page {pageIndex + 1}</div>
                 <div className="two-column-preview">
                   <div className="preview-column">
-                    {page.left.map((section, idx) => (
-                      <div key={idx} className="preview-section">
-                        <h3 className="preview-section-title">{section.label}</h3>
-                        {section.songs.map((song, songIdx) => (
-                          <div key={songIdx} className="preview-song">
-                            <div className="preview-song-title">{song.title}</div>
-                            <div className="preview-song-lyrics"
-                                 dangerouslySetInnerHTML={{ 
-                                   __html: formatLyricsWithColumns(
-                                     song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet"
-                                   )
-                                 }} />
-                          </div>
-                        ))}
-                      </div>
+                    {page.left.map((line, idx) => (
+                      <div key={idx} dangerouslySetInnerHTML={{ __html: line.html }} />
                     ))}
                   </div>
                   <div className="preview-column">
-                    {page.right.map((section, idx) => (
-                      <div key={idx} className="preview-section">
-                        <h3 className="preview-section-title">{section.label}</h3>
-                        {section.songs.map((song, songIdx) => (
-                          <div key={songIdx} className="preview-song">
-                            <div className="preview-song-title">{song.title}</div>
-                            <div className="preview-song-lyrics"
-                                 dangerouslySetInnerHTML={{ 
-                                   __html: formatLyricsWithColumns(
-                                     song.lyrics !== "[Pending - Add lyrics]" ? song.lyrics : "Lyrics not available yet"
-                                   )
-                                 }} />
-                          </div>
-                        ))}
-                      </div>
+                    {page.right.map((line, idx) => (
+                      <div key={idx} dangerouslySetInnerHTML={{ __html: line.html }} />
                     ))}
                   </div>
                 </div>
@@ -829,11 +864,16 @@ const BookletModal = ({ program, onClose }) => {
           display: flex;
           flex-direction: column;
           justify-content: center;
+          align-items: center;
         }
         
-        .preview-icon {
-          font-size: 64px;
+        .preview-logo {
+          max-width: 120px;
+          height: auto;
           margin-bottom: 20px;
+          background: white;
+          padding: 10px;
+          border-radius: 8px;
         }
         
         .preview-cover h1 {
@@ -863,91 +903,109 @@ const BookletModal = ({ program, onClose }) => {
         .two-column-preview {
           display: flex;
           gap: 30px;
+          align-items: flex-start;
         }
         
         .preview-column {
           flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
         }
         
-        .preview-section {
-          margin-bottom: 25px;
-        }
-        
-        .preview-section-title {
+        .preview-column .section-header {
           font-size: 14px;
           font-weight: bold;
           color: #c0392b;
           border-left: 3px solid #c0392b;
           padding-left: 10px;
-          margin: 0 0 12px 0;
+          margin: 6px 0 6px 0;
         }
         
-        .preview-song {
-          margin-bottom: 20px;
-        }
-        
-        .preview-song-title {
+        .preview-column .song-title {
           font-size: 12px;
           font-weight: bold;
           color: #2c3e50;
-          margin-bottom: 6px;
-          padding-bottom: 3px;
-          border-bottom: 0.5px dotted #ccc;
+          margin: 5px 0 3px 0;
+          padding-bottom: 2px;
+          border-bottom: 1px solid #e8e8e8;
         }
         
-        .preview-song-lyrics {
-          font-size: 10px;
-          line-height: 1.4;
+        .preview-column .song-lyrics {
+          font-size: 9.5px;
+          line-height: 1.6;
           color: #333;
           margin-left: 10px;
+          display: block;
         }
         
-        .preview-song-lyrics .two-columns {
-          display: flex;
-          justify-content: space-between;
-          gap: 20px;
-          margin: 3px 0;
+        .preview-column .song-lyrics .lyric-line {
+          margin: 1px 0;
+          padding: 0 3px;
+          display: block;
+          line-height: 1.5;
         }
-        .preview-song-lyrics .col-left,
-        .preview-song-lyrics .col-right {
-          flex: 1;
-        }
-        .preview-song-lyrics .chorus-line {
+        .preview-column .song-lyrics .chorus-line {
           font-style: italic;
           color: #8b4513;
-          margin: 4px 0;
-          padding-left: 8px;
-          border-left: 2px solid #8b4513;
+          margin: 3px 0 3px 6px;
+          padding: 1px 8px;
+          border-left: 3px solid #8b4513;
+          background: rgba(139, 69, 19, 0.05);
+          display: block;
+          line-height: 1.5;
         }
-        .preview-song-lyrics .bold-line {
-          font-weight: bold;
-          margin: 3px 0;
-        }
-        .preview-song-lyrics .verse-number {
+        .preview-column .song-lyrics .verse-number {
           font-weight: bold;
           color: #2980b9;
-          margin: 6px 0 2px 0;
+          margin: 5px 0 1px 0;
+          font-size: 10px;
+          display: block;
         }
-        .preview-song-lyrics .repeat-line {
+        .preview-column .song-lyrics .section-title-line {
+          font-weight: bold;
+          color: #2c3e50;
+          margin: 6px 0 3px 0;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 1px dashed #ddd;
+          padding-bottom: 2px;
+          display: block;
+        }
+        .preview-column .song-lyrics .repeat-line {
           color: #666;
-          font-family: monospace;
-          margin: 1px 0;
+          font-style: italic;
+          margin: 2px 0;
+          font-size: 9px;
+          padding: 1px 6px;
+          background: #f9f9f9;
+          border-radius: 3px;
+          display: inline-block;
         }
-        .preview-song-lyrics .voice-part {
-          margin: 3px 0;
-          padding-left: 6px;
+        .preview-column .song-lyrics .voice-part {
+          margin: 2px 0;
+          padding: 1px 6px;
+          font-weight: 500;
+          font-size: 9px;
+          border-radius: 3px;
+          display: block;
         }
-        .preview-song-lyrics .voice-part.sop { color: #e74c3c; }
-        .preview-song-lyrics .voice-part.alto { color: #2ecc71; }
-        .preview-song-lyrics .voice-part.tenor { color: #3498db; }
-        .preview-song-lyrics .voice-part.bass { color: #9b59b6; }
-        .preview-song-lyrics .lyric-line {
-          margin: 1px 0;
+        .preview-column .song-lyrics .voice-part.sop { color: #e74c3c; background: rgba(231, 76, 60, 0.08); }
+        .preview-column .song-lyrics .voice-part.alto { color: #27ae60; background: rgba(39, 174, 96, 0.08); }
+        .preview-column .song-lyrics .voice-part.tenor { color: #2980b9; background: rgba(41, 128, 185, 0.08); }
+        .preview-column .song-lyrics .voice-part.bass { color: #8e44ad; background: rgba(142, 68, 173, 0.08); }
+        .preview-column .song-lyrics .two-columns {
+          display: flex;
+          justify-content: space-between;
+          gap: 15px;
+          margin: 2px 0;
+          padding: 2px 6px;
+          background: #f8f8f8;
+          border-radius: 3px;
         }
-        .preview-song-lyrics .spacer-line {
-          height: 8px;
-          min-height: 8px;
-        }
+        .preview-column .song-lyrics .col-left, .preview-column .song-lyrics .col-right { flex: 1; }
+        .preview-column .song-lyrics .spacer-line { height: 5px; min-height: 5px; display: block; }
         
         .spinner {
           width: 40px;
@@ -1002,7 +1060,7 @@ const BookletModal = ({ program, onClose }) => {
           .booklet-actions button {
             padding: 8px;
           }
-          .preview-song-lyrics .two-columns {
+          .preview-column .song-lyrics .two-columns {
             flex-direction: column;
             gap: 0;
           }

@@ -19,7 +19,7 @@ import {
   FiPlay,
   FiMaximize2,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -2023,16 +2023,16 @@ useEffect(() => {
 
           <div className="event-details-premium">
             <div className="detail-chip">
-              <span className="chip-icon">🕐</span>
+              <span className="chip-icon"><FaClock /></span>
               <span>{event.eventTime || "Time TBA"}</span>
             </div>
             <div className="detail-chip">
-              <span className="chip-icon">📍</span>
+              <span className="chip-icon"><FaMapMarker /></span>
               <span>{event.location || "Venue TBD"}</span>
             </div>
             {event.duration && (
               <div className="detail-chip">
-                <span className="chip-icon">⏱️</span>
+                <span className="chip-icon"><FaStopwatch /></span>
                 <span>{event.duration}</span>
               </div>
             )}
@@ -2062,7 +2062,7 @@ useEffect(() => {
         </div>
         
         <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
-          {isToday(event.eventDate) ? '🔥 Live' : '📌 Scheduled'}
+          {isToday(event.eventDate) ? ' Live' : ' Scheduled'}
         </div>
       </div>
     ))
@@ -3375,7 +3375,7 @@ useEffect(() => {
         .profile-card {
           background: #ffffff;
           
-          border-radius: 24px;
+          border-radius: 0px;
           padding: 15px;
           margin-bottom: 20px;
           box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
@@ -4379,9 +4379,9 @@ useEffect(() => {
    ============================================ */
 
 .hymns-section {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-left: 4px solid #123241;
-  border-radius: 30px;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  
+  border-radius: 10px;
   margin-top: 20px;
 }
 
@@ -4743,10 +4743,10 @@ useEffect(() => {
    ============================================ */
 
 .schedules-section {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-left: 4px solid #123241;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-left: 4px solid #12324100;
   position: relative;
-  border-radius: 30px;
+  border-radius: 0px;
   margin-top: 20px;
   margin-bottom: 30px;
   padding: 0.1rem 1rem;
@@ -5214,10 +5214,10 @@ useEffect(() => {
    ============================================ */
 
 .executive-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
   margin-bottom: 0;
-  border-radius: 35px;
-  border-left: 4px solid #123241;
+  border-radius: 5px;
+  
   padding: 1rem;
   height: 100%;
   display: flex;
@@ -5482,11 +5482,10 @@ useEffect(() => {
    ============================================ */
 
 .jumuia-dashboard-card {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-left: 3px solid #000000;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
   padding: 1.25rem;
   gap: 20px;
-  border-radius: 30px;
+  border-radius: 0px;
 }
 
 .section-header {
@@ -5658,10 +5657,10 @@ useEffect(() => {
    ============================================ */
 
 .reading-premium-card {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-left: 5px solid #123241;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-left: 5px solid #12324100;
   padding: 0;
-  border-radius: 30px;
+  border-radius: 10px;
   overflow: hidden;
   margin-bottom: 30px;
   /* Dashboard card sizing */
@@ -6147,10 +6146,10 @@ useEffect(() => {
    ============================================ */
 
 .announcements-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-radius: 40px;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-radius: 10px;
   margin-top: 30px;
-  border-left: 4px solid #123241;
+  border-left: 4px solid #12324100;
 }
 
 .header-icon-announcement {
@@ -6415,10 +6414,10 @@ useEffect(() => {
 
 .pledges-compact {
   padding: 1rem !important;
-  border-left: 4px solid #123241;
+  border-left: 4px solid #12324100;
   margin-top: 50px;
-  border-radius: 40px;
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
 }
 
 .header-icon-small-pledge {
@@ -6592,9 +6591,9 @@ useEffect(() => {
    ============================================ */
 
 .gallery-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-radius: 35px;
-  border-left: 4px solid #123241;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-radius: 10px;
+  border-left: 4px solid #12324100;
 }
 
 .header-icon-gallery {
@@ -6763,9 +6762,9 @@ useEffect(() => {
    ============================================ */
 
 .mass-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee  100%);
-  border-radius: 35px;
-  border-left: 4px solid #123241;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff  100%);
+  border-radius: 10px;
+  border-left: 4px solid #12324100;
   margin-bottom: 30px;
   margin-top: 30px;
 }
@@ -7017,8 +7016,8 @@ useEffect(() => {
    ============================================ */
 
 .active-meetings-card {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-  border-radius: 30px;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-radius: 10px;
   padding: 1.2rem;
   margin-bottom: 1.5rem;
   border-left: 4px solid #dc2626;
@@ -7186,8 +7185,8 @@ useEffect(() => {
 
 .games-premium {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 30px;
-  border-left: 4px solid #444342;
+  border-radius: 10px;
+  border-left: 4px solid #44434202;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -7716,8 +7715,8 @@ useEffect(() => {
 
 .stats-premium {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 30px;
-  border-left: 4px solid #64748b;
+  border-radius: 10px;
+  
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -7867,8 +7866,8 @@ useEffect(() => {
 
 .chat-premium {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 30px;
-  border-left: 4px solid #64748b;
+  border-radius: 0px;
+ 
   padding: 1.5rem;
   Margin-top: 1.5rem;
   margin-bottom: 1.5rem;
@@ -8109,8 +8108,8 @@ useEffect(() => {
 
 .notifications-premium {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 30px;
-  border-left: 4px solid #64748b;
+  border-radius: 0px;
+  
   padding: 1.5rem;
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
@@ -8368,7 +8367,7 @@ useEffect(() => {
 
 .footer-premium {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 24px;
+  border-radius: 10px;
   padding: 0rem 0.5rem 0.5rem;
   margin-top: 2rem;
     margin-bottom: 5rem;
@@ -8949,8 +8948,8 @@ useEffect(() => {
 
 .readings-dashboard-card {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 30px;
-  border-left: 4px solid #8b5cf6;
+  border-radius: 0px;
+
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -9201,7 +9200,7 @@ useEffect(() => {
 
   overflow: hidden;
 
-  border-radius: 22px;
+  border-radius: 1s2px;
 }
 
 
@@ -9221,7 +9220,7 @@ useEffect(() => {
 
   overflow: hidden;
 
-  border-radius: 22px;
+  border-radius: 2px;
 
   background: #ffffff;
 

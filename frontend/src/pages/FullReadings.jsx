@@ -45,20 +45,24 @@ const FullReadings = () => {
   }, [date]);
 
   const fetchFullReadings = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const [year, month, day] = date.split('-');
-      const response = await publicApi.get(`/api/calendar/readings/${year}/${month}/${day}`);
-      setReadingData(response.data);
-    } catch (err) {
-      console.error('Error fetching readings:', err);
-      setError('Failed to load readings for this date');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  setError(null);
+
+  try {
+    const [year, month, day] = date.split('-');
+
+    const response = await publicApi.get(
+      `/api/calendar/readings/${year}/${month}/${day}`
+    );
+
+    setReadingData(response.data);
+  } catch (err) {
+    console.error('Error fetching readings:', err);
+    setError('Failed to load readings for this date');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const goToPreviousDay = () => {
     const current = new Date(date);

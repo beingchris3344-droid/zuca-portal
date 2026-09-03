@@ -5,7 +5,8 @@ import BASE_URL from '../../api';
 import { 
   Calendar, MapPin, Clock, Users, CheckCircle, 
   ArrowLeft, RefreshCw, ChevronRight, TrendingUp, 
-  Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock
+  Award, Zap, Shield, Bell, Coffee, Sun, Moon, QrCode, Lock,
+  ChevronDown, ChevronUp, FileText
 } from 'lucide-react';
 import logo from '../../assets/zuca-logo.png';
 import { FaFileAlt } from 'react-icons/fa';
@@ -26,6 +27,8 @@ export default function MemberAttendance() {
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+
+  const [expandedDescriptions, setExpandedDescriptions] = useState({}); 
   
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -39,6 +42,13 @@ export default function MemberAttendance() {
 
   const [showQRScanner, setShowQRScanner] = useState(false);
 
+
+  const toggleDescription = (sheetId) => {
+  setExpandedDescriptions(prev => ({
+    ...prev,
+    [sheetId]: !prev[sheetId]
+  }));
+};
   const checkWiFiNetwork = async (sheet) => {
     if (!sheet.enableWifiCheckin) return true;
     
@@ -828,9 +838,44 @@ export default function MemberAttendance() {
                 </div>
               </div>
               
-              <h3 className="meeting-title-premium">{sheet.title}</h3>
-              
-              <div className="details-grid-premium">
+             <h3 className="meeting-title-premium">{sheet.title}</h3>
+
+{/* DESCRIPTION */}
+{sheet.description && (
+  <div className="meeting-description-premium">
+    <div className="description-icon">
+      <FileText size={16} />
+    </div>
+    <div className="description-content">
+      <p className={`description-text-premium ${!expandedDescriptions[sheet.id] && sheet.description.length > 150 ? 'truncated' : ''}`}>
+        {expandedDescriptions[sheet.id] 
+          ? sheet.description 
+          : (sheet.description.length > 150 ? sheet.description.substring(0, 150) + '...' : sheet.description)
+        }
+      </p>
+      {sheet.description.length > 150 && (
+        <button 
+          className="description-expand-btn"
+          onClick={() => toggleDescription(sheet.id)}
+        >
+          {expandedDescriptions[sheet.id] ? (
+            <>
+              <ChevronUp size={16} />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown size={16} />
+              Read more
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  </div>
+)}
+
+<div className="details-grid-premium">
                 <div className="detail-card-premium">
                   <Calendar size={18} />
                   <div>
@@ -1235,6 +1280,84 @@ export default function MemberAttendance() {
           margin: 0 0 20px 0;
           letter-spacing: -0.3px;
         }
+
+        /* Meeting Description */
+.meeting-description-premium {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 20px 0;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 16px;
+  border-left: 4px solid #3b82f6;
+  transition: all 0.3s ease;
+}
+
+.meeting-description-premium:hover {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e9edf2 100%);
+  border-left-color: #2563eb;
+}
+
+.description-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  background: #eff6ff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3b82f6;
+  margin-top: 2px;
+}
+
+.description-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.description-text-premium {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  transition: all 0.3s ease;
+}
+
+.description-text-premium.truncated {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.description-expand-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.description-expand-btn:hover {
+  color: #2563eb;
+  background: rgba(59, 130, 246, 0.08);
+  padding: 4px 8px;
+  margin-left: -4px;
+}
+
+.description-expand-btn:active {
+  transform: scale(0.95);
+}
         
         .details-grid-premium {
           display: grid;
@@ -1646,6 +1769,26 @@ export default function MemberAttendance() {
             display: none;
           }
         }
+
+
+        .meeting-description-premium {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  
+  .description-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .description-text-premium {
+    font-size: 13px;
+  }
+  
+  .description-expand-btn {
+    font-size: 12px;
+  }
+}
       `}</style>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, QrCode, Users, Calendar, Clock, MapPin } from 'lucide-react';
+import { X, QrCode, Users, Calendar, Clock, MapPin, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react';
 import { api } from '../../../api';
 import { FaUserTie } from 'react-icons/fa';
 
@@ -13,12 +13,23 @@ export default function CreateSheetModal({ onClose, onCreate }) {
     location: '',
     allowSelfCheckin: true,
     enableQRCheckin: false,
-    jumuiaId: ''
+    jumuiaId: '',
+    // ✅ WhatsApp Fields
+    enableWhatsAppAutoSend: false,
+    whatsAppGroupIds: '',
+    whatsAppGroupNames: '',
+    whatsAppCustomMessage: '',
+    whatsAppSendOnCheckin: true,
+    whatsAppSendOnClose: true
   });
   
   const [jumuiaList, setJumuiaList] = useState([]);
+  const [whatsappGroups, setWhatsappGroups] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingJumuia, setLoadingJumuia] = useState(true);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [botConnected, setBotConnected] = useState(false);
   
   // ============ FETCH JUMUIA LIST ============
   React.useEffect(() => {
@@ -38,6 +49,35 @@ export default function CreateSheetModal({ onClose, onCreate }) {
     fetchJumuia();
   }, []);
   
+  // ============ FETCH WHATSAPP GROUPS ============
+React.useEffect(() => {
+  const fetchWhatsAppGroups = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // ✅ Uses the same endpoint as WhatsAppBot page
+      const response = await api.get('/api/admin/whatsapp/groups', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data.success) {
+        // ✅ Same structure as WhatsAppBot
+        const groupList = response.data.groups || [];
+        setWhatsappGroups(groupList);
+        
+        // Check if bot is connected
+        const statusRes = await api.get('/api/admin/whatsapp/status', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setBotConnected(statusRes.data.status?.connected || false);
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp groups:', error);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+  fetchWhatsAppGroups();
+}, []);
   // ============ HANDLE INPUT CHANGE ============
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -45,6 +85,18 @@ export default function CreateSheetModal({ onClose, onCreate }) {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+  
+  // ============ HANDLE GROUP SELECTION ============
+  const handleGroupToggle = (groupId, groupName) => {
+    setSelectedGroups(prev => {
+      const exists = prev.some(g => g.id === groupId);
+      if (exists) {
+        return prev.filter(g => g.id !== groupId);
+      } else {
+        return [...prev, { id: groupId, name: groupName }];
+      }
+    });
   };
   
   // ============ HANDLE SUBMIT ============
@@ -61,6 +113,12 @@ export default function CreateSheetModal({ onClose, onCreate }) {
       return;
     }
     
+    // Validate WhatsApp groups if enabled
+    if (formData.enableWhatsAppAutoSend && selectedGroups.length === 0) {
+      alert('Please select at least one WhatsApp group for auto-send');
+      return;
+    }
+    
     setLoading(true);
     try {
       const submitData = {
@@ -70,8 +128,15 @@ export default function CreateSheetModal({ onClose, onCreate }) {
         eventTime: formData.eventTime,
         location: formData.location || null,
         allowSelfCheckin: formData.allowSelfCheckin,
-        enableWifiCheckin: formData.enableQRCheckin, // Map to backend field
-        jumuiaId: formData.jumuiaId || null
+        enableWifiCheckin: formData.enableQRCheckin,
+        jumuiaId: formData.jumuiaId || null,
+        // ✅ WhatsApp Fields
+        enableWhatsAppAutoSend: formData.enableWhatsAppAutoSend || false,
+        whatsAppGroupIds: selectedGroups.map(g => g.id).join(','),
+        whatsAppGroupNames: selectedGroups.map(g => g.name).join(','),
+        whatsAppCustomMessage: formData.whatsAppCustomMessage || null,
+        whatsAppSendOnCheckin: formData.whatsAppSendOnCheckin !== false,
+        whatsAppSendOnClose: formData.whatsAppSendOnClose !== false
       };
       
       await onCreate(submitData);
@@ -231,7 +296,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
                 onChange={handleChange}
               >
                 <option value="">-Everyone</option>
-                <option value="executive-team">-Leaders  Only</option>
+                <option value="executive-team">-Leaders Only</option>
                 <option disabled>──────────</option>
                 {loadingJumuia ? (
                   <option disabled>Loading Jumuia...</option>
@@ -245,6 +310,140 @@ export default function CreateSheetModal({ onClose, onCreate }) {
                 Leave empty for all members, or select a specific group
               </div>
             </div>
+
+            {/* ============================================ */}
+            {/* ✅ WHATSAPP AUTO-SEND SECTION WITH GROUP SELECTION */}
+            {/* ============================================ */}
+            <div className="divider">
+              <span>📱 WhatsApp Auto-Send</span>
+            </div>
+
+            {/* Enable WhatsApp Auto-Send */}
+            <div className="form-group">
+              <div className="whatsapp-toggle-row">
+                <div className="whatsapp-toggle-info">
+                  <span className="method-icon">📱</span>
+                  <div>
+                    <div className="method-title">Enable WhatsApp Auto-Send</div>
+                    <div className="method-desc">Automatically send attendance list to WhatsApp groups when members check in</div>
+                  </div>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    name="enableWhatsAppAutoSend"
+                    checked={formData.enableWhatsAppAutoSend || false}
+                    onChange={handleChange}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            {/* WhatsApp Settings - Only show if enabled */}
+            {formData.enableWhatsAppAutoSend && (
+              <>
+                {/* Bot Connection Status */}
+                <div className={`bot-status ${botConnected ? 'connected' : 'disconnected'}`}>
+                  {botConnected ? (
+                    <>
+                      <CheckCircle size={16} />
+                      <span>WhatsApp bot is connected</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={16} />
+                      <span>WhatsApp bot is not connected. Please connect the bot first.</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Group Selection */}
+                <div className="form-group">
+                  <label>Select WhatsApp Groups *</label>
+                  {loadingGroups ? (
+                    <div className="loading-groups">Loading WhatsApp groups...</div>
+                  ) : whatsappGroups.length === 0 ? (
+                    <div className="no-groups-message">
+                      <AlertCircle size={20} />
+                      <div>
+                        <div className="no-groups-title">No WhatsApp groups found</div>
+                        <div className="no-groups-desc">Link the WhatsApp bot first in admin settings</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="groups-grid">
+                      {whatsappGroups.map(group => (
+                        <label key={group.id} className="group-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedGroups.some(g => g.id === group.id)}
+                            onChange={() => handleGroupToggle(group.id, group.name)}
+                          />
+                          <span className="checkmark"></span>
+                          <span className="group-name">{group.name}</span>
+                          <span className="group-participants">{group.participants || 0} members</span>
+                          {group.isActive && <span className="group-active">Active</span>}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div className="helper-text">
+                    {selectedGroups.length > 0 
+                      ? `${selectedGroups.length} group(s) selected` 
+                      : 'Select at least one group to send attendance lists'}
+                  </div>
+                </div>
+
+                {/* Custom Message */}
+                <div className="form-group">
+                  <label>Custom Message (Optional)</label>
+                  <textarea
+                    name="whatsAppCustomMessage"
+                    value={formData.whatsAppCustomMessage || ''}
+                    onChange={handleChange}
+                    placeholder="Custom message with {list} placeholder for attendees list"
+                    rows="3"
+                  />
+                  <div className="helper-text">
+                    Available placeholders: {`{title}`}, {`{date}`}, {`{time}`}, {`{location}`}, {`{total}`}, {`{list}`}
+                  </div>
+                </div>
+
+                {/* Send Options */}
+                <div className="form-group">
+                  <label>Send Options</label>
+                  <div className="send-options-row">
+                    <label className="option-label">
+                      <input
+                        type="checkbox"
+                        name="whatsAppSendOnCheckin"
+                        checked={formData.whatsAppSendOnCheckin !== false}
+                        onChange={handleChange}
+                      />
+                      Send on every check-in
+                    </label>
+                    <label className="option-label">
+                      <input
+                        type="checkbox"
+                        name="whatsAppSendOnClose"
+                        checked={formData.whatsAppSendOnClose !== false}
+                        onChange={handleChange}
+                      />
+                      Send when meeting closes
+                    </label>
+                  </div>
+                </div>
+
+                {/* Selected Groups Summary */}
+                {selectedGroups.length > 0 && (
+                  <div className="selected-groups-summary">
+                    <MessageSquare size={16} />
+                    <span>Will send to: <strong>{selectedGroups.map(g => g.name).join(', ')}</strong></span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           
           {/* Footer Buttons */}
@@ -277,7 +476,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           background: white;
           border-radius: 16px;
           width: 90%;
-          max-width: 600px;
+          max-width: 650px;
           max-height: 90vh;
           overflow-y: auto;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -330,6 +529,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           border-radius: 8px;
           font-size: 14px;
           font-family: inherit;
+          transition: border-color 0.2s;
         }
         
         .form-group input:focus,
@@ -337,6 +537,12 @@ export default function CreateSheetModal({ onClose, onCreate }) {
         .form-group select:focus {
           outline: none;
           border-color: #1a1a1a;
+          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .form-group textarea {
+          resize: vertical;
+          min-height: 50px;
         }
         
         .form-row {
@@ -367,6 +573,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           position: relative;
           font-size: 12px;
           color: #666;
+          font-weight: 500;
         }
         
         .method-item {
@@ -375,6 +582,10 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           align-items: center;
           padding: 12px 0;
           border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .method-item:last-child {
+          border-bottom: none;
         }
         
         .method-item.disabled {
@@ -390,6 +601,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
         .method-icon {
           font-size: 20px;
           width: 32px;
+          flex-shrink: 0;
         }
         
         .method-title {
@@ -408,6 +620,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           background: #dcfce7;
           padding: 4px 8px;
           border-radius: 20px;
+          font-weight: 500;
         }
         
         .toggle-switch {
@@ -415,6 +628,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           display: inline-block;
           width: 44px;
           height: 24px;
+          flex-shrink: 0;
         }
         
         .toggle-switch input {
@@ -445,6 +659,7 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           background-color: white;
           transition: 0.3s;
           border-radius: 50%;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
         }
         
         input:checked + .toggle-slider {
@@ -476,6 +691,11 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           border-radius: 8px;
           cursor: pointer;
           font-size: 14px;
+          transition: background 0.2s;
+        }
+        
+        .btn-secondary:hover {
+          background: #e0e0e0;
         }
         
         .btn-primary {
@@ -486,11 +706,252 @@ export default function CreateSheetModal({ onClose, onCreate }) {
           border-radius: 8px;
           cursor: pointer;
           font-size: 14px;
+          transition: background 0.2s;
+        }
+        
+        .btn-primary:hover {
+          background: #333;
         }
         
         .btn-primary:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        /* ============================================ */
+        /* ✅ WHATSAPP SETTINGS STYLES */
+        /* ============================================ */
+        .whatsapp-toggle-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+        }
+        
+        .whatsapp-toggle-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+        }
+        
+        .whatsapp-toggle-info .method-title {
+          font-weight: 500;
+          color: #1a1a1a;
+          font-size: 14px;
+        }
+        
+        .whatsapp-toggle-info .method-desc {
+          font-size: 12px;
+          color: #666;
+        }
+        
+        .bot-status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          font-size: 13px;
+        }
+        
+        .bot-status.connected {
+          background: #dcfce7;
+          color: #16a34a;
+          border: 1px solid #bbf7d0;
+        }
+        
+        .bot-status.disconnected {
+          background: #fee2e2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
+        }
+        
+        .groups-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          max-height: 200px;
+          overflow-y: auto;
+          padding: 4px 2px;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 8px;
+        }
+        
+        .group-checkbox {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          padding: 8px 12px;
+          border-radius: 8px;
+          transition: background 0.2s;
+          font-size: 13px;
+          border: 1px solid transparent;
+        }
+        
+        .group-checkbox:hover {
+          background: #f5f5f5;
+          border-color: #e0e0e0;
+        }
+        
+        .group-checkbox input {
+          display: none;
+        }
+        
+        .checkmark {
+          width: 18px;
+          height: 18px;
+          border: 2px solid #d0d0d0;
+          border-radius: 4px;
+          flex-shrink: 0;
+          transition: 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .group-checkbox input:checked + .checkmark {
+          background: #1a1a1a;
+          border-color: #1a1a1a;
+        }
+        
+        .group-checkbox input:checked + .checkmark:after {
+          content: '✓';
+          color: white;
+          font-size: 12px;
+        }
+        
+        .group-name {
+          font-weight: 500;
+          flex: 1;
+        }
+        
+        .group-participants {
+          font-size: 11px;
+          color: #666;
+        }
+        
+        .group-active {
+          font-size: 10px;
+          color: #16a34a;
+          background: #dcfce7;
+          padding: 2px 8px;
+          border-radius: 12px;
+        }
+        
+        .loading-groups {
+          padding: 16px;
+          text-align: center;
+          color: #666;
+          font-size: 14px;
+          background: #f8fafc;
+          border-radius: 8px;
+        }
+        
+        .no-groups-message {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 16px;
+          background: #fef9e7;
+          border: 1px solid #fdebd0;
+          border-radius: 8px;
+        }
+        
+        .no-groups-title {
+          font-weight: 500;
+          color: #1a1a1a;
+          font-size: 14px;
+        }
+        
+        .no-groups-desc {
+          font-size: 12px;
+          color: #666;
+        }
+        
+        .send-options-row {
+          display: flex;
+          gap: 24px;
+          flex-wrap: wrap;
+          padding: 8px 0;
+        }
+        
+        .option-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          cursor: pointer;
+          color: #1a1a1a;
+        }
+        
+        .option-label input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          accent-color: #1a1a1a;
+          cursor: pointer;
+        }
+        
+        .selected-groups-summary {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          border-radius: 8px;
+          font-size: 13px;
+          color: #1a1a1a;
+          margin-top: 12px;
+        }
+
+        /* ============================================ */
+        /* ✅ RESPONSIVE */
+        /* ============================================ */
+        @media (max-width: 640px) {
+          .form-row {
+            grid-template-columns: 1fr;
+          }
+          
+          .modal-container {
+            width: 95%;
+            max-height: 95vh;
+          }
+          
+          .modal-body {
+            padding: 16px;
+          }
+          
+          .modal-header {
+            padding: 16px;
+          }
+          
+          .modal-footer {
+            padding: 12px 16px;
+          }
+          
+          .send-options-row {
+            gap: 12px;
+          }
+          
+          .whatsapp-toggle-row {
+            flex-wrap: wrap;
+          }
+          
+          .whatsapp-toggle-info {
+            flex: 1 1 100%;
+          }
+          
+          .groups-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .group-checkbox {
+            padding: 6px 10px;
+          }
         }
       `}</style>
     </div>

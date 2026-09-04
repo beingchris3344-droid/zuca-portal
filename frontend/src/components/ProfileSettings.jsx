@@ -10,6 +10,7 @@ import BASE_URL from "../api";
 import ProfileImageCropper from './ProfileImageCropper';
 import FingerprintRegistration from './FingerprintRegistration';
 import { FaFingerprint } from "react-icons/fa";
+import BirthdaySettings from './BirthdaySettings';
 
 const guiltMessages = [
   "🎵 You'll miss the beautiful choir hymns...",
@@ -254,6 +255,9 @@ function ProfileSettings({ isOpen, onClose, user, onUserUpdate }) {
                   onRegistered={handleFingerprintRegistered}
                 />
               </div>
+
+              {/* ==================== BIRTHDAY SECTION ==================== */}
+<BirthdaySettings user={user} onUpdate={onUserUpdate} />
 
               {/* ==================== DANGER ZONE ==================== */}
               <div style={s.section}>

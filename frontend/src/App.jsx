@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import BASE_URL from "./api";
 import './index.css'
+import ProfilePage from "./pages/ProfilePage";
+
 
 // Import Notification Manager and Badge Manager
 import badgeManager from "./utils/badgeManager";
@@ -118,6 +120,7 @@ import AdminFeedback from './pages/admin/AdminFeedback';
 import AdminFeedbackDetail from './pages/admin/AdminFeedbackDetail';
 import CountdownSettings from './pages/admin/CountdownSettings';
 import Advertisements from "./pages/admin/Advertisements";
+import BirthdayManagement from "./pages/admin/BirthdayManagement";
 
 
 import { initializeDark } from "./utils/darkReader";
@@ -466,6 +469,7 @@ useEffect(() => {
                   <Route path="/scan/:token" element={<ScanPage />} />
                    <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
+          <Route path="/profile" element={<ProfilePage />} />
 
          
            
@@ -592,6 +596,10 @@ useEffect(() => {
 <Route
   path="/admin/advertisements"
   element={<Advertisements />}
+/>
+<Route
+  path="/admin/birthday"
+  element={<BirthdayManagement />}
 />
 
 

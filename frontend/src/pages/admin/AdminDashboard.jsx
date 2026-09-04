@@ -1036,6 +1036,9 @@ axios.get(`${BASE_URL}/api/advertisements`, { headers }).catch(() => ({ data: []
 <button className="action-btn" onClick={() => navigate('/admin/countdown-settings')}>
   <FiClock /> Countdown Settings
 </button>
+ <button className="action-btn" onClick={() => navigate('/admin/birthday')}>
+      <FiCalendar /> Birthday Management
+    </button>
 </div>
         </div>
         

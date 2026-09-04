@@ -214,7 +214,7 @@ useEffect(() => {
   };
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: <FaThLarge /> },
+    { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
      { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
   {path: "/jumuia-contributions", 
     label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
@@ -565,7 +565,7 @@ useEffect(() => {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-            <span style={pageTitleStyle}>Dashboard</span>
+            <span style={pageTitleStyle}>Home</span>
           </div>
 
         <div style={headerRightStyle}>

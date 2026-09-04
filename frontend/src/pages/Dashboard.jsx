@@ -18,8 +18,23 @@ import {
   FiChevronRight, FiChevronLeft, FiPhoneCall,  FiAlertCircle, FiMessageCircle, FiActivity,  FiPause, FiX,
   FiPlay,
   FiMaximize2,
+  
+  FiCheckCircle,
+  FiClock,
+  FiVideo,
+  
+  FiBookOpen,
+  FiClipboard,
+  FiYoutube,
+  FiRefreshCw,
+  FiAlertTriangle,
+  FiXCircle,
+  FiInfo,
+  FiHeart,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow, FaFire  } from "react-icons/fa";
+
+import { MdWavingHand } from "react-icons/md";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -38,6 +53,7 @@ function Dashboard() {
   const [recentHymns, setRecentHymns] = useState([]);
   const [gameInvites, setGameInvites] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   
   // ==================== ADVERTISEMENTS ====================
@@ -211,6 +227,91 @@ const getEventBadge = (type) => {
     'default': ' Mass'
   };
   return badges[type?.toLowerCase()] || badges.default;
+};
+
+
+// ==================== REFRESH ALL DATA ====================
+const refreshAllData = async () => {
+  if (isRefreshing) return;
+  
+  setIsRefreshing(true);
+  console.log('🔄 Refreshing dashboard...');
+  
+  try {
+    await Promise.all([
+      fetchAnnouncements(),
+      fetchMassPrograms(),
+      fetchMyPledges(),
+      fetchFeaturedGallery(),
+      fetchRecentHymns(),
+      fetchGameInvites(),
+      fetchOnlineMembers(),
+      fetchRecentChats(),
+      fetchNotifications(),
+      fetchExecutiveTeam(),
+      fetchUpcomingSchedules(),
+      fetchTodaysReading(),
+      fetchLatestReadings(),
+      fetchActiveSheets(),
+      fetchPublicStats(),
+      fetchAdvertisements(),
+      fetchActiveCampaigns(),
+      fetchJumuiaInfo(),
+    ]);
+    
+    console.log('✅ Dashboard refreshed successfully!');
+  } catch (error) {
+    console.error('❌ Error refreshing dashboard:', error);
+  } finally {
+    setIsRefreshing(false);
+  }
+};
+
+// Helper function to get notification icon
+const getNotificationIcon = (type) => {
+  const iconMap = {
+    'announcement': <FiBell size={20} />,
+    'game_invite': <FaGamepad size={20} />,
+    'program': <FiCalendar size={20} />,
+    'mass': <FiBook size={20} />,
+    'checkin': <FiCheckCircle size={20} />,
+    'message': <FiMessageCircle size={20} />,
+    'pledge': <FiDollarSign size={20} />,
+    'event': <FiCalendar size={20} />,
+    'reminder': <FiClock size={20} />,
+    'direct_message': <FiSend size={20} />,
+    'new_media': <FiImage size={20} />,
+    'media': <FiImage size={20} />,
+    'photo': <FiCamera size={20} />,
+    'video': <FiVideo size={20} />,
+    'feedback_new': <FiMessageSquare size={20} />,
+    'feedback': <FiMessageSquare size={20} />,
+    'mass_reading': <FiBookOpen size={20} />,
+    'reading': <FiBookOpen size={20} />,
+    'attendance_sheet_opened': <FiClipboard size={20} />,
+    'attendance': <FiClipboard size={20} />,
+    'youtube_new_video': <FiYoutube size={20} />,
+    'youtube': <FiYoutube size={20} />,
+    'user_login': <FiUser size={20} />,
+    'login': <FiUser size={20} />,
+    'system': <FiSettings size={20} />,
+    'update': <FiRefreshCw size={20} />,
+    'warning': <FiAlertTriangle size={20} />,
+    'error': <FiXCircle size={20} />,
+    'success': <FiCheckCircle size={20} />,
+    'info': <FiInfo size={20} />,
+    'prayer': <FiHeart size={20} />,
+    'donation': <FiHeart size={20} />,
+    'contribution': <FiDollarSign size={20} />,
+    'schedule': <FiCalendar size={20} />,
+    'hymn': <FiMusic size={20} />,
+    'song': <FiMusic size={20} />,
+    'jumuia': <FiUsers size={20} />,
+    'group': <FiUsers size={20} />,
+  };
+  
+  // Return the icon if it exists, otherwise return a default placeholder
+  return iconMap[type] || <FiBell size={20} />;
 };
 
 
@@ -666,6 +767,24 @@ useEffect(() => {
   
   const timer = setInterval(() => setCurrentTime(new Date()), 60000);
   return () => clearInterval(timer);
+}, []);
+
+
+// ===== LISTEN FOR ONLINE/OFFLINE =====
+useEffect(() => {
+  const handleOnline = () => {
+    console.log('📶 Device is back ONLINE - Refreshing...');
+    // Wait a moment for network to stabilize
+    setTimeout(refreshAllData, 1000);
+  };
+
+  // Listen for online event
+  window.addEventListener('online', handleOnline);
+
+  // Clean up
+  return () => {
+    window.removeEventListener('online', handleOnline);
+  };
 }, []);
 
 // ===== FETCH COUNTDOWN (Like Ads) =====
@@ -1347,12 +1466,23 @@ useEffect(() => {
           <div className="header">
             <div className="header-left">
               <h1 className="greeting">
-                {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}</span>
-                <span className="wave">👋</span>
+                {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}    </span>
+                <span className="wave"><MdWavingHand color="#ffffff" size={25}/></span>
               </h1>
               <p className="date">{formatDate(currentTime)}</p>
             </div>
             <div className="header-right">
+
+          {/* REFRESH BUTTON */}
+          <button 
+            onClick={refreshAllData}
+            className="refresh-btn"
+            title="Refresh Data"
+            aria-label="Refresh Data"
+          >
+            <FiRefreshCw size={20} color="#ffffff"/>
+          </button>
+              
 
                {/* QR SCAN BUTTON - ADD THIS */}
     <button className="qr-scan-header-btn" onClick={() => setShowScanner(true)}>
@@ -1957,7 +2087,7 @@ useEffect(() => {
       <div className="header-icon-calendar"><FaCalendarPlus size={28} color="#141313" /></div>
       <div>
         
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">UPCOMING ZUCA SCHEDULED EVENTS</h2>
+       <h3 className="section-title">Upcoming ZUCA Scheduled Events</h3>
         <p className="header-subtitle">ZUCA indoor and out door activities</p>
       </div>
     </div>
@@ -2083,7 +2213,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-reading"><FaBook color="#000000" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MASS READINGS</h2>
+       <h2 className="section-title">Mass Readings</h2>
         <p className="header-subtitle">Readings for mass</p>
       </div>
     </div>
@@ -2254,7 +2384,7 @@ useEffect(() => {
       <div className="header-icon-small">
         <span><FaPrayingHands size={28} color="#1a1818" /></span>
       </div>
-      <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MY HOME JUMUIYA - {jumuiaInfo.name}</h2>
+      <h2 className="section-title">My Home Jumuia - {jumuiaInfo.name}</h2>
       <div className="jumuia-status-badge-small">
         <span className="status-dot"></span>
         Active
@@ -2375,9 +2505,9 @@ useEffect(() => {
 <div className="section-card notifications-premium full-width">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-notification">🔔</div>
+      <div className="header-icon-notification"><FaBell color="#0f172a" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">NOTIFICATIONS</h2>
+        <h2 className="section-title">Notifications</h2>
         <p className="header-subtitle"> {user.fullName?.split(" ")[0]} take note of important notifications</p>
       </div>
     </div>
@@ -2428,27 +2558,9 @@ useEffect(() => {
         whileHover={{ x: 4 }}
         onClick={() => navigate("/announcements")}
       >
-        <div className="notif-icon-premium">
-          {notif.type === "announcement" && "📢"}
-          {notif.type === "game_invite" && "🎮"}
-          {notif.type === "program" && "⛪"}
-          {notif.type === "checkin" && "✅"}
-          {notif.type === "message" && "💬"}
-          {notif.type === "pledge" && "💰"}
-          {notif.type === "event" && "📅"}
-          {notif.type === "reminder" && "⏰"}
-          {notif.type === "direct_message" && "💬"}
-          {notif.type === "new_media" && "⚠️"}
-          {notif.type === "executive_appointment" && "📅"}
-          {notif.type === "feedback_new" && "📝"}
-          {notif.type === "feedback_updated" && "📝"}
-          {notif.type === "mass_reading" && "📖"}
-          {notif.type === "attendance_sheet_opened" && "📋"}
-          {notif.type === "attendance_summary" && "📊"}
-          {notif.type === "youtube_new_video" && "⚠️"}
-          {notif.type === "user_login" && <FaUser />}
-          {!notif.type && "🔔"}
-        </div>
+<div className="notif-icon-premium">
+  {getNotificationIcon(notif.type)}
+</div>
         <div className="notif-content-premium">
           <div className="notif-header-premium">
             <span className="notif-title-premium">{notif.title || 'Update'}</span>
@@ -2474,9 +2586,9 @@ useEffect(() => {
 <div className="section-card announcements-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-announcement">🔥</div>
+      <div className="header-icon-announcement"><FaFire color="#0f172a" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT ANNOUNCEMENTS</h2>
+        <h3 className="section-title">Recent Announcements</h3>
         <p className="header-subtitle">Latest updates from ZUCA</p>
       </div>
     </div>
@@ -2551,7 +2663,7 @@ useEffect(() => {
   <div className="section-header">
     <div className="header-with-icon">
       <div className="header-icon-small-pledge"><FaHandHoldingHeart size={39} color="#141313" /></div>
-      <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">MY ACTIVE PLEDGES</h2>
+      <h2 className="section-title">MY ACTIVE PLEDGES</h2>
     </div>
     {activePledges.length > 0 && (
       <div className="pledge-count-badge">{activePledges.length}</div>
@@ -2615,9 +2727,9 @@ useEffect(() => {
 <div className="section-card hymns-section">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-music">🎼</div>
+      <div className="header-icon-music"><FaMusic color="#0f172a" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT HYMNS</h2>
+        <h2 className="section-title">RECENT HYMNS</h2>
         <p className="header-subtitle">Recently added Lyrics</p>
       </div>
     </div>
@@ -2713,9 +2825,9 @@ useEffect(() => {
 <div className="section-card mass-premium">
   <div className="section-header">
     <div className="header-with-icon">
-      <div className="header-icon-mass">📑</div>
+      <div className="header-icon-mass"><FaCalendar color="#0f172a" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">UPCOMING MASS PROGRAMS</h2>
+        <h2 className="section-title">UPCOMING MASS PROGRAMS</h2>
         <p className="header-subtitle">Mass songs programe</p>
       </div>
     </div>
@@ -2797,7 +2909,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-gallery"><FaPhotoVideo color="#000000" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">FEATURED GALLERY</h2>
+        <h2 className="section-title">FEATURED GALLERY</h2>
         <p className="header-subtitle">Moments from zuca</p>
       </div>
     </div>
@@ -2877,7 +2989,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-games"><FaGamepad size={28} color="#141313" /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">GAMES</h2>
+        <h2 className="section-title">GAMES</h2>
         <p className="header-subtitle">Connect, play, and grow together</p>
       </div>
     </div>
@@ -2958,7 +3070,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-stats"><FiActivity /></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">ZUCA STATUS</h2>
+        <h2 className="section-title">ZUCA STATUS</h2>
         <p className="header-subtitle">ZUCA at a glance</p>
       </div>
     </div>
@@ -3025,7 +3137,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-executive"><FaUserTie color="#e41811"/></div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">EXECUTIVE TEAM</h2>
+        <h2 className="section-title">EXECUTIVE TEAM</h2>
         <p className="header-subtitle">ZUCA Leadership & Administration</p>
       </div>
     </div>
@@ -3123,7 +3235,7 @@ useEffect(() => {
     <div className="header-with-icon">
       <div className="header-icon-chat">💬</div>
       <div>
-        <h2 className="text-sm font-bold text-slate-500 dark:text-slate-200 tracking-wider uppercase">RECENT CHAT ACTIVITY</h2>
+        <h2 className="section-title">RECENT CHAT ACTIVITY</h2>
         <p className="header-subtitle">What are people saying in the group</p>
       </div>
     </div>
@@ -3325,10 +3437,11 @@ useEffect(() => {
         }
 
         .user-name {
-          background: linear-gradient(135deg, #60a5fa, #c084fc);
+          background: linear-gradient(135deg, #ffffff, #ffffff);
           -webkit-background-clip: text;
           background-clip: text;
-          color: transparent;
+          font-weight: 900;
+          color: #1ace38;
         }
 
         .wave {
@@ -4373,6 +4486,46 @@ useEffect(() => {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+
+        /* ============================================
+   REFRESH BUTTON - SIMPLE & TRANSPARENT
+   ============================================ */
+
+.refresh-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  transition: all 0.3s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+
+.refresh-btn:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #0f172a !important;
+  transform: rotate(45deg) !important;
+}
+
+.refresh-btn:active {
+  transform: rotate(90deg) !important;
+  color: #3b82f6 !important;
+}
+
+/* Spinning animation when refreshing */
+.refresh-btn.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
         /* ============================================
    ENHANCED HYMNS SECTION
@@ -9922,6 +10075,21 @@ useEffect(() => {
     min-height: 210px;
   }
 
+  /* ============================================
+   SECTION TITLE - UNIFIED LARGER SIZE
+   ============================================ */
+
+.section-title {
+  font-size: 1rem !important;  /* 16px - larger and readable */
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin: 0 !important;
+  background: none !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
 
   /* CONTENT */
 
@@ -10802,6 +10970,63 @@ useEffect(() => {
     width: 24px;
     height: 24px;
   }
+
+  /* ============================================
+   FIX: REDUCE BUTTON PADDING
+   ============================================ */
+
+.view-all-premium,
+.view-all-music,
+.view-all-compact-pledge,
+.view-all-schedules,
+.view-all-readings-btn,
+.view-all-meetings,
+.notif-action-btn,
+.chat-action-btn,
+.games-action-btn,
+.online-action-btn,
+.jumuia-chat-btn-dashboard,
+.upload-reading-btn,
+.reading-full-btn,
+.view-all,
+.view-all-music,
+.view-all-compact-pledge,
+.games-action-btn,
+.online-action-btn,
+.notif-action-btn,
+.chat-action-btn {
+  padding: 0.3rem 0.8rem !important;
+  font-size: 0.7rem !important;
+  min-height: auto !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  border-radius: 8px !important;
+  width: auto !important;
+  min-width: 100px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.3rem !important;
+}
+
+/* For buttons that should be full width */
+.view-all-schedules,
+.upload-reading-btn,
+.reading-full-btn {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Center all buttons in their cards */
+.section-card {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.section-card > button:last-child {
+  align-self: center !important;
+  margin-top: 0.5rem !important;
+}
 
  
 

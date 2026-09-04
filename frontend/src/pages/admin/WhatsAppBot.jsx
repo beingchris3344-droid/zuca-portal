@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api';
 import { useNavigate } from 'react-router-dom';
+import { FaWhatsapp } from 'react-icons/fa';
 
 export default function WhatsAppBot() {
   const navigate = useNavigate();
@@ -481,13 +482,13 @@ const formatMemberName = (member) => {
     const connectionStatus = status.connectionStatus || status.status || 'disconnected';
     
     const statusMap = {
-      'connected': { label: '✅ Connected', color: '#22c55e', bg: '#dcfce7' },
-      'disconnected': { label: '❌ Disconnected', color: '#ef4444', bg: '#fee2e2' },
-      'connecting': { label: '⏳ Connecting...', color: '#f59e0b', bg: '#fef3c7' },
-      'qr_required': { label: '📱 QR Required', color: '#3b82f6', bg: '#dbeafe' },
-      'logged_out': { label: '🚫 Logged Out', color: '#ef4444', bg: '#fee2e2' },
+      'connected': { label: ' Connected', color: '#22c55e', bg: '#dcfce7' },
+      'disconnected': { label: ' Disconnected', color: '#ef4444', bg: '#fee2e2' },
+      'connecting': { label: ' Connecting...', color: '#f59e0b', bg: '#fef3c7' },
+      'qr_required': { label: ' QR Required', color: '#3b82f6', bg: '#dbeafe' },
+      'logged_out': { label: ' Logged Out', color: '#ef4444', bg: '#fee2e2' },
       'error': { label: '⚠️ Error', color: '#ef4444', bg: '#fee2e2' },
-      'reconnecting': { label: '🔄 Reconnecting...', color: '#f59e0b', bg: '#fef3c7' }
+      'reconnecting': { label: ' Reconnecting...', color: '#f59e0b', bg: '#fef3c7' }
     };
     
     const info = statusMap[connectionStatus] || statusMap.disconnected;
@@ -502,7 +503,7 @@ const formatMemberName = (member) => {
       <div className="page-header">
         <div className="header-left">
           <div className="title-icon">
-            <MessageCircle size={24} />
+            <FaWhatsapp size={28} />
           </div>
           <div>
             <h1>WhatsApp Bot</h1>
@@ -535,11 +536,11 @@ const formatMemberName = (member) => {
                   onChange={(e) => setAiMessageType(e.target.value)}
                   className="ai-select"
                 >
-                  <option value="polish">✨ Polish</option>
-                  <option value="formal">🎩 Formal</option>
-                  <option value="casual">💬 Casual</option>
-                  <option value="announcement">📢 Announcement</option>
-                  <option value="prayer">🙏 Prayer</option>
+                  <option value="polish"> Polish</option>
+                  <option value="formal"> Formal</option>
+                  <option value="casual"> Casual</option>
+                  <option value="announcement">Announcement</option>
+                  <option value="prayer"> Prayer</option>
                 </select>
                 <select
                   value={aiMessageTone}
@@ -770,7 +771,7 @@ const formatMemberName = (member) => {
                   </div>
                   <div className="group-actions">
                     <span className={`group-status ${group.isActive ? 'active' : 'inactive'}`}>
-                      {group.isActive ? '✅ Active' : '⬜ Inactive'}
+                      {group.isActive ? ' Active' : ' Inactive'}
                     </span>
                     {group.isActive ? (
                       <button className="btn-deactivate" onClick={() => handleDeactivateGroup(group.id)}>

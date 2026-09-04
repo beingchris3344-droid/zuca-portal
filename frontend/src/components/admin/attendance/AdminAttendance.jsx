@@ -18,7 +18,7 @@ import {
 // Child Components
 import CreateSheetModal from './CreateSheetModal';
 import QRCodeModal from './QRCodeModal';
-import { FaAcquisitionsIncorporated, FaCalculator, FaCalendarAlt, FaGalacticRepublic, FaRegCalendarCheck, FaUser, FaUsers } from 'react-icons/fa';
+import { FaAcquisitionsIncorporated, FaCalculator, FaCalendarAlt, FaClipboard, FaGalacticRepublic, FaRegCalendarCheck, FaUser, FaUsers } from 'react-icons/fa';
 
 export default function AdminAttendance() {
   // ============ STATE ============
@@ -463,8 +463,8 @@ const exportToWord = async (sheet, type) => {
       </div>
       
       <div className="tabs">
-        <button className={`tab ${activeTab === 'sheets' ? 'active' : ''}`} onClick={() => setActiveTab('sheets')}>📋 Sheets</button>
-        <button className={`tab ${activeTab === 'entries' ? 'active' : ''}`} onClick={() => setActiveTab('entries')}>👥 All Entries</button>
+        <button className={`tab ${activeTab === 'sheets' ? 'active' : ''}`} onClick={() => setActiveTab('sheets')}><FaClipboard /> Sheets</button>
+        <button className={`tab ${activeTab === 'entries' ? 'active' : ''}`} onClick={() => setActiveTab('entries')}><FaUsers /> All Entries</button>
         <button className={`tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => navigate('/admin/attendance/overview')}><FaUsers /> Attendance Overview</button>
       </div>
       
@@ -498,7 +498,7 @@ const exportToWord = async (sheet, type) => {
                   <div key={sheet.id} className="sheet-card completed">
                     <div className="sheet-header">
                       <h3>{sheet.title}</h3>
-                      <span className="status-badge completed">📅 PAST</span>
+                      <span className="status-badge completed"><FaCalendarAlt /> PAST</span>
                     </div>
                     <div className="sheet-details">
                       <span><Calendar size={14} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>

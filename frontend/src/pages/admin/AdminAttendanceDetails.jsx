@@ -682,8 +682,9 @@ const handleBulkMarkPresent = async () => {
           display: flex;
           align-items: center;
           gap: 8px;
+          color: black;
           padding: 8px 16px;
-          background: white;
+          background: #1a1a1a;
           border: 1px solid #e0e0e0;
           border-radius: 8px;
           cursor: pointer;
@@ -694,7 +695,7 @@ const handleBulkMarkPresent = async () => {
           align-items: center;
           gap: 8px;
           padding: 8px 16px;
-          background: white;
+          background: #1a1a1a;
           border: 1px solid #e0e0e0;
           border-radius: 8px;
           cursor: pointer;
@@ -1521,9 +1522,10 @@ const handleBulkMarkPresent = async () => {
           display: flex;
           align-items: center;
           gap: 8px;
+        
           padding: 8px 16px;
-          background: white;
-          border: 1px solid #e0e0e0;
+          background: black;
+          border: 1px solid #df2121;
           border-radius: 8px;
           cursor: pointer;
         }

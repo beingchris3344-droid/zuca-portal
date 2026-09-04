@@ -808,7 +808,7 @@ const exportToWord = async () => {
       <div className="page-header">
        <div className="header-left">
   <button className="back-btn" onClick={() => navigate(-1)}>
-    <ArrowLeft size={20} /> Back
+    <ArrowLeft size={28}  Back color="#000" />
   </button>
   <div>
     <h1><FaUsers /> Attendance Management</h1>

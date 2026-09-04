@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Save, QrCode, MessageSquare, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Users, Save, QrCode, MessageSquare, CheckCircle, AlertCircle, RefreshCw, Calendar, Clock, MapPin } from 'lucide-react';
 import { api } from '../../../api';
 
 export default function SettingsModal({ sheet, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
+    title: sheet.title || '',
+    description: sheet.description || '',
+    eventDate: sheet.eventDate ? new Date(sheet.eventDate).toISOString().split('T')[0] : '',
+    eventTime: sheet.eventTime || '16:30',
+    location: sheet.location || '',
     allowSelfCheckin: sheet.allowSelfCheckin,
     enableQRCheckin: sheet.enableQRCheckin || true,
+    jumuiaId: sheet.jumuiaId || '',
     // ✅ WhatsApp Fields
     enableWhatsAppAutoSend: sheet.enableWhatsAppAutoSend || false,
     whatsAppGroupIds: sheet.whatsAppGroupIds || '',
@@ -15,11 +21,13 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     whatsAppSendOnClose: sheet.whatsAppSendOnClose !== undefined ? sheet.whatsAppSendOnClose : true
   });
   
-  const [loading, setLoading] = useState(false);
+  const [jumuiaList, setJumuiaList] = useState([]);
+  const [loadingJumuia, setLoadingJumuia] = useState(true);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [whatsappGroups, setWhatsappGroups] = useState([]);
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [botConnected, setBotConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [sending, setSending] = useState(false);
   
@@ -33,6 +41,24 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // ============ FETCH JUMUIA LIST ============
+  useEffect(() => {
+    const fetchJumuia = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await api.get('/api/jumuia', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setJumuiaList(response.data || []);
+      } catch (error) {
+        console.error('Error fetching jumuia:', error);
+      } finally {
+        setLoadingJumuia(false);
+      }
+    };
+    fetchJumuia();
+  }, []);
 
   // ============ FETCH WHATSAPP GROUPS ============
   useEffect(() => {
@@ -107,10 +133,24 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const updateData = {
+      // 1. Update sheet details
+      const sheetData = {
+        title: formData.title,
+        description: formData.description || null,
+        eventDate: formData.eventDate,
+        eventTime: formData.eventTime,
+        location: formData.location || null,
+        jumuiaId: formData.jumuiaId || null,
         allowSelfCheckin: formData.allowSelfCheckin,
-        enableWifiCheckin: formData.enableQRCheckin,
-        // ✅ WhatsApp Fields
+        enableWifiCheckin: formData.enableQRCheckin
+      };
+
+      await api.put(`/api/attendance/sheet/${sheet.id}/details`, sheetData, {
+        headers: getHeaders()
+      });
+
+      // 2. Update WhatsApp settings
+      const whatsappData = {
         enableWhatsAppAutoSend: formData.enableWhatsAppAutoSend || false,
         whatsAppGroupIds: selectedGroups.map(g => g.id).join(','),
         whatsAppGroupNames: selectedGroups.map(g => g.name).join(','),
@@ -119,8 +159,8 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         whatsAppSendOnClose: formData.whatsAppSendOnClose !== false
       };
 
-      await api.put(`/api/attendance/sheet/${sheet.id}/whatsapp-settings`, updateData, { 
-        headers: getHeaders() 
+      await api.put(`/api/attendance/sheet/${sheet.id}/whatsapp-settings`, whatsappData, {
+        headers: getHeaders()
       });
       
       showToast('✅ Settings saved successfully!');
@@ -179,6 +219,9 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   };
   
+  // ============ SET TODAY'S DATE ============
+  const today = new Date().toISOString().split('T')[0];
+  
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={e => e.stopPropagation()}>
@@ -190,15 +233,108 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         )}
 
         <div className="modal-header">
-          <h3>Sheet Settings</h3>
+          <h3>Edit Sheet Settings</h3>
           <button className="close-btn" onClick={onClose}><X size={20} /></button>
         </div>
         
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            {/* ============ CHECK-IN METHODS ============ */}
+            {/* ============ SHEET DETAILS ============ */}
             <div className="settings-section">
-              <h4>Check-in Methods</h4>
+              <h4>📋 Sheet Details</h4>
+              
+              {/* Title */}
+              <div className="form-group">
+                <label>Event Title *</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  placeholder="e.g., Leaders meeting, Choir Practice"
+                  required
+                />
+              </div>
+              
+              {/* Description */}
+              <div className="form-group">
+                <label>Description (Optional)</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Additional details about the meeting..."
+                  rows="2"
+                />
+              </div>
+              
+              {/* Date & Time Row */}
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Date *</label>
+                  <input
+                    type="date"
+                    name="eventDate"
+                    value={formData.eventDate}
+                    onChange={handleChange}
+                    min={today}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Time</label>
+                  <input
+                    type="time"
+                    name="eventTime"
+                    value={formData.eventTime}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+              
+              {/* Location */}
+              <div className="form-group">
+                <label>Location</label>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  placeholder="e.g., Annex 002, complex etc"
+                />
+              </div>
+              
+              {/* Target Audience */}
+              <div className="form-group">
+                <label>Target Group (Optional)</label>
+                <select
+                  name="jumuiaId"
+                  value={formData.jumuiaId}
+                  onChange={handleChange}
+                >
+                  <option value="">-Everyone</option>
+                  <option value="executive-team">-Leaders Only</option>
+                  <option disabled>──────────</option>
+                  {loadingJumuia ? (
+                    <option disabled>Loading Jumuia...</option>
+                  ) : (
+                    jumuiaList.map(j => (
+                      <option key={j.id} value={j.id}>- {j.name}</option>
+                    ))
+                  )}
+                </select>
+                <div className="helper-text">
+                  Leave empty for all members, or select a specific group
+                </div>
+              </div>
+            </div>
+
+            {/* ============ CHECK-IN METHODS ============ */}
+            <div className="divider">
+              <span>Check-in Methods</span>
+            </div>
+
+            <div className="settings-section">
               <label className="checkbox-label">
                 <input type="checkbox" name="allowSelfCheckin" checked={formData.allowSelfCheckin} onChange={handleChange} />
                 <span>Allow Self Check-in</span>
@@ -384,7 +520,7 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           background: white;
           border-radius: 16px;
           width: 90%;
-          max-width: 550px;
+          max-width: 650px;
           max-height: 90vh;
           overflow-y: auto;
           position: relative;
@@ -436,6 +572,49 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           font-size: 14px;
           margin-bottom: 8px;
           color: #1a1a1a;
+        }
+
+        .form-group {
+          margin-bottom: 16px;
+        }
+
+        .form-group label {
+          display: block;
+          margin-bottom: 6px;
+          font-weight: 500;
+          font-size: 13px;
+          color: #1a1a1a;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+          outline: none;
+          border-color: #1a1a1a;
+          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group textarea {
+          resize: vertical;
+          min-height: 50px;
+        }
+
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
         }
 
         .checkbox-label {
@@ -868,6 +1047,10 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           .settings-modal {
             width: 95%;
             max-height: 95vh;
+          }
+
+          .form-row {
+            grid-template-columns: 1fr;
           }
 
           .groups-grid {

@@ -44,6 +44,15 @@ const basePath = (user?.role === "admin" || user?.specialRole === "admin") ? "/a
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
   }, []);
+
+
+  // ============ OPTIMISTIC UPDATE HELPER ============
+const updateLocalState = (updater) => {
+  setSheetData(prev => {
+    if (!prev) return prev;
+    return updater(prev);
+  });
+};
   
   // ============ FETCH SHEET DATA (ONLY CRITICAL DATA FIRST) ============
   const fetchSheetData = useCallback(async () => {
@@ -194,8 +203,6 @@ const handleBulkMarkPresent = async () => {
 
     showToast(`✅ ${membersData.length} members marked present!`);
     
-    // 3. Refresh to get real data
-    await fetchSheetData();
 
   } catch (error) {
     console.error('Bulk mark error:', error);
@@ -279,63 +286,145 @@ const handleBulkMarkPresent = async () => {
   // Auto-refresh removed for performance. Users can use the Refresh button.
 
   // ============ ACTIONS ============
-  const handleAddMember = async (memberData) => {
-    try {
-      await api.post(`/api/attendance/sheet/${sheetId}/entry`, memberData, { headers: getHeaders() });
-      showToast('Member added successfully!');
-      fetchSheetData();
-      setShowAddMember(false);
-    } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to add member', 'error');
-    }
+ const handleAddMember = async (memberData) => {
+  // 1️⃣ Instant UI update
+  const tempEntry = {
+    id: 'temp-' + Date.now(),
+    fullName: memberData.fullName,
+    phoneNumber: memberData.phoneNumber,
+    role: memberData.role,
+    executivePosition: memberData.executivePosition || null,
+    signMethod: 'MANUAL',
+    signTime: new Date().toISOString(),
+    isPending: true
   };
+
+  updateLocalState(prev => ({
+    ...prev,
+    entries: [...prev.entries, tempEntry]
+  }));
+
+  setShowAddMember(false);
+  showToast('Adding member...', 'info');
+
+  try {
+    // 2️⃣ API call in background
+    await api.post(`/api/attendance/sheet/${sheetId}/entry`, memberData, { headers: getHeaders() });
+    showToast('Member added successfully!');
+    
+    
+  } catch (error) {
+    // 4️⃣ Rollback on error
+    updateLocalState(prev => ({
+      ...prev,
+      entries: prev.entries.filter(e => e.id !== tempEntry.id)
+    }));
+    showToast(error.response?.data?.error || 'Failed to add member', 'error');
+  }
+};
   
-  const handleEditMember = async (entryId, data) => {
-    try {
-      await api.put(`/api/attendance/sheet/${sheetId}/entry/${entryId}`, data, { headers: getHeaders() });
-      showToast('Member updated successfully!');
-      fetchSheetData();
-      setShowEditMember(false);
-      setSelectedEntry(null);
-    } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to update member', 'error');
-    }
-  };
+const handleEditMember = async (entryId, data) => {
+  // 1️⃣ Save old entry for rollback
+  const oldEntry = sheetData?.entries?.find(e => e.id === entryId);
   
+  // 2️⃣ Instant UI update
+  updateLocalState(prev => ({
+    ...prev,
+    entries: prev.entries.map(e => 
+      e.id === entryId ? { ...e, ...data, isPending: true } : e
+    )
+  }));
+
+  setShowEditMember(false);
+  setSelectedEntry(null);
+  showToast('Updating member...', 'info');
+
+  try {
+    // 3️⃣ API call in background
+    await api.put(`/api/attendance/sheet/${sheetId}/entry/${entryId}`, data, { headers: getHeaders() });
+    showToast('Member updated successfully!');
+    
+    
+  } catch (error) {
+    // 5️⃣ Rollback on error
+    updateLocalState(prev => ({
+      ...prev,
+      entries: prev.entries.map(e => 
+        e.id === entryId ? oldEntry : e
+      )
+    }));
+    showToast(error.response?.data?.error || 'Failed to update member', 'error');
+  }
+};
   const handleMarkAbsent = async (entryId, memberName) => {
-    if (!window.confirm(`Mark ${memberName} as absent? They will be removed from present list.`)) return;
-    try {
-      await api.delete(`/api/attendance/sheet/${sheetId}/entry/${entryId}`, { headers: getHeaders() });
-      showToast(`${memberName} marked as absent`, 'info');
-      fetchSheetData();
-    } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to mark as absent', 'error');
-    }
-  };
+  if (!window.confirm(`Mark ${memberName} as absent?`)) return;
   
+  // 1️⃣ Get entry for rollback
+  const removedEntry = sheetData?.entries?.find(e => e.id === entryId);
+  
+  // 2️⃣ Instant UI update (remove from list)
+  updateLocalState(prev => ({
+    ...prev,
+    entries: prev.entries.filter(e => e.id !== entryId)
+  }));
+
+  showToast(`Removing ${memberName}...`, 'info');
+
+  try {
+    // 3️⃣ API call in background
+    await api.delete(`/api/attendance/sheet/${sheetId}/entry/${entryId}`, { headers: getHeaders() });
+    showToast(`${memberName} marked as absent`, 'info');
+    
+   
+  } catch (error) {
+    // 5️⃣ Rollback on error
+    updateLocalState(prev => ({
+      ...prev,
+      entries: [...prev.entries, removedEntry]
+    }));
+    showToast(error.response?.data?.error || 'Failed to mark as absent', 'error');
+  }
+};
   const handleMarkPresent = async (userId, fullName) => {
-    if (!window.confirm(`Mark ${fullName} as present?`)) return;
-    try {
-      const userResponse = await api.get(`/api/users`, { headers: getHeaders() });
-      const user = userResponse.data.find(u => u.id === userId);
+  if (!window.confirm(`Mark ${fullName} as present?`)) return;
+  
+  // 1️⃣ Instant UI update (remove from absent)
+  updateLocalState(prev => ({
+    ...prev,
+    absentMembers: prev.absentMembers?.filter(m => m.id !== userId) || []
+  }));
+
+  showToast(`Marking ${fullName} present...`, 'info');
+
+  try {
+    // 2️⃣ API call in background
+    const userResponse = await api.get(`/api/users`, { headers: getHeaders() });
+    const user = userResponse.data.find(u => u.id === userId);
+    
+    if (user) {
+      await api.post(`/api/attendance/sheet/${sheetId}/entry`, {
+        fullName: user.fullName,
+        phoneNumber: user.phone,
+        role: user.role,
+        specialRole: user.specialRole,
+        membershipNumber: user.membership_number,
+        jumuiaId: user.jumuiaId,
+        notes: 'Marked present by admin'
+      }, { headers: getHeaders() });
       
-      if (user) {
-        await api.post(`/api/attendance/sheet/${sheetId}/entry`, {
-          fullName: user.fullName,
-          phoneNumber: user.phone,
-          role: user.role,
-          specialRole: user.specialRole,
-          membershipNumber: user.membership_number,
-          jumuiaId: user.jumuiaId,
-          notes: 'Marked present by admin'
-        }, { headers: getHeaders() });
-        showToast(`${fullName} marked as present!`);
-        fetchSheetData();
-      }
-    } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to mark present', 'error');
+      showToast(`${fullName} marked as present!`);
+      
+    
     }
-  };
+  } catch (error) {
+    // 4️⃣ Rollback - add back to absent list
+    updateLocalState(prev => ({
+      ...prev,
+      absentMembers: [...(prev.absentMembers || []), { id: userId, fullName }]
+    }));
+    showToast(error.response?.data?.error || 'Failed to mark present', 'error');
+  }
+};
   
   const handleSendReminder = async (userId, customMessage = null) => {
     try {
@@ -1176,7 +1265,7 @@ const handleBulkMarkPresent = async () => {
       {/* Header with Back Button */}
       <div className="page-header">
         <button className="back-btn" onClick={() => navigate(`${basePath}/attendance`)}>
-          <ArrowLeft size={20} /> Back to Attendance
+          <ArrowLeft size={28} color="#fdfcfc" /> 
         </button>
         <button className="refresh-btn" onClick={refreshData} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
@@ -1522,10 +1611,10 @@ const handleBulkMarkPresent = async () => {
           display: flex;
           align-items: center;
           gap: 8px;
-        
+          
           padding: 8px 16px;
           background: black;
-          border: 1px solid #df2121;
+          border: 1px solid #e0e0e0;
           border-radius: 8px;
           cursor: pointer;
         }

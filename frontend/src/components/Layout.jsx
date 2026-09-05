@@ -13,7 +13,7 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaRegFilePdf, FaSun} from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaBirthdayCake, FaRegFilePdf, FaSun} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
@@ -610,6 +610,24 @@ useEffect(() => {
                       <span style={userDropdownEmail}>{user.email}</span>
                     </div>
                     <div style={userDropdownDivider} />
+
+                   {/* ✅ ADD BIRTHDAY PROFILE LINK */}
+<motion.button
+  onClick={() => {
+    setShowUserMenu(false);
+    window.location.href = "/profile";
+  }}
+  style={{
+    ...userDropdownLogout,
+    color: "#2563eb",
+    borderBottom: "1px solid #e2e8f0",
+  }}
+  whileHover={{ backgroundColor: "#eff6ff", color: "#1d4ed8" }}
+>
+  <span style={dropdownLogoutIcon}><FaBirthdayCake /></span>
+  Birthday Settings
+</motion.button>
+
                     <motion.button
                       onClick={handleLogout}
                       style={userDropdownLogout}

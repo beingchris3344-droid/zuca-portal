@@ -9401,12 +9401,12 @@ useEffect(() => {
 
 .dashboard-ad-visual {
   position: relative;
-
   min-height: 280px;
-
   overflow: hidden;
-
-  background: #f1f5f9;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 
@@ -9417,17 +9417,12 @@ useEffect(() => {
 .dashboard-ad-image {
   width: 100%;
   height: 100%;
-
   min-height: 280px;
-
+  max-height: 100%;
   display: block;
-
   object-fit: cover;
-
   object-position: center;
-
-  transition:
-    transform 0.6s ease;
+  transition: transform 0.6s ease;
 }
 
 .dashboard-ad-card:hover .dashboard-ad-image {
@@ -10242,19 +10237,20 @@ useEffect(() => {
    VERY SMALL PHONES
 ========================================================= */
 
-@media (max-width: 350px) {
-
+@media (max-width: 650px) {
   .dashboard-ad-visual {
-    height: 165px;
-
-    min-height: 165px;
+    width: 100%;
+    min-height: 210px;
+    height: auto;
   }
-
+  
   .dashboard-ad-image {
-    height: 165px;
-
-    min-height: 165px;
+    width: 100%;
+    min-height: 210px;
+    height: auto;
+    object-fit: contain;
   }
+}
 
   .dashboard-ad-placeholder {
     height: 165px;

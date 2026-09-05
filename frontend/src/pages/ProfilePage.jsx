@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
-import { FiArrowLeft, FiCalendar, FiUser, FiImage, FiCheck, FiX, FiUpload } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiUser, FiImage, FiCheck, FiX, FiUpload, FiMaximize2 } from "react-icons/fi";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -12,22 +12,56 @@ export default function ProfilePage() {
   const [birthDate, setBirthDate] = useState("");
   const [message, setMessage] = useState("");
   const [photo, setPhoto] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [fetching, setFetching] = useState(true);
+  const [showFullImage, setShowFullImage] = useState(false);
 
+  // FETCH USER DATA FROM API
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    setUser(userData);
-    setOptIn(userData.birthdayOptIn || false);
-    setMessage(userData.birthdayMessage || "");
-    setPhoto(userData.birthdayPhoto || null);
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          navigate("/login");
+          return;
+        }
 
-    if (userData.birthDate) {
-      const date = new Date(userData.birthDate);
-      setBirthDate(date.toISOString().split("T")[0]);
-    }
-  }, []);
+        const res = await axios.get(`${BASE_URL}/api/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const userData = res.data;
+        setUser(userData);
+        setOptIn(userData.birthdayOptIn || false);
+        setMessage(userData.birthdayMessage || "");
+        setPhoto(userData.birthdayPhoto || null);
+
+        if (userData.birthDate) {
+          const date = new Date(userData.birthDate);
+          setBirthDate(date.toISOString().split("T")[0]);
+        }
+
+        localStorage.setItem("user", JSON.stringify(userData));
+
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        setUser(userData);
+        setOptIn(userData.birthdayOptIn || false);
+        setMessage(userData.birthdayMessage || "");
+        setPhoto(userData.birthdayPhoto || null);
+        if (userData.birthDate) {
+          const date = new Date(userData.birthDate);
+          setBirthDate(date.toISOString().split("T")[0]);
+        }
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -117,6 +151,14 @@ export default function ProfilePage() {
     }
   };
 
+  if (fetching) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.loadingText}>Loading profile...</div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -191,18 +233,34 @@ export default function ProfilePage() {
               <div style={styles.photoSection}>
                 {photo ? (
                   <div style={styles.photoPreview} className="photo-preview">
-                    <img src={photo} alt="Birthday" style={styles.photoImg} />
-                    <div style={styles.photoOverlay} className="photo-overlay">
-                      <label style={styles.changePhotoBtn} className="change-photo-btn">
-                        <FiUpload size={14} />
-                        <span>Change</span>
+                    <img 
+                      src={photo} 
+                      alt="Birthday" 
+                      style={styles.photoImg} 
+                    />
+                    
+                    {/* Two buttons on top of image */}
+                    <div style={styles.imageButtons}>
+                      <button 
+                        className="image-btn"
+                        style={styles.imageBtn}
+                        onClick={() => setShowFullImage(true)}
+                      >
+                        <FiMaximize2 size={16} />
+                        View Full Image
+                      </button>
+                      <label className="image-btn" style={styles.imageBtnUpload}>
+                        <FiUpload size={16} />
+                        Change Image
                         <input type="file" accept="image/*" onChange={handlePhotoUpload} style={styles.hiddenInput} />
                       </label>
-                      <button onClick={handleRemovePhoto} style={styles.removePhotoBtn} className="remove-photo-btn">
-                        <FiX size={14} />
-                        <span>Remove</span>
-                      </button>
                     </div>
+                    
+                    {/* Remove button */}
+                    <button onClick={handleRemovePhoto} style={styles.removeBtn}>
+                      <FiX size={14} />
+                      Remove Photo
+                    </button>
                   </div>
                 ) : (
                   <label style={styles.uploadPlaceholder} className="upload-placeholder">
@@ -227,7 +285,6 @@ export default function ProfilePage() {
               />
             </div>
 
-            {/* Preview Section */}
             <div style={styles.previewSection}>
               <h4 style={styles.previewTitle}>Preview</h4>
               <div style={styles.previewCard}>
@@ -258,6 +315,18 @@ export default function ProfilePage() {
           <FiCheck size={16} />
         </button>
       </div>
+
+      {/* Full Image Modal */}
+      {showFullImage && photo && (
+        <div style={styles.fullImageOverlay} onClick={() => setShowFullImage(false)}>
+          <div style={styles.fullImageContent} onClick={(e) => e.stopPropagation()}>
+            <button style={styles.fullImageClose} onClick={() => setShowFullImage(false)}>
+              <FiX size={24} />
+            </button>
+            <img src={photo} alt="Birthday full view" style={styles.fullImage} />
+          </div>
+        </div>
+      )}
 
       <style>{`
         .toggle-wrapper:hover {
@@ -296,16 +365,20 @@ export default function ProfilePage() {
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
-        .photo-preview:hover .photo-overlay {
+        .photo-preview {
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #f1f5f9;
+          width: 100%;
+        }
+
+        .photo-preview:hover .image-btn {
           opacity: 1;
         }
 
-        .change-photo-btn:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-
-        .remove-photo-btn:hover {
-          background: rgba(220, 38, 38, 0.9);
+        .image-btn {
+          transition: opacity 0.3s ease;
         }
 
         .upload-placeholder:hover {
@@ -334,6 +407,11 @@ export default function ProfilePage() {
           .profile-page {
             padding: 16px;
           }
+          
+          .image-btn {
+            font-size: 11px !important;
+            padding: 6px 10px !important;
+          }
         }
       `}</style>
     </div>
@@ -347,6 +425,12 @@ const styles = {
     padding: "24px",
     maxWidth: "800px",
     margin: "0 auto",
+  },
+  loadingText: {
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: "16px",
+    padding: "40px",
   },
   header: {
     display: "flex",
@@ -516,55 +600,77 @@ const styles = {
     position: "relative",
     borderRadius: "12px",
     overflow: "hidden",
-    maxHeight: "200px",
+    background: "#f1f5f9",
+    width: "100%",
   },
   photoImg: {
     width: "100%",
-    height: "100%",
-    maxHeight: "200px",
-    objectFit: "cover",
+    height: "auto",
     display: "block",
+    objectFit: "contain",
   },
-  photoOverlay: {
+  imageButtons: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    background: "rgba(15, 23, 42, 0.7)",
-    padding: "12px",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
     display: "flex",
-    justifyContent: "center",
     gap: "12px",
+    zIndex: 5,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  imageBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "8px 16px",
+    background: "rgba(15, 23, 42, 0.8)",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    backdropFilter: "blur(4px)",
+    transition: "all 0.2s ease",
     opacity: 0,
-    transition: "0.3s ease",
   },
-  changePhotoBtn: {
+  imageBtnUpload: {
     display: "flex",
     alignItems: "center",
     gap: "6px",
+    padding: "8px 16px",
+    background: "rgba(37, 99, 235, 0.85)",
     color: "white",
-    fontSize: "13px",
-    fontWeight: "600",
-    cursor: "pointer",
-    padding: "6px 14px",
-    borderRadius: "8px",
-    background: "rgba(255, 255, 255, 0.15)",
-    transition: "0.2s ease",
     border: "none",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    backdropFilter: "blur(4px)",
+    transition: "all 0.2s ease",
+    opacity: 0,
   },
-  removePhotoBtn: {
+  hiddenInput: {
+    display: "none",
+  },
+  removeBtn: {
+    position: "absolute",
+    bottom: "10px",
+    right: "10px",
     display: "flex",
     alignItems: "center",
     gap: "6px",
+    padding: "4px 12px",
+    background: "rgba(220, 38, 38, 0.8)",
     color: "white",
-    fontSize: "13px",
-    fontWeight: "600",
-    cursor: "pointer",
-    padding: "6px 14px",
-    borderRadius: "8px",
-    background: "rgba(220, 38, 38, 0.7)",
     border: "none",
-    transition: "0.2s ease",
+    borderRadius: "6px",
+    fontSize: "12px",
+    fontWeight: "500",
+    cursor: "pointer",
+    zIndex: 5,
   },
   uploadPlaceholder: {
     display: "flex",
@@ -582,9 +688,6 @@ const styles = {
   },
   uploadIcon: {
     color: "#94a3b8",
-  },
-  hiddenInput: {
-    display: "none",
   },
   previewSection: {
     margin: "20px 0",
@@ -662,5 +765,47 @@ const styles = {
     cursor: "pointer",
     transition: "0.2s ease",
     marginTop: "8px",
+  },
+  fullImageOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(15, 23, 42, 0.9)",
+    backdropFilter: "blur(8px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+    padding: "20px",
+  },
+  fullImageContent: {
+    position: "relative",
+    maxWidth: "90vw",
+    maxHeight: "90vh",
+  },
+  fullImage: {
+    maxWidth: "100%",
+    maxHeight: "90vh",
+    borderRadius: "12px",
+    objectFit: "contain",
+    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+  },
+  fullImageClose: {
+    position: "absolute",
+    top: "-48px",
+    right: "-48px",
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    background: "rgba(255, 255, 255, 0.15)",
+    border: "none",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    transition: "0.2s ease",
   },
 };

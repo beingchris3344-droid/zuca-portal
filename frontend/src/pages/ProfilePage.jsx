@@ -568,8 +568,7 @@ export default function ProfilePage() {
               <small
                 style={styles.toggleHint}
               >
-                Your birthday will be celebrated
-                on the dashboard
+               Your birthday will be celebrated on the dashboard, remember to turn on this feature and also save changes.  You can always Opt Out later.
               </small>
             </div>
           </label>

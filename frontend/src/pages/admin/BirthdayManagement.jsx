@@ -2055,8 +2055,7 @@ export default function BirthdayManagement() {
         /* MODAL STYLES */
         .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
         .modal-content { background:#fff; border-radius:16px; max-width:640px; width:100%; max-height:90vh; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-        /* DELETE MODAL - CENTERED */
-.delete-modal {
+       .delete-modal {
   max-width: 480px;
   width: 100%;
   margin: auto;
@@ -2167,6 +2166,17 @@ export default function BirthdayManagement() {
   opacity: 0.5;
   cursor: not-allowed;
 }
+        .modal-header { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #e2e8f0; }
+        .modal-header h2 { display:flex; align-items:center; gap:10px; font-size:18px; color:#0f172a; margin:0; }
+        .modal-close { background:none; border:none; color:#94a3b8; cursor:pointer; }
+        .modal-body { padding:24px; overflow:auto; max-height:calc(90vh - 140px); }
+        .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:16px 24px; border-top:1px solid #e2e8f0; }
+        .cancel-btn { padding:8px 20px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+        .cancel-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .save-btn { display:flex; align-items:center; gap:8px; padding:8px 20px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+        .save-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .delete-confirm-btn { display:flex; align-items:center; gap:8px; padding:8px 20px; background:#dc2626; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+        .delete-confirm-btn:disabled { opacity:.5; cursor:not-allowed; }
 
         .delete-confirm-content { text-align:center; padding:16px 0; }
         .delete-confirm-content h3 { font-size:20px; color:#0f172a; margin:12px 0 8px; }

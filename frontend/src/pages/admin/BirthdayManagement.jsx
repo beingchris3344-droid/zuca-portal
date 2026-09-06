@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import BASE_URL from "../../api";
+
 import {
   FiRefreshCw,
   FiCalendar,
@@ -15,12 +16,180 @@ import {
   FiTrendingUp,
   FiCamera,
   FiAlertCircle,
-  FiEdit,
   FiTrash2,
   FiSearch,
-  FiFilter
+  FiPlus,
+  FiUpload,
+  FiSave,
+  FiUserPlus,
+  FiArrowLeft,
 } from "react-icons/fi";
+
 import { FaWhatsapp } from "react-icons/fa";
+
+/* =========================================================
+   CREATE 16:9 BIRTHDAY IMAGE
+   - Blurred enlarged image fills background
+   - Original image remains sharp
+   - Original image is NOT stretched
+   - Portrait images remain fully visible
+   ========================================================= */
+const createBirthdayImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+
+        // 16:9 Full HD
+        const canvasWidth = 1920;
+        const canvasHeight = 1080;
+
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("Could not create image canvas."));
+          return;
+        }
+
+        const sourceWidth = image.naturalWidth;
+        const sourceHeight = image.naturalHeight;
+
+        /* =====================================================
+           1. DRAW ENLARGED BLURRED BACKGROUND
+           ===================================================== */
+
+        const backgroundScale = Math.max(
+          canvasWidth / sourceWidth,
+          canvasHeight / sourceHeight
+        );
+
+        const backgroundWidth = sourceWidth * backgroundScale;
+        const backgroundHeight = sourceHeight * backgroundScale;
+
+        const backgroundX =
+          (canvasWidth - backgroundWidth) / 2;
+
+        const backgroundY =
+          (canvasHeight - backgroundHeight) / 2;
+
+        ctx.save();
+
+        // Blur the enlarged copy
+        ctx.filter = "blur(35px)";
+
+        ctx.drawImage(
+          image,
+          backgroundX,
+          backgroundY,
+          backgroundWidth,
+          backgroundHeight
+        );
+
+        ctx.restore();
+
+        /* =====================================================
+           2. SUBTLE DARK OVERLAY
+           Helps the foreground image stand out.
+           ===================================================== */
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        /* =====================================================
+           3. DRAW ORIGINAL IMAGE SHARP AND UNDISTORTED
+           The complete image is fitted inside 16:9.
+           ===================================================== */
+
+        const foregroundScale = Math.min(
+          canvasWidth / sourceWidth,
+          canvasHeight / sourceHeight
+        );
+
+        const foregroundWidth =
+          sourceWidth * foregroundScale;
+
+        const foregroundHeight =
+          sourceHeight * foregroundScale;
+
+        const foregroundX =
+          (canvasWidth - foregroundWidth) / 2;
+
+        const foregroundY =
+          (canvasHeight - foregroundHeight) / 2;
+
+        ctx.drawImage(
+          image,
+          foregroundX,
+          foregroundY,
+          foregroundWidth,
+          foregroundHeight
+        );
+
+        /* =====================================================
+           4. CONVERT TO JPEG
+           ===================================================== */
+
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(objectUrl);
+
+            if (!blob) {
+              reject(new Error("Failed to process image."));
+              return;
+            }
+
+            const processedFile = new File(
+              [blob],
+              "birthday-16x9.jpg",
+              {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              }
+            );
+
+            resolve(processedFile);
+          },
+          "image/jpeg",
+          0.92
+        );
+      } catch (error) {
+        URL.revokeObjectURL(objectUrl);
+        reject(error);
+      }
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load selected image."));
+    };
+
+    image.src = objectUrl;
+  });
+};
+
+/* =========================================================
+   CONVERT RELATIVE IMAGE URL TO FULL URL
+   ========================================================= */
+const getImageUrl = (image) => {
+  if (!image) return null;
+
+  if (
+    image.startsWith("http://") ||
+    image.startsWith("https://") ||
+    image.startsWith("data:")
+  ) {
+    return image;
+  }
+
+  return `${BASE_URL}/${image.replace(/^\/+/, "")}`;
+};
 
 export default function BirthdayManagement() {
   const [loading, setLoading] = useState(true);
@@ -28,27 +197,81 @@ export default function BirthdayManagement() {
   const [todayBirthdays, setTodayBirthdays] = useState([]);
   const [allBirthdays, setAllBirthdays] = useState([]);
   const [stats, setStats] = useState(null);
+
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("today");
+
+  /* =========================================================
+     ADD / EDIT BIRTHDAY
+     ========================================================= */
+
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const [userSearch, setUserSearch] = useState("");
+  const [allUsers, setAllUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const [addFormData, setAddFormData] = useState({
+    birthDate: "",
+    birthdayOptIn: true,
+    birthdayMessage: "",
+  });
+
+  const [addPhotoFile, setAddPhotoFile] = useState(null);
+  const [addPhotoPreview, setAddPhotoPreview] = useState(null);
+
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+
+  /* =========================================================
+     WHATSAPP
+     ========================================================= */
 
   const [whatsAppGroups, setWhatsAppGroups] = useState([]);
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
 
+  /* =========================================================
+     FETCH MAIN DATA
+     ========================================================= */
+
   const fetchData = async () => {
     setLoading(true);
+
     try {
       const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
 
-      const [settingsRes, todayRes, statsRes, allBirthdaysRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/birthday/settings`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/today`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/stats`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/all`, { headers })
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      const [
+        settingsRes,
+        todayRes,
+        statsRes,
+        allBirthdaysRes,
+      ] = await Promise.all([
+        axios.get(`${BASE_URL}/api/birthday/settings`, {
+          headers,
+        }),
+
+        axios.get(`${BASE_URL}/api/birthday/admin/today`, {
+          headers,
+        }),
+
+        axios.get(`${BASE_URL}/api/birthday/admin/stats`, {
+          headers,
+        }),
+
+        axios.get(`${BASE_URL}/api/birthday/admin/all`, {
+          headers,
+        }),
       ]);
 
       setSettings(settingsRes.data.settings);
@@ -63,148 +286,607 @@ export default function BirthdayManagement() {
     }
   };
 
-const fetchWhatsAppGroups = async () => {
-  setLoadingGroups(true);
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/birthday/whatsapp-groups`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    if (res.data.success) {
-      const groups = res.data.groups || [];
-      setWhatsAppGroups(groups);
-      // Get groups where isActive = true
-      const activeGroupIds = groups.filter(g => g.isActive).map(g => g.groupId);
-      setSelectedGroups(activeGroupIds);
+  /* =========================================================
+     FETCH USERS
+     ========================================================= */
+
+  const fetchAllUsers = async () => {
+    setLoadingAllUsers(true);
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await axios.get(
+        `${BASE_URL}/api/birthday/admin/users?limit=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const users = res.data.users || [];
+
+      setAllUsers(users);
+      setFilteredUsers(users);
+    } catch (err) {
+      console.error("Error fetching all users:", err);
+      setError("Failed to load users");
+    } finally {
+      setLoadingAllUsers(false);
     }
-  } catch (err) {
-    console.error("Error fetching WhatsApp groups:", err);
-  } finally {
-    setLoadingGroups(false);
-  }
-};
+  };
+
+  /* =========================================================
+     FETCH WHATSAPP GROUPS
+     ========================================================= */
+
+  const fetchWhatsAppGroups = async () => {
+    setLoadingGroups(true);
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await axios.get(
+        `${BASE_URL}/api/birthday/whatsapp-groups`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (res.data.success) {
+        const groups = res.data.groups || [];
+
+        setWhatsAppGroups(groups);
+
+        const activeGroupIds = groups
+          .filter((group) => group.isActive)
+          .map((group) => group.groupId);
+
+        setSelectedGroups(activeGroupIds);
+      }
+    } catch (err) {
+      console.error("Error fetching WhatsApp groups:", err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
     fetchWhatsAppGroups();
   }, []);
 
-  const handleProcessAll = async () => {
-    if (!window.confirm("Process all birthdays today?")) return;
+  /* =========================================================
+     FILTER USERS
+     ========================================================= */
+
+  useEffect(() => {
+    if (userSearch.trim() === "") {
+      setFilteredUsers(allUsers);
+      return;
+    }
+
+    const search = userSearch.toLowerCase().trim();
+
+    const filtered = allUsers.filter((user) => {
+      return (
+        user.fullName?.toLowerCase().includes(search) ||
+        user.email?.toLowerCase().includes(search) ||
+        user.membership_number
+          ?.toLowerCase()
+          .includes(search)
+      );
+    });
+
+    setFilteredUsers(filtered);
+  }, [userSearch, allUsers]);
+
+  /* =========================================================
+     OPEN ADD/EDIT MODAL
+     ========================================================= */
+
+  const handleOpenModal = async () => {
+    setShowAddModal(true);
+
+    setSelectedUser(null);
+    setUserSearch("");
+
+    setAddFormData({
+      birthDate: "",
+      birthdayOptIn: true,
+      birthdayMessage: "",
+    });
+
+    setAddPhotoFile(null);
+    setAddPhotoPreview(null);
+
+    await fetchAllUsers();
+  };
+
+  /* =========================================================
+     SELECT USER
+     ========================================================= */
+
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+
+    if (user.birthDate) {
+      const date = new Date(user.birthDate);
+
+      setAddFormData({
+        birthDate: date.toISOString().split("T")[0],
+        birthdayOptIn:
+          user.birthdayOptIn !== undefined
+            ? user.birthdayOptIn
+            : true,
+        birthdayMessage: user.birthdayMessage || "",
+      });
+
+      /* Show existing birthday photo */
+      setAddPhotoPreview(
+        getImageUrl(user.birthdayPhoto)
+      );
+    } else {
+      setAddFormData({
+        birthDate: "",
+        birthdayOptIn: true,
+        birthdayMessage: "",
+      });
+
+      setAddPhotoPreview(null);
+    }
+
+    setAddPhotoFile(null);
+    setFilteredUsers([]);
+    setUserSearch("");
+  };
+
+  /* =========================================================
+     SELECT / CHANGE PHOTO
+     ========================================================= */
+
+  const handleAddPhotoSelect = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    /* Reset file input so same file can be selected again */
+    e.target.value = "";
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Photo must be less than 10MB.");
+      return;
+    }
+
+    try {
+      setError("");
+      setSuccess("");
+
+      /*
+       * Process immediately.
+       *
+       * This creates:
+       * - 1920 x 1080
+       * - blurred background
+       * - sharp centered original
+       * - no stretching
+       */
+      const processedFile = await createBirthdayImage(file);
+
+      setAddPhotoFile(processedFile);
+
+      const previewUrl = URL.createObjectURL(processedFile);
+
+      setAddPhotoPreview(previewUrl);
+    } catch (err) {
+      console.error("Image processing error:", err);
+
+      setError(
+        "Failed to process the photo. Please try another image."
+      );
+    }
+  };
+
+  /* =========================================================
+     REMOVE PHOTO FROM CURRENT FORM
+     ========================================================= */
+
+  const handleRemovePhoto = () => {
+    setAddPhotoFile(null);
+    setAddPhotoPreview(null);
+  };
+
+  /* =========================================================
+     SAVE USER BIRTHDAY
+     ========================================================= */
+
+  const handleSaveUserBirthday = async () => {
+    if (!selectedUser) {
+      setError("Please select a user first");
+      return;
+    }
+
+    if (!addFormData.birthDate) {
+      setError("Please select a birth date");
+      return;
+    }
+
     setProcessing(true);
+    setError("");
+    setSuccess("");
+
     try {
       const token = localStorage.getItem("token");
+
+      let photoUrl = null;
+
+      /*
+       * If a new photo was selected, upload it.
+       *
+       * addPhotoFile is already processed into 16:9.
+       */
+      if (addPhotoFile) {
+        const uploadFormData = new FormData();
+
+        uploadFormData.append(
+          "photo",
+          addPhotoFile,
+          "birthday-16x9.jpg"
+        );
+
+        const uploadRes = await axios.post(
+          `${BASE_URL}/api/birthday/admin/upload-photo/${selectedUser.id}`,
+          uploadFormData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+
+        photoUrl = uploadRes.data.photoUrl;
+      } else {
+        /*
+         * If no new photo was selected:
+         *
+         * Keep existing photo unless the admin
+         * deliberately removed it.
+         */
+        photoUrl = addPhotoPreview || null;
+      }
+
+      /* =====================================================
+         SAVE BIRTHDAY SETTINGS
+         ===================================================== */
+
+      const data = {
+        birthdayOptIn: addFormData.birthdayOptIn,
+        birthDate: addFormData.birthDate,
+        birthdayMessage:
+          addFormData.birthdayMessage || "",
+        birthdayPhoto: photoUrl || null,
+      };
+
+      const res = await axios.post(
+        `${BASE_URL}/api/birthday/admin/user/${selectedUser.id}`,
+        data,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setSuccess(
+        `Birthday set for ${res.data.user.fullName}`
+      );
+
+      setTimeout(() => {
+        setShowAddModal(false);
+
+        setSelectedUser(null);
+
+        setAddFormData({
+          birthDate: "",
+          birthdayOptIn: true,
+          birthdayMessage: "",
+        });
+
+        setAddPhotoFile(null);
+        setAddPhotoPreview(null);
+
+        setAllUsers([]);
+        setFilteredUsers([]);
+
+        fetchData();
+
+        setSuccess("");
+      }, 1500);
+    } catch (err) {
+      console.error("Error saving birthday:", err);
+
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Failed to save birthday"
+      );
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /* =========================================================
+     PROCESS ALL
+     ========================================================= */
+
+  const handleProcessAll = async () => {
+    if (
+      !window.confirm(
+        "Process all birthdays today?"
+      )
+    ) {
+      return;
+    }
+
+    setProcessing(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
       const res = await axios.post(
         `${BASE_URL}/api/birthday/admin/process-all`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
+
       setSuccess(res.data.message);
+
       fetchData();
     } catch (err) {
+      console.error(err);
       setError("Failed to process birthdays");
     } finally {
       setProcessing(false);
     }
   };
 
+  /* =========================================================
+     PROCESS SINGLE
+     ========================================================= */
+
   const handleProcessSingle = async (userId) => {
-    if (!window.confirm("Process this user's birthday?")) return;
+    if (
+      !window.confirm(
+        "Process this user's birthday?"
+      )
+    ) {
+      return;
+    }
+
     setProcessing(true);
+    setError("");
+
     try {
       const token = localStorage.getItem("token");
+
       const res = await axios.post(
         `${BASE_URL}/api/birthday/admin/process/${userId}`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
+
       setSuccess(res.data.message);
+
       fetchData();
     } catch (err) {
+      console.error(err);
       setError("Failed to process user");
     } finally {
       setProcessing(false);
     }
   };
 
-  const handleDeleteAdvert = async (userId, advertId) => {
-    if (!window.confirm("Delete this birthday advertisement?")) return;
+  /* =========================================================
+     DELETE ADVERTISEMENT
+     ========================================================= */
+
+  const handleDeleteAdvert = async (
+    userId,
+    advertId
+  ) => {
+    if (
+      !window.confirm(
+        "Delete this birthday advertisement?"
+      )
+    ) {
+      return;
+    }
+
     setProcessing(true);
+    setError("");
+
     try {
       const token = localStorage.getItem("token");
-      
-      await axios.delete(`${BASE_URL}/api/advertisements/${advertId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      await axios.put(`${BASE_URL}/api/birthday/user-settings`, {
-        birthdayAdvertId: null
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setSuccess("Birthday advertisement deleted successfully!");
+
+      await axios.delete(
+        `${BASE_URL}/api/advertisements/${advertId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await axios.put(
+        `${BASE_URL}/api/birthday/user-settings`,
+        {
+          birthdayAdvertId: null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setSuccess(
+        "Birthday advertisement deleted successfully!"
+      );
+
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete ad");
+      console.error(err);
+
+      setError(
+        err.response?.data?.error ||
+          "Failed to delete ad"
+      );
     } finally {
       setProcessing(false);
     }
   };
 
-  const handleUpdateSettings = async (field, value) => {
+  /* =========================================================
+     UPDATE SETTINGS
+     ========================================================= */
+
+  const handleUpdateSettings = async (
+    field,
+    value
+  ) => {
     try {
       const token = localStorage.getItem("token");
-      const updated = { ...settings, [field]: value };
+
+      const updated = {
+        ...settings,
+        [field]: value,
+      };
+
       const res = await axios.put(
         `${BASE_URL}/api/birthday/settings`,
         updated,
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
+
       setSettings(res.data.settings);
+
       setSuccess("Settings updated");
-      setTimeout(() => setSuccess(""), 3000);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (err) {
+      console.error(err);
       setError("Failed to update settings");
     }
   };
 
+  /* =========================================================
+     WHATSAPP GROUPS
+     ========================================================= */
+
   const toggleGroup = (groupId) => {
-    setSelectedGroups(prev =>
+    setSelectedGroups((prev) =>
       prev.includes(groupId)
-        ? prev.filter(id => id !== groupId)
+        ? prev.filter((id) => id !== groupId)
         : [...prev, groupId]
     );
   };
 
   const handleSaveWhatsAppGroups = async () => {
-  setProcessing(true);
-  try {
-    const token = localStorage.getItem("token");
-    
-    // Send all selected group IDs to backend
-    await axios.post(`${BASE_URL}/api/birthday/whatsapp-groups/save`, {
-      selectedGroupIds: selectedGroups
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    setSuccess("WhatsApp groups updated successfully!");
-    await fetchWhatsAppGroups();
-    setTimeout(() => setSuccess(""), 3000);
-  } catch (err) {
-    setError("Failed to update WhatsApp groups");
-  } finally {
-    setProcessing(false);
-  }
-};
+    setProcessing(true);
+    setError("");
 
-  const filteredBirthdays = allBirthdays.filter(user =>
-    user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.membership_number?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    try {
+      const token = localStorage.getItem("token");
+
+      await axios.post(
+        `${BASE_URL}/api/birthday/whatsapp-groups/save`,
+        {
+          selectedGroupIds: selectedGroups,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setSuccess(
+        "WhatsApp groups updated successfully!"
+      );
+
+      await fetchWhatsAppGroups();
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update WhatsApp groups");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /* =========================================================
+     FILTER BIRTHDAYS
+     ========================================================= */
+
+  const filteredBirthdays =
+    allBirthdays.filter((user) =>
+      user.fullName
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      user.email
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      user.membership_number
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    );
+
+  /* =========================================================
+     FORMAT DATE
+     ========================================================= */
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "Not set";
+
+    const date = new Date(dateStr);
+
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  /* =========================================================
+     LOADING SCREEN
+     ========================================================= */
 
   if (loading) {
     return (
@@ -212,61 +894,64 @@ const fetchWhatsAppGroups = async () => {
         <div className="admin-header">
           <div className="admin-header-left">
             <h1>Birthday Management</h1>
-            <p>Manage birthday adverts and wishes for ZUCA members</p>
+            <p>
+              Manage birthday adverts and wishes for
+              ZUCA members
+            </p>
           </div>
-          <button className="admin-refresh-btn" onClick={fetchData}>
+
+          <button
+            className="admin-refresh-btn"
+            onClick={fetchData}
+          >
             <FiRefreshCw className="spinning" />
             Refresh
           </button>
         </div>
 
         <div className="skeleton-stats">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="skeleton-stat-card">
-              <div className="skeleton-icon"></div>
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="skeleton-stat-card"
+            >
+              <div className="skeleton-icon" />
+
               <div className="skeleton-content">
-                <div className="skeleton-value"></div>
-                <div className="skeleton-label"></div>
+                <div className="skeleton-value" />
+                <div className="skeleton-label" />
               </div>
             </div>
           ))}
         </div>
 
         <div className="skeleton-settings">
-          <div className="skeleton-title"></div>
+          <div className="skeleton-title" />
+
           <div className="skeleton-toggles">
-            <div className="skeleton-toggle"></div>
-            <div className="skeleton-toggle"></div>
-            <div className="skeleton-toggle"></div>
+            <div className="skeleton-toggle" />
+            <div className="skeleton-toggle" />
+            <div className="skeleton-toggle" />
           </div>
-        </div>
-
-        <div className="skeleton-whatsapp">
-          <div className="skeleton-title"></div>
-          <div className="skeleton-groups">
-            <div className="skeleton-group-item"></div>
-            <div className="skeleton-group-item"></div>
-            <div className="skeleton-group-item"></div>
-          </div>
-          <div className="skeleton-save-btn"></div>
-        </div>
-
-        <div className="skeleton-tabs">
-          <div className="skeleton-tab"></div>
-          <div className="skeleton-tab"></div>
         </div>
 
         <div className="skeleton-list">
-          <div className="skeleton-list-header"></div>
-          {[1, 2, 3].map(i => (
-            <div key={i} className="skeleton-item">
-              <div className="skeleton-avatar"></div>
+          <div className="skeleton-list-header" />
+
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="skeleton-item"
+            >
+              <div className="skeleton-avatar" />
+
               <div className="skeleton-user-info">
-                <div className="skeleton-name"></div>
-                <div className="skeleton-email"></div>
+                <div className="skeleton-name" />
+                <div className="skeleton-email" />
               </div>
-              <div className="skeleton-badge"></div>
-              <div className="skeleton-btn"></div>
+
+              <div className="skeleton-badge" />
+              <div className="skeleton-btn" />
             </div>
           ))}
         </div>
@@ -279,271 +964,202 @@ const fetchWhatsAppGroups = async () => {
           }
 
           .admin-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:24px;
+            flex-wrap:wrap;
+            gap:12px;
           }
 
           .admin-header-left h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0 0 4px 0;
+            font-size:24px;
+            font-weight:700;
+            color:#0f172a;
+            margin:0 0 4px;
           }
 
           .admin-header-left p {
-            font-size: 14px;
-            color: #64748b;
-            margin: 0;
+            font-size:14px;
+            color:#64748b;
+            margin:0;
           }
 
           .admin-refresh-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: #f1f5f9;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-            cursor: pointer;
-            transition: 0.2s ease;
-          }
-
-          .admin-refresh-btn:hover {
-            background: #e2e8f0;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            padding:10px 20px;
+            background:#f1f5f9;
+            border:1px solid #e2e8f0;
+            border-radius:10px;
+            font-size:14px;
+            font-weight:600;
+            color:#0f172a;
+            cursor:pointer;
           }
 
           .spinning {
-            animation: spin 1s linear infinite;
+            animation:spin 1s linear infinite;
           }
 
           @keyframes spin {
-            to { transform: rotate(360deg); }
+            to { transform:rotate(360deg); }
           }
 
           .skeleton-stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 24px;
+            display:grid;
+            grid-template-columns:repeat(4,1fr);
+            gap:16px;
+            margin-bottom:24px;
+          }
+
+          .skeleton-stat-card,
+          .skeleton-settings,
+          .skeleton-list {
+            background:#fff;
+            border:1px solid #e2e8f0;
+            border-radius:14px;
           }
 
           .skeleton-stat-card {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 18px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
+            display:flex;
+            align-items:center;
+            gap:14px;
+            padding:18px;
           }
 
           .skeleton-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: #e2e8f0;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:44px;
+            height:44px;
+            border-radius:12px;
+            background:#e2e8f0;
+            animation:pulse 1.5s infinite;
           }
 
           .skeleton-content {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+            display:flex;
+            flex-direction:column;
+            gap:6px;
           }
 
           .skeleton-value {
-            width: 60px;
-            height: 24px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:60px;
+            height:24px;
+            background:#e2e8f0;
+            border-radius:4px;
           }
 
           .skeleton-label {
-            width: 80px;
-            height: 12px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:80px;
+            height:12px;
+            background:#e2e8f0;
+            border-radius:4px;
           }
 
           .skeleton-settings {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 20px;
-            margin-bottom: 24px;
-          }
-
-          .skeleton-whatsapp {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 20px;
-            margin-bottom: 24px;
+            padding:20px;
+            margin-bottom:24px;
           }
 
           .skeleton-title {
-            width: 150px;
-            height: 20px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:150px;
+            height:20px;
+            background:#e2e8f0;
+            border-radius:4px;
+            margin-bottom:16px;
           }
 
           .skeleton-toggles {
-            display: flex;
-            gap: 24px;
-            flex-wrap: wrap;
+            display:flex;
+            gap:24px;
           }
 
           .skeleton-toggle {
-            width: 180px;
-            height: 22px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            animation: pulse 1.5s ease-in-out infinite;
-          }
-
-          .skeleton-groups {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin: 12px 0;
-          }
-
-          .skeleton-group-item {
-            height: 48px;
-            background: #e2e8f0;
-            border-radius: 10px;
-            animation: pulse 1.5s ease-in-out infinite;
-          }
-
-          .skeleton-save-btn {
-            height: 40px;
-            width: 100%;
-            background: #e2e8f0;
-            border-radius: 10px;
-            animation: pulse 1.5s ease-in-out infinite;
-            margin-top: 12px;
-          }
-
-          .skeleton-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-          }
-
-          .skeleton-tab {
-            width: 180px;
-            height: 40px;
-            background: #e2e8f0;
-            border-radius: 10px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:180px;
+            height:22px;
+            background:#e2e8f0;
+            border-radius:4px;
           }
 
           .skeleton-list {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 20px;
+            padding:20px;
           }
 
           .skeleton-list-header {
-            width: 200px;
-            height: 20px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:200px;
+            height:20px;
+            background:#e2e8f0;
+            border-radius:4px;
+            margin-bottom:16px;
           }
 
           .skeleton-item {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 14px;
-            background: #f8fafc;
-            border-radius: 12px;
-            margin-bottom: 12px;
+            display:flex;
+            align-items:center;
+            gap:16px;
+            padding:14px;
+            background:#f8fafc;
+            border-radius:12px;
+            margin-bottom:12px;
           }
 
           .skeleton-avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: #e2e8f0;
-            flex-shrink: 0;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:44px;
+            height:44px;
+            border-radius:50%;
+            background:#e2e8f0;
           }
 
           .skeleton-user-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+            flex:1;
           }
 
           .skeleton-name {
-            width: 150px;
-            height: 16px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:150px;
+            height:16px;
+            background:#e2e8f0;
+            margin-bottom:6px;
           }
 
           .skeleton-email {
-            width: 200px;
-            height: 12px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:200px;
+            height:12px;
+            background:#e2e8f0;
           }
 
           .skeleton-badge {
-            width: 80px;
-            height: 24px;
-            background: #e2e8f0;
-            border-radius: 20px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:80px;
+            height:24px;
+            background:#e2e8f0;
+            border-radius:20px;
           }
 
           .skeleton-btn {
-            width: 80px;
-            height: 32px;
-            background: #e2e8f0;
-            border-radius: 8px;
-            animation: pulse 1.5s ease-in-out infinite;
+            width:80px;
+            height:32px;
+            background:#e2e8f0;
+            border-radius:8px;
           }
 
           @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%,100% { opacity:1; }
+            50% { opacity:.5; }
           }
 
-          @media (max-width: 768px) {
+          @media(max-width:768px) {
             .skeleton-stats {
-              grid-template-columns: repeat(2, 1fr);
+              grid-template-columns:repeat(2,1fr);
             }
 
             .skeleton-toggles {
-              flex-direction: column;
-            }
-
-            .skeleton-tab {
-              width: 100%;
+              flex-direction:column;
             }
           }
 
-          @media (max-width: 480px) {
+          @media(max-width:480px) {
             .skeleton-stats {
-              grid-template-columns: 1fr;
+              grid-template-columns:1fr;
             }
           }
         `}</style>
@@ -551,24 +1167,56 @@ const fetchWhatsAppGroups = async () => {
     );
   }
 
+  /* =========================================================
+     MAIN PAGE
+     ========================================================= */
+
   return (
     <div className="birthday-admin-page">
+
+      {/* HEADER */}
       <div className="admin-header">
         <div className="admin-header-left">
           <h1>Birthday Management</h1>
-          <p>Manage birthday adverts and wishes for ZUCA members</p>
+
+          <p>
+            Manage birthday adverts and wishes for
+            ZUCA members
+          </p>
         </div>
-        <button className="admin-refresh-btn" onClick={fetchData}>
-          <FiRefreshCw className={loading ? "spinning" : ""} />
-          Refresh
-        </button>
+
+        <div className="header-actions">
+
+          <button
+            className="admin-refresh-btn add-birthday-btn"
+            onClick={handleOpenModal}
+          >
+            <FiPlus size={18} />
+            Add Birthday
+          </button>
+
+          <button
+            className="admin-refresh-btn"
+            onClick={fetchData}
+          >
+            <FiRefreshCw />
+            Refresh
+          </button>
+
+        </div>
       </div>
+
+      {/* ALERTS */}
 
       {success && (
         <div className="admin-success-alert">
           <FiCheck size={18} />
+
           <span>{success}</span>
-          <button onClick={() => setSuccess("")}>
+
+          <button
+            onClick={() => setSuccess("")}
+          >
             <FiX size={18} />
           </button>
         </div>
@@ -577,22 +1225,36 @@ const fetchWhatsAppGroups = async () => {
       {error && (
         <div className="admin-error-alert">
           <FiAlertCircle size={18} />
+
           <span>{error}</span>
-          <button onClick={() => setError("")}>
+
+          <button
+            onClick={() => setError("")}
+          >
             <FiX size={18} />
           </button>
         </div>
       )}
 
-      {/* Stats Cards */}
+      {/* =====================================================
+          STATS
+          ===================================================== */}
+
       <div className="stats-grid">
+
         <div className="stat-card">
           <div className="stat-icon blue">
             <FiUsers size={22} />
           </div>
+
           <div className="stat-content">
-            <span className="stat-value">{stats?.totalOptedIn || 0}</span>
-            <span className="stat-label">Opted In</span>
+            <span className="stat-value">
+              {stats?.totalOptedIn || 0}
+            </span>
+
+            <span className="stat-label">
+              Opted In
+            </span>
           </div>
         </div>
 
@@ -600,9 +1262,15 @@ const fetchWhatsAppGroups = async () => {
           <div className="stat-icon green">
             <FiCamera size={22} />
           </div>
+
           <div className="stat-content">
-            <span className="stat-value">{stats?.totalWithPhoto || 0}</span>
-            <span className="stat-label">With Photo</span>
+            <span className="stat-value">
+              {stats?.totalWithPhoto || 0}
+            </span>
+
+            <span className="stat-label">
+              With Photo
+            </span>
           </div>
         </div>
 
@@ -610,9 +1278,15 @@ const fetchWhatsAppGroups = async () => {
           <div className="stat-icon purple">
             <FiTrendingUp size={22} />
           </div>
+
           <div className="stat-content">
-            <span className="stat-value">{stats?.totalBirthdayAds || 0}</span>
-            <span className="stat-label">Total Adverts</span>
+            <span className="stat-value">
+              {stats?.totalBirthdayAds || 0}
+            </span>
+
+            <span className="stat-label">
+              Total Adverts
+            </span>
           </div>
         </div>
 
@@ -620,185 +1294,351 @@ const fetchWhatsAppGroups = async () => {
           <div className="stat-icon orange">
             <FiCalendar size={22} />
           </div>
+
           <div className="stat-content">
-            <span className="stat-value">{stats?.todayBirthdays || 0}</span>
-            <span className="stat-label">Today's Birthdays</span>
+            <span className="stat-value">
+              {stats?.todayBirthdays || 0}
+            </span>
+
+            <span className="stat-label">
+              Today's Birthdays
+            </span>
           </div>
         </div>
+
       </div>
 
-      {/* Settings Section */}
+      {/* =====================================================
+          SETTINGS
+          ===================================================== */}
+
       <div className="settings-section">
+
         <h3>
           <FiSettings size={18} />
           Settings
         </h3>
+
         <div className="settings-grid">
+
           <label className="toggle-label">
             <input
               type="checkbox"
-              checked={settings?.autoCreateAdvert}
-              onChange={(e) => handleUpdateSettings("autoCreateAdvert", e.target.checked)}
+              checked={
+                settings?.autoCreateAdvert || false
+              }
+              onChange={(e) =>
+                handleUpdateSettings(
+                  "autoCreateAdvert",
+                  e.target.checked
+                )
+              }
             />
-            <span className="toggle-slider"></span>
+
+            <span className="toggle-slider" />
+
             Auto-create adverts
           </label>
 
           <label className="toggle-label">
             <input
               type="checkbox"
-              checked={settings?.sendPushToAll}
-              onChange={(e) => handleUpdateSettings("sendPushToAll", e.target.checked)}
+              checked={
+                settings?.sendPushToAll || false
+              }
+              onChange={(e) =>
+                handleUpdateSettings(
+                  "sendPushToAll",
+                  e.target.checked
+                )
+              }
             />
-            <span className="toggle-slider"></span>
+
+            <span className="toggle-slider" />
+
             Send push notifications
           </label>
 
           <label className="toggle-label">
             <input
               type="checkbox"
-              checked={settings?.sendToWhatsApp}
-              onChange={(e) => handleUpdateSettings("sendToWhatsApp", e.target.checked)}
+              checked={
+                settings?.sendToWhatsApp || false
+              }
+              onChange={(e) =>
+                handleUpdateSettings(
+                  "sendToWhatsApp",
+                  e.target.checked
+                )
+              }
             />
-            <span className="toggle-slider"></span>
+
+            <span className="toggle-slider" />
+
             Send to WhatsApp groups
           </label>
+
         </div>
       </div>
 
-      {/* WhatsApp Groups Selection - LIKE CREATESHEETMODAL */}
+      {/* =====================================================
+          WHATSAPP GROUPS
+          ===================================================== */}
+
       <div className="settings-section">
+
         <h3>
-          <FaWhatsapp size={18} style={{ color: '#25D366' }} />
+          <FaWhatsapp
+            size={18}
+            style={{ color: "#25D366" }}
+          />
+
           WhatsApp Groups for Birthday Messages
         </h3>
-        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '16px' }}>
-          Select which WhatsApp groups should receive birthday messages
+
+        <p className="section-description">
+          Select which WhatsApp groups should receive
+          birthday messages
         </p>
 
         {loadingGroups ? (
-          <div className="loading-groups">Loading groups...</div>
+          <div className="loading-groups">
+            Loading groups...
+          </div>
         ) : whatsAppGroups.length === 0 ? (
           <div className="empty-groups">
+
             <FiAlertCircle size={20} />
+
             <div>
-              <div className="empty-groups-title">No WhatsApp groups found</div>
-              <div className="empty-groups-desc">Link the WhatsApp bot first in admin settings</div>
+              <div className="empty-groups-title">
+                No WhatsApp groups found
+              </div>
+
+              <div className="empty-groups-desc">
+                Link the WhatsApp bot first in admin
+                settings
+              </div>
             </div>
+
           </div>
         ) : (
           <div className="whatsapp-groups-grid">
-            {whatsAppGroups.map(group => (
-              <label key={group.groupId} className="group-checkbox">
+
+            {whatsAppGroups.map((group) => (
+              <label
+                key={group.groupId}
+                className="group-checkbox"
+              >
                 <input
                   type="checkbox"
-                  checked={selectedGroups.includes(group.groupId)}
-                  onChange={() => toggleGroup(group.groupId)}
+                  checked={selectedGroups.includes(
+                    group.groupId
+                  )}
+                  onChange={() =>
+                    toggleGroup(group.groupId)
+                  }
                 />
-                <span className="checkmark"></span>
-                <span className="group-name">{group.groupName || 'Unnamed Group'}</span>
-                <span className="group-participants">{group.participants || 0} members</span>
-                {selectedGroups.includes(group.groupId) && (
-                  <span className="group-selected-badge">Selected</span>
+
+                <span className="checkmark" />
+
+                <span className="group-name">
+                  {group.groupName ||
+                    "Unnamed Group"}
+                </span>
+
+                <span className="group-participants">
+                  {group.participants || 0} members
+                </span>
+
+                {selectedGroups.includes(
+                  group.groupId
+                ) && (
+                  <span className="group-selected-badge">
+                    Selected
+                  </span>
                 )}
               </label>
             ))}
+
           </div>
         )}
 
         <div className="helper-text">
-          {selectedGroups.length > 0 
-            ? `${selectedGroups.length} group(s) selected for birthday messages` 
-            : 'Select at least one group to send birthday messages'}
+          {selectedGroups.length > 0
+            ? `${selectedGroups.length} group(s) selected for birthday messages`
+            : "Select at least one group to send birthday messages"}
         </div>
 
         <button
           className="save-groups-btn"
           onClick={handleSaveWhatsAppGroups}
-          disabled={processing || loadingGroups}
+          disabled={
+            processing || loadingGroups
+          }
         >
-          {processing ? "Saving..." : "Save WhatsApp Groups"}
+          {processing
+            ? "Saving..."
+            : "Save WhatsApp Groups"}
         </button>
+
       </div>
 
-      {/* Tabs */}
+      {/* =====================================================
+          TABS
+          ===================================================== */}
+
       <div className="tabs-container">
+
         <button
-          className={`tab-btn ${activeTab === "today" ? "active" : ""}`}
+          className={`tab-btn ${
+            activeTab === "today"
+              ? "active"
+              : ""
+          }`}
           onClick={() => setActiveTab("today")}
         >
           <FiClock size={16} />
-          Today's Birthdays ({todayBirthdays.length})
+
+          Today's Birthdays (
+          {todayBirthdays.length}
+          )
         </button>
+
         <button
-          className={`tab-btn ${activeTab === "all" ? "active" : ""}`}
+          className={`tab-btn ${
+            activeTab === "all"
+              ? "active"
+              : ""
+          }`}
           onClick={() => setActiveTab("all")}
         >
           <FiUsers size={16} />
-          All Birthdays ({allBirthdays.length})
+
+          All Birthdays (
+          {allBirthdays.length}
+          )
         </button>
+
       </div>
 
-      {/* Today's Birthdays */}
+      {/* =====================================================
+          TODAY
+          ===================================================== */}
+
       {activeTab === "today" && (
         <div className="birthday-list-section">
+
           <div className="section-header">
+
             <h3>
               <FiCalendar size={18} />
               Today's Birthdays
             </h3>
+
             <button
               className="process-all-btn"
               onClick={handleProcessAll}
-              disabled={processing || todayBirthdays.length === 0}
+              disabled={
+                processing ||
+                todayBirthdays.length === 0
+              }
             >
               <FiSend size={16} />
-              {processing ? "Processing..." : "Process All"}
+
+              {processing
+                ? "Processing..."
+                : "Process All"}
             </button>
+
           </div>
 
           {todayBirthdays.length === 0 ? (
             <div className="empty-state">
               <FiCalendar size={48} />
+
               <p>No birthdays today</p>
-              <span>Check back tomorrow</span>
+
+              <span>
+                Check back tomorrow
+              </span>
             </div>
           ) : (
             <div className="birthday-list">
+
               {todayBirthdays.map((user) => (
-                <div key={user.id} className="birthday-item">
+                <div
+                  key={user.id}
+                  className="birthday-item"
+                >
+
                   <div className="birthday-user">
+
                     <div className="user-avatar">
+
                       {user.birthdayPhoto ? (
-                        <img src={user.birthdayPhoto} alt={user.fullName} />
+                        <img
+                          src={getImageUrl(
+                            user.birthdayPhoto
+                          )}
+                          alt={user.fullName}
+                        />
                       ) : (
-                        <span>{user.fullName?.charAt(0).toUpperCase()}</span>
+                        <span>
+                          {user.fullName
+                            ?.charAt(0)
+                            .toUpperCase()}
+                        </span>
                       )}
+
                     </div>
+
                     <div className="user-info">
-                      <span className="user-name">{user.fullName}</span>
-                      <span className="user-email">{user.email}</span>
-                      <span className="user-membership">{user.membership_number}</span>
+
+                      <span className="user-name">
+                        {user.fullName}
+                      </span>
+
+                      <span className="user-email">
+                        {user.email}
+                      </span>
+
+                      <span className="user-membership">
+                        {user.membership_number}
+                      </span>
+
                     </div>
+
                   </div>
+
                   <div className="birthday-status">
+
                     {user.birthdayAdvertId ? (
                       <span className="badge completed">
-                        <FiCheck size={14} /> Processed
+                        <FiCheck size={14} />
+                        Processed
                       </span>
                     ) : (
                       <span className="badge pending">
-                        <FiClock size={14} /> Pending
+                        <FiClock size={14} />
+                        Pending
                       </span>
                     )}
+
                   </div>
+
                   <div className="birthday-actions">
+
                     {user.birthdayAdvertId ? (
                       <button
                         className="delete-ad-btn"
-                        onClick={() => handleDeleteAdvert(user.id, user.birthdayAdvertId)}
+                        onClick={() =>
+                          handleDeleteAdvert(
+                            user.id,
+                            user.birthdayAdvertId
+                          )
+                        }
                         disabled={processing}
-                        title="Delete birthday ad"
                       >
                         <FiTrash2 size={14} />
                         Delete Ad
@@ -806,92 +1646,172 @@ const fetchWhatsAppGroups = async () => {
                     ) : (
                       <button
                         className="process-btn"
-                        onClick={() => handleProcessSingle(user.id)}
+                        onClick={() =>
+                          handleProcessSingle(
+                            user.id
+                          )
+                        }
                         disabled={processing}
                       >
                         <FiSend size={14} />
                         Process
                       </button>
                     )}
+
                   </div>
+
                 </div>
               ))}
+
             </div>
           )}
+
         </div>
       )}
 
-      {/* All Birthdays */}
+      {/* =====================================================
+          ALL BIRTHDAYS
+          ===================================================== */}
+
       {activeTab === "all" && (
         <div className="birthday-list-section">
+
           <div className="section-header">
+
             <h3>
               <FiUsers size={18} />
               All Users (Opted In)
             </h3>
+
             <div className="search-wrapper">
-              <FiSearch size={16} className="search-icon" />
+
+              <FiSearch
+                size={16}
+                className="search-icon"
+              />
+
               <input
                 type="text"
                 placeholder="Search by name, email, or membership..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) =>
+                  setSearchTerm(e.target.value)
+                }
                 className="search-input"
               />
+
             </div>
+
           </div>
 
           {allBirthdays.length === 0 ? (
             <div className="empty-state">
               <FiUser size={48} />
-              <p>No users have opted in yet</p>
-              <span>Users can opt in from their profile settings</span>
+
+              <p>
+                No users have opted in yet
+              </p>
+
+              <span>
+                Users can opt in from their
+                profile settings
+              </span>
             </div>
           ) : filteredBirthdays.length === 0 ? (
             <div className="empty-state">
+
               <FiSearch size={48} />
+
               <p>No results found</p>
-              <span>Try a different search term</span>
+
+              <span>
+                Try a different search term
+              </span>
+
             </div>
           ) : (
             <div className="birthday-list">
+
               {filteredBirthdays.map((user) => (
-                <div key={user.id} className="birthday-item">
+                <div
+                  key={user.id}
+                  className="birthday-item"
+                >
+
                   <div className="birthday-user">
+
                     <div className="user-avatar">
+
                       {user.birthdayPhoto ? (
-                        <img src={user.birthdayPhoto} alt={user.fullName} />
+                        <img
+                          src={getImageUrl(
+                            user.birthdayPhoto
+                          )}
+                          alt={user.fullName}
+                        />
                       ) : (
-                        <span>{user.fullName?.charAt(0).toUpperCase()}</span>
+                        <span>
+                          {user.fullName
+                            ?.charAt(0)
+                            .toUpperCase()}
+                        </span>
                       )}
+
                     </div>
+
                     <div className="user-info">
-                      <span className="user-name">{user.fullName}</span>
-                      <span className="user-email">{user.email}</span>
-                      <span className="user-membership">{user.membership_number}</span>
-                      <span className="user-birthday">
-                        🎂 {user.birthMonth}/{user.birthDay}
+
+                      <span className="user-name">
+                        {user.fullName}
                       </span>
+
+                      <span className="user-email">
+                        {user.email}
+                      </span>
+
+                      <span className="user-membership">
+                        {user.membership_number}
+                      </span>
+
+                      <span className="user-birthday">
+                        🎂{" "}
+                        {formatDate(
+                          user.birthDate
+                        )}
+                      </span>
+
                     </div>
+
                   </div>
+
                   <div className="birthday-status">
+
                     {user.birthdayAdvertId ? (
                       <span className="badge completed">
-                        <FiCheck size={14} /> Advert Created
+                        <FiCheck size={14} />
+                        Advert Created
                       </span>
                     ) : (
                       <span className="badge pending">
-                        <FiClock size={14} /> Not Processed
+                        <FiClock size={14} />
+                        Not Processed
                       </span>
                     )}
+
                   </div>
+
                   <div className="birthday-actions">
+
                     {user.birthdayAdvertId ? (
                       <button
                         className="delete-ad-btn"
-                        onClick={() => handleDeleteAdvert(user.id, user.birthdayAdvertId)}
+                        onClick={() =>
+                          handleDeleteAdvert(
+                            user.id,
+                            user.birthdayAdvertId
+                          )
+                        }
                         disabled={processing}
-                        title="Delete birthday ad"
                       >
                         <FiTrash2 size={14} />
                         Delete Ad
@@ -899,714 +1819,1697 @@ const fetchWhatsAppGroups = async () => {
                     ) : (
                       <button
                         className="process-btn"
-                        onClick={() => handleProcessSingle(user.id)}
+                        onClick={() =>
+                          handleProcessSingle(
+                            user.id
+                          )
+                        }
                         disabled={processing}
                       >
                         <FiSend size={14} />
                         Process
                       </button>
                     )}
+
                   </div>
+
                 </div>
               ))}
+
             </div>
           )}
+
         </div>
       )}
 
+      {/* =====================================================
+          ADD / EDIT BIRTHDAY MODAL
+          ===================================================== */}
+
+      {showAddModal && (
+        <div
+          className="modal-overlay"
+          onClick={() =>
+            !processing &&
+            setShowAddModal(false)
+          }
+        >
+
+          <div
+            className="modal-content"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="modal-header">
+
+              <h2>
+                <FiUserPlus size={20} />
+                Add/Edit Birthday
+              </h2>
+
+              <button
+                className="modal-close"
+                onClick={() =>
+                  !processing &&
+                  setShowAddModal(false)
+                }
+              >
+                <FiX size={24} />
+              </button>
+
+            </div>
+
+            <div className="modal-body">
+
+              {/* =================================================
+                  USER SEARCH
+                  ================================================= */}
+
+              {!selectedUser ? (
+                <div className="search-user-section">
+
+                  <label className="form-label">
+                    Search for a user
+                  </label>
+
+                  <div className="search-input-wrapper">
+
+                    <FiSearch className="search-input-icon" />
+
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or membership number..."
+                      value={userSearch}
+                      onChange={(e) =>
+                        setUserSearch(
+                          e.target.value
+                        )
+                      }
+                      className="search-user-input"
+                    />
+
+                  </div>
+
+                  {loadingAllUsers ? (
+                    <div className="loading-users-indicator">
+
+                      <div className="loading-spinner" />
+
+                      Loading users...
+
+                    </div>
+                  ) : (
+                    <div className="user-list-container">
+
+                      {filteredUsers.length === 0 ? (
+                        <div className="no-results">
+
+                          <FiUser size={24} />
+
+                          <p>
+                            No users found
+                          </p>
+
+                          <span>
+                            Try a different
+                            search term
+                          </span>
+
+                        </div>
+                      ) : (
+                        <div className="user-list-scroll">
+
+                          {filteredUsers.map(
+                            (user) => (
+                              <div
+                                key={user.id}
+                                className="search-result-item"
+                                onClick={() =>
+                                  handleSelectUser(
+                                    user
+                                  )
+                                }
+                              >
+
+                                <div className="result-avatar">
+
+                                  {user.profileImage ? (
+                                    <img
+                                      src={getImageUrl(
+                                        user.profileImage
+                                      )}
+                                      alt={
+                                        user.fullName
+                                      }
+                                    />
+                                  ) : (
+                                    <span>
+                                      {user.fullName
+                                        ?.charAt(
+                                          0
+                                        )
+                                        .toUpperCase()}
+                                    </span>
+                                  )}
+
+                                </div>
+
+                                <div className="result-info">
+
+                                  <div className="result-name">
+                                    {user.fullName}
+                                  </div>
+
+                                  <div className="result-email">
+                                    {user.email}
+                                  </div>
+
+                                  <div className="result-member">
+                                    {
+                                      user.membership_number
+                                    }
+                                  </div>
+
+                                </div>
+
+                                {user.birthDate ? (
+                                  <span className="result-birthday">
+                                    🎂{" "}
+                                    {formatDate(
+                                      user.birthDate
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="result-no-birthday">
+                                    No birthday
+                                    set
+                                  </span>
+                                )}
+
+                              </div>
+                            )
+                          )}
+
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+
+                </div>
+              ) : (
+                /* =================================================
+                   SELECTED USER
+                   ================================================= */
+
+                <div>
+
+                  <div className="selected-user-bar">
+
+                    <button
+                      className="back-to-search"
+                      onClick={() =>
+                        setSelectedUser(null)
+                      }
+                      disabled={processing}
+                    >
+                      <FiArrowLeft size={16} />
+                      Change User
+                    </button>
+
+                    <div className="selected-user-info">
+
+                      <div className="selected-user-avatar">
+
+                        {selectedUser.profileImage ? (
+                          <img
+                            src={getImageUrl(
+                              selectedUser.profileImage
+                            )}
+                            alt={
+                              selectedUser.fullName
+                            }
+                          />
+                        ) : (
+                          <span>
+                            {selectedUser.fullName
+                              ?.charAt(0)
+                              .toUpperCase()}
+                          </span>
+                        )}
+
+                      </div>
+
+                      <div>
+
+                        <div className="selected-user-name">
+                          {selectedUser.fullName}
+                        </div>
+
+                        <div className="selected-user-email">
+                          {selectedUser.email}
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                  {/* =================================================
+                      OPT IN
+                      ================================================= */}
+
+                  <div className="form-group">
+
+                    <label className="form-label">
+
+                      <input
+                        type="checkbox"
+                        checked={
+                          addFormData.birthdayOptIn
+                        }
+                        onChange={(e) =>
+                          setAddFormData({
+                            ...addFormData,
+                            birthdayOptIn:
+                              e.target.checked,
+                          })
+                        }
+                        className="form-checkbox"
+                      />
+
+                      Opt in for birthday
+                      wishes
+
+                    </label>
+
+                  </div>
+
+                  {/* =================================================
+                      DATE
+                      ================================================= */}
+
+                  <div className="form-group">
+
+                    <label className="form-label">
+                      Birthday Date *
+                    </label>
+
+                    <div className="input-wrapper">
+
+                      <FiCalendar className="input-icon" />
+
+                      <input
+                        type="date"
+                        value={
+                          addFormData.birthDate
+                        }
+                        onChange={(e) =>
+                          setAddFormData({
+                            ...addFormData,
+                            birthDate:
+                              e.target.value,
+                          })
+                        }
+                        className="date-input"
+                      />
+
+                    </div>
+
+                  </div>
+
+                  {/* =================================================
+                      BIRTHDAY PHOTO
+                      ================================================= */}
+
+                  <div className="form-group">
+
+                    <label className="form-label">
+                      <FiImage size={16} />
+                      Birthday Photo
+                    </label>
+
+                    <div className="photo-section">
+
+                      {addPhotoPreview ? (
+                        <div className="photo-preview-container">
+
+                          {/* 
+                            The processed photo is already 16:9.
+                            We therefore display it without
+                            distortion.
+                          */}
+
+                          <img
+                            src={addPhotoPreview}
+                            alt="Birthday"
+                            className="photo-preview-img"
+                          />
+
+                          <div className="photo-overlay">
+
+                            <span>
+                              16:9 Birthday
+                              Image
+                            </span>
+
+                          </div>
+
+                          <div className="photo-actions">
+
+                            {/* CHANGE */}
+                            <label className="photo-change-btn">
+
+                              <FiUpload size={14} />
+
+                              Change Photo
+
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={
+                                  handleAddPhotoSelect
+                                }
+                                className="hidden-input"
+                                disabled={
+                                  processing
+                                }
+                              />
+
+                            </label>
+
+                            {/* REMOVE */}
+                            <button
+                              type="button"
+                              className="photo-remove-btn"
+                              onClick={
+                                handleRemovePhoto
+                              }
+                              disabled={
+                                processing
+                              }
+                            >
+                              <FiTrash2 size={14} />
+                              Remove
+                            </button>
+
+                          </div>
+
+                        </div>
+                      ) : (
+                        <label className="upload-placeholder">
+
+                          <FiCamera size={36} />
+
+                          <strong>
+                            Upload Birthday
+                            Photo
+                          </strong>
+
+                          <span>
+                            Portrait or landscape
+                            images supported
+                          </span>
+
+                          <span className="upload-note">
+                            Automatically converted
+                            to 16:9
+                          </span>
+
+                          <span>
+                            PNG, JPG, WEBP —
+                            Max 10MB
+                          </span>
+
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={
+                              handleAddPhotoSelect
+                            }
+                            className="hidden-input"
+                            disabled={
+                              processing
+                            }
+                          />
+
+                        </label>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  {/* =================================================
+                      MESSAGE
+                      ================================================= */}
+
+                  <div className="form-group">
+
+                    <label className="form-label">
+                      Personal Message
+                      (Optional)
+                    </label>
+
+                    <textarea
+                      value={
+                        addFormData.birthdayMessage
+                      }
+                      onChange={(e) =>
+                        setAddFormData({
+                          ...addFormData,
+                          birthdayMessage:
+                            e.target.value,
+                        })
+                      }
+                      placeholder="Write a personal birthday message..."
+                      rows="3"
+                      className="textarea"
+                    />
+
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+
+            {/* =================================================
+                FOOTER
+                ================================================= */}
+
+            <div className="modal-footer">
+
+              <button
+                className="cancel-btn"
+                onClick={() =>
+                  !processing &&
+                  setShowAddModal(false)
+                }
+                disabled={processing}
+              >
+                Cancel
+              </button>
+
+              {selectedUser && (
+                <button
+                  className="save-btn"
+                  onClick={
+                    handleSaveUserBirthday
+                  }
+                  disabled={processing}
+                >
+                  {processing
+                    ? "Uploading & Saving..."
+                    : "Save Birthday"}
+
+                  {!processing && (
+                    <FiSave size={16} />
+                  )}
+                </button>
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* =========================================================
+          STYLES
+          ========================================================= */}
+
       <style>{`
+
         .birthday-admin-page {
-          padding: 24px;
-          max-width: 1200px;
-          margin: 0 auto;
+          padding:24px;
+          max-width:1200px;
+          margin:0 auto;
         }
 
         .admin-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:24px;
+          flex-wrap:wrap;
+          gap:12px;
         }
 
         .admin-header-left h1 {
-          font-size: 24px;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0 0 4px 0;
+          font-size:24px;
+          font-weight:700;
+          color:#0f172a;
+          margin:0 0 4px;
         }
 
         .admin-header-left p {
-          font-size: 14px;
-          color: #64748b;
-          margin: 0;
+          font-size:14px;
+          color:#64748b;
+          margin:0;
+        }
+
+        .header-actions {
+          display:flex;
+          gap:10px;
+          flex-wrap:wrap;
         }
 
         .admin-refresh-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: #f1f5f9;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #0f172a;
-          cursor: pointer;
-          transition: 0.2s ease;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:8px;
+          padding:10px 20px;
+          background:#f1f5f9;
+          border:1px solid #e2e8f0;
+          border-radius:10px;
+          font-size:14px;
+          font-weight:600;
+          color:#0f172a;
+          cursor:pointer;
+          transition:.2s;
         }
 
         .admin-refresh-btn:hover {
-          background: #e2e8f0;
+          background:#e2e8f0;
+        }
+
+        .add-birthday-btn {
+          background:#2563eb;
+          color:#fff;
+          border-color:#2563eb;
+        }
+
+        .add-birthday-btn:hover {
+          background:#1d4ed8;
+        }
+
+        .spinning {
+          animation:spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform:rotate(360deg);
+          }
         }
 
         .admin-success-alert,
         .admin-error-alert {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          border-radius: 10px;
-          margin-bottom: 20px;
+          display:flex;
+          align-items:center;
+          gap:12px;
+          padding:12px 16px;
+          border-radius:10px;
+          margin-bottom:20px;
         }
 
         .admin-success-alert {
-          background: #ecfdf5;
-          color: #047857;
-          border: 1px solid #a7f3d0;
+          background:#ecfdf5;
+          color:#047857;
+          border:1px solid #a7f3d0;
         }
 
         .admin-error-alert {
-          background: #fef2f2;
-          color: #b91c1c;
-          border: 1px solid #fecaca;
+          background:#fef2f2;
+          color:#b91c1c;
+          border:1px solid #fecaca;
         }
 
         .admin-success-alert button,
         .admin-error-alert button {
-          margin-left: auto;
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: inherit;
+          margin-left:auto;
+          background:none;
+          border:none;
+          cursor:pointer;
+          color:inherit;
         }
 
         .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          margin-bottom: 24px;
+          display:grid;
+          grid-template-columns:repeat(4,1fr);
+          gap:16px;
+          margin-bottom:24px;
         }
 
         .stat-card {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 18px;
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
+          display:flex;
+          align-items:center;
+          gap:14px;
+          padding:18px;
+          background:#fff;
+          border:1px solid #e2e8f0;
+          border-radius:14px;
         }
 
         .stat-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          width:44px;
+          height:44px;
+          border-radius:12px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
         }
 
-        .stat-icon.blue { background: #dbeafe; color: #2563eb; }
-        .stat-icon.green { background: #dcfce7; color: #16a34a; }
-        .stat-icon.purple { background: #f3e8ff; color: #9333ea; }
-        .stat-icon.orange { background: #fef3c7; color: #d97706; }
+        .stat-icon.blue {
+          background:#dbeafe;
+          color:#2563eb;
+        }
+
+        .stat-icon.green {
+          background:#dcfce7;
+          color:#16a34a;
+        }
+
+        .stat-icon.purple {
+          background:#f3e8ff;
+          color:#9333ea;
+        }
+
+        .stat-icon.orange {
+          background:#fef3c7;
+          color:#d97706;
+        }
 
         .stat-content {
-          display: flex;
-          flex-direction: column;
+          display:flex;
+          flex-direction:column;
         }
 
         .stat-value {
-          font-size: 24px;
-          font-weight: 800;
-          color: #0f172a;
+          font-size:24px;
+          font-weight:800;
+          color:#0f172a;
         }
 
         .stat-label {
-          font-size: 12px;
-          color: #64748b;
+          font-size:12px;
+          color:#64748b;
         }
 
         .settings-section {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          padding: 20px;
-          margin-bottom: 24px;
+          background:#fff;
+          border:1px solid #e2e8f0;
+          border-radius:14px;
+          padding:20px;
+          margin-bottom:24px;
         }
 
         .settings-section h3 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 16px;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0 0 16px 0;
+          display:flex;
+          align-items:center;
+          gap:8px;
+          font-size:16px;
+          font-weight:700;
+          color:#0f172a;
+          margin:0 0 16px;
+        }
+
+        .section-description {
+          color:#64748b;
+          font-size:14px;
+          margin:0 0 16px;
         }
 
         .settings-grid {
-          display: flex;
-          gap: 24px;
-          flex-wrap: wrap;
+          display:flex;
+          gap:24px;
+          flex-wrap:wrap;
         }
 
         .toggle-label {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          color: #0f172a;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          cursor:pointer;
+          font-size:14px;
+          font-weight:500;
+          color:#0f172a;
         }
 
         .toggle-label input {
-          display: none;
+          display:none;
         }
 
-        .toggle-label .toggle-slider {
-          position: relative;
-          width: 40px;
-          height: 22px;
-          flex-shrink: 0;
-          border-radius: 999px;
-          background: #cbd5e1;
-          transition: 0.2s ease;
+        .toggle-slider {
+          position:relative;
+          width:40px;
+          height:22px;
+          border-radius:999px;
+          background:#cbd5e1;
+          transition:.2s;
         }
 
-        .toggle-label .toggle-slider::after {
-          content: "";
-          position: absolute;
-          top: 3px;
-          left: 3px;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #ffffff;
-          transition: 0.2s ease;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        .toggle-slider::after {
+          content:"";
+          position:absolute;
+          top:3px;
+          left:3px;
+          width:16px;
+          height:16px;
+          border-radius:50%;
+          background:#fff;
+          transition:.2s;
+          box-shadow:0 1px 3px rgba(0,0,0,.15);
         }
 
         .toggle-label input:checked + .toggle-slider {
-          background: #2563eb;
+          background:#2563eb;
         }
 
         .toggle-label input:checked + .toggle-slider::after {
-          transform: translateX(18px);
+          transform:translateX(18px);
         }
 
         .whatsapp-groups-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          max-height: 250px;
-          overflow-y: auto;
-          padding: 4px 2px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          padding: 8px;
-          margin: 8px 0;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:8px;
+          max-height:250px;
+          overflow-y:auto;
+          border:1px solid #e2e8f0;
+          border-radius:8px;
+          padding:8px;
+          margin:8px 0;
         }
 
         .group-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          cursor: pointer;
-          padding: 8px 12px;
-          border-radius: 8px;
-          transition: background 0.2s;
-          font-size: 13px;
-          border: 1px solid transparent;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          cursor:pointer;
+          padding:8px 12px;
+          border-radius:8px;
+          font-size:13px;
+          border:1px solid transparent;
         }
 
         .group-checkbox:hover {
-          background: #f5f5f5;
-          border-color: #e0e0e0;
+          background:#f5f5f5;
+          border-color:#e0e0e0;
         }
 
         .group-checkbox input {
-          display: none;
+          display:none;
         }
 
-        .group-checkbox .checkmark {
-          width: 18px;
-          height: 18px;
-          border: 2px solid #d0d0d0;
-          border-radius: 4px;
-          flex-shrink: 0;
-          transition: 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+        .checkmark {
+          width:18px;
+          height:18px;
+          border:2px solid #d0d0d0;
+          border-radius:4px;
+          flex-shrink:0;
+          display:flex;
+          align-items:center;
+          justify-content:center;
         }
 
         .group-checkbox input:checked + .checkmark {
-          background: #2563eb;
-          border-color: #2563eb;
+          background:#2563eb;
+          border-color:#2563eb;
         }
 
-        .group-checkbox input:checked + .checkmark:after {
-          content: '✓';
-          color: white;
-          font-size: 12px;
+        .group-checkbox input:checked + .checkmark::after {
+          content:"✓";
+          color:#fff;
+          font-size:12px;
         }
 
-        .group-checkbox .group-name {
-          font-weight: 500;
-          flex: 1;
+        .group-name {
+          font-weight:500;
+          flex:1;
         }
 
-        .group-checkbox .group-participants {
-          font-size: 11px;
-          color: #666;
+        .group-participants {
+          font-size:11px;
+          color:#666;
         }
 
         .group-selected-badge {
-          font-size: 10px;
-          color: #2563eb;
-          background: #dbeafe;
-          padding: 2px 10px;
-          border-radius: 12px;
-          font-weight: 600;
+          font-size:10px;
+          color:#2563eb;
+          background:#dbeafe;
+          padding:2px 10px;
+          border-radius:12px;
+          font-weight:600;
         }
 
         .empty-groups {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          background: #fef9e7;
-          border: 1px solid #fdebd0;
-          border-radius: 8px;
+          display:flex;
+          align-items:center;
+          gap:12px;
+          padding:16px;
+          background:#fef9e7;
+          border:1px solid #fdebd0;
+          border-radius:8px;
         }
 
         .empty-groups-title {
-          font-weight: 500;
-          color: #1a1a1a;
-          font-size: 14px;
+          font-weight:500;
+          color:#1a1a1a;
+          font-size:14px;
         }
 
         .empty-groups-desc {
-          font-size: 12px;
-          color: #666;
+          font-size:12px;
+          color:#666;
         }
 
         .loading-groups {
-          padding: 16px;
-          text-align: center;
-          color: #64748b;
-          font-size: 14px;
-          background: #f8fafc;
-          border-radius: 8px;
+          padding:16px;
+          text-align:center;
+          color:#64748b;
+          background:#f8fafc;
+          border-radius:8px;
         }
 
         .helper-text {
-          font-size: 12px;
-          color: #64748b;
-          margin: 8px 0 12px 0;
+          font-size:12px;
+          color:#64748b;
+          margin:8px 0 12px;
         }
 
         .save-groups-btn {
-          width: 100%;
-          padding: 10px;
-          background: #25D366;
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s ease;
-          margin-top: 4px;
-        }
-
-        .save-groups-btn:hover:not(:disabled) {
-          background: #20b859;
+          width:100%;
+          padding:10px;
+          background:#25D366;
+          color:#fff;
+          border:none;
+          border-radius:10px;
+          font-size:14px;
+          font-weight:600;
+          cursor:pointer;
         }
 
         .save-groups-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+          opacity:.5;
+          cursor:not-allowed;
         }
 
         .tabs-container {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 20px;
+          display:flex;
+          gap:8px;
+          margin-bottom:20px;
+          flex-wrap:wrap;
         }
 
         .tab-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: #f1f5f9;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #64748b;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .tab-btn:hover {
-          background: #e2e8f0;
+          display:flex;
+          align-items:center;
+          gap:8px;
+          padding:10px 20px;
+          background:#f1f5f9;
+          border:1px solid #e2e8f0;
+          border-radius:10px;
+          font-size:14px;
+          font-weight:600;
+          color:#64748b;
+          cursor:pointer;
         }
 
         .tab-btn.active {
-          background: #2563eb;
-          color: white;
-          border-color: #2563eb;
+          background:#2563eb;
+          color:#fff;
+          border-color:#2563eb;
         }
 
         .birthday-list-section {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          padding: 20px;
+          background:#fff;
+          border:1px solid #e2e8f0;
+          border-radius:14px;
+          padding:20px;
         }
 
         .section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
-          gap: 12px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:16px;
+          flex-wrap:wrap;
+          gap:12px;
         }
 
         .section-header h3 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 16px;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0;
+          display:flex;
+          align-items:center;
+          gap:8px;
+          font-size:16px;
+          color:#0f172a;
+          margin:0;
         }
 
         .search-wrapper {
-          position: relative;
-          display: flex;
-          align-items: center;
+          position:relative;
+          display:flex;
+          align-items:center;
         }
 
         .search-icon {
-          position: absolute;
-          left: 12px;
-          color: #94a3b8;
+          position:absolute;
+          left:12px;
+          color:#94a3b8;
         }
 
         .search-input {
-          padding: 8px 12px 8px 36px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 13px;
-          width: 280px;
-          outline: none;
-          transition: 0.2s ease;
+          padding:8px 12px 8px 36px;
+          border:1px solid #e2e8f0;
+          border-radius:8px;
+          font-size:13px;
+          width:280px;
+          outline:none;
         }
 
         .search-input:focus {
-          border-color: #2563eb;
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+          border-color:#2563eb;
+        }
+
+        .process-all-btn,
+        .process-btn {
+          display:flex;
+          align-items:center;
+          gap:8px;
+          background:#2563eb;
+          color:#fff;
+          border:none;
+          border-radius:8px;
+          font-weight:600;
+          cursor:pointer;
         }
 
         .process-all-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .process-all-btn:hover:not(:disabled) {
-          background: #1d4ed8;
-        }
-
-        .process-all-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 40px;
-          color: #94a3b8;
-        }
-
-        .empty-state svg {
-          color: #cbd5e1;
-          margin-bottom: 12px;
-        }
-
-        .empty-state p {
-          font-size: 16px;
-          font-weight: 600;
-          color: #64748b;
-          margin: 0;
-        }
-
-        .empty-state span {
-          font-size: 14px;
-          color: #94a3b8;
-        }
-
-        .birthday-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .birthday-item {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          padding: 14px;
-          background: #f8fafc;
-          border-radius: 12px;
-          border: 1px solid #f1f5f9;
-          flex-wrap: wrap;
-        }
-
-        .birthday-user {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
-          min-width: 200px;
-        }
-
-        .user-avatar {
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          overflow: hidden;
-          background: #e2e8f0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .user-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .user-avatar span {
-          font-size: 18px;
-          font-weight: 700;
-          color: #64748b;
-        }
-
-        .user-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .user-name {
-          font-weight: 600;
-          color: #0f172a;
-        }
-
-        .user-email {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        .user-membership {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        .user-birthday {
-          font-size: 12px;
-          color: #2563eb;
-          font-weight: 600;
-        }
-
-        .birthday-status {
-          flex-shrink: 0;
-        }
-
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 10px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .badge.completed {
-          background: #dcfce7;
-          color: #16a34a;
-        }
-
-        .badge.pending {
-          background: #fef3c7;
-          color: #d97706;
-        }
-
-        .birthday-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-shrink: 0;
+          padding:8px 16px;
+          font-size:13px;
         }
 
         .process-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 14px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s ease;
+          padding:6px 14px;
+          font-size:12px;
         }
 
-        .process-btn:hover:not(:disabled) {
-          background: #1d4ed8;
-        }
-
+        .process-all-btn:disabled,
         .process-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+          opacity:.5;
+          cursor:not-allowed;
+        }
+
+        .empty-state {
+          text-align:center;
+          padding:40px;
+          color:#94a3b8;
+        }
+
+        .empty-state p {
+          font-size:16px;
+          font-weight:600;
+          color:#64748b;
+          margin:0;
+        }
+
+        .empty-state span {
+          font-size:14px;
+        }
+
+        .birthday-list {
+          display:flex;
+          flex-direction:column;
+          gap:12px;
+        }
+
+        .birthday-item {
+          display:flex;
+          align-items:center;
+          gap:16px;
+          padding:14px;
+          background:#f8fafc;
+          border-radius:12px;
+          border:1px solid #f1f5f9;
+          flex-wrap:wrap;
+        }
+
+        .birthday-user {
+          display:flex;
+          align-items:center;
+          gap:12px;
+          flex:1;
+          min-width:200px;
+        }
+
+        .user-avatar {
+          width:44px;
+          height:44px;
+          border-radius:50%;
+          overflow:hidden;
+          background:#e2e8f0;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          flex-shrink:0;
+        }
+
+        .user-avatar img {
+          width:100%;
+          height:100%;
+          object-fit:cover;
+        }
+
+        .user-avatar span {
+          font-size:18px;
+          font-weight:700;
+          color:#64748b;
+        }
+
+        .user-info {
+          display:flex;
+          flex-direction:column;
+        }
+
+        .user-name {
+          font-weight:600;
+          color:#0f172a;
+        }
+
+        .user-email {
+          font-size:12px;
+          color:#64748b;
+        }
+
+        .user-membership {
+          font-size:11px;
+          color:#94a3b8;
+        }
+
+        .user-birthday {
+          font-size:12px;
+          color:#2563eb;
+          font-weight:600;
+        }
+
+        .badge {
+          display:inline-flex;
+          align-items:center;
+          gap:4px;
+          padding:4px 10px;
+          border-radius:20px;
+          font-size:12px;
+          font-weight:600;
+        }
+
+        .badge.completed {
+          background:#dcfce7;
+          color:#16a34a;
+        }
+
+        .badge.pending {
+          background:#fef3c7;
+          color:#d97706;
+        }
+
+        .birthday-actions {
+          display:flex;
+          gap:8px;
         }
 
         .delete-ad-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 14px;
-          background: #fef2f2;
-          color: #dc2626;
-          border: 1px solid #fecaca;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .delete-ad-btn:hover:not(:disabled) {
-          background: #fee2e2;
-          border-color: #fca5a5;
+          display:flex;
+          align-items:center;
+          gap:6px;
+          padding:6px 14px;
+          background:#fef2f2;
+          color:#dc2626;
+          border:1px solid #fecaca;
+          border-radius:8px;
+          font-size:12px;
+          font-weight:600;
+          cursor:pointer;
         }
 
         .delete-ad-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+          opacity:.5;
         }
 
-        @media (max-width: 768px) {
+        /* =====================================================
+           MODAL
+           ===================================================== */
+
+        .modal-overlay {
+          position:fixed;
+          inset:0;
+          background:rgba(15,23,42,.6);
+          backdrop-filter:blur(4px);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          z-index:9999;
+          padding:20px;
+        }
+
+        .modal-content {
+          background:#fff;
+          border-radius:16px;
+          max-width:640px;
+          width:100%;
+          max-height:90vh;
+          overflow:hidden;
+          box-shadow:0 20px 60px rgba(0,0,0,.2);
+        }
+
+        .modal-header {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          padding:16px 24px;
+          border-bottom:1px solid #e2e8f0;
+        }
+
+        .modal-header h2 {
+          display:flex;
+          align-items:center;
+          gap:10px;
+          font-size:18px;
+          color:#0f172a;
+          margin:0;
+        }
+
+        .modal-close {
+          background:none;
+          border:none;
+          color:#94a3b8;
+          cursor:pointer;
+        }
+
+        .modal-body {
+          padding:24px;
+          overflow:auto;
+          max-height:calc(90vh - 140px);
+        }
+
+        .modal-footer {
+          display:flex;
+          justify-content:flex-end;
+          gap:12px;
+          padding:16px 24px;
+          border-top:1px solid #e2e8f0;
+        }
+
+        .cancel-btn {
+          padding:8px 20px;
+          background:#f1f5f9;
+          border:1px solid #e2e8f0;
+          border-radius:8px;
+          font-size:14px;
+          font-weight:600;
+          cursor:pointer;
+        }
+
+        .save-btn {
+          display:flex;
+          align-items:center;
+          gap:8px;
+          padding:8px 20px;
+          background:#2563eb;
+          color:#fff;
+          border:none;
+          border-radius:8px;
+          font-size:14px;
+          font-weight:600;
+          cursor:pointer;
+        }
+
+        .save-btn:disabled,
+        .cancel-btn:disabled {
+          opacity:.5;
+          cursor:not-allowed;
+        }
+
+        /* =====================================================
+           USER SEARCH
+           ===================================================== */
+
+        .search-user-section {
+          display:flex;
+          flex-direction:column;
+          gap:12px;
+        }
+
+        .form-label {
+          display:flex;
+          align-items:center;
+          gap:8px;
+          font-size:14px;
+          font-weight:600;
+          color:#0f172a;
+        }
+
+        .form-checkbox {
+          width:18px;
+          height:18px;
+          accent-color:#2563eb;
+        }
+
+        .search-input-wrapper {
+          position:relative;
+        }
+
+        .search-input-icon {
+          position:absolute;
+          left:12px;
+          top:50%;
+          transform:translateY(-50%);
+          color:#94a3b8;
+        }
+
+        .search-user-input {
+          width:100%;
+          padding:10px 12px 10px 40px;
+          border:1px solid #cbd5e1;
+          border-radius:10px;
+          font-size:14px;
+          outline:none;
+          box-sizing:border-box;
+        }
+
+        .user-list-container {
+          border:1px solid #e2e8f0;
+          border-radius:10px;
+          overflow:hidden;
+        }
+
+        .user-list-scroll {
+          max-height:350px;
+          overflow-y:auto;
+        }
+
+        .search-result-item {
+          display:flex;
+          align-items:center;
+          gap:12px;
+          padding:10px 14px;
+          cursor:pointer;
+          border-bottom:1px solid #f1f5f9;
+        }
+
+        .search-result-item:hover {
+          background:#f8fafc;
+        }
+
+        .result-avatar,
+        .selected-user-avatar {
+          width:40px;
+          height:40px;
+          border-radius:50%;
+          overflow:hidden;
+          background:#e2e8f0;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          flex-shrink:0;
+        }
+
+        .result-avatar {
+          width:36px;
+          height:36px;
+        }
+
+        .result-avatar img,
+        .selected-user-avatar img {
+          width:100%;
+          height:100%;
+          object-fit:cover;
+        }
+
+        .result-info {
+          flex:1;
+        }
+
+        .result-name {
+          font-weight:600;
+          font-size:14px;
+          color:#0f172a;
+        }
+
+        .result-email {
+          font-size:12px;
+          color:#64748b;
+        }
+
+        .result-member {
+          font-size:11px;
+          color:#94a3b8;
+        }
+
+        .result-birthday {
+          font-size:11px;
+          color:#2563eb;
+          background:#dbeafe;
+          padding:2px 8px;
+          border-radius:12px;
+        }
+
+        .result-no-birthday {
+          font-size:11px;
+          color:#94a3b8;
+        }
+
+        .loading-users-indicator {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:12px;
+          padding:40px;
+          color:#64748b;
+        }
+
+        .loading-spinner {
+          width:24px;
+          height:24px;
+          border:3px solid #e2e8f0;
+          border-top-color:#2563eb;
+          border-radius:50%;
+          animation:spin .8s linear infinite;
+        }
+
+        .no-results {
+          text-align:center;
+          padding:40px;
+          color:#94a3b8;
+        }
+
+        .no-results p {
+          font-weight:600;
+          color:#64748b;
+          margin:4px 0;
+        }
+
+        /* =====================================================
+           SELECTED USER
+           ===================================================== */
+
+        .selected-user-bar {
+          display:flex;
+          align-items:center;
+          gap:16px;
+          padding:12px 16px;
+          background:#f8fafc;
+          border-radius:12px;
+          margin-bottom:20px;
+          flex-wrap:wrap;
+        }
+
+        .back-to-search {
+          display:flex;
+          align-items:center;
+          gap:6px;
+          background:none;
+          border:none;
+          color:#64748b;
+          font-size:13px;
+          cursor:pointer;
+        }
+
+        .selected-user-info {
+          display:flex;
+          align-items:center;
+          gap:12px;
+          flex:1;
+        }
+
+        .selected-user-name {
+          font-weight:600;
+          color:#0f172a;
+        }
+
+        .selected-user-email {
+          font-size:12px;
+          color:#64748b;
+        }
+
+        /* =====================================================
+           FORM
+           ===================================================== */
+
+        .form-group {
+          margin-bottom:16px;
+        }
+
+        .input-wrapper {
+          position:relative;
+        }
+
+        .input-icon {
+          position:absolute;
+          left:12px;
+          top:50%;
+          transform:translateY(-50%);
+          color:#94a3b8;
+        }
+
+        .date-input,
+        .textarea {
+          width:100%;
+          border:1px solid #cbd5e1;
+          border-radius:10px;
+          font-size:14px;
+          outline:none;
+          box-sizing:border-box;
+        }
+
+        .date-input {
+          padding:10px 12px 10px 40px;
+        }
+
+        .textarea {
+          padding:10px 12px;
+          resize:vertical;
+          font-family:inherit;
+          min-height:80px;
+        }
+
+        /* =====================================================
+           PHOTO UPLOAD
+           ===================================================== */
+
+        .photo-section {
+          position:relative;
+          margin-top:10px;
+        }
+
+        .photo-preview-container {
+          position:relative;
+          border-radius:12px;
+          overflow:hidden;
+          background:#0f172a;
+        }
+
+        /*
+         * Since the processed image is already 16:9,
+         * this maintains the correct ratio.
+         */
+
+        .photo-preview-img {
+          width:100%;
+          aspect-ratio:16 / 9;
+          object-fit:contain;
+          display:block;
+          background:#0f172a;
+        }
+
+        .photo-overlay {
+          position:absolute;
+          top:10px;
+          left:10px;
+          background:rgba(15,23,42,.75);
+          color:#fff;
+          padding:5px 9px;
+          border-radius:6px;
+          font-size:11px;
+          font-weight:600;
+          pointer-events:none;
+        }
+
+        .photo-actions {
+          display:flex;
+          gap:8px;
+          margin-top:10px;
+          flex-wrap:wrap;
+        }
+
+        .photo-change-btn,
+        .photo-remove-btn {
+          display:flex;
+          align-items:center;
+          gap:6px;
+          padding:7px 14px;
+          border-radius:8px;
+          font-size:12px;
+          font-weight:600;
+          cursor:pointer;
+        }
+
+        .photo-change-btn {
+          background:#2563eb;
+          color:#fff;
+        }
+
+        .photo-remove-btn {
+          background:#fef2f2;
+          color:#dc2626;
+          border:1px solid #fecaca;
+        }
+
+        .hidden-input {
+          display:none;
+        }
+
+        .upload-placeholder {
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          min-height:170px;
+          border:2px dashed #cbd5e1;
+          border-radius:12px;
+          background:#f8fafc;
+          cursor:pointer;
+          padding:20px;
+          gap:7px;
+          text-align:center;
+          color:#64748b;
+          transition:.2s;
+        }
+
+        .upload-placeholder:hover {
+          border-color:#2563eb;
+          background:#eff6ff;
+          color:#2563eb;
+        }
+
+        .upload-placeholder strong {
+          color:#0f172a;
+          font-size:15px;
+        }
+
+        .upload-note {
+          color:#2563eb;
+          font-weight:600;
+          font-size:12px;
+        }
+
+        /* =====================================================
+           RESPONSIVE
+           ===================================================== */
+
+        @media(max-width:768px) {
+
+          .birthday-admin-page {
+            padding:16px;
+          }
+
           .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns:repeat(2,1fr);
           }
 
           .settings-grid {
-            flex-direction: column;
-            gap: 12px;
+            flex-direction:column;
+            gap:12px;
           }
 
           .birthday-item {
-            flex-wrap: wrap;
+            flex-wrap:wrap;
           }
 
           .birthday-status {
-            margin-left: auto;
+            margin-left:auto;
           }
 
           .search-input {
-            width: 100%;
-          }
-
-          .tabs-container {
-            flex-wrap: wrap;
-          }
-
-          .tab-btn {
-            flex: 1;
-            justify-content: center;
+            width:100%;
           }
 
           .whatsapp-groups-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .stats-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns:1fr;
           }
 
           .admin-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
+            flex-direction:column;
+            align-items:stretch;
+          }
+
+          .header-actions {
+            width:100%;
+          }
+
+          .header-actions button {
+            flex:1;
+          }
+
+          .modal-content {
+            max-height:95vh;
+          }
+
+          .modal-body {
+            max-height:calc(95vh - 130px);
+          }
+        }
+
+        @media(max-width:480px) {
+
+          .stats-grid {
+            grid-template-columns:1fr;
           }
 
           .section-header {
-            flex-direction: column;
-            align-items: stretch;
+            flex-direction:column;
+            align-items:stretch;
           }
 
           .search-wrapper {
-            width: 100%;
+            width:100%;
           }
 
           .search-input {
-            width: 100%;
+            width:100%;
           }
 
           .process-all-btn {
-            width: 100%;
-            justify-content: center;
+            width:100%;
+            justify-content:center;
           }
 
           .birthday-actions {
-            width: 100%;
+            width:100%;
           }
 
           .process-btn,
           .delete-ad-btn {
-            flex: 1;
-            justify-content: center;
+            flex:1;
+            justify-content:center;
           }
 
-          .group-checkbox {
-            padding: 6px 10px;
+          .selected-user-bar {
+            flex-direction:column;
+            align-items:stretch;
+          }
+
+          .modal-overlay {
+            padding:10px;
+          }
+
+          .modal-body {
+            padding:18px;
+          }
+
+          .modal-header,
+          .modal-footer {
+            padding-left:18px;
+            padding-right:18px;
           }
         }
+
       `}</style>
     </div>
   );

@@ -2,10 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
-import { FiArrowLeft, FiCalendar, FiUser, FiImage, FiCheck, FiX, FiUpload, FiMaximize2 } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiCalendar,
+  FiImage,
+  FiCheck,
+  FiX,
+  FiUpload,
+  FiMaximize2,
+} from "react-icons/fi";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [optIn, setOptIn] = useState(false);
@@ -17,21 +26,27 @@ export default function ProfilePage() {
   const [fetching, setFetching] = useState(true);
   const [showFullImage, setShowFullImage] = useState(false);
 
-  // FETCH USER DATA FROM API
+  // ============================================================
+  // FETCH USER DATA
+  // ============================================================
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = localStorage.getItem("token");
+
         if (!token) {
           navigate("/login");
           return;
         }
 
         const res = await axios.get(`${BASE_URL}/api/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         const userData = res.data;
+
         setUser(userData);
         setOptIn(userData.birthdayOptIn || false);
         setMessage(userData.birthdayMessage || "");
@@ -43,14 +58,18 @@ export default function ProfilePage() {
         }
 
         localStorage.setItem("user", JSON.stringify(userData));
-
       } catch (err) {
         console.error("Error fetching user data:", err);
-        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+
+        const userData = JSON.parse(
+          localStorage.getItem("user") || "{}"
+        );
+
         setUser(userData);
         setOptIn(userData.birthdayOptIn || false);
         setMessage(userData.birthdayMessage || "");
         setPhoto(userData.birthdayPhoto || null);
+
         if (userData.birthDate) {
           const date = new Date(userData.birthDate);
           setBirthDate(date.toISOString().split("T")[0]);
@@ -63,6 +82,140 @@ export default function ProfilePage() {
     fetchUserData();
   }, [navigate]);
 
+  // ============================================================
+  // CREATE 16:9 BIRTHDAY IMAGE
+  // ============================================================
+  const createBirthdayImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        try {
+          // ----------------------------------------------------
+          // FINAL IMAGE SIZE
+          // ----------------------------------------------------
+          const canvas = document.createElement("canvas");
+
+          canvas.width = 1920;
+          canvas.height = 1080;
+
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            throw new Error("Could not create canvas context");
+          }
+
+          // ----------------------------------------------------
+          // BACKGROUND
+          // Enlarged + blurred copy of original image
+          // ----------------------------------------------------
+
+          const bgScale = Math.max(
+            canvas.width / img.width,
+            canvas.height / img.height
+          );
+
+          const bgWidth = img.width * bgScale;
+          const bgHeight = img.height * bgScale;
+
+          const bgX = (canvas.width - bgWidth) / 2;
+          const bgY = (canvas.height - bgHeight) / 2;
+
+          ctx.save();
+
+          // Blur the background
+          ctx.filter = "blur(28px)";
+
+          // Slightly enlarge it to prevent transparent edges
+          ctx.drawImage(
+            img,
+            bgX - 40,
+            bgY - 40,
+            bgWidth + 80,
+            bgHeight + 80
+          );
+
+          ctx.restore();
+
+          // ----------------------------------------------------
+          // SUBTLE DARK OVERLAY
+          // Makes the center image stand out
+          // ----------------------------------------------------
+
+          ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+          ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          // ----------------------------------------------------
+          // SHARP CENTER IMAGE
+          // Keeps original proportions
+          // ----------------------------------------------------
+
+          const mainScale = Math.min(
+            canvas.width / img.width,
+            canvas.height / img.height
+          );
+
+          const mainWidth = img.width * mainScale;
+          const mainHeight = img.height * mainScale;
+
+          const mainX = (canvas.width - mainWidth) / 2;
+          const mainY = (canvas.height - mainHeight) / 2;
+
+          // No blur here
+          ctx.filter = "none";
+
+          ctx.drawImage(
+            img,
+            mainX,
+            mainY,
+            mainWidth,
+            mainHeight
+          );
+
+          // ----------------------------------------------------
+          // CONVERT CANVAS TO JPEG
+          // ----------------------------------------------------
+
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(objectUrl);
+
+              if (!blob) {
+                reject(
+                  new Error("Failed to create processed image")
+                );
+                return;
+              }
+
+              resolve(blob);
+            },
+            "image/jpeg",
+            0.92
+          );
+        } catch (err) {
+          URL.revokeObjectURL(objectUrl);
+          reject(err);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Unable to load image"));
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
+  // ============================================================
+  // SAVE BIRTHDAY SETTINGS
+  // ============================================================
   const handleSave = async () => {
     setLoading(true);
     setError("");
@@ -70,6 +223,7 @@ export default function ProfilePage() {
 
     try {
       const token = localStorage.getItem("token");
+
       const data = {
         birthdayOptIn: optIn,
         birthdayMessage: message,
@@ -79,205 +233,529 @@ export default function ProfilePage() {
         data.birthDate = birthDate;
       }
 
-      const res = await axios.put(`${BASE_URL}/api/birthday/user-settings`, data, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.put(
+        `${BASE_URL}/api/birthday/user-settings`,
+        data,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const updatedUser = res.data.user;
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      setUser(updatedUser);
-      setSuccess("Birthday settings saved successfully!");
 
-      setTimeout(() => setSuccess(""), 3000);
+      localStorage.setItem(
+        "user",
+        JSON.stringify(updatedUser)
+      );
+
+      setUser(updatedUser);
+
+      setSuccess(
+        "Birthday settings saved successfully!"
+      );
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to save settings");
+      setError(
+        err.response?.data?.error ||
+          "Failed to save settings"
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // PHOTO UPLOAD
+  // ============================================================
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
+
     if (!file) return;
 
+    // Allow the same image to be selected again
+    e.target.value = "";
+
+    // ----------------------------------------------------------
+    // FILE TYPE CHECK
+    // ----------------------------------------------------------
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file.");
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // FILE SIZE CHECK
+    // ----------------------------------------------------------
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Photo must be less than 10MB.");
+      return;
+    }
+
     setLoading(true);
-    const formData = new FormData();
-    formData.append("photo", file);
+    setError("");
+    setSuccess("");
 
     try {
+      // --------------------------------------------------------
+      // PROCESS IMAGE
+      // --------------------------------------------------------
+
+      const processedBlob =
+        await createBirthdayImage(file);
+
+      // --------------------------------------------------------
+      // CREATE NEW FILE
+      // --------------------------------------------------------
+
+      const processedFile = new File(
+        [processedBlob],
+        `birthday-photo-${Date.now()}.jpg`,
+        {
+          type: "image/jpeg",
+        }
+      );
+
+      // --------------------------------------------------------
+      // UPLOAD PROCESSED IMAGE
+      // --------------------------------------------------------
+
+      const formData = new FormData();
+
+      formData.append(
+        "photo",
+        processedFile
+      );
+
       const token = localStorage.getItem("token");
-      const res = await axios.post(`${BASE_URL}/api/birthday/upload-photo`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
+
+      const res = await axios.post(
+        `${BASE_URL}/api/birthday/upload-photo`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type":
+              "multipart/form-data",
+          },
+        }
+      );
+
+      // --------------------------------------------------------
+      // UPDATE PHOTO
+      // --------------------------------------------------------
 
       setPhoto(res.data.photoUrl);
+
       const updatedUser = res.data.user;
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(updatedUser)
+      );
+
       setUser(updatedUser);
-      setSuccess("Photo uploaded successfully!");
-      setTimeout(() => setSuccess(""), 3000);
+
+      setSuccess(
+        "Photo processed and uploaded successfully!"
+      );
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to upload photo");
+      console.error(
+        "Photo processing/upload error:",
+        err
+      );
+
+      setError(
+        err.response?.data?.error ||
+          "Failed to process and upload photo"
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // REMOVE PHOTO
+  // ============================================================
   const handleRemovePhoto = async () => {
-    if (!window.confirm("Remove your birthday photo?")) return;
+    if (
+      !window.confirm(
+        "Remove your birthday photo?"
+      )
+    ) {
+      return;
+    }
 
     setLoading(true);
+    setError("");
+
     try {
       const token = localStorage.getItem("token");
-      await axios.put(`${BASE_URL}/api/birthday/user-settings`, {
-        birthdayPhoto: null
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+
+      await axios.put(
+        `${BASE_URL}/api/birthday/user-settings`,
+        {
+          birthdayPhoto: null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       setPhoto(null);
-      const updatedUser = { ...user, birthdayPhoto: null };
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+
+      const updatedUser = {
+        ...user,
+        birthdayPhoto: null,
+      };
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(updatedUser)
+      );
+
       setUser(updatedUser);
+
       setSuccess("Photo removed");
-      setTimeout(() => setSuccess(""), 3000);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (err) {
-      setError("Failed to remove photo");
+      console.error(
+        "Failed to remove photo:",
+        err
+      );
+
+      setError(
+        "Failed to remove photo"
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // LOADING SCREEN
+  // ============================================================
   if (fetching) {
     return (
       <div style={styles.container}>
-        <div style={styles.loadingText}>Loading profile...</div>
+        <div style={styles.loadingText}>
+          Loading profile...
+        </div>
       </div>
     );
   }
 
+  // ============================================================
+  // PAGE
+  // ============================================================
   return (
     <div style={styles.container}>
+      {/* HEADER */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate("/dashboard")}>
+        <button
+          style={styles.backBtn}
+          onClick={() =>
+            navigate("/dashboard")
+          }
+        >
           <FiArrowLeft size={20} />
           Back to Dashboard
         </button>
-        <h1 style={styles.title}>Birthday Settings</h1>
+
+        <h1 style={styles.title}>
+          Birthday Settings
+        </h1>
       </div>
 
+      {/* SUCCESS MESSAGE */}
       {success && (
         <div style={styles.successAlert}>
           <FiCheck size={18} />
+
           <span>{success}</span>
-          <button onClick={() => setSuccess("")} style={styles.alertClose}>
+
+          <button
+            onClick={() =>
+              setSuccess("")
+            }
+            style={styles.alertClose}
+          >
             <FiX size={18} />
           </button>
         </div>
       )}
 
+      {/* ERROR MESSAGE */}
       {error && (
         <div style={styles.errorAlert}>
           <FiX size={18} />
+
           <span>{error}</span>
-          <button onClick={() => setError("")} style={styles.alertClose}>
+
+          <button
+            onClick={() =>
+              setError("")
+            }
+            style={styles.alertClose}
+          >
             <FiX size={18} />
           </button>
         </div>
       )}
 
       <div style={styles.card}>
+        {/* ================================================== */}
+        {/* BIRTHDAY WISHES */}
+        {/* ================================================== */}
+
         <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Birthday Wishes</h3>
-          <p style={styles.sectionDesc}>Get a birthday advert on the ZUCA dashboard</p>
+          <h3 style={styles.sectionTitle}>
+            Birthday Wishes
+          </h3>
+
+          <p style={styles.sectionDesc}>
+            Get a birthday advert on the ZUCA dashboard
+          </p>
         </div>
 
+        {/* ================================================== */}
+        {/* OPT IN */}
+        {/* ================================================== */}
+
         <div style={styles.optInSection}>
-          <label style={styles.toggleWrapper} className="toggle-wrapper">
+          <label
+            style={styles.toggleWrapper}
+            className="toggle-wrapper"
+          >
             <input
               type="checkbox"
               checked={optIn}
-              onChange={(e) => setOptIn(e.target.checked)}
+              onChange={(e) =>
+                setOptIn(e.target.checked)
+              }
               style={styles.toggleInput}
               className="toggle-input"
             />
-            <span style={styles.toggleSlider} className="toggle-slider"></span>
+
+            <span
+              style={styles.toggleSlider}
+              className="toggle-slider"
+            />
+
             <div>
-              <strong style={styles.toggleLabel}>Yes, create a birthday advert for me</strong>
-              <small style={styles.toggleHint}>Your birthday will be celebrated on the dashboard</small>
+              <strong
+                style={styles.toggleLabel}
+              >
+                Yes, create a birthday advert
+                for me
+              </strong>
+
+              <small
+                style={styles.toggleHint}
+              >
+                Your birthday will be celebrated
+                on the dashboard
+              </small>
             </div>
           </label>
         </div>
 
         {optIn && (
           <>
+            {/* ================================================== */}
+            {/* BIRTHDAY */}
+            {/* ================================================== */}
+
             <div style={styles.formGroup}>
-              <label style={styles.label}>Your Birthday</label>
-              <div style={styles.inputWrapper}>
-                <FiCalendar style={styles.inputIcon} />
+              <label style={styles.label}>
+                Your Birthday
+              </label>
+
+              <div
+                style={styles.inputWrapper}
+              >
+                <FiCalendar
+                  style={styles.inputIcon}
+                />
+
                 <input
                   type="date"
                   value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
+                  onChange={(e) =>
+                    setBirthDate(
+                      e.target.value
+                    )
+                  }
                   style={styles.dateInput}
                   className="date-input"
                 />
               </div>
             </div>
 
+            {/* ================================================== */}
+            {/* PHOTO */}
+            {/* ================================================== */}
+
             <div style={styles.formGroup}>
-              <label style={styles.label}>Your Photo</label>
-              <div style={styles.photoSection}>
+              <label style={styles.label}>
+                Your Photo
+              </label>
+
+              <div
+                style={styles.photoSection}
+              >
                 {photo ? (
-                  <div style={styles.photoPreview} className="photo-preview">
-                    <img 
-                      src={photo} 
-                      alt="Birthday" 
-                      style={styles.photoImg} 
+                  <div
+                    style={styles.photoPreview}
+                    className="photo-preview"
+                  >
+                    <img
+                      src={photo}
+                      alt="Birthday"
+                      style={styles.photoImg}
                     />
-                    
-                    {/* Two buttons on top of image */}
-                    <div style={styles.imageButtons}>
-                      <button 
+
+                    {/* IMAGE BUTTONS */}
+                    <div
+                      style={
+                        styles.imageButtons
+                      }
+                    >
+                      <button
                         className="image-btn"
-                        style={styles.imageBtn}
-                        onClick={() => setShowFullImage(true)}
+                        style={
+                          styles.imageBtn
+                        }
+                        onClick={() =>
+                          setShowFullImage(
+                            true
+                          )
+                        }
                       >
-                        <FiMaximize2 size={16} />
+                        <FiMaximize2
+                          size={16}
+                        />
+
                         View Full Image
                       </button>
-                      <label className="image-btn" style={styles.imageBtnUpload}>
-                        <FiUpload size={16} />
+
+                      <label
+                        className="image-btn"
+                        style={
+                          styles.imageBtnUpload
+                        }
+                      >
+                        <FiUpload
+                          size={16}
+                        />
+
                         Change Image
-                        <input type="file" accept="image/*" onChange={handlePhotoUpload} style={styles.hiddenInput} />
+
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={
+                            handlePhotoUpload
+                          }
+                          style={
+                            styles.hiddenInput
+                          }
+                        />
                       </label>
                     </div>
-                    
-                    {/* Remove button */}
-                    <button onClick={handleRemovePhoto} style={styles.removeBtn}>
+
+                    {/* REMOVE BUTTON */}
+                    <button
+                      onClick={
+                        handleRemovePhoto
+                      }
+                      style={
+                        styles.removeBtn
+                      }
+                    >
                       <FiX size={14} />
+
                       Remove Photo
                     </button>
                   </div>
                 ) : (
-                  <label style={styles.uploadPlaceholder} className="upload-placeholder">
-                    <FiImage size={32} style={styles.uploadIcon} />
-                    <strong>Upload Your Photo</strong>
-                    <span>PNG, JPG, WEBP — Max 10MB</span>
-                    <input type="file" accept="image/*" onChange={handlePhotoUpload} style={styles.hiddenInput} />
+                  <label
+                    style={
+                      styles.uploadPlaceholder
+                    }
+                    className="upload-placeholder"
+                  >
+                    <FiImage
+                      size={32}
+                      style={
+                        styles.uploadIcon
+                      }
+                    />
+
+                    <strong>
+                      Upload Your Photo
+                    </strong>
+
+                    <span>
+                      PNG, JPG, WEBP — Max 10MB
+                    </span>
+
+                    <small
+                      style={
+                        styles.uploadHint
+                      }
+                    >
+                      Portrait photos are
+                      automatically converted
+                      to 16:9
+                    </small>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={
+                        handlePhotoUpload
+                      }
+                      style={
+                        styles.hiddenInput
+                      }
+                    />
                   </label>
                 )}
               </div>
             </div>
 
+            {/* ================================================== */}
+            {/* PERSONAL MESSAGE */}
+            {/* ================================================== */}
+
             <div style={styles.formGroup}>
-              <label style={styles.label}>Personal Message (Optional)</label>
+              <label style={styles.label}>
+                Personal Message (Optional)
+              </label>
+
               <textarea
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) =>
+                  setMessage(
+                    e.target.value
+                  )
+                }
                 placeholder="Write a personal message to be displayed on your birthday..."
                 rows="3"
                 style={styles.textarea}
@@ -285,25 +763,82 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div style={styles.previewSection}>
-              <h4 style={styles.previewTitle}>Preview</h4>
-              <div style={styles.previewCard}>
-                <div style={styles.previewImage}>
+            {/* ================================================== */}
+            {/* PREVIEW */}
+            {/* ================================================== */}
+
+            <div
+              style={styles.previewSection}
+            >
+              <h4
+                style={styles.previewTitle}
+              >
+                Preview
+              </h4>
+
+              <div
+                style={styles.previewCard}
+              >
+                <div
+                  style={styles.previewImage}
+                >
                   {photo ? (
-                    <img src={photo} alt="Preview" style={styles.previewImg} />
+                    <img
+                      src={photo}
+                      alt="Preview"
+                      style={
+                        styles.previewImg
+                      }
+                    />
                   ) : (
-                    <div style={styles.previewPlaceholder}>Your photo here</div>
+                    <div
+                      style={
+                        styles.previewPlaceholder
+                      }
+                    >
+                      Your photo here
+                    </div>
                   )}
                 </div>
-                <div style={styles.previewContent}>
-                  <span style={styles.previewLabel}>Happy Birthday!</span>
-                  <strong style={styles.previewName}>{user?.fullName}</strong>
-                  <p style={styles.previewMessage}>{message || "From all of us at ZUCA"}</p>
+
+                <div
+                  style={
+                    styles.previewContent
+                  }
+                >
+                  <span
+                    style={
+                      styles.previewLabel
+                    }
+                  >
+                    Happy Birthday!
+                  </span>
+
+                  <strong
+                    style={
+                      styles.previewName
+                    }
+                  >
+                    {user?.fullName}
+                  </strong>
+
+                  <p
+                    style={
+                      styles.previewMessage
+                    }
+                  >
+                    {message ||
+                      "From all of us at ZUCA"}
+                  </p>
                 </div>
               </div>
             </div>
           </>
         )}
+
+        {/* ================================================== */}
+        {/* SAVE */}
+        {/* ================================================== */}
 
         <button
           style={styles.saveBtn}
@@ -311,22 +846,58 @@ export default function ProfilePage() {
           disabled={loading}
           className="save-btn"
         >
-          {loading ? "Saving..." : "Save Birthday Settings"}
+          {loading
+            ? "Processing..."
+            : "Save Birthday Settings"}
+
           <FiCheck size={16} />
         </button>
       </div>
 
-      {/* Full Image Modal */}
+      {/* ==================================================== */}
+      {/* FULL IMAGE MODAL */}
+      {/* ==================================================== */}
+
       {showFullImage && photo && (
-        <div style={styles.fullImageOverlay} onClick={() => setShowFullImage(false)}>
-          <div style={styles.fullImageContent} onClick={(e) => e.stopPropagation()}>
-            <button style={styles.fullImageClose} onClick={() => setShowFullImage(false)}>
+        <div
+          style={
+            styles.fullImageOverlay
+          }
+          onClick={() =>
+            setShowFullImage(false)
+          }
+        >
+          <div
+            style={
+              styles.fullImageContent
+            }
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <button
+              style={
+                styles.fullImageClose
+              }
+              onClick={() =>
+                setShowFullImage(false)
+              }
+            >
               <FiX size={24} />
             </button>
-            <img src={photo} alt="Birthday full view" style={styles.fullImage} />
+
+            <img
+              src={photo}
+              alt="Birthday full view"
+              style={styles.fullImage}
+            />
           </div>
         </div>
       )}
+
+      {/* ==================================================== */}
+      {/* CSS */}
+      {/* ==================================================== */}
 
       <style>{`
         .toggle-wrapper:hover {
@@ -397,17 +968,7 @@ export default function ProfilePage() {
           transform: none;
         }
 
-        .profile-page {
-          min-height: 100vh;
-          background: #f8fafc;
-          padding: 24px;
-        }
-
         @media (max-width: 640px) {
-          .profile-page {
-            padding: 16px;
-          }
-          
           .image-btn {
             font-size: 11px !important;
             padding: 6px 10px !important;
@@ -418,6 +979,10 @@ export default function ProfilePage() {
   );
 }
 
+// ============================================================
+// STYLES
+// ============================================================
+
 const styles = {
   container: {
     minHeight: "100vh",
@@ -426,12 +991,14 @@ const styles = {
     maxWidth: "800px",
     margin: "0 auto",
   },
+
   loadingText: {
     textAlign: "center",
     color: "#64748b",
     fontSize: "16px",
     padding: "40px",
   },
+
   header: {
     display: "flex",
     alignItems: "center",
@@ -440,6 +1007,7 @@ const styles = {
     paddingBottom: "16px",
     borderBottom: "1px solid #e2e8f0",
   },
+
   backBtn: {
     display: "flex",
     alignItems: "center",
@@ -454,12 +1022,14 @@ const styles = {
     cursor: "pointer",
     transition: "0.2s ease",
   },
+
   title: {
     fontSize: "24px",
     fontWeight: "700",
     color: "#0f172a",
     margin: 0,
   },
+
   successAlert: {
     display: "flex",
     alignItems: "center",
@@ -471,6 +1041,7 @@ const styles = {
     borderRadius: "10px",
     marginBottom: "20px",
   },
+
   errorAlert: {
     display: "flex",
     alignItems: "center",
@@ -482,6 +1053,7 @@ const styles = {
     borderRadius: "10px",
     marginBottom: "20px",
   },
+
   alertClose: {
     marginLeft: "auto",
     background: "none",
@@ -491,29 +1063,35 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
+
   card: {
     background: "#ffffff",
     borderRadius: "16px",
     padding: "24px",
     border: "1px solid #e2e8f0",
   },
+
   section: {
     marginBottom: "20px",
   },
+
   sectionTitle: {
     fontSize: "18px",
     fontWeight: "700",
     color: "#0f172a",
     margin: "0 0 4px 0",
   },
+
   sectionDesc: {
     fontSize: "14px",
     color: "#64748b",
     margin: 0,
   },
+
   optInSection: {
     margin: "16px 0 24px 0",
   },
+
   toggleWrapper: {
     display: "flex",
     alignItems: "center",
@@ -525,9 +1103,11 @@ const styles = {
     border: "1px solid #e2e8f0",
     transition: "0.2s ease",
   },
+
   toggleInput: {
     display: "none",
   },
+
   toggleSlider: {
     position: "relative",
     width: "44px",
@@ -537,18 +1117,25 @@ const styles = {
     background: "#cbd5e1",
     transition: "0.2s ease",
   },
+
   toggleLabel: {
     fontSize: "14px",
     fontWeight: "600",
     color: "#0f172a",
+    display: "block",
   },
+
   toggleHint: {
     fontSize: "12px",
     color: "#64748b",
+    display: "block",
+    marginTop: "2px",
   },
+
   formGroup: {
     marginBottom: "20px",
   },
+
   label: {
     display: "block",
     fontSize: "13px",
@@ -556,9 +1143,11 @@ const styles = {
     color: "#0f172a",
     marginBottom: "6px",
   },
+
   inputWrapper: {
     position: "relative",
   },
+
   inputIcon: {
     position: "absolute",
     left: "12px",
@@ -566,6 +1155,7 @@ const styles = {
     transform: "translateY(-50%)",
     color: "#94a3b8",
   },
+
   dateInput: {
     width: "100%",
     padding: "10px 12px 10px 40px",
@@ -578,6 +1168,7 @@ const styles = {
     transition: "0.2s ease",
     boxSizing: "border-box",
   },
+
   textarea: {
     width: "100%",
     padding: "10px 12px",
@@ -593,9 +1184,11 @@ const styles = {
     boxSizing: "border-box",
     minHeight: "80px",
   },
+
   photoSection: {
     position: "relative",
   },
+
   photoPreview: {
     position: "relative",
     borderRadius: "12px",
@@ -603,12 +1196,14 @@ const styles = {
     background: "#f1f5f9",
     width: "100%",
   },
+
   photoImg: {
     width: "100%",
     height: "auto",
     display: "block",
     objectFit: "contain",
   },
+
   imageButtons: {
     position: "absolute",
     top: "50%",
@@ -620,6 +1215,7 @@ const styles = {
     flexWrap: "wrap",
     justifyContent: "center",
   },
+
   imageBtn: {
     display: "flex",
     alignItems: "center",
@@ -636,6 +1232,7 @@ const styles = {
     transition: "all 0.2s ease",
     opacity: 0,
   },
+
   imageBtnUpload: {
     display: "flex",
     alignItems: "center",
@@ -652,9 +1249,11 @@ const styles = {
     transition: "all 0.2s ease",
     opacity: 0,
   },
+
   hiddenInput: {
     display: "none",
   },
+
   removeBtn: {
     position: "absolute",
     bottom: "10px",
@@ -672,6 +1271,7 @@ const styles = {
     cursor: "pointer",
     zIndex: 5,
   },
+
   uploadPlaceholder: {
     display: "flex",
     flexDirection: "column",
@@ -685,19 +1285,30 @@ const styles = {
     transition: "0.2s ease",
     padding: "20px",
     gap: "6px",
+    textAlign: "center",
   },
+
   uploadIcon: {
     color: "#94a3b8",
   },
+
+  uploadHint: {
+    color: "#64748b",
+    fontSize: "11px",
+    marginTop: "3px",
+  },
+
   previewSection: {
     margin: "20px 0",
   },
+
   previewTitle: {
     fontSize: "14px",
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: "10px",
   },
+
   previewCard: {
     display: "flex",
     gap: "16px",
@@ -707,6 +1318,7 @@ const styles = {
     border: "1px solid #e2e8f0",
     alignItems: "center",
   },
+
   previewImage: {
     width: "80px",
     height: "80px",
@@ -715,11 +1327,13 @@ const styles = {
     flexShrink: 0,
     background: "#e2e8f0",
   },
+
   previewImg: {
     width: "100%",
     height: "100%",
     objectFit: "cover",
   },
+
   previewPlaceholder: {
     width: "100%",
     height: "100%",
@@ -730,25 +1344,30 @@ const styles = {
     color: "#94a3b8",
     textAlign: "center",
   },
+
   previewContent: {
     flex: 1,
   },
+
   previewLabel: {
     fontSize: "12px",
     color: "#2563eb",
     fontWeight: "700",
     display: "block",
   },
+
   previewName: {
     fontSize: "16px",
     color: "#0f172a",
     display: "block",
   },
+
   previewMessage: {
     fontSize: "13px",
     color: "#64748b",
     margin: "4px 0 0 0",
   },
+
   saveBtn: {
     width: "100%",
     display: "flex",
@@ -766,6 +1385,7 @@ const styles = {
     transition: "0.2s ease",
     marginTop: "8px",
   },
+
   fullImageOverlay: {
     position: "fixed",
     top: 0,
@@ -780,18 +1400,22 @@ const styles = {
     zIndex: 9999,
     padding: "20px",
   },
+
   fullImageContent: {
     position: "relative",
     maxWidth: "90vw",
     maxHeight: "90vh",
   },
+
   fullImage: {
     maxWidth: "100%",
     maxHeight: "90vh",
     borderRadius: "12px",
     objectFit: "contain",
-    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+    boxShadow:
+      "0 20px 60px rgba(0, 0, 0, 0.5)",
   },
+
   fullImageClose: {
     position: "absolute",
     top: "-48px",
@@ -799,7 +1423,8 @@ const styles = {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
-    background: "rgba(255, 255, 255, 0.15)",
+    background:
+      "rgba(255, 255, 255, 0.15)",
     border: "none",
     color: "white",
     display: "flex",

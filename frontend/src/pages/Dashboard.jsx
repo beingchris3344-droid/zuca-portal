@@ -9401,12 +9401,13 @@ useEffect(() => {
 
 .dashboard-ad-visual {
   position: relative;
-  min-height: 280px;
   overflow: hidden;
   background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
+  height: auto;
+  width: 100%;
 }
 
 
@@ -9416,10 +9417,9 @@ useEffect(() => {
 
 .dashboard-ad-image {
   width: 100%;
-  height: 100%;
-  min-height: 280px;
+  height: auto !important;
   display: block;
-  object-fit: cover;
+  object-fit: contain !important;
   object-position: center;
   transition: transform 0.6s ease;
 }
@@ -9456,21 +9456,11 @@ useEffect(() => {
 
 .dashboard-ad-placeholder {
   width: 100%;
-  height: 100%;
-
-  min-height: 280px;
-
+  height: 200px;
   display: flex;
-
   align-items: center;
   justify-content: center;
-
-  background:
-    linear-gradient(
-      135deg,
-      #f8fafc,
-      #e2e8f0
-    );
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
 }
 
 .dashboard-ad-placeholder span {
@@ -10045,29 +10035,21 @@ useEffect(() => {
 
   /* IMAGE */
 
-  .dashboard-ad-visual {
-    width: 100%;
-
-    height: 210px;
-
-    min-height: 210px;
-  }
+ .dashboard-ad-visual {
+  width: 100%;
+  height: auto !important;
+}
 
   .dashboard-ad-image {
-    width: 100%;
-
-    height: 210px;
-
-    min-height: 210px;
-  }
+  width: 100%;
+  height: auto !important;
+  object-fit: contain !important;
+}
 
   .dashboard-ad-placeholder {
-    width: 100%;
-
-    height: 210px;
-
-    min-height: 210px;
-  }
+  width: 100%;
+  height: 180px;
+}
 
   /* ============================================
    SECTION TITLE - UNIFIED LARGER SIZE
@@ -10305,8 +10287,6 @@ useEffect(() => {
 .feedback-btn svg {
   color: #ffffff;
 }
-
-
 
 @media (max-width: 640px) {
   .feedback-btn {

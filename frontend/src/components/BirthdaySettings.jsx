@@ -122,7 +122,7 @@ export default function BirthdaySettings({ user, onUpdate }) {
           <span style={styles.toggleSlider} className="birthday-toggle-slider"></span>
           <div style={styles.toggleText}>
             <strong style={styles.toggleLabel}>Yes, create a birthday advert for me</strong>
-            <small style={styles.toggleHint}>Your birthday will be celebrated on the dashboard</small>
+            <small style={styles.toggleHint}>Your birthday will be celebrated on the dashboard, remember to turn on this feature and also save changes.  You can always Opt Out later. </small>
           </div>
         </label>
       </div>

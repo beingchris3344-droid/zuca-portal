@@ -529,7 +529,7 @@ export default function ProfilePage() {
           </h3>
 
           <p style={styles.sectionDesc}>
-            Get a birthday advert on the ZUCA dashboard
+            Here you can set up your birthday photo. If you opt in, your birthday will be celebrated on the dashboard and in the main WhatsApp group on the day of your birthday.
           </p>
         </div>
 

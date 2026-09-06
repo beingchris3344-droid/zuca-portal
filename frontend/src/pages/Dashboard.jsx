@@ -9418,7 +9418,6 @@ useEffect(() => {
   width: 100%;
   height: 100%;
   min-height: 280px;
-  max-height: 100%;
   display: block;
   object-fit: cover;
   object-position: center;
@@ -10237,20 +10236,20 @@ useEffect(() => {
    VERY SMALL PHONES
 ========================================================= */
 
-@media (max-width: 650px) {
+@media (max-width: 350px) {
+
   .dashboard-ad-visual {
-    width: 100%;
-    min-height: 210px;
-    height: auto;
+    height: 165px;
+
+    min-height: 165px;
   }
-  
+    
+
   .dashboard-ad-image {
-    width: 100%;
-    min-height: 210px;
-    height: auto;
-    object-fit: contain;
+    height: 165px;
+
+    min-height: 165px;
   }
-}
 
   .dashboard-ad-placeholder {
     height: 165px;
@@ -10271,7 +10270,7 @@ useEffect(() => {
   }
 }
 
-/* ============================================
+/* /* ============================================
    FEEDBACK BUTTON - IN HEADER
    ============================================ */
 
@@ -10286,14 +10285,15 @@ useEffect(() => {
   cursor: pointer;
   border: none;
   transition: all 0.3s ease;
- background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   backdrop-filter: blur(10px);
-  border: 1px solid color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* ← you also missed a colon here */
 }
 
 .feedback-btn:hover {
-  background: color: #ffffff;
+  background: #ffffff;      /* ✅ Fixed */
+  color: #0f172a;           /* Optional: dark text on hover */
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(251, 191, 36, 0.3);
 }
@@ -10305,6 +10305,8 @@ useEffect(() => {
 .feedback-btn svg {
   color: #ffffff;
 }
+
+
 
 @media (max-width: 640px) {
   .feedback-btn {

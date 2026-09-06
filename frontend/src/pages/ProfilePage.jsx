@@ -755,7 +755,7 @@ export default function ProfilePage() {
                     e.target.value
                   )
                 }
-                placeholder="Write a personal message to be displayed on your birthday..."
+                placeholder="Here You can wish your self a message or leave it blank,  for the actual message to be displayed by default is automatically from ZUCA. Please note When birthday is set it only appers on the birthday day and not before or after the day. so don't worry that it will apper immeditely after you set it.s"
                 rows="3"
                 style={styles.textarea}
                 className="textarea"

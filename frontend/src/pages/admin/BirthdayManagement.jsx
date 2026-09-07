@@ -288,37 +288,32 @@ export default function BirthdayManagement() {
      ========================================================= */
 
   const fetchWhatsAppGroups = async () => {
-    setLoadingGroups(true);
+  setLoadingGroups(true);
+  try {
+    const token = localStorage.getItem("token");
 
-    try {
-      const token = localStorage.getItem("token");
+    const groupsRes = await axios.get(`${BASE_URL}/api/birthday/whatsapp-groups`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-      const res = await axios.get(
-        `${BASE_URL}/api/birthday/whatsapp-groups`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.data.success) {
-        const groups = res.data.groups || [];
-
-        setWhatsAppGroups(groups);
-
-        const activeGroupIds = groups
-          .filter((group) => group.isActive)
-          .map((group) => group.groupId);
-
-        setSelectedGroups(activeGroupIds);
-      }
-    } catch (err) {
-      console.error("Error fetching WhatsApp groups:", err);
-    } finally {
-      setLoadingGroups(false);
+    if (groupsRes.data.success) {
+      setWhatsAppGroups(groupsRes.data.groups || []);
     }
-  };
+
+    const settingsRes = await axios.get(`${BASE_URL}/api/birthday-whatsapp/settings`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (settingsRes.data.success) {
+      const savedIds = settingsRes.data.settings?.selectedGroupIds || [];
+      setSelectedGroups(savedIds);
+    }
+  } catch (err) {
+    console.error("Error fetching birthday WhatsApp groups:", err);
+  } finally {
+    setLoadingGroups(false);
+  }
+};
 
   useEffect(() => {
     fetchData();
@@ -921,37 +916,32 @@ export default function BirthdayManagement() {
   };
 
   const handleSaveWhatsAppGroups = async () => {
-    setProcessing(true);
-    setError("");
+  setProcessing(true);
+  setError("");
 
-    const originalGroups = [...selectedGroups];
+  try {
+    const token = localStorage.getItem("token");
 
-    try {
-      const token = localStorage.getItem("token");
+    await axios.post(
+      `${BASE_URL}/api/birthday-whatsapp/save`,
+      {
+        selectedGroupIds: selectedGroups,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
-      await axios.post(
-        `${BASE_URL}/api/birthday/whatsapp-groups/save`,
-        {
-          selectedGroupIds: selectedGroups,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setSuccess("✅ WhatsApp groups updated successfully!");
-      await fetchWhatsAppGroups();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      console.error(err);
-      setSelectedGroups(originalGroups);
-      setError("Failed to update WhatsApp groups");
-    } finally {
-      setProcessing(false);
-    }
-  };
+    setSuccess("✅ Birthday WhatsApp groups updated successfully!");
+    await fetchWhatsAppGroups();
+    setTimeout(() => setSuccess(""), 3000);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to update birthday WhatsApp groups");
+  } finally {
+    setProcessing(false);
+  }
+};
 
   /* =========================================================
      FILTER BIRTHDAYS

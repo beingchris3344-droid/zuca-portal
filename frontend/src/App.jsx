@@ -654,21 +654,24 @@ useEffect(() => {
           
         </Route>
 
-        {/* ================= CHOIR MODERATOR ================= */}
-        <Route
-          path="/choir"
-          element={
-            <RoleRoute allowedRoles={["choir_moderator"]}>
-              <RoleLayout />
-            </RoleRoute>
-          }
-        >
-          <Route index element={<Navigate to="songs" replace />} />
-          <Route path="songs" element={<SongsPage />} />
-           <Route path="hymns" element={<AdminHymns />} />
-           <Route path="/choir/whatsapp-broadcast" element={<ChoirWhatsAppBroadcast />} />
-
-        </Route>
+       {/* ================= CHOIR MODERATOR ================= */}
+<Route
+  path="/choir"
+  element={
+    <RoleRoute allowedRoles={["choir_moderator"]}>
+      <RoleLayout />
+    </RoleRoute>
+  }
+>
+  <Route index element={<Navigate to="songs" replace />} />
+  <Route path="songs" element={<SongsPage />} />
+  <Route path="hymns" element={<AdminHymns />} />
+  <Route path="hymns/add" element={<AddHymn />} />
+  <Route path="hymns/edit/:id" element={<AddHymn />} />
+  <Route path="ocr-scanner" element={<OCRScannerPage />} />
+  <Route path="pending-songs" element={<PendingSongs />} />
+  <Route path="/choir/whatsapp-broadcast" element={<ChoirWhatsAppBroadcast />} />
+</Route>
 
         {/* ================= JUMUIA LEADER ================= */}
         <Route

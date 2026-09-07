@@ -36,7 +36,9 @@ import {
   FiCheckSquare,
   FiSquare,
   FiGlobe,
-  FiCamera
+  FiCamera,
+  FiUsers,
+  FiEye as FiView
 } from "react-icons/fi";
 import { 
   GiPrayerBeads, 
@@ -95,6 +97,18 @@ export default function AdminHymns() {
   const [processingAll, setProcessingAll] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const searchInputRef = useRef(null);
+
+  // Helper for role-aware navigation - add this after searchInputRef
+const getBasePath = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const role = user.role || user.specialRole;
+  
+  if (role === "admin") return "/admin";
+  if (role === "choir_moderator") return "/choir";
+  if (role === "secretary") return "/secretary";
+  if (role === "treasurer") return "/treasurer";
+  return "/admin"; // fallback
+};
   
 
   // Handle resize
@@ -175,7 +189,7 @@ export default function AdminHymns() {
       
     } catch (err) {
       console.error(err);
-      showToast("❌ Failed to load hymns");
+      showToast("Failed to load hymns");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -190,14 +204,14 @@ export default function AdminHymns() {
     setPage(1);
     setActiveSearch(searchTerm);
     fetchHymns(1, searchTerm, true);
-    showToast(`🔍 Searching for "${searchTerm}"`);
+    showToast(`Searching for "${searchTerm}"`);
   };
 
   const handleClearSearch = () => {
     setSearchTerm("");
     setActiveSearch("");
     fetchHymns(1, "", true);
-    showToast("✨ Search cleared");
+    showToast("Search cleared");
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -262,7 +276,7 @@ export default function AdminHymns() {
     }
     
     if (repeatedLines.size === 0) {
-      showToast("✨ Spacing fixed. No lines repeated 3+ times found.");
+      showToast("Spacing fixed. No lines repeated 3+ times found.");
       return formatted;
     }
     
@@ -283,7 +297,7 @@ export default function AdminHymns() {
     });
     
     formatted = boldedLines.join('\n');
-    showToast(`🎵 Found ${repeatedLines.size} unique lines repeated 3+ times. Bolded them!`);
+    showToast(`Found ${repeatedLines.size} unique lines repeated 3+ times. Bolded them!`);
     
     return formatted;
   };
@@ -342,10 +356,10 @@ export default function AdminHymns() {
       // Refresh the displayed hymns
       await fetchHymns(1, activeSearch, true);
       
-      showToast(`✅ Complete! Processed ${processed} hymns, bolded lines in ${bolded} hymns${errors > 0 ? `, ${errors} failed` : ''}`);
+      showToast(`Complete! Processed ${processed} hymns, bolded lines in ${bolded} hymns${errors > 0 ? `, ${errors} failed` : ''}`);
     } catch (err) {
       console.error('Bulk processing failed:', err);
-      showToast("❌ Failed to process all hymns");
+      showToast("Failed to process all hymns");
     } finally {
       setProcessingAll(false);
       setProgress({ current: 0, total: 0 });
@@ -365,7 +379,7 @@ export default function AdminHymns() {
     }
     
     if (hymnsToProcess.length === 0) {
-      showToast("⚠️ No hymns selected to process");
+      showToast("No hymns selected to process");
       return;
     }
     
@@ -408,7 +422,7 @@ export default function AdminHymns() {
     // Refresh hymns list
     await fetchHymns(1, activeSearch, true);
     
-    showToast(`✅ Processed ${processed} hymns, bolded lines in ${bolded}${errors > 0 ? `, ${errors} failed` : ''}`);
+    showToast(`Processed ${processed} hymns, bolded lines in ${bolded}${errors > 0 ? `, ${errors} failed` : ''}`);
   };
 
   const selectAllFiltered = () => {
@@ -442,7 +456,7 @@ This is the chorus
 This is the chorus
 This is the chorus`;
     setFormData({ ...formData, lyrics: sample });
-    showToast("📝 Sample lyrics inserted with repeated lines");
+    showToast("Sample lyrics inserted with repeated lines");
   };
 
   const capitalizeTitle = () => {
@@ -452,7 +466,7 @@ This is the chorus`;
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
       ).join(' ')
     });
-    showToast("📝 Title capitalized");
+    showToast("Title capitalized");
   };
 
   const toggleSelectHymn = (id) => {
@@ -474,7 +488,7 @@ This is the chorus`;
 
   const handleAdd = async () => {
     if (!formData.title.trim()) {
-      showToast("❌ Title is required");
+      showToast("Title is required");
       return;
     }
 
@@ -491,11 +505,11 @@ This is the chorus`;
       setHymns(prev => [res.data, ...prev]);
       setShowAddModal(false);
       setFormData({ title: "", reference: "", lyrics: "" });
-      showToast("✅ Hymn added successfully!");
+      showToast("Hymn added successfully!");
       localStorage.removeItem('hymn_draft');
     } catch (err) {
       console.error("Add error:", err);
-      showToast("❌ Failed to add hymn");
+      showToast("Failed to add hymn");
     } finally {
       setSaving(false);
     }
@@ -518,10 +532,10 @@ This is the chorus`;
       setShowEditModal(false);
       setSelectedHymn(null);
       setFormData({ title: "", reference: "", lyrics: "" });
-      showToast("✅ Hymn updated successfully!");
+      showToast("Hymn updated successfully!");
     } catch (err) {
       console.error("Edit error:", err);
-      showToast("❌ Failed to update hymn");
+      showToast("Failed to update hymn");
     } finally {
       setSaving(false);
     }
@@ -539,10 +553,7 @@ This is the chorus`;
       setHymns(prev => prev.filter(h => h.id !== selectedHymn.id));
       setShowDeleteModal(false);
       setSelectedHymn(null);
-      showToast("✅ Hymn deleted successfully!");
-    } catch (err) {
-      console.error("Delete error:", err);
-      showToast("❌ Failed to delete hymn");
+      showToast("Hymn deleted successfully!");
     } finally {
       setSaving(false);
     }
@@ -580,7 +591,7 @@ This is the chorus`;
         .replace(/[^\S\n]+/g, ' ')
         .trim();
       setFormData({ ...formData, lyrics: cleaned });
-      showToast("✨ Formatting cleaned");
+      showToast("Formatting cleaned");
     }
   };
 
@@ -620,7 +631,9 @@ This is the chorus`;
       <div style={styles.headerSection}>
         <div style={styles.headerTop}>
           <div style={styles.titleWrapper}>
-            <div style={styles.titleIcon}>📚</div>
+            <div style={styles.titleIcon}>
+              <FiBookOpen size={28} color="#fff" />
+            </div>
             <div>
               <h1 style={styles.title}>Hymn Management</h1>
               <p style={styles.titleSub}>
@@ -628,75 +641,81 @@ This is the chorus`;
               </p>
             </div>
           </div>
+          
+          {/* ORGANIZED HEADER ACTIONS */}
           <div style={styles.headerActions}>
-            {/* Process ALL Songs button */}
-            {totalHymns > 0 && (
-              <button 
-                onClick={processAllSongs} 
-                disabled={processingAll || processingBulk}
-                style={styles.processAllBtn}
-                title="Process ALL hymns in database (fix spacing & bold repeated lines)"
-              >
-                {processingAll ? (
-                  <><FiLoader style={styles.spinningIcon} size={18} /> Processing {progress.current}/{progress.total}...</>
-                ) : (
-                  <><FiGlobe size={18} /> Process ALL {totalHymns} Songs</>
-                )}
-              </button>
-            )}
-            
-            {/* Process Selected button */}
-            {(selectedHymns.length > 0 || filteredHymns.length > 0) && (
-              <button 
-                onClick={processSelectedHymns} 
-                disabled={processingBulk || processingAll}
-                style={styles.autoFormatBtn}
-                title="Fix spacing and bold repeated lines in selected/loaded hymns"
-              >
-                {processingBulk ? (
-                  <><FiLoader style={styles.spinningIcon} size={18} /> Processing...</>
-                ) : (
-                  <><MdAutoFixHigh size={18} /> Process {selectedHymns.length > 0 ? `(${selectedHymns.length})` : `(${filteredHymns.length})`}</>
-                )}
-              </button>
-            )}
-            
-            {/* Select All button */}
-            <button 
-              onClick={selectAllFiltered} 
-              style={styles.selectAllBtn}
-            >
-              {selectedHymns.length === filteredHymns.length ? <FiCheckSquare size={18} /> : <FiSquare size={18} />}
-              {selectedHymns.length === filteredHymns.length ? " Deselect" : " Select All"}
-            </button>
+  {/* Group 1: Primary Action */}
+  <button onClick={() => navigate(`${getBasePath()}/hymns/add`)} style={styles.primaryBtn}>
+    <FiPlus size={18} /> Add Hymn
+  </button>
 
-            {/* OCR Scanner Button */}
-           
-<button onClick={() => navigate("/admin/ocr-scanner")} style={styles.ocrBtn}>
-  <FiCamera size={18} /> Scan Lyrics from Book
-</button>
-            <button onClick={() => navigate("/admin/pending-songs")} style={styles.ocrBtn}>
-  <FiClock size={18} /> Pending Songs
-</button>
-            
-            {bulkSelectMode && selectedHymns.length > 0 && (
-              <button onClick={() => {}} style={styles.bulkDeleteBtn}>
-                <FiTrash2 size={18} /> Delete ({selectedHymns.length})
-              </button>
-            )}
-            <button onClick={() => setBulkSelectMode(!bulkSelectMode)} style={styles.iconButton}>
-              {bulkSelectMode ? <FiX size={18} /> : <FiCheck size={18} />}
-            </button>
-            <button onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.iconButton}>
-              {viewMode === 'list' ? <FiGrid size={18} /> : <FiList size={18} />}
-            </button>
-            <button onClick={() => setShowStats(!showStats)} style={styles.iconButton}>
-              <FiInfo size={18} />
-            </button>
-            <button onClick={() => navigate("/admin/hymns/add")} style={styles.addButton}>
-  <FiPlus size={20} /> Add Hymn
-</button>
-          </div>
+  {/* Group 2: Utility Actions */}
+  <button onClick={() => navigate(`${getBasePath()}/ocr-scanner`)} style={styles.secondaryBtn}>
+    <FiCamera size={16} /> Scan
+  </button>
+  <button onClick={() => navigate(`${getBasePath()}/pending-songs`)} style={styles.secondaryBtn}>
+    <FiClock size={16} /> Pending
+  </button>
+
+  {/* Group 3: Processing Actions */}
+  {totalHymns > 0 && (
+    <button 
+      onClick={processAllSongs} 
+      disabled={processingAll || processingBulk}
+      style={styles.processBtn}
+      title="Process ALL hymns in database"
+    >
+      {processingAll ? (
+        <><FiLoader style={styles.spinningIcon} size={16} /> {progress.current}/{progress.total}</>
+      ) : (
+        <><FiGlobe size={16} /> Process All</>
+      )}
+    </button>
+  )}
+  
+  {(selectedHymns.length > 0 || filteredHymns.length > 0) && (
+    <button 
+      onClick={processSelectedHymns} 
+      disabled={processingBulk || processingAll}
+      style={styles.boldBtn}
+      title="Fix spacing and bold repeated lines"
+    >
+      {processingBulk ? (
+        <><FiLoader style={styles.spinningIcon} size={16} /> Processing...</>
+      ) : (
+        <><MdAutoFixHigh size={16} /> Bold {selectedHymns.length > 0 ? `(${selectedHymns.length})` : `(${filteredHymns.length})`}</>
+      )}
+    </button>
+  )}
+
+  {/* Group 4: Selection & View Controls */}
+  <button 
+    onClick={selectAllFiltered} 
+    style={styles.iconBtn}
+    title="Select all filtered hymns"
+  >
+    {selectedHymns.length === filteredHymns.length ? <FiCheckSquare size={16} /> : <FiSquare size={16} />}
+  </button>
+  
+  <button onClick={() => setBulkSelectMode(!bulkSelectMode)} style={styles.iconBtn} title="Toggle bulk select">
+    {bulkSelectMode ? <FiCheck size={16} /> : <FiCheckSquare size={16} />}
+  </button>
+  
+  <button onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.iconBtn} title="Toggle view">
+    {viewMode === 'list' ? <FiGrid size={16} /> : <FiList size={16} />}
+  </button>
+  
+  <button onClick={() => setShowStats(!showStats)} style={styles.iconBtn} title="Toggle stats">
+    <FiInfo size={16} />
+  </button>
+
+  {/* Bulk Delete - only show when in bulk mode with selections */}
+  {bulkSelectMode && selectedHymns.length > 0 && (
+    <button onClick={() => {}} style={styles.dangerBtn}>
+      <FiTrash2 size={16} /> ({selectedHymns.length})
+    </button>
+  )}
+</div>
         </div>
 
         {/* Stats Cards */}
@@ -773,7 +792,7 @@ This is the chorus`;
               style={{
                 ...styles.card,
                 background: recentlyAdded === hymn.id ? '#e0e7ff' : '#fff',
-                border: selectedHymns.includes(hymn.id) ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                border: selectedHymns.includes(hymn.id) ? '2px solid #2563eb' : '1px solid #e2e8f0',
               }}
             >
               {bulkSelectMode && (
@@ -792,13 +811,13 @@ This is the chorus`;
                   <div style={styles.titleRow}>
                     <h3 style={styles.hymnTitle}>{hymn.title}</h3>
                     {hymn.reference && <span style={styles.ref}>{hymn.reference}</span>}
-                    {hymn.lyrics && <span style={styles.hasLyricsBadge}>📝 Lyrics</span>}
+                    {hymn.lyrics && <span style={styles.hasLyricsBadge}>Lyrics</span>}
                   </div>
                   {hymn.lyrics && (
                     <div style={styles.metaInfo}>
-                      <span style={styles.metaItem}>📊 {hymn.lyrics.split('\n\n').length} verses</span>
-                      <span style={styles.metaItem}>📝 {hymn.lyrics.split('\n').length} lines</span>
-                      <span style={styles.metaItem}>🔄 {(() => {
+                      <span style={styles.metaItem}>{hymn.lyrics.split('\n\n').length} verses</span>
+                      <span style={styles.metaItem}>{hymn.lyrics.split('\n').length} lines</span>
+                      <span style={styles.metaItem}>{(() => {
                         const lines = hymn.lyrics.split('\n').filter(l => l.trim());
                         const freq = {};
                         lines.forEach(l => {
@@ -813,9 +832,9 @@ This is the chorus`;
                 </div>
               </div>
               <div style={styles.actions}>
-                <button onClick={() => navigate(`/admin/hymns/edit/${hymn.id}`)} style={styles.editBtn} title="Edit">
-                  <FiEdit2 size={16} />
-                </button>
+                <button onClick={() => navigate(`${getBasePath()}/hymns/edit/${hymn.id}`)} style={styles.editBtn} title="Edit">
+  <FiEdit2 size={16} />
+</button>
                 <button onClick={() => {
                   setSelectedHymn(hymn);
                   setShowDeleteModal(true);
@@ -849,7 +868,7 @@ This is the chorus`;
           <p style={styles.emptyText}>
             {activeSearch ? `No results for "${activeSearch}"` : "Add your first hymn to get started"}
           </p>
-          <button onClick={() => navigate("/admin/hymns/add")} style={styles.addButton}>
+          <button onClick={() => navigate(`${getBasePath()}/hymns/add`)} style={styles.primaryBtn}>
   <FiPlus size={20} /> Add Hymn
 </button>
         </div>
@@ -939,7 +958,7 @@ This is the chorus`;
                 <div style={styles.modalToolbar}>
                   <button onClick={() => setPreviewMode(!previewMode)} style={{
                     ...styles.toolbarButton,
-                    background: previewMode ? '#4f46e5' : '#f1f5f9',
+                    background: previewMode ? '#2563eb' : '#f1f5f9',
                     color: previewMode ? 'white' : '#475569'
                   }}>
                     {previewMode ? <FiEyeOff size={14} /> : <FiEye size={14} />}
@@ -1006,10 +1025,10 @@ This is the chorus`;
 
                   {formData.lyrics && (
                     <div style={styles.lyricsStats}>
-                      <span>📊 {getVerseCount()} verses</span>
-                      <span>📝 {getLineCount()} lines</span>
-                      <span>📖 {getWordCount()} words</span>
-                      <span>⏱️ {getReadingTime()} min read</span>
+                      <span>{getVerseCount()} verses</span>
+                      <span>{getLineCount()} lines</span>
+                      <span>{getWordCount()} words</span>
+                      <span>{getReadingTime()} min read</span>
                     </div>
                   )}
 
@@ -1037,7 +1056,7 @@ This is the chorus`;
                       disabled={saving}
                     />
                     <div style={styles.formHint}>
-                      💡 Separate verses with a blank line • Use "Bold Repeated Lines" to find and bold any line that appears 3+ times
+                      Separate verses with a blank line • Use "Bold Repeated Lines" to find and bold any line that appears 3+ times
                     </div>
                   </div>
                 </div>
@@ -1072,7 +1091,7 @@ This is the chorus`;
                                   <p key={j} style={styles.previewLine}>
                                     {parts.map((part, k) => {
                                       if (part.startsWith('**') && part.endsWith('**')) {
-                                        return <strong key={k} style={{ color: '#4f46e5' }}>{part.slice(2, -2)}</strong>;
+                                        return <strong key={k} style={{ color: '#2563eb' }}>{part.slice(2, -2)}</strong>;
                                       }
                                       return part;
                                     })}
@@ -1085,11 +1104,11 @@ This is the chorus`;
                           <div style={styles.previewEmpty}>
                             {formData.lyrics ? (
                               <>
-                                <p>⚠️ Invalid format</p>
+                                <p>Invalid format</p>
                                 <small>Use blank lines between verses</small>
                               </>
                             ) : (
-                              <p>✨ Lyrics will appear here</p>
+                              <p>Lyrics will appear here</p>
                             )}
                           </div>
                         )}
@@ -1101,7 +1120,7 @@ This is the chorus`;
 
               <div style={styles.modalFooter}>
                 <div style={styles.modalFooterLeft}>
-                  {autoSave && <span style={styles.autoSaveIndicator}>💾 Auto-save enabled</span>}
+                  {autoSave && <span style={styles.autoSaveIndicator}>Auto-save enabled</span>}
                 </div>
                 <div style={styles.modalFooterRight}>
                   <button
@@ -1198,7 +1217,7 @@ const styles = {
   },
   progressBarFill: {
     height: "100%",
-    background: "#10b981",
+    background: "#059669",
     transition: "width 0.3s ease",
   },
   progressText: {
@@ -1227,106 +1246,117 @@ const styles = {
     width: "56px",
     height: "56px",
     borderRadius: "16px",
-    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+    background: "#050505",
     display: "flex",
-    alignItems: "center",
+    alignItems: "center",   
     justifyContent: "center",
     fontSize: "28px",
-    color: "#fff",
+    color: "#050505",
   },
   title: { fontSize: "28px", fontWeight: "700", color: "#0f172a", margin: 0 },
   titleSub: { fontSize: "13px", color: "#64748b", margin: "4px 0 0" },
   
-  headerActions: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
-  iconButton: {
-    width: "44px",
-    height: "44px",
-    borderRadius: "12px",
-    background: "#fff",
+  // ====== ORGANIZED BUTTON STYLES ======
+  headerActions: { 
+    display: "flex", 
+    gap: "8px", 
+    alignItems: "center", 
+    flexWrap: "wrap",
+  },
+
+  // Primary button - Official Blue
+  primaryBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "10px 20px",
+    
+    color: "black",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  // Secondary button - Light gray
+  secondaryBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "10px 16px",
+    background: "#f1f5f9",
+    color: "#334155",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  // Process button - Green
+  processBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "10px 16px",
+    background: "#059669",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  // Bold button - Blue accent
+  boldBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "10px 16px",
+    
+    color: "black",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  // Icon button - Clean
+  iconBtn: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "8px",
+    background: "#3b6da00e",
     border: "1px solid #e2e8f0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
     color: "#475569",
+    transition: "all 0.2s",
   },
-  addButton: {
+
+  // Danger button - Red
+  dangerBtn: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    padding: "12px 24px",
-    background: "#4f46e5",
+    gap: "6px",
+    padding: "10px 16px",
+    background: "#dc2626",
     color: "white",
     border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "500",
     cursor: "pointer",
-  },
-  bulkDeleteBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    background: "#ef4444",
-    color: "white",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  autoFormatBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    background: "#10b981",
-    color: "white",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  processAllBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    background: "#8b5cf6",
-    color: "white",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  selectAllBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    background: "#f59e0b",
-    color: "white",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  ocrBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
-    color: "white",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
+    transition: "all 0.2s",
   },
 
   statsGrid: {
@@ -1345,7 +1375,7 @@ const styles = {
     alignItems: "center",
     gap: "4px",
   },
-  statValue: { fontSize: "28px", fontWeight: "700", color: "#4f46e5" },
+  statValue: { fontSize: "28px", fontWeight: "700", color: "#050505" },
   statLabel: { fontSize: "12px", color: "#64748b", textTransform: "uppercase" },
 
   searchContainer: {
@@ -1392,8 +1422,8 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     padding: "12px 24px",
-    background: "#4f46e5",
-    color: "white",
+    
+    color: "black",
     border: "none",
     borderRadius: "40px",
     fontSize: "14px",
@@ -1433,17 +1463,17 @@ const styles = {
   },
   checkbox: { width: "20px", height: "20px", cursor: "pointer" },
   cardContent: { display: "flex", alignItems: "center", gap: "16px", flex: 1 },
-  icon: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    background: "#f1f5f9",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "24px",
-    color: "#4f46e5",
-  },
+ icon: {
+  width: "48px",
+  height: "48px",
+  borderRadius: "12px",
+  background: "#f1f5f9",  // Light gray background
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "24px",
+  color: "#050505",  // Blue icon color
+},
   info: { flex: 1 },
   titleRow: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" },
   hymnTitle: { fontSize: "16px", fontWeight: "600", color: "#0f172a", margin: 0 },
@@ -1456,7 +1486,7 @@ const styles = {
   },
   hasLyricsBadge: {
     fontSize: "11px",
-    color: "#10b981",
+    color: "#059669",
     background: "#d1fae5",
     padding: "4px 10px",
     borderRadius: "20px",
@@ -1486,13 +1516,13 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    color: "#ef4444",
+    color: "#dc2626",
   },
 
   loadMore: {
     width: "100%",
     padding: "16px",
-    background: "#4f46e5",
+    background: "#1b1b1bd8",
     color: "white",
     border: "none",
     borderRadius: "40px",
@@ -1513,19 +1543,6 @@ const styles = {
   emptyIcon: { fontSize: "64px", marginBottom: "20px", opacity: 0.7 },
   emptyTitle: { fontSize: "20px", fontWeight: "600", color: "#0f172a", marginBottom: "8px" },
   emptyText: { fontSize: "14px", color: "#64748b", marginBottom: "24px" },
-  emptyBtn: {
-    padding: "12px 28px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: "40px",
-    fontSize: "15px",
-    fontWeight: "600",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-  },
 
   // Modal Styles
   modalOverlay: {
@@ -1567,7 +1584,7 @@ const styles = {
     width: "100%",
     minHeight: "100vh",
     overflowY: "auto",
-    },
+  },
 
   modalHeader: {
     display: "flex",
@@ -1589,7 +1606,7 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     padding: "10px 24px",
-    background: "#4f46e5",
+    background: "#2563eb",
     border: "none",
     borderRadius: "30px",
     fontSize: "14px",
@@ -1667,7 +1684,7 @@ const styles = {
   formColumn: { display: "flex", flexDirection: "column", gap: "20px" },
   formGroup: { display: "flex", flexDirection: "column", gap: "6px" },
   formLabel: { fontSize: "14px", fontWeight: "600", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" },
-  required: { color: "#ef4444", marginLeft: "2px" },
+  required: { color: "#dc2626", marginLeft: "2px" },
   formInput: {
     padding: "14px 18px",
     borderRadius: "12px",
@@ -1691,7 +1708,7 @@ const styles = {
   lyricsGroup: { display: "flex", flexDirection: "column", gap: "8px", flex: 1 },
   mobileLyricsGroup: { display: "flex", flexDirection: "column", gap: "8px", flex: 1, minHeight: "300px" },
   textareaHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" },
-  textareaStats: { display: "flex", gap: "8px", fontSize: "12px", color: "#4f46e5", background: "#e0e7ff", padding: "4px 12px", borderRadius: "30px" },
+  textareaStats: { display: "flex", gap: "8px", fontSize: "12px", color: "#2563eb", background: "#dbeafe", padding: "4px 12px", borderRadius: "30px" },
   bigTextarea: {
     padding: "20px 24px",
     borderRadius: "16px",
@@ -1729,7 +1746,7 @@ const styles = {
   },
   previewHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" },
   previewTitle: { fontSize: "16px", fontWeight: "600", color: "#0f172a", margin: 0 },
-  previewBadge: { fontSize: "12px", padding: "4px 12px", background: "#4f46e5", color: "white", borderRadius: "30px" },
+  previewBadge: { fontSize: "12px", padding: "4px 12px", background: "#2563eb", color: "white", borderRadius: "30px" },
   previewContent: {
     background: "#fff",
     borderRadius: "12px",
@@ -1737,7 +1754,7 @@ const styles = {
     border: "1px solid #e2e8f0",
     boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
   },
-  previewHymnTitle: { fontSize: "22px", fontWeight: "700", color: "#4f46e5", textAlign: "center", margin: "0 0 12px 0" },
+  previewHymnTitle: { fontSize: "22px", fontWeight: "700", color: "#2563eb", textAlign: "center", margin: "0 0 12px 0" },
   previewRef: { fontSize: "14px", color: "#64748b", textAlign: "center", margin: "0 0 28px 0", padding: "4px 0", borderBottom: "1px dashed #e2e8f0" },
   previewLyrics: { lineHeight: "2" },
   previewVerse: { marginBottom: "28px" },
@@ -1755,7 +1772,7 @@ const styles = {
     gap: "12px",
   },
   modalFooterLeft: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" },
-  autoSaveIndicator: { fontSize: "12px", color: "#10b981", background: "#d1fae5", padding: "4px 12px", borderRadius: "20px" },
+  autoSaveIndicator: { fontSize: "12px", color: "#059669", background: "#d1fae5", padding: "4px 12px", borderRadius: "20px" },
   modalFooterRight: { display: "flex", gap: "12px" },
   cancelButton: {
     padding: "12px 28px",
@@ -1783,7 +1800,7 @@ const styles = {
   deleteConfirmBtn: {
     flex: 1,
     padding: "14px",
-    background: "#ef4444",
+    background: "#dc2626",
     border: "none",
     borderRadius: "12px",
     fontSize: "14px",

@@ -21,6 +21,7 @@ import {
 } from "react-icons/fi";
 import { MdAutoFixHigh, MdTextFields, MdOutlineFormatAlignLeft } from "react-icons/md";
 import BASE_URL from "../../api";
+import { FaBookOpen } from "react-icons/fa";
 
 export default function AddHymn({ onClose, onSuccess }) {
   const { id } = useParams(); // Get song ID from URL for editing
@@ -42,6 +43,18 @@ export default function AddHymn({ onClose, onSuccess }) {
   const lyricsTextareaRef = useRef(null);
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
+
+  // ===== ROLE-AWARE BASE PATH =====
+  const getBasePath = () => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const role = user.role || user.specialRole;
+    
+    if (role === "admin") return "/admin";
+    if (role === "choir_moderator") return "/choir";
+    if (role === "secretary") return "/secretary";
+    if (role === "treasurer") return "/treasurer";
+    return "/admin"; // fallback
+  };
 
   // Fetch song data if editing (when ID is present in URL)
   useEffect(() => {
@@ -336,7 +349,8 @@ And grace will lead me home.`;
   };
 
   const openOCR = () => {
-    navigate("/admin/ocr-scanner");
+    // Use role-aware navigation for OCR scanner
+    navigate(`${getBasePath()}/ocr-scanner`);
   };
 
   const handleClose = () => {
@@ -357,7 +371,8 @@ And grace will lead me home.`;
     if (onClose) {
       onClose();
     } else {
-      navigate("/admin/hymns");
+      // Use role-aware navigation to go back to hymns list
+      navigate(`${getBasePath()}/hymns`);
     }
   };
 
@@ -423,7 +438,7 @@ And grace will lead me home.`;
         <div style={styles.mainContent}>
           {/* Help Section - Collapsible */}
           <button onClick={() => setShowHelp(!showHelp)} style={styles.collapsibleHeader}>
-            <span>📖 Quick Tips & Help</span>
+            <span><FaBookOpen /> Quick Tips & Help</span>
             {showHelp ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
           </button>
           {showHelp && (
@@ -449,7 +464,7 @@ And grace will lead me home.`;
               <div style={styles.titleInputWrapper}>
                 <input
                   type="text"
-                  placeholder="e.g., Amazing Grace, How Great Thou Art..."
+                  placeholder="e.g. UHIMIDIWE BWANA MUNGU..."
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   style={styles.titleInput}
@@ -555,7 +570,7 @@ Use **bold** for chorus lines (or click Auto Format to detect repeats)"
 
             {/* Stats Section - Collapsible */}
             <button onClick={() => setShowStats(!showStats)} style={styles.collapsibleHeader}>
-              <span>📊 Statistics & Info</span>
+              <span> Statistics & Info</span>
               {showStats ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
             </button>
             
@@ -632,7 +647,6 @@ const styles = {
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    backgroundColor: 'white'
   },
   headerLeft: {
     display: 'flex',
@@ -936,7 +950,7 @@ const styles = {
     position: 'sticky',
     bottom: 0,
     zIndex: 100,
-    backgroundColor: 'white'
+    
   },
   cancelButton: {
     padding: '10px 24px',

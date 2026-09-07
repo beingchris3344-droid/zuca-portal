@@ -80,6 +80,8 @@ import Chess from "./pages/games/Chess";
 // ===== EXECUTIVE SYSTEM IMPORTS =====
 import ExecutivePage from "./pages/ExecutivePage";
 import AdminExecutivePage from "./pages/admin/AdminExecutivePage";
+import ChoirWhatsAppBroadcast from "./pages/choir/ChoirWhatsAppBroadcast";
+
 
 /* ===== ADMIN IMPORTS ===== */
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -664,6 +666,8 @@ useEffect(() => {
           <Route index element={<Navigate to="songs" replace />} />
           <Route path="songs" element={<SongsPage />} />
            <Route path="hymns" element={<AdminHymns />} />
+           <Route path="/choir/whatsapp-broadcast" element={<ChoirWhatsAppBroadcast />} />
+
         </Route>
 
         {/* ================= JUMUIA LEADER ================= */}

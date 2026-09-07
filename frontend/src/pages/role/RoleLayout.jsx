@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";          
 import BASE_URL from "../../api"; 
-import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity } from "react-icons/fa";
+import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity,FaWhatsapp, FaMusic } from "react-icons/fa";
 
 
 export default function RoleLayout() {
@@ -99,21 +99,24 @@ export default function RoleLayout() {
      { action: `/treasurer/bank-payments`, label: "View Bank Payments", icon: <FaUniversity size="25px" /> }
     ]
   };
-      case "choir_moderator":
+     // In the choir_moderator case, add the WhatsApp module:
+case "choir_moderator":
   return { 
     icon: "🎵", 
     name: "Choir Moderator", 
     color: "#ec4899",
-    description: "Manage mass programs & songs",
+    description: "Manage mass programs, songs & broadcasts",
     modules: [
-      { path: `${basePath}/songs`, icon: "🎵", label: "Programs" },
-      // ADD THIS LINE 👇
-      { path: `${basePath}/hymns`, icon: "📖", label: "Hymns" }
+      { path: `${basePath}/songs`, icon: <FaMusic size="20px"/>, label: "Programs" },
+      { path: `${basePath}/hymns`, icon: <FaBook size="20px"/>, label: "Hymns" },
+      // NEW: WhatsApp Broadcast module
+      { path: `/choir/whatsapp-broadcast`, icon: <FaWhatsapp size="24px"/>, label: "Broadcast" }
     ],
     quickActions: [
-      { action: `${basePath}/songs`, label: "Add Song", icon: "➕" },
-      // ADD THIS LINE 👇
-      { action: `${basePath}/hymns`, label: "View Hymns", icon: "📖" }
+      { action: `${basePath}/songs`, label: "Add Song", icon: <FaPlus size="18px"/> },
+      { action: `${basePath}/hymns`, label: "View Hymns", icon: <FaBook size="18px"/> },
+      // NEW: Quick broadcast action
+      { action: `/choir/whatsapp-broadcast`, label: "Broadcast Message", icon: <FaWhatsapp size="18px"/> }
     ]
   };
       case "jumuia_leader":

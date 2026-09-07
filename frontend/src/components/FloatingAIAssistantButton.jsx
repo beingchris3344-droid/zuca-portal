@@ -1,7 +1,8 @@
 // frontend/src/components/FloatingAIAssistantButton.jsx
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaTimes } from "react-icons/fa";
+import { FaTimes, FaRobot } from "react-icons/fa";
+import { FiX, FiEye, FiEyeOff } from "react-icons/fi";
 import logoImg from "../assets/zuca-logo.png";
 
 const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
@@ -12,7 +13,15 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  // Default: HIDDEN (false) - user must explicitly show it
+  const [isVisible, setIsVisible] = useState(() => {
+    const saved = localStorage.getItem('ai_button_visible');
+    // If saved preference exists, use it; otherwise default to HIDDEN
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [showToggleMenu, setShowToggleMenu] = useState(false);
   const buttonRef = useRef(null);
+  const toggleMenuRef = useRef(null);
 
   // Load saved position
   useEffect(() => {
@@ -37,6 +46,11 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
     }
   }, [position]);
 
+  // Save visibility preference
+  useEffect(() => {
+    localStorage.setItem('ai_button_visible', String(isVisible));
+  }, [isVisible]);
+
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
@@ -50,6 +64,34 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Close toggle menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (toggleMenuRef.current && !toggleMenuRef.current.contains(event.target)) {
+        setShowToggleMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcut: Alt + A to toggle
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.altKey && e.key === 'a') {
+        e.preventDefault();
+        toggleVisibility();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible]);
+
+  const toggleVisibility = () => {
+    setIsVisible(!isVisible);
+    setShowToggleMenu(false);
+  };
 
   const handleDragStart = (e) => {
     e.preventDefault();
@@ -109,18 +151,230 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
     setHasMoved(false);
   };
 
+  // Toggle menu button click
+  const handleToggleClick = (e) => {
+    e.stopPropagation();
+    setShowToggleMenu(!showToggleMenu);
+  };
+
   if (!user) return null;
 
-  // Wave colors - ZUCA themed
-  const waveColors = [
-    'rgba(82, 197, 5, 0.97)',
-    'rgba(89, 207, 10, 0.91)',
-   
-    
-  ];
+  // If hidden, show a visible indicator to show the button
+  if (!isVisible) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: "spring", damping: 15 }}
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          right: "20px",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        {/* Show Button - Click to reveal the full AI button */}
+        <button
+          onClick={toggleVisibility}
+          style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #1a1a2e, #16213e)",
+            border: "2px solid rgba(82, 197, 5, 0.6)",
+            color: "white",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(8px)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.4), 0 0 20px rgba(82, 197, 5, 0.1)",
+            transition: "all 0.3s ease",
+            position: "relative",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.1)";
+            e.currentTarget.style.borderColor = "rgba(82, 197, 5, 1)";
+            e.currentTarget.style.boxShadow = "0 4px 30px rgba(0,0,0,0.5), 0 0 40px rgba(82, 197, 5, 0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.borderColor = "rgba(82, 197, 5, 0.6)";
+            e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 20px rgba(82, 197, 5, 0.1)";
+          }}
+          title="Show AI Assistant (Alt+A)"
+        >
+          <FaRobot size={22} />
+          
+          {/* Pulse ring */}
+          <div style={{
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            borderRadius: "50%",
+            border: "2px solid rgba(82, 197, 5, 0.2)",
+            animation: "pulse-ring-green 2s ease-out infinite",
+            pointerEvents: "none",
+          }} />
+          
+          {/* Small indicator dot */}
+          <div style={{
+            position: "absolute",
+            top: "-4px",
+            right: "-4px",
+            width: "14px",
+            height: "14px",
+            borderRadius: "50%",
+            background: "#22c55e",
+            border: "2px solid #1a1a2e",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          }} />
+        </button>
+        
+        {/* Label */}
+        <span
+          style={{
+            fontSize: "12px",
+            color: "white",
+            background: "rgba(0,0,0,0.8)",
+            padding: "6px 14px",
+            borderRadius: "20px",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            display: window.innerWidth > 768 ? "block" : "none",
+            fontWeight: "500",
+            letterSpacing: "0.3px",
+          }}
+        >
+          AI Assistant
+        </span>
+        
+        {/* Keyboard shortcut hint */}
+        <span
+          style={{
+            fontSize: "10px",
+            color: "rgba(255,255,255,0.4)",
+            background: "rgba(0,0,0,0.5)",
+            padding: "4px 10px",
+            borderRadius: "12px",
+            display: window.innerWidth > 768 ? "block" : "none",
+            border: "1px solid rgba(255,255,255,0.05)",
+          }}
+        >
+          Alt+A
+        </span>
+      </motion.div>
+    );
+  }
 
   return (
     <>
+      {/* Toggle Menu */}
+      <AnimatePresence>
+        {showToggleMenu && (
+          <motion.div
+            ref={toggleMenuRef}
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            style={{
+              position: "fixed",
+              bottom: `${window.innerHeight - position.y + 70}px`,
+              right: `${window.innerWidth - position.x}px`,
+              zIndex: 100000,
+              background: "rgba(15, 23, 42, 0.95)",
+              backdropFilter: "blur(12px)",
+              borderRadius: "12px",
+              padding: "8px",
+              minWidth: "180px",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <button
+              onClick={toggleVisibility}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                width: "100%",
+                padding: "10px 14px",
+                background: "transparent",
+                border: "none",
+                borderRadius: "8px",
+                color: "#e2e8f0",
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <FiEyeOff size={16} color="#f87171" />
+              <span>Hide AI Assistant</span>
+              <span style={{ marginLeft: "auto", fontSize: "10px", color: "#64748b" }}>
+                Alt+A
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                setShowToggleMenu(false);
+                // Reset position to default
+                setPosition({ x: window.innerWidth - 85, y: window.innerHeight - 120 });
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                width: "100%",
+                padding: "10px 14px",
+                background: "transparent",
+                border: "none",
+                borderRadius: "8px",
+                color: "#e2e8f0",
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <FiEye size={16} color="#60a5fa" />
+              <span>Reset Position</span>
+            </button>
+            <div style={{
+              borderTop: "1px solid rgba(255,255,255,0.05)",
+              margin: "4px 8px",
+              paddingTop: "6px",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "6px 14px",
+                color: "#64748b",
+                fontSize: "11px",
+              }}>
+                <span>💡</span>
+                <span>Always hidden by default</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sound Wave Rings - Positioned around the button */}
       <div
         style={{
@@ -132,7 +386,7 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
           transform: "translate(-50%, -50%)",
         }}
       >
-        {waveColors.map((color, index) => (
+        {['rgba(82, 197, 5, 0.97)', 'rgba(89, 207, 10, 0.91)'].map((color, index) => (
           <div
             key={index}
             className="wave-ring"
@@ -169,12 +423,11 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
           width: "60px",
           height: "60px",
           borderRadius: "50%",
-          background: isHovered 
-            ? "linear-gradient(135deg, #fdfdfd, #ffffff)" 
-            : "linear-gsradient(135deg, #f8f8f8, #9f1cb9)",
+          background: "linear-gradient(135deg, #f8f8f8, #ffffff)",
           border: "3px solid rgb(27, 167, 8)",
           boxShadow: isHovered 
-          ,
+            ? "0 8px 32px rgba(27, 167, 8, 0.4), 0 0 0 8px rgba(27, 167, 8, 0.1)"
+            : "0 4px 20px rgba(0,0,0,0.15)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -201,6 +454,42 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
             borderRadius: "50%",
           }}
         />
+        
+        {/* Toggle menu button (small gear/eye icon) */}
+        <button
+          onClick={handleToggleClick}
+          style={{
+            position: "absolute",
+            top: "-8px",
+            right: "-8px",
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            background: "rgba(15, 23, 42, 0.9)",
+            border: "2px solid rgba(255,255,255,0.3)",
+            color: "white",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "10px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            transition: "all 0.3s ease",
+            padding: 0,
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(82, 197, 5, 0.9)";
+            e.currentTarget.style.transform = "scale(1.15)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(15, 23, 42, 0.9)";
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          title="Options (Alt+A to toggle visibility)"
+        >
+          <FiEyeOff size={10} />
+        </button>
         
         {/* Pulse animation ring - Gold */}
         <div style={{
@@ -258,6 +547,17 @@ const FloatingAIAssistantButton = ({ user, onOpenAI }) => {
           }
           100% {
             transform: scale(1.6);
+            opacity: 0;
+          }
+        }
+
+        @keyframes pulse-ring-green {
+          0% {
+            transform: scale(1);
+            opacity: 0.6;
+          }
+          100% {
+            transform: scale(1.8);
             opacity: 0;
           }
         }

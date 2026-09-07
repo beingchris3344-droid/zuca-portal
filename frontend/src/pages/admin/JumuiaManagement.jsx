@@ -20,6 +20,11 @@ const Icons = {
   Check: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
   Eye: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   Spinner: () => <svg className="spinner-small" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>,
+  FileText: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+  FilePdf: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 12.5c0-1.1.9-2 2-2s2 .9 2 2v2c0 1.1-.9 2-2 2s-2-.9-2-2v-2z"/><path d="M8 14.5v-4"/><path d="M16 14.5v-4"/></svg>,
+  FileWord: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l1 4 1.5-3L12 17l1.5-4L15 13"/></svg>,
+  ChevronDown: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
+  DownloadCloud: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
 
 // Helper component for member avatar with profile picture support
@@ -93,6 +98,8 @@ export default function JumuiaManagement() {
   const [notification, setNotification] = useState(null);
   const [newJumuia, setNewJumuia] = useState({ name: "", description: "", location: "" });
   const [processingId, setProcessingId] = useState(null);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -253,7 +260,309 @@ export default function JumuiaManagement() {
     }
   };
 
+  // ========== EXPORT FUNCTIONS ==========
+
+  // Generate HTML content for PDF/Word export
+  const generateReportHTML = (data, title) => {
+    const date = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    let html = `
+      <html>
+      <head>
+        <style>
+          body { font-family: 'Times New Roman', Times, serif; padding: 40px; color: #1a1a2e; }
+          .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { font-size: 28px; margin: 0; color: #1a1a2e; }
+          .header .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
+          .header .date { font-size: 12px; color: #888; margin-top: 3px; }
+          .jumuia-section { margin-bottom: 40px; page-break-inside: avoid; }
+          .jumuia-title { font-size: 20px; font-weight: bold; color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 15px; }
+          .jumuia-meta { display: flex; gap: 20px; margin-bottom: 15px; font-size: 13px; color: #555; }
+          .jumuia-meta span { background: #f5f5f5; padding: 4px 12px; border-radius: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+          th { background: #1a1a2e; color: white; padding: 10px 12px; text-align: left; font-weight: 600; }
+          td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; }
+          tr:nth-child(even) { background: #f9f9f9; }
+          .footer { text-align: center; padding-top: 30px; border-top: 2px solid #1a1a2e; margin-top: 30px; font-size: 12px; color: #888; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+          .badge-admin { background: #fee2e2; color: #dc2626; }
+          .badge-treasurer { background: #fef3c7; color: #d97706; }
+          .badge-member { background: #f1f5f9; color: #475569; }
+          .status-active { color: #059669; font-weight: 600; }
+          .status-inactive { color: #94a3b8; }
+    `;
+
+    // Add report-specific styles
+    if (data.length > 1) {
+      html += `
+          .report-header { text-align: center; margin-bottom: 20px; }
+          .report-header h2 { font-size: 22px; margin: 0; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px; }
+          .summary-item { background: #f5f5f5; padding: 12px; border-radius: 8px; text-align: center; }
+          .summary-item .number { font-size: 22px; font-weight: bold; color: #1a1a2e; }
+          .summary-item .label { font-size: 12px; color: #666; }
+      `;
+    }
+
+    html += `
+        </style>
+      </head>
+      <body>
+    `;
+
+    // Add report header
+    if (data.length > 1) {
+      html += `
+        <div class="header">
+          <h1>${title}</h1>
+          <div class="subtitle">Full Jumuia Management Report</div>
+          <div class="date">Generated on ${date}</div>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="number">${data.length}</div>
+            <div class="label">Total Jumuia Groups</div>
+          </div>
+          <div class="summary-item">
+            <div class="number">${data.reduce((sum, j) => sum + j.members.length, 0)}</div>
+            <div class="label">Total Members</div>
+          </div>
+          <div class="summary-item">
+            <div class="number">${data.reduce((sum, j) => sum + j.members.filter(m => m.role === "admin").length, 0)}</div>
+            <div class="label">Total Admins</div>
+          </div>
+          <div class="summary-item">
+            <div class="number">${data.reduce((sum, j) => sum + (j.stats?.activeMembers || 0), 0)}</div>
+            <div class="label">Active Members (30d)</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Jumuia sections
+    data.forEach((jumuia) => {
+      const memberCount = jumuia.members.length;
+      const adminCount = jumuia.members.filter(m => m.role === "admin").length;
+      const activeCount = jumuia.stats?.activeMembers || 0;
+
+      html += `
+        <div class="jumuia-section">
+          <div class="jumuia-title">${jumuia.name}</div>
+          <div class="jumuia-meta">
+            <span>👥 ${memberCount} Members</span>
+            <span>🛡️ ${adminCount} Admins</span>
+            <span>🟢 ${activeCount} Active</span>
+            ${jumuia.location ? `<span>📍 ${jumuia.location}</span>` : ''}
+          </div>
+      `;
+
+      if (jumuia.members.length > 0) {
+        html += `
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Member Name</th>
+                <th>Role</th>
+                <th>Email</th>
+                <th>Membership #</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        jumuia.members.forEach((member, idx) => {
+          const roleClass = member.role === 'admin' ? 'badge-admin' : 
+                           member.role === 'treasurer' ? 'badge-treasurer' : 'badge-member';
+          const isActive = member.lastActive && new Date(member.lastActive) > new Date(Date.now() - 7*24*60*60*1000);
+          
+          html += `
+            <tr>
+              <td>${idx + 1}</td>
+              <td><strong>${member.fullName}</strong></td>
+              <td><span class="badge ${roleClass}">${member.role}</span></td>
+              <td>${member.email}</td>
+              <td>${member.membership_number || 'N/A'}</td>
+              <td class="${isActive ? 'status-active' : 'status-inactive'}">${isActive ? '🟢 Active' : '⚪ Inactive'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      } else {
+        html += `
+          <p style="color: #888; font-style: italic; padding: 10px 0;">No members in this Jumuia</p>
+        `;
+      }
+
+      html += `</div>`;
+    });
+
+    // Footer
+    html += `
+        <div class="footer">
+          <p>Generated by Church Management System</p>
+          <p>${date}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return html;
+  };
+
+  // Download as PDF (using window.print or jsPDF alternative)
+  const downloadPDF = (html, filename) => {
+    // Create a new window for printing
+    const win = window.open('', '_blank');
+    if (!win) {
+      showNotification("Please allow popups for this site", "error");
+      return;
+    }
+    
+    win.document.write(html);
+    win.document.close();
+    
+    // Wait for content to load then print to PDF
+    setTimeout(() => {
+      win.print();
+      // Close after print dialog closes (user will handle)
+    }, 500);
+  };
+
+  // Download as Word (.doc)
+  const downloadWord = (html, filename) => {
+    const fullHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+            xmlns:w="urn:schemas-microsoft-com:office:word" 
+            xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <title>${filename}</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          /* Same styles as HTML generation */
+          body { font-family: 'Times New Roman', Times, serif; padding: 40px; color: #1a1a2e; }
+          .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { font-size: 28px; margin: 0; color: #1a1a2e; }
+          .header .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
+          .header .date { font-size: 12px; color: #888; margin-top: 3px; }
+          .jumuia-section { margin-bottom: 40px; page-break-inside: avoid; }
+          .jumuia-title { font-size: 20px; font-weight: bold; color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 15px; }
+          .jumuia-meta { margin-bottom: 15px; font-size: 13px; color: #555; }
+          .jumuia-meta span { background: #f5f5f5; padding: 4px 12px; border-radius: 4px; margin-right: 10px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+          th { background: #1a1a2e; color: white; padding: 10px 12px; text-align: left; font-weight: 600; }
+          td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; }
+          tr:nth-child(even) { background: #f9f9f9; }
+          .footer { text-align: center; padding-top: 30px; border-top: 2px solid #1a1a2e; margin-top: 30px; font-size: 12px; color: #888; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+          .badge-admin { background: #fee2e2; color: #dc2626; }
+          .badge-treasurer { background: #fef3c7; color: #d97706; }
+          .badge-member { background: #f1f5f9; color: #475569; }
+          .status-active { color: #059669; font-weight: 600; }
+          .status-inactive { color: #94a3b8; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px; }
+          .summary-item { background: #f5f5f5; padding: 12px; border-radius: 8px; text-align: center; }
+          .summary-item .number { font-size: 22px; font-weight: bold; color: #1a1a2e; }
+          .summary-item .label { font-size: 12px; color: #666; }
+    `;
+
+    // Add any additional styles from generateReportHTML
+    const tempHtml = generateReportHTML([], '');
+    const styleMatch = tempHtml.match(/<style>([\s\S]*?)<\/style>/);
+    if (styleMatch) {
+      fullHtml += styleMatch[1];
+    }
+
+    fullHtml += `
+        </style>
+      </head>
+      <body>
+        ${html.replace(/<html>[\s\S]*?<body>/, '').replace(/<\/body>[\s\S]*?<\/html>/, '')}
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([fullHtml], { 
+      type: 'application/msword;charset=utf-8' 
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download individual Jumuia
+  const downloadSingleJumuia = (jumuia, format) => {
+    setDownloading(true);
+    try {
+      const data = [jumuia];
+      const title = `${jumuia.name} - Members Report`;
+      const filename = `${jumuia.name.toLowerCase().replace(/\s+/g, '_')}_members`;
+      const html = generateReportHTML(data, title);
+
+      if (format === 'pdf') {
+        downloadPDF(html, filename);
+      } else if (format === 'word') {
+        downloadWord(html, filename);
+      }
+
+      showNotification(`Downloading ${jumuia.name} as ${format.toUpperCase()}...`, "success");
+    } catch (err) {
+      console.error("Download error:", err);
+      showNotification("Failed to download", "error");
+    } finally {
+      setDownloading(false);
+      setShowDownloadMenu(false);
+    }
+  };
+
+  // Download full system report
+  const downloadFullReport = (format) => {
+    setDownloading(true);
+    try {
+      const title = "Full Jumuia Management Report";
+      const filename = `jumuia_full_report_${new Date().toISOString().split('T')[0]}`;
+      const html = generateReportHTML(jumuiaList, title);
+
+      if (format === 'pdf') {
+        downloadPDF(html, filename);
+      } else if (format === 'word') {
+        downloadWord(html, filename);
+      }
+
+      showNotification(`Downloading full report as ${format.toUpperCase()}...`, "success");
+    } catch (err) {
+      console.error("Download error:", err);
+      showNotification("Failed to download full report", "error");
+    } finally {
+      setDownloading(false);
+      setShowDownloadMenu(false);
+    }
+  };
+
   const handleExport = () => {
+    // Legacy CSV export - keep for compatibility
     const data = jumuiaList.map(j => ({
       Jumuia: j.name,
       Description: j.description || "",
@@ -325,10 +634,51 @@ export default function JumuiaManagement() {
           <p className="page-description">All Jumuia management</p>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary" onClick={handleExport} disabled={showSkeleton}>
-            <Icons.Download />
-            Export
-          </button>
+          {/* Download Dropdown */}
+          <div className="download-dropdown-wrapper">
+            <button 
+              className="btn-secondary" 
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              disabled={showSkeleton || downloading}
+            >
+              <Icons.DownloadCloud />
+              Download Report
+            </button>
+            {showDownloadMenu && !showSkeleton && (
+              <div className="download-dropdown-menu">
+                <div className="dropdown-header">
+                  <strong>Full System Reports</strong>
+                </div>
+                <button onClick={() => downloadFullReport('pdf')} disabled={downloading}>
+                  <Icons.FilePdf /> Full Report (PDF)
+                </button>
+                <button onClick={() => downloadFullReport('word')} disabled={downloading}>
+                  <Icons.FileWord /> Full Report (Word)
+                </button>
+                <div className="dropdown-divider"></div>
+                <div className="dropdown-header">
+                  <strong>Individual Jumuia</strong>
+                </div>
+                {jumuiaList.map(j => (
+                  <div key={j.id} className="dropdown-submenu">
+                    <span className="dropdown-jumuia-name">{j.name}</span>
+                    <div className="dropdown-submenu-actions">
+                      <button onClick={() => downloadSingleJumuia(j, 'pdf')} disabled={downloading}>
+                        PDF
+                      </button>
+                      <button onClick={() => downloadSingleJumuia(j, 'word')} disabled={downloading}>
+                        Word
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="dropdown-divider"></div>
+                <button onClick={handleExport} disabled={downloading} className="dropdown-csv">
+                  <Icons.Download /> Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button className="btn-primary" onClick={() => setShowNewJumuiaModal(true)} disabled={showSkeleton}>
             <Icons.Plus />
             New Jumuia
@@ -476,6 +826,29 @@ export default function JumuiaManagement() {
                 </div>
                 
                 <div className="jumuia-header-right">
+                  {/* Download buttons for individual Jumuia */}
+                  <button 
+                    className="download-single-btn" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadSingleJumuia(jumuia, 'pdf');
+                    }}
+                    disabled={downloading}
+                    title="Download as PDF"
+                  >
+                    <Icons.FilePdf />
+                  </button>
+                  <button 
+                    className="download-single-btn" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadSingleJumuia(jumuia, 'word');
+                    }}
+                    disabled={downloading}
+                    title="Download as Word"
+                  >
+                    <Icons.FileWord />
+                  </button>
                   <button className="view-full-btn" onClick={(e) => handleViewJumuia(e, jumuia)}>
                     <Icons.Eye />
                     View Full Page
@@ -680,6 +1053,142 @@ export default function JumuiaManagement() {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
+        /* Download Dropdown Styles */
+        .download-dropdown-wrapper {
+          position: relative;
+          display: inline-block;
+        }
+
+        .download-dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+          min-width: 280px;
+          max-height: 400px;
+          overflow-y: auto;
+          z-index: 100;
+          padding: 8px 0;
+        }
+
+        .dropdown-header {
+          padding: 8px 16px;
+          font-size: 12px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          font-weight: 600;
+        }
+
+        .dropdown-divider {
+          height: 1px;
+          background: #e2e8f0;
+          margin: 6px 12px;
+        }
+
+        .dropdown-menu button,
+        .dropdown-submenu button {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          padding: 10px 16px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          font-size: 13px;
+          color: #1e293b;
+          transition: all 0.2s;
+        }
+
+        .dropdown-menu button:hover:not(:disabled),
+        .dropdown-submenu button:hover:not(:disabled) {
+          background: #f1f5f9;
+        }
+
+        .dropdown-menu button:disabled,
+        .dropdown-submenu button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .dropdown-submenu {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 4px 8px;
+          border-radius: 6px;
+          margin: 2px 8px;
+        }
+
+        .dropdown-submenu:hover {
+          background: #f8fafc;
+        }
+
+        .dropdown-jumuia-name {
+          font-size: 13px;
+          color: #1e293b;
+          font-weight: 500;
+          flex: 1;
+        }
+
+        .dropdown-submenu-actions {
+          display: flex;
+          gap: 4px;
+        }
+
+        .dropdown-submenu-actions button {
+          padding: 4px 10px;
+          font-size: 11px;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          background: white;
+          font-weight: 500;
+          width: auto;
+        }
+
+        .dropdown-submenu-actions button:hover:not(:disabled) {
+          background: #3b82f6;
+          color: white;
+          border-color: #3b82f6;
+        }
+
+        .dropdown-csv {
+          color: #475569 !important;
+        }
+
+        .dropdown-csv:hover:not(:disabled) {
+          background: #f1f5f9 !important;
+        }
+
+        .download-single-btn {
+          padding: 6px 10px;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          background: white;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+          margin-right: 6px;
+          color: #475569;
+        }
+
+        .download-single-btn:hover:not(:disabled) {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
+        }
+
+        .download-single-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
         /* Skeleton Loading */
         .skeleton-shimmer {
           background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
@@ -759,6 +1268,7 @@ export default function JumuiaManagement() {
         .header-actions {
           display: flex;
           gap: 12px;
+          align-items: center;
         }
 
         .btn-primary, .btn-secondary {
@@ -938,6 +1448,12 @@ export default function JumuiaManagement() {
           gap: 16px;
           cursor: pointer;
           flex: 1;
+        }
+
+        .jumuia-header-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         .jumuia-icon {
@@ -1193,6 +1709,20 @@ export default function JumuiaManagement() {
           color: #94a3b8;
         }
 
+        /* Scrollbar for dropdown */
+        .download-dropdown-menu::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .download-dropdown-menu::-webkit-scrollbar-track {
+          background: #f1f5f9;
+        }
+
+        .download-dropdown-menu::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1204,7 +1734,20 @@ export default function JumuiaManagement() {
           .stats-grid { grid-template-columns: 1fr; }
           .filters-bar { flex-direction: column; }
           .search-wrapper { width: 100%; }
-          
+          .download-dropdown-menu {
+            right: auto;
+            left: 0;
+            min-width: 250px;
+          }
+          .jumuia-header {
+            flex-direction: column;
+            gap: 12px;
+          }
+          .jumuia-header-right {
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+          }
           .member-info { min-width: 200px; }
           .action-group { flex-direction: column; }
           .action-group select, .remove-btn { width: 100%; }

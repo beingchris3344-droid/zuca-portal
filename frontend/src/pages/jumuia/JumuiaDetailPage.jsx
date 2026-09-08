@@ -9,6 +9,7 @@ import io from 'socket.io-client';
 import BASE_URL from '../../api';
 import axios from 'axios';
 import logo from "../../assets/zuca-logo.png"
+import { FaUser, FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate, FaHandHoldingHeart, FaDove, FaPrayingHands, FaGamepad, FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaBirthdayCake, FaRegFilePdf, FaRegFileAlt  } from "react-icons/fa";
 
 // Icons
 const Icons = {
@@ -1148,7 +1149,7 @@ if (loading) {
       transition: "all 0.2s ease",
     }}
   >
-    👤 Back to Member
+    <FaUser /> Back to Member
   </button>
 )}
           </div>
@@ -1159,17 +1160,17 @@ if (loading) {
             </span>
             {isLeader && (
               <span style={styles.leaderBadge}>
-                👑 Leader
+                <FaUser /> Leader
               </span>
             )}
             {isTreasurer && (
               <span style={styles.treasurerBadge}>
-                💰 Treasurer
+                <FaUser />s Treasurer
               </span>
             )}
             {isAdmin && (
               <span style={styles.adminBadge}>
-                👤 Admin
+                <FaUser /> Admin
               </span>
             )}
             <span style={{
@@ -1215,7 +1216,7 @@ if (loading) {
   }}
   onClick={() => handleTabChange('announcements')}
 >
-  📢 Announcements
+   Announcements
 </button>
         <button
           style={{
@@ -1224,7 +1225,7 @@ if (loading) {
           }}
           onClick={() => handleTabChange('contributions')}
         >
-          💰 Contributions
+         Contributions
         </button>
       </div>
       
@@ -1537,7 +1538,7 @@ if (loading) {
               cursor: 'pointer'
             }}
           >
-            ✉️ Share via Email
+            <FaEnvelope />   Share via Email
           </button>
         </div>
         
@@ -1612,7 +1613,7 @@ function MembersList({ members, canModify, isAdmin, onRemoveMember, onAssignLead
       {/* Leaders Section */}
       {leaders.length > 0 && !showLeadersOnly && (
         <div style={styles.leadersSection}>
-          <h3 style={styles.subSectionTitle}>👑 Leaders ({leaders.length})</h3>
+          <h3 style={styles.subSectionTitle}> Leaders ({leaders.length})</h3>
           <div style={styles.membersGrid}>
             {leaders.map(member => (
               <MemberCard
@@ -1632,7 +1633,7 @@ function MembersList({ members, canModify, isAdmin, onRemoveMember, onAssignLead
       {/* Regular Members Section */}
       {regularMembers.length > 0 && !showLeadersOnly && (
         <div style={styles.membersSection}>
-          <h3 style={styles.subSectionTitle}>👥 Members ({regularMembers.length})</h3>
+          <h3 style={styles.subSectionTitle}> Members ({regularMembers.length})</h3>
           <div style={styles.membersGrid}>
             {regularMembers.map(member => (
               <MemberCard

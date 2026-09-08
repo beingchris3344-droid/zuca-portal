@@ -528,25 +528,25 @@ export default function AdminAnnouncements() {
     className={`tab-btn ${activeTab === "announcements" ? "active" : ""}`}
     onClick={() => setActiveTab("announcements")}
   >
-    📢 Announcements
+    Announcements
   </button>
   <button
     className={`tab-btn ${activeTab === "schedules" ? "active" : ""}`}
     onClick={() => setActiveTab("schedules")}
   >
-    📅 Schedules
+    Schedules
   </button>
   <button
     className={`tab-btn ${activeTab === "minutes" ? "active" : ""}`}
     onClick={() => setActiveTab("minutes")}
   >
-    📋 Minutes
+    Minutes
   </button>
   <button
     className={`tab-btn ${activeTab === "history" ? "active" : ""}`}
     onClick={() => setActiveTab("history")}
   >
-    📜 History
+     History
   </button>
 </div>
 

@@ -13,7 +13,7 @@ import {
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, 
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaBirthdayCake, FaRegFilePdf, FaSun} from "react-icons/fa";
+import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaBirthdayCake, FaUser,FaRegFilePdf, FaSun} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
@@ -395,7 +395,7 @@ useEffect(() => {
            window.location.pathname.startsWith("/choir") || 
            window.location.pathname.startsWith("/leader") || 
            window.location.pathname.startsWith("/media-moderator") ? (
-            <option value="member">👤 Back to Member Mode</option>
+            <option value="member"><FaUser size="18px" /> Back to Member Mode</option>
           ) : (
             <>
               <option value="admin"> Admin Mode</option>
@@ -489,8 +489,8 @@ useEffect(() => {
          window.location.pathname.includes("/choir") || 
          window.location.pathname.includes("/leader") || 
          window.location.pathname.includes("/media-moderator")
-          ? "👤 Back to Member Mode" 
-          : `🔑 Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
+          ? " Back to Member Mode" 
+          : ` Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
       </motion.button>
     )}
   </>

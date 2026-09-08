@@ -10,7 +10,7 @@ import "react-quill/dist/quill.snow.css";
 import "react-datepicker/dist/react-datepicker.css";
 import { createPortal } from 'react-dom';
 import BASE_URL from "../../api";
-import { FaCalendar, FaCalendarAlt, FaTrash, FaEdit, FaDownload, FaPlus, FaTimes } from "react-icons/fa";                                   
+import { FaCalendar,FaStickyNote, FaBell, FaCalendarAlt, FaTrash, FaEdit, FaDownload, FaPlus, FaTimes, FaEye, FaImage, FaFileWord, FaFilePdf } from "react-icons/fa";                                   
 
 function AdminSchedules() {
   const navigate = useNavigate();
@@ -1198,15 +1198,15 @@ const parseDateString = (dateStr) => {
       )}
 
       <div style={styles.header}>
-        <button onClick={() => navigate("/dashboard")} style={styles.backButton}>← Back</button>
-        <h1 style={styles.title}>📅 Semester Schedule Manager</h1>
+        <button onClick={() => navigate(-1)} style={styles.backButton}>← Back</button>
+        <h1 style={styles.title}> Semester Schedule Manager</h1>
         <div style={styles.headerButtons}>
           <button onClick={() => { resetForm(); setShowForm(true); setEditingDraftId(null); }} style={styles.addButton}>+ New Schedule</button>
           <button onClick={() => setShowDraftsPanel(!showDraftsPanel)} style={styles.draftsButton}>
-            📝 Drafts ({drafts.length})
+            <FaStickyNote /> Drafts ({drafts.length})
           </button>
           <button onClick={() => setShowSavedNotifications(!showSavedNotifications)} style={styles.notificationButton}>
-            🔔 Notifications ({savedNotifications.length})
+            <FaBell /> Notifications ({savedNotifications.length})
           </button>
         </div>
       </div>
@@ -1214,7 +1214,7 @@ const parseDateString = (dateStr) => {
       {showSavedNotifications && (
         <div style={styles.notificationsPanel}>
           <div style={styles.notificationsHeader}>
-            <h3>📋 Activity Log</h3>
+            <h3> Activity Log</h3>
             <div>
               {savedNotifications.length > 0 && (
                 <button onClick={clearAllNotifications} style={styles.clearAllBtn} disabled={actionLoading.clear_all_notif}>
@@ -1292,7 +1292,7 @@ const parseDateString = (dateStr) => {
       )}
 
       <div style={styles.scheduleList}>
-        <h2 style={styles.sectionTitle}>📋 Published Schedules</h2>
+        <h2 style={styles.sectionTitle}> Published Schedules</h2>
         {actionLoading.fetch_schedules ? (
           <div style={styles.loadingContainer}>
             <LoadingSpinner size={40} />
@@ -1307,28 +1307,32 @@ const parseDateString = (dateStr) => {
                 <div>
                   <h3 style={styles.scheduleTitle}>{schedule.title || "Untitled"}</h3>
                   <p style={styles.scheduleMeta}>
-                    {schedule.startDate && `📅 ${new Date(schedule.startDate).toLocaleDateString()} - ${new Date(schedule.endDate).toLocaleDateString()}`}
+                    {schedule.startDate && ` ${new Date(schedule.startDate).toLocaleDateString()} - ${new Date(schedule.endDate).toLocaleDateString()}`}
                   </p>
                 </div>
                 <div style={styles.cardActions}>
                   <button onClick={() => viewSchedule(schedule)} style={styles.viewBtn} disabled={actionLoading.view_schedule}>
-                    {actionLoading.view_schedule ? <LoadingSpinner size={14} /> : "👁️ View"}
+                    {actionLoading.view_schedule ? <LoadingSpinner size={14} /> : " View"}
+                    <FaEye style={{ marginLeft: "5px", size: "14px" }} />
                   </button>
                   <button onClick={() => editSchedule(schedule)} style={styles.editBtn} disabled={actionLoading.edit_schedule}>
-                    {actionLoading.edit_schedule ? <LoadingSpinner size={14} /> : "✏️ Edit"}
+                    {actionLoading.edit_schedule ? <LoadingSpinner size={14} /> : " Edit"}
+                    <FaEdit style={{ marginLeft: "5px", size: "14px" }} />
                   </button>
                   <button onClick={() => deleteSchedule(schedule.id)} style={styles.deleteBtn} disabled={actionLoading[`delete_schedule_${schedule.id}`]}>
-                    {actionLoading[`delete_schedule_${schedule.id}`] ? <LoadingSpinner size={14} /> : "🗑️ Delete"}
+                    {actionLoading[`delete_schedule_${schedule.id}`] ? <LoadingSpinner size={14} /> : "Delete"}
+                    <FaTrash style={{ marginLeft: "5px", size: "14px" }} />
                   </button>
                   <div style={styles.downloadDropdown}>
                     <button onClick={() => setDownloadDropdownOpen(downloadDropdownOpen === schedule.id ? null : schedule.id)} style={styles.downloadDropdownBtn}>
-                      ⬇️ Download ▼
+                       Download 
+                       <FaDownload style={{ marginLeft: "5px", size: "14px" }} />
                     </button>
                     {downloadDropdownOpen === schedule.id && (
                       <div style={styles.downloadDropdownMenu}>
-                        <button onClick={() => downloadAsPDF(schedule)} style={styles.dropdownItem}>📄 PDF</button>
-                        <button onClick={() => downloadAsImage(schedule)} style={styles.dropdownItem}>🖼️ Image</button>
-                        <button onClick={() => downloadAsWord(schedule)} style={styles.dropdownItem}>📝 Word</button>
+                        <button onClick={() => downloadAsPDF(schedule)} style={styles.dropdownItem}><FaFilePdf style={{ marginLeft: "5px", size: "14px", color: "#ff0000" }} /> PDF</button>
+                        <button onClick={() => downloadAsImage(schedule)} style={styles.dropdownItem}><FaImage style={{ marginLeft: "5px", size: "14px" }} /> Image</button>
+                        <button onClick={() => downloadAsWord(schedule)} style={styles.dropdownItem}><FaFileWord style={{ marginLeft: "5px", size: "14px", color: "#0000ff" }} /> Word</button>
                       </div>
                     )}
                   </div>
@@ -1346,9 +1350,9 @@ const parseDateString = (dateStr) => {
             <h2>{editingId ? "Edit" : previewMode ? "View" : "Create"} Semester Schedule</h2>
             <div>
               {previewMode ? (
-                <button onClick={() => setPreviewMode(false)} style={styles.backToEditBtn}>✏️ Back to Edit</button>
+                <button onClick={() => setPreviewMode(false)} style={styles.backToEditBtn}><FaEdit /> Back to Edit</button>
               ) : (
-                <button onClick={() => setPreviewMode(true)} style={styles.previewBtn}>👁️ Preview</button>
+                <button onClick={() => setPreviewMode(true)} style={styles.previewBtn}><FaEdit /> Preview</button>
               )}
               <button onClick={() => { setShowForm(false); setPreviewMode(false); }} style={styles.closeBtn}>✕</button>
             </div>
@@ -1357,9 +1361,9 @@ const parseDateString = (dateStr) => {
           {previewMode ? (
             <>
               <div style={styles.downloadBar}>
-                <button onClick={() => downloadAsPDF()} style={styles.downloadBtn}>📄 PDF</button>
-                <button onClick={() => downloadAsImage()} style={styles.downloadBtn}>🖼️ Image</button>
-                <button onClick={() => downloadAsWord()} style={styles.downloadBtn}>📝 Word</button>
+                <button onClick={() => downloadAsPDF()} style={styles.downloadBtn}><FaFilePdf style={{ marginLeft: "5px", size: "14px", color: "#ff0000" }} /> PDF</button>
+                <button onClick={() => downloadAsImage()} style={styles.downloadBtn}><FaImage style={{ marginLeft: "5px", size: "14px" }} /> Image</button>
+                <button onClick={() => downloadAsWord()} style={styles.downloadBtn}><FaFileWord style={{ marginLeft: "5px", size: "14px", color: "#0000ff" }} />   Word</button>
               </div>
               <div ref={previewRef}>
                 <div style={styles.previewContainer} dangerouslySetInnerHTML={{ __html: buildFullDocumentHTML() }} />
@@ -1369,16 +1373,16 @@ const parseDateString = (dateStr) => {
             <form onSubmit={handleSubmit} style={styles.form}>
               <div style={styles.tabContainer}>
                 <button type="button" onClick={() => setActiveTab("structured")} style={{...styles.tab, background: activeTab === "structured" ? "#3b82f6" : "#f1f5f9", color: activeTab === "structured" ? "white" : "#475569"}}>
-                  📋 Structured Mode
+                   Structured Mode
                 </button>
                 <button type="button" onClick={() => setActiveTab("free")} style={{...styles.tab, background: activeTab === "free" ? "#3b82f6" : "#f1f5f9", color: activeTab === "free" ? "white" : "#475569"}}>
-                  📝 Free Mode
+                   Free Mode
                 </button>
               </div>
 
               {activeTab === "free" ? (
                 <div style={styles.sectionCard}>
-                  <h3>📝 Paste Your Schedule Here</h3>
+                  <h3> Paste Your Schedule Here</h3>
                   <p style={styles.hint}>Paste any formatted text, table, or document. Use the button below to upload an image and extract schedule data.</p>
                   
                   <div style={{ marginBottom: "15px" }}>
@@ -1460,7 +1464,7 @@ const parseDateString = (dateStr) => {
                   </div>
 
                   <div style={styles.sectionCard}>
-                    <h3>📝 General Information</h3>
+                    <h3>General Information</h3>
                     {formData.generalPoints.map((point) => (
                       <div key={point.id} style={styles.bulletRow}>
                         <input 
@@ -1573,7 +1577,7 @@ const parseDateString = (dateStr) => {
 
               <div style={styles.formActions}>
                 <button type="button" onClick={saveAsDraft} disabled={actionLoading.save_draft} style={styles.draftSaveBtn}>
-                  {actionLoading.save_draft ? <LoadingSpinner size={14} /> : "💾 Save as Draft"}
+                  {actionLoading.save_draft ? <LoadingSpinner size={14} /> : " Save as Draft"}
                 </button>
                 <button type="button" onClick={() => { setShowForm(false); setPreviewMode(false); }} style={styles.cancelBtn}>
                   Cancel
@@ -1592,17 +1596,17 @@ const parseDateString = (dateStr) => {
 }
 
 const styles = {
-  container: { minHeight: "100vh", background: "#f8fafc", padding: "20px", paddingTop: "80px", fontFamily: "'Inter', sans-serif" },
+  container: { minHeight: "100vh", background: "#f8fafc", padding: "20px", paddingTop: "10px", fontFamily: "'Inter', sans-serif" },
   toast: { position: "fixed", top: "80px", left: "50%", transform: "translateX(-50%)", padding: "10px 20px", borderRadius: "8px", color: "white", zIndex: 10000, fontSize: "14px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
   loadingContainer: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px", gap: "10px", color: "#64748b" },
   
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", flexWrap: "wrap", gap: "15px" },
   headerButtons: { display: "flex", gap: "10px" },
-  backButton: { padding: "8px 16px", background: "#64748b", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" },
+  backButton: { padding: "8px 16px", background: "#64748b05", color: "black", border: "none", borderRadius: "8px", cursor: "pointer" },
   title: { fontSize: "24px", fontWeight: "700", color: "#1e293b" },
-  addButton: { padding: "10px 20px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
-  draftsButton: { padding: "10px 20px", background: "#8b5cf6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
-  notificationButton: { padding: "10px 20px", background: "#10b981", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  addButton: { padding: "10px 20px", background: "#3b83f600", color: "black", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  draftsButton: { padding: "10px 20px", background: "#8a5cf600", color: "black", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  notificationButton: { padding: "10px 20px", background: "#10b98100", color: "black", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
   
   notificationsPanel: { background: "white", borderRadius: "16px", padding: "20px", marginBottom: "20px", border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" },
   notificationsHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", paddingBottom: "10px", borderBottom: "1px solid #e2e8f0" },
@@ -1626,8 +1630,8 @@ const styles = {
   draftCard: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 15px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" },
   draftInfo: { display: "flex", flexDirection: "column", gap: "4px" },
   draftActions: { display: "flex", gap: "8px" },
-  loadDraftBtn: { padding: "6px 12px", minWidth: "60px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
-  deleteDraftBtn: { padding: "6px 12px", minWidth: "60px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  loadDraftBtn: { padding: "6px 12px", minWidth: "60px", background: "#3b82f600", color: "black", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  deleteDraftBtn: { padding: "6px 12px", minWidth: "60px", background: "#ef444400", color: "black", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   
   scheduleList: { display: "flex", flexDirection: "column", gap: "20px" },
   sectionTitle: { fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "15px" },
@@ -1636,11 +1640,11 @@ const styles = {
   scheduleTitle: { fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "5px" },
   scheduleMeta: { fontSize: "12px", color: "#64748b" },
   cardActions: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
-  viewBtn: { padding: "6px 12px", minWidth: "65px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
-  editBtn: { padding: "6px 12px", minWidth: "65px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
-  deleteBtn: { padding: "6px 12px", minWidth: "65px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  viewBtn: { padding: "6px 12px", minWidth: "65px", background: "#0497102c", color: "black", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  editBtn: { padding: "6px 12px", minWidth: "65px", background: "#0f0f0fb0", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  deleteBtn: { padding: "6px 12px", minWidth: "65px", background: "#f80e0e31", color: "black", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   downloadDropdown: { position: "relative", display: "inline-block" },
-  downloadDropdownBtn: { padding: "6px 12px", background: "#6366f1", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  downloadDropdownBtn: { padding: "6px 12px", background: "#111111b6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   downloadDropdownMenu: { position: "absolute", top: "100%", right: 0, background: "white", minWidth: "120px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", borderRadius: "8px", zIndex: 10, overflow: "hidden" },
   dropdownItem: { display: "block", width: "100%", padding: "10px 15px", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1e293b" },
   cardPreview: { fontSize: "14px", color: "#475569", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #e2e8f0" },
@@ -1694,16 +1698,16 @@ const styles = {
   removeRowBtn: { background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", cursor: "pointer", padding: "4px 8px" },
   addRowBtn: { padding: "6px 12px", background: "#f1f5f9", border: "1px dashed #cbd5e1", borderRadius: "6px", cursor: "pointer", width: "100%", marginTop: "5px" },
   freeTextZone: { marginTop: "12px" },
-  addSectionBtn: { padding: "12px 20px", background: "#e0e7ff", color: "#4f46e5", border: "2px dashed #818cf8", borderRadius: "12px", cursor: "pointer", fontWeight: "600", marginBottom: "15px", width: "100%" },
+  addSectionBtn: { padding: "12px 20px", background: "#e0e7ff", color: "#161616", border: "2px dashed #818cf8", borderRadius: "12px", cursor: "pointer", fontWeight: "600", marginBottom: "15px", width: "100%" },
   freeEditor: { height: "400px", marginBottom: "50px" },
   checkbox: { display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" },
   formActions: { display: "flex", justifyContent: "flex-end", gap: "15px", marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e2e8f0" },
   cancelBtn: { padding: "10px 20px", background: "#f1f5f9", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
-  draftSaveBtn: { padding: "10px 20px", minWidth: "130px", background: "#8b5cf6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
-  submitBtn: { padding: "10px 20px", minWidth: "140px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  draftSaveBtn: { padding: "10px 20px", minWidth: "130px", background: "#0c0b0c", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
+  submitBtn: { padding: "10px 20px", minWidth: "140px", background: "#0d0d0e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
   downloadBar: { display: "flex", gap: "10px", justifyContent: "flex-end", marginBottom: "20px", flexWrap: "wrap" },
-  downloadBtn: { padding: "8px 16px", minWidth: "80px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px" },
-  backToEditBtn: { padding: "8px 16px", background: "#f59e0b", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "10px" },
+  downloadBtn: { padding: "8px 16px", minWidth: "80px", background: "#03020293", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px" },
+  backToEditBtn: { padding: "8px 16px", background: "#111111e3", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "10px" },
   previewBtn: { padding: "8px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "10px" },
   closeBtn: { background: "none", border: "none", fontSize: "24px", cursor: "pointer", color: "#64748b" },
 };

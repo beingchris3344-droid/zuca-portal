@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";          
 import BASE_URL from "../../api"; 
-import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity,FaWhatsapp, FaMusic } from "react-icons/fa";
+import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity,FaWhatsapp, FaCalendarAlt, FaClipboard, FaCheckCircle, FaHistory,FaCalendarPlus,FaMusic, FaBullhorn, FaImage, FaHandHoldingHeart, FaUserAlt, FaUser } from "react-icons/fa";
 
 
 export default function RoleLayout() {
@@ -61,27 +61,27 @@ export default function RoleLayout() {
     switch(role) {
       case "secretary":
         return { 
-          icon: "📋", 
+          icon: <FaBook size="20px" />, 
           name: "Secretary", 
-          color: "#10b981",
+          color: "#080808",
           description: "Manage announcements, schedules & minutes",
           modules: [
-            { path: `${basePath}/announcements`, icon: "📢", label: "Announcements" },
-            { path: `${basePath}/schedules`, icon: "📅", label: "Schedules" },
-            { path: `${basePath}/minutes`, icon: "📝", label: "Minutes" },
-            { path: `${basePath}/attendance`, icon: "✅", label: "Attendance" },
-             { path: `${basePath}/history`, icon: "📜", label: "History" } 
+            { path: `${basePath}/announcements`, icon: <FaBullhorn size="20px" />, label: "Announcements" },
+            { path: `${basePath}/schedules`, icon: <FaCalendarAlt size="20px" />, label: "Schedules" },
+            { path: `${basePath}/minutes`, icon: <FaClipboard size="20px" />, label: "Minutes" },
+            { path: `${basePath}/attendance`, icon: <FaCheckCircle size="20px" />, label: "Attendance" },
+             { path: `${basePath}/history`, icon: <FaHistory size="20px" />, label: "History" } 
           ],
           quickActions: [
-            { action: `${basePath}/announcements`, label: "New Announcement", icon: "➕" },
-            { action: `${basePath}/schedules`, label: "Create Schedule", icon: "📅" },
-            { action: `${basePath}/minutes/create`, label: "New Minutes", icon: "📝" },
-             { action: `${basePath}/history`, label: "Manage History", icon: "📜" }
+            { action: `${basePath}/announcements`, label: "New Announcement", icon: <FaPlus size="18px" /> },
+            { action: `${basePath}/schedules`, label: "Create Schedule", icon: <FaCalendarPlus size="18px" /> },
+            { action: `${basePath}/minutes/create`, label: "New Minutes", icon: <FaClipboard size="18px" /> },
+             { action: `${basePath}/history`, label: "Manage History", icon: <FaHistory size="18px" /> }
           ]
         };
      case "treasurer":
   return { 
-    icon: "💰", 
+    icon: <FaHandHoldingHeart size="20px" />, 
     name: "Treasurer", 
     color: "#0c0c0c",
     description: "Manage contributions & financial reports",
@@ -102,7 +102,7 @@ export default function RoleLayout() {
      // In the choir_moderator case, add the WhatsApp module:
 case "choir_moderator":
   return { 
-    icon: "🎵", 
+    icon: <FaMusic size="20px" />, 
     name: "Choir Moderator", 
     color: "#ec4899",
     description: "Manage mass programs, songs & broadcasts",
@@ -121,35 +121,35 @@ case "choir_moderator":
   };
       case "jumuia_leader":
         return { 
-          icon: "👑", 
+          icon: <FaUserAlt size="20px" />, 
           name: "Jumuia Leader", 
           color: "#8b5cf6",
           description: "Manage your jumuia members & activities",
           modules: [
-            { path: `${basePath}`, icon: "👥", label: "Dashboard" }
+            { path: `${basePath}`, icon: <FaUserFriends size="20px" />, label: "Dashboard" }
           ],
           quickActions: [
-            { action: `${basePath}`, label: "View Dashboard", icon: "📊" }
+            { action: `${basePath}`, label: "View Dashboard", icon: <FaChartBar size="18px" /> }
           ]
         };
       case "media_moderator":
   return { 
-    icon: "📸", 
+    icon: <FaImage size="20px" />, 
     name: "Media Moderator", 
-    color: "#3b82f6",
+    color: "#0d0d0e",
     description: "Manage gallery, media & advertisements",
     modules: [
-      { path: `${basePath}/media`, icon: "🖼️", label: "Gallery" },
-      { path: `${basePath}/advertisements`, icon: "📢", label: "Advertisements" }
+      { path: `${basePath}/media`, icon: <FaImage size="20px" />, label: "Gallery" },
+      { path: `${basePath}/advertisements`, icon: <FaBullhorn size="20px" />, label: "Advertisements" }
     ],
     quickActions: [
-      { action: `${basePath}/media`, label: "Upload Media", icon: "📸" },
-      { action: `${basePath}/advertisements`, label: "Manage Ads", icon: "📢" }
+      { action: `${basePath}/media`, label: "Upload Media", icon: <FaImage size="18px" /> },
+      { action: `${basePath}/advertisements`, label: "Manage Ads", icon: <FaBullhorn size="18px" /> }
     ]
   };
       default:
         return { 
-          icon: "👤", 
+          icon: <FaUser size="20px" />, 
           name: "Member", 
           color: "#64748b",
           description: "Welcome to your dashboard",
@@ -251,7 +251,7 @@ case "choir_moderator":
     }
   }}
 >
-  👤 Back to Member
+  <FaUser /> Back to Member
 </button>
           
           {!isMobile && <span className="user-name-mini">{user.fullName || user.name || "User"}</span>}

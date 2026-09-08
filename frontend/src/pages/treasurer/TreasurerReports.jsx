@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import BASE_URL from "../../api";
 import html2pdf from 'html2pdf.js';
 import { saveAs } from 'file-saver';
+import { FaBook,FaPlus,FaRegFilePowerpoint, FaUser, FaRegFileAlt, FaEdit,FaStickyNote } from 'react-icons/fa';
 
 // Skeleton Loader Component
 const SkeletonLoader = () => (
@@ -560,16 +561,16 @@ const exportReportAsWord = () => {
 
       <div className="tab-navigation">
         <button className={`tab-btn ${activeTab === "ledger" ? "active" : ""}`} onClick={() => setActiveTab("ledger")}>
-          <span>📒</span> Cash Ledger
+          <span><FaBook /></span> Cash Ledger
         </button>
         <button className={`tab-btn ${activeTab === "report" ? "active" : ""}`} onClick={() => setActiveTab("report")}>
-          <span>📄</span> Financial Report
+          <span><FaRegFilePowerpoint /></span> Financial Report
         </button>
         <button className={`tab-btn ${activeTab === "campaigns" ? "active" : ""}`} onClick={() => setActiveTab("campaigns")}>
-          <span>📊</span> Activity & Audit Trail
+          <span><FaRegFileAlt /></span> Activity & Audit Trail
         </button>
         <button className={`tab-btn ${activeTab === "members" ? "active" : ""}`} onClick={() => setActiveTab("members")}>
-          <span>👥</span> Member Contributions
+          <span><FaUser /></span> Member Contributions
         </button>
       </div>
 
@@ -584,7 +585,7 @@ const exportReportAsWord = () => {
               <input type="text" className="filter-input" placeholder="Search transactions..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="ledger-buttons">
-              <button className="btn-add" onClick={() => setShowAddTransaction(true)}>➕ Add Transaction</button>
+              <button className="btn-add" onClick={() => setShowAddTransaction(true)}><FaPlus /> Add Transaction</button>
               <button className="btn-export" onClick={exportLedger}>📎 Export Ledger</button>
             </div>
           </div>
@@ -600,7 +601,7 @@ const exportReportAsWord = () => {
                       <div className="card-header">
                         <span className="card-date">{new Date(t.date).toLocaleDateString()}</span>
                         <div className="card-actions-mobile">
-                          <button className="edit-btn" onClick={() => handleEditTransaction(t)} disabled={isDeleting}>✏️</button>
+                          <button className="edit-btn" onClick={() => handleEditTransaction(t)} disabled={isDeleting}><FaEdit /></button>
                           <button className="delete-btn" onClick={() => handleDeleteTransaction(t.id)} disabled={isDeleting}>
                             {isDeleting ? "⏳" : "🗑️"}
                           </button>
@@ -617,7 +618,7 @@ const exportReportAsWord = () => {
                         <span className="card-balance">Balance: KES {t.runningBalance?.toLocaleString()}</span>
                       </div>
                       {t.reference && <div className="card-reference">Ref: {t.reference}</div>}
-                      {t.notes && <div className="card-notes">📝 {t.notes}</div>}
+                      {t.notes && <div className="card-notes"><FaStickyNote /> {t.notes}</div>}
                     </div>
                   ))
                 )}
@@ -641,7 +642,7 @@ const exportReportAsWord = () => {
                         <td className="amount-balance">KES {t.runningBalance?.toLocaleString()}</td>
                         <td>{t.reference || "-"}</td>
                         <td className="actions">
-                          <button className="edit-btn" onClick={() => handleEditTransaction(t)} disabled={isDeleting}>✏️ Edit</button>
+                          <button className="edit-btn" onClick={() => handleEditTransaction(t)} disabled={isDeleting}><FaEdit /> Edit</button>
                           <button className="delete-btn" onClick={() => handleDeleteTransaction(t.id)} disabled={isDeleting}>
                             {isDeleting ? "⏳ Deleting..." : "🗑️ Delete"}
                           </button>
@@ -669,7 +670,7 @@ const exportReportAsWord = () => {
       {activeTab === "report" && (
         <div className="report-tab">
           <div className="report-generator">
-            <h3>📅 Generate Financial Report</h3>
+            <h3><FaRegFilePowerpoint /> Generate Financial Report</h3>
             <div className="date-range-selector">
               <div className="date-input-group">
                 <label>Start Date</label>
@@ -825,7 +826,7 @@ const exportReportAsWord = () => {
       {activeTab === "campaigns" && (
         <div className="audit-tab">
           <div className="audit-header">
-            <h2>📝 Ledger Activity & Audit Trail</h2>
+            <h2><FaBook /> Ledger Activity & Audit Trail</h2>
             <p>Complete history of all transactions, edits, and deletions</p>
           </div>
 
@@ -862,16 +863,16 @@ const exportReportAsWord = () => {
                   >
                     <div className="audit-header">
                       <div className="audit-action">
-                        {log.action === "CREATE" && "➕ CREATED"}
-                        {log.action === "UPDATE" && "✏️ UPDATED"}
-                        {log.action === "DELETE" && "🗑️ DELETED"}
+                        {log.action === "CREATE" && " CREATED"}
+                        {log.action === "UPDATE" && " UPDATED"}
+                        {log.action === "DELETE" && " DELETED"}
                       </div>
                       <div className="audit-time">{new Date(log.timestamp).toLocaleString()}</div>
                     </div>
                     <div className="audit-details">
                       <div className="audit-performed-by">
-                        👤 By: <strong>{log.performedByName || "Unknown"}</strong>
-                        {log.ipAddress && <span className="audit-ip">📍 IP: {log.ipAddress}</span>}
+                        <FaUser /> By: <strong>{log.performedByName || "Unknown"}</strong>
+                        {log.ipAddress && <span className="audit-ip"><FaMapMarker /> IP: {log.ipAddress}</span>}
                       </div>
                       
                       {log.action === "CREATE" && log.newData && (

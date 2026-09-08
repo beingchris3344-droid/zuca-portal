@@ -6,7 +6,7 @@ import io from "socket.io-client";
 import { FiMessageSquare,  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
   FiDollarSign, FiMusic, FiUserCheck, 
   FiAward, FiYoutube, FiMapPin, } from "react-icons/fi";
-  import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs,  FaWhatsapp } from "react-icons/fa";
+  import { FaYoutube, FaChurch, FaUser, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs,  FaWhatsapp } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
 import badgeManager from '../../utils/badgeManager';
@@ -621,7 +621,7 @@ export default function AdminLayout() {
       }
     }}
   >
-    👤 Back to Member
+    < FaUser /> Back to Member
   </button>
 
   <button className="ai-assistant-btn" onClick={openAI}>

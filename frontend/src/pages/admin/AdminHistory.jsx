@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import BASE_URL from '../../api';
+import { FaAdversal, FaHistory, FaPlus } from 'react-icons/fa';
 
 export default function AdminHistory() {
   const [historyEntries, setHistoryEntries] = useState([]);
@@ -126,7 +127,7 @@ export default function AdminHistory() {
         <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           ☰
         </button>
-        <h1>📜 History</h1>
+        <h1><FaHistory /> History</h1>
         <button className="mobile-add-btn" onClick={() => { 
           setEditingId(null); 
           setFormData({ title: '', content: '', order: 0, isActive: true }); 
@@ -138,7 +139,7 @@ export default function AdminHistory() {
 
       {/* Desktop Header */}
       <div className="admin-header desktop-header">
-        <h1>📜 Manage History</h1>
+        <h1><FaHistory /> Manage History</h1>
         <button 
           onClick={() => { 
             setEditingId(null); 
@@ -165,10 +166,10 @@ export default function AdminHistory() {
               setShowForm(true);
               setMobileMenuOpen(false);
             }}>
-              ➕ Add New Entry
+              <FaPlus /> Add New Entry
             </button>
             <button className="drawer-btn" onClick={() => window.location.href = '/admin/dashboard'}>
-              📊 Dashboard
+              <FaAdversal/> Dashboard
             </button>
           </div>
         </div>
@@ -179,7 +180,7 @@ export default function AdminHistory() {
         <div className="modal-overlay" onClick={() => !saving && setShowForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editingId ? '✏️ Edit History' : '📝 Add New History'}</h2>
+              <h2>{editingId ? ' Edit History' : 'Add New History'}</h2>
               <button className="modal-close" onClick={() => setShowForm(false)} disabled={saving}>×</button>
             </div>
             

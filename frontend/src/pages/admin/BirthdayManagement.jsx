@@ -300,7 +300,8 @@ export default function BirthdayManagement() {
       setWhatsAppGroups(groupsRes.data.groups || []);
     }
 
-    const settingsRes = await axios.get(`${BASE_URL}/api/birthday-whatsapp/settings`, {
+    const settingsRes = await axios.get(`${BASE_URL}/api/birthday/birthday-whatsapp/settings`, {
+
       headers: { Authorization: `Bearer ${token}` }
     });
 
@@ -922,8 +923,8 @@ export default function BirthdayManagement() {
   try {
     const token = localStorage.getItem("token");
 
-    await axios.post(
-      `${BASE_URL}/api/birthday-whatsapp/save`,
+      await axios.post(
+      `${BASE_URL}/api/birthday/birthday-whatsapp/save`,
       {
         selectedGroupIds: selectedGroups,
       },

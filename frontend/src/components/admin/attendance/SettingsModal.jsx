@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Save, QrCode, MessageSquare, CheckCircle, AlertCircle, RefreshCw, Calendar, Clock, MapPin } from 'lucide-react';
+import { X, Users, Save, QrCode, MessageSquare, CheckCircle, AlertCircle, RefreshCw, Calendar, Clock, MapPin, FileSpreadsheet } from 'lucide-react';
 import { api } from '../../../api';
+import { FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
 
 export default function SettingsModal({ sheet, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
@@ -241,7 +242,7 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           <div className="modal-body">
             {/* ============ SHEET DETAILS ============ */}
             <div className="settings-section">
-              <h4>📋 Sheet Details</h4>
+              <h4><FileSpreadsheet size={20} /> Sheet Details</h4>
               
               {/* Title */}
               <div className="form-group">
@@ -348,7 +349,7 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
 
             {/* ============ WHATSAPP AUTO-SEND ============ */}
             <div className="divider">
-              <span>📱 WhatsApp Auto-Send</span>
+              <span><FaWhatsapp size={12} color="#25D366" marginBottom={12} fontWeight={600} />         WhatsApp Auto-Send</span>
             </div>
 
             {/* Enable WhatsApp */}
@@ -418,9 +419,9 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                       ))}
                     </div>
                   )}
-                  <div className="helper-text">
+                  <div className="helper-text"><FaCheckCircle size= "12px" color="green" margin-bottom="5px" />  
                     {selectedGroups.length > 0 
-                      ? `✅ ${selectedGroups.length} group(s) selected` 
+                      ?  ` ${selectedGroups.length} group(s) selected` 
                       : 'Select at least one group to send attendance lists'}
                   </div>
                   <button 

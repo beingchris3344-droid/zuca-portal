@@ -41,48 +41,22 @@ export default function RoleManagement() {
     fetchData();
   }, []);
 
- const fetchData = async () => {
+ // ✅ FAST fetch - only 2 API calls
+const fetchData = async () => {
   setLoading(true);
   try {
     const token = localStorage.getItem("token");
     
-    const usersRes = await axios.get(`${BASE_URL}/api/users`, { 
-      headers: { Authorization: `Bearer ${token}` } 
-    });
+    const [usersRes, jumuiaRes] = await Promise.all([
+      axios.get(`${BASE_URL}/api/users/light`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      }),
+      axios.get(`${BASE_URL}/api/jumuia`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      })
+    ]);
     
-    const jumuiaRes = await axios.get(`${BASE_URL}/api/jumuia`, { 
-      headers: { Authorization: `Bearer ${token}` } 
-    });
-    
-    const membershipMap = {};
-    
-    for (const jumuia of jumuiaRes.data) {
-      try {
-        const membersRes = await axios.get(`${BASE_URL}/api/admin/jumuia/${jumuia.id}/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        membersRes.data.forEach(member => {
-          if (!membershipMap[member.id]) {
-            membershipMap[member.id] = [];
-          }
-          membershipMap[member.id].push({
-            jumuiaId: jumuia.id,
-            jumuiaName: jumuia.name,
-            isLeader: member.specialRole === 'jumuia_leader' || member.id === jumuia.leaderId
-          });
-        });
-      } catch (err) {
-        console.error(`Failed to fetch members for ${jumuia.name}:`, err);
-      }
-    }
-    
-    const usersWithMemberships = usersRes.data.map(user => ({
-      ...user,
-      jumuiaMembers: membershipMap[user.id] || []
-    }));
-    
-    setUsers(usersWithMemberships);
+    setUsers(usersRes.data);
     setJumuias(jumuiaRes.data);
   } catch (err) {
     console.error("Failed to fetch data:", err);
@@ -90,22 +64,46 @@ export default function RoleManagement() {
     setLoading(false);
   }
 };
-  const updateUserRole = async (userId, role, specialRole, assignedJumuiaId = null) => {
-    setUpdating(userId);
-    try {
-      await axios.put(
-        `${BASE_URL}/api/users/${userId}/role`,
-        { role, specialRole, assignedJumuiaId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      await fetchData();
-    } catch (err) {
-      console.error("Failed to update role:", err);
-      alert("Failed to update role");
-    } finally {
-      setUpdating(null);
-    }
-  };
+
+// ✅ Optimistic update - UI updates instantly
+const updateUserRole = async (userId, role, specialRole, assignedJumuiaId = null) => {
+  // 1. Optimistically update UI
+  setUsers(prevUsers => 
+    prevUsers.map(user => {
+      if (user.id === userId) {
+        return {
+          ...user,
+          role: role,
+          specialRole: specialRole || null,
+          assignedJumuiaId: specialRole === "jumuia_leader" ? assignedJumuiaId : null
+        };
+      }
+      return user;
+    })
+  );
+  
+  setUpdating(userId);
+  
+  try {
+    await axios.put(
+      `${BASE_URL}/api/users/${userId}/role`,
+      { 
+        role, 
+        specialRole: specialRole || null, 
+        assignedJumuiaId: specialRole === "jumuia_leader" ? assignedJumuiaId : null 
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    // ✅ Success: Do nothing - UI already updated!
+  } catch (err) {
+    console.error("Failed to update role:", err);
+    alert("Failed to update role");
+    // ❌ Rollback: Refresh data to revert the optimistic update
+    await fetchData();
+  } finally {
+    setUpdating(null);
+  }
+};
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({

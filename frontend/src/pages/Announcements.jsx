@@ -1,35 +1,30 @@
 // frontend/src/pages/Announcements.jsx
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import BASE_URL from "../api";
 import logo from "../assets/zuca-logo.png";
-
-// Professional Icon Set
-const Icons = {
-  Announcement: () => <span style={iconStyle}>📢</span>,
-  Calendar: () => <span style={iconStyle}>📅</span>,
-  Clock: () => <span style={iconStyle}>⏰</span>,
-  Search: () => <span style={iconStyle}>🔍</span>,
-  Clear: () => <span style={iconStyle}>✕</span>,
-  Filter: () => <span style={iconStyle}>⚙️</span>,
-  Sort: () => <span style={iconStyle}>↕️</span>,
-  Pin: () => <span style={iconStyle}>📍</span>,
-  New: () => <span style={iconStyle}>🆕</span>,
-  Hot: () => <span style={iconStyle}>🔥</span>,
-  Empty: () => <span style={iconStyle}>📭</span>,
-  Error: () => <span style={iconStyle}>⚠️</span>,
-  Refresh: () => <span style={iconStyle}>↻</span>,
-  ChevronDown: () => <span style={iconStyle}>▼</span>,
-  ChevronUp: () => <span style={iconStyle}>▲</span>,
-  Close: () => <span style={iconStyle}>✖</span>,
-  Trending: () => <span style={iconStyle}>📈</span>,
-  Category: () => <span style={iconStyle}>🏷️</span>,
-  Time: () => <span style={iconStyle}>⌛</span>,
-  Check: () => <span style={iconStyle}>✓</span>,
-  Grid: () => <span style={iconStyle}>⊞</span>,
-  List: () => <span style={iconStyle}>☰</span>,
-};
+import {
+  FiBell,
+  FiCalendar,
+  FiClock,
+  FiSearch,
+  FiX,
+  FiTag,
+  FiArrowUp,
+  FiArrowDown,
+  FiRefreshCw,
+  FiGrid,
+  FiList,
+  FiCheckSquare,
+  FiSquare,
+  FiChevronDown,
+  FiChevronUp,
+  FiAlertCircle,
+  FiInbox,
+  FiZap,
+  FiTrendingUp,
+} from "react-icons/fi";
 
 export default function UserAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
@@ -40,63 +35,54 @@ export default function UserAnnouncements() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [categories, setCategories] = useState([]);
-  const [timeFilter, setTimeFilter] = useState("all"); // 'all', 'new', 'old'
+  const [timeFilter, setTimeFilter] = useState("all");
   const [stats, setStats] = useState({
     total: 0,
     new: 0,
     recent: 0,
     categories: 0,
-    latestUpdate: null,
-    oldestUpdate: null,
   });
   const [expandedId, setExpandedId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [viewMode, setViewMode] = useState("grid");
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
-  
+
   const token = localStorage.getItem("token");
 
-  // Fetch announcements
   const fetchAnnouncements = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
-    
     try {
       const res = await axios.get(`${BASE_URL}/api/announcements`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      
-      const allAnnouncements = res.data;
-    const globalAnnouncements = allAnnouncements.filter(a => !a.jumuiaId);
       const data = res.data;
-    
+      const globalAnnouncements = data.filter((a) => !a.jumuiaId);
       setAnnouncements(globalAnnouncements);
-      
-      // Extract unique categories
-      const uniqueCategories = [...new Set(data.map(a => a.category || "General").filter(Boolean))];
+
+      const uniqueCategories = [
+        ...new Set(data.map((a) => a.category || "General").filter(Boolean)),
+      ];
       setCategories(["all", ...uniqueCategories]);
-      
-      // Calculate detailed stats
+
       const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      
-      // Count new items (less than 48 hours old)
-      const newCount = data.filter(a => {
+      const newCount = data.filter((a) => {
         const date = new Date(a.createdAt);
         const diffHours = (now - date) / (1000 * 60 * 60);
         return diffHours <= 48;
       }).length;
-      
+
       setStats({
         total: data.length,
         new: newCount,
-        recent: data.filter(a => new Date(a.createdAt) > weekAgo).length,
+        recent: data.filter((a) => {
+          const date = new Date(a.createdAt);
+          const diffDays = (now - date) / (1000 * 60 * 60 * 24);
+          return diffDays <= 7;
+        }).length,
         categories: uniqueCategories.length,
-        latestUpdate: data.length > 0 ? new Date(Math.max(...data.map(a => new Date(a.createdAt)))) : null,
-        oldestUpdate: data.length > 0 ? new Date(Math.min(...data.map(a => new Date(a.createdAt)))) : null,
       });
-      
+
       setError(null);
     } catch (err) {
       console.error("Announcements Error:", err);
@@ -112,42 +98,33 @@ export default function UserAnnouncements() {
     fetchAnnouncements();
   }, [fetchAnnouncements]);
 
-  // Filter and sort announcements
   useEffect(() => {
     let filtered = [...announcements];
 
-    // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(a => 
-        a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.content.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(
+        (a) =>
+          a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          a.content.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Apply category filter
     if (selectedCategory !== "all") {
-      filtered = filtered.filter(a => (a.category || "General") === selectedCategory);
+      filtered = filtered.filter((a) => (a.category || "General") === selectedCategory);
     }
 
-    // Apply time filter - FULLY FUNCTIONAL
     if (timeFilter !== "all") {
       const now = new Date();
       const hours48 = 48 * 60 * 60 * 1000;
-      
-      filtered = filtered.filter(a => {
+      filtered = filtered.filter((a) => {
         const date = new Date(a.createdAt);
         const age = now - date;
-        
-        if (timeFilter === "new") {
-          return age <= hours48; // Less than 48 hours old
-        } else if (timeFilter === "old") {
-          return age > hours48; // More than 48 hours old
-        }
+        if (timeFilter === "new") return age <= hours48;
+        if (timeFilter === "old") return age > hours48;
         return true;
       });
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
@@ -157,29 +134,21 @@ export default function UserAnnouncements() {
     setFilteredAnnouncements(filtered);
   }, [announcements, searchTerm, selectedCategory, timeFilter, sortOrder]);
 
-  const handleRefresh = () => {
-    fetchAnnouncements(true);
-  };
-
-  const handleClearSearch = () => {
-    setSearchTerm("");
-  };
-
-  const handleTimeFilterChange = (filter) => {
-    setTimeFilter(filter);
-  };
+  const handleRefresh = () => fetchAnnouncements(true);
+  const handleClearSearch = () => setSearchTerm("");
+  const handleTimeFilterChange = (filter) => setTimeFilter(filter);
 
   const handleSelectAll = () => {
     if (selectedIds.length === filteredAnnouncements.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filteredAnnouncements.map(a => a.id));
+      setSelectedIds(filteredAnnouncements.map((a) => a.id));
     }
   };
 
   const handleSelectOne = (id) => {
     if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
+      setSelectedIds(selectedIds.filter((selectedId) => selectedId !== id));
     } else {
       setSelectedIds([...selectedIds, id]);
     }
@@ -192,20 +161,20 @@ export default function UserAnnouncements() {
     const diffMinutes = Math.floor(diffTime / (1000 * 60));
     const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffMinutes < 60) {
-      return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
+      return `${diffMinutes}m ago`;
     } else if (diffHours < 24) {
-      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+      return `${diffHours}h ago`;
     } else if (diffDays === 1) {
-      return `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      return `Yesterday at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
+      return `${diffDays}d ago`;
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
       });
     }
   };
@@ -214,49 +183,37 @@ export default function UserAnnouncements() {
     const date = new Date(dateString);
     const now = new Date();
     const diffHours = (now - date) / (1000 * 60 * 60);
-    
-    if (diffHours <= 24) return "hot";
-    if (diffHours <= 48) return "new";
-    if (diffHours <= 168) return "week"; // 7 days
+    if (diffHours <= 24) return "new";
+    if (diffHours <= 48) return "recent";
     return "old";
   };
 
-  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.03,
-      },
+      transition: { staggerChildren: 0.03 },
     },
   };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
+    visible: {
+      opacity: 1,
       y: 0,
-      transition: {
-        type: "spring",
-        damping: 15,
-      },
+      transition: { type: "spring", damping: 15 },
     },
   };
 
   if (loading) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        style={loadingContainer}
-      >
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={loadingContainer}>
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           style={loadingSpinner}
         >
-         {loading && <img src={logo} alt="Loading..." style={{ width: '60px', height: '80px' }} />}
+          <img src={logo} alt="Loading..." style={{ width: "60px", height: "80px" }} />
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -272,308 +229,157 @@ export default function UserAnnouncements() {
   }
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      style={container}
-    >
-      {/* Header Section */}
+    <motion.div initial="hidden" animate="visible" variants={containerVariants} style={container}>
+      {/* Header */}
       <motion.div variants={itemVariants} style={headerSection}>
         <div style={headerTop}>
           <div style={titleWrapper}>
             <div style={titleIcon}>
-              <Icons.Announcement />
+              <FiBell size={28} color="#ffffff" />
             </div>
             <div>
-              <h1 style={title}>
-                Announcements
-              </h1>
-              <p style={titleSub}>
-                Stay informed with the latest updates from ZUCA
-              </p>
+              <h1 style={title}>Announcements</h1>
+              <p style={titleSub}>Stay informed with the latest updates from ZUCA</p>
             </div>
           </div>
-          
-          {/* Interactive Stats Cards */}
+
           <div style={statsContainer}>
-            <motion.div 
-              style={statCard}
-              whileHover={{ y: -2, boxShadow: "0 10px 20px -5px rgba(0,0,0,0.1)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setTimeFilter("all")}
-            >
+            <div style={statCard}>
               <span style={statValue}>{stats.total}</span>
               <span style={statLabel}>Total</span>
-            </motion.div>
-            <motion.div 
+            </div>
+            <div
               style={{
                 ...statCard,
-                borderColor: timeFilter === "new" ? "#3b82f6" : "#e2e8f0",
-                backgroundColor: timeFilter === "new" ? "#eff6ff" : "#ffffff",
+                backgroundColor: timeFilter === "new" ? "#f0f4f8" : "#ffffff",
               }}
-              whileHover={{ y: -2, boxShadow: "0 10px 20px -5px rgba(59,130,246,0.2)" }}
-              whileTap={{ scale: 0.98 }}
               onClick={() => handleTimeFilterChange(timeFilter === "new" ? "all" : "new")}
             >
-              <span style={{ ...statValue, color: "#3b82f6" }}>{stats.new}</span>
-              <span style={statLabel}>New (48h)</span>
-              {timeFilter === "new" && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  style={activeFilterIndicator}
-                >
-                  <Icons.Check />
-                </motion.div>
-              )}
-            </motion.div>
-            <motion.div 
-              style={{
-                ...statCard,
-                borderColor: timeFilter === "old" ? "#ef4444" : "#e2e8f0",
-                backgroundColor: timeFilter === "old" ? "#fef2f2" : "#ffffff",
-              }}
-              whileHover={{ y: -2, boxShadow: "0 10px 20px -5px rgba(239,68,68,0.2)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleTimeFilterChange(timeFilter === "old" ? "all" : "old")}
-            >
-              <span style={{ ...statValue, color: "#ef4444" }}>{stats.total - stats.new}</span>
-              <span style={statLabel}>Older</span>
-              {timeFilter === "old" && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  style={activeFilterIndicator}
-                >
-                  <Icons.Check />
-                </motion.div>
-              )}
-            </motion.div>
-            <motion.div 
-              style={statCard}
-              whileHover={{ y: -2 }}
-            >
+              <span style={statValue}>{stats.new}</span>
+              <span style={statLabel}>New</span>
+            </div>
+            <div style={statCard}>
               <span style={statValue}>{stats.categories}</span>
               <span style={statLabel}>Categories</span>
-            </motion.div>
+            </div>
           </div>
         </div>
 
-        {/* Controls Bar */}
+        {/* Controls */}
         <div style={controlsBar}>
-          {/* Search */}
           <div style={searchWrapper}>
-            <span style={searchIcon}>
-              <Icons.Search />
-            </span>
+            <FiSearch size={18} style={searchIcon} />
             <input
               type="text"
-              placeholder="Search announcements "
+              placeholder="Search announcements..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={searchInput}
             />
             {searchTerm && (
-              <motion.button
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                onClick={handleClearSearch}
-                style={searchClear}
-                whileHover={{ scale: 1.1, backgroundColor: "#e2e8f0" }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <Icons.Clear />
-              </motion.button>
+              <button onClick={handleClearSearch} style={searchClear}>
+                <FiX size={16} />
+              </button>
             )}
           </div>
 
-          {/* Filter Controls */}
           <div style={filterWrapper}>
-            {/* Category Filter */}
-            <motion.div 
-              style={filterGroup}
-              whileHover={{ scale: 1.02 }}
-            >
-              <span style={filterIcon}><Icons.Category /></span>
+            <div style={filterGroup}>
+              <FiTag size={16} style={filterIcon} />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 style={filterSelect}
               >
-                {categories.map(cat => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat === "all" ? "All Categories" : cat}
                   </option>
                 ))}
               </select>
-            </motion.div>
+            </div>
 
-            {/* Sort Button */}
-            <motion.button
-              whileHover={{ scale: 1.02, backgroundColor: "#f8fafc" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-              style={sortButton}
-            >
-              <span style={sortIcon}><Icons.Sort /></span>
-              <span style={sortText}>
-                {sortOrder === "desc" ? "Newest First" : "Oldest First"}
-              </span>
-              <motion.span
-                animate={{ rotate: sortOrder === "desc" ? 0 : 180 }}
-                style={sortArrow}
-              >
-                <Icons.ChevronDown />
-              </motion.span>
-            </motion.button>
+            <button onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")} style={sortButton}>
+              {sortOrder === "desc" ? <FiArrowDown size={16} /> : <FiArrowUp size={16} />}
+              <span style={sortText}>{sortOrder === "desc" ? "Newest" : "Oldest"}</span>
+            </button>
 
-            {/* View Mode Toggle */}
-            <motion.div style={viewToggle}>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+            <div style={viewToggle}>
+              <button
                 onClick={() => setViewMode("grid")}
                 style={{
                   ...viewToggleButton,
-                  backgroundColor: viewMode === "grid" ? "#3b82f6" : "transparent",
+                  backgroundColor: viewMode === "grid" ? "#1a1a2e" : "transparent",
                   color: viewMode === "grid" ? "#ffffff" : "#64748b",
                 }}
               >
-                <Icons.Grid />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                <FiGrid size={18} />
+              </button>
+              <button
                 onClick={() => setViewMode("list")}
                 style={{
                   ...viewToggleButton,
-                  backgroundColor: viewMode === "list" ? "#3b82f6" : "transparent",
+                  backgroundColor: viewMode === "list" ? "#1a1a2e" : "transparent",
                   color: viewMode === "list" ? "#ffffff" : "#64748b",
                 }}
               >
-                <Icons.List />
-              </motion.button>
-            </motion.div>
+                <FiList size={18} />
+              </button>
+            </div>
 
-            {/* Select Mode Toggle */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={() => setSelectMode(!selectMode)}
               style={{
                 ...selectModeButton,
-                backgroundColor: selectMode ? "#3b82f6" : "#ffffff",
+                backgroundColor: selectMode ? "#1a1a2e" : "#ffffff",
                 color: selectMode ? "#ffffff" : "#1e293b",
               }}
             >
               {selectMode ? "Cancel" : "Select"}
-            </motion.button>
+            </button>
 
-            {/* Refresh Button */}
-            <motion.button
-              whileHover={{ scale: 1.1, backgroundColor: "#f8fafc" }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleRefresh}
-              style={refreshButton}
-              disabled={refreshing}
-            >
-              <motion.span
-                animate={refreshing ? { rotate: 360 } : {}}
-                transition={{ duration: 1, repeat: refreshing ? Infinity : 0, ease: "linear" }}
-                style={refreshIcon}
-              >
-                <Icons.Refresh />
-              </motion.span>
-            </motion.button>
+            <button onClick={handleRefresh} style={refreshButton} disabled={refreshing}>
+              <FiRefreshCw size={18} style={refreshing ? { animation: "spin 1s linear infinite" } : {}} />
+            </button>
           </div>
         </div>
 
-        {/* Results Info with Timeline */}
+        {/* Results */}
         {!loading && (
-          <motion.div 
-            variants={itemVariants}
-            style={resultsInfo}
-          >
+          <div style={resultsInfo}>
             <div style={resultsLeft}>
               <span style={resultsBold}>{filteredAnnouncements.length}</span>
               <span style={resultsText}>
-                {filteredAnnouncements.length === 1 ? 'announcement' : 'announcements'} found
+                {filteredAnnouncements.length === 1 ? "announcement" : "announcements"} found
               </span>
               {timeFilter !== "all" && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  style={{
-                    ...resultsBadge,
-                    backgroundColor: timeFilter === "new" ? "#eff6ff" : "#fef2f2",
-                    borderColor: timeFilter === "new" ? "#3b82f6" : "#ef4444",
-                    color: timeFilter === "new" ? "#2563eb" : "#dc2626",
-                  }}
-                >
-                  {timeFilter === "new" ? <Icons.New /> : <Icons.Time />}
+                <span style={resultsBadge}>
                   {timeFilter === "new" ? "New (48h)" : "Older"}
-                  <motion.span
+                  <span
                     style={resultsBadgeClose}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTimeFilter("all");
-                    }}
+                    onClick={() => setTimeFilter("all")}
                   >
-                    <Icons.Close />
-                  </motion.span>
-                </motion.span>
+                    <FiX size={14} />
+                  </span>
+                </span>
               )}
               {selectedCategory !== "all" && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  style={resultsBadge}
-                >
-                  <Icons.Category /> {selectedCategory}
-                  <motion.span
+                <span style={resultsBadge}>
+                  {selectedCategory}
+                  <span
                     style={resultsBadgeClose}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCategory("all");
-                    }}
+                    onClick={() => setSelectedCategory("all")}
                   >
-                    <Icons.Close />
-                  </motion.span>
-                </motion.span>
+                    <FiX size={14} />
+                  </span>
+                </span>
               )}
             </div>
-            
-            {/* Timeline Indicator */}
-            <div style={resultsRight}>
-              {stats.latestUpdate && (
-                <motion.div 
-                  style={timelineIndicator}
-                  whileHover={{ scale: 1.02 }}
-                >
-                  
-                  <span style={timelineText}>
-                    Latest: {formatDate(stats.latestUpdate)}
-                  </span>
-                </motion.div>
-              )}
-              {stats.oldestUpdate && stats.oldestUpdate !== stats.latestUpdate && (
-                <motion.div 
-                  style={timelineIndicator}
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <span style={{ ...timelineDot, backgroundColor: "#94a3b8" }} />
-                  <span style={timelineText}>
-                    Oldest: {formatDate(stats.oldestUpdate)}
-                  </span>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
+          </div>
         )}
       </motion.div>
 
-      {/* Select Mode Toolbar */}
+      {/* Select Toolbar */}
       <AnimatePresence>
         {selectMode && filteredAnnouncements.length > 0 && (
           <motion.div
@@ -583,72 +389,45 @@ export default function UserAnnouncements() {
             style={selectToolbar}
           >
             <div style={selectToolbarLeft}>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleSelectAll}
-                style={selectToolbarButton}
-              >
+              <button onClick={handleSelectAll} style={selectToolbarButton}>
                 {selectedIds.length === filteredAnnouncements.length ? "Deselect All" : "Select All"}
-              </motion.button>
-              <span style={selectCount}>
-                {selectedIds.length} selected
-              </span>
+              </button>
+              <span style={selectCount}>{selectedIds.length} selected</span>
             </div>
-            {selectedIds.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#ef4444" }}
-                whileTap={{ scale: 0.95 }}
-                style={selectToolbarAction}
-              >
-                Archive Selected
-              </motion.button>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Error State */}
+      {/* Error */}
       {error && (
         <motion.div variants={itemVariants} style={errorContainer}>
           <div style={errorCard}>
-            <div style={errorIcon}>
-              <Icons.Error />
-            </div>
+            <FiAlertCircle size={48} style={errorIcon} />
             <h3 style={errorTitle}>Unable to load announcements</h3>
             <p style={errorText}>{error}</p>
-            <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: "#2563eb" }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleRefresh}
-              style={errorButton}
-            >
-              <span style={errorButtonIcon}><Icons.Refresh /></span>
+            <button onClick={handleRefresh} style={errorButton}>
+              <FiRefreshCw size={16} style={{ marginRight: "8px" }} />
               Try Again
-            </motion.button>
+            </button>
           </div>
         </motion.div>
       )}
 
-      {/* Empty State */}
+      {/* Empty */}
       {!error && filteredAnnouncements.length === 0 && (
         <motion.div variants={itemVariants} style={emptyContainer}>
           <div style={emptyCard}>
-            <div style={emptyIcon}>
-              <Icons.Empty />
-            </div>
+            <FiInbox size={64} style={emptyIcon} />
             <h3 style={emptyTitle}>No announcements found</h3>
             <p style={emptyText}>
-              {searchTerm 
+              {searchTerm
                 ? `No results matching "${searchTerm}"`
                 : timeFilter !== "all"
-                ? `No ${timeFilter === "new" ? "new" : "older"} announcements available`
+                ? `No ${timeFilter === "new" ? "new" : "older"} announcements`
                 : "There are no announcements at the moment"}
             </p>
             {(searchTerm || timeFilter !== "all" || selectedCategory !== "all") && (
-              <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onClick={() => {
                   setSearchTerm("");
                   setTimeFilter("all");
@@ -657,41 +436,38 @@ export default function UserAnnouncements() {
                 style={emptyButton}
               >
                 Clear All Filters
-              </motion.button>
+              </button>
             )}
           </div>
         </motion.div>
       )}
 
-      {/* Announcements Grid/List */}
+      {/* Announcements */}
       {!error && filteredAnnouncements.length > 0 && (
         <div style={viewMode === "grid" ? grid : listView}>
           <AnimatePresence mode="popLayout">
-            {filteredAnnouncements.map((a, index) => {
+            {filteredAnnouncements.map((a) => {
               const age = getAnnouncementAge(a.createdAt);
               const isExpanded = expandedId === a.id;
               const isSelected = selectedIds.includes(a.id);
-              
+
               return (
                 <motion.div
                   key={a.id}
                   layout
                   variants={itemVariants}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ 
-                    opacity: 1, 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{
+                    opacity: 1,
                     scale: 1,
-                    borderColor: isSelected ? "#3b82f6" : 
-                                age === "hot" ? "#ef4444" :
-                                age === "new" ? "#3b82f6" :
-                                age === "week" ? "#f59e0b" : "#e2e8f0",
+                    borderColor: isSelected ? "#1a1a2e" : "#e2e8f0",
                   }}
-                  exit={{ opacity: 0, scale: 0.9 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ type: "spring", damping: 20 }}
                   style={{
                     ...(viewMode === "grid" ? card : listCard),
-                    backgroundColor: isSelected ? "#f0f9ff" : "#ffffff",
-                    borderWidth: isSelected ? "3px" : "2px",
+                    backgroundColor: isSelected ? "#f8fafc" : "#ffffff",
+                    borderWidth: isSelected ? "2px" : "1px",
                     cursor: selectMode ? "default" : "pointer",
                   }}
                   onClick={() => {
@@ -701,84 +477,59 @@ export default function UserAnnouncements() {
                       setExpandedId(isExpanded ? null : a.id);
                     }
                   }}
-                  whileHover={!selectMode ? { 
-                    y: viewMode === "grid" ? -4 : -2,
-                    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)"
-                  } : {}}
+                  whileHover={
+                    !selectMode
+                      ? {
+                          y: -2,
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        }
+                      : {}
+                  }
                 >
-                  {/* Select Checkbox */}
                   {selectMode && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
+                    <div
                       style={selectCheckbox}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleSelectOne(a.id);
                       }}
                     >
-                      <div style={{
-                        ...checkboxInner,
-                        backgroundColor: isSelected ? "#3b82f6" : "#ffffff",
-                        borderColor: isSelected ? "#3b82f6" : "#cbd5e1",
-                      }}>
-                        {isSelected && <Icons.Check />}
+                      <div
+                        style={{
+                          ...checkboxInner,
+                          backgroundColor: isSelected ? "#1a1a2e" : "#ffffff",
+                          borderColor: isSelected ? "#1a1a2e" : "#cbd5e1",
+                        }}
+                      >
+                        {isSelected && <FiCheckSquare size={14} color="#ffffff" />}
                       </div>
-                    </motion.div>
+                    </div>
                   )}
 
-                  {/* Card Header */}
                   <div style={viewMode === "grid" ? cardHeader : listCardHeader}>
                     <div style={viewMode === "grid" ? cardHeaderLeft : listCardHeaderLeft}>
-                      <div style={{
-                        ...cardIcon,
-                        backgroundColor: age === "hot" ? "#fee2e2" :
-                                      age === "new" ? "#dbeafe" :
-                                      age === "week" ? "#fef3c7" : "#f1f5f9",
-                        color: age === "hot" ? "#dc2626" :
-                               age === "new" ? "#2563eb" :
-                               age === "week" ? "#d97706" : "#475569",
-                      }}>
-                        {age === "hot" ? <Icons.Hot /> :
-                         age === "new" ? <Icons.New /> :
-                         age === "week" ? <Icons.Time /> :
-                         <Icons.Announcement />}
+                      <div
+                        style={{
+                          ...cardIcon,
+                          backgroundColor: age === "new" ? "#e8edf3" : "#f1f5f9",
+                          color: "#1a1a2e",
+                        }}
+                      >
+                        {age === "new" ? <FiZap size={20} /> : <FiBell size={20} />}
                       </div>
                       <div style={cardTitleSection}>
                         <div style={cardTitleRow}>
                           <h3 style={cardTitle}>{a.title}</h3>
-                          {age === "hot" && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              style={hotBadge}
-                            >
-                              <Icons.Hot /> HOT
-                            </motion.div>
-                          )}
                           {age === "new" && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              style={newBadge}
-                            >
-                              <Icons.New /> NEW
-                            </motion.div>
-                          )}
-                          {age === "week" && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              style={weekBadge}
-                            >
-                              <Icons.Time /> WEEK
-                            </motion.div>
+                            <span style={newBadge}>
+                              <FiTrendingUp size={12} /> NEW
+                            </span>
                           )}
                         </div>
                         <div style={cardMeta}>
                           {a.category && (
                             <span style={cardCategory}>
-                              <Icons.Category /> {a.category}
+                              <FiTag size={12} /> {a.category}
                             </span>
                           )}
                         </div>
@@ -786,18 +537,19 @@ export default function UserAnnouncements() {
                     </div>
                   </div>
 
-                  {/* Card Content */}
                   <div style={viewMode === "grid" ? cardContent : listCardContent}>
-                    <p style={{
-                      ...cardDescription,
-                      ...(viewMode === "grid" && !isExpanded && a.content.length > 150 ? cardDescriptionClamped : {}),
-                      fontWeight: age === "hot" ? "600" : "500",
-                    }}>
+                    <p
+                      style={{
+                        ...cardDescription,
+                        ...(viewMode === "grid" && !isExpanded && a.content.length > 150
+                          ? cardDescriptionClamped
+                          : {}),
+                      }}
+                    >
                       {a.content}
                     </p>
                     {!isExpanded && a.content.length > 150 && viewMode === "grid" && (
-                      <motion.button
-                        whileHover={{ x: 5 }}
+                      <button
                         style={readMoreButton}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -805,23 +557,19 @@ export default function UserAnnouncements() {
                         }}
                       >
                         Read more →
-                      </motion.button>
+                      </button>
                     )}
                   </div>
 
-                  {/* Card Footer */}
                   <div style={viewMode === "grid" ? cardFooter : listCardFooter}>
                     <div style={dateInfo}>
-                      <span style={dateIcon}><Icons.Time /></span>
+                      <FiClock size={16} style={dateIcon} />
                       <span style={dateText}>{formatDate(a.createdAt)}</span>
                     </div>
                     {!selectMode && (
-                      <motion.div 
-                        style={expandIcon}
-                        animate={{ rotate: isExpanded ? 180 : 0 }}
-                      >
-                        {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
-                      </motion.div>
+                      <div style={expandIcon}>
+                        {isExpanded ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
+                      </div>
                     )}
                   </div>
                 </motion.div>
@@ -831,81 +579,31 @@ export default function UserAnnouncements() {
         </div>
       )}
 
-      {/* Quick Stats Footer */}
+      {/* Footer */}
       {!error && filteredAnnouncements.length > 0 && (
-        <motion.div 
-          variants={itemVariants}
-          style={quickStatsFooter}
-        >
+        <div style={quickStatsFooter}>
           <div style={quickStatsLeft}>
             <span style={quickStatsBold}>{filteredAnnouncements.length}</span>
             <span style={quickStatsText}>announcements displayed</span>
           </div>
           <div style={quickStatsRight}>
-            <motion.div 
+            <div
               style={quickStatsItem}
-              whileHover={{ scale: 1.05 }}
-              onClick={() => handleTimeFilterChange(timeFilter === "hot" ? "all" : "hot")}
+              onClick={() => handleTimeFilterChange("new")}
             >
-              <span style={{ ...quickStatsDot, backgroundColor: "#ef4444" }} />
-              <span style={{
-                fontWeight: timeFilter === "hot" ? "700" : "500",
-                color: timeFilter === "hot" ? "#ef4444" : "#475569",
-              }}>Hot (24h)</span>
-            </motion.div>
-            <motion.div 
+              <span style={{ ...quickStatsDot, backgroundColor: "#1a1a2e" }} />
+              <span style={{ fontWeight: timeFilter === "new" ? "600" : "400" }}>New</span>
+            </div>
+            <div
               style={quickStatsItem}
-              whileHover={{ scale: 1.05 }}
-              onClick={() => handleTimeFilterChange(timeFilter === "new" ? "all" : "new")}
-            >
-              <span style={{ ...quickStatsDot, backgroundColor: "#3b82f6" }} />
-              <span style={{
-                fontWeight: timeFilter === "new" ? "700" : "500",
-                color: timeFilter === "new" ? "#3b82f6" : "#475569",
-              }}>New (48h)</span>
-            </motion.div>
-            <motion.div 
-              style={quickStatsItem}
-              whileHover={{ scale: 1.05 }}
-              onClick={() => handleTimeFilterChange(timeFilter === "week" ? "all" : "week")}
-            >
-              <span style={{ ...quickStatsDot, backgroundColor: "#f59e0b" }} />
-              <span style={{
-                fontWeight: timeFilter === "week" ? "700" : "500",
-                color: timeFilter === "week" ? "#f59e0b" : "#475569",
-              }}>This Week</span>
-            </motion.div>
-            <motion.div 
-              style={quickStatsItem}
-              whileHover={{ scale: 1.05 }}
               onClick={() => handleTimeFilterChange("all")}
             >
               <span style={{ ...quickStatsDot, backgroundColor: "#94a3b8" }} />
-              <span style={{
-                fontWeight: timeFilter === "all" ? "700" : "500",
-                color: timeFilter === "all" ? "#0f172a" : "#475569",
-              }}>All</span>
-            </motion.div>
+              <span style={{ fontWeight: timeFilter === "all" ? "600" : "400" }}>All</span>
+            </div>
           </div>
-        </motion.div>
+        </div>
       )}
-
-      {/* Scroll to top button */}
-      <AnimatePresence>
-        {filteredAnnouncements.length > 8 && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            style={scrollTopButton}
-            whileHover={{ scale: 1.1, backgroundColor: "#2563eb" }}
-            whileTap={{ scale: 0.9 }}
-          >
-            ↑
-          </motion.button>
-        )}
-      </AnimatePresence>
 
       <style>
         {`
@@ -919,8 +617,8 @@ export default function UserAnnouncements() {
           }
           
           ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
           }
           
           ::-webkit-scrollbar-track {
@@ -942,17 +640,8 @@ export default function UserAnnouncements() {
   );
 }
 
-// ====== PROFESSIONAL STYLES ======
+// ====== STYLES ======
 
-const iconStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "1.2em",
-  fontWeight: "700",
-};
-
-// Container
 const container = {
   padding: "1.4rem",
   maxWidth: "1400px",
@@ -963,7 +652,6 @@ const container = {
   position: "relative",
 };
 
-// Loading
 const loadingContainer = {
   minHeight: "600px",
   display: "flex",
@@ -979,41 +667,31 @@ const loadingSpinner = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "2.5rem",
-  color: "#3b82f6",
   animation: "spin 1s linear infinite",
   background: "#f8fafc",
   borderRadius: "50%",
-  boxShadow: "0 10px 25px -5px rgba(59,130,246,0.2)",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
 };
 
-const loadingTextContainer = {
-  textAlign: "center",
-};
-
+const loadingTextContainer = { textAlign: "center" };
 const loadingTitle = {
   fontSize: "1.5rem",
   fontWeight: "700",
   color: "#1e293b",
   marginBottom: "0.5rem",
 };
-
 const loadingSubtitle = {
   fontSize: "1rem",
   color: "#64748b",
 };
 
-// Header Section
-const headerSection = {
-  marginTop: "1rem",
-};
-
+const headerSection = { marginTop: "1rem" };
 const headerTop = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   flexWrap: "wrap",
-  gap: "2rem",
+  gap: "1.5rem",
   marginBottom: "1rem",
 };
 
@@ -1025,151 +703,120 @@ const titleWrapper = {
 
 const titleIcon = {
   width: "50px",
-  height: "60px",
-  borderRadius: "16px",
-  background: "linear-gradient(135deg, #3b83f600, #2564eb00)",
+  height: "50px",
+  borderRadius: "14px",
+  background: "#1a1a2e",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "2rem",
   color: "#ffffff",
-  boxShadow: "0 10px 20px -5px rgba(59,130,246,0.3)",
 };
 
 const title = {
-  fontSize: "34px",
+  fontSize: "30px",
   fontWeight: "800",
-  color: "#000000",
-  marginRight: "2px",
+  color: "#1a1a2e",
   margin: 0,
   letterSpacing: "-0.02em",
 };
 
 const titleSub = {
-  fontSize: "1rem",
-  color: "#000000",
+  fontSize: "0.95rem",
+  color: "#64748b",
   marginTop: "0.25rem",
-  fontWeight: "500",
+  fontWeight: "400",
 };
 
-// Stats
 const statsContainer = {
   display: "flex",
-  gap: "1rem",
+  gap: "0.75rem",
   flexWrap: "wrap",
 };
 
 const statCard = {
   background: "#ffffff",
-  padding: "0rem 0.5rem",
-  borderRadius: "16px",
-  border: "2px solid #e2e8f0",
-  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+  padding: "0.5rem 1.25rem",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  
-  minWidth: "100px",
+  minWidth: "70px",
   cursor: "pointer",
   transition: "all 0.2s",
-  position: "relative",
 };
 
 const statValue = {
-  fontSize: "2rem",
-  fontWeight: "800",
-  color: "#0f172a",
+  fontSize: "1.75rem",
+  fontWeight: "700",
+  color: "#1a1a2e",
   lineHeight: 1,
   marginBottom: "0.25rem",
 };
 
 const statLabel = {
-  fontSize: "0.8rem",
+  fontSize: "0.7rem",
   fontWeight: "600",
-  color: "#000000",
+  color: "#94a3b8",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
 
-const activeFilterIndicator = {
-  position: "absolute",
-  top: "-8px",
-  right: "-8px",
-  width: "24px",
-  height: "24px",
-  borderRadius: "50%",
-  background: "#3b82f6",
-  color: "#ffffff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "0.8rem",
-  border: "2px solid #ffffff",
-};
-
-// Controls
 const controlsBar = {
   display: "flex",
-  gap: "01rem",
+  gap: "0.5rem",
   flexWrap: "wrap",
   alignItems: "center",
-  marginBottom: "0rem",
+  marginBottom: "0.5rem",
 };
 
-// Search
 const searchWrapper = {
   position: "relative",
   flex: "2",
-  minWidth: "350px",
+  minWidth: "280px",
 };
 
 const searchIcon = {
   position: "absolute",
-  left: "1.25rem",
+  left: "1rem",
   top: "50%",
   transform: "translateY(-50%)",
-  color: "#64748b",
-  fontSize: "1.0rem",
+  color: "#94a3b8",
 };
 
 const searchInput = {
   width: "100%",
-  padding: "1rem 1rem 1rem 3.5rem",
-  borderRadius: "16px",
-  border: "2px solid #e2e8f0",
+  padding: "0.65rem 1rem 0.65rem 3rem",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
   background: "#ffffff",
-  color: "#0f172a",
-  fontSize: "1rem",
-  fontWeight: "500",
+  color: "#1a1a2e",
+  fontSize: "0.9rem",
+  fontWeight: "400",
   outline: "none",
   transition: "all 0.2s",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
 };
 
 const searchClear = {
   position: "absolute",
-  right: "1rem",
+  right: "0.75rem",
   top: "50%",
   transform: "translateY(-50%)",
   background: "#f1f5f9",
   border: "none",
-  borderRadius: "10px",
-  width: "30px",
-  height: "30px",
+  borderRadius: "6px",
+  width: "28px",
+  height: "28px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "#475569",
-  fontSize: "0.9rem",
+  color: "#64748b",
   cursor: "pointer",
-  fontWeight: "bold",
 };
 
-// Filter Controls
 const filterWrapper = {
   display: "flex",
-  gap: "0.75rem",
-  marginTop: "0px",
+  gap: "0.5rem",
   alignItems: "center",
   flexWrap: "wrap",
 };
@@ -1177,28 +824,22 @@ const filterWrapper = {
 const filterGroup = {
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.5rem 1rem",
+  gap: "0.4rem",
+  padding: "0.4rem 0.75rem",
   background: "#ffffff",
-  borderRadius: "14px",
-  border: "2px solid #e2e8f0",
-  cursor: "pointer",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
 };
 
-const filterIcon = {
-  color: "#475569",
-  fontSize: "1rem",
-  fontWeight: "600",
-};
-
+const filterIcon = { color: "#94a3b8" };
 const filterSelect = {
-  padding: "0.5rem 2rem 0.5rem 0.5rem",
-  borderRadius: "12px",
+  padding: "0.2rem 1.25rem 0.2rem 0.2rem",
+  borderRadius: "6px",
   border: "none",
   background: "transparent",
-  color: "#0f172a",
-  fontSize: "0.95rem",
-  fontWeight: "600",
+  color: "#1a1a2e",
+  fontSize: "0.85rem",
+  fontWeight: "500",
   outline: "none",
   cursor: "pointer",
 };
@@ -1206,48 +847,35 @@ const filterSelect = {
 const sortButton = {
   display: "flex",
   alignItems: "center",
-  gap: "0.75rem",
-  padding: "0.75rem 1.25rem",
+  gap: "0.4rem",
+  padding: "0.4rem 0.75rem",
   background: "#ffffff",
-  border: "2px solid #e2e8f0",
-  borderRadius: "14px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
   color: "#1e293b",
-  fontSize: "0.95rem",
-  fontWeight: "600",
+  fontSize: "0.85rem",
+  fontWeight: "500",
   cursor: "pointer",
   transition: "all 0.2s",
 };
 
-const sortIcon = {
-  color: "#475569",
-  fontSize: "1rem",
-};
-
-const sortText = {
-  fontWeight: "600",
-};
-
-const sortArrow = {
-  fontSize: "0.9rem",
-  color: "#94a3b8",
-};
+const sortText = { fontWeight: "500" };
 
 const viewToggle = {
   display: "flex",
-  gap: "0.25rem",
-  background: "#f1f5f9",
-  padding: "0.25rem",
-  borderRadius: "12px",
-  border: "2px solid #e2e8f0",
+  gap: "0.2rem",
+  background: "#f8fafc",
+  padding: "0.2rem",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
 };
 
 const viewToggleButton = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "10px",
+  width: "34px",
+  height: "34px",
+  borderRadius: "8px",
   border: "none",
-  fontSize: "1.2rem",
-  fontWeight: "600",
+  fontSize: "0.9rem",
   cursor: "pointer",
   transition: "all 0.2s",
   display: "flex",
@@ -1256,187 +884,132 @@ const viewToggleButton = {
 };
 
 const selectModeButton = {
-  padding: "0.75rem 1.25rem",
-  borderRadius: "14px",
-  border: "2px solid #e2e8f0",
-  fontSize: "0.95rem",
-  fontWeight: "600",
+  padding: "0.4rem 0.9rem",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
+  fontSize: "0.85rem",
+  fontWeight: "500",
   cursor: "pointer",
   transition: "all 0.2s",
   background: "#ffffff",
 };
 
 const refreshButton = {
-  padding: "0.75rem",
+  padding: "0.4rem 0.6rem",
   background: "#ffffff",
-  border: "2px solid #e2e8f0",
-  borderRadius: "14px",
-  color: "#475569",
-  fontSize: "1.2rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  color: "#64748b",
   cursor: "pointer",
-  width: "48px",
-  height: "48px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontWeight: "bold",
 };
 
-const refreshIcon = {
-  display: "inline-block",
-  fontSize: "1.2rem",
-};
-
-// Results Info
 const resultsInfo = {
   display: "flex",
   justifyContent: "space-between",
-  marginTop: "0px",
   alignItems: "center",
-  padding: "1rem 0",
-  borderBottom: "2px solid #e2e8f0",
+  padding: "0.5rem 0",
+  borderBottom: "1px solid #e2e8f0",
   flexWrap: "wrap",
-  gap: "0",
+  gap: "0.5rem",
   marginBottom: "0px",
 };
 
 const resultsLeft = {
   display: "flex",
   alignItems: "center",
-  gap: "1rem",
+  gap: "0.5rem",
   flexWrap: "wrap",
 };
 
 const resultsBold = {
-  fontSize: "1.5rem",
-  fontWeight: "800",
-  color: "#0f172a",
+  fontSize: "1.1rem",
+  fontWeight: "700",
+  color: "#1a1a2e",
 };
 
 const resultsText = {
-  fontSize: "1rem",
-  color: "#475569",
-  fontWeight: "500",
+  fontSize: "0.9rem",
+  color: "#64748b",
+  fontWeight: "400",
 };
 
 const resultsBadge = {
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.5rem 1rem",
-  background: "#f1f5f9",
-  borderRadius: "30px",
-  fontSize: "0.9rem",
-  fontWeight: "600",
-  color: "#1e293b",
-  border: "2px solid #e2e8f0",
+  gap: "0.3rem",
+  padding: "0.2rem 0.6rem",
+  borderRadius: "16px",
+  fontSize: "0.75rem",
+  fontWeight: "500",
+  border: "1px solid #e2e8f0",
+  background: "#f8fafc",
 };
 
 const resultsBadgeClose = {
-  marginLeft: "0.25rem",
+  marginLeft: "0.2rem",
   cursor: "pointer",
-  fontSize: "0.8rem",
-  opacity: 0.7,
-};
-
-const resultsRight = {
   display: "flex",
   alignItems: "center",
-  gap: "1.5rem",
-  flexWrap: "wrap",
 };
 
-const timelineIndicator = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.5rem",
-  cursor: "pointer",
-};
-
-const timelineDot = {
-  width: "10px",
-  height: "10px",
-  borderRadius: "50%",
-};
-
-const timelineText = {
-  fontSize: "0.9rem",
-  color: "#0063ee",
-  fontWeight: "500",
-};
-
-// Select Toolbar
 const selectToolbar = {
   background: "#ffffff",
-  border: "2px solid #3b82f6",
-  borderRadius: "16px",
-  padding: "1rem",
-  marginBottom: "0rem",
+  border: "1px solid #1a1a2e",
+  borderRadius: "12px",
+  padding: "0.5rem 1rem",
+  marginBottom: "0.5rem",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   flexWrap: "wrap",
-  gap: "1rem",
-  boxShadow: "0 10px 20px -5px rgba(59,130,246,0.2)",
+  gap: "0.5rem",
 };
 
 const selectToolbarLeft = {
   display: "flex",
   alignItems: "center",
-  gap: "1.5rem",
+  gap: "0.75rem",
 };
 
 const selectToolbarButton = {
-  padding: "0.5rem 1rem",
-  borderRadius: "10px",
-  border: "2px solid #e2e8f0",
+  padding: "0.2rem 0.75rem",
+  borderRadius: "8px",
+  border: "1px solid #e2e8f0",
   background: "#ffffff",
   color: "#1e293b",
-  fontSize: "0.9rem",
-  fontWeight: "600",
+  fontSize: "0.8rem",
+  fontWeight: "500",
   cursor: "pointer",
 };
 
 const selectCount = {
-  fontSize: "0.95rem",
-  color: "#475569",
-  fontWeight: "500",
+  fontSize: "0.85rem",
+  color: "#64748b",
+  fontWeight: "400",
 };
 
-const selectToolbarAction = {
-  padding: "0.5rem 1.5rem",
-  borderRadius: "10px",
-  border: "none",
-  background: "#ef4444",
-  color: "#ffffff",
-  fontSize: "0.9rem",
-  fontWeight: "600",
-  cursor: "pointer",
-};
-
-// Select Checkbox
 const selectCheckbox = {
   position: "absolute",
-  top: "1rem",
-  left: "1rem",
+  top: "0.75rem",
+  left: "0.75rem",
   zIndex: 10,
   cursor: "pointer",
 };
 
 const checkboxInner = {
-  width: "24px",
-  height: "24px",
-  borderRadius: "6px",
-  border: "2px solid",
+  width: "20px",
+  height: "20px",
+  borderRadius: "4px",
+  border: "1px solid",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "0.8rem",
-  color: "#ffffff",
   transition: "all 0.2s",
 };
 
-// Error State
 const errorContainer = {
   display: "flex",
   justifyContent: "center",
@@ -1446,138 +1019,111 @@ const errorContainer = {
 
 const errorCard = {
   textAlign: "center",
-  padding: "3rem",
+  padding: "2.5rem",
   background: "#ffffff",
-  borderRadius: "24px",
-  border: "2px solid #fee2e2",
-  boxShadow: "0 10px 25px -5px rgba(239,68,68,0.1)",
+  borderRadius: "20px",
+  border: "1px solid #e2e8f0",
   maxWidth: "500px",
 };
 
-const errorIcon = {
-  fontSize: "3rem",
-  marginBottom: "1rem",
-};
-
+const errorIcon = { color: "#ef4444", marginBottom: "1rem" };
 const errorTitle = {
-  fontSize: "1.5rem",
+  fontSize: "1.3rem",
   fontWeight: "700",
-  color: "#b91c1c",
+  color: "#1a1a2e",
   marginBottom: "0.5rem",
 };
-
-const errorText = {
-  color: "#64748b",
-  marginBottom: "2rem",
-  fontSize: "1rem",
-};
-
+const errorText = { color: "#64748b", marginBottom: "1.5rem", fontSize: "0.95rem" };
 const errorButton = {
-  padding: "0.75rem 2rem",
-  borderRadius: "12px",
+  padding: "0.5rem 1.5rem",
+  borderRadius: "10px",
   border: "none",
-  background: "#3b82f6",
+  background: "#1a1a2e",
   color: "#ffffff",
-  fontSize: "1rem",
-  fontWeight: "600",
+  fontSize: "0.9rem",
+  fontWeight: "500",
   cursor: "pointer",
   display: "inline-flex",
   alignItems: "center",
-  gap: "0.5rem",
 };
 
-const errorButtonIcon = {
-  fontSize: "1.1rem",
-};
-
-// Empty State
 const emptyContainer = {
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
-  minHeight: "500px",
+  minHeight: "400px",
 };
 
 const emptyCard = {
   textAlign: "center",
-  padding: "4rem",
+  padding: "3rem",
   background: "#ffffff",
-  borderRadius: "32px",
-  border: "2px solid #e2e8f0",
-  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.05)",
-  maxWidth: "600px",
+  borderRadius: "24px",
+  border: "1px solid #e2e8f0",
+  maxWidth: "500px",
 };
 
-const emptyIcon = {
-  fontSize: "4rem",
-  color: "#94a3b8",
-  marginBottom: "1.5rem",
-};
-
+const emptyIcon = { color: "#94a3b8", marginBottom: "1.5rem" };
 const emptyTitle = {
-  fontSize: "1.8rem",
+  fontSize: "1.5rem",
   fontWeight: "700",
-  color: "#0f172a",
+  color: "#1a1a2e",
   marginBottom: "0.5rem",
 };
-
 const emptyText = {
   color: "#64748b",
-  fontSize: "1.1rem",
-  marginBottom: "2rem",
+  fontSize: "0.95rem",
+  marginBottom: "1.5rem",
 };
-
 const emptyButton = {
-  padding: "0.75rem 2rem",
-  borderRadius: "12px",
-  border: "2px solid #e2e8f0",
+  padding: "0.5rem 1.5rem",
+  borderRadius: "10px",
+  border: "1px solid #e2e8f0",
   background: "#ffffff",
   color: "#1e293b",
-  fontSize: "1rem",
-  fontWeight: "600",
+  fontSize: "0.9rem",
+  fontWeight: "500",
   cursor: "pointer",
 };
 
-// Grid and List Views
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))",
-  gap: "1.5rem",
-  marginTop: "1.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+  gap: "1.25rem",
+  marginTop: "1.25rem",
 };
 
 const listView = {
   display: "flex",
   flexDirection: "column",
-  gap: "1rem",
-  marginTop: "1.5rem",
+  gap: "0.75rem",
+  marginTop: "1.25rem",
 };
 
-// Cards
 const card = {
   background: "#ffffff",
-  borderRadius: "24px",
+  borderRadius: "16px",
   padding: "0.75rem",
-  border: "2px solid #e2e8f0",
+  border: "1px solid #e2e8f0",
   marginBottom: "0px",
   marginRight: "25px",
   marginLeft: "0px",
-  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
   display: "flex",
   flexDirection: "column",
-  gap: "1.25rem",
+  gap: "0.75rem",
   transition: "all 0.2s ease",
   position: "relative",
 };
 
 const listCard = {
   background: "#ffffff",
-  borderRadius: "20px",
-  padding: "1.5rem",
-  border: "2px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "1rem",
+  border: "1px solid #e2e8f0",
   display: "flex",
   flexDirection: "column",
-  gap: "1rem",
+  gap: "0.5rem",
   transition: "all 0.2s",
   position: "relative",
 };
@@ -1596,119 +1142,78 @@ const listCardHeader = {
 
 const cardHeaderLeft = {
   display: "flex",
-  gap: "1rem",
+  gap: "0.75rem",
   alignItems: "flex-start",
   flex: 1,
 };
 
 const listCardHeaderLeft = {
   display: "flex",
-  gap: "1rem",
+  gap: "0.75rem",
   alignItems: "center",
   flex: 1,
 };
 
 const cardIcon = {
-  width: "48px",
-  height: "48px",
-  borderRadius: "16px",
+  width: "38px",
+  height: "38px",
+  borderRadius: "10px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "1.5rem",
-  border: "2px solid #e2e8f0",
+  border: "1px solid #e2e8f0",
   flexShrink: 0,
 };
 
-const cardTitleSection = {
-  flex: 1,
-};
-
+const cardTitleSection = { flex: 1 };
 const cardTitleRow = {
   display: "flex",
   alignItems: "center",
-  gap: "0.75rem",
+  gap: "0.4rem",
   flexWrap: "wrap",
-  marginBottom: "0.5rem",
+  marginBottom: "0.2rem",
 };
 
 const cardTitle = {
-  fontSize: "1.25rem",
-  fontWeight: "700",
-  color: "#0f172a",
+  fontSize: "1.05rem",
+  fontWeight: "600",
+  color: "#1a1a2e",
   margin: 0,
-  letterSpacing: "-0.01em",
-};
-
-const hotBadge = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.25rem",
-  padding: "0.25rem 0.75rem",
-  background: "#fee2e2",
-  borderRadius: "30px",
-  fontSize: "0.75rem",
-  fontWeight: "700",
-  color: "#dc2626",
-  border: "1px solid #fecaca",
 };
 
 const newBadge = {
   display: "flex",
   alignItems: "center",
-  gap: "0.25rem",
-  padding: "0.25rem 0.75rem",
-  background: "#dbeafe",
-  borderRadius: "30px",
-  fontSize: "0.75rem",
-  fontWeight: "700",
-  color: "#2563eb",
-  border: "1px solid #bfdbfe",
+  gap: "0.2rem",
+  padding: "0.1rem 0.5rem",
+  background: "#e8edf3",
+  borderRadius: "16px",
+  fontSize: "0.6rem",
+  fontWeight: "600",
+  color: "#1a1a2e",
+  border: "1px solid #dce2ea",
 };
 
-const weekBadge = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.25rem",
-  padding: "0.25rem 0.75rem",
-  background: "#fef3c7",
-  borderRadius: "30px",
-  fontSize: "0.75rem",
-  fontWeight: "700",
-  color: "#d97706",
-  border: "1px solid #fde68a",
-};
-
-const cardMeta = {
-  display: "flex",
-  gap: "0.5rem",
-};
-
+const cardMeta = { display: "flex", gap: "0.5rem" };
 const cardCategory = {
   display: "inline-flex",
   alignItems: "center",
   gap: "0.25rem",
-  padding: "0.25rem 0.75rem",
-  background: "#f1f5f9",
-  borderRadius: "30px",
-  fontSize: "0.75rem",
-  fontWeight: "600",
-  color: "#475569",
+  padding: "0.1rem 0.5rem",
+  background: "#f8fafc",
+  borderRadius: "16px",
+  fontSize: "0.65rem",
+  fontWeight: "500",
+  color: "#64748b",
   border: "1px solid #e2e8f0",
 };
 
-const cardContent = {
-  flex: 1,
-};
-
-const listCardContent = {
-  flex: 1,
-  paddingLeft: "4rem",
-};
+const cardContent = { flex: 1 };
+const listCardContent = { flex: 1, paddingLeft: "3rem" };
 
 const cardDescription = {
-  fontSize: "1rem",
-  color: "#334155",
+  fontSize: "0.9rem",
+  color: "#475569",
   lineHeight: "1.6",
   margin: 0,
   whiteSpace: "pre-line",
@@ -1724,11 +1229,11 @@ const cardDescriptionClamped = {
 const readMoreButton = {
   background: "none",
   border: "none",
-  color: "#3b82f6",
-  fontSize: "0.9rem",
-  fontWeight: "600",
+  color: "#1a1a2e",
+  fontSize: "0.8rem",
+  fontWeight: "500",
   cursor: "pointer",
-  padding: "0.5rem 0",
+  padding: "0.25rem 0",
   marginTop: "0.25rem",
 };
 
@@ -1736,116 +1241,80 @@ const cardFooter = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginTop: "0.5rem",
-  paddingTop: "1rem",
-  borderTop: "2px solid #f1f5f9",
+  marginTop: "0.25rem",
+  paddingTop: "0.5rem",
+  borderTop: "1px solid #f1f5f9",
 };
 
 const listCardFooter = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  paddingLeft: "4rem",
+  paddingLeft: "3rem",
 };
 
 const dateInfo = {
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
+  gap: "0.4rem",
   color: "#64748b",
-  fontSize: "0.9rem",
+  fontSize: "0.8rem",
 };
 
-const dateIcon = {
-  color: "#94a3b8",
-  fontSize: "1rem",
-};
+const dateIcon = { color: "#94a3b8" };
+const dateText = { color: "#475569" };
+const expandIcon = { color: "#94a3b8" };
 
-const dateText = {
-  color: "#475569",
-  fontWeight: "500",
-};
-
-const expandIcon = {
-  color: "#94a3b8",
-  fontSize: "1rem",
-  fontWeight: "bold",
-};
-
-// Quick Stats Footer
 const quickStatsFooter = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginTop: "2rem",
-  padding: "1rem 1.5rem",
+  marginTop: "1.5rem",
+  padding: "0.5rem 1rem",
   background: "#f8fafc",
-  borderRadius: "16px",
-  border: "2px solid #e2e8f0",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
   flexWrap: "wrap",
-  gap: "1rem",
+  gap: "0.5rem",
 };
 
 const quickStatsLeft = {
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
+  gap: "0.4rem",
 };
-
 const quickStatsBold = {
-  fontSize: "1.2rem",
-  fontWeight: "700",
-  color: "#0f172a",
+  fontSize: "1rem",
+  fontWeight: "600",
+  color: "#1a1a2e",
 };
-
 const quickStatsText = {
-  fontSize: "0.95rem",
-  color: "#475569",
-  fontWeight: "500",
+  fontSize: "0.85rem",
+  color: "#64748b",
+  fontWeight: "400",
 };
 
 const quickStatsRight = {
   display: "flex",
   alignItems: "center",
-  gap: "1.5rem",
+  gap: "0.75rem",
   flexWrap: "wrap",
 };
 
 const quickStatsItem = {
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
-  fontSize: "0.9rem",
+  gap: "0.4rem",
+  fontSize: "0.8rem",
   cursor: "pointer",
-  padding: "0.25rem 0.5rem",
-  borderRadius: "8px",
+  padding: "0.1rem 0.4rem",
+  borderRadius: "4px",
   transition: "all 0.2s",
 };
 
 const quickStatsDot = {
-  width: "10px",
-  height: "10px",
+  width: "8px",
+  height: "8px",
   borderRadius: "50%",
   display: "inline-block",
-};
-
-// Scroll to top button
-const scrollTopButton = {
-  position: "fixed",
-  bottom: "2rem",
-  right: "2rem",
-  width: "56px",
-  height: "56px",
-  borderRadius: "50%",
-  background: "#3b82f6",
-  border: "none",
-  color: "#ffffff",
-  fontSize: "1.8rem",
-  fontWeight: "bold",
-  cursor: "pointer",
-  boxShadow: "0 10px 25px -5px rgba(59,130,246,0.5)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 100,
 };

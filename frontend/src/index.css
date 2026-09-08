@@ -362,3 +362,173 @@ body {
     opacity: 1;
   }
 }
+/* =====================================================
+   COMPLETE BUTTON STYLES FIX - FOR ALL PAGES
+   ===================================================== */
+
+/* ===== DISABLED BUTTONS (Global) ===== */
+button:disabled,
+button[disabled],
+.btn:disabled,
+.btn[disabled],
+input[type="submit"]:disabled,
+input[type="submit"][disabled],
+input[type="button"]:disabled,
+input[type="button"][disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+button:disabled .spinning,
+button[disabled] .spinning,
+.btn:disabled .spinning,
+.btn[disabled] .spinning {
+  color: #e2e8f0 !important;
+}
+
+/* ===== REMOVE HOVER EFFECTS ===== */
+button:hover:not(:disabled),
+.btn:hover:not(:disabled),
+input[type="submit"]:hover:not(:disabled),
+input[type="button"]:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}
+
+button,
+.btn,
+input[type="submit"],
+input[type="button"] {
+  transition: none !important;
+}
+
+/* ===== REMOVE ACTIVE/FOCUS EFFECTS ===== */
+button:active:not(:disabled),
+button:focus:not(:disabled),
+.btn:active:not(:disabled),
+.btn:focus:not(:disabled) {
+  outline: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+button:focus-visible,
+.btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== CHECK-IN BUTTON (MemberAttendance page) ===== */
+.checkin-btn-premium:disabled,
+.checkin-btn-premium[disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.checkin-btn-premium:not(:disabled):not([disabled]) {
+  background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+  color: white !important;
+}
+
+.checkin-btn-premium:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}
+
+/* ===== QR CHECK-IN BUTTON ===== */
+.checkin-btn-qr:disabled,
+.checkin-btn-qr[disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.checkin-btn-qr:not(:disabled):not([disabled]) {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  color: white !important;
+}
+
+.checkin-btn-qr:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}
+
+/* ===== HISTORY BUTTON ===== */
+.history-btn-premium:disabled,
+.history-btn-premium[disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.history-btn-premium:not(:disabled):not([disabled]) {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+.history-btn-premium:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}
+
+/* ===== BACK BUTTON ===== */
+.back-btn-hero:disabled,
+.back-btn-hero[disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.back-btn-hero:not(:disabled):not([disabled]) {
+  background: rgba(255,255,255,0.1) !important;
+  color: white !important;
+}
+
+.back-btn-hero:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}
+
+/* ===== REFRESH BUTTON ===== */
+.refresh-btn-hero:disabled,
+.refresh-btn-hero[disabled] {
+  background: #94a3b8 !important;
+  color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.refresh-btn-hero:not(:disabled):not([disabled]) {
+  background: rgba(255,255,255,0.1) !important;
+  color: white !important;
+}
+
+.refresh-btn-hero:hover:not(:disabled) {
+  transform: none !important;
+  scale: 1 !important;
+  box-shadow: none !important;
+}

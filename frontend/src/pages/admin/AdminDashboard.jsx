@@ -749,11 +749,11 @@ axios.get(`${BASE_URL}/api/advertisements`, { headers }).catch(() => ({ data: []
            <h1 className="greeting">
   {greeting},{" "}
   <span className="admin-name">
-    {user.name || user.fullName?.split(" ")[0] || "Admin"}
+    <strong>{user.name || user.fullName?.split(" ")[0] || "Admin"}:</strong>
   </span>{" "}
-  Welcome to{" "}
-  <span className="admin-name portal-name">(ZUCA) Portal</span>{" "}
-  <span className="control-panel">System Control Panel 😊</span>
+  Welcome!{" "}
+  <span className="admin-name portal-name"></span>{" "}
+  <span className="control-panel"></span>
 
   <span className="wave"></span>
 </h1>

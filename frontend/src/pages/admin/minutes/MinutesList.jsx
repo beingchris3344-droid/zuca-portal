@@ -4,7 +4,7 @@ import { api } from '../../../api';
 import io from 'socket.io-client';
 import BASE_URL from '../../../api';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FaCalculator, FaCalendar,FaClock, FaLocationArrow, FaMapPin, FaUsers } from 'react-icons/fa';
+import { FaCalculator,FaArrowLeft, FaCalendar,FaClock, FaLocationArrow, FaMapPin, FaUsers } from 'react-icons/fa';
 
 export default function MinutesList() {
   const navigate = useNavigate();
@@ -138,16 +138,33 @@ export default function MinutesList() {
     }
   };
 
+  // Loading state for step 1
   if (loading) {
     return (
-      <div className="minutes-container">
-        <div className="loading-skeleton">
-          <div className="spinner"></div>
-          <p>Loading minutes...</p>
+      <div className="create-minutes-page">
+        <div className="page-header">
+          <button className="back-btn" onClick={() => navigate(-1)}>
+            <FaArrowLeft size={18} /> Back to Minutes
+          </button>
+          <h1>Opening ZUCA Minutes</h1>
         </div>
+        <div className="loading-container">
+          <Loader size={48} className="spin" />
+          <p>Loading minutes documents...</p>
+        </div>
+        <style>{`
+          .create-minutes-page { max-width: 1200px; margin: 0 auto; padding: 24px; background: #f8fafc; min-height: 100vh; }
+          .page-header { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; }
+          .back-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 500; color: #1e293b; }
+          .page-header h1 { margin: 0; font-size: 24px; font-weight: 700; color: #0f172a; }
+          .loading-container { text-align: center; padding: 80px; background: white; border-radius: 20px; }
+          .spin { animation: spin 1s linear infinite; }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
       </div>
     );
   }
+
 
   return (
     <div className="minutes-container">

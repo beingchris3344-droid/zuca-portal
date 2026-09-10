@@ -327,7 +327,7 @@ export default function HymnBook() {
     <div style={titleWrapper}>
       <div style={titleIcon}><FaMusic color="#000000"/></div>
       <div>
-        <h1 style={title}>Hymn Book</h1>
+        <h1 style={title}>ZUCA LYRICS BOOK</h1>
         <p style={titleSub}>{totalSongs || safeSongs.length || 0} hymns</p>
       </div>
     </div>
@@ -356,7 +356,7 @@ export default function HymnBook() {
       e.currentTarget.style.color = "#4f46e5";
     }}
     >
-      ← Dashboard
+      ← Home
     </Link>
   </div>
 </div>

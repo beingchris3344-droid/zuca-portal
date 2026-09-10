@@ -8,10 +8,6 @@
   ],
   "rewrites": [
     {
-      "source": "/hymn/(.*)",
-      "destination": "https://zuca-backend-iw9p.onrender.com/hymn/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/"
     }

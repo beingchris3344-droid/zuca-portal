@@ -140,7 +140,7 @@ const fetchSong = async () => {
       if (part.startsWith('**') && part.endsWith('**')) {
         // Bold text - remove the ** markers
         const boldContent = part.slice(2, -2);
-        return <strong key={index} style={{ fontWeight: '700', color: '#4f46e5' }}>{boldContent}</strong>;
+        return <strong key={index} style={{ fontWeight: '700', color: '#0f0f0f' }}>{boldContent}</strong>;
       }
       // Normal text
       return part;
@@ -231,87 +231,127 @@ const fetchSong = async () => {
   };
 
   const downloadAsPDF = async () => {
-    try {
-      showToast("📄 Preparing PDF...");
-      
-      const { jsPDF } = await import('jspdf');
-      
-      // Create PDF
-      const pdf = new jsPDF({
-        unit: 'pt',
-        format: 'a4',
-      });
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 40;
-      const contentWidth = pageWidth - (margin * 2);
-      
-      let y = margin + 20;
-      
-      // Title
-      pdf.setFontSize(24);
-      pdf.setTextColor(79, 70, 229);
-      pdf.setFont('helvetica', 'bold');
-      const titleLines = pdf.splitTextToSize(song.title, contentWidth);
-      titleLines.forEach(line => {
-        pdf.text(line, pageWidth / 2, y, { align: 'center' });
-        y += 30;
-      });
-      
-      // Reference
-      if (song.reference) {
-        pdf.setFontSize(14);
-        pdf.setTextColor(100, 116, 139);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(song.reference, pageWidth / 2, y, { align: 'center' });
-        y += 40;
-      } else {
-        y += 20;
+  try {
+    showToast("📄 Preparing PDF...");
+
+    const { jsPDF } = await import('jspdf');
+
+    const pdf = new jsPDF({
+      unit: 'pt',
+      format: 'a4',
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 50;
+    const contentWidth = pageWidth - margin * 2;
+
+    // ---- Spacing constants (tweak these to taste) ----
+    const LINE_HEIGHT = fontSize * 1.6;      // space between lines in a verse
+    const VERSE_GAP = fontSize * 1.2;        // space between verses
+    const TITLE_SIZE = 22;
+    const REF_SIZE = 12;
+    const FOOTER_SIZE = 9;
+
+    let y = margin + 10;
+
+    // ---------- Helper: page-break check ----------
+    const ensureSpace = (needed) => {
+      if (y + needed > pageHeight - margin - 20) {
+        pdf.addPage();
+        y = margin + 10;
       }
-      
-      // Lyrics - strip bold markers for PDF (or keep as bold if using html2pdf)
+    };
+
+    // ---------- Title ----------
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(TITLE_SIZE);
+    pdf.setTextColor(79, 70, 229); // indigo
+
+    const titleLines = pdf.splitTextToSize(song.title, contentWidth);
+    titleLines.forEach((line) => {
+      pdf.text(line, pageWidth / 2, y, { align: 'center' });
+      y += TITLE_SIZE + 6;
+    });
+
+    y += 6;
+
+    // ---------- Reference ----------
+    if (song.reference) {
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(REF_SIZE);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(song.reference, pageWidth / 2, y, { align: 'center' });
+      y += REF_SIZE + 24;
+    } else {
+      y += 24;
+    }
+
+    // ---------- Divider ----------
+    pdf.setDrawColor(226, 232, 240);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 28;
+
+    // ---------- Lyrics ----------
+    if (song.lyrics) {
+      const cleanLyrics = song.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
+      const verses = cleanLyrics.split(/\n\s*\n/).filter(v => v.trim());
+
+      pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(fontSize);
       pdf.setTextColor(30, 41, 59);
-      pdf.setFont('helvetica', 'normal');
-      
-      if (song.lyrics) {
-        // Strip bold markers for clean PDF text
-        const cleanLyrics = song.lyrics.replace(/\*\*([^*]+)\*\*/g, '$1');
-        const verses = cleanLyrics.split(/\n\s*\n/);
-        
-        verses.forEach(verse => {
-          const lines = verse.split('\n');
-          lines.forEach(line => {
-            if (line.trim() === '') {
-              y += 10;
-            } else {
-              if (y > pdf.internal.pageSize.getHeight() - margin) {
-                pdf.addPage();
-                y = margin + 20;
-              }
-              pdf.text(line, pageWidth / 2, y, { align: 'center' });
-              y += fontSize + 6;
-            }
+
+      verses.forEach((verse, vIndex) => {
+        const lines = verse.split('\n');
+
+        lines.forEach((line) => {
+          if (line.trim() === '') {
+            y += LINE_HEIGHT * 0.5;
+            return;
+          }
+
+          // wrap long lines to content width
+          const wrapped = pdf.splitTextToSize(line.trim(), contentWidth);
+          wrapped.forEach((wrappedLine) => {
+            ensureSpace(LINE_HEIGHT);
+            pdf.text(wrappedLine, pageWidth / 2, y, { align: 'center' });
+            y += LINE_HEIGHT;
           });
-          y += 10;
         });
-      }
-      
-      // Footer
-      y = pdf.internal.pageSize.getHeight() - margin;
-      pdf.setFontSize(10);
-      pdf.setTextColor(148, 163, 184);
-      pdf.text('ZUCA Hymn Book', margin, y);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth - margin - 150, y);
-      
-      // Save PDF
-      pdf.save(`${song.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
-      showToast("✅ PDF downloaded!");
-    } catch (error) {
-      console.error('PDF download failed:', error);
-      showToast("❌ Failed to download PDF");
+
+        // gap between verses
+        if (vIndex < verses.length - 1) {
+          y += VERSE_GAP;
+        }
+      });
     }
-  };
+
+    // ---------- Footer on every page ----------
+    const pageCount = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      pdf.setPage(i);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(FOOTER_SIZE);
+      pdf.setTextColor(148, 163, 184);
+
+      const footerY = pageHeight - margin / 2;
+      pdf.text('ZUCA Hymn Book', margin, footerY);
+      pdf.text(
+        `Generated on ${new Date().toLocaleDateString()}  •  Page ${i} of ${pageCount}`,
+        pageWidth - margin,
+        footerY,
+        { align: 'right' }
+      );
+    }
+
+    pdf.save(`${song.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    showToast("✅ PDF downloaded!");
+  } catch (error) {
+    console.error('PDF download failed:', error);
+    showToast("❌ Failed to download PDF");
+  }
+};
 
   const downloadAsWord = () => {
     try {
@@ -671,9 +711,9 @@ const container = {
   maxWidth: "800px",
   margin: "0 auto",
   fontFamily: "'Inter', -apple-system, sans-serif",
-  background: "#f8fafc",
+  background: "#ffffff",
   minHeight: "100vh",
-  borderRadius: "25px",
+  borderRadius: "0px",
   position: "relative",
 };
 
@@ -684,8 +724,7 @@ const loadingContainer = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f8fafc",
-  borderRadius: "40px",
+  background: "#ffffff",
 };
 
 const loadingSpinner = {
@@ -839,7 +878,7 @@ const titleIconWrapper = {
   width: "64px",
   height: "64px",
   borderRadius: "20px",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+ 
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -848,7 +887,7 @@ const titleIconWrapper = {
 
 const titleIcon = {
   fontSize: "32px",
-  color: "#ffffff",
+  color: "#000000",
 };
 
 const title = {

@@ -658,7 +658,7 @@ const container = {
   background: "#f8fafc",
   marginBottom: "60px",
   minHeight: "100vh",
-  borderRadius: "25px",
+  borderRadius: "0px",
 };
 
 const skeletonCard = {

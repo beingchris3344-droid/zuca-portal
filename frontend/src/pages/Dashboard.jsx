@@ -2288,38 +2288,37 @@ useEffect(() => {
 
 
 
- {/* Online Members Section */}
-    <div className="online-section-premium">
-      <div className="online-header-premium">
-        <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
-        <span className="online-count">{onlineMembers.length}</span>
-      </div>
-      
-      {loadingOnline ? (
-  <div className="skeleton-online-grid">
-    {[1,2,3,4,5,6].map(i => (
-      <div key={i} className="skeleton-online-item">
-        <div className="skeleton skeleton-online-avatar"></div>
-        <div className="skeleton skeleton-online-name"></div>
-      </div>
-    ))}
+{/* Online Members Section */}
+<div className="online-section-premium">
+  <div className="online-header-premium">
+    <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
+    <span className="online-count">{onlineMembers.length}</span>
   </div>
-) : onlineMembers.length === 0 ? (
-  <div className="empty-online-state">
-    <span className="empty-online-icon"><FaUser /></span>
-    <p>No one is online right now</p>
-    <span className="empty-online-sub">Check back later</span>
-  </div>
-) : (
-  <>
+  
+  {loadingOnline ? (
+    <div className="skeleton-online-grid">
+      {[1,2,3,4,5,6].map(i => (
+        <div key={i} className="skeleton-online-item">
+          <div className="skeleton skeleton-online-avatar"></div>
+          <div className="skeleton skeleton-online-name"></div>
+        </div>
+      ))}
+    </div>
+  ) : onlineMembers.length === 0 ? (
+    <div className="empty-online-state">
+      <span className="empty-online-icon"><FaUser /></span>
+      <p>No one is online right now</p>
+      <span className="empty-online-sub">Check back later</span>
+    </div>
+  ) : (
     <div className="online-members-grid">
-      {onlineMembers.slice(0, 6).map((member, index) => (
+      {onlineMembers.map((member, index) => (                 // ✅ NO SLICE - SHOWS ALL
         <motion.div
           key={member.id}
           className="online-member-premium"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: Math.min(index * 0.05, 0.5) }}   // ✅ Cap delay so 100 users don't take 5s
           whileHover={{ y: -3 }}
         >
           <div className="online-member-avatar">
@@ -2336,22 +2335,16 @@ useEffect(() => {
         </motion.div>
       ))}
     </div>
-    {onlineMembers.length > 6 && (
-      <div className="online-more-indicator">
-        +{onlineMembers.length - 6} more online
-      </div>
-    )}
-  </>
-)}
-      
-      <button 
-        className="online-action-btn"
-        onClick={() => navigate("/chat")}
-      >
-        <span>💬 Join Chat</span>
-        <FiArrowRight className="button-icon" />
-      </button>
-    </div>
+  )}
+  
+  <button 
+    className="online-action-btn"
+    onClick={() => navigate("/chat")}
+  >
+    <span>💬 Join Chat</span>
+    <FiArrowRight className="button-icon" />
+  </button>
+</div>
     <div>
       <div></div>
 
@@ -7674,18 +7667,35 @@ useEffect(() => {
   margin-top: 0.25rem;
 }
 
-/* Online Members Grid */
 .online-members-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
   gap: 0.75rem;
   margin-bottom: 0.75rem;
+  max-height: 420px;         /* ✅ Scroll if too many */
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.online-members-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.online-members-grid::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.online-members-grid::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 10px;
 }
 
 @media (max-width: 480px) {
   .online-members-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     gap: 0.5rem;
+    max-height: 320px;
   }
 }
 

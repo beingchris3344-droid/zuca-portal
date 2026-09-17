@@ -3,14 +3,19 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import io from "socket.io-client";
-import { FiMessageSquare,  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
-  FiDollarSign, FiMusic, FiUserCheck, 
-  FiAward, FiYoutube, FiMapPin, } from "react-icons/fi";
-  import { FaYoutube, FaChurch, FaUser, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaHamsa, FaHandHoldingUsd,FaHandHolding, FaMailchimp, FaMailBulk, FaPray, FaFileAlt, FaShieldAlt, FaBookReader, FaUniregistry, FaUniversity, FaCogs,  FaWhatsapp } from "react-icons/fa";
+import {
+  FiMessageSquare, FiBell, FiUsers, FiCalendar,
+  FiLogOut, FiMenu, FiX,
+} from "react-icons/fi";
+import {
+  FaYoutube, FaUser, FaComments, FaUserTie, FaImages,
+  FaHandHoldingHeart, FaPrayingHands, FaFileAlt, FaShieldAlt,
+  FaBookReader, FaUniversity, FaCogs, FaWhatsapp, FaMusic,
+  FaPray, FaMailBulk,
+} from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
-import badgeManager from '../../utils/badgeManager';
-import { FlagTriangleRightIcon } from "lucide-react";
+import badgeManager from "../../utils/badgeManager";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -18,6 +23,7 @@ export default function AdminLayout() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "{}"));
   const [onlineMembers, setOnlineMembers] = useState(0);
   const [sidebarShadow, setSidebarShadow] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -26,7 +32,6 @@ export default function AdminLayout() {
   const sidebarRef = useRef(null);
   const [messengerUnreadCount, setMessengerUnreadCount] = useState(0);
 
-  // Handle resize for mobile/desktop
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
@@ -38,7 +43,6 @@ export default function AdminLayout() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Handle sidebar scroll shadow
   useEffect(() => {
     const handleScroll = () => {
       if (scrollContainerRef.current) {
@@ -50,13 +54,14 @@ export default function AdminLayout() {
     return () => container?.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Handle click outside on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isMobile && 
-          sidebarRef.current && 
-          !sidebarRef.current.contains(event.target) &&
-          !event.target.closest('.mobile-hamburger')) {
+      if (
+        isMobile &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target) &&
+        !event.target.closest(".mobile-hamburger")
+      ) {
         setMenuOpen(false);
       }
     };
@@ -64,95 +69,101 @@ export default function AdminLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobile]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   const fetchMessengerUnreadCount = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await fetch(`${BASE_URL}/api/messenger/unread/count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
         setMessengerUnreadCount(data.totalUnread || 0);
       }
     } catch (err) {
-      console.error('Failed to fetch messenger unread count:', err);
+      console.error("Failed to fetch messenger unread count:", err);
     }
   }, []);
 
-  // Socket connection
   useEffect(() => {
     const socket = io(BASE_URL);
-    
-    socket.on('connect', () => {
-      console.log('Admin connected');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      if (user.id) {
-        socket.emit('join', user.id);
-      }
+
+    socket.on("connect", () => {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (user.id) socket.emit("join", user.id);
     });
 
-    socket.on('new_notification', (notification) => {
-      setNotifications(prev => [notification, ...prev].slice(0, 20));
+    socket.on("new_notification", (notification) => {
+      setNotifications((prev) => [notification, ...prev].slice(0, 20));
       if (badgeManager) badgeManager.increment();
     });
 
-    socket.on('online_members', (data) => {
-      setOnlineMembers(data.count);
-    });
-
-    socket.on('dm:new_message', () => {
-      fetchMessengerUnreadCount();
-    });
+    socket.on("online_members", (data) => setOnlineMembers(data.count));
+    socket.on("dm:new_message", () => fetchMessengerUnreadCount());
 
     return () => socket.disconnect();
   }, [fetchMessengerUnreadCount]);
 
-  // Fetch existing notifications
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const token = localStorage.getItem("token");
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
         if (!user.id) return;
-        
+
         const response = await fetch(`${BASE_URL}/api/notifications/${user.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
-        
-        if (!response.ok) throw new Error('Failed to fetch');
+
+        if (!response.ok) throw new Error("Failed to fetch");
         const data = await response.json();
         const allNotifications = Array.isArray(data) ? data : [];
-        const unreadOnly = allNotifications.filter(notif => !notif.read);
-        
-        const formattedNotifs = unreadOnly.slice(0, 20).map(notif => ({
+        const unreadOnly = allNotifications.filter((notif) => !notif.read);
+
+        const formattedNotifs = unreadOnly.slice(0, 20).map((notif) => ({
           id: notif.id,
           type: notif.type,
           title: notif.title,
           message: notif.message,
           icon: getIconForType(notif.type),
           read: notif.read || false,
-          createdAt: notif.createdAt
+          createdAt: notif.createdAt,
         }));
-        
+
         setNotifications(formattedNotifs);
         if (badgeManager) badgeManager.updateBadgeCount(unreadOnly.length);
-        
       } catch (err) {
-        console.error('Failed to fetch notifications:', err);
+        console.error("Failed to fetch notifications:", err);
       }
     };
     fetchNotifications();
     fetchMessengerUnreadCount();
-  }, []);
+  }, [fetchMessengerUnreadCount]);
 
   const getIconForType = (type) => {
     const icons = {
-      'announcement': '📢', 'pledge_approved': '✅', 'payment_added': '💰',
-      'new_pledge': '💳', 'program': '⛪', 'message': '💬', 'media_comment': '💬',
-      'contribution': '💰', 'pledge_message': '💬', 'executive_appointment': '👔',
-      'executive_removed': '📋'
+      announcement: "📢",
+      pledge_approved: "✅",
+      payment_added: "💰",
+      new_pledge: "💳",
+      program: "⛪",
+      message: "💬",
+      media_comment: "💬",
+      contribution: "💰",
+      pledge_message: "💬",
+      executive_appointment: "👔",
+      executive_removed: "📋",
     };
-    return icons[type] || '🔔';
+    return icons[type] || "🔔";
   };
 
   const handleLogout = () => {
@@ -161,308 +172,116 @@ export default function AdminLayout() {
   };
 
   const openAI = () => {
-    window.dispatchEvent(new CustomEvent('openAdminAI', { detail: { fullPage: true } }));
+    window.dispatchEvent(
+      new CustomEvent("openAdminAI", { detail: { fullPage: true } })
+    );
   };
 
   const markAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (!user.id) return;
-      
-      const response = await fetch(`${BASE_URL}/api/notifications/${user.id}/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
-      
+
+      const response = await fetch(
+        `${BASE_URL}/api/notifications/${user.id}/read-all`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       if (response.ok) {
         setNotifications([]);
         badgeManager.updateBadgeCount(0);
       }
     } catch (err) {
-      console.error('Failed to mark notifications as read:', err);
+      console.error("Failed to mark notifications as read:", err);
     }
   };
 
   const markAsRead = async (notificationId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
-      
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${BASE_URL}/api/notifications/${notificationId}/read`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       if (response.ok) {
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
         badgeManager.decrement();
       }
     } catch (err) {
-      console.error('Failed to mark notification as read:', err);
+      console.error("Failed to mark notification as read:", err);
     }
   };
 
-  const navItems = [
-    { label: "Admin View", path: "", icon: <FaShieldAlt color="#000000"/>, bg: "#eff6ff", color: "#3b82f6" },
-    { label: "Attendance Management", path: "attendance", icon: <FaUsers color="#000000"/>, bg: "#e0e7ff", color: "#3b82f6" },
-    { label: "Minutes Section", path: "minutes", icon: <FaFileAlt color="#000000"/>, bg: "#e0f2fe", color: "#06b6d4" },
-    { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="#000000"/>, bg: "#dcfce7", color: "#22c55e" },
-     { label: "Feedback Management", path: "feedback", icon: <FaComments color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
-                     { label: "Mass Programs", path: "songs", icon: "📑", bg: "#e0e7ff", color: "#6366f1" },
-
-    { label: "Hymn Book", path: "hymns", icon: <FaMusic color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
-     { label: "Semester Schedule", path: "schedules", icon: <FiCalendar color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
-     { label: "Executive", path: "executive", icon: <FaUserTie color="#000000" />, bg: "#ede9fe", color: "#8b5cf6" },
-    { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands color="#000000" />, bg: "#d1fae5", color: "#10b981" },
-     { label: "Zuca Users", path: "users", icon: <FiUsers color="#000000" />, bg: "#e0f2fe", color: "#000000" },
-   
-    { label: "Role management", path: "roles", icon: <FaUserTie color="#000000" />, bg: "#fce7f3", color: "#ec4899" },
-    
-
-        { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart color="#000000"/>, bg: "#d1fae5", color: "#10b981" },
-        { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
-            { label: "Announcements", path: "announcements", icon: "📢", bg: "#dbeafe", color: "#3b82f6" },
-
-
-
-   
-    { label: "Gallery", path: "media", icon: <FaImages color="#000000" />, bg: "#fef3c7", color: "#f59e0b" },
-    { label: "YouTube Analytics", path: "analytics", icon: <FaYoutube color="#ff0000" />, bg: "#fee2e2", color: "#ef4444" },
-    { label: "Email Dashboard", path: "email", icon: <FaMailBulk color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Email Settings", path: "email-settings", icon: <FaCogs color="#000000"/>, bg: "#fef3c7", color: "#f59e0b" },
-    { label: "Messanger", path: "messenger", icon: 
-    <FaComments color="#000000"/>, bg: "#d1fae5", color: "#10b981", badge: messengerUnreadCount },
-    
-    { label: "Prayer Settings", path: "prayers", icon: <FaPray color= "#000000"/>, bg: "#dcfce7", color: "#10b981" },
-    { label: "Admin Manual", path: "security", icon: <FaBookReader color="#000000"/>, bg: "#f1f5f9", color: "#64748b" },
-   
-    
-    
+  // ==================== SECTIONED NAVIGATION ====================
+  const navSections = [
+    {
+      label: "Mains",
+      items: [
+        { label: "Home View", path: "", icon: <FaShieldAlt />, end: true },
+        { label: "Feedback Management", path: "feedback", icon: <FaComments /> },
+        { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },
+         { label: "Announcements", path: "announcements", icon: <FiBell /> },
+      ],
+    },
+    {
+      label: "People",
+      items: [
+        { label: "Members", path: "users", icon: <FiUsers /> },
+        { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands /> },
+        { label: "Executive Team", path: "executive", icon: <FaUserTie /> },
+        { label: "Role Management", path: "roles", icon: <FaUserTie /> },
+        { label: "Attendance", path: "attendance", icon: <FiUsers /> },
+      ],
+    },
+    {
+      label: "Z-Resources",
+      items: [
+        { label: "Mass Programs", path: "songs", icon: <FaFileAlt /> },
+        { label: "Hymn Book", path: "hymns", icon: <FaMusic /> },
+        { label: "Prayer Settings", path: "prayers", icon: <FaPray /> },
+        { label: "Semester Schedule", path: "schedules", icon: <FiCalendar /> },
+        { label: "Minutes Section", path: "minutes", icon: <FaFileAlt /> },
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart /> },
+        { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity /> },
+      ],
+    },
+    {
+      label: "Media & Comms",
+      items: [
+       
+        { label: "Gallery", path: "media", icon: <FaImages /> },
+        { label: "YouTube Analytics", path: "analytics", icon: <FaYoutube /> },
+        { label: "Messenger", path: "messenger", icon: <FaComments />, badge: messengerUnreadCount },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { label: "Email Dashboard", path: "email", icon: <FaMailBulk /> },
+        { label: "Email Settings", path: "email-settings", icon: <FaCogs /> },
+        { label: "Admin Manual", path: "security", icon: <FaBookReader /> },
+      ],
+    },
   ];
-
-  // Styles with access to sidebarCollapsed
-  const containerStyle = {
-    height: "100vh",
-    width: "100vw",
-    background: "#f8fafc",
-    position: "relative",
-    overflow: "hidden",
-    margin: 0,
-    padding: 0,
-  };
-
-  const backdropStyle = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0, 0, 0, 0.3)",
-    backdropFilter: "blur(4px)",
-    zIndex: 40,
-  };
-
-  const sidebarStyle = {
-    position: "fixed",
-    left: 0,
-    top: 0,
-    height: "100vh",
-    width: sidebarCollapsed ? "0" : "280px",
-    background: "#ffffff",
-    boxShadow: sidebarCollapsed ? "none" : "2px 0 12px rgba(0, 0, 0, 0.05)",
-    padding: sidebarCollapsed ? "0" : "24px 16px",
-    display: "flex",
-    flexDirection: "column",
-    zIndex: 50,
-    overflowY: "hidden",
-    transition: "all 0.3s ease",
-    whiteSpace: "nowrap",
-  };
-
-  const logoSection = {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "12px",
-    marginBottom: "24px",
-    borderBottom: "1px solid #e2e8f0",
-  };
-
-  const logoStyle = {
-    width: "44px",
-    height: "auto",
-    borderRadius: "10px",
-  };
-
-  const logoText = { flex: 1 };
-  const logoTitle = { color: "#000000", fontSize: "13px", fontWeight: "700", margin: 0 };
-  const logoSubtitle = { color: "#424242", fontSize: "11px", margin: "4px 0 0" };
-
-  const navContainerStyle = (shadow) => ({
-    flex: 1,
-    overflowY: "auto",
-    paddingRight: "4px",
-    transition: "box-shadow 0.3s",
-    boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
-  });
-
-  const navStyle = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  };
-
-  const navCardStyle = (isActive, bg, color) => ({
-    padding: "12px 16px",
-    borderRadius: "12px",
-    backgroundColor: isActive ? bg : "#ffffff",
-    border: isActive ? `1px solid ${color}` : "1px solid #e2e8f0",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    position: "relative",
-    cursor: "pointer",
-    transition: "all 0.2s",
-    boxShadow: isActive ? `0 2px 4px rgba(59, 130, 246, 0.1)` : "none",
-  });
-
-  const navIconStyle = {
-    fontSize: "20px",
-    width: "28px",
-  };
-
-  const navLabelStyle = (isActive, color) => ({
-    color: isActive ? color : "#000000",
-    fontWeight: isActive ? "600" : "500",
-    fontSize: "13px",
-  });
-
-  const activeIndicatorStyle = (color) => ({
-    position: "absolute",
-    left: 0,
-    top: "50%",
-    transform: "translateY(-50%)",
-    width: "3px",
-    height: "20px",
-    background: color,
-    borderRadius: "0 3px 3px 0",
-  });
-
-  const sidebarFooterStyle = { marginTop: "20px" };
-  const sidebarDividerStyle = { height: "1px", background: "#e2e8f0", margin: "16px 0" };
-
-  const logoutButtonStyle = {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "10px",
-    border: "1px solid #e2e8f0",
-    background: "#ffffff",
-    color: "#dc2626",
-    fontSize: "14px",
-    fontWeight: "600",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    cursor: "pointer",
-    marginBottom: "40px",
-  };
-
-  const logoutIconStyle = { fontSize: "16px" };
-
-  const mainContentStyle = {
-    marginLeft: isMobile ? 0 : (sidebarCollapsed ? "0" : "280px"),
-    padding: 0,
-    position: "relative",
-    zIndex: 1,
-    height: "100vh",
-    overflow: "hidden",
-    transition: "margin-left 0.3s ease",
-    width: isMobile ? "100%" : `calc(100% - ${sidebarCollapsed ? "0" : "280px"})`,
-    background: "#f8fafc",
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  const contentWrapperStyle = {
-    flex: 1,
-    overflowY: "auto",
-    overflowX: "hidden",
-    padding: "0px",
-    position: "relative",
-    marginBottom: "30px",
-  };
-
- const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  background: "#ffffff",
-  borderRadius: "0px",
-  marginBottom: "0px",
-  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-  borderBottom: "1px solid #e2e8f0",
-  position: "sticky",
-  top: 0,
-  zIndex: 30,
-  flexShrink: 0,
-  
-  // Mobile first - default for small devices
-  padding: "0 12px",
-  height: "56px",
-  
-  // Tablet
-  "@media (min-width: 768px)": {
-    padding: "0 24px",
-    height: "60px",
-  },
-  
-  // Desktop
-  "@media (min-width: 1024px)": {
-    padding: "0 32px",
-    height: "68px",
-  },
-  
-  // Large Desktop
-  "@media (min-width: 1280px)": {
-    padding: "0 40px",
-    height: "72px",
-  },
-};
-
-  const headerLeftStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-  };
-
-  const hamburgerStyle = {
-    display: "none",
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-    borderRadius: "10px",
-    width: "40px",
-    height: "40px",
-    cursor: "pointer",
-    alignItems: "center",
-    justifyContent: "center",
-  };
-
-  const hamburgerIconStyle = {
-    color: "#475569",
-    fontSize: "20px",
-    fontWeight: "600",
-  };
-
-  const pageTitleStyle = {
-    color: "#1e293b",
-    fontSize: "18px",
-    fontWeight: "600",
-  };
-
-  const headerRightStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: "20px",
-    position: "relative",
-    zIndex: 31,
-  };
 
   return (
     <div style={containerStyle}>
@@ -482,9 +301,9 @@ export default function AdminLayout() {
         ref={sidebarRef}
         className="sidebar"
         initial={false}
-        animate={{ x: menuOpen ? 0 : (isMobile ? "-100%" : 0) }}
+        animate={{ x: menuOpen ? 0 : isMobile ? "-100%" : 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        style={sidebarStyle}
+        style={sidebarStyle(sidebarCollapsed)}
       >
         <div style={logoSection}>
           <img src={logoImg} alt="ZUCA Logo" style={logoStyle} />
@@ -496,50 +315,27 @@ export default function AdminLayout() {
 
         <div ref={scrollContainerRef} style={navContainerStyle(sidebarShadow)}>
           <nav style={navStyle}>
-            {navItems.map((item, index) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.path === ""}
-                onClick={() => isMobile && setMenuOpen(false)}
-                style={{ textDecoration: "none" }}
-              >
-                {({ isActive }) => (
-                  <motion.div
-                    style={navCardStyle(isActive, item.bg, item.color)}
-                    whileHover={{ x: 5 }}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.03 }}
+            {navSections.map((section) => (
+              <div key={section.label} style={navSectionStyle}>
+                <div style={navSectionLabelStyle}>{section.label}</div>
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.end}
+                    onClick={() => isMobile && setMenuOpen(false)}
+                    style={({ isActive }) => navRowStyle(isActive)}
                   >
-                    <span style={navIconStyle}>{item.icon}</span>
-                    <span style={navLabelStyle(isActive, item.color)}>{item.label}</span>
+                    <span style={navRowIconStyle}>{item.icon}</span>
+                    <span style={navRowLabelStyle}>{item.label}</span>
                     {item.badge > 0 && (
-                      <span style={{ 
-                        marginLeft: 'auto', 
-                        backgroundColor: '#ef4444', 
-                        color: 'white', 
-                        fontSize: '10px', 
-                        fontWeight: 'bold', 
-                        padding: '2px 6px', 
-                        borderRadius: '10px', 
-                        minWidth: '18px', 
-                        textAlign: 'center' 
-                      }}>
-                        {item.badge > 99 ? '99+' : item.badge}
+                      <span style={navBadgeStyle}>
+                        {item.badge > 99 ? "99+" : item.badge}
                       </span>
                     )}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicator"
-                        style={activeIndicatorStyle(item.color)}
-                        transition={{ type: "spring", damping: 20 }}
-                      />
-                    )}
-                  </motion.div>
-                )}
-              </NavLink>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
@@ -549,16 +345,20 @@ export default function AdminLayout() {
           <motion.button
             onClick={handleLogout}
             style={logoutButtonStyle}
-            whileHover={{ backgroundColor: "#dc2626", color: "#fff" }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{
+              backgroundColor: "#f5f5f5",
+              color: "#0f0f0f",
+              borderColor: "#d4d4d4",
+            }}
+            whileTap={{ scale: 0.98 }}
           >
-            <span style={logoutIconStyle}>🚪</span>
+            <FiLogOut style={logoutIconStyle} />
             Sign Out
           </motion.button>
         </div>
       </motion.aside>
 
-      <main style={mainContentStyle}>
+      <main style={mainContentStyle(isMobile, sidebarCollapsed)}>
         <motion.header
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -569,100 +369,100 @@ export default function AdminLayout() {
             <motion.button
               onClick={() => setMenuOpen(!menuOpen)}
               style={hamburgerStyle}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className="mobile-hamburger"
+              aria-label="Toggle menu"
             >
-              <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
+              {menuOpen ? <FiX size={18} /> : <FiMenu size={18} />}
             </motion.button>
-            <span style={                          pageTitleStyle}>ZUCA</span>
+
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="desktop-collapse-btn"
+              aria-label="Collapse sidebar"
+            >
+              {sidebarCollapsed ? <FiMenu size={16} /> : <FiX size={16} />}
+            </button>
+
+            <span style={pageTitleStyle}>ADMIN-{user?.fullName?.split(" ")[0] || "Admin"}</span>
           </div>
 
           <div style={headerRightStyle}>
-  {/* ==================== BACK TO MEMBER BUTTON ==================== */}
-  <button 
-    className="back-to-member-btn"
-    onClick={async (e) => {
-      const btn = e.currentTarget;
-      const originalHTML = btn.innerHTML;
-      
-      btn.innerHTML = `
-        <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-        Switching...
-      `;
-      btn.style.opacity = "0.7";
-      btn.style.pointerEvents = "none";
-      
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${BASE_URL}/api/switch-role`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ targetRole: "member" })
-        });
-        
-        if (!res.ok) throw new Error("Failed");
-        
-        const data = await res.json();
-        localStorage.setItem("token", data.token);
-        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-        storedUser.role = "member";
-        localStorage.setItem("user", JSON.stringify(storedUser));
-        
-        window.location.href = "/dashboard";
-      } catch (err) {
-        btn.innerHTML = originalHTML;
-        btn.style.opacity = "1";
-        btn.style.pointerEvents = "auto";
-        alert("Failed to switch back");
-      }
-    }}
-  >
-    < FaUser /> Back to Member
-  </button>
+            <button
+              className="back-to-member-btn"
+              onClick={async (e) => {
+                const btn = e.currentTarget;
+                const originalHTML = btn.innerHTML;
 
-  <button className="ai-assistant-btn" onClick={openAI}>
-    <FiMessageSquare size={18} />
-    <span>AI</span>
-  </button>
+                btn.innerHTML = `
+                  <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+                  Switching...
+                `;
+                btn.style.opacity = "0.7";
+                btn.style.pointerEvents = "none";
 
-            <button 
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              style={{
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                width: "36px",
-                height: "36px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px"
+                try {
+                  const token = localStorage.getItem("token");
+                  const res = await fetch(`${BASE_URL}/api/switch-role`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ targetRole: "member" }),
+                  });
+
+                  if (!res.ok) throw new Error("Failed");
+
+                  const data = await res.json();
+                  localStorage.setItem("token", data.token);
+                  const storedUser = JSON.parse(
+                    localStorage.getItem("user") || "{}"
+                  );
+                  storedUser.role = "member";
+                  localStorage.setItem("user", JSON.stringify(storedUser));
+
+                  window.location.href = "/dashboard";
+                } catch (err) {
+                  btn.innerHTML = originalHTML;
+                  btn.style.opacity = "1";
+                  btn.style.pointerEvents = "auto";
+                  alert("Failed to switch back");
+                }
               }}
             >
-              {sidebarCollapsed ? "☰" : "✕"}
+              <FaUser size={12} />  MEMBER
+              <span></span>
+            </button>
+
+            <button className="ai-assistant-btn" onClick={openAI} aria-label="AI Assistant">
+              <FiMessageSquare size={16} /> AI
+              <span></span>
             </button>
 
             <div className="online-indicator">
-              <span className="online-dot"></span>
-              <span>{onlineMembers} online</span>
+              <span className="online-dot"></span> 
+              <span className="online-label"></span> {onlineMembers} - Online
             </div>
 
             <div className="notification-container" ref={notificationRef}>
-              <button className="notification-btn" onClick={() => setShowNotifications(!showNotifications)}>
-                🔔
+              <button
+                className="notification-btn"
+                onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Notifications"
+              >
+                <FiBell size={16} />
                 {notifications.length > 0 && (
-                  <span className="notification-badge">{notifications.length}</span>
+                  <span className="notification-badge">
+                    {notifications.length > 99 ? "99+" : notifications.length}
+                  </span>
                 )}
               </button>
 
               <AnimatePresence>
                 {showNotifications && (
-                  <motion.div 
+                  <motion.div
                     className="notification-dropdown"
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -679,7 +479,11 @@ export default function AdminLayout() {
                         <div className="notification-empty">No new notifications</div>
                       ) : (
                         notifications.map((notif) => (
-                          <div key={notif.id} className="notification-item" onClick={() => markAsRead(notif.id)}>
+                          <div
+                            key={notif.id}
+                            className="notification-item"
+                            onClick={() => markAsRead(notif.id)}
+                          >
                             <div className="notification-icon">{notif.icon}</div>
                             <div className="notification-content">
                               <div className="notification-title">{notif.title}</div>
@@ -722,98 +526,165 @@ export default function AdminLayout() {
         }
 
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: #f8fafc;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #fafafa;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
 
-        .mobile-hamburger {
-          display: none !important;
-        }
-
+        /* ---------- Mobile / Desktop helpers ---------- */
+        .mobile-hamburger { display: none !important; }
         @media (max-width: 768px) {
-          .mobile-hamburger {
-            display: flex !important;
-          }
+          .mobile-hamburger { display: flex !important; }
+          .desktop-collapse-btn { display: none !important; }
         }
 
+        .desktop-collapse-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          background: transparent;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          cursor: pointer;
+          color: #525252;
+          transition: all 0.15s ease;
+        }
+        .desktop-collapse-btn:hover {
+          background: #f5f5f5;
+          color: #0f0f0f;
+        }
+
+        /* ---------- Sidebar nav hover & active ---------- */
+        .sidebar nav a { transition: background 0.15s ease, color 0.15s ease; }
+        .sidebar nav a:hover { background: #f5f5f5; }
+        .sidebar nav a[aria-current="page"]::before {
+          content: "";
+          position: absolute;
+          left: -12px;
+          top: 8px;
+          bottom: 8px;
+          width: 3px;
+          border-radius: 0 3px 3px 0;
+          background: #0f0f0f;
+        }
+
+        /* ---------- Sidebar scrollbar ---------- */
+        .sidebar div::-webkit-scrollbar { width: 6px; }
+        .sidebar div::-webkit-scrollbar-track { background: transparent; }
+        .sidebar div::-webkit-scrollbar-thumb {
+          background: #e5e5e5;
+          border-radius: 10px;
+        }
+        .sidebar div::-webkit-scrollbar-thumb:hover { background: #d4d4d4; }
+
+        /* ---------- Header buttons ---------- */
         .ai-assistant-btn {
           display: flex;
           align-items: center;
           gap: 6px;
-          padding: 6px 14px;
-          background: linear-gradient(135deg, #f63b3b, #8b5cf6);
+          padding: 6px 12px;
+          background: #0f0f0f;
           border: none;
-          border-radius: 24px;
-          color: white;
-          font-weight: 500;
+          border-radius: 8px;
+          color: #ffffff;
+          font-weight: 600;
           cursor: pointer;
           font-size: 12px;
+          transition: background 0.15s ease;
         }
+        .ai-assistant-btn:hover { background: #262626; }
+
+        .back-to-member-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          background: #ffffff;
+          color: #0f0f0f;
+          border: 1px solid #d4d4d4;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+        .back-to-member-btn:hover { background: #f5f5f5; }
+        .back-to-member-btn:active { transform: scale(0.97); opacity: 0.9; }
 
         .online-indicator {
           display: flex;
           align-items: center;
           gap: 6px;
-          padding: 4px 12px;
-          background: #f8fafc;
-          border-radius: 24px;
-          border: 1px solid #e2e8f0;
+          padding: 5px 10px;
+          background: #fafafa;
+          border-radius: 999px;
+          border: 1px solid #e5e5e5;
           font-size: 12px;
+          color: #525252;
+          font-weight: 500;
         }
 
         .online-dot {
-          width: 8px;
-          height: 8px;
-          background: #00ff9d;
+          width: 7px;
+          height: 7px;
+          background: #00ff00;
           border-radius: 50%;
+          box-shadow: 0 0 0 0 rgba(163, 163, 163, 0.5);
           animation: pulse 2s infinite;
         }
 
-        .notification-container {
-          position: relative;
-        }
+        .notification-container { position: relative; }
 
         .notification-btn {
-          width: 36px;
-          height: 36px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
+          width: 34px;
+          height: 34px;
+          background: transparent;
+          border: 1px solid #e5e5e5;
           border-radius: 8px;
-          font-size: 16px;
           cursor: pointer;
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
+          color: #525252;
+          transition: all 0.15s ease;
         }
+        .notification-btn:hover { background: #f5f5f5; color: #0f0f0f; }
 
         .notification-badge {
           position: absolute;
-          top: -4px;
-          right: -4px;
-          background: #ef4444;
+          top: -5px;
+          right: -5px;
+          background: #0f0f0f;
           color: white;
           font-size: 9px;
-          font-weight: 600;
+          font-weight: 700;
           min-width: 16px;
           height: 16px;
-          border-radius: 8px;
+          padding: 0 4px;
+          border-radius: 999px;
           display: flex;
           align-items: center;
           justify-content: center;
+          border: 2px solid #ffffff;
         }
 
         .notification-dropdown {
           position: absolute;
-          top: 45px;
+          top: 44px;
           right: 0;
           width: 360px;
           max-width: calc(100vw - 20px);
           background: white;
           border-radius: 12px;
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 25px -5px rgba(15, 15, 15, 0.12), 0 8px 10px -6px rgba(15, 15, 15, 0.06);
+          border: 1px solid #e5e5e5;
           z-index: 9999;
+          overflow: hidden;
         }
 
         .notification-header {
@@ -821,64 +692,66 @@ export default function AdminLayout() {
           justify-content: space-between;
           align-items: center;
           padding: 12px 16px;
-          background: #f8fafc;
-          border-bottom: 1px solid #e2e8f0;
+          background: #ffffff;
+          border-bottom: 1px solid #f5f5f5;
         }
-
-        .notification-header h3 { font-size: 14px; margin: 0; }
-        .notification-header button { background: none; border: none; color: #3b82f6; font-size: 11px; cursor: pointer; }
+        .notification-header h3 { font-size: 13px; margin: 0; color: #0f0f0f; font-weight: 600; }
+        .notification-header button {
+          background: none;
+          border: none;
+          color: #525252;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .notification-header button:hover { color: #0f0f0f; }
 
         .notification-list { max-height: 400px; overflow-y: auto; }
-        .notification-empty { padding: 32px; text-align: center; color: #94a3b8; }
+        .notification-empty { padding: 32px; text-align: center; color: #a3a3a3; font-size: 13px; }
 
         .notification-item {
           display: flex;
           gap: 12px;
           padding: 12px 16px;
-          border-bottom: 1px solid #f1f5f9;
+          border-bottom: 1px solid #f5f5f5;
           cursor: pointer;
+          transition: background 0.12s ease;
         }
-        .notification-item:hover { background: #f8fafc; }
+        .notification-item:hover { background: #fafafa; }
+        .notification-item:last-child { border-bottom: none; }
 
-        .notification-icon { width: 32px; height: 32px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        .notification-content { flex: 1; }
-        .notification-title { font-size: 13px; font-weight: 600; }
-        .notification-message { font-size: 11px; color: #64748b; }
-        .notification-time { font-size: 10px; color: #94a3b8; margin-top: 4px; }
-
-        .admin-profile {
-          display: flex;
-          align-items: center;
-        }
-
-        .admin-avatar {
-          width: 36px;
-          height: 40px;
+        .notification-icon {
+          width: 32px;
+          height: 32px;
+          background: #f5f5f5;
           border-radius: 8px;
-          background: #f8fcff;
-          object-fit: cover;
-          border: 1px solid #e2e8f0;
-        }
-
-                .back-to-member-btn {
           display: flex;
           align-items: center;
-          gap: 6px;
-          padding: 6px 14px;
-          background: linear-gradient(135deg, #17171a, #111113);
-          color: white;
-          border: none;
-          border-radius: 24px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
+          justify-content: center;
+          flex-shrink: 0;
+          font-size: 14px;
         }
+        .notification-content { flex: 1; min-width: 0; }
+        .notification-title { font-size: 13px; font-weight: 600; color: #0f0f0f; }
+        .notification-message {
+          font-size: 12px;
+          color: #737373;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+        }
+        .notification-time { font-size: 10px; color: #a3a3a3; margin-top: 4px; }
 
-        .back-to-member-btn:active {
-          transform: scale(0.95);
-          opacity: 0.9;
+        .admin-profile { display: flex; align-items: center; }
+        .admin-avatar {
+          width: 34px;
+          height: 34px;
+          border-radius: 8px;
+          background: #fafafa;
+          object-fit: cover;
+          border: 1px solid #e5e5e5;
         }
 
         @keyframes spin {
@@ -886,29 +759,277 @@ export default function AdminLayout() {
           to { transform: rotate(360deg); }
         }
 
-        @media (max-width: 768px) {
-          .back-to-member-btn {
-            padding: 6px 8px;
-            margin-left: 6px;
-            font-size: 11px;
-          }
-        }
-
         @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(163, 163, 163, 0.5); }
+          50% { box-shadow: 0 0 0 6px rgba(163, 163, 163, 0); }
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
 
         @media (max-width: 768px) {
           .notification-dropdown { width: 320px; right: -10px; }
-          .online-indicator span:last-child { display: none; }
+          .online-indicator .online-label { display: none; }
           .ai-assistant-btn span { display: none; }
+          .back-to-member-btn span { display: none; }
+          .ai-assistant-btn { padding: 6px 8px; }
+          .back-to-member-btn { padding: 6px 8px; }
         }
       `}</style>
     </div>
   );
 }
+
+/* ============================================================
+   STYLES — NEUTRAL ONLY (no purple / no blue / no sharp colours)
+   ============================================================ */
+
+const containerStyle = {
+  height: "100vh",
+  width: "100vw",
+  background: "#fafafa",
+  position: "relative",
+  overflow: "hidden",
+  margin: 0,
+  padding: 0,
+  fontFamily:
+    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+};
+
+const backdropStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 15, 15, 0.35)",
+  backdropFilter: "blur(2px)",
+  zIndex: 40,
+};
+
+/* ---------- SIDEBAR SHELL ---------- */
+const sidebarStyle = (collapsed) => ({
+  position: "fixed",
+  left: 0,
+  top: 0,
+  height: "100vh",
+  width: collapsed ? "0px" : "256px",
+  background: "#ffffff",
+  borderRight: collapsed ? "none" : "1px solid #e5e5e5",
+  padding: collapsed ? "0" : "16px 12px",
+  display: "flex",
+  flexDirection: "column",
+  zIndex: 50,
+  overflowY: "hidden",
+  transition: "width 0.25s ease, padding 0.25s ease",
+  whiteSpace: "nowrap",
+});
+
+/* ---------- BRAND ---------- */
+const logoSection = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  padding: "8px 8px 16px",
+  marginBottom: "8px",
+  borderBottom: "1px solid #f5f5f5",
+};
+
+const logoStyle = { width: "40px", height: "auto", borderRadius: "8px" };
+const logoText = { flex: 1, minWidth: 0 };
+
+const logoTitle = {
+  color: "#0f0f0f",
+  fontSize: "12px",
+  fontWeight: "700",
+  margin: 0,
+  lineHeight: "1.3",
+  letterSpacing: "0.4px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const logoSubtitle = {
+  color: "#a3a3a3",
+  fontSize: "11px",
+  margin: "2px 0 0",
+  fontWeight: "500",
+};
+
+/* ---------- NAV ---------- */
+const navContainerStyle = (shadow) => ({
+  flex: 1,
+  overflowY: "auto",
+  paddingRight: "2px",
+  transition: "box-shadow 0.3s",
+  boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.04)" : "none",
+});
+
+const navStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "2px",
+  paddingBottom: "8px",
+};
+
+const navSectionStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "1px",
+  marginBottom: "14px",
+};
+
+const navSectionLabelStyle = {
+  fontSize: "10px",
+  fontWeight: "700",
+  color: "#a3a3a3",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  padding: "6px 12px",
+  userSelect: "none",
+};
+
+const navRowStyle = (isActive) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  padding: "9px 12px",
+  borderRadius: "8px",
+  fontSize: "13.5px",
+  fontWeight: isActive ? "600" : "500",
+  color: isActive ? "#0f0f0f" : "#525252",
+  background: isActive ? "#f5f5f5" : "transparent",
+  textDecoration: "none",
+  position: "relative",
+  cursor: "pointer",
+});
+
+const navRowIconStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "18px",
+  height: "18px",
+  fontSize: "17px",
+  color: "inherit",
+  flexShrink: 0,
+};
+
+const navRowLabelStyle = {
+  flex: 1,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const navBadgeStyle = {
+  marginLeft: "auto",
+  backgroundColor: "#0f0f0f",
+  color: "#ffffff",
+  fontSize: "10px",
+  fontWeight: "700",
+  padding: "2px 6px",
+  borderRadius: "10px",
+  minWidth: "18px",
+  textAlign: "center",
+  lineHeight: 1.3,
+};
+
+/* ---------- FOOTER ---------- */
+const sidebarFooterStyle = { marginTop: "auto", paddingTop: "8px" };
+const sidebarDividerStyle = { height: "1px", background: "#f5f5f5", margin: "8px 0 12px" };
+
+const logoutButtonStyle = {
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: "8px",
+  border: "1px solid #e5e5e5",
+  background: "#ffffff",
+  color: "#525252",
+  fontSize: "13px",
+  fontWeight: "600",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+};
+
+const logoutIconStyle = { fontSize: "16px" };
+
+/* ---------- MAIN ---------- */
+const mainContentStyle = (isMobile, collapsed) => ({
+  marginLeft: isMobile ? 0 : collapsed ? "0px" : "256px",
+  padding: 0,
+  position: "relative",
+  zIndex: 1,
+  height: "100vh",
+  overflow: "hidden",
+  transition: "margin-left 0.25s ease",
+  width: isMobile ? "100%" : `calc(100% - ${collapsed ? "0px" : "256px"})`,
+  background: "#fafafa",
+  display: "flex",
+  flexDirection: "column",
+});
+
+const contentWrapperStyle = {
+  flex: 1,
+  overflowY: "auto",
+  overflowX: "hidden",
+  padding: "0px",
+  position: "relative",
+};
+
+/* ---------- HEADER ---------- */
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  background: "#ffffff",
+  padding: "10px 20px",
+  borderBottom: "1px solid #e5e5e5",
+  position: "sticky",
+  top: 0,
+  zIndex: 30,
+  flexShrink: 0,
+  gap: "12px",
+};
+
+const headerLeftStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  minWidth: 0,
+};
+
+const hamburgerStyle = {
+  display: "none",
+  background: "transparent",
+  border: "1px solid #e5e5e5",
+  borderRadius: "8px",
+  width: "36px",
+  height: "36px",
+  cursor: "pointer",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#525252",
+};
+
+const pageTitleStyle = {
+  color: "#0f0f0f",
+  fontSize: "15px",
+  fontWeight: "600",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const headerRightStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  position: "relative",
+  zIndex: 31,
+  flexShrink: 0,
+};

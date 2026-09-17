@@ -406,7 +406,7 @@ if (header === 'Email') {
       {/* Header */}
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>User Management</h1>
+          <h1 style={styles.title}>ZUCA PORTAL USERS</h1>
           <p style={styles.subtitle}>Manage system users, roles, and permissions</p>
         </div>
         <div style={styles.headerActions}>
@@ -487,10 +487,10 @@ if (header === 'Email') {
 
       {/* Stats Cards */}
       <div style={styles.statsGrid}>
-        <div style={styles.statCard}><div style={{...styles.statIcon, background: "#3b82f6"}}><FiUsers size={24} /></div><div><span style={styles.statValue}>{stats.total}</span><span style={styles.statLabel}>Total Users</span></div></div>
-        <div style={styles.statCard}><div style={{...styles.statIcon, background: "#10b981"}}><FiUserCheck size={24} /></div><div><span style={styles.statValue}>{stats.online}</span><span style={styles.statLabel}>Online Now</span></div></div>
-        <div style={styles.statCard}><div style={{...styles.statIcon, background: "#8b5cf6"}}><FiShield size={24} /></div><div><span style={styles.statValue}>{stats.admins}</span><span style={styles.statLabel}>Admins</span></div></div>
-        <div style={styles.statCard}><div style={{...styles.statIcon, background: "#f59e0b"}}><FiUser size={24} /></div><div><span style={styles.statValue}>{stats.members}</span><span style={styles.statLabel}>Members</span></div></div>
+        <div style={styles.statCard}><div style={{...styles.statIcon}}><FiUsers size={24}  color="black" /></div><div><span style={styles.statValue}>{stats.total}</span><span style={styles.statLabel}>Total Users</span></div></div>
+        <div style={styles.statCard}><div style={{...styles.statIcon}}><FiUserCheck size={24} color="black" /></div><div><span style={styles.statValue}>{stats.online}</span><span style={styles.statLabel}>Online Now</span></div></div>
+        <div style={styles.statCard}><div style={{...styles.statIcon}}><FiShield size={24} color="black" /></div><div><span style={styles.statValue}>{stats.admins}</span><span style={styles.statLabel}>Admins</span></div></div>
+        <div style={styles.statCard}><div style={{...styles.statIcon}}><FiUser size={24}color="black" /></div><div><span style={styles.statValue}>{stats.members}</span><span style={styles.statLabel}>Members</span></div></div>
       </div>
 
       {/* Filters */}

@@ -1,6 +1,6 @@
 // frontend/src/components/Layout.jsx
 import { Outlet, NavLink } from "react-router-dom";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
 import Notifications from "./Notifications";
@@ -8,19 +8,26 @@ import axios from "axios";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
 import FloatingInstallButton from "./FloatingInstallButton";
-import { 
-  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell, 
-  FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck, 
-  FiAward, FiYoutube, FiMapPin, 
+import {
+  FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell,
+  FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck,
+  FiAward, FiYoutube, FiMapPin, FiLogOut, FiChevronDown,
 } from "react-icons/fi";
-import { FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove, FaPrayingHands,FaGamepad,FaCalendarPlus, FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport, FaBirthdayCake, FaUser,FaRegFilePdf, FaSun} from "react-icons/fa";
+import {
+  FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments,
+  FaUserTie, FaImages, FaPhotoVideo, FaUsers, FaCalendar,
+  FaRegCalendar, FaThLarge, FaDonate, FaHandHoldingHeart,
+  FaDove, FaPrayingHands, FaGamepad, FaCalendarPlus,
+  FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport,
+  FaBirthdayCake, FaUser, FaRegFilePdf, FaSun,
+} from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
 import { toggleDark } from "../utils/darkReader";
 
 
-// Messenger Icon with Badge Component - ADD THIS BEFORE the Layout function
+// Messenger Icon with Badge Component
 const MessengerIcon = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -29,43 +36,37 @@ const MessengerIcon = () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const res = await api.get('/api/messenger/unread/count', {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await api.get("/api/messenger/unread/count", {
+          headers: { Authorization: `Bearer ${token}` },
         });
         setUnreadCount(res.data.unreadCount);
       } catch (err) {
-        console.error('Error fetching unread count:', err);
+        console.error("Error fetching unread count:", err);
       }
     };
-    
+
     fetchUnreadCount();
-    
-    // Setup socket connection for real-time updates
+
     const socket = io(BASE_URL, {
-      transports: ['websocket'],
-      auth: { token: localStorage.getItem("token") }
+      transports: ["websocket"],
+      auth: { token: localStorage.getItem("token") },
     });
-    
-    socket.on('dm:new_message', () => {
-      setUnreadCount(prev => prev + 1);
-    });
-    
-    socket.on('dm:message_read', () => {
-      fetchUnreadCount();
-    });
-    
+
+    socket.on("dm:new_message", () => setUnreadCount((prev) => prev + 1));
+    socket.on("dm:message_read", () => fetchUnreadCount());
+
     return () => socket.disconnect();
   }, []);
 
   return (
-    <div style={{ position: 'relative', display: 'inline-flex' }}>
+    <div style={{ position: "relative", display: "inline-flex" }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9l-5.05 1.9z" />
         <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
         <path d="M14 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1z" />
       </svg>
       {unreadCount > 0 && (
-        <span className="messenger-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+        <span className="messenger-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
       )}
     </div>
   );
@@ -82,94 +83,87 @@ function Layout() {
   const userMenuRef = useRef(null);
   const sidebarRef = useRef(null);
   const [jumuiaName, setJumuiaName] = useState("");
-const [isJumuiaLoading, setIsJumuiaLoading] = useState(true);
-const [isExecutive, setIsExecutive] = useState(false);
-const [loadingExecutive, setLoadingExecutive] = useState(true);
+  const [isJumuiaLoading, setIsJumuiaLoading] = useState(true);
+  const [isExecutive, setIsExecutive] = useState(false);
+  const [loadingExecutive, setLoadingExecutive] = useState(true);
 
-// Fetch user details including jumuia name
-useEffect(() => {
-  const token = localStorage.getItem("token");
-  if (!token) return;
+  // Fetch user details including jumuia name
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-  const fetchUserDetails = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const userData = response.data;
-      if (userData.homeJumuia?.name) {
-        setJumuiaName(userData.homeJumuia.name);
+    const fetchUserDetails = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userData = response.data;
+        if (userData.homeJumuia?.name) setJumuiaName(userData.homeJumuia.name);
+        setUser(userData);
+      } catch (error) {
+        console.error("Failed to fetch user details", error);
+      } finally {
+        setIsJumuiaLoading(false);
       }
-      // Optionally update the full user object if you want to keep it fresh
-      setUser(userData);
-    } catch (error) {
-      console.error("Failed to fetch user details", error);
-    } finally {
-      setIsJumuiaLoading(false);
-    }
-  };
+    };
 
-  fetchUserDetails();
-}, []); 
+    fetchUserDetails();
+  }, []);
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser) setUser(storedUser);
   }, []);
 
-
   // Check if user has executive position
-useEffect(() => {
-  const checkExecutiveStatus = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setLoadingExecutive(false);
-      return;
-    }
-    
-    try {
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      
-      // Check if user has executive position
-      const response = await axios.get(`${BASE_URL}/api/executive/check-user/${userData.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setIsExecutive(response.data.hasPosition || false);
-    } catch (error) {
-      console.error("Error checking executive status:", error);
-      setIsExecutive(false);
-    } finally {
-      setLoadingExecutive(false);
-    }
-  };
-  
-  checkExecutiveStatus();
-}, []);
+  useEffect(() => {
+    const checkExecutiveStatus = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setLoadingExecutive(false);
+        return;
+      }
+
+      try {
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        const response = await axios.get(
+          `${BASE_URL}/api/executive/check-user/${userData.id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setIsExecutive(response.data.hasPosition || false);
+      } catch (error) {
+        console.error("Error checking executive status:", error);
+        setIsExecutive(false);
+      } finally {
+        setLoadingExecutive(false);
+      }
+    };
+
+    checkExecutiveStatus();
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      if (mobile) {
-        setMenuOpen(false);
-      } else {
-        setMenuOpen(true);
-      }
+      if (mobile) setMenuOpen(false);
+      else setMenuOpen(true);
     };
-    
+
     window.addEventListener("resize", handleResize);
     handleResize();
-    
+
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isMobile && 
-          sidebarRef.current && 
-          !sidebarRef.current.contains(event.target) &&
-          !event.target.closest('.mobile-hamburger')) {
+      if (
+        isMobile &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target) &&
+        !event.target.closest(".mobile-hamburger")
+      ) {
         setMenuOpen(false);
       }
     };
@@ -200,12 +194,11 @@ useEffect(() => {
 
   if (!user) return null;
 
-  const profileImageUrl =
-    user.profileImage
-      ? user.profileImage.startsWith("http")
-        ? user.profileImage
-        : `${BASE_URL}/${user.profileImage}`
-      : null;
+  const profileImageUrl = user.profileImage
+    ? user.profileImage.startsWith("http")
+      ? user.profileImage
+      : `${BASE_URL}/${user.profileImage}`
+    : null;
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -213,55 +206,71 @@ useEffect(() => {
     window.location.href = "/login";
   };
 
-  const navItems = [
-    { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
-     { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands size={25} color="#0f0f0f" /> },
-  {path: "/jumuia-contributions", 
-    label: jumuiaName ? `${jumuiaName}` : "My Jumuia", 
-    icon: <FaDove size={25} color="#4e4939" />
-  },  
-    { path: "/member/attendance", label: "Attendance", icon: <FaUsers size={28} color="#be1b1b" /> },
-  ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin" ? [{
-    path: "/executive/minutes", 
-    label: "Meeting Minutes", 
-    icon: <FaRegFilePdf size={28} color="#141b16" />
-  }] : []),
-    
-             { path: "/announcements", label: "Announcements", icon: <FiBell size={28} color="#1a1818" /> },
-              { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt size={28} color="rgba(11, 33, 226, 0.91)" /> },
-              { path: "/hymns", label: "Lyrics Book", icon: <FiMusic size={28} color="rgba(238, 9, 9, 0.91)" />},
-
-    { path: "/schedules", label: "Schedules", icon: <   FaCalendarPlus size={28} color="#141313" /> },
-    
-      { path: "/executive", label: "Executive Team", icon: <FaUserTie size={28} color="#1a1818" /> },
-    { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar size={28}/> },
+  // ==================== SECTIONED NAVIGATION ====================
+  const navSections = [
+    {
+      label: "Main",
+      items: [
+        { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
+        { path: "/announcements", label: "Announcements", icon: <FiBell /> },
+        { path: "/schedules", label: "Schedules", icon: <FaCalendarPlus /> },
+        { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt /> },
+        { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar /> },
+         { path: "/member/attendance", label: "Attendance", icon: <FaUsers color="#ee0e46" /> },
+      ],
+    },
+    {
+      label: "ZUCA Family",
+      items: [
+        { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands /> },
+        {
+          path: "/jumuia-contributions",
+          label: jumuiaName ? jumuiaName : "My Jumuia",
+          icon: <FaDove />,
+        },
        
-{ path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads size={28} /> },
-        
-    { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart size={25} color="#0e0f0e" /> },
-
-      { path: "/youtube", label: "ZUCA/TUBE", icon: <FaYoutube size={28} color="#ff0000" /> },
-
-{ 
-  path: "/gallery", 
-  label: "Gallery", 
-  icon: <span style={{ color: '#000000' }}><FaImages size={28} /></span> 
-},   
-     
-  { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
-  { path: "/chat", label: "Chat", icon: <FaComments size={28} color="#1a1818" /> },
- 
-  
-    { path: "/games", label: "Games Arcade", icon: <FaGamepad size={28} color="#1a1818" /> },
+        { path: "/executive", label: "Executive Team", icon: <FaUserTie /> },
+        ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin"
+          ? [
+              {
+                path: "/executive/minutes",
+                label: "Meeting Minutes",
+                icon: <FaRegFilePdf />,
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      label: "Z-Resources",
+      items: [
+        { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
+        { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
+        { path: "/youtube", label: "ZUCA / TUBE", icon: <FaYoutube /> },
+      ],
+    },
+    {
+      label: "Media & Social",
+      items: [
+        { path: "/gallery", label: "Gallery", icon: <FaImages /> },
+        { path: "/messenger", label: "Messages", icon: <FiMessageSquare /> },
+        { path: "/chat", label: "Chat", icon: <FaComments /> },
+        { path: "/games", label: "Games Arcade", icon: <FaGamepad /> },
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart /> },
+      ],
+    },
   ];
 
-
-  
 
   return (
     <div style={containerStyle}>
       <AnimatedBackground />
-  
+
       <AnimatePresence>
         {isMobile && menuOpen && (
           <motion.div
@@ -279,12 +288,11 @@ useEffect(() => {
         ref={sidebarRef}
         className="sidebar"
         initial={false}
-        animate={{ 
-          x: menuOpen ? 0 : (isMobile ? "-100%" : 0),
-        }}
+        animate={{ x: menuOpen ? 0 : isMobile ? "-100%" : 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         style={sidebarStyle}
       >
+        {/* ---------- BRAND ---------- */}
         <div style={logoSection}>
           <img src={logo} alt="ZUCA Logo" style={logoStyle} />
           <div style={logoText}>
@@ -293,6 +301,7 @@ useEffect(() => {
           </div>
         </div>
 
+        {/* ---------- USER BADGE ---------- */}
         <div style={userBadgeStyle}>
           {profileImageUrl ? (
             <img src={profileImageUrl} alt={user.fullName} style={userBadgeAvatar} />
@@ -302,247 +311,201 @@ useEffect(() => {
             </div>
           )}
           <div style={userBadgeInfo}>
-            <span style={userBadgeName}>{user.fullName.split(" ")[0]} </span>
+            <span style={userBadgeName}>{user.fullName.split(" ")[0]}</span>
             <span style={userBadgeRole}>{user.role || "Member"}</span>
           </div>
         </div>
 
-{/* ==================== ROLE SWITCHER ==================== */}
-{(user?.specialRole || user?.role === "admin") && (
-  <>
-    {user?.role === "admin" && user?.specialRole ? (
-      /* ========== DROPDOWN for users with BOTH admin account AND specialRole ========== */
-      <div style={{ marginBottom: "16px", position: "relative" }}>
-        <select
-          onChange={async (e) => {
-            const targetRole = e.target.value;
-            if (!targetRole) return;
-            
-            const selectEl = e.target;
-            const wrapperEl = selectEl.parentElement;
-            
-            // Create loading overlay
-            const loadingDiv = document.createElement("div");
-            loadingDiv.innerHTML = `
-              <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-              Switching...
-            `;
-            loadingDiv.style.cssText = `
-              position: absolute;
-              inset: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: linear-gradient(135deg, #069b12, #1cf32e);
-              color: white;
-              font-size: 13px;
-              font-weight: 600;
-              borderRadius: 12px;
-              zIndex: 10;
-            `;
-            wrapperEl.appendChild(loadingDiv);
-            selectEl.style.visibility = "hidden";
-            
-            try {
-              const token = localStorage.getItem("token");
-              const res = await axios.post(`${BASE_URL}/api/switch-role`, 
-                { targetRole },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              
-              localStorage.setItem("token", res.data.token);
-              const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-              storedUser.role = res.data.role;
-              storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
-              localStorage.setItem("user", JSON.stringify(storedUser));
-              
-              if (targetRole === "member") window.location.href = "/dashboard";
-              else if (targetRole === "jumuia_leader") {
-                const code = res.data.jumuiaCode || user?.homeJumuia?.code;
-                window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
-              } else if (targetRole === "admin") window.location.href = "/admin";
-              else if (targetRole === "secretary") window.location.href = "/secretary";
-              else if (targetRole === "treasurer") window.location.href = "/treasurer";
-              else if (targetRole === "choir_moderator") window.location.href = "/choir";
-              else if (targetRole === "media_moderator") window.location.href = "/media-moderator";
-            } catch (err) {
-              loadingDiv.remove();
-              selectEl.style.visibility = "visible";
-              selectEl.value = "";
-              alert("Failed to switch role");
-            }
-          }}
-          style={{
-            width: "100%",
-            padding: "10px 14px",
-            borderRadius: "12px",
-            border: "none",
-            background: "linear-gradient(135deg, #069b12, #1cf32e)",
-            fontSize: "13px",
-            fontWeight: "600",
-            color: "white",
-            cursor: "pointer",
-            outline: "none",
-            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
-            transition: "all 0.2s ease",
-          }}
-        >
-          <option value="">🔑 Switch Role...</option>
-          {window.location.pathname.startsWith("/admin") || 
-           window.location.pathname.startsWith("/jumuia") || 
-           window.location.pathname.startsWith("/secretary") || 
-           window.location.pathname.startsWith("/treasurer") || 
-           window.location.pathname.startsWith("/choir") || 
-           window.location.pathname.startsWith("/leader") || 
-           window.location.pathname.startsWith("/media-moderator") ? (
-            <option value="member"><FaUser size="18px" /> Back to Member Mode</option>
-          ) : (
-            <>
-              <option value="admin"> Admin Mode</option>
-              <option value={user.specialRole}>
-                 {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
-              </option>
-            </>
-          )}
-        </select>
-      </div>
-    ) : (
-      /* ========== SINGLE BUTTON for users with only ONE role ========== */
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={async (e) => {
-          const btn = e.currentTarget;
-          const originalHTML = btn.innerHTML;
-          
-          btn.innerHTML = `
-            <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(11, 165, 36, 0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-            Switching...
-          `;
-          btn.style.opacity = "0.7";
-          btn.style.pointerEvents = "none";
-          
-          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-          const isOnRolePage = window.location.pathname.includes("/admin") || 
-                               window.location.pathname.includes("/secretary") || 
-                               window.location.pathname.includes("/treasurer") || 
-                               window.location.pathname.includes("/choir") || 
-                               window.location.pathname.includes("/leader") || 
-                               window.location.pathname.includes("/media-moderator");
-          const targetRole = isOnRolePage ? "member" : (user.specialRole || user.role);
-          
-          try {
-            const token = localStorage.getItem("token");
-            const res = await axios.post(`${BASE_URL}/api/switch-role`, 
-              { targetRole },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            
-            localStorage.setItem("token", res.data.token);
-            storedUser.role = res.data.role;
-            storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
-            localStorage.setItem("user", JSON.stringify(storedUser));
-            
-            if (targetRole === "member") {
-              window.location.href = "/dashboard";
-            } else if (targetRole === "jumuia_leader") {
-              const code = res.data.jumuiaCode || user?.homeJumuia?.code;
-              window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
-            } else {
-              const rolePaths = {
-                secretary: "/secretary",
-                treasurer: "/treasurer",
-                choir_moderator: "/choir",
-                admin: "/admin",
-                media_moderator: "/media-moderator"
-              };
-              window.location.href = rolePaths[targetRole] || "/dashboard";
-            }
-          } catch (err) {
-            btn.innerHTML = originalHTML;
-            btn.style.opacity = "1";
-            btn.style.pointerEvents = "auto";
-            alert(err.response?.data?.error || "Failed to switch role. Please try again.");
-          }
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "10px 14px",
-          background: "linear-gradient(135deg, #069b12, #1cf32e)",
-          color: "white",
-          border: "none",
-          borderRadius: "12px",
-          fontSize: "12px",
-          fontWeight: "600",
-          cursor: "pointer",
-          width: "100%",
-          justifyContent: "center",
-          marginBottom: "16px",
-          boxShadow: "0 2px 8px rgba(21, 172, 71, 0.3)",
-          transition: "all 0.2s ease",
-        }}
-      >
-        {window.location.pathname.includes("/admin") || 
-         window.location.pathname.includes("/secretary") || 
-         window.location.pathname.includes("/treasurer") || 
-         window.location.pathname.includes("/choir") || 
-         window.location.pathname.includes("/leader") || 
-         window.location.pathname.includes("/media-moderator")
-          ? " Back to Member Mode" 
-          : ` Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
-      </motion.button>
-    )}
-  </>
-)}
+        {/* ---------- ROLE SWITCHER ---------- */}
+        {(user?.specialRole || user?.role === "admin") && (
+          <>
+            {user?.role === "admin" && user?.specialRole ? (
+              <div style={{ marginBottom: "16px", position: "relative" }}>
+                <select
+                  onChange={async (e) => {
+                    const targetRole = e.target.value;
+                    if (!targetRole) return;
 
-        <div
-          ref={scrollContainerRef}
-          style={navContainer(sidebarShadow)}
-        >
-          <nav style={navStyle}>
-            {navItems.map((item, index) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={() => {
-                  if (isMobile) setMenuOpen(false);
+                    const selectEl = e.target;
+                    const wrapperEl = selectEl.parentElement;
+
+                    const loadingDiv = document.createElement("div");
+                    loadingDiv.innerHTML = `
+                      <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+                      Switching...
+                    `;
+                    loadingDiv.style.cssText = `
+                      position: absolute;
+                      inset: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      background: #05e448e3;
+                      color: white;
+                      font-size: 13px;
+                      font-weight: 600;
+                      borderRadius: 8px;
+                      zIndex: 10;
+                    `;
+                    wrapperEl.appendChild(loadingDiv);
+                    selectEl.style.visibility = "hidden";
+
+                    try {
+                      const token = localStorage.getItem("token");
+                      const res = await axios.post(
+                        `${BASE_URL}/api/switch-role`,
+                        { targetRole },
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+
+                      localStorage.setItem("token", res.data.token);
+                      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+                      storedUser.role = res.data.role;
+                      storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+                      localStorage.setItem("user", JSON.stringify(storedUser));
+
+                      if (targetRole === "member") window.location.href = "/dashboard";
+                      else if (targetRole === "jumuia_leader") {
+                        const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+                        window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+                      } else if (targetRole === "admin") window.location.href = "/admin";
+                      else if (targetRole === "secretary") window.location.href = "/secretary";
+                      else if (targetRole === "treasurer") window.location.href = "/treasurer";
+                      else if (targetRole === "choir_moderator") window.location.href = "/choir";
+                      else if (targetRole === "media_moderator") window.location.href = "/media-moderator";
+                    } catch (err) {
+                      loadingDiv.remove();
+                      selectEl.style.visibility = "visible";
+                      selectEl.value = "";
+                      alert("Failed to switch role");
+                    }
+                  }}
+                  style={roleSwitchSelectStyle}
+                >
+                  <option value="">Switch Role...</option>
+                  {window.location.pathname.startsWith("/admin") ||
+                  window.location.pathname.startsWith("/jumuia") ||
+                  window.location.pathname.startsWith("/secretary") ||
+                  window.location.pathname.startsWith("/treasurer") ||
+                  window.location.pathname.startsWith("/choir") ||
+                  window.location.pathname.startsWith("/leader") ||
+                  window.location.pathname.startsWith("/media-moderator") ? (
+                    <option value="member">Back to Member Mode</option>
+                  ) : (
+                    <>
+                      <option value="admin">Admin Mode</option>
+                      <option value={user.specialRole}>
+                        {user.specialRole?.replace(/_/g, " ").toUpperCase()} Mode
+                      </option>
+                    </>
+                  )}
+                </select>
+              </div>
+            ) : (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={async (e) => {
+                  const btn = e.currentTarget;
+                  const originalHTML = btn.innerHTML;
+
+                  btn.innerHTML = `
+                    <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+                    Switching...
+                  `;
+                  btn.style.opacity = "0.7";
+                  btn.style.pointerEvents = "none";
+
+                  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+                  const isOnRolePage =
+                    window.location.pathname.includes("/admin") ||
+                    window.location.pathname.includes("/secretary") ||
+                    window.location.pathname.includes("/treasurer") ||
+                    window.location.pathname.includes("/choir") ||
+                    window.location.pathname.includes("/leader") ||
+                    window.location.pathname.includes("/media-moderator");
+                  const targetRole = isOnRolePage ? "member" : user.specialRole || user.role;
+
+                  try {
+                    const token = localStorage.getItem("token");
+                    const res = await axios.post(
+                      `${BASE_URL}/api/switch-role`,
+                      { targetRole },
+                      { headers: { Authorization: `Bearer ${token}` } }
+                    );
+
+                    localStorage.setItem("token", res.data.token);
+                    storedUser.role = res.data.role;
+                    storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
+                    localStorage.setItem("user", JSON.stringify(storedUser));
+
+                    if (targetRole === "member") window.location.href = "/dashboard";
+                    else if (targetRole === "jumuia_leader") {
+                      const code = res.data.jumuiaCode || user?.homeJumuia?.code;
+                      window.location.href = code ? `/jumuia/${code.toLowerCase()}` : "/leader";
+                    } else {
+                      const rolePaths = {
+                        secretary: "/secretary",
+                        treasurer: "/treasurer",
+                        choir_moderator: "/choir",
+                        admin: "/admin",
+                        media_moderator: "/media-moderator",
+                      };
+                      window.location.href = rolePaths[targetRole] || "/dashboard";
+                    }
+                  } catch (err) {
+                    btn.innerHTML = originalHTML;
+                    btn.style.opacity = "1";
+                    btn.style.pointerEvents = "auto";
+                    alert(err.response?.data?.error || "Failed to switch role. Please try again.");
+                  }
                 }}
+                style={roleSwitchButtonStyle}
               >
-                {({ isActive }) => (
-                  <motion.div
-                    style={navCardStyle(isActive)}
-                    whileHover={{ x: 5 }}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                {window.location.pathname.includes("/admin") ||
+                window.location.pathname.includes("/secretary") ||
+                window.location.pathname.includes("/treasurer") ||
+                window.location.pathname.includes("/choir") ||
+                window.location.pathname.includes("/leader") ||
+                window.location.pathname.includes("/media-moderator")
+                  ? "Back to Member Mode"
+                  : `Switch to ${(user.specialRole || "ADMIN")?.replace(/_/g, " ").toUpperCase()} Mode`}
+              </motion.button>
+            )}
+          </>
+        )}
+
+        {/* ---------- SECTIONED NAVIGATION ---------- */}
+        <div ref={scrollContainerRef} style={navContainer(sidebarShadow)}>
+          <nav style={navStyle}>
+            {navSections.map((section) => (
+              <div key={section.label} style={navSectionStyle}>
+                <div style={navSectionLabelStyle}>{section.label}</div>
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => isMobile && setMenuOpen(false)}
+                    style={({ isActive }) => navRowStyle(isActive)}
                   >
-                    <span style={navCardIcon}>{item.icon}</span>
-                    <span style={navCardLabel(isActive)}>{item.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicator"
-                        style={activeIndicatorStyle}
-                        transition={{ type: "spring", damping: 20 }}
-                      />
-                    )}
-                  </motion.div>
-                )}
-              </NavLink>
+                    <span style={navRowIconStyle}>{item.icon}</span>
+                    <span style={navRowLabelStyle}>{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
 
+        {/* ---------- FOOTER / SIGN OUT ---------- */}
         <div style={sidebarFooterStyle}>
           <div style={sidebarFooterDivider} />
           <motion.button
             onClick={handleLogout}
             style={sidebarLogoutButton}
-            whileHover={{ backgroundColor: "#dc2626", color: "#fff" }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ backgroundColor: "#fef2f2", color: "#dc2626", borderColor: "#fecaca" }}
+            whileTap={{ scale: 0.98 }}
           >
-            <span style={logoutIconStyle}>🚪</span>
+            <FiLogOut style={logoutIconStyle} />
             Sign Out
           </motion.button>
         </div>
@@ -559,8 +522,8 @@ useEffect(() => {
             <motion.button
               onClick={() => setMenuOpen(!menuOpen)}
               style={hamburgerStyle}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className="mobile-hamburger"
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
@@ -568,14 +531,24 @@ useEffect(() => {
             <span style={pageTitleStyle}>Home</span>
           </div>
 
-        <div style={headerRightStyle}>
-  <button onClick={toggleDark} style={{ backgroundColor: "transparent", border: "none", cursor: "pointer" }}>
-    <FaSun style={{ fontSize: "24px", color: "#f39c12" }} />
-  </button>
+          <div style={headerRightStyle}>
+            <button
+              onClick={toggleDark}
+              style={{
+                backgroundColor: "transparent",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                padding: "6px",
+              }}
+              aria-label="Toggle dark mode"
+            >
+              <FaSun style={{ fontSize: "20px", color: "#f39c12" }} />
+            </button>
 
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
-             
             </div>
 
             <div ref={userMenuRef} style={userMenuContainerStyle}>
@@ -583,17 +556,21 @@ useEffect(() => {
                 style={userMenuTriggerStyle}
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 whileHover={{ backgroundColor: "#f1f5f9" }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.98 }}
               >
                 {profileImageUrl ? (
-                  <img src={profileImageUrl} alt={user.fullName.split(" ")[0]} style={headerAvatarStyle} />
+                  <img
+                    src={profileImageUrl}
+                    alt={user.fullName.split(" ")[0]}
+                    style={headerAvatarStyle}
+                  />
                 ) : (
                   <div style={headerAvatarFallbackStyle}>
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <span style={userNameStyle}>{user.fullName.split(" ")[1]}</span>
-                <span style={dropdownArrowStyle}>▼</span>
+                <FiChevronDown style={dropdownArrowStyle} />
               </motion.div>
 
               <AnimatePresence>
@@ -602,7 +579,7 @@ useEffect(() => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
+                    transition={{ duration: 0.15 }}
                     style={userDropdownStyle}
                   >
                     <div style={userDropdownHeader}>
@@ -611,29 +588,24 @@ useEffect(() => {
                     </div>
                     <div style={userDropdownDivider} />
 
-                   {/* ✅ ADD BIRTHDAY PROFILE LINK */}
-<motion.button
-  onClick={() => {
-    setShowUserMenu(false);
-    window.location.href = "/profile";
-  }}
-  style={{
-    ...userDropdownLogout,
-    color: "#2563eb",
-    borderBottom: "1px solid #e2e8f0",
-  }}
-  whileHover={{ backgroundColor: "#eff6ff", color: "#1d4ed8" }}
->
-  <span style={dropdownLogoutIcon}><FaBirthdayCake /></span>
-  Birthday Settings
-</motion.button>
+                    <motion.button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        window.location.href = "/profile";
+                      }}
+                      style={userDropdownItem}
+                      whileHover={{ backgroundColor: "#f8fafc" }}
+                    >
+                      <FaBirthdayCake style={dropdownItemIcon} />
+                      Birthday Settings
+                    </motion.button>
 
                     <motion.button
                       onClick={handleLogout}
-                      style={userDropdownLogout}
-                      whileHover={{ backgroundColor: "#fef2f2", color: "#dc2626" }}
+                      style={{ ...userDropdownItem, color: "#dc2626" }}
+                      whileHover={{ backgroundColor: "#fef2f2" }}
                     >
-                      <span style={dropdownLogoutIcon}>🚪</span>
+                      <FiLogOut style={dropdownItemIcon} />
                       Sign Out
                     </motion.button>
                   </motion.div>
@@ -643,7 +615,6 @@ useEffect(() => {
           </div>
         </motion.header>
 
-        {/* REMOVED the motion.div wrapper that was affecting pages */}
         <Outlet />
       </main>
 
@@ -651,15 +622,11 @@ useEffect(() => {
 
       <style>
         {`
-
-        
           * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
           }
-
-
 
           html, body, #root {
             height: 100%;
@@ -672,49 +639,36 @@ useEffect(() => {
           body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f8fafc;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
           }
 
           main {
             scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 #f1f5f9;
+            scrollbar-color: #cbd5e1 transparent;
           }
-          
-          main::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          
-          main::-webkit-scrollbar-track {
-            background: #f1f5f9;
+
+          main::-webkit-scrollbar { width: 6px; height: 6px; }
+          main::-webkit-scrollbar-track { background: transparent; }
+          main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+          main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+          /* Sidebar scrollbar — subtle */
+          .sidebar div::-webkit-scrollbar { width: 6px; }
+          .sidebar div::-webkit-scrollbar-track { background: transparent; }
+          .sidebar div::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
             border-radius: 10px;
           }
-          
-          main::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-          }
-          
-          main::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-          }
+          .sidebar div::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
 
           @media (max-width: 900px) {
-            .mobile-hamburger {
-              display: flex !important;
-            }
+            .mobile-hamburger { display: flex !important; }
           }
 
-          .sidebar {
-            z-index: 50 !important;
-          }
-
-          .mobile-backdrop {
-            z-index: 40 !important;
-          }
-
-          header {
-            z-index: 10 !important;
-          }
+          .sidebar { z-index: 50 !important; }
+          .mobile-backdrop { z-index: 40 !important; }
+          header { z-index: 10 !important; }
 
           .notifications-dropdown,
           [class*="Notifications"] [style*="position: fixed"],
@@ -722,93 +676,70 @@ useEffect(() => {
             z-index: 9999999 !important;
           }
 
-          .ai-btn {
-  background: linear-gradient(135deg, #cf331e, #830707c5);
-  border: none;
-  border-radius: 13px;
-  padding: 2px 4px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: white;
+          .messenger-badge {
+            position: absolute;
+            top: -8px;
+            right: -12px;
+            background: #25D366;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+          }
 
-  font-weight: 800;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
+          select option {
+            background: #ffffff;
+            color: #0f172a;
+            padding: 10px;
+          }
 
-.ai-btn:hover {
-  transform: scale(1.02);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-}
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
 
-.messenger-badge {
-  position: absolute;
-  top: -8px;
-  right: -12px;
-  background: #25D366;
-  color: white;
-  font-size: 10px;
-  font-weight: 600;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
+          /* Nav link hover & active states */
+          .sidebar nav a {
+            transition: background 0.15s ease, color 0.15s ease;
+          }
 
+          .sidebar nav a:hover {
+            background: #f1f5f9;
+          }
 
-        select option {
-          background: #0dac28;
-          color: white;
-          padding: 10px;
-        }
+          .sidebar nav a[aria-current="page"]::before {
+            content: "";
+            position: absolute;
+            left: -12px;
+            top: 8px;
+            bottom: 8px;
+            width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: #4e46e504;
+          }
 
-
-                select option {
-          background: #11af0c;
-          color: white;
-          padding: 10px;
-        }
-        
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Mobile specific fixes for header */
-@media (max-width: 600px) {
-  .header-right-wrapper {
-    gap: 2px !important;
-  }
-  
-  .notification-wrapper {
-    padding: 2px !important;
-  }
-  
-  .user-menu-trigger {
-    padding: 2px 6px !important;
-  }
-  
-  .user-name-display {
-    display: none !important;
-  }
-}
+          @media (max-width: 600px) {
+            .header-right-wrapper { gap: 2px !important; }
+            .notification-wrapper { padding: 2px !important; }
+            .user-menu-trigger { padding: 2px 6px !important; }
+            .user-name-display { display: none !important; }
+          }
         `}
       </style>
     </div>
   );
 }
+
+/* ============================================================
+   STYLES
+   ============================================================ */
 
 const containerStyle = {
   height: "100vh",
@@ -824,117 +755,158 @@ const containerStyle = {
 const backdropStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0, 0, 0, 0.3)",
-  backdropFilter: "blur(4px)",
+  background: "rgba(15, 23, 42, 0.4)",
+  backdropFilter: "blur(2px)",
   zIndex: 40,
 };
 
+/* ---------- SIDEBAR SHELL ---------- */
 const sidebarStyle = {
   position: "fixed",
   left: 0,
   top: 0,
   height: "100vh",
-  width: "250px",
+  width: "256px",
   background: "#ffffff",
-  boxShadow: "2px 0 12px rgba(0, 0, 0, 0.73)",
-  padding: "24px 16px",
+  borderRight: "1px solid #e2e8f0",
+  padding: "16px 12px",
   display: "flex",
   flexDirection: "column",
   zIndex: 50,
   overflowY: "hidden",
 };
 
+/* ---------- BRAND ---------- */
 const logoSection = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
-  padding: "12px",
-  marginBottom: "24px",
-  borderBottom: "1px solid #e2e8f0",
+  padding: "8px 8px 16px",
+  marginBottom: "8px",
+  borderBottom: "1px solid #f1f5f9",
 };
 
 const logoStyle = {
-  width: "44px",
+  width: "40px",
   height: "auto",
-  borderRadius: "10px",
+  borderRadius: "8px",
 };
 
-const logoText = {
-  flex: 1,
-};
+const logoText = { flex: 1, minWidth: 0 };
 
 const logoTitle = {
-  color: "#790591",
-  fontSize: "13px",
+  color: "#0f172a",
+  fontSize: "12px",
   fontWeight: "700",
   margin: 0,
   lineHeight: "1.3",
-  letterSpacing: "0.5px",
+  letterSpacing: "0.4px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const logoSubtitle = {
-  color: "#a0a2a5",
+  color: "#94a3b8",
   fontSize: "11px",
-  margin: "4px 0 0",
+  margin: "2px 0 0",
   fontWeight: "500",
 };
 
+/* ---------- USER BADGE ---------- */
 const userBadgeStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "12px",
-  padding: "12px",
-  background: "#f8fafc",
-  borderRadius: "12px",
-  marginBottom: "24px",
-  border: "1px solid #e2e8f0",
+  gap: "10px",
+  padding: "8px",
+  borderRadius: "8px",
+  marginTop: "16px",
+  marginBottom: "16px",
 };
 
 const userBadgeAvatar = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "44px",
+  width: "36px",
+  height: "36px",
+  borderRadius: "36px",
   objectFit: "cover",
-  border: "2px solid #3b83f600",
+  flexShrink: 0,
 };
 
 const userBadgeFallback = {
-  width: "44px",
-  height: "44px",
-  borderRadius: "44px",
-  background: "linear-gradient(135deg, #f63b3b, #5025ebc5)",
+  width: "36px",
+  height: "36px",
+  borderRadius: "36px",
+  background: "linear-gradient(135deg, #4af705, #46e553)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "18px",
+  fontSize: "15px",
   fontWeight: "600",
   color: "#fff",
+  flexShrink: 0,
 };
 
-const userBadgeInfo = {
-  flex: 1,
-};
+const userBadgeInfo = { flex: 1, minWidth: 0 };
 
 const userBadgeName = {
   display: "block",
-  color: "#1e293b",
-  fontSize: "15px",
+  color: "#0f172a",
+  fontSize: "13px",
   fontWeight: "600",
-  marginBottom: "2px",
+  marginBottom: "1px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const userBadgeRole = {
   display: "block",
-  color: "#64748b",
+  color: "#94a3b8",
   fontSize: "10px",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
+  fontWeight: "600",
 };
 
+/* ---------- ROLE SWITCHER ---------- */
+const roleSwitchSelectStyle = {
+  width: "100%",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  fontSize: "12px",
+  fontWeight: "600",
+  color: "#0f172a",
+  cursor: "pointer",
+  outline: "none",
+  marginBottom: "16px",
+  transition: "all 0.15s ease",
+};
+
+const roleSwitchButtonStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "6px",
+  padding: "9px 12px",
+  background: "#46e569e1",
+  color: "#080808",
+  border: "none",
+  borderRadius: "8px",
+  fontSize: "12px",
+  fontWeight: "600",
+  cursor: "pointer",
+  width: "100%",
+  marginBottom: "16px",
+  transition: "background 0.15s ease",
+};
+
+/* ---------- NAV CONTAINER ---------- */
 const navContainer = (shadow) => ({
   flex: 1,
   overflowY: "auto",
-  paddingRight: "4px",
+  paddingRight: "2px",
   transition: "box-shadow 0.3s",
   boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
 });
@@ -942,110 +914,118 @@ const navContainer = (shadow) => ({
 const navStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "8px",
+  gap: "2px",
+  paddingBottom: "8px",
 };
 
-// NEW: Card styles for navigation (replaces old navItemStyle)
-const navCardStyle = (isActive) => ({
-  padding: "12px 16px",
-  borderRadius: "12px",
-  textDecoration: "none",
-  color: isActive ? "#2feb8d" : "#475569",
-  fontWeight: isActive ? "600" : "500",
-  fontSize: "14px",
-  fontFamily: "'Inter', sans-serif",
-  backgroundColor: isActive ? "#9c9c9c" : "#ffffff",
-  border: isActive ? "1px solid #bfdbfe" : "1px solid #e2e8f0",
+const navSectionStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "1px",
+  marginBottom: "14px",
+};
+
+const navSectionLabelStyle = {
+  fontSize: "10px",
+  fontWeight: "700",
+  color: "#94a3b8",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  padding: "6px 12px",
+  userSelect: "none",
+};
+
+const navRowStyle = (isActive) => ({
   display: "flex",
   alignItems: "center",
   gap: "12px",
-  position: "relative",
-  transition: "all 0.2s",
-  cursor: "pointer",
-  boxShadow: isActive ? "0 2px 4px rgba(59, 130, 246, 0.1)" : "none",
-});
-
-const navCardIcon = {
-  fontSize: "20px",
-  width: "28px",
-};
-
-const navCardLabel = (isActive) => ({
-  color: isActive ? "#ffffff" : "#475569",
+  padding: "9px 12px",
+  borderRadius: "8px",
+  fontSize: "13.5px",
   fontWeight: isActive ? "600" : "500",
+  color: isActive ? "#0f0f0fee" : "#475569",
+  background: isActive ? "#eef2ff" : "transparent",
+  textDecoration: "none",
+  position: "relative",
+  cursor: "pointer",
 });
 
-const activeIndicatorStyle = {
-  position: "absolute",
-  left: 0,
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "3px",
-  height: "20px",
-  background: "#ff0000",
-  borderRadius: "0 3px 3px 0",
+const navRowIconStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "18px",
+  height: "18px",
+  fontSize: "17px",
+  color: "inherit",
+  flexShrink: 0,
 };
 
+const navRowLabelStyle = {
+  flex: 1,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+/* ---------- SIDEBAR FOOTER ---------- */
 const sidebarFooterStyle = {
-  marginTop: "20px",
+  marginTop: "auto",
+  paddingTop: "8px",
 };
 
 const sidebarFooterDivider = {
   height: "1px",
-  background: "#e2e8f0",
-  margin: "16px 0",
+  background: "#f1f5f9",
+  margin: "8px 0 12px",
 };
 
 const sidebarLogoutButton = {
   width: "100%",
-  padding: "10px",
-  borderRadius: "10px",
+  padding: "9px 12px",
+  borderRadius: "8px",
   border: "1px solid #e2e8f0",
   background: "#ffffff",
-  color: "#dc2626",
-  fontSize: "14px",
+  color: "#475569",
+  fontSize: "13px",
   fontWeight: "600",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-    marginBottom: "49px",
-
   gap: "8px",
   cursor: "pointer",
-  transition: "all 0.2s",
+  transition: "all 0.15s ease",
 };
 
 const logoutIconStyle = {
   fontSize: "16px",
 };
 
-// CHANGED: Removed padding so pages control their own spacing
+/* ---------- MAIN CONTENT ---------- */
 const mainContentStyle = (isMobile, menuOpen) => ({
-  marginLeft: isMobile ? 0 : "280px",
-  padding: 0,  // REMOVED: was "20px" on desktop
+  marginLeft: isMobile ? 0 : "256px",
+  padding: 0,
   position: "relative",
   zIndex: 1,
-  height: "100vh",  
+  height: "100vh",
   overflowY: "auto",
   overflowX: "hidden",
   transition: "margin-left 0.3s ease",
-  width: isMobile ? "100%" : `calc(100% - 280px)`,
-  background: "#dbe7e7",
+  width: isMobile ? "100%" : `calc(100% - 256px)`,
+  background: "#f8fafc",
 });
 
+/* ---------- HEADER ---------- */
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "fit-content",
-  background: "#fafafa",
-  borderRadius: "5px",
-  padding: "4px 20px",
+  alignItems: "center",
+  background: "#ffffff",
+  padding: "10px 20px",
   marginBottom: "0px",
-  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03)",
-  border: "1px solid #c0c2c4",
+  borderBottom: "1px solid #e2e8f0",
   position: "sticky",
-  top: 1,
-  marginRight: "0px",
+  top: 0,
   zIndex: 30,
   flexShrink: 0,
 };
@@ -1058,194 +1038,150 @@ const headerLeftStyle = {
 
 const hamburgerStyle = {
   display: "none",
-  background: "#f8fafc",
+  background: "transparent",
   border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  width: "40px",
-  height: "40px",
+  borderRadius: "8px",
+  width: "36px",
+  height: "36px",
   cursor: "pointer",
   alignItems: "center",
   justifyContent: "center",
-  "@media (max-width: 900px)": {
-    display: "flex",
-  },
 };
 
 const hamburgerIconStyle = {
   color: "#475569",
-  fontSize: "25px",
-  fontWeight: "800",
+  fontSize: "18px",
+  fontWeight: "700",
+  lineHeight: 1,
 };
 
 const pageTitleStyle = {
-  color: "#1e293b",
-  fontSize: "16px",
+  color: "#0f172a",
+  fontSize: "15px",
   fontWeight: "600",
-  "@media (max-width: 900px)": {
-    fontSize: "16px",
-  },
 };
-
-// Update these styles in your Layout.jsx
 
 const headerRightStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "6px",
-  flexShrink: 0, // Prevents squeezing
-  "@media (max-width: 600px)": {
-    gap: "4px",
-  },
+  gap: "8px",
+  flexShrink: 0,
 };
 
 const enhancedNotificationWrapperStyle = {
   position: "relative",
   zIndex: 999999,
   isolation: "isolate",
-  background: "#f7f4f4f3",
-  borderRadius: "52px",
-  padding: "0.1px", // Reduced from 0.10px
-  border: "0.1px solid #e2e8f0",
-  transition: "all 0.2s ease",
-  cursor: "pointer",
-  // REMOVED: left: "17px" - this was causing issues
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  flexShrink: 0, // Prevents squeezing
+  flexShrink: 0,
 };
 
 const userMenuContainerStyle = {
   position: "relative",
   zIndex: 100,
-  // REMOVED: left: "9px" - this was causing issues
-  padding: "4px 4px",
-  flexShrink: 0, // Prevents squeezing
+  flexShrink: 0,
 };
 
 const userMenuTriggerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "4px",
-  padding: "4px 10px",
-  borderRadius: "40px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  gap: "6px",
+  padding: "4px 8px 4px 4px",
+  borderRadius: "999px",
+  background: "transparent",
+  border: "1px solid transparent",
   cursor: "pointer",
-  position: "relative",
-  zIndex: 101,
-  flexShrink: 0, // Prevents squeezing
-  "@media (max-width: 600px)": {
-    padding: "3px 6px",
-    gap: "2px",
-  },
+  transition: "background 0.15s ease",
 };
 
 const headerAvatarStyle = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "36px",
+  width: "32px",
+  height: "32px",
+  borderRadius: "32px",
   objectFit: "cover",
-  border: "2px solid #3b83f600",
-  "@media (max-width: 900px)": {
-    width: "32px",
-    height: "32px",
-  },
+  flexShrink: 0,
 };
 
 const headerAvatarFallbackStyle = {
-  width: "20px",
-  height: "20px",
-  borderRadius: "36px",
-  background: "linear-gradient(135deg, #f3052d, #2563eb)",
+  width: "32px",
+  height: "32px",
+  borderRadius: "32px",
+  background: "linear-gradient(135deg, #63f16a, #1ccf25)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "16px",
+  fontSize: "13px",
   fontWeight: "600",
   color: "#fff",
-  "@media (max-width: 900px)": {
-    width: "2px",
-    height: "32px",
-    fontSize: "14px",
-  },
+  flexShrink: 0,
 };
 
-
 const userNameStyle = {
-  color: "#1e293b",
-  fontSize: "14px",
-  fontWeight: "800",
-  "@media (max-width: 900px)": {
-    display: "none",
-  },
+  color: "#0f172a",
+  fontSize: "13px",
+  fontWeight: "600",
 };
 
 const dropdownArrowStyle = {
   color: "#94a3b8",
-  fontSize: "10px",
-  "@media (max-width: 900px)": {
-    display: "none",
-  },
+  fontSize: "14px",
 };
 
+/* ---------- USER DROPDOWN ---------- */
 const userDropdownStyle = {
   position: "absolute",
   top: "calc(100% + 8px)",
   right: 0,
   width: "240px",
   background: "#ffffff",
-  borderRadius: "12px",
+  borderRadius: "10px",
   border: "1px solid #e2e8f0",
-  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+  boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05)",
   zIndex: 102,
   overflow: "hidden",
-  "@media (max-width: 900px)": {
-    width: "200px",
-  },
 };
 
 const userDropdownHeader = {
-  padding: "12px 16px",
-  borderBottom: "1px solid #e2e8f0",
+  padding: "12px 14px",
+  borderBottom: "1px solid #f1f5f9",
+  fontSize: "13px",
+  color: "#0f172a",
 };
 
 const userDropdownEmail = {
   display: "block",
-  color: "#64748b",
-  fontSize: "12px",
-  marginTop: "4px",
+  color: "#94a3b8",
+  fontSize: "11.5px",
+  marginTop: "2px",
+  fontWeight: "400",
 };
 
 const userDropdownDivider = {
   height: "1px",
-  background: "#e2e8f0",
+  background: "#f1f5f9",
 };
 
-const userDropdownLogout = {
+const userDropdownItem = {
   width: "100%",
-  padding: "12px 16px",
+  padding: "10px 14px",
   background: "transparent",
   border: "none",
-  color: "#ef4444",
-  fontSize: "14px",
+  color: "#334155",
+  fontSize: "13px",
   fontWeight: "500",
   display: "flex",
   alignItems: "center",
-  gap: "8px",
+  gap: "10px",
   cursor: "pointer",
-  transition: "all 0.2s",
+  textAlign: "left",
+  transition: "all 0.15s ease",
 };
 
-const dropdownLogoutIcon = {
-  fontSize: "16px",
+const dropdownItemIcon = {
+  fontSize: "15px",
+  color: "inherit",
 };
-
-
-
-
-
-
-// REMOVED: contentStyle - no longer needed since we removed the wrapper
 
 export default Layout;

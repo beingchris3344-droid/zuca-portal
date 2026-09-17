@@ -14,6 +14,7 @@ import {
   FaPray, FaMailBulk,
   FaClock,
   FaAdversal,
+  FaBirthdayCake,
 } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
@@ -243,7 +244,7 @@ export default function AdminLayout() {
     {
       label: "Tools",
       items: [
-        { label: "Birthdays", path: "/admin/birthday", icon: <FaUserTie /> },
+        { label: "Birthdays", path: "/admin/birthday", icon: <FaBirthdayCake /> },
         { label: "Countdown Settings", path: "/admin/countdown-settings", icon: <FaClock /> },
         { label: "System Monitor", path: "/admin/health-centre", icon: <FaShieldAlt /> },
         { label: "Manual", path: "security", icon: <FaBookReader/>},

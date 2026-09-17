@@ -1,169 +1,315 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/pages/admin/BirthdayManagement.jsx
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import BASE_URL from "../../api";
-
 import {
-  FiRefreshCw,
-  FiCalendar,
-  FiUser,
-  FiImage,
-  FiCheck,
-  FiX,
-  FiClock,
-  FiUsers,
-  FiSend,
-  FiSettings,
-  FiTrendingUp,
-  FiCamera,
-  FiAlertCircle,
-  FiTrash2,
-  FiSearch,
-  FiPlus,
-  FiUpload,
-  FiSave,
-  FiUserPlus,
-  FiArrowLeft,
-  FiEdit,
-  FiEye,
-  FiEyeOff,
+  FiRefreshCw, FiCalendar, FiUser, FiCheck, FiX, FiClock,
+  FiUsers, FiSend, FiSettings, FiTrendingUp, FiCamera, FiAlertCircle,
+  FiTrash2, FiSearch, FiPlus, FiUpload, FiSave, FiArrowLeft,
+  FiEdit, FiEye, FiEyeOff, FiMoreVertical, FiChevronDown,
 } from "react-icons/fi";
-
 import { FaWhatsapp } from "react-icons/fa";
 
 /* =========================================================
-   CREATE 16:9 BIRTHDAY IMAGE
+   HELPERS
    ========================================================= */
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 const createBirthdayImage = (file) => {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const objectUrl = URL.createObjectURL(file);
-
     image.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-
         const canvasWidth = 1920;
         const canvasHeight = 1080;
-
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
-
         const ctx = canvas.getContext("2d");
-
         if (!ctx) {
           URL.revokeObjectURL(objectUrl);
           reject(new Error("Could not create image canvas."));
           return;
         }
-
-        const sourceWidth = image.naturalWidth;
-        const sourceHeight = image.naturalHeight;
-
-        // 1. DRAW ENLARGED BLURRED BACKGROUND
-        const backgroundScale = Math.max(
-          canvasWidth / sourceWidth,
-          canvasHeight / sourceHeight
-        );
-
-        const backgroundWidth = sourceWidth * backgroundScale;
-        const backgroundHeight = sourceHeight * backgroundScale;
-
-        const backgroundX = (canvasWidth - backgroundWidth) / 2;
-        const backgroundY = (canvasHeight - backgroundHeight) / 2;
-
+        const sw = image.naturalWidth;
+        const sh = image.naturalHeight;
+        const bgScale = Math.max(canvasWidth / sw, canvasHeight / sh);
+        const bw = sw * bgScale;
+        const bh = sh * bgScale;
         ctx.save();
         ctx.filter = "blur(35px)";
-        ctx.drawImage(
-          image,
-          backgroundX,
-          backgroundY,
-          backgroundWidth,
-          backgroundHeight
-        );
+        ctx.drawImage(image, (canvasWidth - bw) / 2, (canvasHeight - bh) / 2, bw, bh);
         ctx.restore();
-
-        // 2. SUBTLE DARK OVERLAY
         ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-        // 3. DRAW ORIGINAL IMAGE SHARP AND UNDISTORTED
-        const foregroundScale = Math.min(
-          canvasWidth / sourceWidth,
-          canvasHeight / sourceHeight
-        );
-
-        const foregroundWidth = sourceWidth * foregroundScale;
-        const foregroundHeight = sourceHeight * foregroundScale;
-
-        const foregroundX = (canvasWidth - foregroundWidth) / 2;
-        const foregroundY = (canvasHeight - foregroundHeight) / 2;
-
-        ctx.drawImage(
-          image,
-          foregroundX,
-          foregroundY,
-          foregroundWidth,
-          foregroundHeight
-        );
-
-        // 4. CONVERT TO JPEG
+        const fgScale = Math.min(canvasWidth / sw, canvasHeight / sh);
+        const fw = sw * fgScale;
+        const fh = sh * fgScale;
+        ctx.drawImage(image, (canvasWidth - fw) / 2, (canvasHeight - fh) / 2, fw, fh);
         canvas.toBlob(
           (blob) => {
             URL.revokeObjectURL(objectUrl);
-
             if (!blob) {
               reject(new Error("Failed to process image."));
               return;
             }
-
-            const processedFile = new File(
-              [blob],
-              "birthday-16x9.jpg",
-              {
+            resolve(
+              new File([blob], "birthday-16x9.jpg", {
                 type: "image/jpeg",
                 lastModified: Date.now(),
-              }
+              })
             );
-
-            resolve(processedFile);
           },
           "image/jpeg",
           0.92
         );
-      } catch (error) {
+      } catch (err) {
         URL.revokeObjectURL(objectUrl);
-        reject(error);
+        reject(err);
       }
     };
-
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error("Failed to load selected image."));
     };
-
     image.src = objectUrl;
   });
 };
 
-/* =========================================================
-   CONVERT RELATIVE IMAGE URL TO FULL URL
-   ========================================================= */
 const getImageUrl = (image) => {
   if (!image) return null;
-
-  if (
-    image.startsWith("http://") ||
-    image.startsWith("https://") ||
-    image.startsWith("data:")
-  ) {
-    return image;
-  }
-
+  if (image.startsWith("http") || image.startsWith("data:")) return image;
   return `${BASE_URL}/${image.replace(/^\/+/, "")}`;
 };
 
+/* =========================================================
+   SORT OPTIONS
+   ========================================================= */
+const TODAY_SORT_OPTIONS = [
+  { value: "name-asc", label: "Name (A → Z)" },
+  { value: "name-desc", label: "Name (Z → A)" },
+  { value: "member-asc", label: "Membership # (low → high)" },
+  { value: "member-desc", label: "Membership # (high → low)" },
+  { value: "status-pending", label: "Status (pending first)" },
+  { value: "status-processed", label: "Status (processed first)" },
+];
+
+const ALL_SORT_OPTIONS = [
+  { value: "name-asc", label: "Name (A → Z)" },
+  { value: "name-desc", label: "Name (Z → A)" },
+  { value: "member-asc", label: "Membership # (low → high)" },
+  { value: "member-desc", label: "Membership # (high → low)" },
+  { value: "birthday-upcoming", label: "Birthday (nearest first)" },
+  { value: "birthday-latest", label: "Birthday (latest first)" },
+  { value: "month-current-first", label: "Birthday (this month first)" },
+  { value: "month-asc", label: "Birthday month (Jan → Dec)" },
+  { value: "month-desc", label: "Birthday month (Dec → Jan)" },
+  { value: "status-processed", label: "Status (advert created first)" },
+  { value: "status-pending", label: "Status (not processed first)" },
+];
+
+const GROUP_SORT_OPTIONS = [
+  { value: "name-asc", label: "Name (A → Z)" },
+  { value: "name-desc", label: "Name (Z → A)" },
+  { value: "members-desc", label: "Members (high → low)" },
+  { value: "members-asc", label: "Members (low → high)" },
+];
+
+/* =========================================================
+   SORTING HELPERS
+   ========================================================= */
+const compareStrings = (a, b) =>
+  (a || "").toString().toLowerCase().localeCompare((b || "").toString().toLowerCase());
+const compareNumbers = (a, b) => (Number(a) || 0) - (Number(b) || 0);
+
+const dayOfYear = (dateStr) => {
+  if (!dateStr) return 99999;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 99999;
+  const start = new Date(2000, 0, 0);
+  return Math.floor((d - start) / (1000 * 60 * 60 * 24));
+};
+
+const getMonthDay = (dateStr) => {
+  if (!dateStr) return { month: 99, day: 99 };
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return { month: 99, day: 99 };
+  return { month: d.getMonth(), day: d.getDate() };
+};
+
+const isProcessedFn = (advertId) =>
+  advertId && typeof advertId === "string" && !advertId.startsWith("processing-");
+
+const isMonthSort = (sortBy) =>
+  sortBy === "month-asc" || sortBy === "month-desc" || sortBy === "month-current-first";
+
+const getMonthLabel = (dateStr) => {
+  if (!dateStr) return "No date";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "No date";
+  return MONTH_NAMES[d.getMonth()];
+};
+
+const sortBirthdays = (list, sortBy) => {
+  const arr = [...list];
+  switch (sortBy) {
+    case "name-asc":
+      return arr.sort((a, b) => compareStrings(a.fullName, b.fullName));
+    case "name-desc":
+      return arr.sort((a, b) => compareStrings(b.fullName, a.fullName));
+    case "member-asc":
+      return arr.sort((a, b) => compareNumbers(a.membership_number, b.membership_number));
+    case "member-desc":
+      return arr.sort((a, b) => compareNumbers(b.membership_number, a.membership_number));
+    case "birthday-upcoming":
+      return arr.sort((a, b) => dayOfYear(a.birthDate) - dayOfYear(b.birthDate));
+    case "birthday-latest":
+      return arr.sort((a, b) => dayOfYear(b.birthDate) - dayOfYear(a.birthDate));
+
+    case "month-asc":
+      return arr.sort((a, b) => {
+        const A = getMonthDay(a.birthDate);
+        const B = getMonthDay(b.birthDate);
+        if (A.month !== B.month) return A.month - B.month;
+        if (A.day !== B.day) return A.day - B.day;
+        return compareStrings(a.fullName, b.fullName);
+      });
+
+    case "month-desc":
+      return arr.sort((a, b) => {
+        const A = getMonthDay(a.birthDate);
+        const B = getMonthDay(b.birthDate);
+        if (A.month !== B.month) return B.month - A.month;
+        if (A.day !== B.day) return B.day - A.day;
+        return compareStrings(a.fullName, b.fullName);
+      });
+
+    case "month-current-first":
+      return arr.sort((a, b) => {
+        const currentMonth = new Date().getMonth();
+        const A = getMonthDay(a.birthDate);
+        const B = getMonthDay(b.birthDate);
+        const rankA = (A.month - currentMonth + 12) % 12;
+        const rankB = (B.month - currentMonth + 12) % 12;
+        if (rankA !== rankB) return rankA - rankB;
+        if (A.day !== B.day) return A.day - B.day;
+        return compareStrings(a.fullName, b.fullName);
+      });
+
+    case "status-pending":
+      return arr.sort((a, b) => {
+        const pa = isProcessedFn(a.birthdayAdvertId);
+        const pb = isProcessedFn(b.birthdayAdvertId);
+        if (pa === pb) return compareStrings(a.fullName, b.fullName);
+        return pa ? 1 : -1;
+      });
+    case "status-processed":
+      return arr.sort((a, b) => {
+        const pa = isProcessedFn(a.birthdayAdvertId);
+        const pb = isProcessedFn(b.birthdayAdvertId);
+        if (pa === pb) return compareStrings(a.fullName, b.fullName);
+        return pa ? -1 : 1;
+      });
+    default:
+      return arr;
+  }
+};
+
+const sortGroups = (list, sortBy) => {
+  const arr = [...list];
+  switch (sortBy) {
+    case "name-asc":
+      return arr.sort((a, b) => compareStrings(a.groupName, b.groupName));
+    case "name-desc":
+      return arr.sort((a, b) => compareStrings(b.groupName, a.groupName));
+    case "members-desc":
+      return arr.sort((a, b) => compareNumbers(b.participants, a.participants));
+    case "members-asc":
+      return arr.sort((a, b) => compareNumbers(a.participants, b.participants));
+    default:
+      return arr;
+  }
+};
+
+/* =========================================================
+   SORT SELECT
+   ========================================================= */
+function SortSelect({ value, onChange, options }) {
+  return (
+    <div className="bd-sort">
+      <span className="bd-sort-label">Sort by</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <FiChevronDown size={13} className="bd-sort-chevron" />
+    </div>
+  );
+}
+
+/* =========================================================
+   SKELETON
+   ========================================================= */
+function Skeleton() {
+  return (
+    <div className="bd-page">
+      <div className="bd-container">
+        <div className="bd-skeleton-header">
+          <div>
+            <div className="bd-skeleton bd-skeleton-title" />
+            <div className="bd-skeleton bd-skeleton-subtitle" />
+          </div>
+          <div className="bd-skeleton-actions">
+            <div className="bd-skeleton bd-skeleton-btn" />
+            <div className="bd-skeleton bd-skeleton-btn" />
+          </div>
+        </div>
+        <div className="bd-skeleton-stats">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bd-skeleton-stat">
+              <div className="bd-skeleton bd-skeleton-icon" />
+              <div style={{ flex: 1 }}>
+                <div className="bd-skeleton bd-skeleton-line-md" style={{ width: 60 }} />
+                <div className="bd-skeleton bd-skeleton-line-sm" style={{ width: 90, marginTop: 6 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="bd-skeleton-panel">
+          <div className="bd-skeleton-list">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bd-skeleton-row">
+                <div className="bd-skeleton bd-skeleton-avatar" />
+                <div style={{ flex: 1 }}>
+                  <div className="bd-skeleton bd-skeleton-line-md" style={{ width: 160 }} />
+                  <div className="bd-skeleton bd-skeleton-line-sm" style={{ width: 220, marginTop: 6 }} />
+                </div>
+                <div className="bd-skeleton bd-skeleton-pill" />
+                <div className="bd-skeleton bd-skeleton-btn-sm" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <style>{skeletonCSS}</style>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
 export default function BirthdayManagement() {
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [settings, setSettings] = useState(null);
   const [todayBirthdays, setTodayBirthdays] = useState([]);
   const [allBirthdays, setAllBirthdays] = useState([]);
@@ -174,12 +320,16 @@ export default function BirthdayManagement() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("today");
 
-  /* =========================================================
-     ADD / EDIT BIRTHDAY
-     ========================================================= */
+  const [activeTab, setActiveTab] = useState("today");
+  const [activeSection, setActiveSection] = useState("birthdays");
+  const [openRowMenu, setOpenRowMenu] = useState(null);
+
+  const [todaySort, setTodaySort] = useState("name-asc");
+  const [allSort, setAllSort] = useState("name-asc");
+  const [groupSort, setGroupSort] = useState("name-asc");
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -189,7 +339,6 @@ export default function BirthdayManagement() {
   const [userSearch, setUserSearch] = useState("");
   const [allUsers, setAllUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
-
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [addFormData, setAddFormData] = useState({
@@ -197,360 +346,306 @@ export default function BirthdayManagement() {
     birthdayOptIn: true,
     birthdayMessage: "",
   });
-
   const [addPhotoFile, setAddPhotoFile] = useState(null);
   const [addPhotoPreview, setAddPhotoPreview] = useState(null);
-
   const [loadingAllUsers, setLoadingAllUsers] = useState(false);
-
-  /* =========================================================
-     WHATSAPP
-     ========================================================= */
 
   const [whatsAppGroups, setWhatsAppGroups] = useState([]);
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
 
-  /* =========================================================
-     FETCH MAIN DATA
-     ========================================================= */
+  const successTimer = useRef(null);
+  const errorTimer = useRef(null);
+  const searchDebounce = useRef(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-
-    try {
-      const token = localStorage.getItem("token");
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-      };
-
-      const [
-        settingsRes,
-        todayRes,
-        statsRes,
-        allBirthdaysRes,
-        detailedStatsRes,
-      ] = await Promise.all([
-        axios.get(`${BASE_URL}/api/birthday/settings`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/today`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/stats`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/all`, { headers }),
-        axios.get(`${BASE_URL}/api/birthday/admin/stats/detailed`, { headers }),
-      ]);
-
-      setSettings(settingsRes.data.settings);
-      setTodayBirthdays(todayRes.data.users || []);
-      setAllBirthdays(allBirthdaysRes.data.users || []);
-      setStats(statsRes.data.stats);
-      setDetailedStats(detailedStatsRes.data.stats);
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setError("Failed to load birthday data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* =========================================================
-     FETCH USERS
-     ========================================================= */
-
-  const fetchAllUsers = async () => {
-    setLoadingAllUsers(true);
-
-    try {
-      const token = localStorage.getItem("token");
-
-      const res = await axios.get(
-        `${BASE_URL}/api/birthday/admin/users?limit=100`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const users = res.data.users || [];
-
-      setAllUsers(users);
-      setFilteredUsers(users);
-    } catch (err) {
-      console.error("Error fetching all users:", err);
-      setError("Failed to load users");
-    } finally {
-      setLoadingAllUsers(false);
-    }
-  };
-
-  /* =========================================================
-     FETCH WHATSAPP GROUPS
-     ========================================================= */
-
-  const fetchWhatsAppGroups = async () => {
-  setLoadingGroups(true);
-  try {
-    const token = localStorage.getItem("token");
-
-    const groupsRes = await axios.get(`${BASE_URL}/api/birthday/whatsapp-groups`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (groupsRes.data.success) {
-      setWhatsAppGroups(groupsRes.data.groups || []);
-    }
-
-    const settingsRes = await axios.get(`${BASE_URL}/api/birthday/birthday-whatsapp/settings`, {
-
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (settingsRes.data.success) {
-      const savedIds = settingsRes.data.settings?.selectedGroupIds || [];
-      setSelectedGroups(savedIds);
-    }
-  } catch (err) {
-    console.error("Error fetching birthday WhatsApp groups:", err);
-  } finally {
-    setLoadingGroups(false);
-  }
-};
-
-  useEffect(() => {
-    fetchData();
-    fetchWhatsAppGroups();
+  /* ---------------- TOASTS ---------------- */
+  const flashSuccess = useCallback((msg) => {
+    if (successTimer.current) clearTimeout(successTimer.current);
+    setSuccess(msg);
+    successTimer.current = setTimeout(() => setSuccess(""), 3000);
   }, []);
 
-  /* =========================================================
-     FILTER USERS
-     ========================================================= */
+  const flashError = useCallback((msg) => {
+    if (errorTimer.current) clearTimeout(errorTimer.current);
+    setError(msg);
+    errorTimer.current = setTimeout(() => setError(""), 5000);
+  }, []);
+
+  /* ---------------- HELPERS ---------------- */
+  const isProcessed = (id) =>
+    id && typeof id === "string" && !id.startsWith("processing-");
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "Not set";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "Not set";
+    return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+
+  /* ---------------- FETCH ---------------- */
+  const fetchData = useCallback(
+    async (silent = false) => {
+      if (silent) setRefreshing(true);
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+        const [settingsRes, todayRes, statsRes, allRes, detailedRes] = await Promise.all([
+          axios.get(`${BASE_URL}/api/birthday/settings`, { headers }),
+          axios.get(`${BASE_URL}/api/birthday/admin/today`, { headers }),
+          axios.get(`${BASE_URL}/api/birthday/admin/stats`, { headers }),
+          axios.get(`${BASE_URL}/api/birthday/admin/all`, { headers }),
+          axios.get(`${BASE_URL}/api/birthday/admin/stats/detailed`, { headers }),
+        ]);
+        setSettings(settingsRes.data.settings);
+        setTodayBirthdays(todayRes.data.users || []);
+        setAllBirthdays(allRes.data.users || []);
+        setStats(statsRes.data.stats);
+        setDetailedStats(detailedRes.data.stats);
+      } catch (err) {
+        console.error("Fetch error:", err);
+        flashError("Failed to load birthday data");
+      } finally {
+        setInitialLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [flashError]
+  );
+
+  const fetchWhatsAppGroups = useCallback(async () => {
+    setLoadingGroups(true);
+    try {
+      const token = localStorage.getItem("token");
+      const [groupsRes, settingsRes] = await Promise.all([
+        axios.get(`${BASE_URL}/api/birthday/whatsapp-groups`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${BASE_URL}/api/birthday/birthday-whatsapp/settings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      if (groupsRes.data.success) setWhatsAppGroups(groupsRes.data.groups || []);
+      if (settingsRes.data.success)
+        setSelectedGroups(settingsRes.data.settings?.selectedGroupIds || []);
+    } catch (err) {
+      console.error("Error fetching WhatsApp groups:", err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData(false);
+    fetchWhatsAppGroups();
+  }, [fetchData, fetchWhatsAppGroups]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest(".bd-row-menu-wrap")) setOpenRowMenu(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => setSearchTerm(searchInput), 200);
+    return () => clearTimeout(searchDebounce.current);
+  }, [searchInput]);
 
   useEffect(() => {
     if (userSearch.trim() === "") {
       setFilteredUsers(allUsers);
       return;
     }
-
-    const search = userSearch.toLowerCase().trim();
-
-    const filtered = allUsers.filter((user) => {
-      return (
-        user.fullName?.toLowerCase().includes(search) ||
-        user.email?.toLowerCase().includes(search) ||
-        user.membership_number?.toLowerCase().includes(search)
-      );
-    });
-
-    setFilteredUsers(filtered);
+    const q = userSearch.toLowerCase();
+    setFilteredUsers(
+      allUsers.filter(
+        (u) =>
+          u.fullName?.toLowerCase().includes(q) ||
+          u.email?.toLowerCase().includes(q) ||
+          u.membership_number?.toLowerCase().includes(q)
+      )
+    );
   }, [userSearch, allUsers]);
 
-  /* =========================================================
-     OPTIMISTIC UPDATE HELPERS
-     ========================================================= */
+  /* ---------------- DERIVED LISTS ---------------- */
+  const sortedTodayBirthdays = useMemo(
+    () => sortBirthdays(todayBirthdays, todaySort),
+    [todayBirthdays, todaySort]
+  );
 
-  const optimisticUpdate = (userId, updates) => {
-    // Update allBirthdays
+  const filteredBirthdays = useMemo(() => {
+    if (!searchTerm) return allBirthdays;
+    const q = searchTerm.toLowerCase();
+    return allBirthdays.filter(
+      (u) =>
+        u.fullName?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.membership_number?.toLowerCase().includes(q)
+    );
+  }, [allBirthdays, searchTerm]);
+
+  const sortedAllBirthdays = useMemo(
+    () => sortBirthdays(filteredBirthdays, allSort),
+    [filteredBirthdays, allSort]
+  );
+
+  const sortedGroups = useMemo(
+    () => sortGroups(whatsAppGroups, groupSort),
+    [whatsAppGroups, groupSort]
+  );
+
+  const showMonthHeaders = isMonthSort(allSort);
+
+  /* ---------------- OPTIMISTIC ---------------- */
+  const updateUserInLists = useCallback((userId, updates) => {
     setAllBirthdays((prev) =>
-      prev.map((user) =>
-        user.id === userId ? { ...user, ...updates } : user
-      )
+      prev.map((u) => (u.id === userId ? { ...u, ...updates } : u))
     );
-
-    // Update todayBirthdays
     setTodayBirthdays((prev) =>
-      prev.map((user) =>
-        user.id === userId ? { ...user, ...updates } : user
-      )
+      prev.map((u) => (u.id === userId ? { ...u, ...updates } : u))
     );
-  };
+  }, []);
 
-  const optimisticDelete = (userId) => {
-    // Remove from allBirthdays
-    setAllBirthdays((prev) => prev.filter((user) => user.id !== userId));
+  const removeUserFromLists = useCallback((userId) => {
+    setAllBirthdays((prev) => prev.filter((u) => u.id !== userId));
+    setTodayBirthdays((prev) => prev.filter((u) => u.id !== userId));
+  }, []);
 
-    // Remove from todayBirthdays
-    setTodayBirthdays((prev) => prev.filter((user) => user.id !== userId));
-  };
+  const addUserToList = useCallback((user) => {
+    setAllBirthdays((prev) => {
+      const idx = prev.findIndex((u) => u.id === user.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], ...user };
+        return copy;
+      }
+      return [user, ...prev];
+    });
+  }, []);
 
-  const optimisticAdd = (user) => {
-    setAllBirthdays((prev) => [...prev, user]);
-  };
-
-  /* =========================================================
-     OPEN ADD/EDIT MODAL
-     ========================================================= */
-
+  /* ---------------- MODALS ---------------- */
   const handleOpenModal = async () => {
     setShowAddModal(true);
     setSelectedUser(null);
     setUserSearch("");
-
-    setAddFormData({
-      birthDate: "",
-      birthdayOptIn: true,
-      birthdayMessage: "",
-    });
-
+    setAddFormData({ birthDate: "", birthdayOptIn: true, birthdayMessage: "" });
     setAddPhotoFile(null);
     setAddPhotoPreview(null);
-
-    await fetchAllUsers();
+    if (allUsers.length === 0) {
+      setLoadingAllUsers(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE_URL}/api/birthday/admin/users?limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const users = res.data.users || [];
+        setAllUsers(users);
+        setFilteredUsers(users);
+      } catch (err) {
+        console.error(err);
+        flashError("Failed to load users");
+      } finally {
+        setLoadingAllUsers(false);
+      }
+    }
   };
-
-  /* =========================================================
-     OPEN EDIT MODAL FOR EXISTING USER
-     ========================================================= */
 
   const handleEditUser = (user) => {
     setSelectedUser(user);
     setShowEditModal(true);
-
+    setOpenRowMenu(null);
     if (user.birthDate) {
-      const date = new Date(user.birthDate);
-
+      const d = new Date(user.birthDate);
       setAddFormData({
-        birthDate: date.toISOString().split("T")[0],
+        birthDate: d.toISOString().split("T")[0],
         birthdayOptIn: user.birthdayOptIn !== undefined ? user.birthdayOptIn : true,
         birthdayMessage: user.birthdayMessage || "",
       });
-
       setAddPhotoPreview(getImageUrl(user.birthdayPhoto));
     } else {
-      setAddFormData({
-        birthDate: "",
-        birthdayOptIn: true,
-        birthdayMessage: "",
-      });
-
+      setAddFormData({ birthDate: "", birthdayOptIn: true, birthdayMessage: "" });
       setAddPhotoPreview(null);
     }
-
     setAddPhotoFile(null);
   };
 
-  /* =========================================================
-     SELECT USER
-     ========================================================= */
-
   const handleSelectUser = (user) => {
     setSelectedUser(user);
-
     if (user.birthDate) {
-      const date = new Date(user.birthDate);
-
+      const d = new Date(user.birthDate);
       setAddFormData({
-        birthDate: date.toISOString().split("T")[0],
+        birthDate: d.toISOString().split("T")[0],
         birthdayOptIn: user.birthdayOptIn !== undefined ? user.birthdayOptIn : true,
         birthdayMessage: user.birthdayMessage || "",
       });
-
       setAddPhotoPreview(getImageUrl(user.birthdayPhoto));
     } else {
-      setAddFormData({
-        birthDate: "",
-        birthdayOptIn: true,
-        birthdayMessage: "",
-      });
-
+      setAddFormData({ birthDate: "", birthdayOptIn: true, birthdayMessage: "" });
       setAddPhotoPreview(null);
     }
-
     setAddPhotoFile(null);
     setFilteredUsers([]);
     setUserSearch("");
   };
 
-  /* =========================================================
-     SELECT / CHANGE PHOTO
-     ========================================================= */
-
   const handleAddPhotoSelect = async (e) => {
     const file = e.target.files?.[0];
-
     if (!file) return;
-
     e.target.value = "";
-
-    if (!file.type.startsWith("image/")) {
-      setError("Please select a valid image file.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Photo must be less than 10MB.");
-      return;
-    }
-
+    if (!file.type.startsWith("image/")) return flashError("Please select a valid image file.");
+    if (file.size > 10 * 1024 * 1024) return flashError("Photo must be less than 10MB.");
     try {
-      setError("");
-      setSuccess("");
-
-      const processedFile = await createBirthdayImage(file);
-      setAddPhotoFile(processedFile);
-
-      const previewUrl = URL.createObjectURL(processedFile);
-      setAddPhotoPreview(previewUrl);
+      const processed = await createBirthdayImage(file);
+      setAddPhotoFile(processed);
+      setAddPhotoPreview(URL.createObjectURL(processed));
     } catch (err) {
-      console.error("Image processing error:", err);
-      setError("Failed to process the photo. Please try another image.");
+      console.error(err);
+      flashError("Failed to process the photo.");
     }
   };
-
-  /* =========================================================
-     REMOVE PHOTO FROM CURRENT FORM
-     ========================================================= */
 
   const handleRemovePhoto = () => {
     setAddPhotoFile(null);
     setAddPhotoPreview(null);
   };
 
-  /* =========================================================
-     SAVE USER BIRTHDAY - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- SAVE ---------------- */
   const handleSaveUserBirthday = async () => {
-    if (!selectedUser) {
-      setError("Please select a user first");
-      return;
-    }
+    if (!selectedUser) return flashError("Please select a user first");
+    if (!addFormData.birthDate) return flashError("Please select a birth date");
 
-    if (!addFormData.birthDate) {
-      setError("Please select a birth date");
-      return;
-    }
+    const isNew = !allBirthdays.some((u) => u.id === selectedUser.id);
+    const originalAll = [...allBirthdays];
+    const originalToday = [...todayBirthdays];
 
-    setProcessing(true);
-    setError("");
-    setSuccess("");
-
-    // Store original state for rollback
-    const originalUser = { ...selectedUser };
-    const originalAllBirthdays = [...allBirthdays];
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic update
-    const optimisticData = {
+    const optimistic = {
+      ...selectedUser,
       birthdayOptIn: addFormData.birthdayOptIn,
       birthDate: addFormData.birthDate,
       birthdayMessage: addFormData.birthdayMessage || "",
       birthdayPhoto: addPhotoPreview || selectedUser.birthdayPhoto || null,
     };
 
-    optimisticUpdate(selectedUser.id, optimisticData);
+    if (isNew) addUserToList(optimistic);
+    else updateUserInLists(selectedUser.id, optimistic);
 
+    setShowAddModal(false);
+    setShowEditModal(false);
+    flashSuccess(`Birthday saved for ${selectedUser.fullName}`);
+
+    setProcessing(true);
     try {
       const token = localStorage.getItem("token");
-
       let photoUrl = null;
 
       if (addPhotoFile) {
-        const uploadFormData = new FormData();
-        uploadFormData.append("photo", addPhotoFile, "birthday-16x9.jpg");
-
+        const fd = new FormData();
+        fd.append("photo", addPhotoFile, "birthday-16x9.jpg");
         const uploadRes = await axios.post(
           `${BASE_URL}/api/birthday/admin/upload-photo/${selectedUser.id}`,
-          uploadFormData,
+          fd,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -558,1023 +653,715 @@ export default function BirthdayManagement() {
             },
           }
         );
-
         photoUrl = uploadRes.data.photoUrl;
       } else {
-        photoUrl = addPhotoPreview || selectedUser.birthdayPhoto || null;
+        photoUrl = selectedUser.birthdayPhoto || null;
       }
-
-      const data = {
-        birthdayOptIn: addFormData.birthdayOptIn,
-        birthDate: addFormData.birthDate,
-        birthdayMessage: addFormData.birthdayMessage || "",
-        birthdayPhoto: photoUrl || null,
-      };
 
       const res = await axios.post(
         `${BASE_URL}/api/birthday/admin/user/${selectedUser.id}`,
-        data,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+          birthdayOptIn: addFormData.birthdayOptIn,
+          birthDate: addFormData.birthDate,
+          birthdayMessage: addFormData.birthdayMessage || "",
+          birthdayPhoto: photoUrl || null,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Update with server data
-      optimisticUpdate(selectedUser.id, res.data.user);
+      if (res.data?.user) updateUserInLists(selectedUser.id, res.data.user);
 
-      setSuccess(`✅ Birthday saved for ${res.data.user.fullName}`);
-
-      setTimeout(() => {
-        setShowAddModal(false);
-        setShowEditModal(false);
-        setSelectedUser(null);
-        setAddFormData({
-          birthDate: "",
-          birthdayOptIn: true,
-          birthdayMessage: "",
-        });
-        setAddPhotoFile(null);
-        setAddPhotoPreview(null);
-        setAllUsers([]);
-        setFilteredUsers([]);
-        setSuccess("");
-      }, 1500);
+      setSelectedUser(null);
+      setAddFormData({ birthDate: "", birthdayOptIn: true, birthdayMessage: "" });
+      setAddPhotoFile(null);
+      setAddPhotoPreview(null);
     } catch (err) {
       console.error("Error saving birthday:", err);
-      // Rollback on error
-      setAllBirthdays(originalAllBirthdays);
-      setTodayBirthdays(originalTodayBirthdays);
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          "Failed to save birthday"
-      );
+      setAllBirthdays(originalAll);
+      setTodayBirthdays(originalToday);
+      flashError(err.response?.data?.error || "Failed to save birthday");
     } finally {
       setProcessing(false);
     }
   };
 
-  /* =========================================================
-     TOGGLE OPT-IN - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- TOGGLE OPT-IN ---------------- */
   const handleToggleOptIn = async (userId, currentOptIn) => {
-    if (!window.confirm(`Toggle opt-in for this user?`)) return;
-
-    setProcessing(true);
-    setError("");
-
-    // Store original state for rollback
-    const originalAllBirthdays = [...allBirthdays];
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic update
-    optimisticUpdate(userId, { birthdayOptIn: !currentOptIn });
+    setOpenRowMenu(null);
+    const originalAll = [...allBirthdays];
+    const originalToday = [...todayBirthdays];
+    updateUserInLists(userId, { birthdayOptIn: !currentOptIn });
 
     try {
       const token = localStorage.getItem("token");
-
       const res = await axios.patch(
         `${BASE_URL}/api/birthday/admin/user/${userId}/toggle-optin`,
         { birthdayOptIn: !currentOptIn },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      // Confirm with server data
-      optimisticUpdate(userId, { birthdayOptIn: res.data.user.birthdayOptIn });
-
-      setSuccess(res.data.message);
-      setTimeout(() => setSuccess(""), 3000);
+      if (res.data?.user) {
+        updateUserInLists(userId, { birthdayOptIn: res.data.user.birthdayOptIn });
+      }
+      flashSuccess(res.data?.message || "Opt-in updated");
     } catch (err) {
       console.error(err);
-      // Rollback on error
-      setAllBirthdays(originalAllBirthdays);
-      setTodayBirthdays(originalTodayBirthdays);
-      setError("Failed to toggle opt-in");
-    } finally {
-      setProcessing(false);
+      setAllBirthdays(originalAll);
+      setTodayBirthdays(originalToday);
+      flashError("Failed to toggle opt-in");
     }
   };
 
-  /* =========================================================
-     DELETE USER BIRTHDAY - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- DELETE USER ---------------- */
   const handleDeleteUserBirthday = async () => {
     if (!userToDelete) return;
-
-    if (!window.confirm(`Delete birthday data for ${userToDelete.fullName}?`)) {
-      setUserToDelete(null);
-      setShowDeleteModal(false);
-      return;
-    }
-
-    setProcessing(true);
-    setError("");
-
     const userId = userToDelete.id;
-    const userFullName = userToDelete.fullName;
-
-    // Store original state for rollback
-    const originalAllBirthdays = [...allBirthdays];
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic delete
-    optimisticDelete(userId);
-
+    const originalAll = [...allBirthdays];
+    const originalToday = [...todayBirthdays];
+    removeUserFromLists(userId);
     setUserToDelete(null);
     setShowDeleteModal(false);
 
     try {
       const token = localStorage.getItem("token");
-
-      const res = await axios.delete(
-        `${BASE_URL}/api/birthday/admin/user/${userId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setSuccess(`✅ ${res.data.message}`);
-      setTimeout(() => setSuccess(""), 3000);
+      const res = await axios.delete(`${BASE_URL}/api/birthday/admin/user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      flashSuccess(res.data?.message || "Birthday data deleted");
     } catch (err) {
       console.error(err);
-      // Rollback on error
-      setAllBirthdays(originalAllBirthdays);
-      setTodayBirthdays(originalTodayBirthdays);
-      setError(err.response?.data?.error || "Failed to delete birthday data");
-    } finally {
-      setProcessing(false);
+      setAllBirthdays(originalAll);
+      setTodayBirthdays(originalToday);
+      flashError(err.response?.data?.error || "Failed to delete birthday data");
     }
   };
 
-  /* =========================================================
-     PROCESS ALL - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- PROCESS ALL ---------------- */
   const handleProcessAll = async () => {
-    if (!window.confirm("Process all birthdays today?")) {
-      return;
-    }
-
-    setProcessing(true);
-    setError("");
-
-    // Store original state for rollback
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic update - mark all as processed
+    const originalToday = [...todayBirthdays];
     setTodayBirthdays((prev) =>
-      prev.map((user) => ({
-        ...user,
-        birthdayAdvertId: `processing-${user.id}`,
-      }))
+      prev.map((u) => ({ ...u, birthdayAdvertId: u.birthdayAdvertId || `processed-${u.id}` }))
     );
 
     try {
       const token = localStorage.getItem("token");
-
       const res = await axios.post(
         `${BASE_URL}/api/birthday/admin/process-all`,
         {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      setSuccess(res.data.message);
-      // Refresh data in background
-      setTimeout(() => fetchData(), 1000);
-      setTimeout(() => setSuccess(""), 3000);
+      flashSuccess(res.data?.message || "All birthdays processed");
+      fetchData(true);
     } catch (err) {
       console.error(err);
-      // Rollback
-      setTodayBirthdays(originalTodayBirthdays);
-      setError("Failed to process birthdays");
-    } finally {
-      setProcessing(false);
+      setTodayBirthdays(originalToday);
+      flashError("Failed to process birthdays");
     }
   };
 
-  /* =========================================================
-     PROCESS SINGLE - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- PROCESS SINGLE ---------------- */
   const handleProcessSingle = async (userId) => {
-    if (!window.confirm("Process this user's birthday?")) {
-      return;
-    }
-
-    setProcessing(true);
-    setError("");
-
-    // Store original state for rollback
-    const originalAllBirthdays = [...allBirthdays];
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic update - mark as processing
-    optimisticUpdate(userId, { birthdayAdvertId: `processing-${userId}` });
+    setOpenRowMenu(null);
+    const originalAll = [...allBirthdays];
+    const originalToday = [...todayBirthdays];
+    updateUserInLists(userId, { birthdayAdvertId: `processed-${userId}` });
 
     try {
       const token = localStorage.getItem("token");
-
       const res = await axios.post(
         `${BASE_URL}/api/birthday/admin/process/${userId}`,
         {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      setSuccess(res.data.message);
-      // Refresh data in background
-      setTimeout(() => fetchData(), 1000);
-      setTimeout(() => setSuccess(""), 3000);
+      flashSuccess(res.data?.message || "Birthday processed");
+      fetchData(true);
     } catch (err) {
       console.error(err);
-      // Rollback
-      setAllBirthdays(originalAllBirthdays);
-      setTodayBirthdays(originalTodayBirthdays);
-      setError("Failed to process user");
-    } finally {
-      setProcessing(false);
+      setAllBirthdays(originalAll);
+      setTodayBirthdays(originalToday);
+      flashError("Failed to process user");
     }
   };
 
-  /* =========================================================
-     DELETE ADVERTISEMENT - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- DELETE ADVERT ---------------- */
   const handleDeleteAdvert = async (userId, advertId) => {
-    if (!window.confirm("Delete this birthday advertisement?")) {
-      return;
-    }
-
-    setProcessing(true);
-    setError("");
-
-    // Store original state for rollback
-    const originalAllBirthdays = [...allBirthdays];
-    const originalTodayBirthdays = [...todayBirthdays];
-
-    // Optimistic update
-    optimisticUpdate(userId, { birthdayAdvertId: null });
+    setOpenRowMenu(null);
+    const originalAll = [...allBirthdays];
+    const originalToday = [...todayBirthdays];
+    updateUserInLists(userId, { birthdayAdvertId: null });
 
     try {
       const token = localStorage.getItem("token");
-
       await axios.delete(`${BASE_URL}/api/advertisements/${advertId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       await axios.put(
         `${BASE_URL}/api/birthday/user-settings`,
-        {
-          birthdayAdvertId: null,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { birthdayAdvertId: null },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      setSuccess("✅ Birthday advertisement deleted successfully!");
-      setTimeout(() => setSuccess(""), 3000);
+      flashSuccess("Birthday advertisement deleted");
     } catch (err) {
       console.error(err);
-      // Rollback
-      setAllBirthdays(originalAllBirthdays);
-      setTodayBirthdays(originalTodayBirthdays);
-      setError(err.response?.data?.error || "Failed to delete ad");
-    } finally {
-      setProcessing(false);
+      setAllBirthdays(originalAll);
+      setTodayBirthdays(originalToday);
+      flashError(err.response?.data?.error || "Failed to delete ad");
     }
   };
 
-  /* =========================================================
-     UPDATE SETTINGS - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- SETTINGS ---------------- */
   const handleUpdateSettings = async (field, value) => {
-    // Optimistic update
     const originalSettings = { ...settings };
     setSettings((prev) => ({ ...prev, [field]: value }));
-
     try {
       const token = localStorage.getItem("token");
-
-      const updated = {
-        ...settings,
-        [field]: value,
-      };
-
       const res = await axios.put(
         `${BASE_URL}/api/birthday/settings`,
-        updated,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { ...settings, [field]: value },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
       setSettings(res.data.settings);
-      setSuccess("Settings updated");
-      setTimeout(() => setSuccess(""), 3000);
+      flashSuccess("Settings updated");
     } catch (err) {
       console.error(err);
-      // Rollback
       setSettings(originalSettings);
-      setError("Failed to update settings");
+      flashError("Failed to update settings");
     }
   };
 
-  /* =========================================================
-     WHATSAPP GROUPS - OPTIMISTIC
-     ========================================================= */
-
+  /* ---------------- WHATSAPP ---------------- */
   const toggleGroup = (groupId) => {
     setSelectedGroups((prev) =>
-      prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [...prev, groupId]
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
     );
   };
 
   const handleSaveWhatsAppGroups = async () => {
-  setProcessing(true);
-  setError("");
-
-  try {
-    const token = localStorage.getItem("token");
-
+    const originalSelected = [...selectedGroups];
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem("token");
       await axios.post(
-      `${BASE_URL}/api/birthday/birthday-whatsapp/save`,
-      {
-        selectedGroupIds: selectedGroups,
-      },
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-
-    setSuccess("✅ Birthday WhatsApp groups updated successfully!");
-    await fetchWhatsAppGroups();
-    setTimeout(() => setSuccess(""), 3000);
-  } catch (err) {
-    console.error(err);
-    setError("Failed to update birthday WhatsApp groups");
-  } finally {
-    setProcessing(false);
-  }
-};
-
-  /* =========================================================
-     FILTER BIRTHDAYS
-     ========================================================= */
-
-  const filteredBirthdays = allBirthdays.filter(
-    (user) =>
-      user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.membership_number?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  /* =========================================================
-     FORMAT DATE
-     ========================================================= */
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "Not set";
-
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "Not set";
-
-    return date.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
+        `${BASE_URL}/api/birthday/birthday-whatsapp/save`,
+        { selectedGroupIds: selectedGroups },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      flashSuccess("WhatsApp groups updated");
+    } catch (err) {
+      console.error(err);
+      setSelectedGroups(originalSelected);
+      flashError("Failed to update WhatsApp groups");
+    } finally {
+      setProcessing(false);
+    }
   };
 
   /* =========================================================
-     LOADING SCREEN
+     RENDER
      ========================================================= */
-
-  if (loading) {
-    return (
-      <div className="birthday-admin-page">
-        <div className="admin-header">
-          <div className="admin-header-left">
-            <h1>Birthday Management</h1>
-            <p>Manage birthday adverts and wishes for ZUCA members</p>
-          </div>
-          <button className="admin-refresh-btn" onClick={fetchData}>
-            <FiRefreshCw className="spinning" />
-            Refresh
-          </button>
-        </div>
-
-        <div className="skeleton-stats">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="skeleton-stat-card">
-              <div className="skeleton-icon" />
-              <div className="skeleton-content">
-                <div className="skeleton-value" />
-                <div className="skeleton-label" />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="skeleton-settings">
-          <div className="skeleton-title" />
-          <div className="skeleton-toggles">
-            <div className="skeleton-toggle" />
-            <div className="skeleton-toggle" />
-            <div className="skeleton-toggle" />
-          </div>
-        </div>
-
-        <div className="skeleton-list">
-          <div className="skeleton-list-header" />
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton-item">
-              <div className="skeleton-avatar" />
-              <div className="skeleton-user-info">
-                <div className="skeleton-name" />
-                <div className="skeleton-email" />
-              </div>
-              <div className="skeleton-badge" />
-              <div className="skeleton-btn" />
-            </div>
-          ))}
-        </div>
-
-        <style>{`
-          .birthday-admin-page { padding: 24px; max-width: 1200px; margin: 0 auto; }
-          .admin-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
-          .admin-header-left h1 { font-size:24px; font-weight:700; color:#0f172a; margin:0 0 4px; }
-          .admin-header-left p { font-size:14px; color:#64748b; margin:0; }
-          .admin-refresh-btn { display:flex; align-items:center; gap:8px; padding:10px 20px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px; font-size:14px; font-weight:600; color:#0f172a; cursor:pointer; }
-          .spinning { animation:spin 1s linear infinite; }
-          @keyframes spin { to { transform:rotate(360deg); } }
-          .skeleton-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
-          .skeleton-stat-card, .skeleton-settings, .skeleton-list { background:#fff; border:1px solid #e2e8f0; border-radius:14px; }
-          .skeleton-stat-card { display:flex; align-items:center; gap:14px; padding:18px; }
-          .skeleton-icon { width:44px; height:44px; border-radius:12px; background:#e2e8f0; animation:pulse 1.5s infinite; }
-          .skeleton-content { display:flex; flex-direction:column; gap:6px; }
-          .skeleton-value { width:60px; height:24px; background:#e2e8f0; border-radius:4px; }
-          .skeleton-label { width:80px; height:12px; background:#e2e8f0; border-radius:4px; }
-          .skeleton-settings { padding:20px; margin-bottom:24px; }
-          .skeleton-title { width:150px; height:20px; background:#e2e8f0; border-radius:4px; margin-bottom:16px; }
-          .skeleton-toggles { display:flex; gap:24px; }
-          .skeleton-toggle { width:180px; height:22px; background:#e2e8f0; border-radius:4px; }
-          .skeleton-list { padding:20px; }
-          .skeleton-list-header { width:200px; height:20px; background:#e2e8f0; border-radius:4px; margin-bottom:16px; }
-          .skeleton-item { display:flex; align-items:center; gap:16px; padding:14px; background:#f8fafc; border-radius:12px; margin-bottom:12px; }
-          .skeleton-avatar { width:44px; height:44px; border-radius:50%; background:#e2e8f0; }
-          .skeleton-user-info { flex:1; }
-          .skeleton-name { width:150px; height:16px; background:#e2e8f0; margin-bottom:6px; }
-          .skeleton-email { width:200px; height:12px; background:#e2e8f0; }
-          .skeleton-badge { width:80px; height:24px; background:#e2e8f0; border-radius:20px; }
-          .skeleton-btn { width:80px; height:32px; background:#e2e8f0; border-radius:8px; }
-          @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
-          @media(max-width:768px) { .skeleton-stats { grid-template-columns:repeat(2,1fr); } .skeleton-toggles { flex-direction:column; } }
-          @media(max-width:480px) { .skeleton-stats { grid-template-columns:1fr; } }
-        `}</style>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     MAIN PAGE
-     ========================================================= */
+  if (initialLoading) return <Skeleton />;
 
   return (
-    <div className="birthday-admin-page">
-      {/* HEADER */}
-      <div className="admin-header">
-        <div className="admin-header-left">
-          <h1>Birthday Management</h1>
-          <p>Manage birthday adverts and wishes for ZUCA members</p>
-        </div>
-
-        <div className="header-actions">
-          <button
-            className="admin-refresh-btn add-birthday-btn"
-            onClick={handleOpenModal}
-          >
-            <FiPlus size={18} />
-            Add Birthday
-          </button>
-
-          <button className="admin-refresh-btn" onClick={fetchData}>
-            <FiRefreshCw />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* ALERTS */}
-      {success && (
-        <div className="admin-success-alert">
-          <FiCheck size={18} />
-          <span>{success}</span>
-          <button onClick={() => setSuccess("")}>
-            <FiX size={18} />
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="admin-error-alert">
-          <FiAlertCircle size={18} />
-          <span>{error}</span>
-          <button onClick={() => setError("")}>
-            <FiX size={18} />
-          </button>
-        </div>
-      )}
-
-      {/* =====================================================
-          STATS
-          ===================================================== */}
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <FiUsers size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats?.totalOptedIn || 0}</span>
-            <span className="stat-label">Opted In</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <FiCamera size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats?.totalWithPhoto || 0}</span>
-            <span className="stat-label">With Photo</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <FiTrendingUp size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats?.totalBirthdayAds || 0}</span>
-            <span className="stat-label">Total Adverts</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon orange">
-            <FiCalendar size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats?.todayBirthdays || 0}</span>
-            <span className="stat-label">Today's Birthdays</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed Stats */}
-      {detailedStats && (
-        <div className="detailed-stats">
-          <div className="detail-stat">
-            <span className="detail-value">{detailedStats.totalWithMessage || 0}</span>
-            <span className="detail-label">With Message</span>
-          </div>
-          <div className="detail-stat">
-            <span className="detail-value">{detailedStats.upcomingBirthdays || 0}</span>
-            <span className="detail-label">Upcoming (7 days)</span>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================
-          SETTINGS
-          ===================================================== */}
-
-      <div className="settings-section">
-        <h3>
-          <FiSettings size={18} />
-          Settings
-        </h3>
-
-        <div className="settings-grid">
-          <label className="toggle-label">
-            <input
-              type="checkbox"
-              checked={settings?.autoCreateAdvert || false}
-              onChange={(e) =>
-                handleUpdateSettings("autoCreateAdvert", e.target.checked)
-              }
-            />
-            <span className="toggle-slider" />
-            Auto-create adverts
-          </label>
-
-          <label className="toggle-label">
-            <input
-              type="checkbox"
-              checked={settings?.sendPushToAll || false}
-              onChange={(e) =>
-                handleUpdateSettings("sendPushToAll", e.target.checked)
-              }
-            />
-            <span className="toggle-slider" />
-            Send push notifications
-          </label>
-
-          <label className="toggle-label">
-            <input
-              type="checkbox"
-              checked={settings?.sendToWhatsApp || false}
-              onChange={(e) =>
-                handleUpdateSettings("sendToWhatsApp", e.target.checked)
-              }
-            />
-            <span className="toggle-slider" />
-            Send to WhatsApp groups
-          </label>
-        </div>
-      </div>
-
-      {/* =====================================================
-          WHATSAPP GROUPS
-          ===================================================== */}
-
-      <div className="settings-section">
-        <h3>
-          <FaWhatsapp size={18} style={{ color: "#25D366" }} />
-          WhatsApp Groups for Birthday Messages
-        </h3>
-
-        <p className="section-description">
-          Select which WhatsApp groups should receive birthday messages
-        </p>
-
-        {loadingGroups ? (
-          <div className="loading-groups">Loading groups...</div>
-        ) : whatsAppGroups.length === 0 ? (
-          <div className="empty-groups">
-            <FiAlertCircle size={20} />
-            <div>
-              <div className="empty-groups-title">No WhatsApp groups found</div>
-              <div className="empty-groups-desc">
-                Link the WhatsApp bot first in admin settings
-              </div>
+    <div className="bd-page">
+      <div className="bd-container">
+        {/* HEADER */}
+        <header className="bd-header">
+          <div>
+            <div className="bd-eyebrow">
+              <FiCamera size={12} />
+              Member engagement
             </div>
+            <h1 className="bd-title">Birthday Management</h1>
+            <p className="bd-subtitle">
+              Manage birthday adverts and wishes for ZUCA members
+            </p>
           </div>
-        ) : (
-          <div className="whatsapp-groups-grid">
-            {whatsAppGroups.map((group) => (
-              <label key={group.groupId} className="group-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedGroups.includes(group.groupId)}
-                  onChange={() => toggleGroup(group.groupId)}
-                />
-                <span className="checkmark" />
-                <span className="group-name">
-                  {group.groupName || "Unnamed Group"}
-                </span>
-                <span className="group-participants">
-                  {group.participants || 0} members
-                </span>
-                {selectedGroups.includes(group.groupId) && (
-                  <span className="group-selected-badge">Selected</span>
-                )}
-              </label>
-            ))}
+          <div className="bd-header-actions">
+            <button
+              className="bd-btn"
+              onClick={() => fetchData(true)}
+              disabled={refreshing}
+            >
+              <FiRefreshCw size={14} className={refreshing ? "bd-spin" : ""} />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+            <button className="bd-btn bd-btn-primary" onClick={handleOpenModal}>
+              <FiPlus size={14} /> Add Birthday
+            </button>
+          </div>
+        </header>
+
+        {/* ALERTS */}
+        {success && (
+          <div className="bd-alert bd-alert-success">
+            <FiCheck size={15} />
+            <span>{success}</span>
+            <button onClick={() => setSuccess("")}>
+              <FiX size={14} />
+            </button>
+          </div>
+        )}
+        {error && (
+          <div className="bd-alert bd-alert-error">
+            <FiAlertCircle size={15} />
+            <span>{error}</span>
+            <button onClick={() => setError("")}>
+              <FiX size={14} />
+            </button>
           </div>
         )}
 
-        <div className="helper-text">
-          {selectedGroups.length > 0
-            ? `${selectedGroups.length} group(s) selected for birthday messages`
-            : "Select at least one group to send birthday messages"}
+        {/* STATS */}
+        <div className="bd-stats">
+          <div className="bd-stat">
+            <div className="bd-stat-icon"><FiUsers size={18} /></div>
+            <div>
+              <div className="bd-stat-value">{stats?.totalOptedIn || 0}</div>
+              <div className="bd-stat-label">Opted in</div>
+            </div>
+          </div>
+          <div className="bd-stat">
+            <div className="bd-stat-icon"><FiCamera size={18} /></div>
+            <div>
+              <div className="bd-stat-value">{stats?.totalWithPhoto || 0}</div>
+              <div className="bd-stat-label">With photo</div>
+            </div>
+          </div>
+          <div className="bd-stat">
+            <div className="bd-stat-icon"><FiTrendingUp size={18} /></div>
+            <div>
+              <div className="bd-stat-value">{stats?.totalBirthdayAds || 0}</div>
+              <div className="bd-stat-label">Total adverts</div>
+            </div>
+          </div>
+          <div className="bd-stat">
+            <div className="bd-stat-icon"><FiCalendar size={18} /></div>
+            <div>
+              <div className="bd-stat-value">{stats?.todayBirthdays || 0}</div>
+              <div className="bd-stat-label">Today</div>
+            </div>
+          </div>
         </div>
 
-        <button
-          className="save-groups-btn"
-          onClick={handleSaveWhatsAppGroups}
-          disabled={processing || loadingGroups}
-        >
-          {processing ? "Saving..." : "Save WhatsApp Groups"}
-        </button>
-      </div>
+        {detailedStats && (
+          <div className="bd-detail-stats">
+            <div className="bd-detail-stat">
+              <span className="bd-detail-value">{detailedStats.totalWithMessage || 0}</span>
+              <span className="bd-detail-label">With message</span>
+            </div>
+            <div className="bd-detail-stat">
+              <span className="bd-detail-value">{detailedStats.upcomingBirthdays || 0}</span>
+              <span className="bd-detail-label">Upcoming (7 days)</span>
+            </div>
+          </div>
+        )}
 
-      {/* =====================================================
-          TABS
-          ===================================================== */}
+        {/* SECTION TABS */}
+        <nav className="bd-section-tabs">
+          <button
+            className={`bd-section-tab ${activeSection === "birthdays" ? "active" : ""}`}
+            onClick={() => setActiveSection("birthdays")}
+          >
+            <FiUsers size={14} /> Birthdays
+          </button>
+          <button
+            className={`bd-section-tab ${activeSection === "settings" ? "active" : ""}`}
+            onClick={() => setActiveSection("settings")}
+          >
+            <FiSettings size={14} /> Settings
+          </button>
+          <button
+            className={`bd-section-tab ${activeSection === "whatsapp" ? "active" : ""}`}
+            onClick={() => setActiveSection("whatsapp")}
+          >
+            <FaWhatsapp size={14} /> WhatsApp
+          </button>
+        </nav>
 
-      <div className="tabs-container">
-        <button
-          className={`tab-btn ${activeTab === "today" ? "active" : ""}`}
-          onClick={() => setActiveTab("today")}
-        >
-          <FiClock size={16} />
-          Today's Birthdays ({todayBirthdays.length})
-        </button>
+        {/* SETTINGS */}
+        {activeSection === "settings" && (
+          <section className="bd-panel">
+            <div className="bd-panel-head">
+              <h3><FiSettings size={15} /> Birthday settings</h3>
+              <p className="bd-panel-sub">Control how birthdays are processed automatically</p>
+            </div>
+            <div className="bd-toggles">
+              <label className="bd-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings?.autoCreateAdvert || false}
+                  onChange={(e) => handleUpdateSettings("autoCreateAdvert", e.target.checked)}
+                />
+                <span className="bd-toggle-slider" />
+                <span className="bd-toggle-text">Auto-create adverts</span>
+              </label>
+              <label className="bd-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings?.sendPushToAll || false}
+                  onChange={(e) => handleUpdateSettings("sendPushToAll", e.target.checked)}
+                />
+                <span className="bd-toggle-slider" />
+                <span className="bd-toggle-text">Send push notifications</span>
+              </label>
+              <label className="bd-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings?.sendToWhatsApp || false}
+                  onChange={(e) => handleUpdateSettings("sendToWhatsApp", e.target.checked)}
+                />
+                <span className="bd-toggle-slider" />
+                <span className="bd-toggle-text">Send to WhatsApp groups</span>
+              </label>
+            </div>
+          </section>
+        )}
 
-        <button
-          className={`tab-btn ${activeTab === "all" ? "active" : ""}`}
-          onClick={() => setActiveTab("all")}
-        >
-          <FiUsers size={16} />
-          All Birthdays ({allBirthdays.length})
-        </button>
-      </div>
-
-      {/* =====================================================
-          TODAY
-          ===================================================== */}
-
-      {activeTab === "today" && (
-        <div className="birthday-list-section">
-          <div className="section-header">
-            <h3>
-              <FiCalendar size={18} />
-              Today's Birthdays
-            </h3>
-
+        {/* WHATSAPP */}
+        {activeSection === "whatsapp" && (
+          <section className="bd-panel">
+            <div className="bd-panel-head">
+              <div>
+                <h3><FaWhatsapp size={15} /> WhatsApp groups</h3>
+                <p className="bd-panel-sub">Choose which groups receive birthday messages</p>
+              </div>
+              {whatsAppGroups.length > 0 && (
+                <SortSelect value={groupSort} onChange={setGroupSort} options={GROUP_SORT_OPTIONS} />
+              )}
+            </div>
+            {loadingGroups ? (
+              <div className="bd-loading">Loading groups...</div>
+            ) : whatsAppGroups.length === 0 ? (
+              <div className="bd-empty-inline">
+                <FiAlertCircle size={18} />
+                <div>
+                  <div className="bd-empty-inline-title">No WhatsApp groups found</div>
+                  <div className="bd-empty-inline-sub">Link the WhatsApp bot first in admin settings</div>
+                </div>
+              </div>
+            ) : (
+              <div className="bd-groups-grid">
+                {sortedGroups.map((group) => {
+                  const selected = selectedGroups.includes(group.groupId);
+                  return (
+                    <label
+                      key={group.groupId}
+                      className={`bd-group-card ${selected ? "selected" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleGroup(group.groupId)}
+                      />
+                      <span className="bd-group-check" />
+                      <div className="bd-group-info">
+                        <div className="bd-group-name">{group.groupName || "Unnamed Group"}</div>
+                        <div className="bd-group-meta">{group.participants || 0} members</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div className="bd-helper">
+              {selectedGroups.length > 0
+                ? `${selectedGroups.length} group(s) selected`
+                : "Select at least one group"}
+            </div>
             <button
-              className="process-all-btn"
-              onClick={handleProcessAll}
-              disabled={processing || todayBirthdays.length === 0}
+              className="bd-btn bd-btn-primary bd-btn-full"
+              onClick={handleSaveWhatsAppGroups}
+              disabled={processing || loadingGroups}
             >
-              <FiSend size={16} />
-              {processing ? "Processing..." : "Process All"}
+              {processing ? "Saving..." : "Save WhatsApp groups"}
             </button>
-          </div>
+          </section>
+        )}
 
-          {todayBirthdays.length === 0 ? (
-            <div className="empty-state">
-              <FiCalendar size={48} />
-              <p>No birthdays today</p>
-              <span>Check back tomorrow</span>
+        {/* BIRTHDAYS */}
+        {activeSection === "birthdays" && (
+          <>
+            <div className="bd-tabs">
+              <button
+                className={`bd-tab ${activeTab === "today" ? "active" : ""}`}
+                onClick={() => setActiveTab("today")}
+              >
+                <FiClock size={14} /> Today
+                <span className="bd-tab-badge">{todayBirthdays.length}</span>
+              </button>
+              <button
+                className={`bd-tab ${activeTab === "all" ? "active" : ""}`}
+                onClick={() => setActiveTab("all")}
+              >
+                <FiUsers size={14} /> All
+                <span className="bd-tab-badge">{allBirthdays.length}</span>
+              </button>
             </div>
-          ) : (
-            <div className="birthday-list">
-              {todayBirthdays.map((user) => (
-                <div key={user.id} className="birthday-item">
-                  <div className="birthday-user">
-                    <div className="user-avatar">
-                      {user.birthdayPhoto ? (
-                        <img
-                          src={getImageUrl(user.birthdayPhoto)}
-                          alt={user.fullName}
-                        />
-                      ) : (
-                        <span>{user.fullName?.charAt(0).toUpperCase()}</span>
-                      )}
-                    </div>
 
-                    <div className="user-info">
-                      <span className="user-name">{user.fullName}</span>
-                      <span className="user-email">{user.email}</span>
-                      <span className="user-membership">
-                        {user.membership_number}
-                      </span>
-                    </div>
+            {activeTab === "today" && (
+              <section className="bd-panel">
+                <div className="bd-panel-head">
+                  <div>
+                    <h3><FiCalendar size={15} /> Today's birthdays</h3>
+                    <p className="bd-panel-sub">
+                      {todayBirthdays.length}{" "}
+                      {todayBirthdays.length === 1 ? "member" : "members"} celebrating today
+                    </p>
                   </div>
-
-                  <div className="birthday-status">
-                    {user.birthdayAdvertId ? (
-                      <span className="badge completed">
-                        <FiCheck size={14} />
-                        Processed
-                      </span>
-                    ) : (
-                      <span className="badge pending">
-                        <FiClock size={14} />
-                        Pending
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="birthday-actions">
-                    {user.birthdayAdvertId ? (
-                      <button
-                        className="delete-ad-btn"
-                        onClick={() =>
-                          handleDeleteAdvert(user.id, user.birthdayAdvertId)
-                        }
-                        disabled={processing}
-                      >
-                        <FiTrash2 size={14} />
-                        Delete Ad
-                      </button>
-                    ) : (
-                      <button
-                        className="process-btn"
-                        onClick={() => handleProcessSingle(user.id)}
-                        disabled={processing}
-                      >
-                        <FiSend size={14} />
-                        Process
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* =====================================================
-          ALL BIRTHDAYS
-          ===================================================== */}
-
-      {activeTab === "all" && (
-        <div className="birthday-list-section">
-          <div className="section-header">
-            <h3>
-              <FiUsers size={18} />
-              All Users (Opted In)
-            </h3>
-
-            <div className="search-wrapper">
-              <FiSearch size={16} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search by name, email, or membership..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
-            </div>
-          </div>
-
-          {allBirthdays.length === 0 ? (
-            <div className="empty-state">
-              <FiUser size={48} />
-              <p>No users have opted in yet</p>
-              <span>Users can opt in from their profile settings</span>
-            </div>
-          ) : filteredBirthdays.length === 0 ? (
-            <div className="empty-state">
-              <FiSearch size={48} />
-              <p>No results found</p>
-              <span>Try a different search term</span>
-            </div>
-          ) : (
-            <div className="birthday-list">
-              {filteredBirthdays.map((user) => (
-                <div key={user.id} className="birthday-item">
-                  <div className="birthday-user">
-                    <div className="user-avatar">
-                      {user.profileImage ? (
-                        <img
-                          src={getImageUrl(user.profileImage)}
-                          alt={user.fullName}
-                        />
-                      ) : user.birthdayPhoto ? (
-                        <img
-                          src={getImageUrl(user.birthdayPhoto)}
-                          alt={user.fullName}
-                        />
-                      ) : (
-                        <span>{user.fullName?.charAt(0).toUpperCase()}</span>
-                      )}
-                    </div>
-
-                    <div className="user-info">
-                      <span className="user-name">{user.fullName}</span>
-                      <span className="user-email">{user.email}</span>
-                      <span className="user-membership">
-                        {user.membership_number}
-                      </span>
-                      <span className="user-birthday">
-                        🎂 {formatDate(user.birthDate)}
-                      </span>
-                    </div>
-                  </div>
-
-                 <div className="birthday-status">
-  {user.birthdayAdvertId && typeof user.birthdayAdvertId === 'string' && !user.birthdayAdvertId.startsWith('processing-') ? (
-    <span className="badge completed">
-      <FiCheck size={14} /> Advert Created
-    </span>
-  ) : user.birthdayAdvertId && typeof user.birthdayAdvertId === 'string' && user.birthdayAdvertId.startsWith('processing-') ? (
-    <span className="badge processing">
-      <FiClock size={14} /> Processing...
-    </span>
-  ) : (
-    <span className="badge pending">
-      <FiClock size={14} /> Not Processed
-    </span>
-  )}
-</div>
-
-                  <div className="birthday-actions">
+                  <div className="bd-panel-actions">
+                    <SortSelect value={todaySort} onChange={setTodaySort} options={TODAY_SORT_OPTIONS} />
                     <button
-                      className="edit-user-btn"
-                      onClick={() => handleEditUser(user)}
-                      disabled={processing}
-                      title="Edit birthday"
+                      className="bd-btn bd-btn-primary"
+                      onClick={handleProcessAll}
+                      disabled={processing || todayBirthdays.length === 0}
                     >
-                      <FiEdit size={14} />
-                      Edit
-                    </button>
-
-                    <button
-                      className="toggle-optin-btn"
-                      onClick={() =>
-                        handleToggleOptIn(user.id, user.birthdayOptIn)
-                      }
-                      disabled={processing}
-                      title={user.birthdayOptIn ? "Disable opt-in" : "Enable opt-in"}
-                    >
-                      {user.birthdayOptIn ? (
-                        <FiEye size={14} />
-                      ) : (
-                        <FiEyeOff size={14} />
-                      )}
-                      {user.birthdayOptIn ? "Opted In" : "Opted Out"}
-                    </button>
-
-                    {user.birthdayAdvertId && typeof user.birthdayAdvertId === 'string' && !user.birthdayAdvertId.startsWith('processing-') ? (
-  <button
-    className="delete-ad-btn"
-    onClick={() => handleDeleteAdvert(user.id, user.birthdayAdvertId)}
-    disabled={processing}
-  >
-    <FiTrash2 size={14} />
-    Delete Ad
-  </button>
-) : !user.birthdayAdvertId ? (
-  <button
-    className="process-btn"
-    onClick={() => handleProcessSingle(user.id)}
-    disabled={processing}
-  >
-    <FiSend size={14} />
-    Process
-  </button>
-) : null}
-
-                    <button
-                      className="delete-user-btn"
-                      onClick={() => {
-                        setUserToDelete(user);
-                        setShowDeleteModal(true);
-                      }}
-                      disabled={processing}
-                      title="Delete birthday data"
-                    >
-                      <FiTrash2 size={14} />
-                      Clear
+                      <FiSend size={13} /> Process all
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* =====================================================
-          ADD / EDIT BIRTHDAY MODAL
-          ===================================================== */}
+                {todayBirthdays.length === 0 ? (
+                  <div className="bd-empty">
+                    <FiCalendar size={26} />
+                    <div className="bd-empty-title">No birthdays today</div>
+                    <div className="bd-empty-sub">Check back tomorrow</div>
+                  </div>
+                ) : (
+                  <div className="bd-list">
+                    {sortedTodayBirthdays.map((user) => (
+                      <div key={user.id} className="bd-row">
+                        <div className="bd-row-user">
+                          <div className="bd-avatar">
+                            {user.birthdayPhoto ? (
+                              <img src={getImageUrl(user.birthdayPhoto)} alt={user.fullName} />
+                            ) : (
+                              <span>{user.fullName?.charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div className="bd-user-info">
+                            <div className="bd-user-name">{user.fullName}</div>
+                            <div className="bd-user-email">{user.email}</div>
+                            <div className="bd-user-member">{user.membership_number}</div>
+                          </div>
+                        </div>
 
+                        <div className="bd-row-status">
+                          {isProcessed(user.birthdayAdvertId) ? (
+                            <span className="bd-badge bd-badge-success">
+                              <FiCheck size={12} /> Processed
+                            </span>
+                          ) : (
+                            <span className="bd-badge bd-badge-warn">
+                              <FiClock size={12} /> Pending
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="bd-row-actions">
+                          {isProcessed(user.birthdayAdvertId) ? (
+                            <button
+                              className="bd-btn bd-btn-sm bd-btn-danger"
+                              onClick={() => handleDeleteAdvert(user.id, user.birthdayAdvertId)}
+                            >
+                              <FiTrash2 size={12} /> Delete ad
+                            </button>
+                          ) : (
+                            <button
+                              className="bd-btn bd-btn-sm bd-btn-primary"
+                              onClick={() => handleProcessSingle(user.id)}
+                            >
+                              <FiSend size={12} /> Process
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeTab === "all" && (
+              <section className="bd-panel">
+                <div className="bd-panel-head">
+                  <div>
+                    <h3><FiUsers size={15} /> All opted-in members</h3>
+                    <p className="bd-panel-sub">
+                      {sortedAllBirthdays.length}{" "}
+                      {sortedAllBirthdays.length === 1 ? "member" : "members"}
+                      {searchTerm && ` matching "${searchTerm}"`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bd-toolbar">
+                  <div className="bd-search">
+                    <FiSearch size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or membership"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                    />
+                    {searchInput && (
+                      <button className="bd-search-clear" onClick={() => setSearchInput("")}>
+                        <FiX size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <SortSelect value={allSort} onChange={setAllSort} options={ALL_SORT_OPTIONS} />
+                </div>
+
+                {allBirthdays.length === 0 ? (
+                  <div className="bd-empty">
+                    <FiUser size={26} />
+                    <div className="bd-empty-title">No members opted in yet</div>
+                    <div className="bd-empty-sub">Members can opt in from their profile settings</div>
+                  </div>
+                ) : sortedAllBirthdays.length === 0 ? (
+                  <div className="bd-empty">
+                    <FiSearch size={26} />
+                    <div className="bd-empty-title">No results found</div>
+                    <div className="bd-empty-sub">Try a different search term</div>
+                  </div>
+                ) : (
+                  <div className="bd-list">
+                    {sortedAllBirthdays.map((user, idx) => {
+                      const showMonthHeader =
+                        showMonthHeaders &&
+                        (idx === 0 ||
+                          getMonthLabel(sortedAllBirthdays[idx - 1].birthDate) !==
+                            getMonthLabel(user.birthDate));
+
+                      return (
+                        <React.Fragment key={user.id}>
+                          {showMonthHeader && (
+                            <div className="bd-month-divider">
+                              {getMonthLabel(user.birthDate)}
+                            </div>
+                          )}
+                          <div className="bd-row">
+                            <div className="bd-row-user">
+                              <div className="bd-avatar">
+                                {user.profileImage ? (
+                                  <img src={getImageUrl(user.profileImage)} alt={user.fullName} />
+                                ) : user.birthdayPhoto ? (
+                                  <img src={getImageUrl(user.birthdayPhoto)} alt={user.fullName} />
+                                ) : (
+                                  <span>{user.fullName?.charAt(0).toUpperCase()}</span>
+                                )}
+                              </div>
+                              <div className="bd-user-info">
+                                <div className="bd-user-name">{user.fullName}</div>
+                                <div className="bd-user-email">{user.email}</div>
+                                <div className="bd-user-detail-row">
+                                  <span className="bd-user-member">{user.membership_number}</span>
+                                  <span className="bd-user-birthday">
+                                    <FiCalendar size={11} /> {formatDate(user.birthDate)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bd-row-status">
+                              {isProcessed(user.birthdayAdvertId) ? (
+                                <span className="bd-badge bd-badge-success">
+                                  <FiCheck size={12} /> Advert created
+                                </span>
+                              ) : (
+                                <span className="bd-badge bd-badge-neutral">
+                                  <FiClock size={12} /> Not processed
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="bd-row-actions">
+                              <button
+                                className="bd-btn bd-btn-sm"
+                                onClick={() => handleEditUser(user)}
+                              >
+                                <FiEdit size={12} /> Edit
+                              </button>
+
+                              <div className="bd-row-menu-wrap">
+                                <button
+                                  className="bd-icon-btn"
+                                  onClick={() =>
+                                    setOpenRowMenu(openRowMenu === user.id ? null : user.id)
+                                  }
+                                >
+                                  <FiMoreVertical size={14} />
+                                </button>
+                                {openRowMenu === user.id && (
+                                  <div className="bd-row-menu">
+                                    <button
+                                      onClick={() => handleToggleOptIn(user.id, user.birthdayOptIn)}
+                                    >
+                                      {user.birthdayOptIn ? (
+                                        <FiEyeOff size={13} />
+                                      ) : (
+                                        <FiEye size={13} />
+                                      )}
+                                      {user.birthdayOptIn ? "Opt out" : "Opt in"}
+                                    </button>
+                                    {isProcessed(user.birthdayAdvertId) ? (
+                                      <button
+                                        className="bd-row-menu-danger"
+                                        onClick={() =>
+                                          handleDeleteAdvert(user.id, user.birthdayAdvertId)
+                                        }
+                                      >
+                                        <FiTrash2 size={13} /> Delete advert
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => handleProcessSingle(user.id)}>
+                                        <FiSend size={13} /> Process
+                                      </button>
+                                    )}
+                                    <div className="bd-row-menu-divider" />
+                                    <button
+                                      className="bd-row-menu-danger"
+                                      onClick={() => {
+                                        setUserToDelete(user);
+                                        setShowDeleteModal(true);
+                                        setOpenRowMenu(null);
+                                      }}
+                                    >
+                                      <FiTrash2 size={13} /> Clear birthday data
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ADD / EDIT MODAL */}
       {(showAddModal || showEditModal) && (
         <div
-          className="modal-overlay"
+          className="bd-modal-overlay"
           onClick={() => !processing && (setShowAddModal(false), setShowEditModal(false))}
         >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>
-                <FiUserPlus size={20} />
-                {showEditModal ? "Edit Birthday" : "Add/Edit Birthday"}
-              </h2>
-
+          <div className="bd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bd-modal-header">
+              <div>
+                <h2>{showEditModal ? "Edit birthday" : "Add birthday"}</h2>
+                <p className="bd-modal-sub">
+                  {showEditModal
+                    ? "Update the member's birthday settings and photo"
+                    : "Search for a member and set up their birthday"}
+                </p>
+              </div>
               <button
-                className="modal-close"
+                className="bd-modal-close"
                 onClick={() => {
                   if (!processing) {
                     setShowAddModal(false);
@@ -1583,77 +1370,60 @@ export default function BirthdayManagement() {
                   }
                 }}
               >
-                <FiX size={24} />
+                <FiX size={18} />
               </button>
             </div>
 
-            <div className="modal-body">
-              {/* USER SEARCH - Only in Add mode */}
+            <div className="bd-modal-body">
               {showAddModal && !selectedUser ? (
-                <div className="search-user-section">
-                  <label className="form-label">Search for a user</label>
-
-                  <div className="search-input-wrapper">
-                    <FiSearch className="search-input-icon" />
+                <div className="bd-user-search">
+                  <div className="bd-search bd-search-full">
+                    <FiSearch size={15} />
                     <input
                       type="text"
-                      placeholder="Search by name, email, or membership number..."
+                      placeholder="Search by name, email, or membership number"
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
-                      className="search-user-input"
                     />
                   </div>
-
                   {loadingAllUsers ? (
-                    <div className="loading-users-indicator">
-                      <div className="loading-spinner" />
-                      Loading users...
-                    </div>
+                    <div className="bd-loading">Loading users...</div>
                   ) : (
-                    <div className="user-list-container">
+                    <div className="bd-user-list">
                       {filteredUsers.length === 0 ? (
-                        <div className="no-results">
-                          <FiUser size={24} />
-                          <p>No users found</p>
-                          <span>Try a different search term</span>
+                        <div className="bd-empty-inline">
+                          <FiUser size={18} />
+                          <div>
+                            <div className="bd-empty-inline-title">No users found</div>
+                            <div className="bd-empty-inline-sub">Try a different search term</div>
+                          </div>
                         </div>
                       ) : (
-                        <div className="user-list-scroll">
+                        <div className="bd-user-list-scroll">
                           {filteredUsers.map((user) => (
                             <div
                               key={user.id}
-                              className="search-result-item"
+                              className="bd-user-item"
                               onClick={() => handleSelectUser(user)}
                             >
-                              <div className="result-avatar">
+                              <div className="bd-avatar bd-avatar-sm">
                                 {user.profileImage ? (
-                                  <img
-                                    src={getImageUrl(user.profileImage)}
-                                    alt={user.fullName}
-                                  />
+                                  <img src={getImageUrl(user.profileImage)} alt={user.fullName} />
                                 ) : (
-                                  <span>
-                                    {user.fullName?.charAt(0).toUpperCase()}
-                                  </span>
+                                  <span>{user.fullName?.charAt(0).toUpperCase()}</span>
                                 )}
                               </div>
-
-                              <div className="result-info">
-                                <div className="result-name">{user.fullName}</div>
-                                <div className="result-email">{user.email}</div>
-                                <div className="result-member">
-                                  {user.membership_number}
-                                </div>
+                              <div className="bd-user-info">
+                                <div className="bd-user-name">{user.fullName}</div>
+                                <div className="bd-user-email">{user.email}</div>
+                                <div className="bd-user-member">{user.membership_number}</div>
                               </div>
-
                               {user.birthDate ? (
-                                <span className="result-birthday">
-                                  🎂 {formatDate(user.birthDate)}
+                                <span className="bd-user-birthday">
+                                  <FiCalendar size={11} /> {formatDate(user.birthDate)}
                                 </span>
                               ) : (
-                                <span className="result-no-birthday">
-                                  No birthday set
-                                </span>
+                                <span className="bd-user-nobirthday">No birthday set</span>
                               )}
                             </div>
                           ))}
@@ -1663,12 +1433,11 @@ export default function BirthdayManagement() {
                   )}
                 </div>
               ) : (
-                /* SELECTED USER FORM */
-                <div>
-                  <div className="selected-user-bar">
+                <div className="bd-form">
+                  <div className="bd-selected-user">
                     {showAddModal && (
                       <button
-                        className="back-to-search"
+                        className="bd-back-btn"
                         onClick={() => {
                           setSelectedUser(null);
                           setUserSearch("");
@@ -1676,163 +1445,117 @@ export default function BirthdayManagement() {
                         }}
                         disabled={processing}
                       >
-                        <FiArrowLeft size={16} />
-                        Change User
+                        <FiArrowLeft size={13} /> Change user
                       </button>
                     )}
-
-                    <div className="selected-user-info">
-                      <div className="selected-user-avatar">
+                    <div className="bd-selected-user-info">
+                      <div className="bd-avatar bd-avatar-sm">
                         {selectedUser?.profileImage ? (
                           <img
                             src={getImageUrl(selectedUser.profileImage)}
                             alt={selectedUser.fullName}
                           />
                         ) : (
-                          <span>
-                            {selectedUser?.fullName?.charAt(0).toUpperCase()}
-                          </span>
+                          <span>{selectedUser?.fullName?.charAt(0).toUpperCase()}</span>
                         )}
                       </div>
-
                       <div>
-                        <div className="selected-user-name">
-                          {selectedUser?.fullName}
-                        </div>
-                        <div className="selected-user-email">
-                          {selectedUser?.email}
-                        </div>
+                        <div className="bd-user-name">{selectedUser?.fullName}</div>
+                        <div className="bd-user-email">{selectedUser?.email}</div>
                       </div>
                     </div>
                   </div>
 
-                  {/* OPT IN */}
-                  <div className="form-group">
-                    <label className="form-label">
+                  <div className="bd-field">
+                    <label className="bd-checkbox-label">
                       <input
                         type="checkbox"
                         checked={addFormData.birthdayOptIn}
                         onChange={(e) =>
-                          setAddFormData({
-                            ...addFormData,
-                            birthdayOptIn: e.target.checked,
-                          })
+                          setAddFormData({ ...addFormData, birthdayOptIn: e.target.checked })
                         }
-                        className="form-checkbox"
                       />
-                      Opt in for birthday wishes
+                      <span>Opt in for birthday wishes</span>
                     </label>
                   </div>
 
-                  {/* DATE */}
-                  <div className="form-group">
-                    <label className="form-label">Birthday Date *</label>
-                    <div className="input-wrapper">
-                      <FiCalendar className="input-icon" />
+                  <div className="bd-field">
+                    <label>Birthday date *</label>
+                    <div className="bd-input-wrap">
+                      <FiCalendar size={14} className="bd-input-icon" />
                       <input
                         type="date"
                         value={addFormData.birthDate}
                         onChange={(e) =>
-                          setAddFormData({
-                            ...addFormData,
-                            birthDate: e.target.value,
-                          })
+                          setAddFormData({ ...addFormData, birthDate: e.target.value })
                         }
-                        className="date-input"
                       />
                     </div>
                   </div>
 
-                  {/* BIRTHDAY PHOTO */}
-                  <div className="form-group">
-                    <label className="form-label">
-                      <FiImage size={16} />
-                      Birthday Photo
-                    </label>
-
-                    <div className="photo-section">
-                      {addPhotoPreview ? (
-                        <div className="photo-preview-container">
-                          <img
-                            src={addPhotoPreview}
-                            alt="Birthday"
-                            className="photo-preview-img"
-                          />
-
-                          <div className="photo-overlay">
-                            <span>16:9 Birthday Image</span>
-                          </div>
-
-                          <div className="photo-actions">
-                            <label className="photo-change-btn">
-                              <FiUpload size={14} />
-                              Change Photo
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleAddPhotoSelect}
-                                className="hidden-input"
-                                disabled={processing}
-                              />
-                            </label>
-
-                            <button
-                              type="button"
-                              className="photo-remove-btn"
-                              onClick={handleRemovePhoto}
+                  <div className="bd-field">
+                    <label>Birthday photo</label>
+                    {addPhotoPreview ? (
+                      <div className="bd-photo-preview">
+                        <img src={addPhotoPreview} alt="Birthday" />
+                        <div className="bd-photo-overlay">16:9 birthday image</div>
+                        <div className="bd-photo-actions">
+                          <label className="bd-btn bd-btn-sm bd-btn-primary">
+                            <FiUpload size={12} /> Change
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleAddPhotoSelect}
+                              style={{ display: "none" }}
                               disabled={processing}
-                            >
-                              <FiTrash2 size={14} />
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <label className="upload-placeholder">
-                          <FiCamera size={36} />
-                          <strong>Upload Birthday Photo</strong>
-                          <span>Portrait or landscape images supported</span>
-                          <span className="upload-note">
-                            Automatically converted to 16:9
-                          </span>
-                          <span>PNG, JPG, WEBP — Max 10MB</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleAddPhotoSelect}
-                            className="hidden-input"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="bd-btn bd-btn-sm bd-btn-danger"
+                            onClick={handleRemovePhoto}
                             disabled={processing}
-                          />
-                        </label>
-                      )}
-                    </div>
+                          >
+                            <FiTrash2 size={12} /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="bd-upload">
+                        <FiCamera size={28} />
+                        <strong>Upload birthday photo</strong>
+                        <span>Portrait or landscape supported</span>
+                        <span className="bd-upload-note">Automatically converted to 16:9</span>
+                        <span className="bd-upload-formats">PNG, JPG, WEBP — Max 10MB</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAddPhotoSelect}
+                          style={{ display: "none" }}
+                          disabled={processing}
+                        />
+                      </label>
+                    )}
                   </div>
 
-                  {/* MESSAGE */}
-                  <div className="form-group">
-                    <label className="form-label">
-                      Personal Message (Optional)
-                    </label>
+                  <div className="bd-field">
+                    <label>Personal message (optional)</label>
                     <textarea
                       value={addFormData.birthdayMessage}
                       onChange={(e) =>
-                        setAddFormData({
-                          ...addFormData,
-                          birthdayMessage: e.target.value,
-                        })
+                        setAddFormData({ ...addFormData, birthdayMessage: e.target.value })
                       }
-                      placeholder="Write a personal birthday message..."
-                      rows="3"
-                      className="textarea"
+                      placeholder="Write a personal birthday message"
+                      rows={3}
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="modal-footer">
+            <div className="bd-modal-footer">
               <button
-                className="cancel-btn"
+                className="bd-btn"
                 onClick={() => {
                   if (!processing) {
                     setShowAddModal(false);
@@ -1844,15 +1567,19 @@ export default function BirthdayManagement() {
               >
                 Cancel
               </button>
-
               {selectedUser && (
                 <button
-                  className="save-btn"
+                  className="bd-btn bd-btn-primary"
                   onClick={handleSaveUserBirthday}
                   disabled={processing}
                 >
-                  {processing ? "Saving..." : "Save Birthday"}
-                  {!processing && <FiSave size={16} />}
+                  {processing ? (
+                    "Saving..."
+                  ) : (
+                    <>
+                      <FiSave size={13} /> Save birthday
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -1860,413 +1587,597 @@ export default function BirthdayManagement() {
         </div>
       )}
 
-      {/* =====================================================
-          DELETE CONFIRMATION MODAL
-          ===================================================== */}
-
+      {/* DELETE MODAL */}
       {showDeleteModal && userToDelete && (
-  <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-    <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-header">
-        <h2>
-          <FiTrash2 size={22} style={{ color: "#dc2626" }} />
-          Delete Birthday Data
-        </h2>
-        <button
-          className="modal-close"
-          onClick={() => {
-            setShowDeleteModal(false);
-            setUserToDelete(null);
-          }}
-        >
-          <FiX size={24} />
-        </button>
-      </div>
-
-      <div className="modal-body">
-        <div className="delete-confirm-content">
-          <FiAlertCircle size={56} color="#dc2626" />
-          <h3>Are you sure?</h3>
-          <p>
-            This will permanently delete all birthday data for{" "}
-            <strong style={{ color: "#0f172a" }}>{userToDelete.fullName}</strong>
-          </p>
-          <ul>
-            <li>Birthday date</li>
-            <li>Birthday photo</li>
-            <li>Birthday message</li>
-            <li>Opt-in status</li>
-            {userToDelete.birthdayAdvertId && typeof userToDelete.birthdayAdvertId === 'string' && (
-              <li>Birthday advertisement</li>
-            )}
-          </ul>
-          <p className="delete-warning">⚠️ This action cannot be undone.</p>
+        <div className="bd-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="bd-modal bd-modal-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="bd-modal-header">
+              <div>
+                <h2>Delete birthday data</h2>
+                <p className="bd-modal-sub">This action cannot be undone</p>
+              </div>
+              <button
+                className="bd-modal-close"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setUserToDelete(null);
+                }}
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div className="bd-modal-body">
+              <div className="bd-delete-content">
+                <div className="bd-delete-icon">
+                  <FiAlertCircle size={26} />
+                </div>
+                <h3>Delete all birthday data for {userToDelete.fullName}?</h3>
+                <p>The following will be permanently removed:</p>
+                <ul>
+                  <li>Birthday date</li>
+                  <li>Birthday photo</li>
+                  <li>Birthday message</li>
+                  <li>Opt-in status</li>
+                  {isProcessed(userToDelete.birthdayAdvertId) && <li>Birthday advertisement</li>}
+                </ul>
+              </div>
+            </div>
+            <div className="bd-modal-footer">
+              <button
+                className="bd-btn"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setUserToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button className="bd-btn bd-btn-danger-solid" onClick={handleDeleteUserBirthday}>
+                <FiTrash2 size={13} /> Delete
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="modal-footer">
-        <button
-          className="cancel-btn"
-          onClick={() => {
-            setShowDeleteModal(false);
-            setUserToDelete(null);
-          }}
-          disabled={processing}
-        >
-          Cancel
-        </button>
-        <button
-          className="delete-confirm-btn"
-          onClick={handleDeleteUserBirthday}
-          disabled={processing}
-        >
-          {processing ? "Deleting..." : "Delete Birthday Data"}
-          <FiTrash2 size={16} />
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-      {/* =========================================================
-          STYLES
-          ========================================================= */}
-
-      <style>{`
-        .birthday-admin-page { padding:24px; max-width:1200px; margin:0 auto; }
-        .admin-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
-        .admin-header-left h1 { font-size:24px; font-weight:700; color:#0f172a; margin:0 0 4px; }
-        .admin-header-left p { font-size:14px; color:#64748b; margin:0; }
-        .header-actions { display:flex; gap:10px; flex-wrap:wrap; }
-        .admin-refresh-btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 20px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px; font-size:14px; font-weight:600; color:#0f172a; cursor:pointer; transition:.2s; }
-        .admin-refresh-btn:hover { background:#e2e8f0; }
-        .add-birthday-btn { background:#2563eb; color:#fff; border-color:#2563eb; }
-        .add-birthday-btn:hover { background:#1d4ed8; }
-        .spinning { animation:spin 1s linear infinite; }
-        @keyframes spin { to { transform:rotate(360deg); } }
-
-        .admin-success-alert, .admin-error-alert { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:10px; margin-bottom:20px; }
-        .admin-success-alert { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
-        .admin-error-alert { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
-        .admin-success-alert button, .admin-error-alert button { margin-left:auto; background:none; border:none; cursor:pointer; color:inherit; }
-
-        .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:16px; }
-        .stat-card { display:flex; align-items:center; gap:14px; padding:18px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; }
-        .stat-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
-        .stat-icon.blue { background:#dbeafe; color:#2563eb; }
-        .stat-icon.green { background:#dcfce7; color:#16a34a; }
-        .stat-icon.purple { background:#f3e8ff; color:#9333ea; }
-        .stat-icon.orange { background:#fef3c7; color:#d97706; }
-        .stat-content { display:flex; flex-direction:column; }
-        .stat-value { font-size:24px; font-weight:800; color:#0f172a; }
-        .stat-label { font-size:12px; color:#64748b; }
-
-        .detailed-stats { display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap; }
-        .detail-stat { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex:1; min-width:120px; }
-        .detail-value { font-size:20px; font-weight:800; color:#0f172a; }
-        .detail-label { font-size:12px; color:#64748b; }
-
-        .settings-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; margin-bottom:24px; }
-        .settings-section h3 { display:flex; align-items:center; gap:8px; font-size:16px; font-weight:700; color:#0f172a; margin:0 0 16px; }
-        .section-description { color:#64748b; font-size:14px; margin:0 0 16px; }
-        .settings-grid { display:flex; gap:24px; flex-wrap:wrap; }
-        .toggle-label { display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; font-weight:500; color:#0f172a; }
-        .toggle-label input { display:none; }
-        .toggle-slider { position:relative; width:40px; height:22px; border-radius:999px; background:#cbd5e1; transition:.2s; }
-        .toggle-slider::after { content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.15); }
-        .toggle-label input:checked + .toggle-slider { background:#2563eb; }
-        .toggle-label input:checked + .toggle-slider::after { transform:translateX(18px); }
-
-        .whatsapp-groups-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:250px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin:8px 0; }
-        .group-checkbox { display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 12px; border-radius:8px; font-size:13px; border:1px solid transparent; }
-        .group-checkbox:hover { background:#f5f5f5; border-color:#e0e0e0; }
-        .group-checkbox input { display:none; }
-        .checkmark { width:18px; height:18px; border:2px solid #d0d0d0; border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-        .group-checkbox input:checked + .checkmark { background:#2563eb; border-color:#2563eb; }
-        .group-checkbox input:checked + .checkmark::after { content:"✓"; color:#fff; font-size:12px; }
-        .group-name { font-weight:500; flex:1; }
-        .group-participants { font-size:11px; color:#666; }
-        .group-selected-badge { font-size:10px; color:#2563eb; background:#dbeafe; padding:2px 10px; border-radius:12px; font-weight:600; }
-
-        .empty-groups { display:flex; align-items:center; gap:12px; padding:16px; background:#fef9e7; border:1px solid #fdebd0; border-radius:8px; }
-        .empty-groups-title { font-weight:500; color:#1a1a1a; font-size:14px; }
-        .empty-groups-desc { font-size:12px; color:#666; }
-        .loading-groups { padding:16px; text-align:center; color:#64748b; background:#f8fafc; border-radius:8px; }
-        .helper-text { font-size:12px; color:#64748b; margin:8px 0 12px; }
-        .save-groups-btn { width:100%; padding:10px; background:#25D366; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; }
-        .save-groups-btn:disabled { opacity:.5; cursor:not-allowed; }
-
-        .tabs-container { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
-        .tab-btn { display:flex; align-items:center; gap:8px; padding:10px 20px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px; font-size:14px; font-weight:600; color:#64748b; cursor:pointer; }
-        .tab-btn.active { background:#2563eb; color:#fff; border-color:#2563eb; }
-
-        .birthday-list-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
-        .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
-        .section-header h3 { display:flex; align-items:center; gap:8px; font-size:16px; color:#0f172a; margin:0; }
-        .search-wrapper { position:relative; display:flex; align-items:center; }
-        .search-icon { position:absolute; left:12px; color:#94a3b8; }
-        .search-input { padding:8px 12px 8px 36px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; width:280px; outline:none; }
-        .search-input:focus { border-color:#2563eb; }
-
-        .process-all-btn, .process-btn { display:flex; align-items:center; gap:8px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; }
-        .process-all-btn { padding:8px 16px; font-size:13px; }
-        .process-btn { padding:6px 14px; font-size:12px; }
-        .process-all-btn:disabled, .process-btn:disabled { opacity:.5; cursor:not-allowed; }
-
-        .empty-state { text-align:center; padding:40px; color:#94a3b8; }
-        .empty-state p { font-size:16px; font-weight:600; color:#64748b; margin:0; }
-        .empty-state span { font-size:14px; }
-
-        .birthday-list { display:flex; flex-direction:column; gap:12px; }
-        .birthday-item { display:flex; align-items:center; gap:16px; padding:14px; background:#f8fafc; border-radius:12px; border:1px solid #f1f5f9; flex-wrap:wrap; }
-        .birthday-user { display:flex; align-items:center; gap:12px; flex:1; min-width:200px; }
-        .user-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; background:#e2e8f0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-        .user-avatar img { width:100%; height:100%; object-fit:cover; }
-        .user-avatar span { font-size:18px; font-weight:700; color:#64748b; }
-        .user-info { display:flex; flex-direction:column; }
-        .user-name { font-weight:600; color:#0f172a; }
-        .user-email { font-size:12px; color:#64748b; }
-        .user-membership { font-size:11px; color:#94a3b8; }
-        .user-birthday { font-size:12px; color:#2563eb; font-weight:600; }
-        .birthday-status { flex-shrink:0; }
-        .badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-        .badge.completed { background:#dcfce7; color:#16a34a; }
-        .badge.pending { background:#fef3c7; color:#d97706; }
-        .badge.processing { background:#dbeafe; color:#2563eb; }
-        .birthday-actions { display:flex; gap:8px; flex-wrap:wrap; }
-        .edit-user-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
-        .edit-user-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .toggle-optin-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; background:#f1f5f9; color:#0f172a; border:1px solid #e2e8f0; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
-        .toggle-optin-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .delete-user-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
-        .delete-user-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .delete-ad-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
-        .delete-ad-btn:disabled { opacity:.5; cursor:not-allowed; }
-
-        /* MODAL STYLES */
-        .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
-        .modal-content { background:#fff; border-radius:16px; max-width:640px; width:100%; max-height:90vh; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-       .delete-modal {
-  max-width: 480px;
-  width: 100%;
-  margin: auto;
-  position: relative;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
-}
-
-.modal-content {
-  background: #fff;
-  border-radius: 16px;
-  max-width: 640px;
-  width: 100%;
-  max-height: 90vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
-  margin: auto;
-}
-
-.delete-modal .modal-body {
-  text-align: center;
-  padding: 32px 24px;
-}
-
-.delete-confirm-content {
-  text-align: center;
-  padding: 10px 0;
-}
-
-.delete-confirm-content h3 {
-  font-size: 22px;
-  color: #0f172a;
-  margin: 16px 0 8px;
-}
-
-.delete-confirm-content p {
-  color: #64748b;
-  font-size: 15px;
-  margin: 8px 0;
-  line-height: 1.6;
-}
-
-.delete-confirm-content ul {
-  text-align: left;
-  color: #64748b;
-  font-size: 14px;
-  margin: 16px auto;
-  padding-left: 20px;
-  max-width: 320px;
-  list-style: disc;
-}
-
-.delete-confirm-content ul li {
-  margin: 6px 0;
-}
-
-.delete-warning {
-  color: #dc2626 !important;
-  font-weight: 700;
-  margin-top: 12px !important;
-  padding: 10px;
-  background: #fef2f2;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.delete-confirm-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 24px;
-  background: #dc2626;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.delete-confirm-btn:hover:not(:disabled) {
-  background: #b91c1c;
-  transform: translateY(-1px);
-}
-
-.delete-confirm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-        .modal-header { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #e2e8f0; }
-        .modal-header h2 { display:flex; align-items:center; gap:10px; font-size:18px; color:#0f172a; margin:0; }
-        .modal-close { background:none; border:none; color:#94a3b8; cursor:pointer; }
-        .modal-body { padding:24px; overflow:auto; max-height:calc(90vh - 140px); }
-        .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:16px 24px; border-top:1px solid #e2e8f0; }
-        .cancel-btn { padding:8px 20px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
-        .cancel-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .save-btn { display:flex; align-items:center; gap:8px; padding:8px 20px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
-        .save-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .delete-confirm-btn { display:flex; align-items:center; gap:8px; padding:8px 20px; background:#dc2626; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
-        .delete-confirm-btn:disabled { opacity:.5; cursor:not-allowed; }
-
-        .delete-confirm-content { text-align:center; padding:16px 0; }
-        .delete-confirm-content h3 { font-size:20px; color:#0f172a; margin:12px 0 8px; }
-        .delete-confirm-content p { color:#64748b; font-size:14px; margin:8px 0; }
-        .delete-confirm-content ul { text-align:left; color:#64748b; font-size:14px; margin:12px auto; padding-left:24px; max-width:300px; }
-        .delete-confirm-content ul li { margin:4px 0; }
-        .delete-warning { color:#dc2626 !important; font-weight:600; }
-
-        /* USER SEARCH */
-        .search-user-section { display:flex; flex-direction:column; gap:12px; }
-        .form-label { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:#0f172a; }
-        .form-checkbox { width:18px; height:18px; accent-color:#2563eb; }
-        .search-input-wrapper { position:relative; }
-        .search-input-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; }
-        .search-user-input { width:100%; padding:10px 12px 10px 40px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; outline:none; box-sizing:border-box; }
-        .search-user-input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.1); }
-
-        .user-list-container { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
-        .user-list-scroll { max-height:350px; overflow-y:auto; }
-        .user-list-scroll::-webkit-scrollbar { width:6px; }
-        .user-list-scroll::-webkit-scrollbar-track { background:#f1f5f9; }
-        .user-list-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
-
-        .search-result-item { display:flex; align-items:center; gap:12px; padding:10px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
-        .search-result-item:last-child { border-bottom:none; }
-        .search-result-item:hover { background:#f8fafc; }
-        .result-avatar, .selected-user-avatar { width:40px; height:40px; border-radius:50%; overflow:hidden; background:#e2e8f0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-        .result-avatar { width:36px; height:36px; }
-        .result-avatar img, .selected-user-avatar img { width:100%; height:100%; object-fit:cover; }
-        .result-info { flex:1; }
-        .result-name { font-weight:600; font-size:14px; color:#0f172a; }
-        .result-email { font-size:12px; color:#64748b; }
-        .result-member { font-size:11px; color:#94a3b8; }
-        .result-birthday { font-size:11px; color:#2563eb; background:#dbeafe; padding:2px 8px; border-radius:12px; }
-        .result-no-birthday { font-size:11px; color:#94a3b8; }
-
-        .loading-users-indicator { display:flex; align-items:center; justify-content:center; gap:12px; padding:40px; color:#64748b; }
-        .loading-spinner { width:24px; height:24px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:spin .8s linear infinite; }
-        .no-results { text-align:center; padding:40px; color:#94a3b8; }
-        .no-results p { font-weight:600; color:#64748b; margin:4px 0; }
-
-        .selected-user-bar { display:flex; align-items:center; gap:16px; padding:12px 16px; background:#f8fafc; border-radius:12px; margin-bottom:20px; flex-wrap:wrap; }
-        .back-to-search { display:flex; align-items:center; gap:6px; background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; }
-        .back-to-search:hover { color:#0f172a; }
-        .selected-user-info { display:flex; align-items:center; gap:12px; flex:1; }
-        .selected-user-name { font-weight:600; color:#0f172a; }
-        .selected-user-email { font-size:12px; color:#64748b; }
-
-        .form-group { margin-bottom:16px; }
-        .input-wrapper { position:relative; }
-        .input-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; }
-        .date-input, .textarea { width:100%; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; outline:none; box-sizing:border-box; }
-        .date-input { padding:10px 12px 10px 40px; }
-        .date-input:focus, .textarea:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.1); }
-        .textarea { padding:10px 12px; resize:vertical; font-family:inherit; min-height:80px; }
-
-        .photo-section { position:relative; margin-top:10px; }
-        .photo-preview-container { position:relative; border-radius:12px; overflow:hidden; background:#0f172a; }
-        .photo-preview-img { width:100%; aspect-ratio:16/9; object-fit:contain; display:block; background:#0f172a; }
-        .photo-overlay { position:absolute; top:10px; left:10px; background:rgba(15,23,42,.75); color:#fff; padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; pointer-events:none; }
-        .photo-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-        .photo-change-btn, .photo-remove-btn { display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
-        .photo-change-btn { background:#2563eb; color:#fff; }
-        .photo-remove-btn { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
-        .hidden-input { display:none; }
-        .upload-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:170px; border:2px dashed #cbd5e1; border-radius:12px; background:#f8fafc; cursor:pointer; padding:20px; gap:7px; text-align:center; color:#64748b; transition:.2s; }
-        .upload-placeholder:hover { border-color:#2563eb; background:#eff6ff; color:#2563eb; }
-        .upload-placeholder strong { color:#0f172a; font-size:15px; }
-        .upload-note { color:#2563eb; font-weight:600; font-size:12px; }
-
-        @media(max-width:768px) {
-          .birthday-admin-page { padding:16px; }
-          .stats-grid { grid-template-columns:repeat(2,1fr); }
-          .settings-grid { flex-direction:column; gap:12px; }
-          .birthday-item { flex-wrap:wrap; }
-          .birthday-status { margin-left:auto; }
-          .search-input { width:100%; }
-          .whatsapp-groups-grid { grid-template-columns:1fr; }
-          .admin-header { flex-direction:column; align-items:stretch; }
-          .header-actions { width:100%; }
-          .header-actions button { flex:1; }
-          .modal-content { max-height:95vh; }
-          .modal-body { max-height:calc(95vh - 130px); }
-          .birthday-actions { width:100%; }
-          .birthday-actions button { flex:1; justify-content:center; }
-        }
-
-        @media(max-width:480px) {
-          .stats-grid { grid-template-columns:1fr; }
-          .section-header { flex-direction:column; align-items:stretch; }
-          .search-wrapper { width:100%; }
-          .search-input { width:100%; }
-          .process-all-btn { width:100%; justify-content:center; }
-          .selected-user-bar { flex-direction:column; align-items:stretch; }
-          .modal-overlay { padding:10px; }
-          .modal-body { padding:18px; }
-          .modal-header, .modal-footer { padding-left:18px; padding-right:18px; }
-        }
-      `}</style>
+      <style>{mainCSS}</style>
     </div>
   );
 }
+
+/* =========================================================
+   STYLES
+   ========================================================= */
+const baseCSS = `
+  .bd-page {
+    background: #fafafa;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #171717;
+    -webkit-font-smoothing: antialiased;
+  }
+  .bd-container { padding: 28px 24px 60px; max-width: 1280px; margin: 0 auto; }
+  .bd-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 20px; flex-wrap: wrap; padding-bottom: 22px;
+    border-bottom: 1px solid #e5e5e5; margin-bottom: 22px;
+  }
+  .bd-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: #737373; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+  }
+  .bd-title { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: -0.5px; color: #0f0f0f; }
+  .bd-subtitle { font-size: 13.5px; color: #737373; margin: 4px 0 0 0; }
+  .bd-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .bd-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 13px; border-radius: 9px; border: 1px solid #e5e5e5;
+    background: #ffffff; color: #262626; cursor: pointer;
+    font-size: 12.5px; font-weight: 600;
+    transition: all 0.15s ease; white-space: nowrap; font-family: inherit;
+  }
+  .bd-btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
+  .bd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .bd-btn-primary { background: #0f0f0f; color: #ffffff; border-color: #0f0f0f; }
+  .bd-btn-primary:hover { background: #262626; border-color: #262626; }
+  .bd-btn-danger { color: #b91c1c; border-color: #fecaca; }
+  .bd-btn-danger:hover { background: #fef2f2; border-color: #fca5a5; }
+  .bd-btn-danger-solid { background: #dc2626; color: #ffffff; border-color: #dc2626; }
+  .bd-btn-danger-solid:hover { background: #b91c1c; }
+  .bd-btn-sm { padding: 6px 10px; font-size: 12px; }
+  .bd-btn-full { width: 100%; justify-content: center; }
+
+  .bd-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid #e5e5e5; background: #ffffff; color: #525252;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .bd-icon-btn:hover { background: #f5f5f5; color: #171717; }
+
+  .bd-spin { animation: bd-spin 0.9s linear infinite; }
+  @keyframes bd-spin { to { transform: rotate(360deg); } }
+
+  .bd-sort {
+    position: relative; display: inline-flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 9px;
+    height: 38px; padding: 0 30px 0 12px; min-width: 190px;
+    transition: border-color 0.15s ease;
+  }
+  .bd-sort:hover { border-color: #d4d4d4; }
+  .bd-sort:focus-within { border-color: #0f0f0f; }
+  .bd-sort-label {
+    font-size: 11px; color: #a3a3a3; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    flex-shrink: 0; padding-right: 6px; border-right: 1px solid #f0f0f0;
+  }
+  .bd-sort select {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 12.5px; color: #171717; font-weight: 500;
+    cursor: pointer; appearance: none; font-family: inherit; padding: 0; min-width: 0;
+  }
+  .bd-sort-chevron { position: absolute; right: 11px; pointer-events: none; color: #a3a3a3; }
+
+  .bd-alert {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;
+    font-size: 13px; font-weight: 500;
+  }
+  .bd-alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .bd-alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .bd-alert button {
+    margin-left: auto; background: none; border: none; cursor: pointer;
+    color: inherit; padding: 4px; border-radius: 6px; display: flex;
+  }
+  .bd-alert button:hover { background: rgba(0,0,0,0.05); }
+
+  .bd-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 768px) { .bd-stats { grid-template-columns: repeat(2, 1fr); } }
+  .bd-stat {
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px;
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+  }
+  .bd-stat-icon {
+    width: 40px; height: 40px; border-radius: 10px; background: #f5f5f5;
+    color: #262626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .bd-stat-value { font-size: 22px; font-weight: 800; color: #0f0f0f; letter-spacing: -0.5px; line-height: 1.1; }
+  .bd-stat-label {
+    font-size: 11px; color: #737373; text-transform: uppercase;
+    letter-spacing: 0.05em; font-weight: 600; margin-top: 2px;
+  }
+
+  .bd-detail-stats { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+  .bd-detail-stat {
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 10px;
+    padding: 10px 16px; display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 140px;
+  }
+  .bd-detail-value { font-size: 16px; font-weight: 800; color: #0f0f0f; }
+  .bd-detail-label { font-size: 12px; color: #737373; font-weight: 500; }
+
+  .bd-section-tabs {
+    display: flex; gap: 4px; border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 22px; overflow-x: auto; scrollbar-width: none;
+  }
+  .bd-section-tabs::-webkit-scrollbar { display: none; }
+  .bd-section-tab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 11px 14px; background: transparent; border: none;
+    border-bottom: 2px solid transparent; color: #737373;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s ease; white-space: nowrap; margin-bottom: -1px; font-family: inherit;
+  }
+  .bd-section-tab:hover { color: #262626; }
+  .bd-section-tab.active { color: #0f0f0f; border-bottom-color: #0f0f0f; }
+
+  .bd-panel {
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 14px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .bd-panel-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .bd-panel-head h3 {
+    font-size: 14px; font-weight: 700; color: #0f0f0f; margin: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bd-panel-head h3 svg { color: #737373; }
+  .bd-panel-sub { font-size: 12.5px; color: #a3a3a3; margin: 4px 0 0 0; }
+  .bd-panel-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .bd-toolbar {
+    display: flex; gap: 10px; margin-bottom: 14px;
+    flex-wrap: wrap; align-items: center;
+  }
+  .bd-toolbar .bd-search { flex: 1; min-width: 240px; max-width: none; }
+
+  .bd-toggles { display: flex; flex-direction: column; gap: 12px; }
+  .bd-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+  .bd-toggle input { display: none; }
+  .bd-toggle-slider {
+    position: relative; width: 36px; height: 20px; border-radius: 999px;
+    background: #e5e5e5; transition: all 0.2s ease; flex-shrink: 0;
+  }
+  .bd-toggle-slider::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%; background: #ffffff;
+    transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .bd-toggle input:checked + .bd-toggle-slider { background: #0f0f0f; }
+  .bd-toggle input:checked + .bd-toggle-slider::after { transform: translateX(16px); }
+  .bd-toggle-text { font-size: 13.5px; color: #262626; font-weight: 500; }
+
+  .bd-groups-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    max-height: 340px; overflow-y: auto; padding: 2px; margin-bottom: 14px;
+  }
+  @media (max-width: 640px) { .bd-groups-grid { grid-template-columns: 1fr; } }
+  .bd-group-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border-radius: 10px; border: 1px solid #e5e5e5; background: #ffffff;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .bd-group-card:hover { border-color: #d4d4d4; background: #fafafa; }
+  .bd-group-card.selected { border-color: #0f0f0f; background: #fafafa; }
+  .bd-group-card input { display: none; }
+  .bd-group-check {
+    width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid #d4d4d4;
+    background: #ffffff; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.15s ease;
+  }
+  .bd-group-card input:checked + .bd-group-check { background: #0f0f0f; border-color: #0f0f0f; }
+  .bd-group-card input:checked + .bd-group-check::after {
+    content: "✓"; color: #ffffff; font-size: 11px; font-weight: 700;
+  }
+  .bd-group-info { flex: 1; min-width: 0; }
+  .bd-group-name {
+    font-size: 13px; font-weight: 600; color: #171717;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bd-group-meta { font-size: 11.5px; color: #a3a3a3; margin-top: 2px; }
+
+  .bd-helper { font-size: 12px; color: #737373; margin-bottom: 12px; }
+
+  .bd-tabs {
+    display: flex; gap: 4px; background: #f5f5f5; padding: 4px;
+    border-radius: 10px; margin-bottom: 16px; width: fit-content; max-width: 100%;
+  }
+  .bd-tab {
+    display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
+    background: transparent; border: none; border-radius: 7px;
+    color: #737373; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s ease; font-family: inherit;
+  }
+  .bd-tab:hover { color: #262626; }
+  .bd-tab.active {
+    background: #ffffff; color: #0f0f0f; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .bd-tab-badge {
+    background: #e5e5e5; color: #525252; padding: 1px 7px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; min-width: 18px; text-align: center;
+  }
+  .bd-tab.active .bd-tab-badge { background: #0f0f0f; color: #ffffff; }
+
+  .bd-search {
+    flex: 1; min-width: 240px; max-width: 360px;
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 9px;
+    padding: 0 12px; height: 38px; color: #737373; transition: border-color 0.15s ease;
+  }
+  .bd-search:focus-within { border-color: #a3a3a3; }
+  .bd-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 12.5px; color: #171717; font-family: inherit; height: 100%;
+  }
+  .bd-search input::placeholder { color: #a3a3a3; }
+  .bd-search-clear {
+    background: transparent; border: none; cursor: pointer; color: #a3a3a3;
+    padding: 3px; border-radius: 6px; display: flex;
+  }
+  .bd-search-clear:hover { background: #f5f5f5; color: #525252; }
+  .bd-search-full { max-width: none; width: 100%; margin-bottom: 12px; }
+
+  .bd-list { display: flex; flex-direction: column; }
+  .bd-row {
+    display: grid; grid-template-columns: 1fr auto auto;
+    align-items: center; gap: 16px; padding: 14px 4px;
+    border-bottom: 1px solid #f5f5f5; transition: background 0.12s ease;
+  }
+  .bd-row:last-child { border-bottom: none; }
+  .bd-row:hover { background: #fafafa; }
+
+  .bd-month-divider {
+    font-size: 11px;
+    font-weight: 700;
+    color: #a3a3a3;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 16px 4px 6px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 4px;
+    margin-top: 4px;
+  }
+  .bd-month-divider:first-child { padding-top: 4px; margin-top: 0; }
+
+  .bd-row-user { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .bd-avatar {
+    width: 42px; height: 42px; border-radius: 12px; background: #f5f5f5;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    flex-shrink: 0; font-size: 15px; font-weight: 700; color: #525252;
+  }
+  .bd-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .bd-avatar-sm { width: 36px; height: 36px; border-radius: 10px; font-size: 13px; }
+  .bd-user-info { min-width: 0; flex: 1; }
+  .bd-user-name {
+    font-size: 13.5px; font-weight: 600; color: #171717;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bd-user-email {
+    font-size: 12px; color: #737373;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bd-user-member { font-size: 11px; color: #a3a3a3; margin-top: 1px; }
+  .bd-user-detail-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+  .bd-user-birthday {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; color: #525252; font-weight: 600;
+    background: #f5f5f5; padding: 2px 8px; border-radius: 999px;
+  }
+  .bd-user-nobirthday { font-size: 11px; color: #a3a3a3; }
+
+  .bd-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .bd-badge-success { background: #f0fdf4; color: #15803d; }
+  .bd-badge-warn { background: #fffbeb; color: #b45309; }
+  .bd-badge-info { background: #eff6ff; color: #1d4ed8; }
+  .bd-badge-neutral { background: #f5f5f5; color: #525252; }
+
+  .bd-row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  .bd-row-menu-wrap { position: relative; }
+  .bd-row-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 10px;
+    padding: 4px; min-width: 190px;
+    box-shadow: 0 10px 25px -5px rgba(15, 15, 15, 0.15);
+    z-index: 30; animation: bd-menu-in 0.12s ease;
+  }
+  @keyframes bd-menu-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .bd-row-menu button {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 8px 10px; background: transparent; border: none;
+    color: #262626; font-size: 12.5px; font-weight: 500;
+    text-align: left; border-radius: 7px; cursor: pointer;
+    transition: background 0.12s ease; font-family: inherit;
+  }
+  .bd-row-menu button:hover { background: #f5f5f5; }
+  .bd-row-menu-danger { color: #b91c1c !important; }
+  .bd-row-menu-danger:hover { background: #fef2f2 !important; }
+  .bd-row-menu-divider { height: 1px; background: #f0f0f0; margin: 4px 6px; }
+
+  .bd-empty {
+    text-align: center; padding: 56px 24px; color: #a3a3a3;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .bd-empty svg { color: #d4d4d4; }
+  .bd-empty-title { font-size: 14.5px; font-weight: 700; color: #262626; margin-top: 4px; }
+  .bd-empty-sub { font-size: 12.5px; color: #a3a3a3; }
+
+  .bd-empty-inline {
+    display: flex; align-items: center; gap: 12px; padding: 18px;
+    background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; color: #737373;
+  }
+  .bd-empty-inline-title { font-size: 13px; font-weight: 600; color: #262626; }
+  .bd-empty-inline-sub { font-size: 12px; color: #a3a3a3; margin-top: 2px; }
+
+  .bd-loading { padding: 32px 16px; text-align: center; color: #a3a3a3; font-size: 13px; }
+
+  .bd-modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 15, 15, 0.5);
+    backdrop-filter: blur(2px); display: flex; align-items: center;
+    justify-content: center; padding: 16px; z-index: 1000;
+  }
+  .bd-modal {
+    background: #ffffff; border-radius: 16px; width: 100%; max-width: 640px;
+    max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.2);
+    animation: bd-modal-in 0.2s ease;
+  }
+  .bd-modal-sm { max-width: 460px; }
+  @keyframes bd-modal-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .bd-modal-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 22px; border-bottom: 1px solid #f0f0f0; gap: 12px;
+  }
+  .bd-modal-header h2 {
+    font-size: 16px; font-weight: 700; color: #0f0f0f;
+    margin: 0; letter-spacing: -0.2px;
+  }
+  .bd-modal-sub { font-size: 12.5px; color: #a3a3a3; margin: 4px 0 0 0; }
+  .bd-modal-close {
+    background: transparent; border: none; color: #a3a3a3; cursor: pointer;
+    padding: 6px; border-radius: 6px; display: flex; transition: all 0.15s ease;
+  }
+  .bd-modal-close:hover { background: #f5f5f5; color: #171717; }
+  .bd-modal-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+  .bd-modal-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 14px 22px; border-top: 1px solid #f0f0f0; background: #fafafa;
+  }
+
+  .bd-form { display: flex; flex-direction: column; gap: 16px; }
+  .bd-selected-user {
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+    background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; flex-wrap: wrap;
+  }
+  .bd-selected-user-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  .bd-back-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; border: 1px solid #e5e5e5; padding: 5px 10px;
+    border-radius: 7px; color: #525252; font-size: 11.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all 0.15s ease;
+  }
+  .bd-back-btn:hover { background: #f5f5f5; color: #171717; }
+  .bd-back-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .bd-field { display: flex; flex-direction: column; gap: 7px; }
+  .bd-field > label {
+    font-size: 11.5px; font-weight: 700; color: #525252;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .bd-field input[type="date"],
+  .bd-field input[type="text"],
+  .bd-field textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid #e5e5e5;
+    border-radius: 9px; font-size: 13.5px; color: #171717;
+    font-family: inherit; background: #ffffff; transition: border-color 0.15s ease;
+  }
+  .bd-field input:focus, .bd-field textarea:focus { outline: none; border-color: #0f0f0f; }
+  .bd-field textarea { resize: vertical; min-height: 80px; }
+
+  .bd-input-wrap { position: relative; }
+  .bd-input-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: #a3a3a3; pointer-events: none;
+  }
+  .bd-input-wrap input { padding-left: 36px; }
+
+  .bd-checkbox-label {
+    display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+    font-size: 13px; color: #262626; font-weight: 500;
+    text-transform: none; letter-spacing: normal;
+  }
+  .bd-checkbox-label input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #0f0f0f; cursor: pointer;
+  }
+
+  .bd-photo-preview { position: relative; border-radius: 10px; overflow: hidden; background: #0f0f0f; }
+  .bd-photo-preview img {
+    width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+    display: block; background: #0f0f0f;
+  }
+  .bd-photo-overlay {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(15, 15, 15, 0.7); color: #ffffff;
+    padding: 4px 9px; border-radius: 6px; font-size: 10.5px; font-weight: 600;
+    pointer-events: none;
+  }
+  .bd-photo-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  .bd-upload {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 160px; padding: 24px;
+    border: 2px dashed #d4d4d4; border-radius: 12px; background: #fafafa;
+    color: #737373; cursor: pointer; transition: all 0.15s ease;
+    text-align: center; gap: 6px;
+  }
+  .bd-upload:hover { border-color: #0f0f0f; background: #f5f5f5; color: #262626; }
+  .bd-upload strong {
+    font-size: 13.5px; color: #171717; font-weight: 600; margin-top: 4px;
+  }
+  .bd-upload span { font-size: 12px; }
+  .bd-upload-note { color: #525252; font-weight: 600; font-size: 11.5px; }
+  .bd-upload-formats { color: #a3a3a3; font-size: 11px; }
+
+  .bd-user-search { display: flex; flex-direction: column; }
+  .bd-user-list { border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
+  .bd-user-list-scroll { max-height: 360px; overflow-y: auto; }
+  .bd-user-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: background 0.12s ease;
+  }
+  .bd-user-item:last-child { border-bottom: none; }
+  .bd-user-item:hover { background: #fafafa; }
+
+  .bd-delete-content { text-align: center; }
+  .bd-delete-icon {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: #fef2f2; color: #b91c1c;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;
+  }
+  .bd-delete-content h3 { font-size: 15px; font-weight: 700; color: #0f0f0f; margin: 0 0 6px; }
+  .bd-delete-content p { font-size: 13px; color: #737373; margin: 0 0 12px; }
+  .bd-delete-content ul {
+    text-align: left; list-style: disc; padding-left: 22px;
+    margin: 0 auto; max-width: 300px; font-size: 12.5px; color: #525252; line-height: 1.8;
+  }
+
+  @media (max-width: 768px) {
+    .bd-container { padding: 20px 16px 40px; }
+    .bd-title { font-size: 22px; }
+    .bd-row { grid-template-columns: 1fr auto; gap: 10px; }
+    .bd-row-status { grid-column: 1 / -1; }
+    .bd-row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+    .bd-search { max-width: none; width: 100%; }
+    .bd-panel-head { flex-direction: column; align-items: stretch; }
+    .bd-panel-actions { width: 100%; justify-content: space-between; }
+    .bd-sort { min-width: 0; width: 100%; }
+    .bd-toolbar { flex-direction: column; align-items: stretch; }
+    .bd-toolbar .bd-sort { width: 100%; }
+  }
+`;
+
+const skeletonCSS = `
+  ${baseCSS}
+  .bd-skeleton {
+    background: #ececec; border-radius: 6px; position: relative; overflow: hidden;
+  }
+  .bd-skeleton::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+    animation: bd-shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes bd-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .bd-skeleton-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 20px; padding-bottom: 22px; border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 22px; flex-wrap: wrap;
+  }
+  .bd-skeleton-title { width: 220px; height: 26px; }
+  .bd-skeleton-subtitle { width: 300px; height: 13px; margin-top: 8px; }
+  .bd-skeleton-actions { display: flex; gap: 8px; }
+  .bd-skeleton-btn { width: 120px; height: 38px; border-radius: 9px; }
+  .bd-skeleton-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 22px;
+  }
+  @media (max-width: 768px) { .bd-skeleton-stats { grid-template-columns: repeat(2, 1fr); } }
+  .bd-skeleton-stat {
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px;
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+  }
+  .bd-skeleton-icon { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+  .bd-skeleton-line-md { height: 18px; border-radius: 4px; }
+  .bd-skeleton-line-sm { height: 11px; border-radius: 4px; }
+  .bd-skeleton-panel {
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 14px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .bd-skeleton-list { display: flex; flex-direction: column; }
+  .bd-skeleton-row {
+    display: flex; align-items: center; gap: 14px; padding: 14px 4px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .bd-skeleton-row:last-child { border-bottom: none; }
+  .bd-skeleton-avatar { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; }
+  .bd-skeleton-pill { width: 100px; height: 22px; border-radius: 999px; }
+  .bd-skeleton-btn-sm { width: 70px; height: 32px; border-radius: 8px; }
+`;
+
+const mainCSS = baseCSS;
+

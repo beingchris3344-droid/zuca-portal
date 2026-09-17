@@ -13,6 +13,7 @@ import {
   FaBookReader, FaUniversity, FaCogs, FaWhatsapp, FaMusic,
   FaPray, FaMailBulk,
   FaClock,
+  FaAdversal,
 } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
@@ -245,7 +246,8 @@ export default function AdminLayout() {
         { label: "Birthdays", path: "/admin/birthday", icon: <FaUserTie /> },
         { label: "Countdown Settings", path: "/admin/countdown-settings", icon: <FaClock /> },
         { label: "System Monitor", path: "/admin/health-centre", icon: <FaShieldAlt /> },
-        { label: "Manual", path: "security", icon: <FaBookReader/>}
+        { label: "Manual", path: "security", icon: <FaBookReader/>},
+        { label: "Adverts", path: "/admin/advertisements",icon: <FaAdversal/> },
       ],
     },
     {

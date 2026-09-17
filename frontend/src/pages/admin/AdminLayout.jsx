@@ -12,6 +12,7 @@ import {
   FaHandHoldingHeart, FaPrayingHands, FaFileAlt, FaShieldAlt,
   FaBookReader, FaUniversity, FaCogs, FaWhatsapp, FaMusic,
   FaPray, FaMailBulk,
+  FaClock,
 } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
@@ -235,6 +236,16 @@ export default function AdminLayout() {
         { label: "Feedback Management", path: "feedback", icon: <FaComments /> },
         { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },
          { label: "Announcements", path: "announcements", icon: <FiBell /> },
+      ],
+    },
+
+    {
+      label: "Tools",
+      items: [
+        { label: "Birthdays", path: "/admin/birthday", icon: <FaUserTie /> },
+        { label: "Countdown Settings", path: "/admin/countdown-settings", icon: <FaClock /> },
+        { label: "System Monitor", path: "/admin/health-centre", icon: <FaShieldAlt /> },
+        { label: "Manual", path: "security", icon: <FaBookReader/>}
       ],
     },
     {

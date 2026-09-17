@@ -2,18 +2,28 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import BASE_URL from "../../api";
-import { 
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   FiActivity, FiServer, FiDatabase, FiAlertCircle, FiClock, FiUsers,
   FiUserCheck, FiLock, FiBarChart2, FiRefreshCw, FiDownload,
   FiTrash2, FiCpu, FiGlobe, FiMessageSquare, FiHardDrive,
   FiX, FiCheckCircle, FiLoader, FiEye, FiTrendingUp,
-  FiShield, FiZap, FiMail, FiVideo,
-  FiSettings
+  FiShield, FiMail, FiSettings, FiChevronRight,
 } from "react-icons/fi";
+
+const EMPTY_METRICS = {
+  totalSize: 0,
+  usedSize: 0,
+  freeSize: 0,
+  percentUsed: 0,
+  totalFiles: 0,
+  images: 0,
+  videos: 0,
+  documents: 0,
+};
 
 function AdminHealthCentre() {
   const [loading, setLoading] = useState(true);
@@ -30,458 +40,335 @@ function AdminHealthCentre() {
   const [databaseStats, setDatabaseStats] = useState(null);
   const [recentLogins, setRecentLogins] = useState([]);
   const [failedLogins, setFailedLogins] = useState([]);
-  const [storageMetrics, setStorageMetrics] = useState({
-    totalSize: 0,
-    usedSize: 0,
-    freeSize: 0,
-    percentUsed: 0,
-    totalFiles: 0,
-    images: 0,
-    videos: 0,
-    documents: 0
-  });
+  const [storageMetrics, setStorageMetrics] = useState(EMPTY_METRICS);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedError, setSelectedError] = useState(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [testingService, setTestingService] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [activeTab, setActiveTab] = useState("overview");
 
   const [errorTrend, setErrorTrend] = useState([]);
   const [responseTimeTrend, setResponseTimeTrend] = useState([]);
-  const [userActivityTrend, setUserActivityTrend] = useState([]);
 
   const getStatusColor = (status) => {
-    if (status === 'healthy' || status === 'configured' || status === 'working') return '#10b981';
-    if (status === 'degraded' || status === 'initializing') return '#f59e0b';
-    if (status === 'down' || status === 'missing' || status === 'error') return '#ef4444';
-    return '#6b7280';
+    if (status === "healthy" || status === "configured" || status === "working") return "#16a34a";
+    if (status === "degraded" || status === "initializing") return "#d97706";
+    if (status === "down" || status === "missing" || status === "error") return "#dc2626";
+    return "#94a3b8";
   };
 
   const getStatusLabel = (status) => {
     const labels = {
-      'healthy': '✅ Healthy',
-      'configured': '✅ Configured',
-      'working': '✅ Working',
-      'degraded': '⚠️ Degraded',
-      'initializing': '🔄 Initializing',
-      'down': '❌ Down',
-      'missing': '❌ Missing',
-      'error': '❌ Error'
+      healthy: "Healthy",
+      configured: "Configured",
+      working: "Working",
+      degraded: "Degraded",
+      initializing: "Initializing",
+      down: "Down",
+      missing: "Missing",
+      error: "Error",
     };
-    return labels[status] || status;
+    return labels[status] || (status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown");
   };
 
   const handleTestService = async (service) => {
     setTestingService(service);
     try {
       const token = localStorage.getItem("token");
-      if (service === 'email') {
-        await axios.post(`${BASE_URL}/api/admin/health/test-email`, {}, { headers: { Authorization: `Bearer ${token}` } });
-        alert("✅ Test email sent successfully");
-      } else if (service === 'youtube') {
-        const res = await axios.post(`${BASE_URL}/api/admin/health/test-youtube`, {}, { headers: { Authorization: `Bearer ${token}` } });
-        alert(res.data.message || "✅ YouTube API working");
+      if (service === "email") {
+        await axios.post(
+          `${BASE_URL}/api/admin/health/test-email`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert("Test email sent successfully.");
+      } else if (service === "youtube") {
+        const res = await axios.post(
+          `${BASE_URL}/api/admin/health/test-youtube`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert(res.data.message || "YouTube API responded successfully.");
       }
     } catch (error) {
-      alert(`❌ Test failed: ${error.response?.data?.error || error.message}`);
+      alert(`Test failed: ${error.response?.data?.error || error.message}`);
     } finally {
       setTestingService(null);
     }
   };
 
-const handleExportLogs = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    
-    const response = await fetch(`${BASE_URL}/api/admin/health/export-logs`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.status}`);
+  const getUserDisplay = (userId) => {
+    if (!userId) return "Unknown user";
+    const onlineUser = onlineUsers.find((u) => u.id === userId);
+    if (onlineUser) return onlineUser.fullName || onlineUser.email || userId;
+    const loginUser = recentLogins.find((u) => u.id === userId);
+    if (loginUser) return loginUser.fullName || loginUser.email || userId;
+    return userId;
+  };
+
+  const handleExportLogs = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BASE_URL}/api/admin/health/export-logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+      const data = await response.json();
+
+      const calculateHealthScore = () => {
+        let score = 100;
+        const errorCount = data.errors?.length || 0;
+        const slowCount = data.slowRequests?.length || 0;
+        if (errorCount > 50) score -= 20;
+        else if (errorCount > 20) score -= 10;
+        else if (errorCount > 5) score -= 5;
+        if (slowCount > 20) score -= 15;
+        else if (slowCount > 10) score -= 8;
+        else if (slowCount > 5) score -= 3;
+        return Math.max(0, Math.min(100, score));
+      };
+
+      const score = calculateHealthScore();
+      const statusClass = score > 80 ? "good" : score > 50 ? "warn" : "bad";
+      const statusText =
+        score > 80
+          ? "System is healthy"
+          : score > 50
+          ? "System is degraded"
+          : "System needs attention";
+
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>ZUCA System Health Report</title>
+            <style>
+              * { box-sizing: border-box; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                padding: 40px; max-width: 1200px; margin: 0 auto;
+                color: #1e293b; background: #ffffff;
+              }
+              .header {
+                border-bottom: 3px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px;
+                display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+              }
+              h1 { font-size: 26px; margin: 0; color: #1e293b; }
+              .subtitle { font-size: 13px; color: #64748b; margin: 5px 0 0 0; }
+              .meta { text-align: right; font-size: 13px; color: #64748b; }
+              .section {
+                background: #f8fafc; border-radius: 12px; padding: 20px; margin: 25px 0;
+                border: 1px solid #e2e8f0; page-break-inside: avoid;
+              }
+              .section-title { font-size: 17px; font-weight: 600; margin: 0 0 15px 0; }
+              .summary-grid {
+                display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 15px 0;
+              }
+              .summary-item {
+                background: white; padding: 16px; border-radius: 10px;
+                text-align: center; border: 1px solid #e2e8f0;
+              }
+              .summary-value { font-size: 26px; font-weight: 700; color: #1e293b; }
+              .summary-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+              .summary-value.green { color: #10b981; }
+              .summary-value.red { color: #ef4444; }
+              .summary-value.orange { color: #f59e0b; }
+              .summary-value.blue { color: #3b82f6; }
+              table { width: 100%; border-collapse: collapse; font-size: 13px; }
+              th { background: #1e293b; color: white; padding: 10px 12px; text-align: left; font-weight: 600; }
+              td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+              tr:nth-child(even) { background: #f1f5f9; }
+              .error-code { color: #ef4444; font-weight: 700; font-family: monospace; }
+              .timestamp { color: #64748b; font-size: 12px; }
+              .footer {
+                margin-top: 40px; padding-top: 20px; border-top: 2px solid #e2e8f0;
+                text-align: center; color: #94a3b8; font-size: 12px;
+              }
+              .health-status {
+                text-align: center; font-size: 14px; margin-top: 10px;
+                padding: 10px; border-radius: 8px;
+              }
+              .health-status.good { background: #dcfce7; color: #16a34a; }
+              .health-status.warn { background: #fef3c7; color: #d97706; }
+              .health-status.bad { background: #fef2f2; color: #dc2626; }
+              .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+              .badge-error { background: #fef2f2; color: #dc2626; }
+              @media print { body { padding: 20px; } .section { break-inside: avoid; } }
+              @media (max-width: 768px) {
+                .summary-grid { grid-template-columns: repeat(2, 1fr); }
+                table { font-size: 11px; }
+                td, th { padding: 6px 8px; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div>
+                <h1>ZUCA Backend Health Report</h1>
+                <p class="subtitle">System Health Report &bull; ${new Date(data.exportedAt).toLocaleDateString()}</p>
+              </div>
+              <div class="meta">
+                <div><strong>Generated:</strong> ${new Date(data.exportedAt).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">Executive Summary</h2>
+              <div class="summary-grid">
+                <div class="summary-item">
+                  <div class="summary-value ${(data.errors?.length || 0) > 0 ? "red" : "green"}">${data.errors?.length || 0}</div>
+                  <div class="summary-label">Total Errors</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-value ${(data.slowRequests?.length || 0) > 5 ? "orange" : "green"}">${data.slowRequests?.length || 0}</div>
+                  <div class="summary-label">Slow Requests</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-value blue">${data.system?.requestCount || 0}</div>
+                  <div class="summary-label">Total Requests</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-value green">${data.system?.uptime ? Math.floor(data.system.uptime / 3600) + "h" : "N/A"}</div>
+                  <div class="summary-label">System Uptime</div>
+                </div>
+              </div>
+              <div class="health-status ${statusClass}">
+                Health Score: <strong>${score}%</strong> &mdash; ${statusText}
+              </div>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">System Information</h2>
+              <table>
+                <tr><td><strong>Uptime</strong></td><td>${Math.floor((data.system?.uptime || 0) / 3600)} hours ${Math.floor(((data.system?.uptime || 0) % 3600) / 60)} minutes</td></tr>
+                <tr><td><strong>Total Requests</strong></td><td>${(data.system?.requestCount || 0).toLocaleString()}</td></tr>
+                <tr><td><strong>Error Count</strong></td><td>${data.system?.errorCount || 0}</td></tr>
+                <tr><td><strong>Health Score</strong></td><td>${score}%</td></tr>
+              </table>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">Error Log (${data.errors?.length || 0})</h2>
+              ${
+                !data.errors?.length
+                  ? '<p style="color: #10b981; font-weight: 600;">No errors recorded.</p>'
+                  : `<table><thead><tr><th>Time</th><th>Status</th><th>Endpoint</th><th>Method</th><th>User</th></tr></thead><tbody>
+                    ${data.errors
+                      .map(
+                        (e) => `<tr>
+                          <td class="timestamp">${new Date(e.timestamp).toLocaleString()}</td>
+                          <td><span class="error-code">${e.statusCode ?? ""}</span></td>
+                          <td>${e.endpoint || ""}</td>
+                          <td>${e.method || ""}</td>
+                          <td>${getUserDisplay(e.userId)}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody></table>`
+              }
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">Slow Requests (${data.slowRequests?.length || 0})</h2>
+              ${
+                !data.slowRequests?.length
+                  ? '<p style="color: #10b981; font-weight: 600;">No slow requests detected.</p>'
+                  : `<table><thead><tr><th>Duration</th><th>Endpoint</th><th>Method</th><th>User</th><th>Time</th></tr></thead><tbody>
+                    ${data.slowRequests
+                      .map(
+                        (r) => `<tr>
+                          <td><strong style="color: #ef4444;">${r.duration}ms</strong></td>
+                          <td>${r.endpoint || ""}</td>
+                          <td>${r.method || ""}</td>
+                          <td>${getUserDisplay(r.userId)}</td>
+                          <td class="timestamp">${new Date(r.timestamp).toLocaleTimeString()}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody></table>`
+              }
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">Security Events (${data.maliciousRequests?.length || 0})</h2>
+              ${
+                !data.maliciousRequests?.length
+                  ? '<p style="color: #10b981; font-weight: 600;">No security threats detected.</p>'
+                  : `<table><thead><tr><th>Time</th><th>IP</th><th>Type</th><th>Endpoint</th></tr></thead><tbody>
+                    ${data.maliciousRequests
+                      .map(
+                        (r) => `<tr>
+                          <td class="timestamp">${new Date(r.timestamp).toLocaleString()}</td>
+                          <td>${r.ip || ""}</td>
+                          <td><span class="badge badge-error">${r.type || ""}</span></td>
+                          <td>${r.endpoint || ""}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody></table>`
+              }
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">API Endpoint Performance</h2>
+              ${
+                !data.apiEndpoints?.length
+                  ? '<p style="color: #64748b;">No API metrics available.</p>'
+                  : `<table><thead><tr><th>Endpoint</th><th>Calls</th><th>Avg Time (ms)</th><th>Slowest (ms)</th></tr></thead><tbody>
+                    ${data.apiEndpoints
+                      .filter((a) => a.endpoint && a.endpoint.trim() !== "")
+                      .slice(0, 20)
+                      .map(
+                        (a) => `<tr>
+                          <td><code style="font-size: 11px;">${a.endpoint}</code></td>
+                          <td style="text-align: center;">${a.count ?? 0}</td>
+                          <td style="text-align: center;">${a.avgTime ?? ""}</td>
+                          <td style="text-align: center; color: ${a.slowest > 2000 ? "#ef4444" : "#10b981"};">${a.slowest ?? ""}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody></table>`
+              }
+            </div>
+
+            <div class="footer">
+              <p>ZUCA System Health Report &bull; Generated ${new Date(data.exportedAt).toLocaleString()}</p>
+              <p style="margin-top: 8px; font-size: 10px; color: #cbd5e1;">Confidential - for authorised administrators only</p>
+            </div>
+
+            <script>window.onload = function () { setTimeout(function () { window.print(); }, 800); };</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (error) {
+      console.error("Error exporting logs:", error);
+      alert("Failed to export logs. Please try again.");
     }
-    
-    const data = await response.json();
-    
-    // Helper function to get user name (matches the page's getUserDisplay)
-    const getUserName = (userId) => {
-      if (!userId) return 'Anonymous';
-      
-      // Check online users
-      const onlineUser = onlineUsers.find(u => u.id === userId);
-      if (onlineUser) return onlineUser.fullName || onlineUser.email || userId;
-      
-      // Check recent logins
-      const loginUser = recentLogins.find(u => u.id === userId);
-      if (loginUser) return loginUser.fullName || loginUser.email || userId;
-      
-      // If it's the admin ID, show "ZUCA SYSTEM"
-      if (userId === '97532cb4-7cac-4c8d-9a2e-5d70dec6d6d9') return 'ZUCA SYSTEM';
-      
-      return userId.substring(0, 8) + '...'; // Shorten unknown IDs
-    };
-    
-    // Calculate health score
-    const calculateHealthScore = () => {
-      let score = 100;
-      const errorCount = data.errors?.length || 0;
-      const slowCount = data.slowRequests?.length || 0;
-      
-      if (errorCount > 50) score -= 20;
-      else if (errorCount > 20) score -= 10;
-      else if (errorCount > 5) score -= 5;
-      
-      if (slowCount > 20) score -= 15;
-      else if (slowCount > 10) score -= 8;
-      else if (slowCount > 5) score -= 3;
-      
-      return Math.max(0, Math.min(100, score));
-    };
-    
-    // Create PDF using window.print()
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>ZUCA System Health Report</title>
-          <style>
-            * { box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
-              padding: 40px; 
-              max-width: 1200px;
-              margin: 0 auto;
-              color: #1e293b;
-              background: #ffffff;
-            }
-            .header { 
-              border-bottom: 3px solid #3b82f6; 
-              padding-bottom: 20px; 
-              margin-bottom: 30px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              flex-wrap: wrap;
-            }
-            h1 { 
-              font-size: 28px; 
-              margin: 0;
-              color: #1e293b;
-            }
-            .logo-text { color: #3b82f6; }
-            .subtitle { 
-              font-size: 14px; 
-              color: #64748b; 
-              margin: 5px 0 0 0;
-            }
-            .meta { 
-              text-align: right;
-              font-size: 13px;
-              color: #64748b;
-            }
-            .section {
-              background: #f8fafc;
-              border-radius: 12px;
-              padding: 20px;
-              margin: 25px 0;
-              border: 1px solid #e2e8f0;
-              page-break-inside: avoid;
-            }
-            .section-title {
-              font-size: 18px;
-              font-weight: 600;
-              margin: 0 0 15px 0;
-              display: flex;
-              align-items: center;
-              gap: 10px;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 16px;
-              margin: 15px 0;
-            }
-            .summary-item {
-              background: white;
-              padding: 16px;
-              border-radius: 10px;
-              text-align: center;
-              border: 1px solid #e2e8f0;
-            }
-            .summary-value {
-              font-size: 28px;
-              font-weight: 700;
-              color: #1e293b;
-            }
-            .summary-label {
-              font-size: 12px;
-              color: #64748b;
-              margin-top: 4px;
-            }
-            .summary-value.green { color: #10b981; }
-            .summary-value.red { color: #ef4444; }
-            .summary-value.orange { color: #f59e0b; }
-            .summary-value.blue { color: #3b82f6; }
-            
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 13px;
-            }
-            th {
-              background: #1e293b;
-              color: white;
-              padding: 10px 12px;
-              text-align: left;
-              font-weight: 600;
-            }
-            td {
-              padding: 8px 12px;
-              border-bottom: 1px solid #e2e8f0;
-            }
-            tr:nth-child(even) { background: #f1f5f9; }
-            .error-row { background: #fef2f2; }
-            .error-code { 
-              color: #ef4444; 
-              font-weight: 700;
-              font-family: monospace;
-            }
-            .timestamp { color: #64748b; font-size: 12px; }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 2px solid #e2e8f0;
-              text-align: center;
-              color: #94a3b8;
-              font-size: 12px;
-            }
-            .health-status { 
-              text-align: center; 
-              font-size: 14px; 
-              margin-top: 10px;
-              padding: 10px;
-              border-radius: 8px;
-            }
-            .health-status.good { background: #dcfce7; color: #16a34a; }
-            .health-status.warn { background: #fef3c7; color: #d97706; }
-            .health-status.bad { background: #fef2f2; color: #dc2626; }
-            .badge {
-              display: inline-block;
-              padding: 2px 8px;
-              border-radius: 12px;
-              font-size: 10px;
-              font-weight: 600;
-            }
-            .badge-error { background: #fef2f2; color: #dc2626; }
-            .badge-warn { background: #fffbeb; color: #d97706; }
-            .badge-ok { background: #dcfce7; color: #16a34a; }
-            
-            @media print {
-              body { padding: 20px; }
-              .section { break-inside: avoid; }
-              .summary-grid { break-inside: avoid; }
-            }
-            @media (max-width: 768px) {
-              .summary-grid { grid-template-columns: repeat(2, 1fr); }
-              table { font-size: 11px; }
-              td, th { padding: 6px 8px; }
-            }
-          </style>
-        </head>
-        <body>
-          <!-- Header -->
-          <div class="header">
-            <div>
-              <h1>🏥 BACKEND HEALTH</h1>
-              <p class="subtitle">System Health Report • ${new Date(data.exportedAt).toLocaleDateString()}</p>
-            </div>
-            <div class="meta">
-              <div><strong>Generated:</strong> ${new Date(data.exportedAt).toLocaleString()}</div>
-              <div><strong>Report ID:</strong> #${Math.random().toString(36).substring(2, 8).toUpperCase()}</div>
-            </div>
-          </div>
-
-          <!-- Summary -->
-          <div class="section">
-            <h2 class="section-title">📊 Executive Summary</h2>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-value ${(data.errors?.length || 0) > 0 ? 'red' : 'green'}">${data.errors?.length || 0}</div>
-                <div class="summary-label">⚠️ Total Errors</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value ${(data.slowRequests?.length || 0) > 5 ? 'orange' : 'green'}">${data.slowRequests?.length || 0}</div>
-                <div class="summary-label">🐌 Slow Requests</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value blue">${data.system?.requestCount || 0}</div>
-                <div class="summary-label">📡 Total Requests</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value green">${data.system?.uptime ? Math.floor(data.system.uptime / 3600) + 'h' : 'N/A'}</div>
-                <div class="summary-label">⏱️ System Uptime</div>
-              </div>
-            </div>
-            <div class="health-status ${calculateHealthScore() > 80 ? 'good' : calculateHealthScore() > 50 ? 'warn' : 'bad'}">
-              Health Score: <strong>${calculateHealthScore()}%</strong> 
-              ${calculateHealthScore() > 80 ? '✅ System is healthy' : calculateHealthScore() > 50 ? '⚠️ System is degraded' : '❌ System needs attention'}
-            </div>
-          </div>
-
-          <!-- System Info -->
-          <div class="section">
-            <h2 class="section-title">🖥️ System Information</h2>
-            <table>
-              <tr><td><strong>Uptime</strong></td><td>${Math.floor(data.system?.uptime / 3600)} hours ${Math.floor((data.system?.uptime % 3600) / 60)} minutes</td></tr>
-              <tr><td><strong>Total Requests</strong></td><td>${data.system?.requestCount?.toLocaleString() || 0}</td></tr>
-              <tr><td><strong>Error Count</strong></td><td>${data.system?.errorCount || 0}</td></tr>
-              <tr><td><strong>Health Score</strong></td><td>${calculateHealthScore()}%</td></tr>
-            </table>
-          </div>
-
-          <!-- Errors -->
-          <div class="section">
-            <h2 class="section-title">⚠️ Error Log (${data.errors?.length || 0})</h2>
-            ${data.errors?.length === 0 ? '<p style="color: #10b981; font-weight: 600;">✅ No errors recorded - System is healthy!</p>' : `
-            <table>
-              <thead>
-                <tr><th>Time</th><th>Status</th><th>Endpoint</th><th>Method</th><th>User</th></tr>
-              </thead>
-              <tbody>
-                ${data.errors.map(error => `
-                  <tr class="error-row">
-                    <td class="timestamp">${new Date(error.timestamp).toLocaleString()}</td>
-                    <td><span class="error-code">${error.statusCode}</span></td>
-                    <td>${error.endpoint || 'N/A'}</td>
-                    <td>${error.method || 'N/A'}</td>
-                    <td>${getUserName(error.userId)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            `}
-          </div>
-
-          <!-- Slow Requests -->
-          <div class="section">
-            <h2 class="section-title">🐌 Slow Requests (${data.slowRequests?.length || 0})</h2>
-            ${data.slowRequests?.length === 0 ? '<p style="color: #10b981; font-weight: 600;">✅ No slow requests detected</p>' : `
-            <table>
-              <thead>
-                <tr><th>Duration</th><th>Endpoint</th><th>Method</th><th>User</th><th>Time</th></tr>
-              </thead>
-              <tbody>
-                ${data.slowRequests.map(req => `
-                  <tr>
-                    <td><strong style="color: #ef4444;">${req.duration}ms</strong></td>
-                    <td>${req.endpoint || 'N/A'}</td>
-                    <td>${req.method || 'N/A'}</td>
-                    <td>${getUserName(req.userId)}</td>
-                    <td class="timestamp">${new Date(req.timestamp).toLocaleTimeString()}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            `}
-          </div>
-
-          <!-- Malicious Requests -->
-          <div class="section">
-            <h2 class="section-title">🛡️ Security Events (${data.maliciousRequests?.length || 0})</h2>
-            ${data.maliciousRequests?.length === 0 ? '<p style="color: #10b981; font-weight: 600;">✅ No security threats detected</p>' : `
-            <table>
-              <thead>
-                <tr><th>Time</th><th>IP</th><th>Type</th><th>Endpoint</th></tr>
-              </thead>
-              <tbody>
-                ${data.maliciousRequests.map(req => `
-                  <tr style="background: #fef2f2;">
-                    <td class="timestamp">${new Date(req.timestamp).toLocaleString()}</td>
-                    <td>${req.ip || 'Unknown'}</td>
-                    <td><span class="badge badge-error">${req.type || 'Suspicious'}</span></td>
-                    <td>${req.endpoint || 'N/A'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            `}
-          </div>
-
-        <!-- API Endpoints -->
-<div class="section">
-  <h2 class="section-title">📡 API Endpoint Performance</h2>
-  ${!data.apiEndpoints || data.apiEndpoints.length === 0 ? '<p style="color: #64748b;">📭 No API metrics available yet</p>' : `
-  <table>
-    <thead>
-      <tr><th>Endpoint</th><th>Calls</th><th>Avg Time (ms)</th><th>Slowest (ms)</th></tr>
-    </thead>
-    <tbody>
-      ${data.apiEndpoints
-        .filter(api => api.endpoint && api.endpoint.trim() !== '')
-        .slice(0, 20)
-        .map(api => `
-          <tr>
-            <td><code style="font-size: 11px;">${api.endpoint}</code></td>
-            <td style="text-align: center;">${api.count || 0}</td>
-            <td style="text-align: center;">${api.avgTime || 'N/A'}</td>
-            <td style="text-align: center; color: ${api.slowest > 2000 ? '#ef4444' : '#10b981'};">${api.slowest || 'N/A'}</td>
-          </tr>
-        `).join('')}
-      ${data.apiEndpoints.filter(api => !api.endpoint || api.endpoint.trim() === '').length > 0 ? `
-        <tr>
-          <td colspan="4" style="text-align: center; color: #94a3b8; font-style: italic; padding: 12px;">
-            ${data.apiEndpoints.filter(api => !api.endpoint || api.endpoint.trim() === '').length} endpoint(s) with incomplete data
-          </td>
-        </tr>
-      ` : ''}
-    </tbody>
-  </table>
-  `}
-</div>
-          <!-- Footer -->
-          <div class="footer">
-            <p>📋 ZUCA System Health Report • Generated ${new Date(data.exportedAt).toLocaleString()}</p>
-            <p style="margin-top: 4px;">This report contains system health data for ${new Date(data.exportedAt).toLocaleDateString()}</p>
-            <p style="margin-top: 8px; font-size: 10px; color: #cbd5e1;">Confidential - For authorised administrators only</p>
-          </div>
-
-          <script>
-            // Auto-print when loaded
-            window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 800);
-            };
-          <\/script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    
-  } catch (error) {
-    console.error("Error exporting logs:", error);
-    alert("Failed to export logs as PDF. Please try again.");
-  }
-};
+  };
 
   const handleClearErrors = async () => {
-    if (window.confirm("Clear all error logs?")) {
-      try {
-        const token = localStorage.getItem("token");
-        await axios.get(`${BASE_URL}/api/admin/health/clear-errors`, { headers: { Authorization: `Bearer ${token}` } });
-        fetchAllData();
-      } catch (error) {
-        console.error("Error clearing errors:", error);
-      }
+    if (!window.confirm("Clear all error logs?")) return;
+    try {
+      const token = localStorage.getItem("token");
+      await axios.get(`${BASE_URL}/api/admin/health/clear-errors`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchAllData();
+    } catch (error) {
+      console.error("Error clearing errors:", error);
     }
   };
 
   const handleResolveReport = async (reportId) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.put(`${BASE_URL}/api/admin/health/reports/${reportId}/resolve`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(
+        `${BASE_URL}/api/admin/health/reports/${reportId}/resolve`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       fetchAllData();
     } catch (error) {
       console.error("Error resolving report:", error);
@@ -489,49 +376,41 @@ const handleExportLogs = async () => {
   };
 
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
+    if (!bytes || bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getUserDisplay = (userId) => {
-    // Try to find user in online users or recent logins
-    const onlineUser = onlineUsers.find(u => u.id === userId);
-    if (onlineUser) return onlineUser.fullName || onlineUser.email || userId;
-    
-    const loginUser = recentLogins.find(u => u.id === userId);
-    if (loginUser) return loginUser.fullName || loginUser.email || userId;
-    
-    return userId || 'Anonymous';
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const fetchAllData = async () => {
     try {
       const token = localStorage.getItem("token");
-      
+      const headers = { Authorization: `Bearer ${token}` };
+
       const [
-        systemRes, errorsRes, slowRes, metricsRes, resetsRes, 
-        pendingRes, onlineRes, socketRes, servicesRes, reportsRes, 
-        dbStatsRes, loginsRes, failedRes, storageRes
+        systemRes, errorsRes, slowRes, metricsRes, resetsRes,
+        pendingRes, onlineRes, socketRes, servicesRes, reportsRes,
+        dbStatsRes, loginsRes, failedRes, storageRes,
       ] = await Promise.all([
-        axios.get(`${BASE_URL}/api/admin/health/system`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/errors?limit=200`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/slow-requests?limit=50`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/api-metrics`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/pending-resets`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/pending-verifications`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/online-users`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/socket-status`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/services`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/reports`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/database-stats`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/recent-logins`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/failed-logins`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${BASE_URL}/api/admin/health/storage-metrics`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { success: false } }))
+        axios.get(`${BASE_URL}/api/admin/health/system`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/errors?limit=200`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/slow-requests?limit=50`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/api-metrics`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/pending-resets`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/pending-verifications`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/online-users`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/socket-status`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/services`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/reports`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/database-stats`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/recent-logins`, { headers }),
+        axios.get(`${BASE_URL}/api/admin/health/failed-logins`, { headers }),
+        axios
+          .get(`${BASE_URL}/api/admin/health/storage-metrics`, { headers })
+          .catch(() => ({ data: { success: false } })),
       ]);
-      
+
       setSystem(systemRes.data);
       setErrors(errorsRes.data.errors || []);
       setSlowRequests(slowRes.data.requests || []);
@@ -540,57 +419,46 @@ const handleExportLogs = async () => {
       setPendingVerifications(pendingRes.data.pending || []);
       setOnlineUsers(onlineRes.data.users || []);
       setSocketStatus(socketRes.data);
-      setServices(servicesRes.data.services);
+      setServices(servicesRes.data.services || null);
       setReports(reportsRes.data.reports || []);
-      setDatabaseStats(dbStatsRes.data.stats);
+      setDatabaseStats(dbStatsRes.data.stats || null);
       setRecentLogins(loginsRes.data.logins || []);
       setFailedLogins(failedRes.data.attempts || []);
-      
-      if (storageRes.data.success) {
-        setStorageMetrics(storageRes.data.metrics);
+
+      if (storageRes.data.success && storageRes.data.metrics) {
+        setStorageMetrics({ ...EMPTY_METRICS, ...storageRes.data.metrics });
+      } else {
+        setStorageMetrics(EMPTY_METRICS);
       }
-      
+
       setLastUpdated(new Date());
 
       const last7Days = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        const dayErrors = (errorsRes.data.errors || []).filter(e => 
-          new Date(e.timestamp).toISOString().split('T')[0] === dateStr
+        const dateStr = date.toISOString().split("T")[0];
+        const dayErrors = (errorsRes.data.errors || []).filter(
+          (e) => new Date(e.timestamp).toISOString().split("T")[0] === dateStr
         );
         last7Days.push({
           date: dateStr,
           errors: dayErrors.length,
-          status4xx: dayErrors.filter(e => e.statusCode >= 400 && e.statusCode < 500).length,
-          status5xx: dayErrors.filter(e => e.statusCode >= 500).length
+          status4xx: dayErrors.filter((e) => e.statusCode >= 400 && e.statusCode < 500).length,
+          status5xx: dayErrors.filter((e) => e.statusCode >= 500).length,
         });
       }
       setErrorTrend(last7Days);
 
-      const responseData = (metricsRes.data.endpoints || []).slice(0, 10).map(m => ({
-        name: m.endpoint.split('/').pop() || m.endpoint,
-        avgTime: parseInt(m.avgTime),
-        calls: m.count
-      }));
+      const responseData = (metricsRes.data.endpoints || [])
+        .filter((m) => m.endpoint)
+        .slice(0, 10)
+        .map((m) => ({
+          name: m.endpoint.split("/").pop() || m.endpoint,
+          avgTime: parseInt(m.avgTime) || 0,
+          calls: m.count || 0,
+        }));
       setResponseTimeTrend(responseData);
-
-      const loginData = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        const dayLogins = (loginsRes.data.logins || []).filter(l => 
-          l.lastActive && new Date(l.lastActive).toISOString().split('T')[0] === dateStr
-        );
-        loginData.push({
-          date: dateStr,
-          logins: dayLogins.length
-        });
-      }
-      setUserActivityTrend(loginData);
-
     } catch (error) {
       console.error("Error fetching health data:", error);
     } finally {
@@ -615,7 +483,9 @@ const handleExportLogs = async () => {
     else if (errors.length > 5) score -= 5;
     if (slowRequests.length > 20) score -= 15;
     else if (slowRequests.length > 10) score -= 8;
-    const downServices = services ? Object.values(services).filter(s => s.status === 'down').length : 0;
+    const downServices = services
+      ? Object.values(services).filter((s) => s.status === "down").length
+      : 0;
     score -= downServices * 10;
     return Math.max(0, Math.min(100, score));
   };
@@ -628,1406 +498,1673 @@ const handleExportLogs = async () => {
     return Math.max(0, Math.min(100, score));
   };
 
-  const SkeletonCard = () => (
-    <div className="skeleton-card">
-      <div className="skeleton-icon"></div>
-      <div>
-        <div className="skeleton-title"></div>
-        <div className="skeleton-value"></div>
-      </div>
-    </div>
-  );
+  const hasData = system !== null || errors.length > 0 || services !== null;
 
+  /* ============================================================
+     SKELETON LOADER
+     ============================================================ */
   if (loading) {
     return (
-      <div className="admin-health-container">
-        <div className="admin-health-header">
-          <div>
-            <div className="skeleton-text-large"></div>
-            <div className="skeleton-text-medium"></div>
+      <div className="hc-page">
+        <div className="hc-container">
+          <div className="hc-skeleton-header">
+            <div>
+              <div className="hc-skeleton hc-skeleton-title" />
+              <div className="hc-skeleton hc-skeleton-subtitle" />
+            </div>
+            <div className="hc-skeleton-actions">
+              <div className="hc-skeleton hc-skeleton-pill" />
+              <div className="hc-skeleton hc-skeleton-pill" />
+              <div className="hc-skeleton hc-skeleton-pill" />
+            </div>
+          </div>
+
+          <div className="hc-score-grid">
+            {[0, 1].map((i) => (
+              <div key={i} className="hc-skeleton-card-lg">
+                <div className="hc-skeleton-row">
+                  <div className="hc-skeleton hc-skeleton-circle-lg" />
+                  <div style={{ flex: 1 }}>
+                    <div className="hc-skeleton hc-skeleton-line-sm" />
+                    <div className="hc-skeleton hc-skeleton-line-xl" style={{ marginTop: 6 }} />
+                  </div>
+                </div>
+                <div className="hc-skeleton hc-skeleton-bar" />
+              </div>
+            ))}
+          </div>
+
+          <div className="hc-stats-grid">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="hc-skeleton-card">
+                <div className="hc-skeleton hc-skeleton-icon" />
+                <div style={{ flex: 1 }}>
+                  <div className="hc-skeleton hc-skeleton-line-sm" style={{ width: 60 }} />
+                  <div className="hc-skeleton hc-skeleton-line-md" style={{ width: 80, marginTop: 6 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hc-charts-grid">
+            {[0, 1].map((i) => (
+              <div key={i} className="hc-skeleton-card-lg">
+                <div className="hc-skeleton hc-skeleton-line-md" style={{ width: 180 }} />
+                <div className="hc-skeleton hc-skeleton-chart" />
+              </div>
+            ))}
           </div>
         </div>
-        <div className="admin-health-stats-grid">
-          {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-        <div className="admin-health-charts-grid">
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="skeleton-chart">
-              <div className="skeleton-chart-title"></div>
-              <div className="skeleton-chart-body"></div>
-            </div>
-          ))}
-        </div>
+
+        <style>{skeletonCSS}</style>
       </div>
     );
   }
 
+  /* ============================================================
+     MAIN RENDER
+     ============================================================ */
   return (
-    <div className="admin-health-container">
-      {/* HEADER */}
-      <div className="admin-health-header">
-        <div>
-          <h1 className="admin-health-title"> <FiSettings /> BACKEND HEALTH</h1>
-          <p className="admin-health-subtitle">Real-time monitoring & analytics dashboard</p>
-        </div>
-        <div className="admin-health-header-actions">
-          <div className="admin-health-last-updated">
-            <FiClock size={14} />
-            <span>Updated: {lastUpdated.toLocaleTimeString()}</span>
-          </div>
-          <button className="admin-health-auto-btn" onClick={() => setAutoRefresh(!autoRefresh)}>
-            <FiRefreshCw size={14} /> {autoRefresh ? 'Auto Refresh ON' : 'Auto Refresh OFF'}
-          </button>
-          <button className="admin-health-export-btn" onClick={handleExportLogs}>
-            <FiDownload size={14} /> Export
-          </button>
-          <button className="admin-health-clear-btn" onClick={handleClearErrors}>
-            <FiTrash2 size={14} /> Clear Errors
-          </button>
-        </div>
-      </div>
-
-      {/* HEALTH SCORE CARDS */}
-      <div className="admin-health-score-grid">
-        <div className="admin-health-score-card">
-          <div className="admin-health-score-left">
-            <FiActivity size={48} color={healthScore() > 80 ? '#10b981' : healthScore() > 50 ? '#f59e0b' : '#ef4444'} />
-            <div>
-              <div className="admin-health-score-label">Overall System Health</div>
-              <div className="admin-health-score-value">{healthScore()}%</div>
+    <div className="hc-page">
+      <div className="hc-container">
+        {/* ============ HEADER ============ */}
+        <header className="hc-header">
+          <div className="hc-header-left">
+            <div className="hc-header-eyebrow">
+              <span className="hc-live-dot" />
+              Live monitoring
             </div>
+            <h1 className="hc-title">Backend Health</h1>
+            <p className="hc-subtitle">
+              Real-time infrastructure, security, and performance analytics
+            </p>
           </div>
-          <div className="admin-health-score-bar">
-            <div className="admin-health-score-fill" style={{ width: `${healthScore()}%`, background: healthScore() > 80 ? '#10b981' : healthScore() > 50 ? '#f59e0b' : '#ef4444' }} />
-          </div>
-          <div className="admin-health-score-stats">
-            <div>✅ {Object.values(services || {}).filter(s => s.status === 'healthy' || s.status === 'configured').length} Services OK</div>
-            <div>⚠️ {errors.length} Active Errors</div>
-            <div>👤 {onlineUsers.length} Online Users</div>
-          </div>
-        </div>
 
-        <div className="admin-health-security-card">
-          <div className="admin-health-score-left">
-            <FiShield size={48} color={securityScore() > 80 ? '#10b981' : securityScore() > 50 ? '#f59e0b' : '#ef4444'} />
-            <div>
-              <div className="admin-health-score-label">Security Posture</div>
-              <div className="admin-health-score-value">{securityScore()}%</div>
+          <div className="hc-header-actions">
+            <div className="hc-updated">
+              <FiClock size={13} />
+              <span>Updated {lastUpdated.toLocaleTimeString()}</span>
             </div>
+            <button
+              className={`hc-btn ${autoRefresh ? "hc-btn-primary" : ""}`}
+              onClick={() => setAutoRefresh(!autoRefresh)}
+            >
+              <FiRefreshCw size={13} className={autoRefresh ? "hc-spin-slow" : ""} />
+              {autoRefresh ? "Auto ON" : "Auto OFF"}
+            </button>
+            <button className="hc-btn" onClick={handleExportLogs}>
+              <FiDownload size={13} /> Export
+            </button>
+            <button className="hc-btn hc-btn-danger" onClick={handleClearErrors}>
+              <FiTrash2 size={13} /> Clear
+            </button>
           </div>
-          <div className="admin-health-score-bar">
-            <div className="admin-health-score-fill" style={{ width: `${securityScore()}%`, background: securityScore() > 80 ? '#10b981' : securityScore() > 50 ? '#f59e0b' : '#ef4444' }} />
-          </div>
-          <div className="admin-health-score-stats">
-            <div>🔒 {failedLogins.length} Failed Logins</div>
-            <div>⚠️ {pendingResets.length} Password Resets</div>
-            <div>✅ {pendingVerifications.length} Pending Verifications</div>
-          </div>
-        </div>
-      </div>
+        </header>
 
-      {/* STATS GRID */}
-      <div className="admin-health-stats-grid">
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiServer /></div>
-          <div>
-            <div className="admin-health-stat-label">System Uptime</div>
-            <div className="admin-health-stat-value">{system?.uptime?.formatted || '0d'}</div>
+        {!hasData && (
+          <div className="hc-empty-banner">
+            No health data available yet. Metrics will appear once the backend reports activity.
           </div>
-        </div>
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiCpu /></div>
-          <div>
-            <div className="admin-health-stat-label">Memory Usage</div>
-            <div className="admin-health-stat-value">{system?.memory?.percentUsed || 0}%</div>
-            <div className="admin-health-stat-trend">{formatBytes(system?.memory?.used || 0)} / {formatBytes(system?.memory?.total || 0)}</div>
-          </div>
-        </div>
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiAlertCircle /></div>
-          <div>
-            <div className="admin-health-stat-label">Total Errors</div>
-            <div className="admin-health-stat-value">{errors.length}</div>
-            <div className="admin-health-stat-trend">{errors.filter(e => e.statusCode >= 500).length} Server Errors</div>
-          </div>
-        </div>
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiUsers /></div>
-          <div>
-            <div className="admin-health-stat-label">Online Users</div>
-            <div className="admin-health-stat-value">{onlineUsers.length}</div>
-          </div>
-        </div>
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiDatabase /></div>
-          <div>
-            <div className="admin-health-stat-label">Total Requests</div>
-            <div className="admin-health-stat-value">{system?.requests?.total?.toLocaleString() || 0}</div>
-            <div className="admin-health-stat-trend">{slowRequests.length} Slow Requests</div>
-          </div>
-        </div>
-        <div className="admin-health-stat-card">
-          <div className="admin-health-stat-icon"><FiMessageSquare /></div>
-          <div>
-            <div className="admin-health-stat-label">Active Connections</div>
-            <div className="admin-health-stat-value">{socketStatus?.connectedUsers || 0}</div>
-          </div>
-        </div>
-      </div>
+        )}
 
-      {/* CHARTS */}
-      <div className="admin-health-charts-grid">
-        <div className="admin-health-chart-card">
-          <div className="admin-health-chart-header">
-            <h3><FiTrendingUp /> Error Trends (Last 7 Days)</h3>
-            <div className="admin-health-legend">
-              <span><span className="admin-health-legend-dot error-5xx"></span> 5xx Errors</span>
-              <span><span className="admin-health-legend-dot error-4xx"></span> 4xx Errors</span>
+        {/* ============ TABS ============ */}
+        {hasData && (
+          <nav className="hc-tabs">
+            {[
+              { id: "overview", label: "Overview", icon: <FiActivity size={14} /> },
+              { id: "services", label: "Services", icon: <FiGlobe size={14} /> },
+              { id: "logs", label: "Logs", icon: <FiAlertCircle size={14} />, badge: errors.length },
+              { id: "data", label: "Data & Storage", icon: <FiDatabase size={14} /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                className={`hc-tab ${activeTab === tab.id ? "hc-tab-active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.icon}
+                {tab.label}
+                {tab.badge > 0 && <span className="hc-tab-badge">{tab.badge}</span>}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {/* ============ OVERVIEW TAB ============ */}
+        {hasData && activeTab === "overview" && (
+          <>
+            {/* Score row */}
+            <div className="hc-score-grid">
+              <ScoreCard
+                title="System Health"
+                score={healthScore()}
+                icon={<FiActivity size={24} />}
+                stats={[
+                  `${
+                    services
+                      ? Object.values(services).filter(
+                          (s) => s.status === "healthy" || s.status === "configured"
+                        ).length
+                      : 0
+                  } services ok`,
+                  `${errors.length} errors`,
+                  `${onlineUsers.length} online`,
+                ]}
+              />
+              <ScoreCard
+                title="Security Posture"
+                score={securityScore()}
+                icon={<FiShield size={24} />}
+                stats={[
+                  `${failedLogins.length} failed`,
+                  `${pendingResets.length} resets`,
+                  `${pendingVerifications.length} pending`,
+                ]}
+              />
             </div>
-          </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={errorTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
-              <YAxis stroke="#64748b" fontSize={10} />
-              <Tooltip />
-              <Area type="monotone" dataKey="status5xx" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="status4xx" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
 
-        <div className="admin-health-chart-card">
-          <div className="admin-health-chart-header">
-            <h3><FiBarChart2 /> Slowest API Endpoints</h3>
-            <span className="admin-health-chart-label">Avg Response Time (ms)</span>
-          </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={responseTimeTrend} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis type="number" stroke="#64748b" fontSize={10} />
-              <YAxis dataKey="name" type="category" width={80} stroke="#64748b" fontSize={10} />
-              <Tooltip />
-              <Bar dataKey="avgTime" fill="#ef4444" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* STORAGE METRICS */}
-      <div className="admin-health-storage-grid">
-        <div className="admin-health-storage-card">
-          <div className="admin-health-storage-icon"><FiHardDrive /></div>
-          <div className="admin-health-storage-value">{storageMetrics.percentUsed.toFixed(1)}%</div>
-          <div className="admin-health-storage-label">Storage Used</div>
-          <div className="admin-health-storage-bar">
-            <div style={{ width: `${storageMetrics.percentUsed}%`, height: '8px', background: storageMetrics.percentUsed > 90 ? '#ef4444' : '#3b82f6', borderRadius: '4px' }} />
-          </div>
-          <div className="admin-health-storage-details">
-            <span>{formatBytes(storageMetrics.usedSize)}</span>
-            <span>of {formatBytes(storageMetrics.totalSize)}</span>
-          </div>
-        </div>
-        <div className="admin-health-storage-card">
-          <div className="admin-health-storage-icon"><FiDatabase /></div>
-          <div className="admin-health-storage-value">{storageMetrics.totalFiles}</div>
-          <div className="admin-health-storage-label">Total Files</div>
-          <div className="admin-health-storage-types">
-            <span>🖼️ {storageMetrics.images} Images</span>
-            <span>🎬 {storageMetrics.videos} Videos</span>
-            <span>📄 {storageMetrics.documents} Docs</span>
-          </div>
-        </div>
-      </div>
-
-      {/* SERVICES STATUS */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiGlobe /> Service Status</h2>
-          <button className="admin-health-refresh-btn" onClick={fetchAllData}><FiRefreshCw size={14} /> Refresh</button>
-        </div>
-        <div className="admin-health-services-grid">
-          {services && Object.entries(services).map(([name, status]) => (
-            <div key={name} className="admin-health-service-card">
-              <div className="admin-health-service-dot" style={{ backgroundColor: getStatusColor(status.status) }} />
-              <div className="admin-health-service-name">{name.charAt(0).toUpperCase() + name.slice(1)}</div>
-              <div className="admin-health-service-status" style={{ color: getStatusColor(status.status) }}>
-                {getStatusLabel(status.status)}
-              </div>
-              {(name === 'email' || name === 'youtube') && (
-                <button className="admin-health-test-btn" onClick={() => handleTestService(name)} disabled={testingService === name}>
-                  {testingService === name ? <FiLoader className="admin-health-spinner" /> : 'Test'}
-                </button>
-              )}
+            {/* Stat tiles */}
+            <div className="hc-stats-grid">
+              <StatTile
+                icon={<FiServer />}
+                label="Uptime"
+                value={system?.uptime?.formatted || "—"}
+              />
+              <StatTile
+                icon={<FiCpu />}
+                label="Memory"
+                value={`${system?.memory?.percentUsed ?? 0}%`}
+                sub={`${formatBytes(system?.memory?.used || 0)} / ${formatBytes(
+                  system?.memory?.total || 0
+                )}`}
+              />
+              <StatTile
+                icon={<FiAlertCircle />}
+                label="Errors"
+                value={errors.length}
+                tone={errors.length > 0 ? "danger" : "ok"}
+              />
+              <StatTile
+                icon={<FiUsers />}
+                label="Online"
+                value={onlineUsers.length}
+              />
+              <StatTile
+                icon={<FiDatabase />}
+                label="Requests"
+                value={(system?.requests?.total || 0).toLocaleString()}
+                sub={`${slowRequests.length} slow`}
+              />
+              <StatTile
+                icon={<FiMessageSquare />}
+                label="Connections"
+                value={socketStatus?.connectedUsers || 0}
+              />
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* USER ISSUES */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiLock /> User Issues</h2>
-        </div>
-        <div className="admin-health-user-issues-grid">
-          <div className="admin-health-issue-card">
-            <div className="admin-health-issue-icon"><FiLock /></div>
-            <div>
-              <div className="admin-health-issue-title">Password Reset Requests</div>
-              <div className="admin-health-issue-number">{pendingResets.length}</div>
-              {pendingResets.slice(0, 3).map((reset, idx) => (
-                <div key={idx} className="admin-health-issue-item">{reset.email}</div>
-              ))}
-            </div>
-          </div>
-          <div className="admin-health-issue-card">
-            <div className="admin-health-issue-icon"><FiMail /></div>
-            <div>
-              <div className="admin-health-issue-title">Pending Verifications</div>
-              <div className="admin-health-issue-number">{pendingVerifications.length}</div>
-              {pendingVerifications.slice(0, 3).map((pending, idx) => (
-                <div key={idx} className="admin-health-issue-item">{pending.email}</div>
-              ))}
-            </div>
-          </div>
-          <div className="admin-health-issue-card">
-            <div className="admin-health-issue-icon"><FiShield /></div>
-            <div>
-              <div className="admin-health-issue-title">Failed Login Attempts</div>
-              <div className="admin-health-issue-number">{failedLogins.length}</div>
-              {failedLogins.slice(0, 3).map((fail, idx) => (
-                <div key={idx} className="admin-health-issue-item">{fail.email}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* RECENT ERRORS */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiAlertCircle /> Recent Errors</h2>
-          <span className="admin-health-badge">{errors.length} Total</span>
-        </div>
-        <div className="admin-health-error-list">
-          {errors.length === 0 ? (
-            <div className="admin-health-empty-state">✅ No errors recorded - System is healthy!</div>
-          ) : (
-            errors.slice(0, 20).map((error, idx) => (
-              <div key={idx} className="admin-health-error-item" onClick={() => { setSelectedError(error); setShowErrorModal(true); }}>
-                <div className="admin-health-error-time">{new Date(error.timestamp).toLocaleString()}</div>
-                <div className="admin-health-error-status" style={{ backgroundColor: error.statusCode >= 500 ? '#ef4444' : '#f59e0b' }}>{error.statusCode}</div>
-                <div className="admin-health-error-endpoint">{error.endpoint}</div>
-                <div className="admin-health-error-user">{getUserDisplay(error.userId)}</div>
-                <FiEye className="admin-health-error-view" />
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* SLOW REQUESTS */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiClock /> Slow Requests {`(>2s)`}</h2>
-          <span className="admin-health-badge">{slowRequests.length}</span>
-        </div>
-        <div className="admin-health-slow-list">
-          {slowRequests.length === 0 ? (
-            <div className="admin-health-empty-state">✅ No slow requests detected</div>
-          ) : (
-            slowRequests.slice(0, 10).map((req, idx) => (
-              <div key={idx} className="admin-health-slow-item">
-                <div className="admin-health-slow-duration">{req.duration}ms</div>
-                <div className="admin-health-slow-endpoint">{req.endpoint}</div>
-                <div className="admin-health-slow-user">{getUserDisplay(req.userId)}</div>
-                <div className="admin-health-slow-time">{new Date(req.timestamp).toLocaleTimeString()}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* USER REPORTS */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiEye /> User Reports</h2>
-          <span className="admin-health-badge">{reports.length} Total</span>
-        </div>
-        <div className="admin-health-reports-list">
-          {reports.length === 0 ? (
-            <div className="admin-health-empty-state">📭 No user reports</div>
-          ) : (
-            reports.slice(0, 10).map((report) => (
-              <div key={report.id} className="admin-health-report-item">
-                <div className="admin-health-report-severity" style={{ backgroundColor: report.severity === 'critical' ? '#ef4444' : report.severity === 'high' ? '#f97316' : '#f59e0b' }} />
-                <div className="admin-health-report-content">
-                  <div className="admin-health-report-title">{report.title}</div>
-                  <div className="admin-health-report-description">{report.description}</div>
-                  <div className="admin-health-report-meta">
-                    <span>📅 {new Date(report.createdAt).toLocaleString()}</span>
-                    <span>👤 {report.userName || report.userId || 'Anonymous'}</span>
+            {/* Charts */}
+            <div className="hc-charts-grid">
+              <div className="hc-panel">
+                <div className="hc-panel-header">
+                  <div>
+                    <h3>
+                      <FiTrendingUp /> Error trends
+                    </h3>
+                    <p className="hc-panel-sub">Last 7 days</p>
+                  </div>
+                  <div className="hc-legend">
+                    <span>
+                      <span className="hc-dot hc-dot-red" /> 5xx
+                    </span>
+                    <span>
+                      <span className="hc-dot hc-dot-amber" /> 4xx
+                    </span>
                   </div>
                 </div>
-                {report.status === 'pending' && (
-                  <button className="admin-health-resolve-btn" onClick={() => handleResolveReport(report.id)}>Resolve</button>
+                {errorTrend.some((d) => d.status4xx || d.status5xx) ? (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={errorTrend}>
+                      <defs>
+                        <linearGradient id="g5xx" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#dc2626" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#dc2626" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="g4xx" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#d97706" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#d97706" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#a3a3a3"
+                        fontSize={10}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        stroke="#a3a3a3"
+                        fontSize={10}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 10,
+                          border: "1px solid #e5e5e5",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="status5xx"
+                        stackId="1"
+                        stroke="#dc2626"
+                        strokeWidth={2}
+                        fill="url(#g5xx)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="status4xx"
+                        stackId="1"
+                        stroke="#d97706"
+                        strokeWidth={2}
+                        fill="url(#g4xx)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="hc-empty">No errors recorded in the last 7 days.</div>
                 )}
-                {report.status === 'resolved' && <FiCheckCircle className="admin-health-resolved-icon" />}
               </div>
-            ))
-          )}
-        </div>
-      </div>
 
-      {/* DATABASE STATS */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiDatabase /> Database Statistics</h2>
-        </div>
-        <div className="admin-health-db-stats-grid">
-          {databaseStats && Object.entries(databaseStats).map(([key, value]) => {
-            const labels = {
-              users: '👤 Users',
-              announcements: '📢 Announcements',
-              massPrograms: '⛪ Mass Programs',
-              pledges: '💰 Pledges',
-              songs: '🎵 Songs',
-              media: '🖼️ Media',
-              games: '🎮 Games',
-              messages: '💬 Messages',
-              notifications: '🔔 Notifications',
-              attendanceSheets: '📋 Attendance Sheets',
-              attendanceEntries: '✅ Attendance Entries'
-            };
-            return (
-              <div key={key} className="admin-health-db-stat-card">
-                <div className="admin-health-db-stat-value">{value.toLocaleString()}</div>
-                <div className="admin-health-db-stat-label">{labels[key] || key.replace(/([A-Z])/g, ' $1').toUpperCase()}</div>
+              <div className="hc-panel">
+                <div className="hc-panel-header">
+                  <div>
+                    <h3>
+                      <FiBarChart2 /> Slowest endpoints
+                    </h3>
+                    <p className="hc-panel-sub">Avg response time (ms)</p>
+                  </div>
+                </div>
+                {responseTimeTrend.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={responseTimeTrend} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        stroke="#a3a3a3"
+                        fontSize={10}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        dataKey="name"
+                        type="category"
+                        width={90}
+                        stroke="#a3a3a3"
+                        fontSize={10}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 10,
+                          border: "1px solid #e5e5e5",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Bar dataKey="avgTime" fill="#171717" radius={[0, 6, 6, 0]} barSize={14} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="hc-empty">No API metrics available.</div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      {/* RECENT USER ACTIVITY */}
-      <div className="admin-health-section">
-        <div className="admin-health-section-header">
-          <h2><FiUserCheck /> Recent User Activity</h2>
-        </div>
-        <div className="admin-health-logins-list">
-          {recentLogins.slice(0, 10).map((login, idx) => (
-            <div key={idx} className="admin-health-login-item">
+            {/* Issues grid */}
+            <div className="hc-issues-grid">
+              <IssueCard
+                icon={<FiLock />}
+                title="Password resets"
+                count={pendingResets.length}
+                items={pendingResets.slice(0, 3).map((r) => r.email)}
+              />
+              <IssueCard
+                icon={<FiMail />}
+                title="Pending verifications"
+                count={pendingVerifications.length}
+                items={pendingVerifications.slice(0, 3).map((p) => p.email)}
+              />
+              <IssueCard
+                icon={<FiShield />}
+                title="Failed logins"
+                count={failedLogins.length}
+                items={failedLogins.slice(0, 3).map((f) => f.email)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* ============ SERVICES TAB ============ */}
+        {hasData && activeTab === "services" && (
+          <section className="hc-panel">
+            <div className="hc-panel-header">
               <div>
-                <div className="admin-health-login-name">{login.fullName || login.email || 'Unknown User'}</div>
-                <div className="admin-health-login-email">{login.email}</div>
+                <h3>
+                  <FiGlobe /> Service status
+                </h3>
+                <p className="hc-panel-sub">Backend integrations and dependencies</p>
               </div>
-              <div className="admin-health-login-role">{login.role?.toUpperCase() || 'MEMBER'}</div>
-              <div className="admin-health-login-time">{new Date(login.lastActive).toLocaleString()}</div>
+              <button className="hc-btn hc-btn-sm" onClick={fetchAllData}>
+                <FiRefreshCw size={12} /> Refresh
+              </button>
             </div>
-          ))}
-        </div>
+            {services && Object.keys(services).length > 0 ? (
+              <div className="hc-services-grid">
+                {Object.entries(services).map(([name, status]) => (
+                  <div key={name} className="hc-service-card">
+                    <div className="hc-service-head">
+                      <div className="hc-service-name">
+                        {name.charAt(0).toUpperCase() + name.slice(1)}
+                      </div>
+                      <span
+                        className="hc-service-dot"
+                        style={{ backgroundColor: getStatusColor(status.status) }}
+                      />
+                    </div>
+                    <div
+                      className="hc-service-status"
+                      style={{ color: getStatusColor(status.status) }}
+                    >
+                      {getStatusLabel(status.status)}
+                    </div>
+                    {(name === "email" || name === "youtube") && (
+                      <button
+                        className="hc-btn hc-btn-sm"
+                        onClick={() => handleTestService(name)}
+                        disabled={testingService === name}
+                      >
+                        {testingService === name ? (
+                          <FiLoader className="hc-spin" />
+                        ) : (
+                          <>
+                            Test <FiChevronRight size={12} />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="hc-empty">No services reported by the backend.</div>
+            )}
+          </section>
+        )}
+
+        {/* ============ LOGS TAB ============ */}
+        {hasData && activeTab === "logs" && (
+          <>
+            <section className="hc-panel">
+              <div className="hc-panel-header">
+                <div>
+                  <h3>
+                    <FiAlertCircle /> Recent errors
+                  </h3>
+                  <p className="hc-panel-sub">
+                    {errors.length} total · click a row for details
+                  </p>
+                </div>
+              </div>
+              {errors.length === 0 ? (
+                <div className="hc-empty">No errors recorded. System is healthy.</div>
+              ) : (
+                <div className="hc-list">
+                  {errors.slice(0, 30).map((error, idx) => (
+                    <div
+                      key={idx}
+                      className="hc-error-row"
+                      onClick={() => {
+                        setSelectedError(error);
+                        setShowErrorModal(true);
+                      }}
+                    >
+                      <div className="hc-error-time">
+                        {new Date(error.timestamp).toLocaleString()}
+                      </div>
+                      <div
+                        className={`hc-error-status ${
+                          error.statusCode >= 500 ? "hc-error-5xx" : "hc-error-4xx"
+                        }`}
+                      >
+                        {error.statusCode}
+                      </div>
+                      <div className="hc-error-endpoint">{error.endpoint}</div>
+                      <div className="hc-error-user">{getUserDisplay(error.userId)}</div>
+                      <FiChevronRight className="hc-error-view" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="hc-panel">
+              <div className="hc-panel-header">
+                <div>
+                  <h3>
+                    <FiClock /> Slow requests
+                  </h3>
+                  <p className="hc-panel-sub">Requests taking longer than 2 seconds</p>
+                </div>
+                <span className="hc-badge">{slowRequests.length}</span>
+              </div>
+              {slowRequests.length === 0 ? (
+                <div className="hc-empty">No slow requests detected.</div>
+              ) : (
+                <div className="hc-list">
+                  {slowRequests.slice(0, 15).map((req, idx) => (
+                    <div key={idx} className="hc-slow-row">
+                      <div className="hc-slow-duration">{req.duration}ms</div>
+                      <div className="hc-slow-endpoint">{req.endpoint}</div>
+                      <div className="hc-slow-user">{getUserDisplay(req.userId)}</div>
+                      <div className="hc-slow-time">
+                        {new Date(req.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="hc-panel">
+              <div className="hc-panel-header">
+                <div>
+                  <h3>
+                    <FiEye /> User reports
+                  </h3>
+                  <p className="hc-panel-sub">Issues submitted by users</p>
+                </div>
+                <span className="hc-badge">{reports.length}</span>
+              </div>
+              {reports.length === 0 ? (
+                <div className="hc-empty">No user reports.</div>
+              ) : (
+                <div className="hc-list">
+                  {reports.slice(0, 10).map((report) => (
+                    <div key={report.id} className="hc-report-row">
+                      <div
+                        className="hc-report-bar"
+                        style={{
+                          backgroundColor:
+                            report.severity === "critical"
+                              ? "#dc2626"
+                              : report.severity === "high"
+                              ? "#ea580c"
+                              : "#d97706",
+                        }}
+                      />
+                      <div className="hc-report-content">
+                        <div className="hc-report-title">{report.title}</div>
+                        <div className="hc-report-desc">{report.description}</div>
+                        <div className="hc-report-meta">
+                          <span>{new Date(report.createdAt).toLocaleString()}</span>
+                          <span>{report.userName || report.userId || "Unknown user"}</span>
+                        </div>
+                      </div>
+                      {report.status === "pending" && (
+                        <button
+                          className="hc-btn hc-btn-sm"
+                          onClick={() => handleResolveReport(report.id)}
+                        >
+                          Resolve
+                        </button>
+                      )}
+                      {report.status === "resolved" && (
+                        <FiCheckCircle className="hc-resolved-icon" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* ============ DATA TAB ============ */}
+        {hasData && activeTab === "data" && (
+          <>
+            {/* Storage */}
+            <div className="hc-storage-grid">
+              <div className="hc-panel hc-storage-card">
+                <div className="hc-storage-head">
+                  <div className="hc-storage-icon">
+                    <FiHardDrive />
+                  </div>
+                  <div>
+                    <div className="hc-storage-label">Storage Used</div>
+                    <div className="hc-storage-value">
+                      {storageMetrics.percentUsed > 0
+                        ? `${storageMetrics.percentUsed.toFixed(1)}%`
+                        : "—"}
+                    </div>
+                  </div>
+                </div>
+                <div className="hc-bar-track">
+                  <div
+                    className="hc-bar-fill"
+                    style={{
+                      width: `${Math.min(storageMetrics.percentUsed, 100)}%`,
+                      background: storageMetrics.percentUsed > 90 ? "#dc2626" : "#171717",
+                    }}
+                  />
+                </div>
+                <div className="hc-storage-details">
+                  <span>{formatBytes(storageMetrics.usedSize)}</span>
+                  <span>of {formatBytes(storageMetrics.totalSize)}</span>
+                </div>
+              </div>
+
+              <div className="hc-panel hc-storage-card">
+                <div className="hc-storage-head">
+                  <div className="hc-storage-icon">
+                    <FiDatabase />
+                  </div>
+                  <div>
+                    <div className="hc-storage-label">Total Files</div>
+                    <div className="hc-storage-value">{storageMetrics.totalFiles}</div>
+                  </div>
+                </div>
+                <div className="hc-storage-types">
+                  <div className="hc-storage-type">
+                    <span>{storageMetrics.images}</span>
+                    <small>Images</small>
+                  </div>
+                  <div className="hc-storage-type">
+                    <span>{storageMetrics.videos}</span>
+                    <small>Videos</small>
+                  </div>
+                  <div className="hc-storage-type">
+                    <span>{storageMetrics.documents}</span>
+                    <small>Docs</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* DB Stats */}
+            <section className="hc-panel">
+              <div className="hc-panel-header">
+                <div>
+                  <h3>
+                    <FiDatabase /> Database statistics
+                  </h3>
+                  <p className="hc-panel-sub">Record counts across all tables</p>
+                </div>
+              </div>
+              {databaseStats && Object.keys(databaseStats).length > 0 ? (
+                <div className="hc-db-grid">
+                  {Object.entries(databaseStats).map(([key, value]) => {
+                    const labels = {
+                      users: "Users",
+                      announcements: "Announcements",
+                      massPrograms: "Mass Programs",
+                      pledges: "Pledges",
+                      songs: "Songs",
+                      media: "Media",
+                      games: "Games",
+                      messages: "Messages",
+                      notifications: "Notifications",
+                      attendanceSheets: "Attendance Sheets",
+                      attendanceEntries: "Attendance Entries",
+                    };
+                    return (
+                      <div key={key} className="hc-db-tile">
+                        <div className="hc-db-value">{(value || 0).toLocaleString()}</div>
+                        <div className="hc-db-label">
+                          {labels[key] || key.replace(/([A-Z])/g, " $1").trim()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="hc-empty">No database statistics available.</div>
+              )}
+            </section>
+
+            {/* Recent activity */}
+            <section className="hc-panel">
+              <div className="hc-panel-header">
+                <div>
+                  <h3>
+                    <FiUserCheck /> Recent user activity
+                  </h3>
+                  <p className="hc-panel-sub">Most recent logins and sessions</p>
+                </div>
+              </div>
+              {recentLogins.length === 0 ? (
+                <div className="hc-empty">No recent user activity.</div>
+              ) : (
+                <div className="hc-list">
+                  {recentLogins.slice(0, 10).map((login, idx) => (
+                    <div key={idx} className="hc-login-row">
+                      <div className="hc-login-avatar">
+                        {(login.fullName || login.email || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="hc-login-info">
+                        <div className="hc-login-name">
+                          {login.fullName || login.email || "Unknown user"}
+                        </div>
+                        <div className="hc-login-email">{login.email}</div>
+                      </div>
+                      <div className="hc-login-role">
+                        {login.role ? login.role.toUpperCase() : "MEMBER"}
+                      </div>
+                      <div className="hc-login-time">
+                        {new Date(login.lastActive).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </div>
 
-      {/* ERROR DETAIL MODAL */}
+      {/* ============ ERROR DETAIL MODAL ============ */}
       {showErrorModal && selectedError && (
-        <div className="admin-health-modal-overlay" onClick={() => setShowErrorModal(false)}>
-          <div className="admin-health-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-health-modal-header">
-              <h3>🔍 Error Details</h3>
-              <button className="admin-health-modal-close" onClick={() => setShowErrorModal(false)}><FiX /></button>
+        <div className="hc-modal-overlay" onClick={() => setShowErrorModal(false)}>
+          <div className="hc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="hc-modal-header">
+              <div>
+                <h3>Error Details</h3>
+                <p className="hc-modal-sub">
+                  {new Date(selectedError.timestamp).toLocaleString()}
+                </p>
+              </div>
+              <button className="hc-modal-close" onClick={() => setShowErrorModal(false)}>
+                <FiX />
+              </button>
             </div>
-            <div className="admin-health-modal-body">
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">Status:</span>
-                <span className="admin-health-modal-value" style={{ color: selectedError.statusCode >= 500 ? '#ef4444' : '#f59e0b' }}>
+            <div className="hc-modal-body">
+              <div className="hc-modal-status-row">
+                <span
+                  className={`hc-modal-status-pill ${
+                    selectedError.statusCode >= 500 ? "hc-error-5xx" : "hc-error-4xx"
+                  }`}
+                >
                   {selectedError.statusCode}
                 </span>
+                <span className="hc-modal-method">{selectedError.method}</span>
               </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">Endpoint:</span>
-                <span className="admin-health-modal-value">{selectedError.endpoint}</span>
-              </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">Method:</span>
-                <span className="admin-health-modal-value">{selectedError.method}</span>
-              </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">Message:</span>
-                <span className="admin-health-modal-value">{selectedError.message}</span>
-              </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">Time:</span>
-                <span className="admin-health-modal-value">{new Date(selectedError.timestamp).toLocaleString()}</span>
-              </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">User:</span>
-                <span className="admin-health-modal-value">{getUserDisplay(selectedError.userId)}</span>
-              </div>
-              <div className="admin-health-modal-row">
-                <span className="admin-health-modal-label">IP Address:</span>
-                <span className="admin-health-modal-value">{selectedError.ip || 'Unknown'}</span>
-              </div>
+              <ModalRow label="Endpoint" value={selectedError.endpoint} mono />
+              <ModalRow label="Message" value={selectedError.message} />
+              <ModalRow label="User" value={getUserDisplay(selectedError.userId)} />
+              <ModalRow label="IP Address" value={selectedError.ip || "Not recorded"} mono />
             </div>
           </div>
         </div>
       )}
 
-      <style jsx>{`
-        /* ============================================
-           ADMIN HEALTH CENTRE - COMPLETE STYLES
-           Mobile-first responsive design
-           ============================================ */
-
-        /* Container */
-        .admin-health-container {
-          padding: 16px;
-          background: #f8fafc;
-          min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        /* Header */
-        .admin-health-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 20px;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-
-        .admin-health-title {
-          font-size: 22px;
-          font-weight: 700;
-          margin: 0;
-          color: #1e293b;
-        }
-
-        .admin-health-subtitle {
-          font-size: 13px;
-          color: #64748b;
-          margin: 4px 0 0 0;
-        }
-
-        .admin-health-header-actions {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .admin-health-last-updated {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11px;
-          color: #64748b;
-          background: #f1f5f9;
-          padding: 4px 10px;
-          border-radius: 8px;
-        }
-
-        .admin-health-auto-btn,
-        .admin-health-export-btn,
-        .admin-health-clear-btn {
-          padding: 6px 12px;
-          border-radius: 8px;
-          border: none;
-          color: white;
-          cursor: pointer;
-          font-size: 11px;
-          font-weight: 500;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .admin-health-auto-btn {
-          background: #94a3b8;
-        }
-        .admin-health-auto-btn.active {
-          background: #10b981;
-        }
-        .admin-health-export-btn {
-          background: #3b82f6;
-        }
-        .admin-health-clear-btn {
-          background: #ef4444;
-        }
-
-        /* Score Grid */
-        .admin-health-score-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-score-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        .admin-health-score-card,
-        .admin-health-security-card {
-          background: white;
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-score-left {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 12px;
-        }
-
-        .admin-health-score-label {
-          font-size: 13px;
-          color: #64748b;
-        }
-
-        .admin-health-score-value {
-          font-size: 28px;
-          font-weight: 800;
-          color: #1e293b;
-        }
-
-        .admin-health-score-bar {
-          height: 8px;
-          background: #e2e8f0;
-          border-radius: 4px;
-          margin-bottom: 12px;
-          overflow: hidden;
-        }
-
-        .admin-health-score-fill {
-          height: 100%;
-          border-radius: 4px;
-          transition: width 0.5s ease;
-        }
-
-        .admin-health-score-stats {
-          display: flex;
-          gap: 16px;
-          font-size: 12px;
-          color: #475569;
-          flex-wrap: wrap;
-        }
-
-        /* Stats Grid */
-        .admin-health-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 480px) {
-          .admin-health-stats-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-stats-grid {
-            grid-template-columns: repeat(6, 1fr);
-          }
-        }
-
-        .admin-health-stat-card {
-          background: white;
-          border-radius: 12px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-stat-icon {
-          font-size: 24px;
-          color: #3b82f6;
-        }
-
-        .admin-health-stat-label {
-          font-size: 10px;
-          color: #64748b;
-          margin-bottom: 2px;
-        }
-
-        .admin-health-stat-value {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .admin-health-stat-trend {
-          font-size: 10px;
-          color: #94a3b8;
-          margin-top: 2px;
-        }
-
-        /* Charts Grid */
-        .admin-health-charts-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-charts-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        .admin-health-chart-card {
-          background: white;
-          border-radius: 12px;
-          padding: 16px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-chart-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .admin-health-chart-header h3 {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .admin-health-legend {
-          display: flex;
-          gap: 12px;
-          font-size: 11px;
-        }
-
-        .admin-health-legend-dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 3px;
-          display: inline-block;
-          margin-right: 4px;
-        }
-
-        .admin-health-legend-dot.error-5xx { background: #ef4444; }
-        .admin-health-legend-dot.error-4xx { background: #f59e0b; }
-
-        .admin-health-chart-label {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        /* Storage Grid */
-        .admin-health-storage-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 480px) {
-          .admin-health-storage-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        .admin-health-storage-card {
-          background: white;
-          border-radius: 12px;
-          padding: 20px;
-          text-align: center;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-storage-icon {
-          font-size: 28px;
-          margin-bottom: 8px;
-          color: #3b82f6;
-        }
-
-        .admin-health-storage-value {
-          font-size: 28px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .admin-health-storage-label {
-          font-size: 12px;
-          color: #64748b;
-          margin-bottom: 8px;
-        }
-
-        .admin-health-storage-bar {
-          height: 8px;
-          background: #e2e8f0;
-          border-radius: 4px;
-          overflow: hidden;
-          margin-bottom: 6px;
-        }
-
-        .admin-health-storage-details {
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        .admin-health-storage-types {
-          display: flex;
-          justify-content: center;
-          gap: 12px;
-          font-size: 11px;
-          color: #64748b;
-          margin-top: 8px;
-          flex-wrap: wrap;
-        }
-
-        /* Section */
-        .admin-health-section {
-          background: white;
-          border-radius: 12px;
-          padding: 16px;
-          margin-bottom: 16px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .admin-health-section-header h2 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .admin-health-badge {
-          background: #f1f5f9;
-          padding: 2px 10px;
-          border-radius: 16px;
-          font-size: 11px;
-          font-weight: 500;
-          color: #475569;
-        }
-
-        .admin-health-refresh-btn {
-          background: #f1f5f9;
-          border: none;
-          padding: 4px 10px;
-          border-radius: 6px;
-          color: #475569;
-          cursor: pointer;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        /* Services */
-        .admin-health-services-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px;
-        }
-
-        @media (min-width: 480px) {
-          .admin-health-services-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-services-grid {
-            grid-template-columns: repeat(4, 1fr);
-          }
-        }
-
-        .admin-health-service-card {
-          background: #f8fafc;
-          border-radius: 10px;
-          padding: 14px;
-          position: relative;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-service-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          position: absolute;
-          top: 12px;
-          right: 12px;
-        }
-
-        .admin-health-service-name {
-          font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 4px;
-        }
-
-        .admin-health-service-status {
-          font-size: 11px;
-          margin-bottom: 8px;
-        }
-
-        .admin-health-test-btn {
-          background: #f1f5f9;
-          border: none;
-          padding: 3px 10px;
-          border-radius: 4px;
-          color: #475569;
-          cursor: pointer;
-          font-size: 10px;
-        }
-
-        .admin-health-spinner {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        /* User Issues */
-        .admin-health-user-issues-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-
-        @media (min-width: 480px) {
-          .admin-health-user-issues-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-user-issues-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-
-        .admin-health-issue-card {
-          background: #f8fafc;
-          border-radius: 10px;
-          padding: 14px;
-          display: flex;
-          gap: 12px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-issue-icon {
-          font-size: 20px;
-        }
-
-        .admin-health-issue-title {
-          font-size: 11px;
-          color: #64748b;
-          margin-bottom: 2px;
-        }
-
-        .admin-health-issue-number {
-          font-size: 22px;
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 6px;
-        }
-
-        .admin-health-issue-item {
-          font-size: 10px;
-          color: #94a3b8;
-          padding: 2px 0;
-        }
-
-        /* Error List */
-        .admin-health-error-list {
-          max-height: 400px;
-          overflow-y: auto;
-        }
-
-        .admin-health-error-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px;
-          border-bottom: 1px solid #e2e8f0;
-          cursor: pointer;
-          font-size: 12px;
-          flex-wrap: wrap;
-        }
-
-        .admin-health-error-time {
-          font-size: 10px;
-          color: #64748b;
-          min-width: 120px;
-        }
-
-        .admin-health-error-status {
-          padding: 2px 8px;
-          border-radius: 4px;
-          color: white;
-          font-weight: 600;
-          font-size: 11px;
-          min-width: 35px;
-          text-align: center;
-        }
-
-        .admin-health-error-endpoint {
-          flex: 1;
-          color: #1e293b;
-          font-family: monospace;
-          font-size: 11px;
-          word-break: break-all;
-        }
-
-        .admin-health-error-user {
-          color: #64748b;
-          font-size: 11px;
-          min-width: 80px;
-        }
-
-        .admin-health-error-view {
-          color: #94a3b8;
-          cursor: pointer;
-          flex-shrink: 0;
-        }
-
-        /* Slow List */
-        .admin-health-slow-list {
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .admin-health-slow-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px;
-          border-bottom: 1px solid #e2e8f0;
-          font-size: 12px;
-          flex-wrap: wrap;
-        }
-
-        .admin-health-slow-duration {
-          color: #ef4444;
-          font-weight: 600;
-          min-width: 60px;
-        }
-
-        .admin-health-slow-endpoint {
-          flex: 1;
-          color: #1e293b;
-          font-family: monospace;
-          font-size: 11px;
-          word-break: break-all;
-        }
-
-        .admin-health-slow-user {
-          color: #64748b;
-          font-size: 11px;
-          min-width: 80px;
-        }
-
-        .admin-health-slow-time {
-          color: #94a3b8;
-          font-size: 10px;
-        }
-
-        /* Reports */
-        .admin-health-reports-list {
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .admin-health-report-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 12px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .admin-health-report-severity {
-          width: 4px;
-          height: 40px;
-          border-radius: 2px;
-          flex-shrink: 0;
-        }
-
-        .admin-health-report-content {
-          flex: 1;
-        }
-
-        .admin-health-report-title {
-          font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .admin-health-report-description {
-          font-size: 12px;
-          color: #64748b;
-          margin: 4px 0;
-        }
-
-        .admin-health-report-meta {
-          display: flex;
-          gap: 12px;
-          font-size: 10px;
-          color: #94a3b8;
-          flex-wrap: wrap;
-        }
-
-        .admin-health-resolve-btn {
-          background: #10b981;
-          border: none;
-          padding: 4px 10px;
-          border-radius: 4px;
-          color: white;
-          cursor: pointer;
-          font-size: 10px;
-          font-weight: 500;
-        }
-
-        .admin-health-resolved-icon {
-          color: #10b981;
-          font-size: 18px;
-        }
-
-        /* DB Stats */
-        .admin-health-db-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px;
-        }
-
-        @media (min-width: 480px) {
-          .admin-health-db-stats-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
-        }
-
-        @media (min-width: 768px) {
-          .admin-health-db-stats-grid {
-            grid-template-columns: repeat(4, 1fr);
-          }
-        }
-
-        .admin-health-db-stat-card {
-          background: #f8fafc;
-          text-align: center;
-          padding: 14px;
-          border-radius: 10px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .admin-health-db-stat-value {
-          font-size: 20px;
-          font-weight: 700;
-          color: #3b82f6;
-        }
-
-        .admin-health-db-stat-label {
-          font-size: 9px;
-          color: #64748b;
-          margin-top: 4px;
-        }
-
-        /* Logins */
-        .admin-health-logins-list {
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .admin-health-login-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 10px;
-          border-bottom: 1px solid #e2e8f0;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .admin-health-login-name {
-          font-size: 13px;
-          font-weight: 500;
-          color: #1e293b;
-        }
-
-        .admin-health-login-email {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .admin-health-login-role {
-          font-size: 10px;
-          background: #f1f5f9;
-          padding: 2px 8px;
-          border-radius: 10px;
-          color: #475569;
-        }
-
-        .admin-health-login-time {
-          font-size: 10px;
-          color: #94a3b8;
-        }
-
-        /* Empty State */
-        .admin-health-empty-state {
-          text-align: center;
-          padding: 30px;
-          color: #94a3b8;
-          font-size: 13px;
-        }
-
-        /* Modal */
-        .admin-health-modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 16px;
-        }
-
-        .admin-health-modal {
-          background: white;
-          border-radius: 16px;
-          width: 100%;
-          max-width: 500px;
-          box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-        }
-
-        .admin-health-modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 20px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .admin-health-modal-header h3 {
-          font-size: 16px;
-          margin: 0;
-          color: #1e293b;
-        }
-
-        .admin-health-modal-close {
-          background: none;
-          border: none;
-          font-size: 18px;
-          cursor: pointer;
-          color: #94a3b8;
-        }
-
-        .admin-health-modal-body {
-          padding: 16px 20px;
-        }
-
-        .admin-health-modal-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 6px 0;
-          border-bottom: 1px solid #f1f5f9;
-          gap: 12px;
-        }
-
-        .admin-health-modal-label {
-          font-weight: 600;
-          color: #64748b;
-          font-size: 12px;
-          flex-shrink: 0;
-        }
-
-        .admin-health-modal-value {
-          color: #1e293b;
-          font-family: monospace;
-          font-size: 12px;
-          text-align: right;
-          word-break: break-all;
-        }
-
-        /* Skeleton */
-        .skeleton-card {
-          background: white;
-          border-radius: 12px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .skeleton-icon {
-          width: 40px;
-          height: 40px;
-          background: #e2e8f0;
-          border-radius: 10px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-title {
-          width: 80px;
-          height: 12px;
-          background: #e2e8f0;
-          border-radius: 4px;
-          margin-bottom: 6px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-value {
-          width: 50px;
-          height: 22px;
-          background: #e2e8f0;
-          border-radius: 4px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-text-large {
-          width: 200px;
-          height: 28px;
-          background: #e2e8f0;
-          border-radius: 6px;
-          margin-bottom: 8px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-text-medium {
-          width: 300px;
-          height: 16px;
-          background: #e2e8f0;
-          border-radius: 6px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-chart {
-          background: white;
-          border-radius: 12px;
-          padding: 16px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .skeleton-chart-title {
-          width: 150px;
-          height: 20px;
-          background: #e2e8f0;
-          border-radius: 4px;
-          margin-bottom: 16px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .skeleton-chart-body {
-          height: 200px;
-          background: #e2e8f0;
-          border-radius: 8px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-
-        /* Responsive Fine-Tuning */
-        @media (max-width: 480px) {
-          .admin-health-container {
-            padding: 10px;
-          }
-
-          .admin-health-title {
-            font-size: 18px;
-          }
-
-          .admin-health-header-actions {
-            width: 100%;
-            justify-content: flex-start;
-          }
-
-          .admin-health-auto-btn,
-          .admin-health-export-btn,
-          .admin-health-clear-btn {
-            font-size: 10px;
-            padding: 4px 10px;
-          }
-
-          .admin-health-stat-card {
-            padding: 12px;
-          }
-
-          .admin-health-stat-value {
-            font-size: 15px;
-          }
-
-          .admin-health-score-value {
-            font-size: 22px;
-          }
-
-          .admin-health-error-item {
-            font-size: 11px;
-          }
-
-          .admin-health-error-time {
-            min-width: 80px;
-            font-size: 9px;
-          }
-
-          .admin-health-modal {
-            max-width: 100%;
-            margin: 10px;
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .admin-health-container {
-            padding: 24px;
-          }
-
-          .admin-health-title {
-            font-size: 28px;
-          }
-
-          .admin-health-stats-grid {
-            gap: 16px;
-          }
-        }
-      `}</style>
+      <style>{mainCSS}</style>
     </div>
   );
 }
+
+/* ============================================================
+   SUB-COMPONENTS
+   ============================================================ */
+
+function ScoreCard({ title, score, icon, stats }) {
+  const tone =
+    score > 80
+      ? { bar: "#16a34a", text: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" }
+      : score > 50
+      ? { bar: "#d97706", text: "#b45309", bg: "#fffbeb", border: "#fde68a" }
+      : { bar: "#dc2626", text: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+
+  return (
+    <div className="hc-score-card">
+      <div className="hc-score-head">
+        <div className="hc-score-icon" style={{ background: tone.bg, color: tone.text }}>
+          {icon}
+        </div>
+        <div className="hc-score-meta">
+          <div className="hc-score-label">{title}</div>
+          <div className="hc-score-value" style={{ color: tone.text }}>
+            {score}%
+          </div>
+        </div>
+      </div>
+      <div className="hc-bar-track">
+        <div className="hc-bar-fill" style={{ width: `${score}%`, background: tone.bar }} />
+      </div>
+      <div className="hc-score-stats">
+        {stats.map((s, i) => (
+          <span key={i}>{s}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ icon, label, value, sub, tone }) {
+  return (
+    <div className="hc-tile">
+      <div className={`hc-tile-icon ${tone === "danger" ? "hc-tile-icon-danger" : ""}`}>
+        {icon}
+      </div>
+      <div className="hc-tile-body">
+        <div className="hc-tile-label">{label}</div>
+        <div className="hc-tile-value">{value}</div>
+        {sub && <div className="hc-tile-sub">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function IssueCard({ icon, title, count, items }) {
+  return (
+    <div className="hc-issue-card">
+      <div className="hc-issue-head">
+        <div className="hc-issue-icon">{icon}</div>
+        <div className="hc-issue-count">{count}</div>
+      </div>
+      <div className="hc-issue-title">{title}</div>
+      <div className="hc-issue-items">
+        {items.length === 0 ? (
+          <div className="hc-issue-item hc-issue-empty">No items</div>
+        ) : (
+          items.map((it, i) => (
+            <div key={i} className="hc-issue-item">
+              {it}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModalRow({ label, value, mono }) {
+  return (
+    <div className="hc-modal-row">
+      <span className="hc-modal-label">{label}</span>
+      <span className={`hc-modal-value ${mono ? "hc-modal-mono" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+/* ============================================================
+   STYLES
+   ============================================================ */
+
+const baseCSS = `
+  .hc-page {
+    background: #fafafa;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #171717;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .hc-container {
+    padding: 28px 24px 60px;
+    max-width: 1360px;
+    margin: 0 auto;
+  }
+
+  /* ---------- HEADER ---------- */
+  .hc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 22px;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 22px;
+  }
+  .hc-header-left { min-width: 0; }
+  .hc-header-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #737373;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .hc-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #16a34a;
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5);
+    animation: hc-pulse 2s infinite;
+  }
+  @keyframes hc-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
+  }
+  .hc-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.5px;
+    color: #0f0f0f;
+  }
+  .hc-subtitle {
+    font-size: 13.5px;
+    color: #737373;
+    margin: 4px 0 0 0;
+  }
+  .hc-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .hc-updated {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #525252;
+    background: #ffffff;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+  }
+
+  /* ---------- BUTTONS ---------- */
+  .hc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+    background: #ffffff;
+    color: #262626;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+  }
+  .hc-btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
+  .hc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .hc-btn-sm { padding: 5px 10px; font-size: 11.5px; }
+  .hc-btn-primary {
+    background: #0f0f0f;
+    color: #ffffff;
+    border-color: #0f0f0f;
+  }
+  .hc-btn-primary:hover { background: #262626; border-color: #262626; }
+  .hc-btn-danger { color: #b91c1c; border-color: #fecaca; }
+  .hc-btn-danger:hover { background: #fef2f2; border-color: #fca5a5; }
+
+  .hc-spin-slow { animation: hc-spin 2s linear infinite; }
+  .hc-spin { animation: hc-spin 1s linear infinite; }
+  @keyframes hc-spin { to { transform: rotate(360deg); } }
+
+  /* ---------- TABS ---------- */
+  .hc-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .hc-tabs::-webkit-scrollbar { display: none; }
+  .hc-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #737373;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+    margin-bottom: -1px;
+  }
+  .hc-tab:hover { color: #262626; }
+  .hc-tab-active {
+    color: #0f0f0f;
+    border-bottom-color: #0f0f0f;
+  }
+  .hc-tab-badge {
+    background: #f5f5f5;
+    color: #525252;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: center;
+  }
+  .hc-tab-active .hc-tab-badge {
+    background: #0f0f0f;
+    color: #ffffff;
+  }
+
+  /* ---------- SCORE CARDS ---------- */
+  .hc-score-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  @media (min-width: 768px) {
+    .hc-score-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .hc-score-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 22px;
+    transition: border-color 0.15s ease;
+  }
+  .hc-score-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .hc-score-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .hc-score-meta { flex: 1; min-width: 0; }
+  .hc-score-label {
+    font-size: 12px;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .hc-score-value {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.8px;
+    margin-top: 2px;
+  }
+  .hc-bar-track {
+    height: 6px;
+    background: #f5f5f5;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .hc-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+  }
+  .hc-score-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #525252;
+  }
+  .hc-score-stats span {
+    position: relative;
+    padding-left: 0;
+  }
+
+  /* ---------- STAT TILES ---------- */
+  .hc-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 480px) { .hc-stats-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 768px) { .hc-stats-grid { grid-template-columns: repeat(6, 1fr); } }
+
+  .hc-tile {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.15s ease;
+  }
+  .hc-tile:hover { border-color: #d4d4d4; }
+  .hc-tile-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #262626;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .hc-tile-icon-danger {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+  .hc-tile-body { flex: 1; min-width: 0; }
+  .hc-tile-label {
+    font-size: 10.5px;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .hc-tile-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: #171717;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-tile-sub {
+    font-size: 10.5px;
+    color: #a3a3a3;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---------- CHARTS ---------- */
+  .hc-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 900px) { .hc-charts-grid { grid-template-columns: 1fr 1fr; } }
+
+  .hc-panel {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .hc-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .hc-panel-header h2,
+  .hc-panel-header h3 {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #0f0f0f;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.1px;
+  }
+  .hc-panel-header h3 svg { color: #737373; }
+  .hc-panel-sub {
+    font-size: 12px;
+    color: #a3a3a3;
+    margin: 4px 0 0 0;
+  }
+  .hc-legend {
+    display: flex;
+    gap: 14px;
+    font-size: 11.5px;
+    color: #525252;
+  }
+  .hc-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+  .hc-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .hc-dot-red { background: #dc2626; }
+  .hc-dot-amber { background: #d97706; }
+
+  /* ---------- STORAGE ---------- */
+  .hc-storage-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  @media (min-width: 768px) { .hc-storage-grid { grid-template-columns: 1fr 1fr; } }
+
+  .hc-storage-card { margin-bottom: 0; }
+  .hc-storage-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .hc-storage-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: #f5f5f5;
+    color: #262626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .hc-storage-label {
+    font-size: 11.5px;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .hc-storage-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: #171717;
+    letter-spacing: -0.6px;
+    margin-top: 2px;
+  }
+  .hc-storage-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #a3a3a3;
+  }
+  .hc-storage-types {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .hc-storage-type {
+    background: #fafafa;
+    border-radius: 10px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .hc-storage-type > span {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    color: #171717;
+    letter-spacing: -0.4px;
+  }
+  .hc-storage-type > small {
+    display: block;
+    font-size: 10.5px;
+    color: #737373;
+    margin-top: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ---------- SERVICES ---------- */
+  .hc-services-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (min-width: 480px) { .hc-services-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 900px) { .hc-services-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .hc-service-card {
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    padding: 16px;
+    transition: border-color 0.15s ease;
+  }
+  .hc-service-card:hover { border-color: #e5e5e5; }
+  .hc-service-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .hc-service-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #171717;
+  }
+  .hc-service-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .hc-service-status {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  /* ---------- ISSUES ---------- */
+  .hc-issues-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 600px) { .hc-issues-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 900px) { .hc-issues-grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+  .hc-issue-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 18px;
+    transition: border-color 0.15s ease;
+  }
+  .hc-issue-card:hover { border-color: #d4d4d4; }
+  .hc-issue-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .hc-issue-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f5f5f5;
+    color: #262626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+  }
+  .hc-issue-count {
+    font-size: 24px;
+    font-weight: 800;
+    color: #171717;
+    letter-spacing: -0.5px;
+  }
+  .hc-issue-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #525252;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .hc-issue-items {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hc-issue-item {
+    font-size: 12px;
+    color: #737373;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-issue-empty { font-style: italic; color: #a3a3a3; }
+
+  /* ---------- LIST ROWS ---------- */
+  .hc-list { display: flex; flex-direction: column; }
+
+  .hc-error-row {
+    display: grid;
+    grid-template-columns: 150px 50px 1fr 140px 20px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 4px;
+    border-bottom: 1px solid #f5f5f5;
+    cursor: pointer;
+    font-size: 12.5px;
+    transition: background 0.12s ease;
+  }
+  .hc-error-row:hover { background: #fafafa; }
+  .hc-error-row:last-child { border-bottom: none; }
+  .hc-error-time { font-size: 11.5px; color: #737373; }
+  .hc-error-status {
+    padding: 3px 9px;
+    border-radius: 6px;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 11px;
+    text-align: center;
+    min-width: 38px;
+  }
+  .hc-error-5xx { background: #dc2626; }
+  .hc-error-4xx { background: #d97706; }
+  .hc-error-endpoint {
+    color: #171717;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-error-user {
+    color: #737373;
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-error-view { color: #d4d4d4; }
+
+  .hc-slow-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 140px 100px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 4px;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 12.5px;
+  }
+  .hc-slow-row:last-child { border-bottom: none; }
+  .hc-slow-duration { color: #b91c1c; font-weight: 700; font-size: 12.5px; }
+  .hc-slow-endpoint {
+    color: #171717;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-slow-user { color: #737373; font-size: 11.5px; }
+  .hc-slow-time { color: #a3a3a3; font-size: 11.5px; text-align: right; }
+
+  .hc-report-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 4px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .hc-report-row:last-child { border-bottom: none; }
+  .hc-report-bar {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 3px;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+  .hc-report-content { flex: 1; min-width: 0; }
+  .hc-report-title { font-size: 13.5px; font-weight: 700; color: #171717; }
+  .hc-report-desc { font-size: 12.5px; color: #737373; margin: 4px 0; }
+  .hc-report-meta {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: #a3a3a3;
+    flex-wrap: wrap;
+  }
+  .hc-resolved-icon { color: #16a34a; font-size: 18px; }
+
+  /* ---------- DB ---------- */
+  .hc-db-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  @media (min-width: 480px) { .hc-db-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 768px) { .hc-db-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .hc-db-tile {
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    transition: border-color 0.15s ease;
+  }
+  .hc-db-tile:hover { border-color: #e5e5e5; }
+  .hc-db-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #171717;
+    letter-spacing: -0.5px;
+  }
+  .hc-db-label {
+    font-size: 10.5px;
+    color: #737373;
+    margin-top: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
+  /* ---------- LOGINS ---------- */
+  .hc-login-row {
+    display: grid;
+    grid-template-columns: 40px 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 4px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .hc-login-row:last-child { border-bottom: none; }
+  .hc-login-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f5f5f5;
+    color: #525252;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13.5px;
+    flex-shrink: 0;
+  }
+  .hc-login-info { min-width: 0; }
+  .hc-login-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #171717;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-login-email {
+    font-size: 11.5px;
+    color: #737373;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-login-role {
+    font-size: 10px;
+    background: #f5f5f5;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: #525252;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .hc-login-time { font-size: 11.5px; color: #a3a3a3; }
+
+  /* ---------- EMPTY / BADGE ---------- */
+  .hc-empty {
+    padding: 32px 12px;
+    text-align: center;
+    color: #a3a3a3;
+    font-size: 13px;
+  }
+  .hc-empty-banner {
+    padding: 14px 18px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    text-align: center;
+    color: #525252;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .hc-badge {
+    background: #f5f5f5;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #525252;
+  }
+
+  /* ---------- MODAL ---------- */
+  .hc-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 15, 15, 0.5);
+    backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+  }
+  .hc-modal {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 20px 40px -12px rgba(0,0,0,0.2);
+    overflow: hidden;
+  }
+  .hc-modal-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 22px; border-bottom: 1px solid #f0f0f0;
+  }
+  .hc-modal-header h3 { font-size: 16px; font-weight: 700; margin: 0; color: #0f0f0f; }
+  .hc-modal-sub { font-size: 12px; color: #a3a3a3; margin: 3px 0 0 0; }
+  .hc-modal-close {
+    background: transparent; border: none; font-size: 20px;
+    cursor: pointer; color: #a3a3a3; padding: 4px;
+    border-radius: 6px; transition: background 0.15s ease;
+  }
+  .hc-modal-close:hover { background: #f5f5f5; color: #171717; }
+  .hc-modal-body { padding: 20px 22px; }
+  .hc-modal-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .hc-modal-status-pill {
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .hc-modal-method {
+    font-size: 12px;
+    font-weight: 700;
+    color: #525252;
+    background: #f5f5f5;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .hc-modal-row {
+    display: flex; justify-content: space-between; gap: 14px;
+    padding: 10px 0; border-bottom: 1px solid #f5f5f5;
+  }
+  .hc-modal-row:last-child { border-bottom: none; }
+  .hc-modal-label {
+    font-size: 12px; font-weight: 600; color: #737373; flex-shrink: 0;
+  }
+  .hc-modal-value {
+    font-size: 12.5px; color: #171717; text-align: right;
+    word-break: break-all;
+  }
+  .hc-modal-mono {
+    font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 12px;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 640px) {
+    .hc-container { padding: 20px 16px 40px; }
+    .hc-title { font-size: 22px; }
+    .hc-score-value { font-size: 26px; }
+
+    .hc-error-row { grid-template-columns: 1fr; gap: 6px; padding: 14px 4px; }
+    .hc-error-time { order: 2; font-size: 11px; }
+    .hc-error-status { order: 1; width: fit-content; }
+    .hc-error-endpoint { order: 3; }
+    .hc-error-user { order: 4; }
+    .hc-error-view { display: none; }
+
+    .hc-slow-row { grid-template-columns: 1fr 1fr; }
+    .hc-slow-endpoint { grid-column: 1 / -1; }
+
+    .hc-login-row { grid-template-columns: 40px 1fr; gap: 12px; }
+    .hc-login-role, .hc-login-time { grid-column: 2; }
+  }
+`;
+
+const skeletonCSS = `
+  ${baseCSS}
+  .hc-skeleton {
+    background: #ececec;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hc-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+    animation: hc-shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes hc-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .hc-skeleton-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 20px; flex-wrap: wrap; margin-bottom: 22px;
+    padding-bottom: 22px; border-bottom: 1px solid #e5e5e5;
+  }
+  .hc-skeleton-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .hc-skeleton-title { width: 220px; height: 26px; }
+  .hc-skeleton-subtitle { width: 280px; height: 14px; margin-top: 8px; }
+  .hc-skeleton-pill { width: 90px; height: 32px; border-radius: 8px; }
+
+  .hc-skeleton-card,
+  .hc-skeleton-card-lg {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+  }
+  .hc-skeleton-card { padding: 14px; display: flex; align-items: center; gap: 12px; }
+  .hc-skeleton-card-lg { padding: 22px; border-radius: 14px; }
+
+  .hc-skeleton-row { display: flex; align-items: center; gap: 12px; }
+  .hc-skeleton-icon { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; }
+  .hc-skeleton-circle-lg { width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; }
+  .hc-skeleton-line-sm { height: 11px; width: 100%; }
+  .hc-skeleton-line-md { height: 14px; width: 100%; }
+  .hc-skeleton-line-xl { height: 26px; width: 100%; border-radius: 6px; }
+  .hc-skeleton-bar { height: 6px; width: 100%; border-radius: 999px; margin-top: 16px; }
+  .hc-skeleton-chart { height: 240px; border-radius: 10px; margin-top: 14px; }
+`;
+
+const mainCSS = baseCSS;
 
 export default AdminHealthCentre;

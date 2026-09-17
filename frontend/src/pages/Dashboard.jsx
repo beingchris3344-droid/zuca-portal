@@ -1276,18 +1276,7 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
-      //advert
-
-  useEffect(() => {
-  if (ads.length <= 1 || isAdPaused) return;
-
-  const interval = setInterval(() => {
-    setCurrentAd((prev) => (prev + 1) % ads.length);
-  }, 5000);
-
-  return () => clearInterval(interval);
-}, [ads.length, isAdPaused]);
-
+     
   // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
   useEffect(() => {
     const fetchCountdownImmediately = async () => {
@@ -9139,7 +9128,7 @@ useEffect(() => {
 .view-all-readings-btn {
   background: transparent;
   border: none;
-  color: #8b5cf6;
+  color: #;
   font-weight: 600;
   font-size: 0.8rem;
   cursor: pointer;
@@ -10327,10 +10316,10 @@ useEffect(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.6rem;
-  background: #f5f3ff;
   border: 1px dashed #8b5cf6;
   border-radius: 12px;
-  color: #8b5cf6;
+  background: transparent;
+  color: #;
   font-weight: 600;
   font-size: 0.8rem;
   cursor: pointer;

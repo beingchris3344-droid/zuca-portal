@@ -780,26 +780,7 @@ export default function MemberAttendance() {
               <span className="stat-value-overview">{totalMeetings}</span>
               <span className="stat-label-overview">Active Meetings</span>
             </div>
-          </div>
-          <div className="stat-card-overview">
-            <div className="stat-icon-overview members">
-              <Users size={20} />
-            </div>
-            <div className="stat-info-overview">
-              <span className="stat-value-overview">{totalCheckedIn}</span>
-              <span className="stat-label-overview">Checked In</span>
-            </div>
-          </div>
-          <div className="stat-card-overview">
-            <div className="stat-icon-overview streak">
-              <Award size={20} />
-            </div>
-            <div className="stat-info-overview">
-              <span className="stat-value-overview">
-                {totalMeetings > 0 ? Math.round((totalCheckedIn / (totalMeetings * 100)) * 100) : 0}%
-              </span>
-              <span className="stat-label-overview">Avg Attendance</span>
-            </div>
+        
           </div>
         </div>
       )}

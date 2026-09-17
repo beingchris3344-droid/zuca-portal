@@ -411,7 +411,7 @@ export default function WhatsAppBot() {
         <header className="wb-header">
           <div className="wb-header-left">
             <div className="wb-title-icon">
-              <FaWhatsapp size={22} />
+              <FaWhatsapp color="green" size={58} />
             </div>
             <div>
               <div className="wb-eyebrow">

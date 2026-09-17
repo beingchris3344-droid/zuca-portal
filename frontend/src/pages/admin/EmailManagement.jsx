@@ -5,12 +5,59 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../../api';
 import {
-  ArrowLeft, Mail, Bell, Calendar, Users, DollarSign, 
-  Megaphone, Music, Gamepad2, FileText, Clock, 
+  ArrowLeft, Mail, Bell, Calendar, Users, DollarSign,
+  Megaphone, Music, Gamepad2, FileText, Clock,
   CheckCircle, XCircle, RefreshCw, Save, Search,
-  Eye, EyeOff, AlertCircle, Phone, Calendar as CalendarIcon
+  AlertCircle, Phone,
 } from 'lucide-react';
 
+/* =========================================================
+   SKELETON
+   ========================================================= */
+function Skeleton() {
+  return (
+    <div className="em-page">
+      <div className="em-container">
+        <div className="em-skel-header">
+          <div className="em-skel em-skel-back" />
+          <div style={{ flex: 1 }}>
+            <div className="em-skel em-skel-title" />
+            <div className="em-skel em-skel-line-sm" style={{ width: 280, marginTop: 8 }} />
+          </div>
+          <div className="em-skel em-skel-btn" />
+        </div>
+        <div className="em-skel-stats">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="em-skel-stat">
+              <div className="em-skel em-skel-stat-icon" />
+              <div style={{ flex: 1 }}>
+                <div className="em-skel em-skel-line-md" style={{ width: 40 }} />
+                <div className="em-skel em-skel-line-sm" style={{ width: 80, marginTop: 6 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="em-skel em-skel-search" />
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="em-skel-section">
+            <div className="em-skel em-skel-line-md" style={{ width: 160 }} />
+            {[...Array(2)].map((__, j) => (
+              <div key={j} className="em-skel-row">
+                <div className="em-skel em-skel-line-md" style={{ width: 180 }} />
+                <div className="em-skel em-skel-pill" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <style>{skeletonCSS}</style>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
 export default function EmailManagement() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -23,7 +70,7 @@ export default function EmailManagement() {
   const [stats, setStats] = useState(null);
 
   const getHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem('token')}`
+    Authorization: `Bearer ${localStorage.getItem('token')}`,
   });
 
   const fetchSettings = async () => {
@@ -31,16 +78,15 @@ export default function EmailManagement() {
       setLoading(true);
       const [settingsRes, statsRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/admin/email/settings`, { headers: getHeaders() }),
-        axios.get(`${BASE_URL}/api/admin/email/stats`, { headers: getHeaders() })
+        axios.get(`${BASE_URL}/api/admin/email/stats`, { headers: getHeaders() }),
       ]);
 
       setSettings(settingsRes.data.settings || {});
       setAllSettings(settingsRes.data.all || []);
       setStats(statsRes.data);
-      
+
       const cats = Object.keys(settingsRes.data.settings || {});
       setCategories(cats);
-      
     } catch (error) {
       console.error('Error fetching email settings:', error);
       setMessage({ type: 'error', text: 'Failed to load email settings' });
@@ -56,16 +102,16 @@ export default function EmailManagement() {
   const handleToggle = async (type, currentEnabled) => {
     try {
       const newState = !currentEnabled;
-      
+
       const updatedSettings = { ...settings };
       for (const category in updatedSettings) {
-        updatedSettings[category] = updatedSettings[category].map(s => 
+        updatedSettings[category] = updatedSettings[category].map(s =>
           s.type === type ? { ...s, enabled: newState } : s
         );
       }
       setSettings(updatedSettings);
 
-      setAllSettings(allSettings.map(s => 
+      setAllSettings(allSettings.map(s =>
         s.type === type ? { ...s, enabled: newState } : s
       ));
 
@@ -75,12 +121,11 @@ export default function EmailManagement() {
         { headers: getHeaders() }
       );
 
-      setMessage({ 
-        type: 'success', 
-        text: `Email "${type}" ${newState ? 'enabled' : 'disabled'} successfully` 
+      setMessage({
+        type: 'success',
+        text: `Email "${type}" ${newState ? 'enabled' : 'disabled'} successfully`,
       });
       setTimeout(() => setMessage(null), 3000);
-
     } catch (error) {
       console.error('Error toggling email setting:', error);
       fetchSettings();
@@ -92,17 +137,17 @@ export default function EmailManagement() {
   const handleCategoryToggle = async (category, enabled) => {
     try {
       const newState = !enabled;
-      
+
       const updatedSettings = { ...settings };
       if (updatedSettings[category]) {
         updatedSettings[category] = updatedSettings[category].map(s => ({
           ...s,
-          enabled: newState
+          enabled: newState,
         }));
       }
       setSettings(updatedSettings);
 
-      setAllSettings(allSettings.map(s => 
+      setAllSettings(allSettings.map(s =>
         s.category === category ? { ...s, enabled: newState } : s
       ));
 
@@ -112,12 +157,11 @@ export default function EmailManagement() {
         { headers: getHeaders() }
       );
 
-      setMessage({ 
-        type: 'success', 
-        text: `Category "${category}" ${newState ? 'enabled' : 'disabled'} successfully` 
+      setMessage({
+        type: 'success',
+        text: `Category "${category}" ${newState ? 'enabled' : 'disabled'} successfully`,
       });
       setTimeout(() => setMessage(null), 3000);
-
     } catch (error) {
       console.error('Error toggling category:', error);
       fetchSettings();
@@ -128,7 +172,7 @@ export default function EmailManagement() {
 
   const handleResetAll = async () => {
     if (!window.confirm('Reset all email settings to default (enabled)?')) return;
-    
+
     try {
       setSaving(true);
       await axios.post(
@@ -150,21 +194,21 @@ export default function EmailManagement() {
 
   const getCategoryIcon = (category) => {
     const icons = {
-      event: <Calendar size={18} />,
-      attendance: <CheckCircle size={18} />,
-      announcement: <Megaphone size={18} />,
-      pledge: <DollarSign size={18} />,
-      user: <Users size={18} />,
-      program: <Music size={18} />,
-      schedule: <Clock size={18} />,
-      minutes: <FileText size={18} />,
-      game: <Gamepad2 size={18} />,
-      report: <FileText size={18} />,
-      notification: <Bell size={18} />,
-      sms: <Phone size={18} />,
-      campaign: <Megaphone size={18} />
+      event: <Calendar size={15} />,
+      attendance: <CheckCircle size={15} />,
+      announcement: <Megaphone size={15} />,
+      pledge: <DollarSign size={15} />,
+      user: <Users size={15} />,
+      program: <Music size={15} />,
+      schedule: <Clock size={15} />,
+      minutes: <FileText size={15} />,
+      game: <Gamepad2 size={15} />,
+      report: <FileText size={15} />,
+      notification: <Bell size={15} />,
+      sms: <Phone size={15} />,
+      campaign: <Megaphone size={15} />,
     };
-    return icons[category] || <Mail size={18} />;
+    return icons[category] || <Mail size={15} />;
   };
 
   const getCategoryEmoji = (category) => {
@@ -181,7 +225,7 @@ export default function EmailManagement() {
       report: '📊',
       notification: '🔔',
       sms: '📱',
-      campaign: '📣'
+      campaign: '📣',
     };
     return emojis[category] || '📧';
   };
@@ -200,33 +244,16 @@ export default function EmailManagement() {
       report: 'Reports',
       notification: 'Notifications',
       sms: 'SMS',
-      campaign: 'Campaigns'
+      campaign: 'Campaigns',
     };
     return names[category] || category;
   };
 
-  const getStatusText = (enabled) => enabled ? 'ON' : 'OFF';
-
-  const filteredSettings = allSettings.filter(s => 
+  const filteredSettings = allSettings.filter(s =>
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getCategoryEnabled = (category) => {
-    const items = allSettings.filter(s => s.category === category);
-    if (items.length === 0) return false;
-    return items.every(s => s.enabled);
-  };
-
-  const getEnabledCount = (category) => {
-    const items = allSettings.filter(s => s.category === category);
-    return items.filter(s => s.enabled).length;
-  };
-
-  const getCategoryCount = (category) => {
-    return allSettings.filter(s => s.category === category).length;
-  };
 
   const categoryOrder = ['event', 'attendance', 'announcement', 'pledge', 'user', 'program', 'schedule', 'minutes', 'game', 'report', 'notification', 'sms', 'campaign'];
 
@@ -234,636 +261,516 @@ export default function EmailManagement() {
     return categoryOrder.indexOf(a) - categoryOrder.indexOf(b);
   });
 
-  if (loading) {
-    return (
-      <div className="email-management-loading">
-        <div className="spinner"></div>
-        <p>Loading email settings...</p>
-      </div>
-    );
-  }
+  if (loading) return <Skeleton />;
+
+  const totalEnabled = allSettings.filter(s => s.enabled).length;
+  const totalDisabled = allSettings.filter(s => !s.enabled).length;
 
   return (
-    <div className="email-management-page">
-      {/* Header */}
-      <div className="page-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={() => navigate('/admin/dashboard')}>
-            <ArrowLeft size={20} /> Back
-          </button>
-          <div>
-            <h1>📧 Email Management</h1>
-            <p className="subtitle">Control which email notifications are sent to users</p>
+    <div className="em-page">
+      <div className="em-container">
+        {/* HEADER */}
+        <header className="em-header">
+          <div className="em-header-left">
+            <button className="em-back-btn" onClick={() => navigate('/admin/dashboard')} title="Back">
+              <ArrowLeft size={16} />
+            </button>
+            <div>
+              <div className="em-eyebrow">
+                <Mail size={12} />
+                Notifications
+              </div>
+              <h1 className="em-title">Email Management</h1>
+              <p className="em-subtitle">
+                Control which email notifications are sent to users
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="header-actions">
-          <button className="refresh-btn" onClick={fetchSettings} disabled={loading}>
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-          </button>
-          <button className="reset-btn" onClick={handleResetAll} disabled={saving}>
-            <Save size={18} />
-            {saving ? 'Saving...' : 'Reset All'}
-          </button>
-        </div>
-      </div>
+          <div className="em-header-actions">
+            <button className="em-btn" onClick={fetchSettings} disabled={loading}>
+              <RefreshCw size={14} className={loading ? 'em-spin' : ''} />
+              Refresh
+            </button>
+            <button className="em-btn em-btn-primary" onClick={handleResetAll} disabled={saving}>
+              <Save size={14} />
+              {saving ? 'Resetting...' : 'Reset all'}
+            </button>
+          </div>
+        </header>
 
-      {/* Message */}
-      {message && (
-        <div className={`message ${message.type}`}>
-          {message.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          {message.text}
-        </div>
-      )}
+        {/* MESSAGE */}
+        {message && (
+          <div className={`em-alert em-alert-${message.type}`}>
+            {message.type === 'success' ? (
+              <CheckCircle size={15} />
+            ) : (
+              <AlertCircle size={15} />
+            )}
+            <span>{message.text}</span>
+          </div>
+        )}
 
-      {/* Stats Summary */}
-      <div className="stats-summary">
-        <div className="stat-item">
-          <div className="stat-icon total">
-            <Mail size={20} />
+        {/* STATS */}
+        <div className="em-stats">
+          <div className="em-stat">
+            <div className="em-stat-icon"><Mail size={17} /></div>
+            <div>
+              <div className="em-stat-value">{allSettings.length}</div>
+              <div className="em-stat-label">Total types</div>
+            </div>
           </div>
-          <div className="stat-content">
-            <span className="stat-value">{allSettings.length}</span>
-            <span className="stat-label">Total Email Types</span>
+          <div className="em-stat">
+            <div className="em-stat-icon"><CheckCircle size={17} /></div>
+            <div>
+              <div className="em-stat-value">{totalEnabled}</div>
+              <div className="em-stat-label">Enabled</div>
+            </div>
           </div>
-        </div>
-        <div className="stat-item">
-          <div className="stat-icon enabled">
-            <CheckCircle size={20} />
+          <div className="em-stat">
+            <div className="em-stat-icon"><XCircle size={17} /></div>
+            <div>
+              <div className="em-stat-value">{totalDisabled}</div>
+              <div className="em-stat-label">Disabled</div>
+            </div>
           </div>
-          <div className="stat-content">
-            <span className="stat-value">{allSettings.filter(s => s.enabled).length}</span>
-            <span className="stat-label">Enabled</span>
+          <div className="em-stat">
+            <div className="em-stat-icon"><Bell size={17} /></div>
+            <div>
+              <div className="em-stat-value">{categories.length}</div>
+              <div className="em-stat-label">Categories</div>
+            </div>
           </div>
-        </div>
-        <div className="stat-item">
-          <div className="stat-icon disabled">
-            <XCircle size={20} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{allSettings.filter(s => !s.enabled).length}</span>
-            <span className="stat-label">Disabled</span>
-          </div>
-        </div>
-        <div className="stat-item">
-          <div className="stat-icon categories">
-            <Bell size={20} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{categories.length}</span>
-            <span className="stat-label">Categories</span>
-          </div>
-        </div>
-        <div className="stat-item">
-          <div className="stat-icon emails">
-            <Mail size={20} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats?.overall?.total_emails || 0}</span>
-            <span className="stat-label">Total Emails Sent</span>
+          <div className="em-stat">
+            <div className="em-stat-icon"><Mail size={17} /></div>
+            <div>
+              <div className="em-stat-value">{stats?.overall?.total_emails || 0}</div>
+              <div className="em-stat-label">Emails sent</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Search */}
-      <div className="search-section">
-        <div className="search-box">
-          <Search size={18} />
-          <input
-            type="text"
-            placeholder="Search email types..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Email Settings by Category */}
-      <div className="settings-container">
-        {sortedCategories.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📧</div>
-            <h3>No Email Settings</h3>
-            <p>No email settings found. Toggle an email type to create it.</p>
+        {/* TOOLBAR */}
+        <div className="em-toolbar">
+          <div className="em-search">
+            <Search size={14} />
+            <input
+              type="text"
+              placeholder="Search email types by name, type, or category"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="em-search-clear" onClick={() => setSearchTerm('')}>
+                <XCircle size={13} />
+              </button>
+            )}
           </div>
-        ) : (
-          sortedCategories.map(category => {
-            const categoryItems = allSettings.filter(s => s.category === category);
-            if (categoryItems.length === 0) return null;
-            
-            const isAllEnabled = categoryItems.every(s => s.enabled);
-            const enabledCount = categoryItems.filter(s => s.enabled).length;
-            
-            return (
-              <div key={category} className="category-section">
-                <div className="category-header">
-                  <div className="category-title">
-                    {getCategoryIcon(category)}
-                    <h3>{getCategoryName(category)}</h3>
-                    <span className="category-count">{enabledCount}/{categoryItems.length} enabled</span>
-                  </div>
-                  <div className="category-actions">
-                    <button 
-                      className={`category-toggle ${isAllEnabled ? 'enabled' : 'disabled'}`}
+          {searchTerm && (
+            <div className="em-search-info">
+              {filteredSettings.length}{' '}
+              {filteredSettings.length === 1 ? 'result' : 'results'}
+            </div>
+          )}
+        </div>
+
+        {/* CATEGORIES */}
+        <div className="em-settings">
+          {sortedCategories.length === 0 ? (
+            <div className="em-empty">
+              <div className="em-empty-icon"><Mail size={26} /></div>
+              <div className="em-empty-title">No email settings</div>
+              <div className="em-empty-sub">
+                No email settings found. Toggle an email type to create it.
+              </div>
+            </div>
+          ) : (
+            sortedCategories.map((category) => {
+              const categoryItems = allSettings.filter((s) => s.category === category);
+              if (categoryItems.length === 0) return null;
+
+              const isAllEnabled = categoryItems.every((s) => s.enabled);
+              const enabledCount = categoryItems.filter((s) => s.enabled).length;
+
+              return (
+                <section key={category} className="em-section">
+                  <div className="em-section-head">
+                    <div className="em-section-title">
+                      <span className="em-section-icon">{getCategoryIcon(category)}</span>
+                      <h3>{getCategoryName(category)}</h3>
+                      <span className="em-section-count">
+                        {enabledCount}/{categoryItems.length} enabled
+                      </span>
+                    </div>
+                    <button
+                      className={`em-cat-toggle ${isAllEnabled ? 'on' : 'off'}`}
                       onClick={() => handleCategoryToggle(category, isAllEnabled)}
                     >
-                      {isAllEnabled ? '✅ All ON' : '❌ All OFF'}
+                      {isAllEnabled ? 'Turn all off' : 'Turn all on'}
                     </button>
                   </div>
-                </div>
 
-                <div className="email-items">
-                  {categoryItems.map(setting => (
-                    <div key={setting.type} className="email-item">
-                      <div className="email-info">
-                        <div className="email-icon">
-                          {setting.enabled ? '🟢' : '🔴'}
+                  <div className="em-items">
+                    {categoryItems.map((setting) => (
+                      <div key={setting.type} className="em-item">
+                        <div className="em-item-info">
+                          <div className={`em-item-dot ${setting.enabled ? 'on' : 'off'}`} />
+                          <div className="em-item-details">
+                            <div className="em-item-name">{setting.name}</div>
+                            <div className="em-item-type">{setting.type}</div>
+                            {setting.description && (
+                              <div className="em-item-desc">{setting.description}</div>
+                            )}
+                          </div>
                         </div>
-                        <div className="email-details">
-                          <div className="email-name">{setting.name}</div>
-                          <div className="email-type">{setting.type}</div>
-                          {setting.description && (
-                            <div className="email-description">{setting.description}</div>
-                          )}
+
+                        <div className="em-item-side">
+                          <span className={`em-status ${setting.enabled ? 'on' : 'off'}`}>
+                            {setting.enabled ? 'ON' : 'OFF'}
+                          </span>
+                          <button
+                            className={`em-toggle ${setting.enabled ? 'on' : 'off'}`}
+                            onClick={() => handleToggle(setting.type, setting.enabled)}
+                            aria-label={`Toggle ${setting.name}`}
+                          >
+                            <span className="em-toggle-slider" />
+                          </button>
                         </div>
                       </div>
-                      <div className="email-status">
-                        <span className={`status-text ${setting.enabled ? 'enabled' : 'disabled'}`}>
-                          {getStatusText(setting.enabled)}
-                        </span>
-                      </div>
-                      <button
-                        className={`toggle-btn ${setting.enabled ? 'enabled' : 'disabled'}`}
-                        onClick={() => handleToggle(setting.type, setting.enabled)}
-                      >
-                        <span className="toggle-slider"></span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })
-        )}
+                    ))}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      <style>{`
-        .email-management-page {
-          padding: 24px;
-          background: #f5f7fa;
-          min-height: 100vh;
-        }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .header-left h1 {
-          font-size: 24px;
-          font-weight: 700;
-          margin: 0;
-        }
-
-        .subtitle {
-          color: #64748b;
-          font-size: 14px;
-          margin: 4px 0 0;
-        }
-
-        .back-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .back-btn:hover {
-          background: #f8fafc;
-          transform: translateX(-2px);
-        }
-
-        .header-actions {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .refresh-btn {
-          padding: 8px 12px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .refresh-btn:hover:not(:disabled) {
-          background: #f8fafc;
-        }
-
-        .refresh-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          100% { transform: rotate(360deg); }
-        }
-
-        .reset-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          background: #8b5cf6;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-
-        .reset-btn:hover:not(:disabled) {
-          background: #7c3aed;
-          transform: translateY(-1px);
-        }
-
-        .reset-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .message {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px 16px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          font-weight: 500;
-        }
-
-        .message.success {
-          background: #d1fae5;
-          color: #065f46;
-          border: 1px solid #a7f3d0;
-        }
-
-        .message.error {
-          background: #fee2e2;
-          color: #991b1b;
-          border: 1px solid #fca5a5;
-        }
-
-        .stats-summary {
-          display: grid;
-          grid-template-columns: repeat(5, 1fr);
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-
-        .stat-item {
-          background: white;
-          padding: 16px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          border: 1px solid #e2e8f0;
-        }
-
-        .stat-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .stat-icon.total { background: #3b82f6; }
-        .stat-icon.enabled { background: #10b981; }
-        .stat-icon.disabled { background: #ef4444; }
-        .stat-icon.categories { background: #8b5cf6; }
-        .stat-icon.emails { background: #f59e0b; }
-
-        .stat-content {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .stat-content .stat-value {
-          font-size: 22px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .stat-content .stat-label {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        .search-section {
-          margin-bottom: 20px;
-        }
-
-        .search-box {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: white;
-          padding: 8px 16px;
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
-          max-width: 400px;
-        }
-
-        .search-box input {
-          border: none;
-          outline: none;
-          flex: 1;
-          font-size: 14px;
-          padding: 4px 0;
-        }
-
-        .settings-container {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-
-        .category-section {
-          background: white;
-          border-radius: 16px;
-          padding: 20px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        .category-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 2px solid #f1f5f9;
-        }
-
-        .category-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .category-title h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .category-count {
-          font-size: 12px;
-          color: #94a3b8;
-          background: #f1f5f9;
-          padding: 2px 10px;
-          border-radius: 12px;
-        }
-
-        .category-toggle {
-          padding: 4px 12px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .category-toggle.enabled {
-          background: #10b981;
-          color: white;
-        }
-
-        .category-toggle.disabled {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        .email-items {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .email-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 16px;
-          background: #f8fafc;
-          border-radius: 10px;
-          transition: all 0.2s;
-        }
-
-        .email-item:hover {
-          background: #f1f5f9;
-        }
-
-        .email-info {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          flex: 1;
-        }
-
-        .email-icon {
-          font-size: 14px;
-          width: 30px;
-          text-align: center;
-        }
-
-        .email-details {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .email-name {
-          font-weight: 500;
-          color: #1e293b;
-          font-size: 14px;
-        }
-
-        .email-type {
-          font-size: 11px;
-          color: #94a3b8;
-          font-family: monospace;
-        }
-
-        .email-description {
-          font-size: 12px;
-          color: #64748b;
-          margin-top: 2px;
-        }
-
-        .email-status {
-          margin-right: 12px;
-        }
-
-        .status-text {
-          font-size: 12px;
-          font-weight: 600;
-          padding: 2px 8px;
-          border-radius: 12px;
-        }
-
-        .status-text.enabled {
-          color: #10b981;
-          background: #d1fae5;
-        }
-
-        .status-text.disabled {
-          color: #ef4444;
-          background: #fee2e2;
-        }
-
-        .toggle-btn {
-          width: 44px;
-          height: 24px;
-          border: none;
-          border-radius: 12px;
-          cursor: pointer;
-          position: relative;
-          transition: all 0.3s;
-          flex-shrink: 0;
-        }
-
-        .toggle-btn.enabled {
-          background: #10b981;
-        }
-
-        .toggle-btn.disabled {
-          background: #cbd5e1;
-        }
-
-        .toggle-slider {
-          position: absolute;
-          top: 2px;
-          left: 2px;
-          width: 20px;
-          height: 20px;
-          background: white;
-          border-radius: 50%;
-          transition: all 0.3s;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-
-        .toggle-btn.enabled .toggle-slider {
-          left: 22px;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          background: white;
-          border-radius: 16px;
-        }
-
-        .empty-icon {
-          font-size: 48px;
-          margin-bottom: 16px;
-        }
-
-        .empty-state h3 {
-          margin-bottom: 8px;
-        }
-
-        .empty-state p {
-          color: #64748b;
-        }
-
-        .email-management-loading {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 60vh;
-          color: #64748b;
-        }
-
-        .spinner {
-          border: 3px solid #e2e8f0;
-          border-top: 3px solid #3b82f6;
-          border-radius: 50%;
-          width: 40px;
-          height: 40px;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 16px;
-        }
-
-        @media (max-width: 768px) {
-          .stats-summary {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .page-header {
-            flex-direction: column;
-          }
-
-          .email-item {
-            flex-wrap: wrap;
-          }
-
-          .email-info {
-            width: 100%;
-            margin-bottom: 8px;
-          }
-
-          .email-status {
-            margin-right: auto;
-          }
-
-          .category-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .stats-summary {
-            grid-template-columns: 1fr;
-          }
-
-          .email-management-page {
-            padding: 16px;
-          }
-
-          .email-icon {
-            display: none;
-          }
-        }
-      `}</style>
+      <style>{mainCSS}</style>
     </div>
   );
 }
+
+/* =========================================================
+   STYLES
+   ========================================================= */
+const baseCSS = `
+  .em-page {
+    background: #fafafa;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #171717;
+    -webkit-font-smoothing: antialiased;
+  }
+  .em-container { padding: 28px 24px 60px; max-width: 1200px; margin: 0 auto; }
+
+  /* ---------- HEADER ---------- */
+  .em-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 20px; flex-wrap: wrap; padding-bottom: 22px;
+    border-bottom: 1px solid #e5e5e5; margin-bottom: 22px;
+  }
+  .em-header-left { display: flex; align-items: center; gap: 14px; }
+  .em-back-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 9px;
+    border: 1px solid #e5e5e5; background: #ffffff; color: #525252;
+    cursor: pointer; transition: all 0.15s ease; flex-shrink: 0;
+  }
+  .em-back-btn:hover { background: #f5f5f5; color: #171717; }
+  .em-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: #737373; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;
+  }
+  .em-title {
+    font-size: 26px; font-weight: 700; margin: 0;
+    letter-spacing: -0.5px; color: #0f0f0f;
+  }
+  .em-subtitle { font-size: 13.5px; color: #737373; margin: 2px 0 0 0; }
+  .em-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---------- BUTTONS ---------- */
+  .em-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 13px; border-radius: 9px; border: 1px solid #e5e5e5;
+    background: #ffffff; color: #262626; cursor: pointer;
+    font-size: 12.5px; font-weight: 600;
+    transition: all 0.15s ease; white-space: nowrap; font-family: inherit;
+  }
+  .em-btn:hover:not(:disabled) { background: #f5f5f5; border-color: #d4d4d4; }
+  .em-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .em-btn-primary {
+    background: #0f0f0f; color: #ffffff; border-color: #0f0f0f;
+  }
+  .em-btn-primary:hover:not(:disabled) { background: #262626; border-color: #262626; }
+
+  .em-spin { animation: em-spin 0.9s linear infinite; }
+  @keyframes em-spin { to { transform: rotate(360deg); } }
+
+  /* ---------- ALERT ---------- */
+  .em-alert {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;
+    font-size: 13px; font-weight: 500;
+  }
+  .em-alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .em-alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+  /* ---------- STATS ---------- */
+  .em-stats {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 10px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .em-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px) { .em-stats { grid-template-columns: repeat(2, 1fr); } }
+
+  .em-stat {
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .em-stat-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: #f5f5f5; color: #525252;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .em-stat-value {
+    font-size: 20px; font-weight: 800; color: #0f0f0f;
+    letter-spacing: -0.5px; line-height: 1.1;
+  }
+  .em-stat-label {
+    font-size: 10.5px; color: #737373;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    font-weight: 700; margin-top: 2px;
+  }
+
+  /* ---------- TOOLBAR ---------- */
+  .em-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .em-search {
+    flex: 1; min-width: 240px; max-width: 480px;
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 10px; padding: 0 12px; height: 40px;
+    color: #737373; transition: border-color 0.15s ease;
+  }
+  .em-search:focus-within { border-color: #a3a3a3; }
+  .em-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 13px; color: #171717; font-family: inherit; height: 100%;
+  }
+  .em-search input::placeholder { color: #a3a3a3; }
+  .em-search-clear {
+    background: transparent; border: none; cursor: pointer;
+    color: #a3a3a3; padding: 3px; border-radius: 6px; display: flex;
+  }
+  .em-search-clear:hover { background: #f5f5f5; color: #525252; }
+  .em-search-info {
+    font-size: 12.5px; color: #737373; font-weight: 500;
+  }
+
+  /* ---------- SECTIONS ---------- */
+  .em-settings { display: flex; flex-direction: column; gap: 16px; }
+
+  .em-section {
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 14px; padding: 20px;
+  }
+  .em-section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+    padding-bottom: 14px; border-bottom: 1px solid #f0f0f0;
+  }
+  .em-section-title {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .em-section-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: #f5f5f5; color: #525252;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .em-section-title h3 {
+    font-size: 14px; font-weight: 700; color: #0f0f0f;
+    margin: 0; letter-spacing: -0.1px;
+  }
+  .em-section-count {
+    font-size: 11px; color: #737373; font-weight: 600;
+    background: #f5f5f5; padding: 3px 9px;
+    border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  .em-cat-toggle {
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid #e5e5e5; background: #ffffff;
+    color: #262626; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s ease;
+    font-family: inherit; white-space: nowrap;
+  }
+  .em-cat-toggle:hover { background: #f5f5f5; border-color: #d4d4d4; }
+
+  /* ---------- ITEMS ---------- */
+  .em-items { display: flex; flex-direction: column; gap: 6px; }
+  .em-item {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px;
+    padding: 12px 14px; background: #fafafa;
+    border-radius: 10px;
+    transition: background 0.12s ease;
+  }
+  .em-item:hover { background: #f5f5f5; }
+
+  .em-item-info {
+    display: flex; align-items: flex-start; gap: 12px;
+    flex: 1; min-width: 0;
+  }
+  .em-item-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-top: 6px; flex-shrink: 0;
+  }
+  .em-item-dot.on { background: #16a34a; }
+  .em-item-dot.off { background: #d4d4d4; }
+
+  .em-item-details { min-width: 0; flex: 1; }
+  .em-item-name {
+    font-size: 13.5px; font-weight: 600; color: #171717;
+    line-height: 1.4;
+  }
+  .em-item-type {
+    font-size: 11px; color: #a3a3a3;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    margin-top: 1px;
+  }
+  .em-item-desc {
+    font-size: 12px; color: #737373;
+    margin-top: 4px; line-height: 1.5;
+  }
+
+  .em-item-side {
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0;
+  }
+  .em-status {
+    font-size: 10.5px; font-weight: 700;
+    padding: 3px 9px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .em-status.on { background: #f0fdf4; color: #15803d; }
+  .em-status.off { background: #f5f5f5; color: #737373; }
+
+  /* ---------- TOGGLE ---------- */
+  .em-toggle {
+    position: relative;
+    width: 42px; height: 24px; border-radius: 999px;
+    border: none; cursor: pointer; padding: 0;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+  }
+  .em-toggle.on { background: #16a34a; }
+  .em-toggle.off { background: #d4d4d4; }
+  .em-toggle-slider {
+    position: absolute; top: 2px; left: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #ffffff;
+    transition: left 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .em-toggle.on .em-toggle-slider { left: 20px; }
+
+  /* ---------- EMPTY ---------- */
+  .em-empty {
+    text-align: center; padding: 72px 24px;
+    background: #ffffff; border: 1px dashed #e5e5e5;
+    border-radius: 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .em-empty-icon {
+    width: 60px; height: 60px; border-radius: 16px;
+    background: #f5f5f5; color: #a3a3a3;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 6px;
+  }
+  .em-empty-title {
+    font-size: 15px; font-weight: 700; color: #0f0f0f;
+  }
+  .em-empty-sub {
+    font-size: 12.5px; color: #737373;
+    max-width: 380px; line-height: 1.5;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 768px) {
+    .em-container { padding: 20px 16px 40px; }
+    .em-title { font-size: 22px; }
+    .em-header { flex-direction: column; align-items: stretch; }
+    .em-header-actions { width: 100%; }
+    .em-header-actions .em-btn { flex: 1; justify-content: center; }
+    .em-toolbar { flex-direction: column; align-items: stretch; }
+    .em-search { max-width: none; }
+    .em-item { flex-direction: column; align-items: stretch; gap: 10px; }
+    .em-item-side { justify-content: space-between; }
+    .em-section-head { flex-direction: column; align-items: stretch; gap: 10px; }
+    .em-cat-toggle { width: 100%; }
+  }
+`;
+
+const skeletonCSS = `
+  ${baseCSS}
+  .em-skel {
+    background: #ececec; border-radius: 6px;
+    position: relative; overflow: hidden;
+  }
+  .em-skel::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+    animation: em-shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes em-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .em-skel-header {
+    display: flex; align-items: center; gap: 14px;
+    padding-bottom: 22px; border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 22px;
+  }
+  .em-skel-back { width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0; }
+  .em-skel-title { width: 200px; height: 26px; }
+  .em-skel-line-sm { height: 11px; border-radius: 4px; }
+  .em-skel-line-md { height: 16px; border-radius: 4px; }
+  .em-skel-btn { width: 110px; height: 38px; border-radius: 9px; }
+  .em-skel-stats {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 10px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .em-skel-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px) { .em-skel-stats { grid-template-columns: repeat(2, 1fr); } }
+  .em-skel-stat {
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .em-skel-stat-icon { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; }
+  .em-skel-search {
+    height: 40px; border-radius: 10px; margin-bottom: 20px;
+    max-width: 480px; width: 100%;
+  }
+  .em-skel-section {
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 14px; padding: 20px; margin-bottom: 16px;
+  }
+  .em-skel-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 14px; background: #fafafa;
+    border-radius: 10px; margin-top: 8px;
+  }
+  .em-skel-pill { width: 100px; height: 24px; border-radius: 999px; }
+`;
+
+const mainCSS = baseCSS;
+

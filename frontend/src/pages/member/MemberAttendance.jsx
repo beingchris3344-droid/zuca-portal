@@ -23,6 +23,8 @@ export default function MemberAttendance() {
   const [checkingIn, setCheckingIn] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [greeting, setGreeting] = useState('');
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+ 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -315,7 +317,7 @@ export default function MemberAttendance() {
     fetchActiveSheets();
     
     const hour = new Date().getHours();
-    if (hour < 12) setGreeting("Good Morning ☀️");
+    if (hour < 12) setGreeting("Good Morning ");
     else if (hour < 17) setGreeting("Good Afternoon 🌤️");
     else setGreeting("Good Evening 🌙");
   }, []);
@@ -731,9 +733,13 @@ export default function MemberAttendance() {
         <div className="hero-content">
           <div className="hero-greeting">
             <span className="greeting-emoji">👋</span>
-            <span className="greeting-text">{greeting}</span>
+            <span 
+              className="greeting-text">
+  {greeting} {user.fullName?.split(' ')[0] || user.firstName || user.name || 'Member'}:  EMAIL {user.email}: NUMBER {user.phone}
+</span>
+          
           </div>
-          <h1 className="hero-title">Active <span className="hero-highlight">Meetings</span></h1>
+          <h1 className="hero-title">Active <span className="hero-highlight"></span></h1>
           <p className="hero-subtitle">Check in to today's zuca meetings and check your attendance</p>
         </div>
         <button className="refresh-btn-hero" onClick={fetchActiveSheets}>
@@ -997,6 +1003,7 @@ export default function MemberAttendance() {
         .member-attendance {
           min-height: 100vh;
           background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+          
           margin-bottom: 70px;
           padding: 0;
         }
@@ -1005,6 +1012,7 @@ export default function MemberAttendance() {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
           padding: 0px 0px 0px;
           position: relative;
+          
           overflow: hidden;
         }
         
@@ -1071,11 +1079,11 @@ export default function MemberAttendance() {
           display: inline-flex;
           align-items: top;
           gap: 8px;
-          background: rgba(255,255,255,0.1);
+          background: rgba(255, 255, 255, 0);
           backdrop-filter: blur(10px);
           padding: 6px 16px;
           border-radius: 40px;
-          margin-top: -50px;
+          margin-top: 20px;
           margin-bottom: 0px;
         }
         

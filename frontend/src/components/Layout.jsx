@@ -213,20 +213,20 @@ function Layout() {
       items: [
         { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
         { path: "/announcements", label: "Announcements", icon: <FiBell /> },
-        { path: "/schedules", label: "Schedules", icon: <FaCalendarPlus /> },
+        { path: "/schedules", label: "Semester Schedule", icon: <FaCalendarPlus /> },
         { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt /> },
         { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar /> },
-         { path: "/member/attendance", label: "Attendance", icon: <FaUsers color="#ee0e46" /> },
+         { path: "/member/attendance", label: "Attendance/Records", icon: <FaUsers color="#ee0e46" /> },
       ],
     },
     {
       label: "ZUCA Family",
       items: [
-        { path: "/join-jumuia", label: "Join Jumuia", icon: <FaPrayingHands /> },
+        { path: "/join-jumuia", label: "Join a Jumuia", icon: <FaPrayingHands /> },
         {
           path: "/jumuia-contributions",
-          label: jumuiaName ? jumuiaName : "My Jumuia",
-          icon: <FaDove />,
+          label: `JUMUIA - ${jumuiaName ? jumuiaName : "My Jumuia"}`,
+          icon: <FaDove  /> ,
         },
        
         { path: "/executive", label: "Executive Team", icon: <FaUserTie /> },

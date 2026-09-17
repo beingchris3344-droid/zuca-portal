@@ -15,6 +15,7 @@ import io from "socket.io-client";
 import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
 import BookletModal from "../../components/BookletModal";
+import { FaFilePdf } from "react-icons/fa";
 
 /* ============================================================
    CONSTANTS
@@ -1252,7 +1253,7 @@ export default function SongsPage() {
                         }}
                         title="View full booklet with lyrics"
                       >
-                        <FiBook size={14} />
+                        <FaFilePdf color="red" size={24} /> 
                       </button>
 
                       <div className="sp-dropdown">

@@ -1,5 +1,5 @@
 // frontend/src/pages/admin/AdminHealthCentre.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import BASE_URL from "../../api";
 import {
@@ -12,6 +12,8 @@ import {
   FiTrash2, FiCpu, FiGlobe, FiMessageSquare, FiHardDrive,
   FiX, FiCheckCircle, FiLoader, FiEye, FiTrendingUp,
   FiShield, FiMail, FiSettings, FiChevronRight,
+  FiExternalLink, FiCloud, FiTerminal, FiPlus, FiEdit2, FiSave,
+  FiLink, FiCalendar, FiUser,
 } from "react-icons/fi";
 
 const EMPTY_METRICS = {
@@ -24,6 +26,26 @@ const EMPTY_METRICS = {
   videos: 0,
   documents: 0,
 };
+
+/* ============================================================
+   Developer services — icon helpers
+   ============================================================ */
+const DEV_ICON_MAP = {
+  terminal: <FiTerminal size={20} />,
+  mail: <FiMail size={20} />,
+  globe: <FiGlobe size={20} />,
+  clock: <FiClock size={20} />,
+  database: <FiDatabase size={20} />,
+  cloud: <FiCloud size={20} />,
+  shield: <FiShield size={20} />,
+  server: <FiServer size={20} />,
+  link: <FiLink size={20} />,
+};
+
+const DEV_ICON_CHOICES = [
+  "terminal", "mail", "globe", "clock",
+  "database", "cloud", "shield", "server", "link",
+];
 
 function AdminHealthCentre() {
   const [loading, setLoading] = useState(true);
@@ -51,6 +73,40 @@ function AdminHealthCentre() {
   const [errorTrend, setErrorTrend] = useState([]);
   const [responseTimeTrend, setResponseTimeTrend] = useState([]);
 
+  /* ============================================================
+     Developer Services state
+     ============================================================ */
+  const [devServices, setDevServices] = useState([]);
+  const [devLoading, setDevLoading] = useState(false);
+  const [devError, setDevError] = useState(null);
+
+  const [showDevModal, setShowDevModal] = useState(false);
+  const [editingDevSlug, setEditingDevSlug] = useState(null);
+  const [devForm, setDevForm] = useState({
+    slug: "",
+    name: "",
+    description: "",
+    url: "",
+    docsUrl: "",
+    icon: "terminal",
+    category: "",
+    isPrimary: false,
+    sortOrder: 0,
+    loginEmail: "",
+    vaultUrl: "",
+    lastRotated: "",
+    notes: "",
+  });
+
+  const [savingDev, setSavingDev] = useState(false);
+  const [expandedNotes, setExpandedNotes] = useState({});
+  const [deletingDevSlug, setDeletingDevSlug] = useState(null);
+
+  const notesDebounceRef = useRef({});
+
+  /* ============================================================
+     Core helpers (existing)
+     ============================================================ */
   const getStatusColor = (status) => {
     if (status === "healthy" || status === "configured" || status === "working") return "#16a34a";
     if (status === "degraded" || status === "initializing") return "#d97706";
@@ -72,6 +128,14 @@ function AdminHealthCentre() {
     return labels[status] || (status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown");
   };
 
+  const openService = (url) => {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  /* ============================================================
+     Existing handlers
+     ============================================================ */
   const handleTestService = async (service) => {
     setTestingService(service);
     try {
@@ -466,9 +530,36 @@ function AdminHealthCentre() {
     }
   };
 
+  /* ============================================================
+     Developer Services: fetch
+     ============================================================ */
+  const fetchDevServices = async () => {
+    try {
+      setDevLoading(true);
+      setDevError(null);
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/admin/developer-services`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDevServices(res.data.services || []);
+    } catch (err) {
+      console.error("Failed to load developer services:", err);
+      setDevError(err.response?.data?.error || "Failed to load services");
+    } finally {
+      setDevLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "developers" && devServices.length === 0 && !devLoading) {
+      fetchDevServices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -476,6 +567,147 @@ function AdminHealthCentre() {
     return () => clearInterval(interval);
   }, [autoRefresh]);
 
+  /* ============================================================
+     Developer Services: modal handlers
+     ============================================================ */
+  const openCreateDev = () => {
+    setEditingDevSlug(null);
+    setDevForm({
+      slug: "",
+      name: "",
+      description: "",
+      url: "",
+      docsUrl: "",
+      icon: "terminal",
+      category: "",
+      isPrimary: false,
+      sortOrder: devServices.length + 1,
+      loginEmail: "",
+      vaultUrl: "",
+      lastRotated: "",
+      notes: "",
+    });
+    setShowDevModal(true);
+  };
+
+  const openEditDev = (service) => {
+    setEditingDevSlug(service.slug);
+    setDevForm({
+      slug: service.slug || "",
+      name: service.name || "",
+      description: service.description || "",
+      url: service.url || "",
+      docsUrl: service.docsUrl || "",
+      icon: service.icon || "terminal",
+      category: service.category || "",
+      isPrimary: !!service.isPrimary,
+      sortOrder: service.sortOrder ?? 0,
+      loginEmail: service.loginEmail || "",
+      vaultUrl: service.vaultUrl || "",
+      lastRotated: service.lastRotated
+        ? String(service.lastRotated).slice(0, 10)
+        : "",
+      notes: service.notes || "",
+    });
+    setShowDevModal(true);
+  };
+
+  const handleSaveDev = async () => {
+    if (!devForm.name.trim()) return alert("Name is required");
+    if (!devForm.url.trim()) return alert("URL is required");
+    if (!editingDevSlug && !devForm.slug.trim()) {
+      return alert("ID is required (short slug like 'brevo')");
+    }
+
+    setSavingDev(true);
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (editingDevSlug) {
+        const res = await axios.put(
+          `${BASE_URL}/api/admin/developer-services/${editingDevSlug}`,
+          devForm,
+          { headers }
+        );
+        setDevServices((prev) =>
+          prev.map((s) => (s.slug === editingDevSlug ? res.data.service : s))
+        );
+      } else {
+        const res = await axios.post(
+          `${BASE_URL}/api/admin/developer-services`,
+          devForm,
+          { headers }
+        );
+        setDevServices((prev) => [...prev, res.data.service]);
+      }
+
+      setShowDevModal(false);
+      setEditingDevSlug(null);
+    } catch (err) {
+      console.error("Failed to save service:", err);
+      alert(err.response?.data?.error || "Failed to save service");
+    } finally {
+      setSavingDev(false);
+    }
+  };
+
+  const handleDeleteDev = async (slug) => {
+    if (!window.confirm("Delete this service? This cannot be undone.")) return;
+    setDeletingDevSlug(slug);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`${BASE_URL}/api/admin/developer-services/${slug}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDevServices((prev) => prev.filter((s) => s.slug !== slug));
+    } catch (err) {
+      console.error("Failed to delete service:", err);
+      alert("Failed to delete service");
+    } finally {
+      setDeletingDevSlug(null);
+    }
+  };
+
+  /* ============================================================
+     Developer Services: inline notes auto-save (debounced)
+     ============================================================ */
+  const handleNotesChange = (service, newNotes) => {
+    // Optimistic local update
+    setDevServices((prev) =>
+      prev.map((s) => (s.slug === service.slug ? { ...s, notes: newNotes } : s))
+    );
+
+    // Clear any pending debounce for this service
+    if (notesDebounceRef.current[service.slug]) {
+      clearTimeout(notesDebounceRef.current[service.slug]);
+    }
+
+    // Schedule the PATCH 700ms after typing stops
+    notesDebounceRef.current[service.slug] = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.patch(
+          `${BASE_URL}/api/admin/developer-services/${service.slug}/notes`,
+          { notes: newNotes },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // Reconcile with server response (updatedAt etc.)
+        setDevServices((prev) =>
+          prev.map((s) => (s.slug === service.slug ? res.data.service : s))
+        );
+      } catch (err) {
+        console.error("Failed to save notes:", err);
+      }
+    }, 700);
+  };
+
+  const handleSaveDevService = openEditDev; // alias for clarity in JSX
+  const handleEditDevService = openEditDev; // alias
+
+  /* ============================================================
+     Scores
+     ============================================================ */
   const healthScore = () => {
     let score = 100;
     if (errors.length > 50) score -= 20;
@@ -608,31 +840,29 @@ function AdminHealthCentre() {
         )}
 
         {/* ============ TABS ============ */}
-        {hasData && (
-          <nav className="hc-tabs">
-            {[
-              { id: "overview", label: "Overview", icon: <FiActivity size={14} /> },
-              { id: "services", label: "Services", icon: <FiGlobe size={14} /> },
-              { id: "logs", label: "Logs", icon: <FiAlertCircle size={14} />, badge: errors.length },
-              { id: "data", label: "Data & Storage", icon: <FiDatabase size={14} /> },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                className={`hc-tab ${activeTab === tab.id ? "hc-tab-active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.icon}
-                {tab.label}
-                {tab.badge > 0 && <span className="hc-tab-badge">{tab.badge}</span>}
-              </button>
-            ))}
-          </nav>
-        )}
+        <nav className="hc-tabs">
+          {[
+            { id: "overview", label: "Overview", icon: <FiActivity size={14} /> },
+            { id: "services", label: "Services", icon: <FiGlobe size={14} /> },
+            { id: "logs", label: "Logs", icon: <FiAlertCircle size={14} />, badge: errors.length },
+            { id: "data", label: "Data & Storage", icon: <FiDatabase size={14} /> },
+            { id: "developers", label: "Developer Services", icon: <FiTerminal size={14} /> },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className={`hc-tab ${activeTab === tab.id ? "hc-tab-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.badge > 0 && <span className="hc-tab-badge">{tab.badge}</span>}
+            </button>
+          ))}
+        </nav>
 
         {/* ============ OVERVIEW TAB ============ */}
-        {hasData && activeTab === "overview" && (
+        {activeTab === "overview" && (
           <>
-            {/* Score row */}
             <div className="hc-score-grid">
               <ScoreCard
                 title="System Health"
@@ -662,7 +892,6 @@ function AdminHealthCentre() {
               />
             </div>
 
-            {/* Stat tiles */}
             <div className="hc-stats-grid">
               <StatTile
                 icon={<FiServer />}
@@ -701,7 +930,6 @@ function AdminHealthCentre() {
               />
             </div>
 
-            {/* Charts */}
             <div className="hc-charts-grid">
               <div className="hc-panel">
                 <div className="hc-panel-header">
@@ -734,42 +962,11 @@ function AdminHealthCentre() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#a3a3a3"
-                        fontSize={10}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        stroke="#a3a3a3"
-                        fontSize={10}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: 10,
-                          border: "1px solid #e5e5e5",
-                          fontSize: 12,
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="status5xx"
-                        stackId="1"
-                        stroke="#dc2626"
-                        strokeWidth={2}
-                        fill="url(#g5xx)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="status4xx"
-                        stackId="1"
-                        stroke="#d97706"
-                        strokeWidth={2}
-                        fill="url(#g4xx)"
-                      />
+                      <XAxis dataKey="date" stroke="#a3a3a3" fontSize={10} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#a3a3a3" fontSize={10} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e5e5e5", fontSize: 12 }} />
+                      <Area type="monotone" dataKey="status5xx" stackId="1" stroke="#dc2626" strokeWidth={2} fill="url(#g5xx)" />
+                      <Area type="monotone" dataKey="status4xx" stackId="1" stroke="#d97706" strokeWidth={2} fill="url(#g4xx)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
@@ -790,29 +987,9 @@ function AdminHealthCentre() {
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={responseTimeTrend} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                      <XAxis
-                        type="number"
-                        stroke="#a3a3a3"
-                        fontSize={10}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        dataKey="name"
-                        type="category"
-                        width={90}
-                        stroke="#a3a3a3"
-                        fontSize={10}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: 10,
-                          border: "1px solid #e5e5e5",
-                          fontSize: 12,
-                        }}
-                      />
+                      <XAxis type="number" stroke="#a3a3a3" fontSize={10} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="name" type="category" width={90} stroke="#a3a3a3" fontSize={10} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e5e5e5", fontSize: 12 }} />
                       <Bar dataKey="avgTime" fill="#171717" radius={[0, 6, 6, 0]} barSize={14} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -822,7 +999,6 @@ function AdminHealthCentre() {
               </div>
             </div>
 
-            {/* Issues grid */}
             <div className="hc-issues-grid">
               <IssueCard
                 icon={<FiLock />}
@@ -847,7 +1023,7 @@ function AdminHealthCentre() {
         )}
 
         {/* ============ SERVICES TAB ============ */}
-        {hasData && activeTab === "services" && (
+        {activeTab === "services" && (
           <section className="hc-panel">
             <div className="hc-panel-header">
               <div>
@@ -904,7 +1080,7 @@ function AdminHealthCentre() {
         )}
 
         {/* ============ LOGS TAB ============ */}
-        {hasData && activeTab === "logs" && (
+        {activeTab === "logs" && (
           <>
             <section className="hc-panel">
               <div className="hc-panel-header">
@@ -1032,9 +1208,8 @@ function AdminHealthCentre() {
         )}
 
         {/* ============ DATA TAB ============ */}
-        {hasData && activeTab === "data" && (
+        {activeTab === "data" && (
           <>
-            {/* Storage */}
             <div className="hc-storage-grid">
               <div className="hc-panel hc-storage-card">
                 <div className="hc-storage-head">
@@ -1092,7 +1267,6 @@ function AdminHealthCentre() {
               </div>
             </div>
 
-            {/* DB Stats */}
             <section className="hc-panel">
               <div className="hc-panel-header">
                 <div>
@@ -1133,7 +1307,6 @@ function AdminHealthCentre() {
               )}
             </section>
 
-            {/* Recent activity */}
             <section className="hc-panel">
               <div className="hc-panel-header">
                 <div>
@@ -1171,6 +1344,204 @@ function AdminHealthCentre() {
             </section>
           </>
         )}
+
+        {/* ============ DEVELOPER SERVICES TAB ============ */}
+        {activeTab === "developers" && (
+          <section className="hc-panel">
+            <div className="hc-panel-header">
+              <div>
+                <h3>
+                  <FiTerminal /> Developer Services
+                </h3>
+                <p className="hc-panel-sub">
+                  Quick access to the services that power ZUCA
+                </p>
+              </div>
+              <div className="hc-dev-toolbar">
+                <span className="hc-badge">{devServices.length} services</span>
+                <button className="hc-btn hc-btn-sm" onClick={fetchDevServices}>
+                  <FiRefreshCw size={12} /> Refresh
+                </button>
+                <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={openCreateDev}>
+                  <FiPlus size={12} /> Add service
+                </button>
+              </div>
+            </div>
+
+            {devLoading ? (
+              <div className="hc-empty">Loading services…</div>
+            ) : devError ? (
+              <div className="hc-empty">{devError}</div>
+            ) : devServices.length === 0 ? (
+              <div className="hc-empty">
+                No services yet. Click "Add service" to create your first one.
+              </div>
+            ) : (
+              <div className="hc-dev-grid">
+                {devServices.map((service) => {
+                  const showNotes = expandedNotes[service.slug];
+                  return (
+                    <div
+                      key={service.slug}
+                      className={`hc-dev-card ${
+                        service.isPrimary ? "hc-dev-card-primary" : ""
+                      }`}
+                    >
+                      <div className="hc-dev-head">
+                        <div className="hc-dev-icon">
+                          {DEV_ICON_MAP[service.icon] || <FiTerminal size={20} />}
+                        </div>
+                        <div className="hc-dev-meta">
+                          <div className="hc-dev-name">
+                            {service.name}
+                            {service.isPrimary && (
+                              <span className="hc-dev-primary-tag">Primary</span>
+                            )}
+                          </div>
+                          {service.description && (
+                            <div className="hc-dev-desc">{service.description}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {service.category && (
+                        <div className="hc-dev-meta-row">
+                          <span className="hc-dev-cat">{service.category}</span>
+                        </div>
+                      )}
+
+                      {(service.loginEmail ||
+                        service.vaultUrl ||
+                        service.lastRotated) && (
+                        <div className="hc-dev-creds">
+                          {service.loginEmail && (
+                            <div className="hc-dev-cred-row">
+                              <FiUser size={12} />
+                              <span className="hc-dev-cred-label">Email</span>
+                              <span className="hc-dev-cred-value">
+                                {service.loginEmail}
+                              </span>
+                            </div>
+                          )}
+                          {service.lastRotated && (
+                            <div className="hc-dev-cred-row">
+                              <FiCalendar size={12} />
+                              <span className="hc-dev-cred-label">Rotated</span>
+                              <span className="hc-dev-cred-value">
+                                {String(service.lastRotated).slice(0, 10)}
+                              </span>
+                            </div>
+                          )}
+                          {service.vaultUrl && (
+                            <button
+                              className="hc-dev-cred-vault"
+                              onClick={() => openService(service.vaultUrl)}
+                            >
+                              <FiLock size={12} />
+                              Open password vault
+                              <FiExternalLink size={11} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {service.notes && !showNotes && (
+                        <button
+                          className="hc-dev-notes-toggle"
+                          onClick={() =>
+                            setExpandedNotes((prev) => ({
+                              ...prev,
+                              [service.slug]: true,
+                            }))
+                          }
+                        >
+                          Show notes
+                        </button>
+                      )}
+
+                      {showNotes && (
+                        <div className="hc-dev-notes-block">
+                          <textarea
+                            className="hc-dev-notes-input"
+                            defaultValue={service.notes || ""}
+                            placeholder="Anything worth remembering — contact person, renewal dates, quirks…"
+                            onChange={(e) =>
+                              handleNotesChange(service, e.target.value)
+                            }
+                          />
+                          <button
+                            className="hc-dev-notes-toggle"
+                            onClick={() =>
+                              setExpandedNotes((prev) => ({
+                                ...prev,
+                                [service.slug]: false,
+                              }))
+                            }
+                          >
+                            Hide notes
+                          </button>
+                        </div>
+                      )}
+
+                      {!service.notes && !showNotes && (
+                        <button
+                          className="hc-dev-notes-toggle"
+                          onClick={() =>
+                            setExpandedNotes((prev) => ({
+                              ...prev,
+                              [service.slug]: true,
+                            }))
+                          }
+                        >
+                          Add notes
+                        </button>
+                      )}
+
+                      <div className="hc-dev-foot">
+                        <button
+                          className="hc-btn hc-dev-btn"
+                          onClick={() => openService(service.url)}
+                        >
+                          Open <FiExternalLink size={12} />
+                        </button>
+
+                        {service.docsUrl && (
+                          <button
+                            className="hc-btn hc-btn-sm"
+                            onClick={() => openService(service.docsUrl)}
+                          >
+                            Docs <FiExternalLink size={11} />
+                          </button>
+                        )}
+
+                        <button
+                          className="hc-btn hc-btn-sm"
+                          onClick={() => openEditDev(service)}
+                          title="Edit service"
+                        >
+                          <FiEdit2 size={12} />
+                        </button>
+
+                        <button
+                          className="hc-btn hc-btn-sm hc-btn-danger"
+                          onClick={() => handleDeleteDev(service.slug)}
+                          disabled={deletingDevSlug === service.slug}
+                          title="Delete service"
+                        >
+                          {deletingDevSlug === service.slug ? (
+                            <FiLoader className="hc-spin" size={12} />
+                          ) : (
+                            <FiTrash2 size={12} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* ============ ERROR DETAIL MODAL ============ */}
@@ -1203,6 +1574,245 @@ function AdminHealthCentre() {
               <ModalRow label="Message" value={selectedError.message} />
               <ModalRow label="User" value={getUserDisplay(selectedError.userId)} />
               <ModalRow label="IP Address" value={selectedError.ip || "Not recorded"} mono />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ DEVELOPER SERVICE MODAL ============ */}
+      {showDevModal && (
+        <div
+          className="hc-modal-overlay"
+          onClick={() => !savingDev && setShowDevModal(false)}
+        >
+          <div
+            className="hc-modal hc-modal-wide"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="hc-modal-header">
+              <div>
+                <h3>{editingDevSlug ? "Edit service" : "Add service"}</h3>
+                <p className="hc-modal-sub">
+                  Links, credentials location, and notes for this service
+                </p>
+              </div>
+              <button
+                className="hc-modal-close"
+                onClick={() => !savingDev && setShowDevModal(false)}
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <div className="hc-modal-body hc-dev-form">
+              <div className="hc-dev-field-row">
+                <div className="hc-dev-field">
+                  <label>ID (slug) *</label>
+                  <input
+                    type="text"
+                    value={devForm.slug}
+                    onChange={(e) =>
+                      setDevForm({ ...devForm, slug: e.target.value })
+                    }
+                    placeholder="e.g. brevo"
+                    disabled={!!editingDevSlug}
+                  />
+                  <small>Lowercase, no spaces. Used as the unique key.</small>
+                </div>
+                <div className="hc-dev-field">
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    value={devForm.name}
+                    onChange={(e) =>
+                      setDevForm({ ...devForm, name: e.target.value })
+                    }
+                    placeholder="e.g. Brevo"
+                  />
+                </div>
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Description</label>
+                <input
+                  type="text"
+                  value={devForm.description}
+                  onChange={(e) =>
+                    setDevForm({ ...devForm, description: e.target.value })
+                  }
+                  placeholder="Email service and email management"
+                />
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Service URL *</label>
+                <input
+                  type="url"
+                  value={devForm.url}
+                  onChange={(e) =>
+                    setDevForm({ ...devForm, url: e.target.value })
+                  }
+                  placeholder="https://app.brevo.com/"
+                />
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Docs URL (optional)</label>
+                <input
+                  type="url"
+                  value={devForm.docsUrl}
+                  onChange={(e) =>
+                    setDevForm({ ...devForm, docsUrl: e.target.value })
+                  }
+                  placeholder="https://developers.brevo.com/"
+                />
+              </div>
+
+              <div className="hc-dev-field-row">
+                <div className="hc-dev-field">
+                  <label>Icon</label>
+                  <select
+                    value={devForm.icon}
+                    onChange={(e) =>
+                      setDevForm({ ...devForm, icon: e.target.value })
+                    }
+                  >
+                    {DEV_ICON_CHOICES.map((key) => (
+                      <option key={key} value={key}>
+                        {key}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="hc-dev-field">
+                  <label>Category</label>
+                  <input
+                    type="text"
+                    value={devForm.category}
+                    onChange={(e) =>
+                      setDevForm({ ...devForm, category: e.target.value })
+                    }
+                    placeholder="Email, Database, Media…"
+                  />
+                </div>
+                <div className="hc-dev-field">
+                  <label>Order</label>
+                  <input
+                    type="number"
+                    value={devForm.sortOrder}
+                    onChange={(e) =>
+                      setDevForm({
+                        ...devForm,
+                        sortOrder: Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="hc-dev-field hc-dev-checkbox">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={devForm.isPrimary}
+                    onChange={(e) =>
+                      setDevForm({
+                        ...devForm,
+                        isPrimary: e.target.checked,
+                      })
+                    }
+                  />
+                  Mark as primary
+                </label>
+              </div>
+
+              <div className="hc-dev-divider">Credentials</div>
+
+              <div className="hc-dev-field">
+                <label>Login email (shown as text, not a password)</label>
+                <input
+                  type="text"
+                  value={devForm.loginEmail}
+                  onChange={(e) =>
+                    setDevForm({
+                      ...devForm,
+                      loginEmail: e.target.value,
+                    })
+                  }
+                  placeholder="admin@zetechcatholicaction.com"
+                />
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Vault link (Bitwarden / 1Password entry URL)</label>
+                <input
+                  type="url"
+                  value={devForm.vaultUrl}
+                  onChange={(e) =>
+                    setDevForm({
+                      ...devForm,
+                      vaultUrl: e.target.value,
+                    })
+                  }
+                  placeholder="https://vault.bitwarden.com/#/vault?itemId=…"
+                />
+                <small>
+                  Never store the raw password here. Store a link to it in your
+                  password manager instead.
+                </small>
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Last rotated</label>
+                <input
+                  type="date"
+                  value={devForm.lastRotated}
+                  onChange={(e) =>
+                    setDevForm({
+                      ...devForm,
+                      lastRotated: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="hc-dev-field">
+                <label>Notes</label>
+                <textarea
+                  value={devForm.notes}
+                  onChange={(e) =>
+                    setDevForm({ ...devForm, notes: e.target.value })
+                  }
+                  rows={5}
+                  placeholder="Anything worth remembering — contact person, quirks, renewal dates…"
+                />
+              </div>
+            </div>
+
+            <div className="hc-modal-footer">
+              <button
+                className="hc-btn"
+                onClick={() => !savingDev && setShowDevModal(false)}
+                disabled={savingDev}
+              >
+                Cancel
+              </button>
+              <button
+                className="hc-btn hc-btn-primary"
+                onClick={handleSaveDev}
+                disabled={savingDev}
+              >
+                {savingDev ? (
+                  <>
+                    <FiLoader className="hc-spin" size={13} /> Saving…
+                  </>
+                ) : (
+                  <>
+                    <FiSave size={13} />{" "}
+                    {editingDevSlug ? "Save changes" : "Create service"}
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1525,10 +2135,6 @@ const baseCSS = `
     font-size: 12px;
     color: #525252;
   }
-  .hc-score-stats span {
-    position: relative;
-    padding-left: 0;
-  }
 
   /* ---------- STAT TILES ---------- */
   .hc-stats-grid {
@@ -1759,6 +2365,299 @@ const baseCSS = `
     font-size: 12px;
     font-weight: 600;
     margin-bottom: 10px;
+  }
+
+  /* ---------- DEVELOPER SERVICES ---------- */
+  .hc-dev-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hc-dev-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 640px) { .hc-dev-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { .hc-dev-grid { grid-template-columns: repeat(3, 1fr); } }
+
+  .hc-dev-card {
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .hc-dev-card:hover { border-color: #e5e5e5; background: #f7f7f7; }
+  .hc-dev-card-primary {
+    background: #ffffff;
+    border-color: #d4d4d4;
+  }
+
+  .hc-dev-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    min-width: 0;
+  }
+  .hc-dev-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    color: #262626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .hc-dev-meta { flex: 1; min-width: 0; }
+  .hc-dev-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f0f0f;
+    letter-spacing: -0.1px;
+    line-height: 1.3;
+  }
+  .hc-dev-primary-tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #0f0f0f;
+    color: #ffffff;
+    border-radius: 999px;
+    vertical-align: middle;
+  }
+  .hc-dev-desc {
+    font-size: 12.5px;
+    color: #737373;
+    margin-top: 4px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .hc-dev-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .hc-dev-cat {
+    display: inline-block;
+    padding: 2px 9px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #f5f5f5;
+    color: #525252;
+    border-radius: 999px;
+  }
+
+  .hc-dev-creds {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+  }
+  .hc-dev-cred-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #525252;
+  }
+  .hc-dev-cred-row svg { color: #a3a3a3; flex-shrink: 0; }
+  .hc-dev-cred-label {
+    font-weight: 700;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10.5px;
+    min-width: 52px;
+  }
+  .hc-dev-cred-value {
+    color: #171717;
+    font-weight: 500;
+    word-break: break-all;
+  }
+  .hc-dev-cred-vault {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    color: #262626;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-family: inherit;
+  }
+  .hc-dev-cred-vault:hover { background: #f5f5f5; border-color: #d4d4d4; }
+  .hc-dev-cred-vault svg { color: #525252; }
+
+  .hc-dev-notes-toggle {
+    background: transparent;
+    border: none;
+    color: #525252;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    padding: 0;
+    align-self: flex-start;
+    font-family: inherit;
+  }
+  .hc-dev-notes-toggle:hover { color: #0f0f0f; }
+
+  .hc-dev-notes-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hc-dev-notes-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    font-size: 12.5px;
+    color: #171717;
+    font-family: inherit;
+    background: #ffffff;
+    resize: vertical;
+    min-height: 90px;
+    line-height: 1.55;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .hc-dev-notes-input:focus { border-color: #a3a3a3; background: #ffffff; }
+
+  .hc-dev-foot {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    flex-wrap: wrap;
+  }
+  .hc-dev-btn {
+    align-self: flex-start;
+  }
+
+  /* ---------- DEV MODAL ---------- */
+  .hc-modal-wide {
+    max-width: 640px;
+  }
+  .hc-dev-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 65vh;
+    overflow-y: auto;
+    padding: 20px 22px;
+  }
+  .hc-dev-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 600px) {
+    .hc-dev-field-row { grid-template-columns: 1fr; }
+  }
+  .hc-dev-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hc-dev-field label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #525252;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .hc-dev-field input,
+  .hc-dev-field select,
+  .hc-dev-field textarea {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid #e5e5e5;
+    border-radius: 9px;
+    font-size: 13px;
+    color: #171717;
+    background: #ffffff;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .hc-dev-field input:focus,
+  .hc-dev-field select:focus,
+  .hc-dev-field textarea:focus {
+    border-color: #0f0f0f;
+  }
+  .hc-dev-field input:disabled {
+    background: #f5f5f5;
+    color: #a3a3a3;
+    cursor: not-allowed;
+  }
+  .hc-dev-field small {
+    font-size: 11px;
+    color: #a3a3a3;
+    line-height: 1.5;
+  }
+  .hc-dev-field textarea {
+    resize: vertical;
+    min-height: 90px;
+  }
+  .hc-dev-checkbox label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 600;
+    color: #262626;
+    cursor: pointer;
+  }
+  .hc-dev-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #0f0f0f;
+  }
+  .hc-dev-divider {
+    font-size: 11px;
+    font-weight: 700;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 0 4px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 6px;
+  }
+  .hc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 22px;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
   }
 
   /* ---------- ISSUES ---------- */

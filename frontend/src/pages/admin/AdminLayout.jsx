@@ -235,32 +235,25 @@ export default function AdminLayout() {
       label: "Mains",
       items: [
         { label: "Home View", path: "", icon: <FaShieldAlt />, end: true },
+                { label: "Attendance", path: "attendance", icon: <FiUsers /> },
+
         { label: "Feedback Management", path: "feedback", icon: <FaComments /> },
         { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },
          { label: "Announcements", path: "announcements", icon: <FiBell /> },
       ],
     },
-
-    {
-      label: "Tools",
-      items: [
-        { label: "Birthdays", path: "/admin/birthday", icon: <FaBirthdayCake /> },
-        { label: "Countdown Settings", path: "/admin/countdown-settings", icon: <FaClock /> },
-        { label: "System Monitor", path: "/admin/health-centre", icon: <FaShieldAlt /> },
-        { label: "Manual", path: "security", icon: <FaBookReader/>},
-        { label: "Adverts", path: "/admin/advertisements",icon: <FaAdversal/> },
-      ],
-    },
-    {
-      label: "People",
+     {
+      label: "Member management",
       items: [
         { label: "Members", path: "users", icon: <FiUsers /> },
         { label: "All Jumuias", path: "jumuia-management", icon: <FaPrayingHands /> },
         { label: "Executive Team", path: "executive", icon: <FaUserTie /> },
         { label: "Role Management", path: "roles", icon: <FaUserTie /> },
-        { label: "Attendance", path: "attendance", icon: <FiUsers /> },
       ],
     },
+
+    
+   
     {
       label: "Z-Resources",
       items: [
@@ -269,6 +262,15 @@ export default function AdminLayout() {
         { label: "Prayer Settings", path: "prayers", icon: <FaPray /> },
         { label: "Semester Schedule", path: "schedules", icon: <FiCalendar /> },
         { label: "Minutes Section", path: "minutes", icon: <FaFileAlt /> },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { label: "Birthdays", path: "/admin/birthday", icon: <FaBirthdayCake /> },
+        { label: "Countdown Settings", path: "/admin/countdown-settings", icon: <FaClock /> },
+        { label: "System Monitor", path: "/admin/health-centre", icon: <FaShieldAlt /> },
+        { label: "Adverts", path: "/admin/advertisements",icon: <FaAdversal/> },
       ],
     },
     {

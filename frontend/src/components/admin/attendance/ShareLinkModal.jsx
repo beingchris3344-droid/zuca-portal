@@ -70,10 +70,10 @@ export default function ShareLinkModal({ sheet, onClose }) {
   const shareViaWhatsApp = () => {
     if (generatedLink?.link) {
       const message = encodeURIComponent(
-        `📋 *${sheet.title}* Attendance\n\n` +
-        `📅 Date: ${new Date(sheet.eventDate).toLocaleDateString()}\n` +
-        `🕐 Time: ${sheet.eventTime || '4:30 PM'}\n` +
-        `📍 Location: ${sheet.location || 'ZUCA'}\n\n` +
+        ` *${sheet.title}* Attendance\n\n` +
+        ` Date: ${new Date(sheet.eventDate).toLocaleDateString()}\n` +
+        ` Time: ${sheet.eventTime || '4:30 PM'}\n` +
+        ` Location: ${sheet.location || 'ZUCA'}\n\n` +
         `Click the link below to check in:\n${generatedLink.link}\n\n` +
         `Valid until: ${new Date(generatedLink.expiresAt).toLocaleDateString()}`
       );

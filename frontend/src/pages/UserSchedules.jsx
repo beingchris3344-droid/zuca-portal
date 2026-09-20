@@ -216,7 +216,7 @@ function UserSchedules() {
       <div>
         <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
         <h2>${schedule.title}</h2>
-        ${schedule.startDate ? `<p style="text-align: center;">📅 ${new Date(schedule.startDate).toLocaleDateString()} - ${new Date(schedule.endDate).toLocaleDateString()}</p>` : ''}
+        ${schedule.startDate ? `<p style="text-align: center;"> ${new Date(schedule.startDate).toLocaleDateString()} - ${new Date(schedule.endDate).toLocaleDateString()}</p>` : ''}
         
         <div style="margin: 20px 0;">
           <p><strong>The ${schedule.title} activities will take place as follows:</strong></p>

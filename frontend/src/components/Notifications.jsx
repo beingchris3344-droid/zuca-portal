@@ -587,23 +587,23 @@ export default function Notifications({ userId }) {
       case 'attendance_summary':
       case 'attendance_admin_report':
       case 'attendance_bulk_checkin':
-        return '✅';
+        return '🔔';
       
       // Minutes
       case 'meeting_minutes_published':
       case 'meeting_minutes_comment':
       case 'minutes_published':
-        return '📋';
+        return '🔔';
       
       // Announcements
       case 'announcement':
       case 'new_announcement':
       case 'jumuia_announcement':
-        return '📢';
+        return '🔔';
       
       // Games
       case 'game_invite':
-        return '🎮';
+        return '🔔';
       
       // Messages
       case 'direct_message':
@@ -613,7 +613,7 @@ export default function Notifications({ userId }) {
       case 'broadcast':
       case 'send_email':
       case 'report_resolved':
-        return '💬';
+        return '🔔';
       
       // Contributions
       case 'contribution':
@@ -624,41 +624,41 @@ export default function Notifications({ userId }) {
       case 'jumuia_contribution':
       case 'pledge_message':
       case 'new_pledge':
-        return '💰';
+        return '🔔';
       
       // Executive
       case 'executive_appointment':
       case 'executive_removed':
-        return '👑';
+        return '';
       
       // Media
       case 'new_media':
       case 'media_comment':
       case 'media_like':
-        return '📸';
+        return '🔔';
       
       // YouTube
       case 'youtube_new_video':
       case 'youtube_live':
-        return '📺';
+        return '🔔';
       
       // Schedules
       case 'schedule':
       case 'event_reminder':
-        return '📅';
+        return '🔔';
       
       // Programs
       case 'program':
-        return '⛪';
+        return '🔔';
       
       // Jumuia
       case 'jumuia':
       
-        return '🏠';
+        return '🔔';
       
       // Mass Readings
       case 'mass_reading':
-        return '📖';
+        return '🔔';
       
       // System
       case 'test':
@@ -669,9 +669,9 @@ export default function Notifications({ userId }) {
         return '🔔';
 
          case 'feedback_new':
-      return '📋';
+      return '🔔';
     case 'feedback_updated':
-      return '✉️';
+      return '🔔';
       
       default:
         return '🔔';

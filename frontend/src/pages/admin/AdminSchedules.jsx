@@ -461,7 +461,7 @@ function AdminSchedules() {
         <div>
           <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
           <h2>${formData.title || "Schedule"}</h2>
-          ${formData.semesterPeriod.start ? `<p style="text-align: center;">📅 ${new Date(formData.semesterPeriod.start).toLocaleDateString()} - ${new Date(formData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
+          ${formData.semesterPeriod.start ? `<p style="text-align: center;"> ${new Date(formData.semesterPeriod.start).toLocaleDateString()} - ${new Date(formData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
           <div style="margin: 20px 0;">
             <p><strong>Activities will take place as follows:</strong></p>
             <ul>
@@ -725,7 +725,7 @@ const parseDateString = (dateStr) => {
         <div>
           <h1>ZETECH UNIVERSITY CATHOLIC ACTION</h1>
           <h2>${scheduleData.title || "Schedule"}</h2>
-          ${scheduleData.semesterPeriod?.start ? `<p style="text-align: center;">📅 ${new Date(scheduleData.semesterPeriod.start).toLocaleDateString()} - ${new Date(scheduleData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
+          ${scheduleData.semesterPeriod?.start ? `<p style="text-align: center;"> ${new Date(scheduleData.semesterPeriod.start).toLocaleDateString()} - ${new Date(scheduleData.semesterPeriod.end).toLocaleDateString()}</p>` : ''}
           <div style="margin: 20px 0;">
             <p><strong>Activities will take place as follows:</strong></p>
             <ul>

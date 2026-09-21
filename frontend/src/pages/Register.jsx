@@ -1699,17 +1699,38 @@ function Register() {
           flex: 0 0 22px;
         }
 
-        .input-shell input {
-          width: 100%;
-          min-width: 0;
-          height: 100%;
-          border: 0;
-          outline: 0;
-          background: transparent;
-          color: #172033;
-          font-size: 14px;
-          font-family: inherit;
-        }
+        .input-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-shell input {
+  width: 85%;
+  height: 80%;
+  min-width: 0;
+  padding-right: 65px !important;
+}
+
+.password-toggle {
+  position: absolute !important;
+  right: 10px !important;
+  top: 30% !important;
+  transform: translateY(-50%) !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 4px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #2563eb !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  z-index: 10;
+  cursor: pointer;
+}
 
         .input-shell input::placeholder {
           color: #9aa7b8;

@@ -853,31 +853,50 @@ function ResetPassword() {
           flex: 0 0 22px;
         }
 
-        .input-shell input {
-          width: 100%;
-          min-width: 0;
-          height: 100%;
-          border: 0;
-          outline: 0;
-          background: transparent;
-          color: #172033;
-          font-size: 14px;
-          font-family: inherit;
-        }
+.input-shell {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  border: 1px solid #d9e1ec;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0 13px;
+}
 
-        .input-shell input::placeholder {
-          color: #9aa7b8;
-        }
+.input-shell input {
+  width: 85%;
+  height: 80%;
+  min-width: 0;
+  padding-right: 65px !important;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #172033;
+  font-size: 14px;
+  font-family: inherit;
+}
 
-        .password-toggle {
-          border: 0;
-          background: transparent;
-          color: #2563eb;
-          font-size: 11px;
-          font-weight: 700;
-          cursor: pointer;
-          padding: 4px;
-        }
+.password-toggle {
+  position: absolute !important;
+  right: 10px !important;
+  top: 30% !important;
+  transform: translateY(-50%) !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 4px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #2563eb !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  z-index: 10;
+  cursor: pointer;
+}
 
         .password-match {
           font-size: 10.5px;

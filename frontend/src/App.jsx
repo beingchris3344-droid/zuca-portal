@@ -72,6 +72,8 @@ import Feedback from './pages/Feedback';
 import FeedbackHistory from './pages/FeedbackHistory';
 import FeedbackDetail from './pages/FeedbackDetail';
 
+import ProfileSettings from "./pages/ProfileSettings";
+
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
 import Snake from "./pages/games/Snake";
@@ -473,6 +475,7 @@ useEffect(() => {
                    <Route path="/hymns" element={<HymnBook />} />
           <Route path="/hymn/:id" element={<HymnLyrics />} />
           <Route path="/profile" element={<ProfilePage />} />
+          
 
          
            
@@ -524,6 +527,18 @@ useEffect(() => {
   element={<ExecutiveMinutes />} 
 />
 <Route path="/executive/minutes/:id" element={<ExecutiveMinutesView />} />
+
+<Route
+  path="/profile-settings"
+  element={
+    <ProfileSettings
+      user={JSON.parse(localStorage.getItem("user") || "{}")}
+      onUserUpdate={(updated) => {
+        console.log("User updated:", updated);
+      }}
+    />
+  }
+/>
       
 
           {/* GAMES */}

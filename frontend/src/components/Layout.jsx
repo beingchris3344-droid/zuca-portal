@@ -216,7 +216,7 @@ function Layout() {
         { path: "/schedules", label: "Semester Schedule", icon: <FaCalendarPlus /> },
         { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt /> },
         { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar /> },
-         { path: "/member/attendance", label: "Attendance/Records", icon: <FaUsers color="#ee0e46" /> },
+        { path: "/member/attendance", label: "Attendance/Records", icon: <FaUsers color="#ee0e46" /> },
       ],
     },
     {
@@ -226,9 +226,8 @@ function Layout() {
         {
           path: "/jumuia-contributions",
           label: `JUMUIA - ${jumuiaName ? jumuiaName : "My Jumuia"}`,
-          icon: <FaDove  /> ,
+          icon: <FaDove />,
         },
-       
         { path: "/executive", label: "Executive Team", icon: <FaUserTie /> },
         ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin"
           ? [
@@ -528,24 +527,26 @@ function Layout() {
             >
               <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
             </motion.button>
-            <span style={pageTitleStyle}>Home</span>
+
+            <div style={titleBlockStyle}>
+              <span style={pageTitleStyle}>Home</span>
+              <span style={pageSubtitleStyle}>
+                <span style={liveDotStyle} />
+                Welcome back, {user.fullName.split(" ")[0]}
+              </span>
+            </div>
           </div>
 
           <div style={headerRightStyle}>
-            <button
+            <motion.button
               onClick={toggleDark}
-              style={{
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                padding: "6px",
-              }}
+              style={iconButtonStyle}
+              whileHover={{ scale: 1.06, backgroundColor: "#fef3c7" }}
+              whileTap={{ scale: 0.94 }}
               aria-label="Toggle dark mode"
             >
-              <FaSun style={{ fontSize: "20px", color: "#f39c12" }} />
-            </button>
+              <FaSun style={{ fontSize: "17px", color: "#f8a006" }} />
+            </motion.button>
 
             <div style={enhancedNotificationWrapperStyle}>
               <Notifications userId={user.id} />
@@ -555,30 +556,41 @@ function Layout() {
               <motion.div
                 style={userMenuTriggerStyle}
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                whileHover={{ backgroundColor: "#f1f5f9" }}
+                whileHover={{ backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }}
                 whileTap={{ scale: 0.98 }}
               >
-                {profileImageUrl ? (
-                  <img
-                    src={profileImageUrl}
-                    alt={user.fullName.split(" ")[0]}
-                    style={headerAvatarStyle}
-                  />
-                ) : (
-                  <div style={headerAvatarFallbackStyle}>
-                    {user.fullName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <span style={userNameStyle}>{user.fullName.split(" ")[1]}</span>
-                <FiChevronDown style={dropdownArrowStyle} />
+                <div style={avatarRingStyle}>
+                  {profileImageUrl ? (
+                    <img
+                      src={profileImageUrl}
+                      alt={user.fullName.split(" ")[0]}
+                      style={headerAvatarStyle}
+                    />
+                  ) : (
+                    <div style={headerAvatarFallbackStyle}>
+                      {user.fullName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span style={onlineDotStyle} />
+                </div>
+                <span style={userNameStyle}>
+                  {user.fullName.split(" ").slice(1).join(" ") || user.fullName}
+                </span>
+                <FiChevronDown
+                  style={{
+                    ...dropdownArrowStyle,
+                    transform: showUserMenu ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                />
               </motion.div>
 
               <AnimatePresence>
                 {showUserMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
                     style={userDropdownStyle}
                   >
@@ -588,18 +600,33 @@ function Layout() {
                     </div>
                     <div style={userDropdownDivider} />
 
+                    {/* 1. Birthday Settings */}
                     <motion.button
                       onClick={() => {
                         setShowUserMenu(false);
                         window.location.href = "/profile";
                       }}
                       style={userDropdownItem}
-                      whileHover={{ backgroundColor: "#f8fafc" }}
+                      whileHover={{ backgroundColor: "#f0fdf4" }}
                     >
                       <FaBirthdayCake style={dropdownItemIcon} />
                       Birthday Settings
                     </motion.button>
 
+                    {/* 2. Profile Settings (new full page) */}
+                    <motion.button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        window.location.href = "/profile-settings";
+                      }}
+                      style={userDropdownItem}
+                      whileHover={{ backgroundColor: "#f0fdf4" }}
+                    >
+                      <FaUser style={dropdownItemIcon} />
+                      Profile Settings
+                    </motion.button>
+
+                    {/* 3. Sign Out */}
                     <motion.button
                       onClick={handleLogout}
                       style={{ ...userDropdownItem, color: "#dc2626" }}
@@ -703,6 +730,11 @@ function Layout() {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+          }
+
+          @keyframes pulseDot {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+            50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
           }
 
           /* Nav link hover & active states */
@@ -1020,20 +1052,24 @@ const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "#ffffff",
-  padding: "10px 20px",
-  marginBottom: "0px",
+  background: "rgba(255, 255, 255, 0.85)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  padding: "12px 22px",
   borderBottom: "1px solid #e2e8f0",
   position: "sticky",
   top: 0,
   zIndex: 30,
   flexShrink: 0,
+  boxShadow:
+    "0 1px 0 rgba(255,255,255,0.7) inset, 0 6px 24px -14px rgba(15, 23, 42, 0.12)",
 };
 
 const headerLeftStyle = {
   display: "flex",
   alignItems: "center",
   gap: "16px",
+  minWidth: 0,
 };
 
 const hamburgerStyle = {
@@ -1055,10 +1091,43 @@ const hamburgerIconStyle = {
   lineHeight: 1,
 };
 
+const titleBlockStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "2px",
+  minWidth: 0,
+};
+
 const pageTitleStyle = {
   color: "#0f172a",
   fontSize: "15px",
-  fontWeight: "600",
+  fontWeight: "700",
+  letterSpacing: "-0.01em",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const pageSubtitleStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  color: "#94a3b8",
+  fontSize: "11px",
+  fontWeight: "500",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const liveDotStyle = {
+  width: "6px",
+  height: "6px",
+  borderRadius: "50%",
+  background: "#22c55e",
+  boxShadow: "0 0 0 0 rgba(34,197,94,0.6)",
+  animation: "pulseDot 2s infinite",
+  flexShrink: 0,
 };
 
 const headerRightStyle = {
@@ -1066,6 +1135,19 @@ const headerRightStyle = {
   alignItems: "center",
   gap: "8px",
   flexShrink: 0,
+};
+
+const iconButtonStyle = {
+  width: "36px",
+  height: "36px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#fef9ec",
+  border: "1px solid #fce589f3",
+  borderRadius: "10px",
+  cursor: "pointer",
+  transition: "all 0.18s ease",
 };
 
 const enhancedNotificationWrapperStyle = {
@@ -1087,67 +1169,92 @@ const userMenuContainerStyle = {
 const userMenuTriggerStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "6px",
-  padding: "4px 8px 4px 4px",
+  gap: "8px",
+  padding: "4px 10px 4px 4px",
   borderRadius: "999px",
-  background: "transparent",
-  border: "1px solid transparent",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
   cursor: "pointer",
-  transition: "background 0.15s ease",
+  transition: "all 0.18s ease",
+  boxShadow: "0 2px 6px -3px rgba(15, 23, 42, 0.1)",
+};
+
+const avatarRingStyle = {
+  position: "relative",
+  width: "32px",
+  height: "32px",
+  flexShrink: 0,
 };
 
 const headerAvatarStyle = {
   width: "32px",
   height: "32px",
-  borderRadius: "32px",
+  borderRadius: "50%",
   objectFit: "cover",
-  flexShrink: 0,
+  border: "2px solid #ffffff",
+  boxShadow: "0 0 0 2px #22c55e",
+  display: "block",
 };
 
 const headerAvatarFallbackStyle = {
   width: "32px",
   height: "32px",
-  borderRadius: "32px",
-  background: "linear-gradient(135deg, #63f16a, #1ccf25)",
+  borderRadius: "50%",
+  background: "linear-gradient(135deg, #22c55e, #16a34a)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontSize: "13px",
-  fontWeight: "600",
+  fontWeight: "700",
   color: "#fff",
-  flexShrink: 0,
+  border: "2px solid #ffffff",
+  boxShadow: "0 0 0 2px #22c55e",
+};
+
+const onlineDotStyle = {
+  position: "absolute",
+  bottom: "0px",
+  right: "0px",
+  width: "9px",
+  height: "9px",
+  borderRadius: "50%",
+  background: "#22c55e",
+  border: "2px solid #ffffff",
 };
 
 const userNameStyle = {
   color: "#0f172a",
   fontSize: "13px",
-  fontWeight: "600",
+  fontWeight: "700",
+  whiteSpace: "nowrap",
 };
 
 const dropdownArrowStyle = {
-  color: "#94a3b8",
+  color: "#16a34a",
   fontSize: "14px",
 };
 
 /* ---------- USER DROPDOWN ---------- */
 const userDropdownStyle = {
   position: "absolute",
-  top: "calc(100% + 8px)",
+  top: "calc(100% + 10px)",
   right: 0,
-  width: "240px",
+  width: "250px",
   background: "#ffffff",
-  borderRadius: "10px",
+  borderRadius: "14px",
   border: "1px solid #e2e8f0",
-  boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05)",
+  boxShadow:
+    "0 20px 40px -20px rgba(15, 23, 42, 0.25), 0 8px 16px -8px rgba(15, 23, 42, 0.1)",
   zIndex: 102,
   overflow: "hidden",
 };
 
 const userDropdownHeader = {
-  padding: "12px 14px",
+  padding: "14px 16px",
   borderBottom: "1px solid #f1f5f9",
   fontSize: "13px",
   color: "#0f172a",
+  background: "linear-gradient(135deg, #f0fdf4, #ecfdf5)",
 };
 
 const userDropdownEmail = {
@@ -1170,7 +1277,7 @@ const userDropdownItem = {
   border: "none",
   color: "#334155",
   fontSize: "13px",
-  fontWeight: "500",
+  fontWeight: "600",
   display: "flex",
   alignItems: "center",
   gap: "10px",
@@ -1181,7 +1288,7 @@ const userDropdownItem = {
 
 const dropdownItemIcon = {
   fontSize: "15px",
-  color: "inherit",
+  color: "#16a34a",
 };
 
 export default Layout;

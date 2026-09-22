@@ -1,29 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { X, Users, Save, QrCode, MessageSquare, CheckCircle, AlertCircle, RefreshCw, Calendar, Clock, MapPin, FileSpreadsheet } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  FiX, FiCalendar, FiClock, FiMapPin, FiUsers, FiClipboard,
+  FiCheckCircle, FiAlertCircle, FiMessageCircle, FiCheck, FiPlus,
+  FiInfo, FiSmartphone, FiUserCheck, FiGrid, FiTrash2, FiSave,
+  FiRefreshCw, FiFileText
+} from 'react-icons/fi';
+import { FaWhatsapp } from 'react-icons/fa';
 import { api } from '../../../api';
-import { FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
+
+function getTodayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function Field({ label, required, hint, error, children }) {
+  return (
+    <div className="cs-field">
+      <label className="cs-label">{label}{required && <span className="cs-required"> *</span>}</label>
+      {children}
+      {hint && <div className="cs-hint">{hint}</div>}
+      {error && <div className="cs-error"><FiAlertCircle /> {error}</div>}
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label, description, icon: Icon, disabled = false }) {
+  return (
+    <div className={`cs-toggle-card ${checked ? 'is-on' : ''} ${disabled ? 'is-disabled' : ''}`}>
+      <div className="cs-toggle-icon">{Icon && <Icon />}</div>
+      <div className="cs-toggle-copy">
+        <div className="cs-toggle-title">{label}</div>
+        {description && <div className="cs-toggle-description">{description}</div>}
+      </div>
+      <label className="cs-switch" aria-label={label}>
+        <input type="checkbox" checked={checked} onChange={onChange} disabled={disabled} />
+        <span className="cs-switch-track" />
+      </label>
+    </div>
+  );
+}
+
+const TABS = [
+  { id: 'details',    label: 'Details',    icon: FiCalendar },
+  { id: 'attendance', label: 'Attendance', icon: FiUserCheck },
+  { id: 'whatsapp',   label: 'WhatsApp',   icon: FiMessageCircle },
+];
 
 export default function SettingsModal({ sheet, onClose, onUpdate }) {
-  const [formData, setFormData] = useState({
-    title: sheet.title || '',
-    description: sheet.description || '',
-    eventDate: sheet.eventDate ? new Date(sheet.eventDate).toISOString().split('T')[0] : '',
-    eventTime: sheet.eventTime || '16:30',
-    location: sheet.location || '',
-    allowSelfCheckin: sheet.allowSelfCheckin,
-    enableQRCheckin: sheet.enableQRCheckin || true,
-    jumuiaId: sheet.jumuiaId || '',
-    enableWhatsAppAutoSend: sheet.enableWhatsAppAutoSend || false,
-    whatsAppGroupIds: sheet.whatsAppGroupIds || '',
-    whatsAppGroupNames: sheet.whatsAppGroupNames || '',
-    whatsAppCustomMessage: sheet.whatsAppCustomMessage || '',
-    whatsAppSendOnCheckin: sheet.whatsAppSendOnCheckin !== undefined ? sheet.whatsAppSendOnCheckin : true,
-    whatsAppSendOnClose: sheet.whatsAppSendOnClose !== undefined ? sheet.whatsAppSendOnClose : true,
-    categoryName: sheet.categoryName || '',
-    categoryOptions: Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions.join(', ') : '',
-    categoryRequired: sheet.categoryRequired !== undefined ? sheet.categoryRequired : true
-  });
-  
+  const initial = useMemo(() => ({
+    title: sheet?.title || '',
+    description: sheet?.description || '',
+    eventDate: sheet?.eventDate ? new Date(sheet.eventDate).toISOString().split('T')[0] : '',
+    eventTime: sheet?.eventTime || '16:30',
+    location: sheet?.location || '',
+    allowSelfCheckin: sheet?.allowSelfCheckin !== false,
+    enableQRCheckin: sheet?.enableQRCheckin === true,
+    jumuiaId: sheet?.jumuiaId || '',
+    enableWhatsAppAutoSend: sheet?.enableWhatsAppAutoSend === true,
+    whatsAppGroupIds: sheet?.whatsAppGroupIds || '',
+    whatsAppGroupNames: sheet?.whatsAppGroupNames || '',
+    whatsAppCustomMessage: sheet?.whatsAppCustomMessage || '',
+    whatsAppSendOnCheckin: sheet?.whatsAppSendOnCheckin !== false,
+    whatsAppSendOnClose: sheet?.whatsAppSendOnClose !== false,
+    categoryName: sheet?.categoryName || '',
+    categoryOptions: Array.isArray(sheet?.categoryOptions) ? sheet.categoryOptions.join(', ') : (sheet?.categoryOptions || ''),
+    categoryRequired: sheet?.categoryRequired !== false,
+  }), [sheet]);
+
+  const [formData, setFormData] = useState(initial);
   const [jumuiaList, setJumuiaList] = useState([]);
   const [loadingJumuia, setLoadingJumuia] = useState(true);
   const [loadingGroups, setLoadingGroups] = useState(false);
@@ -31,116 +75,144 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [botConnected, setBotConnected] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null);
   const [sending, setSending] = useState(false);
-  
-  const getHeaders = () => {
-    const token = localStorage.getItem('token');
-    return { Authorization: `Bearer ${token}` };
-  };
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [showDelete, setShowDelete] = useState(false);
+  const [tab, setTab] = useState('details');
+  const [whatsappTab, setWhatsappTab] = useState('groups');
+  const [groupSearch, setGroupSearch] = useState('');
+  const [optionDraft, setOptionDraft] = useState('');
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
+  const categoryOptions = useMemo(
+    () => (formData.categoryOptions || '').split(',').map(v => v.trim()).filter(Boolean),
+    [formData.categoryOptions]
+  );
 
+  // Load jumuia
   useEffect(() => {
-    const fetchJumuia = async () => {
+    const token = localStorage.getItem('token');
+    (async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await api.get('/api/jumuia', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await api.get('/api/jumuia', { headers: { Authorization: `Bearer ${token}` } });
         setJumuiaList(response.data || []);
       } catch (error) {
         console.error('Error fetching jumuia:', error);
       } finally {
         setLoadingJumuia(false);
       }
-    };
-    fetchJumuia();
+    })();
   }, []);
 
+  // Load WhatsApp groups whenever auto-send is on
   useEffect(() => {
-    if (formData.enableWhatsAppAutoSend) {
-      fetchWhatsAppGroups();
-    }
+    if (formData.enableWhatsAppAutoSend) fetchWhatsAppGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.enableWhatsAppAutoSend]);
 
+  // Seed selected groups from sheet data
   useEffect(() => {
     if (formData.whatsAppGroupIds) {
-      const ids = formData.whatsAppGroupIds.split(',').map(id => id.trim()).filter(id => id);
+      const ids = formData.whatsAppGroupIds.split(',').map(id => id.trim()).filter(Boolean);
       const names = formData.whatsAppGroupNames ? formData.whatsAppGroupNames.split(',').map(n => n.trim()) : [];
-      const selected = ids.map((id, index) => ({
-        id: id,
-        name: names[index] || id
-      }));
-      setSelectedGroups(selected);
+      setSelectedGroups(ids.map((id, index) => ({ id, name: names[index] || id })));
     }
   }, [formData.whatsAppGroupIds, formData.whatsAppGroupNames]);
+
+  // Escape handling
+  useEffect(() => {
+    const handleEscape = e => {
+      if (e.key !== 'Escape' || loading) return;
+      if (showDelete) { setShowDelete(false); return; }
+      onClose?.();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [loading, onClose, showDelete]);
 
   const fetchWhatsAppGroups = async () => {
     setLoadingGroups(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await api.get('/api/admin/whatsapp/groups', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      const response = await api.get('/api/admin/whatsapp/groups', { headers: { Authorization: `Bearer ${token}` } });
       if (response.data.success) {
-        const groupList = response.data.groups || [];
-        setWhatsappGroups(groupList);
-        
-        const statusRes = await api.get('/api/admin/whatsapp/status', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        setWhatsappGroups(response.data.groups || []);
+        const statusRes = await api.get('/api/admin/whatsapp/status', { headers: { Authorization: `Bearer ${token}` } });
         setBotConnected(statusRes.data.status?.connected || false);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
-      showToast('Failed to fetch WhatsApp groups', 'error');
+      setSubmitError('Failed to fetch WhatsApp groups.');
     } finally {
       setLoadingGroups(false);
     }
   };
 
-  const handleChange = (e) => {
+  const handleChange = e => {
     const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setErrors(prev => ({ ...prev, [name]: '' }));
+    setSubmitError('');
+    setSuccessMsg('');
+  };
+
+  const toggleGroup = (groupId, groupName) => {
+    setSelectedGroups(prev => prev.some(g => g.id === groupId)
+      ? prev.filter(g => g.id !== groupId)
+      : [...prev, { id: groupId, name: groupName }]);
+    setErrors(prev => ({ ...prev, whatsAppGroups: '' }));
+  };
+
+  const addCategoryOption = () => {
+    const value = optionDraft.trim();
+    if (!value || categoryOptions.some(o => o.toLowerCase() === value.toLowerCase())) return;
+    setFormData(prev => ({ ...prev, categoryOptions: [...categoryOptions, value].join(', ') }));
+    setOptionDraft('');
+  };
+
+  const removeCategoryOption = optionToRemove => {
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      categoryOptions: categoryOptions.filter(o => o !== optionToRemove).join(', '),
     }));
   };
 
-  const handleGroupToggle = (groupId, groupName) => {
-    setSelectedGroups(prev => {
-      const exists = prev.some(g => g.id === groupId);
-      if (exists) {
-        return prev.filter(g => g.id !== groupId);
-      } else {
-        return [...prev, { id: groupId, name: groupName }];
-      }
-    });
+  const validate = () => {
+    const next = {};
+    if (!formData.title.trim()) next.title = 'Enter an event title.';
+    if (!formData.eventDate) next.eventDate = 'Choose an event date.';
+    else if (formData.eventDate < getTodayLocal()) next.eventDate = 'Choose today or a future date.';
+    if (formData.categoryName.trim() && categoryOptions.length < 2) {
+      next.categoryOptions = 'Add at least two options, or clear the category name.';
+    }
+    if (formData.enableWhatsAppAutoSend && selectedGroups.length === 0) {
+      next.whatsAppGroups = 'Select at least one WhatsApp group.';
+    }
+    return next;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const jumpToError = next => {
+    if (next.title || next.eventDate) { setTab('details'); return; }
+    if (next.categoryOptions) { setTab('attendance'); return; }
+    if (next.whatsAppGroups) { setTab('whatsapp'); setWhatsappTab('groups'); return; }
+  };
 
-    const trimmedCategoryName = (formData.categoryName || '').trim();
-    const categoryOptionList = (formData.categoryOptions || '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    if (trimmedCategoryName && categoryOptionList.length < 2) {
-      showToast('A check-in category needs a name and at least 2 options.', 'error');
+  const handleSubmit = async () => {
+    if (loading) return;
+    const next = validate();
+    if (Object.keys(next).length) {
+      setErrors(next);
+      jumpToError(next);
       return;
     }
 
     setLoading(true);
+    setSubmitError('');
+    setSuccessMsg('');
     try {
       const sheetData = {
-        title: formData.title,
+        title: formData.title.trim(),
         description: formData.description || null,
         eventDate: formData.eventDate,
         eventTime: formData.eventTime,
@@ -148,14 +220,11 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         jumuiaId: formData.jumuiaId || null,
         allowSelfCheckin: formData.allowSelfCheckin,
         enableWifiCheckin: formData.enableQRCheckin,
-        categoryName: trimmedCategoryName || null,
-        categoryOptions: categoryOptionList,
-        categoryRequired: formData.categoryRequired !== false
+        categoryName: formData.categoryName.trim() || null,
+        categoryOptions,
+        categoryRequired: formData.categoryRequired !== false,
       };
-
-      await api.put(`/api/attendance/sheet/${sheet.id}/details`, sheetData, {
-        headers: getHeaders()
-      });
+      await api.put(`/api/attendance/sheet/${sheet.id}/details`, sheetData, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
       const whatsappData = {
         enableWhatsAppAutoSend: formData.enableWhatsAppAutoSend || false,
@@ -163,21 +232,14 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         whatsAppGroupNames: selectedGroups.map(g => g.name).join(','),
         whatsAppCustomMessage: formData.whatsAppCustomMessage || null,
         whatsAppSendOnCheckin: formData.whatsAppSendOnCheckin !== false,
-        whatsAppSendOnClose: formData.whatsAppSendOnClose !== false
+        whatsAppSendOnClose: formData.whatsAppSendOnClose !== false,
       };
+      await api.put(`/api/attendance/sheet/${sheet.id}/whatsapp-settings`, whatsappData, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
-      await api.put(`/api/attendance/sheet/${sheet.id}/whatsapp-settings`, whatsappData, {
-        headers: getHeaders()
-      });
-      
-      showToast('✅ Settings saved successfully!');
-      setTimeout(() => {
-        onUpdate();
-        onClose();
-      }, 1000);
-      
+      setSuccessMsg('Settings saved successfully.');
+      setTimeout(() => { onUpdate?.(); onClose?.(); }, 900);
     } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to update settings', 'error');
+      setSubmitError(error.response?.data?.error || 'Failed to update settings. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -185,955 +247,323 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
 
   const handleSendNow = async () => {
     if (selectedGroups.length === 0) {
-      showToast('Please select at least one WhatsApp group', 'error');
+      setSubmitError('Please select at least one WhatsApp group.');
+      setTab('whatsapp');
+      setWhatsappTab('groups');
       return;
     }
-    
     setSending(true);
+    setSubmitError('');
     try {
-      const token = localStorage.getItem('token');
       const response = await api.post(
         `/api/attendance/sheet/${sheet.id}/send-whatsapp`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
-      
-      if (response.data.success) {
-        showToast(`✅ Sent to ${response.data.sentTo} groups!`);
-      } else {
-        showToast(`❌ ${response.data.error}`, 'error');
-      }
+      if (response.data.success) setSuccessMsg(`Sent to ${response.data.sentTo} group${response.data.sentTo === 1 ? '' : 's'}.`);
+      else setSubmitError(response.data.error || 'Failed to send.');
     } catch (error) {
-      showToast('Failed to send: ' + (error.response?.data?.error || error.message), 'error');
+      setSubmitError('Failed to send: ' + (error.response?.data?.error || error.message));
     } finally {
       setSending(false);
     }
   };
 
-  const handleDeleteSheet = async () => {
-    if (!window.confirm(`Delete "${sheet.title}" permanently? This cannot be undone.`)) return;
+  const confirmDelete = async () => {
+    if (loading) return;
+    setShowDelete(false);
     setLoading(true);
+    setSubmitError('');
     try {
-      await api.delete(`/api/attendance/sheet/${sheet.id}`, { headers: getHeaders() });
-      onUpdate();
-      onClose();
+      await api.delete(`/api/attendance/sheet/${sheet.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      onUpdate?.();
+      onClose?.();
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to delete sheet');
+      setSubmitError(error.response?.data?.error || 'Failed to delete sheet.');
     } finally {
       setLoading(false);
     }
   };
-  
-  const today = new Date().toISOString().split('T')[0];
-  
+
+  const filteredGroups = whatsappGroups.filter(g => (g.name || '').toLowerCase().includes(groupSearch.toLowerCase()));
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={e => e.stopPropagation()}>
-        {toast && (
-          <div className={`toast ${toast.type}`}>
-            {toast.message}
+    <div className="cs-overlay" onMouseDown={event => event.target === event.currentTarget && !loading && onClose()}>
+      <section className="cs-modal" role="dialog" aria-modal="true" aria-labelledby="ss-title">
+        <header className="cs-header">
+          <div className="cs-header-mark"><FiFileText /></div>
+          <div className="cs-header-copy">
+            <h2 id="ss-title">Sheet settings</h2>
+            <p>Update event details, check-in methods, and WhatsApp delivery.</p>
           </div>
-        )}
+          <button type="button" className="cs-icon-button" onClick={onClose} disabled={loading} aria-label="Close"><FiX /></button>
+        </header>
 
-        <div className="modal-header">
-          <h3>Edit Sheet Settings</h3>
-          <button className="close-btn" onClick={onClose}><X size={20} /></button>
-        </div>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="settings-section">
-              <h4><FileSpreadsheet size={20} /> Sheet Details</h4>
-              
-              <div className="form-group">
-                <label>Event Title *</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  placeholder="e.g., Leaders meeting, Choir Practice"
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Description (Optional)</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder="Additional details about the meeting..."
-                  rows="2"
-                />
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Date *</label>
-                  <input
-                    type="date"
-                    name="eventDate"
-                    value={formData.eventDate}
-                    onChange={handleChange}
-                    min={today}
-                    required
-                  />
+        {/* Top-level tabs */}
+        <nav className="cs-top-tabs" role="tablist" aria-label="Sheet settings sections">
+          {TABS.map(t => {
+            const Icon = t.icon;
+            const hasError =
+              (t.id === 'details' && (errors.title || errors.eventDate)) ||
+              (t.id === 'attendance' && errors.categoryOptions) ||
+              (t.id === 'whatsapp' && errors.whatsAppGroups);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`cs-top-tab ${tab === t.id ? 'active' : ''} ${hasError ? 'has-error' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                <Icon />
+                <span>{t.label}</span>
+                {hasError && <span className="cs-top-tab-dot" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="cs-form">
+          <main className="cs-body">
+            {submitError && <div className="cs-alert error"><FiAlertCircle />{submitError}</div>}
+            {successMsg && <div className="cs-alert success"><FiCheckCircle />{successMsg}</div>}
+
+            {/* ============ TAB: Details ============ */}
+            {tab === 'details' && (
+              <div className="cs-panel">
+                <div className="cs-section-heading">
+                  <div><h3>Event details</h3><p>Basic information about this attendance sheet.</p></div>
+                  <span className="cs-section-icon"><FiCalendar /></span>
                 </div>
-                <div className="form-group">
-                  <label>Time</label>
-                  <input
-                    type="time"
-                    name="eventTime"
-                    value={formData.eventTime}
-                    onChange={handleChange}
-                  />
+
+                <Field label="Event title" required error={errors.title}>
+                  <input className={`cs-input ${errors.title ? 'invalid' : ''}`} name="title" value={formData.title} onChange={handleChange} placeholder="e.g. Leaders Meeting, Choir practice" autoFocus />
+                </Field>
+
+                <Field label="Description (optional)" hint="Optional — add any details attendees should know.">
+                  <textarea className="cs-input cs-textarea" name="description" value={formData.description} onChange={handleChange} placeholder="Add a short description..." rows={2} />
+                </Field>
+
+                <div className="cs-grid-two">
+                  <Field label="Event date" required error={errors.eventDate}>
+                    <div className="cs-input-icon"><FiCalendar /><input className={`cs-input ${errors.eventDate ? 'invalid' : ''}`} type="date" name="eventDate" value={formData.eventDate} onChange={handleChange} min={getTodayLocal()} /></div>
+                  </Field>
+                  <Field label="Start time">
+                    <div className="cs-input-icon"><FiClock /><input className="cs-input" type="time" name="eventTime" value={formData.eventTime} onChange={handleChange} /></div>
+                  </Field>
                 </div>
+
+                <Field label="Location" hint="Optional — e.g. Main sanctuary, Hall 2.">
+                  <div className="cs-input-icon"><FiMapPin /><input className="cs-input" name="location" value={formData.location} onChange={handleChange} placeholder="Where will the event take place?" /></div>
+                </Field>
+
+                <Field label="Target audience" hint="Leave as All Members to make the sheet available to all members.">
+                  <div className="cs-input-icon"><FiUsers /><select className="cs-input" name="jumuiaId" value={formData.jumuiaId} onChange={handleChange}>
+                    <option value="">All Members</option>
+                    <option value="executive-team">Leaders only</option>
+                    {loadingJumuia ? <option disabled>Loading Jumuia...</option> : jumuiaList.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select></div>
+                </Field>
               </div>
-              
-              <div className="form-group">
-                <label>Location</label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChange}
-                  placeholder="e.g., Annex 002, complex etc"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Target Group (Optional)</label>
-                <select
-                  name="jumuiaId"
-                  value={formData.jumuiaId}
-                  onChange={handleChange}
-                >
-                  <option value="">-Everyone</option>
-                  <option value="executive-team">-Leaders Only</option>
-                  <option disabled>──────────</option>
-                  {loadingJumuia ? (
-                    <option disabled>Loading Jumuia...</option>
-                  ) : (
-                    jumuiaList.map(j => (
-                      <option key={j.id} value={j.id}>- {j.name}</option>
-                    ))
-                  )}
-                </select>
-                <div className="helper-text">
-                  Leave empty for all members, or select a specific group
+            )}
+
+            {/* ============ TAB: Attendance ============ */}
+            {tab === 'attendance' && (
+              <div className="cs-panel">
+                <div className="cs-section-heading">
+                  <div><h3>Attendance setup</h3><p>Choose the check-in methods members can use. Manual attendance is always available.</p></div>
+                  <span className="cs-section-icon"><FiUserCheck /></span>
                 </div>
-              </div>
-            </div>
 
-            <div className="divider">
-              <span>Check-in Methods</span>
-            </div>
-
-            <div className="settings-section">
-              <label className="checkbox-label">
-                <input type="checkbox" name="allowSelfCheckin" checked={formData.allowSelfCheckin} onChange={handleChange} />
-                <span>Allow Self Check-in</span>
-              </label>
-              
-              <label className="checkbox-label">
-                <input type="checkbox" name="enableQRCheckin" checked={formData.enableQRCheckin} onChange={handleChange} />
-                <span>Enable QR Code Check-in</span>
-              </label>
-            </div>
-
-            <div className="divider">
-              <span>🎼 Check-In Category (Optional)</span>
-            </div>
-
-            <div className="settings-section category-section">
-              <p className="category-help">
-                Give members a category to pick at check-in.
-                <br />
-                Examples: <code>Voice Part</code> → <code>Soprano, Alto, Tenor, Bass</code>
-              </p>
-
-              <div className="form-group">
-                <label>Category Name</label>
-                <input
-                  type="text"
-                  name="categoryName"
-                  value={formData.categoryName || ''}
-                  onChange={handleChange}
-                  placeholder="e.g., Voice Part, Jumuia, Year of Study"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Options (comma-separated)</label>
-                <input
-                  type="text"
-                  name="categoryOptions"
-                  value={formData.categoryOptions || ''}
-                  onChange={handleChange}
-                  placeholder="e.g., Soprano, Alto, Tenor, Bass"
-                />
-                <div className="helper-text">
-                  Separate options with commas — need at least 2
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="checkbox-label" style={{ cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    name="categoryRequired"
-                    checked={formData.categoryRequired !== false}
-                    onChange={handleChange}
-                  />
-                  <span>Required at check-in</span>
-                </label>
-                <div className="helper-text">
-                  If checked, members must pick one. Uncheck to allow skipping.
-                </div>
-              </div>
-            </div>
-
-            <div className="divider">
-              <span><FaWhatsapp size={12} color="#25D366" />         WhatsApp Auto-Send</span>
-            </div>
-
-            <div className="settings-section">
-              <div className="whatsapp-toggle-row">
-                <div className="whatsapp-toggle-info">
-                  <MessageSquare size={18} />
-                  <div>
-                    <div className="toggle-title">Enable WhatsApp Auto-Send</div>
-                    <div className="toggle-desc">Automatically send attendance list when members check in</div>
+                <div className="cs-method-list">
+                  <div className="cs-toggle-card always-on">
+                    <div className="cs-toggle-icon"><FiClipboard /></div>
+                    <div className="cs-toggle-copy"><div className="cs-toggle-title">Manual check-in</div><div className="cs-toggle-description">Admins can mark members present manually.</div></div>
+                    <span className="cs-status-pill">Always on</span>
                   </div>
-                </div>
-                <label className="toggle-switch">
-                  <input
-                    type="checkbox"
-                    name="enableWhatsAppAutoSend"
-                    checked={formData.enableWhatsAppAutoSend || false}
-                    onChange={handleChange}
-                  />
-                  <span className="toggle-slider"></span>
-                </label>
-              </div>
-            </div>
-
-            {formData.enableWhatsAppAutoSend && (
-              <>
-                <div className={`bot-status ${botConnected ? 'connected' : 'disconnected'}`}>
-                  {botConnected ? (
-                    <>
-                      <CheckCircle size={16} />
-                      <span>WhatsApp bot is connected</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle size={16} />
-                      <span>WhatsApp bot is not connected. Please connect the bot first.</span>
-                    </>
-                  )}
+                  <Toggle checked={formData.allowSelfCheckin} onChange={e => setFormData(prev => ({ ...prev, allowSelfCheckin: e.target.checked }))} label="Self check-in" description="Members check themselves in through the app." icon={FiUsers} />
+                  <Toggle checked={formData.enableQRCheckin} onChange={e => setFormData(prev => ({ ...prev, enableQRCheckin: e.target.checked }))} label="QR code check-in" description="Members scan a QR code to record attendance." icon={FiGrid} />
                 </div>
 
-                <div className="settings-section">
-                  <label className="section-label">Select WhatsApp Groups</label>
-                  {loadingGroups ? (
-                    <div className="loading-groups">Loading groups...</div>
-                  ) : whatsappGroups.length === 0 ? (
-                    <div className="no-groups">
-                      <AlertCircle size={16} />
-                      <span>No groups found. Link WhatsApp bot first.</span>
+                <div className="cs-subsection">
+                  <div className="cs-subsection-heading">
+                    <div><h4>Custom check-in category</h4><p>Optional — ask members to select an additional detail.</p></div>
+                    <span className="cs-optional">Optional</span>
+                  </div>
+                  <Field label="Category name" hint="Examples: Voice Part, Year of Study.">
+                    <input className="cs-input" name="categoryName" value={formData.categoryName} onChange={handleChange} placeholder="e.g. Voice Part" />
+                  </Field>
+                  <Field label="Category options" hint="Add at least two options when a category name is provided." error={errors.categoryOptions}>
+                    <div className="cs-add-option">
+                      <input className="cs-input" value={optionDraft} onChange={e => setOptionDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategoryOption(); } }} placeholder="Type an option and press Add" />
+                      <button type="button" className="cs-button outline small" onClick={addCategoryOption} disabled={!optionDraft.trim()}><FiPlus /> Add</button>
                     </div>
-                  ) : (
-                    <div className="groups-grid">
-                      {whatsappGroups.map(group => (
-                        <label key={group.id} className="group-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={selectedGroups.some(g => g.id === group.id)}
-                            onChange={() => handleGroupToggle(group.id, group.name)}
-                          />
-                          <span className="checkmark"></span>
-                          <span className="group-name">{group.name}</span>
-                          <span className="group-participants">{group.participants || 0} members</span>
-                          {group.isActive && <span className="group-active">Active</span>}
-                        </label>
-                      ))}
+                    {categoryOptions.length > 0 && <div className="cs-chips">{categoryOptions.map(option => <span className="cs-chip" key={option}>{option}<button type="button" onClick={() => removeCategoryOption(option)} aria-label={`Remove ${option}`}><FiX /></button></span>)}</div>}
+                  </Field>
+                  {formData.categoryName.trim() && <label className="cs-checkbox-row"><input type="checkbox" name="categoryRequired" checked={formData.categoryRequired} onChange={handleChange} /><span><strong>Required at check-in</strong><small>Members must select one of the category options.</small></span></label>}
+                </div>
+              </div>
+            )}
+
+            {/* ============ TAB: WhatsApp ============ */}
+            {tab === 'whatsapp' && (
+              <div className="cs-panel">
+                <div className="cs-section-heading">
+                  <div><h3>WhatsApp delivery</h3><p>Automatically send attendance updates to selected WhatsApp groups.</p></div>
+                  <span className="cs-section-icon"><FiMessageCircle /></span>
+                </div>
+
+                <Toggle
+                  checked={formData.enableWhatsAppAutoSend}
+                  onChange={e => setFormData(prev => ({ ...prev, enableWhatsAppAutoSend: e.target.checked }))}
+                  label="WhatsApp auto-send"
+                  description="Automatically send attendance updates to selected WhatsApp groups."
+                  icon={FiSmartphone}
+                />
+
+                {formData.enableWhatsAppAutoSend && (
+                  <div className="cs-whatsapp-settings">
+                    <div className={`cs-alert ${botConnected ? 'success' : 'warning'}`}>
+                      {botConnected ? <FiCheckCircle /> : <FiAlertCircle />}
+                      <span>{botConnected ? 'WhatsApp bot is connected.' : 'WhatsApp bot is not connected. Connect it in admin settings before using auto-send.'}</span>
                     </div>
-                  )}
-                  <div className="helper-text">
-                    <FaCheckCircle size="12px" color="green" />{' '}
-                    {selectedGroups.length > 0 
-                      ?  ` ${selectedGroups.length} group(s) selected` 
-                      : 'Select at least one group to send attendance lists'}
-                  </div>
-                  <button 
-                    type="button" 
-                    className="btn-refresh-groups"
-                    onClick={fetchWhatsAppGroups}
-                    disabled={loadingGroups}
-                  >
-                    <RefreshCw size={14} className={loadingGroups ? 'spin' : ''} />
-                    Refresh Groups
-                  </button>
-                </div>
 
-                <div className="settings-section">
-                  <label className="section-label">Custom Message (Optional)</label>
-                  <textarea
-                    name="whatsAppCustomMessage"
-                    value={formData.whatsAppCustomMessage || ''}
-                    onChange={handleChange}
-                    placeholder="Custom message with {list} placeholder for attendees list"
-                    rows="3"
-                    className="custom-message-input"
-                  />
-                  <div className="helper-text">
-                    Available placeholders: {`{title}`}, {`{date}`}, {`{time}`}, {`{location}`}, {`{total}`}, {`{list}`}
-                  </div>
-                </div>
-
-                <div className="settings-section">
-                  <label className="section-label">Send Options</label>
-                  <div className="send-options">
-                    <label className="option-label">
-                      <input
-                        type="checkbox"
-                        name="whatsAppSendOnCheckin"
-                        checked={formData.whatsAppSendOnCheckin !== false}
-                        onChange={handleChange}
-                      />
-                      Send on every check-in
-                    </label>
-                    <label className="option-label">
-                      <input
-                        type="checkbox"
-                        name="whatsAppSendOnClose"
-                        checked={formData.whatsAppSendOnClose !== false}
-                        onChange={handleChange}
-                      />
-                      Send when meeting closes
-                    </label>
-                  </div>
-                </div>
-
-                {selectedGroups.length > 0 && (
-                  <div className="selected-summary">
-                    <div className="summary-text">
-                      <MessageSquare size={16} />
-                      <span>Will send to: <strong>{selectedGroups.map(g => g.name).join(', ')}</strong></span>
+                    {/* Inner tabs: Groups / Message */}
+                    <div className="cs-tabs" role="tablist" aria-label="WhatsApp settings">
+                      
+                      <button type="button" role="tab" aria-selected={whatsappTab === 'message'} className={`cs-tab ${whatsappTab === 'message' ? 'active' : ''}`} onClick={() => setWhatsappTab('message')}>
+                        <FiMessageCircle /> Message
+                      </button>
+                      <button type="button" role="tab" aria-selected={whatsappTab === 'groups'} className={`cs-tab ${whatsappTab === 'groups' ? 'active' : ''}`} onClick={() => setWhatsappTab('groups')}>
+                        <FaWhatsapp color="#25D366" /> Groups
+                        {selectedGroups.length > 0 && <span className="cs-tab-badge">{selectedGroups.length}</span>}
+                      </button>
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-send-now"
-                      onClick={handleSendNow}
-                      disabled={sending}
-                    >
-                      {sending ? 'Sending...' : 'Send List Now'}
-                    </button>
+
+                    {whatsappTab === 'groups' && (
+                      <div className="cs-tab-panel" role="tabpanel">
+                        <Field label="WhatsApp groups" required error={errors.whatsAppGroups} hint={`${selectedGroups.length} group${selectedGroups.length === 1 ? '' : 's'} selected`}>
+                          {loadingGroups ? <div className="cs-empty-state">Loading WhatsApp groups...</div> : whatsappGroups.length === 0 ? <div className="cs-empty-state"><FiInfo /><span>No WhatsApp groups found. Link the bot in admin settings first.</span></div> : <>
+                            <input className="cs-input cs-search" value={groupSearch} onChange={e => setGroupSearch(e.target.value)} placeholder="Search groups..." />
+                            <div className="cs-groups-list">
+                              {filteredGroups.map(group => {
+                                const selected = selectedGroups.some(item => item.id === group.id);
+                                return (
+                                  <label key={group.id} className={`cs-group-row ${selected ? 'selected' : ''}`}>
+                                    <input type="checkbox" checked={selected} onChange={() => toggleGroup(group.id, group.name)} />
+                                    <span className="cs-group-check">{selected && <FiCheck />}</span>
+                                    <span className="cs-group-copy"><strong>{group.name}</strong><small>{group.participants || 0} members</small></span>
+                                    {group.isActive && <span className="cs-status-pill">Active</span>}
+                                  </label>
+                                );
+                              })}
+                              {filteredGroups.length === 0 && <div className="cs-empty-state">No groups match your search.</div>}
+                            </div>
+                          </>}
+                        </Field>
+                        <button type="button" className="cs-button outline small" onClick={fetchWhatsAppGroups} disabled={loadingGroups} style={{ marginTop: 10 }}>
+                          <FiRefreshCw className={loadingGroups ? 'cs-spin-icon' : ''} /> Refresh groups
+                        </button>
+                        {selectedGroups.length > 0 && <div className="cs-selected-summary" style={{ marginTop: 12 }}><FiCheckCircle /><span><strong>Sending to:</strong> {selectedGroups.map(g => g.name).join(', ')}</span></div>}
+                      </div>
+                    )}
+
+                    {whatsappTab === 'message' && (
+                      <div className="cs-tab-panel" role="tabpanel">
+                        <Field label="Custom message" hint="Use {list} where you want the attendee list to appear.">
+                          <textarea className="cs-input cs-textarea" name="whatsAppCustomMessage" value={formData.whatsAppCustomMessage} onChange={handleChange} rows={4} placeholder="Attendance update for {title}..." />
+                          <div className="cs-token-note">Available placeholders: {'{title}'}, {'{date}'}, {'{time}'}, {'{location}'}, {'{total}'}, {'{list}'}</div>
+                        </Field>
+                        <div className="cs-send-options">
+                          <label className="cs-checkbox-row compact"><input type="checkbox" name="whatsAppSendOnCheckin" checked={formData.whatsAppSendOnCheckin} onChange={handleChange} /><span><strong>Send on every check-in</strong></span></label>
+                          <label className="cs-checkbox-row compact"><input type="checkbox" name="whatsAppSendOnClose" checked={formData.whatsAppSendOnClose} onChange={handleChange} /><span><strong>Send when the meeting closes</strong></span></label>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedGroups.length > 0 && (
+                      <button type="button" className="cs-button primary" onClick={handleSendNow} disabled={sending} style={{ marginTop: 16 }}>
+                        {sending ? <><span className="cs-spinner" /> Sending...</> : <><FaWhatsapp /> Send list now</>}
+                      </button>
+                    )}
                   </div>
                 )}
-              </>
+              </div>
             )}
-          </div>
-          
-          <div className="modal-footer">
-            <button type="button" className="btn-danger" onClick={handleDeleteSheet}>
-              Delete Sheet
+          </main>
+
+          <footer className="cs-footer">
+            <button type="button" className="cs-button danger" onClick={() => setShowDelete(true)} disabled={loading}>
+              <FiTrash2 /> Delete sheet
             </button>
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? (
-                <>Saving...</>
-              ) : (
-                <><Save size={16} /> Save Changes</>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-      
+            <div className="cs-footer-actions">
+              <button type="button" className="cs-button text" onClick={onClose} disabled={loading}>Cancel</button>
+              <button type="button" className="cs-button primary" onClick={handleSubmit} disabled={loading}>
+                {loading ? <><span className="cs-spinner" /> Saving...</> : <><FiSave /> Save changes</>}
+              </button>
+            </div>
+          </footer>
+        </div>
+      </section>
+
+      {showDelete && (
+        <div className="cs-confirm-backdrop" role="presentation">
+          <section className="cs-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="del-title">
+            <div className="cs-confirm-icon danger"><FiTrash2 /></div>
+            <h3 id="del-title">Delete this attendance sheet?</h3>
+            <p>You are about to delete <strong>{formData.title.trim() || 'this sheet'}</strong>. This action cannot be undone.</p>
+            <div className="cs-confirm-actions">
+              <button type="button" className="cs-button outline" onClick={() => setShowDelete(false)} disabled={loading}>Cancel</button>
+              <button type="button" className="cs-button danger" onClick={confirmDelete} disabled={loading}>{loading ? 'Deleting…' : 'Yes, delete'}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <style>{`
-        .settings-modal {
-          background: white;
-          border-radius: 16px;
-          width: 90%;
-          max-width: 650px;
-          max-height: 90vh;
-          overflow-y: auto;
-          position: relative;
-        }
-
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 24px;
-          border-bottom: 1px solid #e0e0e0;
-          position: sticky;
-          top: 0;
-          background: white;
-          z-index: 10;
-        }
-
-        .modal-header h3 {
-          margin: 0;
-          font-size: 18px;
-          color: #1a1a1a;
-        }
-
-        .close-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: #666;
-          padding: 4px;
-        }
-
-        .modal-body {
-          padding: 24px;
-        }
-
-        .settings-section {
-          margin-bottom: 20px;
-        }
-
-        .settings-section h4 {
-          font-size: 14px;
-          margin-bottom: 12px;
-          color: #1a1a1a;
-        }
-
-        .section-label {
-          display: block;
-          font-weight: 600;
-          font-size: 14px;
-          margin-bottom: 8px;
-          color: #1a1a1a;
-        }
-
-        .form-group {
-          margin-bottom: 16px;
-        }
-
-        .form-group label {
-          display: block;
-          margin-bottom: 6px;
-          font-weight: 500;
-          font-size: 13px;
-          color: #1a1a1a;
-        }
-
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          font-size: 14px;
-          font-family: inherit;
-          transition: border-color 0.2s;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus,
-        .form-group select:focus {
-          outline: none;
-          border-color: #1a1a1a;
-          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .form-group textarea {
-          resize: vertical;
-          min-height: 50px;
-        }
-
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-
-        .checkbox-label {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 10px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        .checkbox-label input[type="checkbox"] {
-          width: 18px;
-          height: 18px;
-          accent-color: #1a1a1a;
-        }
-
-        .divider {
-          text-align: center;
-          margin: 24px 0 20px;
-          position: relative;
-        }
-
-        .divider::before {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 0;
-          right: 0;
-          height: 1px;
-          background: #e0e0e0;
-        }
-
-        .divider span {
-          background: white;
-          padding: 0 12px;
-          position: relative;
-          font-size: 12px;
-          color: #666;
-          font-weight: 500;
-        }
-
-        .whatsapp-toggle-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 0;
-        }
-
-        .whatsapp-toggle-info {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
-        }
-
-        .whatsapp-toggle-info .toggle-title {
-          font-weight: 500;
-          color: #1a1a1a;
-          font-size: 14px;
-        }
-
-        .whatsapp-toggle-info .toggle-desc {
-          font-size: 12px;
-          color: #666;
-        }
-
-        .toggle-switch {
-          position: relative;
-          display: inline-block;
-          width: 44px;
-          height: 24px;
-          flex-shrink: 0;
-        }
-
-        .toggle-switch input {
-          opacity: 0;
-          width: 0;
-          height: 0;
-        }
-
-        .toggle-slider {
-          position: absolute;
-          cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: #ccc;
-          transition: 0.3s;
-          border-radius: 24px;
-        }
-
-        .toggle-slider:before {
-          position: absolute;
-          content: "";
-          height: 18px;
-          width: 18px;
-          left: 3px;
-          bottom: 3px;
-          background-color: white;
-          transition: 0.3s;
-          border-radius: 50%;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        }
-
-        input:checked + .toggle-slider {
-          background-color: #1a1a1a;
-        }
-
-        input:checked + .toggle-slider:before {
-          transform: translateX(20px);
-        }
-
-        .bot-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 14px;
-          border-radius: 8px;
-          font-size: 13px;
-          margin-bottom: 16px;
-        }
-
-        .bot-status.connected {
-          background: #dcfce7;
-          color: #16a34a;
-          border: 1px solid #bbf7d0;
-        }
-
-        .bot-status.disconnected {
-          background: #fee2e2;
-          color: #dc2626;
-          border: 1px solid #fecaca;
-        }
-
-        .groups-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          max-height: 180px;
-          overflow-y: auto;
-          padding: 8px;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-        }
-
-        .group-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          cursor: pointer;
-          padding: 6px 10px;
-          border-radius: 6px;
-          transition: background 0.2s;
-          font-size: 13px;
-        }
-
-        .group-checkbox:hover {
-          background: #f5f5f5;
-        }
-
-        .group-checkbox input {
-          display: none;
-        }
-
-        .checkmark {
-          width: 18px;
-          height: 18px;
-          border: 2px solid #d0d0d0;
-          border-radius: 4px;
-          flex-shrink: 0;
-          transition: 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .group-checkbox input:checked + .checkmark {
-          background: #1a1a1a;
-          border-color: #1a1a1a;
-        }
-
-        .group-checkbox input:checked + .checkmark:after {
-          content: '✓';
-          color: white;
-          font-size: 12px;
-        }
-
-        .group-name {
-          font-weight: 500;
-          flex: 1;
-        }
-
-        .group-participants {
-          font-size: 11px;
-          color: #666;
-        }
-
-        .group-active {
-          font-size: 10px;
-          color: #16a34a;
-          background: #dcfce7;
-          padding: 2px 8px;
-          border-radius: 12px;
-        }
-
-        .loading-groups {
-          padding: 12px;
-          text-align: center;
-          color: #666;
-          font-size: 14px;
-          background: #f8fafc;
-          border-radius: 8px;
-        }
-
-        .no-groups {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px;
-          background: #fef9e7;
-          border: 1px solid #fdebd0;
-          border-radius: 8px;
-          font-size: 13px;
-          color: #92400e;
-        }
-
-        .btn-refresh-groups {
-          margin-top: 8px;
-          padding: 4px 12px;
-          background: none;
-          border: 1px solid #e0e0e0;
-          border-radius: 6px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          color: #666;
-        }
-
-        .btn-refresh-groups:hover {
-          background: #f5f5f5;
-        }
-
-        .btn-refresh-groups:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .custom-message-input {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          font-size: 14px;
-          font-family: inherit;
-          resize: vertical;
-        }
-
-        .custom-message-input:focus {
-          outline: none;
-          border-color: #1a1a1a;
-        }
-
-        .helper-text {
-          font-size: 11px;
-          color: #666;
-          margin-top: 6px;
-        }
-
-        .send-options {
-          display: flex;
-          gap: 24px;
-          flex-wrap: wrap;
-          padding: 4px 0;
-        }
-
-        .option-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          cursor: pointer;
-        }
-
-        .option-label input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
-          accent-color: #1a1a1a;
-        }
-
-        .selected-summary {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 12px;
-          padding: 12px 16px;
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-          border-radius: 8px;
-          margin-top: 12px;
-        }
-
-        .summary-text {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          color: #1a1a1a;
-        }
-
-        .btn-send-now {
-          padding: 6px 16px;
-          background: #22c55e;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-        }
-
-        .btn-send-now:hover:not(:disabled) {
-          background: #16a34a;
-        }
-
-        .btn-send-now:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .toast {
-          position: fixed;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 12px 24px;
-          border-radius: 8px;
-          color: white;
-          z-index: 1000;
-          font-size: 14px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .toast.success { background: #22c55e; }
-        .toast.error { background: #ef4444; }
-
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          padding: 16px 24px;
-          border-top: 1px solid #e0e0e0;
-          position: sticky;
-          bottom: 0;
-          background: white;
-        }
-
-        .btn-danger {
-          background: #fee2e2;
-          color: #ef4444;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          margin-right: auto;
-        }
-
-        .btn-danger:hover {
-          background: #fecaca;
-        }
-
-        .btn-secondary {
-          padding: 8px 20px;
-          background: #f1f5f9;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        .btn-secondary:hover {
-          background: #e2e8f0;
-        }
-
-        .btn-primary {
-          padding: 8px 20px;
-          background: #1a1a1a;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-          background: #333;
-        }
-
-        .btn-primary:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .category-section {
-          background: #faf5ff;
-          border: 1px solid #e9d5ff;
-          border-radius: 12px;
-          padding: 16px;
-        }
-
-        .category-help {
-          font-size: 12px;
-          color: #6b21a8;
-          margin: 0 0 12px 0;
-          line-height: 1.6;
-        }
-
-        .category-help code {
-          background: white;
-          padding: 1px 6px;
-          border-radius: 4px;
-          font-size: 11px;
-          color: #5b21b6;
-        }
-
-        @media (max-width: 640px) {
-          .settings-modal {
-            width: 95%;
-            max-height: 95vh;
-          }
-
-          .form-row {
-            grid-template-columns: 1fr;
-          }
-
-          .groups-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .send-options {
-            flex-direction: column;
-            gap: 8px;
-          }
-
-          .selected-summary {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .btn-send-now {
-            width: 100%;
-            text-align: center;
-          }
-
-          .modal-footer {
-            flex-wrap: wrap;
-          }
-
-          .btn-danger {
-            width: 100%;
-            margin-right: 0;
-            order: 3;
-          }
-        }
+        .cs-overlay{position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.52);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;color:#172033}
+        .cs-modal{width:min(100%,800px);height:min(900px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#fff;border:1px solid #dce2ea;border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.22);display:flex;flex-direction:column;overflow:hidden}
+        .cs-header{display:flex;align-items:center;gap:14px;padding:22px 28px;border-bottom:1px solid #e7ebf0;background:#fff;flex-shrink:0}
+        .cs-header-mark{width:44px;height:44px;display:grid;place-items:center;background:#eef2f7;color:#34445c;border-radius:10px;font-size:21px;flex-shrink:0}
+        .cs-header-copy{flex:1;min-width:0}.cs-header h2{font-size:20px;line-height:1.3;font-weight:700;margin:0;color:#172033;letter-spacing:-.3px}.cs-header p{font-size:13px;color:#667085;margin:5px 0 0;line-height:1.45}
+        .cs-icon-button{width:36px;height:36px;display:grid;place-items:center;border:1px solid transparent;background:transparent;border-radius:8px;color:#667085;font-size:20px;cursor:pointer}.cs-icon-button:hover{background:#f1f4f8;color:#172033}.cs-icon-button:disabled{opacity:.5;cursor:not-allowed}
+
+        /* Top-level tabs */
+        .cs-top-tabs{display:flex;gap:6px;padding:12px 28px 0;border-bottom:1px solid #e7ebf0;background:#fff;flex-shrink:0;overflow-x:auto}
+        .cs-top-tab{position:relative;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border:0;background:transparent;color:#667085;font:inherit;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:8px 8px 0 0;transition:color .15s,background .15s,border-color .15s;white-space:nowrap}
+        .cs-top-tab:hover{color:#344054;background:#f7f9fb}
+        .cs-top-tab.active{color:#34445c;border-bottom-color:#34445c;background:#fff}
+        .cs-top-tab svg{font-size:15px}
+        .cs-top-tab.has-error{color:#b42318}
+        .cs-top-tab.has-error.active{color:#b42318;border-bottom-color:#b42318}
+        .cs-top-tab-dot{width:7px;height:7px;border-radius:50%;background:#d92d20;flex-shrink:0}
+
+        .cs-form{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}.cs-body{padding:26px 28px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;flex:1}.cs-panel{max-width:680px;margin:0 auto;animation:cs-fade .18s ease}@keyframes cs-fade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+        .cs-section-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}.cs-section-heading h3{font-size:18px;color:#172033;margin:0 0 6px;font-weight:700;letter-spacing:-.2px}.cs-section-heading p{font-size:13px;line-height:1.5;color:#667085;margin:0;max-width:540px}.cs-section-icon{width:40px;height:40px;display:grid;place-items:center;background:#f1f4f8;color:#475467;border-radius:9px;font-size:19px;flex-shrink:0}
+        .cs-field{margin-bottom:18px;min-width:0}.cs-label{display:block;font-size:12px;font-weight:650;color:#344054;margin-bottom:7px}.cs-required{color:#b42318}.cs-input{display:block;width:100%;min-height:42px;padding:10px 12px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#172033;font:inherit;font-size:13px;box-sizing:border-box;outline:none;transition:border-color .15s,box-shadow .15s}.cs-input::placeholder{color:#98a2b3}.cs-input:focus{border-color:#66788f;box-shadow:0 0 0 3px rgba(52,68,92,.10)}.cs-input.invalid{border-color:#d92d20}.cs-textarea{resize:vertical;min-height:84px;line-height:1.5}.cs-hint{font-size:11px;line-height:1.45;color:#667085;margin-top:6px}.cs-error{display:flex;align-items:center;gap:5px;color:#b42318;font-size:11px;margin-top:6px}.cs-grid-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.cs-input-icon{position:relative}.cs-input-icon>svg{position:absolute;left:12px;top:13px;color:#667085;font-size:15px;pointer-events:none;z-index:1}.cs-input-icon .cs-input{padding-left:36px}.cs-input-icon select{appearance:auto}
+        .cs-method-list{display:grid;gap:10px;margin-bottom:22px}.cs-toggle-card{display:flex;align-items:center;gap:13px;padding:14px 15px;border:1px solid #e0e5ec;border-radius:9px;background:#fff;min-width:0}.cs-toggle-card.is-on{border-color:#aab5c4;background:#f9fafb}.cs-toggle-card.is-disabled{opacity:.65}.cs-toggle-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;background:#f1f4f8;color:#475467;font-size:17px;flex-shrink:0}.cs-toggle-copy{flex:1;min-width:0}.cs-toggle-title{font-size:13px;font-weight:650;color:#273449}.cs-toggle-description{font-size:12px;color:#667085;line-height:1.45;margin-top:3px}.cs-status-pill{font-size:10px;font-weight:650;color:#475467;background:#eef2f6;border-radius:20px;padding:5px 9px;white-space:nowrap}.cs-switch{position:relative;display:inline-flex;width:40px;height:23px;flex-shrink:0;cursor:pointer}.cs-switch input{position:absolute;opacity:0;width:1px;height:1px}.cs-switch-track{position:absolute;inset:0;background:#cbd2dc;border-radius:20px;transition:background .15s}.cs-switch-track:after{content:'';position:absolute;width:17px;height:17px;left:3px;top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 2px #0002;transition:transform .15s}.cs-switch input:checked+.cs-switch-track{background:#34445c}.cs-switch input:checked+.cs-switch-track:after{transform:translateX(17px)}.cs-switch input:focus-visible+.cs-switch-track{outline:3px solid #cbd5e1;outline-offset:2px}
+        .cs-subsection{padding:20px;border:1px solid #e0e5ec;border-radius:10px;background:#fafbfc}.cs-subsection-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:17px}.cs-subsection-heading h4{font-size:14px;margin:0 0 4px;color:#273449}.cs-subsection-heading p{font-size:12px;color:#667085;margin:0;line-height:1.4}.cs-optional{font-size:10px;color:#667085;border:1px solid #d0d5dd;border-radius:20px;padding:4px 8px;white-space:nowrap;background:#fff}.cs-add-option{display:flex;gap:8px}.cs-add-option .cs-input{flex:1;min-width:0}.cs-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.cs-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 8px 5px 10px;background:#eef2f6;border:1px solid #dce2ea;border-radius:6px;font-size:12px;color:#344054}.cs-chip button{display:grid;place-items:center;border:0;background:transparent;color:#667085;cursor:pointer;padding:1px;font-size:13px}.cs-checkbox-row{display:flex;align-items:flex-start;gap:9px;cursor:pointer;margin-top:14px}.cs-checkbox-row input{margin:3px 0 0;accent-color:#34445c;width:15px;height:15px;flex-shrink:0}.cs-checkbox-row span{display:flex;flex-direction:column;gap:3px}.cs-checkbox-row strong{font-size:12px;color:#344054;font-weight:600}.cs-checkbox-row small{font-size:11px;color:#667085;line-height:1.4}.cs-checkbox-row.compact{margin:0}
+        .cs-whatsapp-settings{border:1px solid #e0e5ec;border-radius:9px;padding:16px;margin:12px 0 0;background:#fafbfc}
+        .cs-tabs{display:flex;gap:4px;border-bottom:1px solid #e0e5ec;margin-bottom:16px}
+        .cs-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border:0;background:transparent;color:#667085;font:inherit;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:6px 6px 0 0}
+        .cs-tab:hover{color:#344054;background:#f1f4f8}
+        .cs-tab.active{color:#34445c;border-bottom-color:#34445c;background:#fff}
+        .cs-tab svg{font-size:14px}
+        .cs-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:10px;background:#34445c;color:#fff;font-size:10px;font-weight:700}
+        .cs-tab-panel{animation:cs-fade .15s ease}
+        .cs-alert{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;border-radius:7px;font-size:12px;line-height:1.45;margin-bottom:16px}.cs-alert svg{flex-shrink:0;margin-top:1px}.cs-alert.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}.cs-alert.warning{background:#fffaeb;border:1px solid #fedf89;color:#92400e}.cs-alert.error{background:#fef3f2;border:1px solid #fecdca;color:#b42318}.cs-search{margin-bottom:8px}.cs-groups-list{max-height:210px;overflow-y:auto;border:1px solid #e0e5ec;border-radius:7px;background:#fff}.cs-group-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #edf0f4;cursor:pointer}.cs-group-row:last-child{border-bottom:0}.cs-group-row:hover,.cs-group-row.selected{background:#f5f7fa}.cs-group-row input{position:absolute;opacity:0;pointer-events:none}.cs-group-check{width:17px;height:17px;border:1px solid #c4ccd6;border-radius:4px;display:grid;place-items:center;color:#fff;font-size:12px;flex-shrink:0}.cs-group-row.selected .cs-group-check{background:#34445c;border-color:#34445c}.cs-group-copy{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.cs-group-copy strong{font-size:12px;font-weight:600;color:#344054;overflow:hidden;text-overflow:ellipsis}.cs-group-copy small{font-size:10px;color:#667085}.cs-selected-summary{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;color:#166534;font-size:11px;line-height:1.5}.cs-selected-summary svg{flex-shrink:0;margin-top:1px}.cs-token-note{font-size:10px;line-height:1.5;color:#667085;margin-top:7px;overflow-wrap:anywhere}.cs-send-options{display:flex;gap:18px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #e4e7ec;margin-top:14px}.cs-empty-state{display:flex;align-items:center;gap:8px;padding:14px;border:1px dashed #d0d5dd;border-radius:7px;background:#fff;color:#667085;font-size:12px;line-height:1.4}
+        .cs-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 28px;border-top:1px solid #e7ebf0;background:#fff;flex-shrink:0}.cs-footer-actions{display:flex;align-items:center;gap:9px}.cs-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:39px;padding:0 16px;border-radius:7px;font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s,border-color .15s}.cs-button.primary{background:#34445c;border:1px solid #34445c;color:#fff}.cs-button.primary:hover{background:#26364c;border-color:#26364c}.cs-button.outline{background:#fff;border:1px solid #d0d5dd;color:#344054}.cs-button.outline:hover{background:#f8fafc}.cs-button.text{background:#fff;border:1px solid #d0d5dd;color:#475467}.cs-button.text:hover{background:#f8fafc}.cs-button.danger{background:#fef3f2;border:1px solid #fecdca;color:#b42318}.cs-button.danger:hover{background:#fee4e2}.cs-button:disabled{opacity:.55;cursor:not-allowed}.cs-button.small{min-height:34px;padding:0 12px;font-size:11px}.cs-spinner{width:13px;height:13px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:cs-spin .7s linear infinite}.cs-spin-icon{animation:cs-spin .9s linear infinite}@keyframes cs-spin{to{transform:rotate(360deg)}}
+        .cs-confirm-backdrop{position:fixed;inset:0;z-index:1300;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:20px}
+        .cs-confirm-dialog{width:min(100%,440px);background:#fff;border:1px solid #dce2ea;border-radius:14px;padding:26px;box-shadow:0 24px 70px rgba(15,23,42,.28);color:#172033}
+        .cs-confirm-icon{width:42px;height:42px;border-radius:10px;background:#eef2f6;color:#34445c;display:grid;place-items:center;font-size:20px;margin-bottom:14px}
+        .cs-confirm-icon.danger{background:#fef3f2;color:#b42318}
+        .cs-confirm-dialog h3{font-size:18px;margin:0 0 8px;font-weight:700;color:#172033}
+        .cs-confirm-dialog p{font-size:14px;line-height:1.55;color:#596579;margin:0 0 20px}
+        .cs-confirm-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+        @media(max-width:640px){.cs-confirm-dialog{padding:20px}.cs-confirm-actions{flex-direction:column-reverse}.cs-confirm-actions .cs-button{width:100%;justify-content:center}}
+        @media(max-width:640px){.cs-overlay{padding:0;align-items:stretch}.cs-modal{width:100%;max-height:100dvh;height:100dvh;border-radius:0}.cs-header{padding:16px 18px}.cs-header h2{font-size:17px}.cs-header p{font-size:12px}.cs-top-tabs{padding:8px 14px 0;gap:2px}.cs-top-tab{padding:10px 12px;font-size:12px}.cs-body{padding:20px 18px}.cs-grid-two{grid-template-columns:1fr;gap:0}.cs-footer{padding:12px 18px;align-items:stretch;flex-direction:column;gap:10px}.cs-footer-actions{width:100%}.cs-footer-actions .cs-button{flex:1}.cs-subsection{padding:14px}.cs-toggle-card{padding:12px}.cs-send-options{flex-direction:column;gap:12px}.cs-tabs{gap:0}.cs-tab{flex:1;justify-content:center;padding:9px 8px;font-size:11px}.cs-footer .cs-button.danger{width:100%;justify-content:center}}
+        @media(prefers-reduced-motion:reduce){.cs-modal *{transition:none!important;animation:none!important}}
       `}</style>
     </div>
   );

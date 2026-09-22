@@ -609,7 +609,7 @@ export default function AdminAttendance() {
                   <button onClick={() => openRemindModal(sheet)}><Bell size={16} /> Remind All</button>
                   <button onClick={() => openShareModal(sheet)}><Link2 size={16} /> Share Link</button>
                   <button onClick={() => openQRModal(sheet)}><QrCode size={16} /> QR Code</button>
-                  <button onClick={() => openSettingsModal(sheet)}><Settings size={16} /> Settings</button>
+                  <button onClick={() => openSettingsModal(sheet)}><Settings size={16} /> Settings/Edit</button>
                   <button onClick={() => { setSelectedSheetForExport(sheet); setShowExportModal(true); }}><Download size={16} /> Export</button>
                   <button onClick={() => handleDeleteSheet(sheet.id, sheet.title)} className="delete-btn"><Trash2 size={16} /> Delete</button>
                   <button onClick={() => handleCloseSheet(sheet.id)}><Lock size={16} /> Close</button>

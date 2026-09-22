@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Printer, RefreshCw, Calendar, MapPin, Clock } from 'lucide-react';
 import { api } from '../../../api';
+import { FiX, FiDownload, FiPrinter, FiRefreshCw, FiCalendar } from 'react-icons/fi';
+import { FaQrcode, FaImage, FaClock, } from 'react-icons/fa';
 
 export default function QRCodeModal({ sheet, onClose }) {
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
@@ -103,7 +105,7 @@ export default function QRCodeModal({ sheet, onClose }) {
         )}
         
         <div className="qr-modal-header">
-          <h3>📱 Check-in QR Code</h3>
+          <h3><FaQrcode/>  Check-in QR Code</h3>
           <button className="qr-close-btn" onClick={onClose}>
             <X size={20} />
           </button>
@@ -131,9 +133,9 @@ export default function QRCodeModal({ sheet, onClose }) {
               </div>
               
               <div className="qr-instructions">
-                <p>📸 Members can scan this QR code using their phone camera to check in</p>
-                <p>⏰ Valid until meeting ends</p>
-                <p>🔄 You can regenerate anytime while sheet is active</p>
+                <p><FaImage/> Members can scan this QR code using their phone camera to check in</p>
+                <p><FaClock/> Valid until meeting ends</p>
+                <p><FiRefreshCw/> You can regenerate anytime while sheet is active</p>
               </div>
               
               <div className="qr-actions">

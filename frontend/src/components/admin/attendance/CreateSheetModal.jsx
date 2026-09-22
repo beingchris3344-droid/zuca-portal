@@ -4,7 +4,6 @@ import { api } from '../../../api';
 import { FaUserTie } from 'react-icons/fa';
 
 export default function CreateSheetModal({ onClose, onCreate }) {
-  // ============ STATE ============
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -14,13 +13,15 @@ export default function CreateSheetModal({ onClose, onCreate }) {
     allowSelfCheckin: true,
     enableQRCheckin: false,
     jumuiaId: '',
-    // ✅ WhatsApp Fields
     enableWhatsAppAutoSend: false,
     whatsAppGroupIds: '',
     whatsAppGroupNames: '',
     whatsAppCustomMessage: '',
     whatsAppSendOnCheckin: true,
-    whatsAppSendOnClose: true
+    whatsAppSendOnClose: true,
+    categoryName: '',
+    categoryOptions: '',
+    categoryRequired: true
   });
   
   const [jumuiaList, setJumuiaList] = useState([]);
@@ -31,7 +32,6 @@ export default function CreateSheetModal({ onClose, onCreate }) {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [botConnected, setBotConnected] = useState(false);
   
-  // ============ FETCH JUMUIA LIST ============
   React.useEffect(() => {
     const fetchJumuia = async () => {
       try {
@@ -49,22 +49,18 @@ export default function CreateSheetModal({ onClose, onCreate }) {
     fetchJumuia();
   }, []);
   
-  // ============ FETCH WHATSAPP GROUPS ============
 React.useEffect(() => {
   const fetchWhatsAppGroups = async () => {
     try {
       const token = localStorage.getItem('token');
-      // ✅ Uses the same endpoint as WhatsAppBot page
       const response = await api.get('/api/admin/whatsapp/groups', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       if (response.data.success) {
-        // ✅ Same structure as WhatsAppBot
         const groupList = response.data.groups || [];
         setWhatsappGroups(groupList);
         
-        // Check if bot is connected
         const statusRes = await api.get('/api/admin/whatsapp/status', {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -78,7 +74,7 @@ React.useEffect(() => {
   };
   fetchWhatsAppGroups();
 }, []);
-  // ============ HANDLE INPUT CHANGE ============
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -87,7 +83,6 @@ React.useEffect(() => {
     }));
   };
   
-  // ============ HANDLE GROUP SELECTION ============
   const handleGroupToggle = (groupId, groupName) => {
     setSelectedGroups(prev => {
       const exists = prev.some(g => g.id === groupId);
@@ -99,7 +94,6 @@ React.useEffect(() => {
     });
   };
   
-  // ============ HANDLE SUBMIT ============
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -113,9 +107,19 @@ React.useEffect(() => {
       return;
     }
     
-    // Validate WhatsApp groups if enabled
     if (formData.enableWhatsAppAutoSend && selectedGroups.length === 0) {
       alert('Please select at least one WhatsApp group for auto-send');
+      return;
+    }
+
+    const trimmedCategoryName = (formData.categoryName || '').trim();
+    const categoryOptionList = (formData.categoryOptions || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (trimmedCategoryName && categoryOptionList.length < 2) {
+      alert('A check-in category needs a name and at least 2 options. Add more options or clear the category name.');
       return;
     }
     
@@ -130,13 +134,15 @@ React.useEffect(() => {
         allowSelfCheckin: formData.allowSelfCheckin,
         enableWifiCheckin: formData.enableQRCheckin,
         jumuiaId: formData.jumuiaId || null,
-        // ✅ WhatsApp Fields
         enableWhatsAppAutoSend: formData.enableWhatsAppAutoSend || false,
         whatsAppGroupIds: selectedGroups.map(g => g.id).join(','),
         whatsAppGroupNames: selectedGroups.map(g => g.name).join(','),
         whatsAppCustomMessage: formData.whatsAppCustomMessage || null,
         whatsAppSendOnCheckin: formData.whatsAppSendOnCheckin !== false,
-        whatsAppSendOnClose: formData.whatsAppSendOnClose !== false
+        whatsAppSendOnClose: formData.whatsAppSendOnClose !== false,
+        categoryName: trimmedCategoryName || null,
+        categoryOptions: categoryOptionList,
+        categoryRequired: formData.categoryRequired !== false
       };
       
       await onCreate(submitData);
@@ -149,7 +155,6 @@ React.useEffect(() => {
     }
   };
   
-  // ============ SET TODAY'S DATE ============
   const today = new Date().toISOString().split('T')[0];
   
   return (
@@ -164,7 +169,6 @@ React.useEffect(() => {
         
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            {/* Title */}
             <div className="form-group">
               <label>Event Title *</label>
               <input
@@ -177,7 +181,6 @@ React.useEffect(() => {
               />
             </div>
             
-            {/* Description */}
             <div className="form-group">
               <label>Description (Optional)</label>
               <textarea
@@ -189,7 +192,6 @@ React.useEffect(() => {
               />
             </div>
             
-            {/* Date & Time Row */}
             <div className="form-row">
               <div className="form-group">
                 <label>Date *</label>
@@ -213,7 +215,6 @@ React.useEffect(() => {
               </div>
             </div>
             
-            {/* Location */}
             <div className="form-group">
               <label>Location</label>
               <input
@@ -225,12 +226,10 @@ React.useEffect(() => {
               />
             </div>
             
-            {/* Divider */}
             <div className="divider">
               <span>Check-in Methods</span>
             </div>
             
-            {/* Manual Check-in (Always enabled) */}
             <div className="method-item disabled">
               <div className="method-info">
                 <span className="method-icon">📋</span>
@@ -242,7 +241,6 @@ React.useEffect(() => {
               <span className="always-enabled">Always enabled</span>
             </div>
             
-            {/* Self Check-in */}
             <div className="method-item">
               <div className="method-info">
                 <span className="method-icon">👤</span>
@@ -262,7 +260,6 @@ React.useEffect(() => {
               </label>
             </div>
             
-            {/* QR Code Check-in */}
             <div className="method-item">
               <div className="method-info">
                 <span className="method-icon"><QrCode size={18} /></span>
@@ -282,12 +279,10 @@ React.useEffect(() => {
               </label>
             </div>
             
-            {/* Divider */}
             <div className="divider">
               <span>Target Audience</span>
             </div>
             
-            {/* Jumuia Selection */}
             <div className="form-group">
               <label>Target Group (Optional)</label>
               <select
@@ -311,14 +306,62 @@ React.useEffect(() => {
               </div>
             </div>
 
-            {/* ============================================ */}
-            {/* ✅ WHATSAPP AUTO-SEND SECTION WITH GROUP SELECTION */}
-            {/* ============================================ */}
+            <div className="divider">
+              <span>🎼 Check-In Category (Optional)</span>
+            </div>
+
+            <div className="category-section">
+              <p className="category-help">
+                Give members a category to pick at check-in.
+                <br />
+                Examples: <code>Voice Part</code> → <code>Soprano, Alto, Tenor, Bass</code> · <code>Jumuia</code> → <code>St. Michael, St. Benedict</code>
+              </p>
+
+              <div className="form-group">
+                <label>Category Name</label>
+                <input
+                  type="text"
+                  name="categoryName"
+                  value={formData.categoryName || ''}
+                  onChange={handleChange}
+                  placeholder="e.g., Voice Part, Jumuia, Year of Study"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Options (comma-separated)</label>
+                <input
+                  type="text"
+                  name="categoryOptions"
+                  value={formData.categoryOptions || ''}
+                  onChange={handleChange}
+                  placeholder="e.g., Soprano, Alto, Tenor, Bass"
+                />
+                <div className="helper-text">
+                  Separate options with commas — need at least 2
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="checkbox-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    name="categoryRequired"
+                    checked={formData.categoryRequired !== false}
+                    onChange={handleChange}
+                  />
+                  <span style={{ marginLeft: 8 }}>Required at check-in</span>
+                </label>
+                <div className="helper-text">
+                  If checked, members must pick one. Uncheck to allow skipping.
+                </div>
+              </div>
+            </div>
+
             <div className="divider">
               <span>📱 WhatsApp Auto-Send</span>
             </div>
 
-            {/* Enable WhatsApp Auto-Send */}
             <div className="form-group">
               <div className="whatsapp-toggle-row">
                 <div className="whatsapp-toggle-info">
@@ -340,10 +383,8 @@ React.useEffect(() => {
               </div>
             </div>
 
-            {/* WhatsApp Settings - Only show if enabled */}
             {formData.enableWhatsAppAutoSend && (
               <>
-                {/* Bot Connection Status */}
                 <div className={`bot-status ${botConnected ? 'connected' : 'disconnected'}`}>
                   {botConnected ? (
                     <>
@@ -358,7 +399,6 @@ React.useEffect(() => {
                   )}
                 </div>
 
-                {/* Group Selection */}
                 <div className="form-group">
                   <label>Select WhatsApp Groups *</label>
                   {loadingGroups ? (
@@ -395,7 +435,6 @@ React.useEffect(() => {
                   </div>
                 </div>
 
-                {/* Custom Message */}
                 <div className="form-group">
                   <label>Custom Message (Optional)</label>
                   <textarea
@@ -410,7 +449,6 @@ React.useEffect(() => {
                   </div>
                 </div>
 
-                {/* Send Options */}
                 <div className="form-group">
                   <label>Send Options</label>
                   <div className="send-options-row">
@@ -435,7 +473,6 @@ React.useEffect(() => {
                   </div>
                 </div>
 
-                {/* Selected Groups Summary */}
                 {selectedGroups.length > 0 && (
                   <div className="selected-groups-summary">
                     <MessageSquare size={16} />
@@ -446,7 +483,6 @@ React.useEffect(() => {
             )}
           </div>
           
-          {/* Footer Buttons */}
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
@@ -494,7 +530,7 @@ React.useEffect(() => {
           margin: 0;
           font-size: 20px;
           font-weight: 600;
-          color: #1a1a1a;
+          color: #ffffff;
         }
         
         .close-btn {
@@ -718,9 +754,6 @@ React.useEffect(() => {
           cursor: not-allowed;
         }
 
-        /* ============================================ */
-        /* ✅ WHATSAPP SETTINGS STYLES */
-        /* ============================================ */
         .whatsapp-toggle-row {
           display: flex;
           justify-content: space-between;
@@ -774,10 +807,9 @@ React.useEffect(() => {
           gap: 8px;
           max-height: 200px;
           overflow-y: auto;
-          padding: 4px 2px;
+          padding: 8px;
           border: 1px solid #e0e0e0;
           border-radius: 8px;
-          padding: 8px;
         }
         
         .group-checkbox {
@@ -908,9 +940,29 @@ React.useEffect(() => {
           margin-top: 12px;
         }
 
-        /* ============================================ */
-        /* ✅ RESPONSIVE */
-        /* ============================================ */
+        .category-section {
+          background: #faf5ff;
+          border: 1px solid #e9d5ff;
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 16px;
+        }
+
+        .category-help {
+          font-size: 12px;
+          color: #6b21a8;
+          margin: 0 0 12px 0;
+          line-height: 1.6;
+        }
+
+        .category-help code {
+          background: white;
+          padding: 1px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          color: #5b21b6;
+        }
+
         @media (max-width: 640px) {
           .form-row {
             grid-template-columns: 1fr;

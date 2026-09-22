@@ -11,6 +11,7 @@ import {
 import logo from '../../assets/zuca-logo.png';
 import { FaFileAlt } from 'react-icons/fa';
 import QRScanner from '../../components/member/attendance/QRScanner';
+import CategoryPickerModal from './CategoryPickerModal';
 import CelebrationOverlay from '../../components/CelebrationOverlay';
 
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
@@ -43,7 +44,8 @@ export default function MemberAttendance() {
   };
 
   const [showQRScanner, setShowQRScanner] = useState(false);
-
+const [showPicker, setShowPicker] = useState(false);
+const [pickerSheet, setPickerSheet] = useState(null);
 
   const toggleDescription = (sheetId) => {
   setExpandedDescriptions(prev => ({
@@ -85,10 +87,23 @@ export default function MemberAttendance() {
     }
   };
   
-  const handleCheckin = async (sheetId) => {
+ const handleCheckin = async (sheetId, categoryValue = null) => {
     const sheet = activeSheets.find(s => s.id === sheetId);
     if (!sheet) return;
-    
+
+    // ✅ If the sheet has a category and no value was passed, open the picker
+   if (
+  categoryValue === null &&
+  sheet.categoryName &&
+  Array.isArray(sheet.categoryOptions) &&
+  sheet.categoryOptions.length > 0 &&
+  sheet.categoryRequired === true   // ✅ only when required
+) {
+  setPickerSheet(sheet);
+  setShowPicker(true);
+  return;
+}
+
     setCheckingIn(sheetId);
     
     if (!isOnline) {
@@ -120,13 +135,19 @@ export default function MemberAttendance() {
     }
     
     try {
-      await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
-        sheetId,
-        deviceId: getDeviceId(),
-        deviceName: getDeviceName()
-      }, {
-        headers: getHeaders()
-      });
+     const payload = {
+  sheetId,
+  deviceId: getDeviceId(),
+  deviceName: getDeviceName()
+};
+
+if (categoryValue) {
+  payload.categoryValue = categoryValue;
+}
+
+await axios.post(`${BASE_URL}/api/attendance/self-checkin`, payload, {
+  headers: getHeaders()
+});
       
       setShowCelebration(true);
       
@@ -979,6 +1000,24 @@ export default function MemberAttendance() {
           }}
         />
       )}
+
+      {showPicker && pickerSheet && (
+  <CategoryPickerModal
+    categoryName={pickerSheet.categoryName}
+    options={pickerSheet.categoryOptions}
+    required={pickerSheet.categoryRequired}
+    onSelect={(value) => {
+      setShowPicker(false);
+      const id = pickerSheet.id;
+      setPickerSheet(null);
+      handleCheckin(id, value);
+    }}
+    onClose={() => {
+      setShowPicker(false);
+      setPickerSheet(null);
+    }}
+  />
+)}
       
       <style>{`
         .member-attendance {

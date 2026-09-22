@@ -13,13 +13,15 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     allowSelfCheckin: sheet.allowSelfCheckin,
     enableQRCheckin: sheet.enableQRCheckin || true,
     jumuiaId: sheet.jumuiaId || '',
-    // ✅ WhatsApp Fields
     enableWhatsAppAutoSend: sheet.enableWhatsAppAutoSend || false,
     whatsAppGroupIds: sheet.whatsAppGroupIds || '',
     whatsAppGroupNames: sheet.whatsAppGroupNames || '',
     whatsAppCustomMessage: sheet.whatsAppCustomMessage || '',
     whatsAppSendOnCheckin: sheet.whatsAppSendOnCheckin !== undefined ? sheet.whatsAppSendOnCheckin : true,
-    whatsAppSendOnClose: sheet.whatsAppSendOnClose !== undefined ? sheet.whatsAppSendOnClose : true
+    whatsAppSendOnClose: sheet.whatsAppSendOnClose !== undefined ? sheet.whatsAppSendOnClose : true,
+    categoryName: sheet.categoryName || '',
+    categoryOptions: Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions.join(', ') : '',
+    categoryRequired: sheet.categoryRequired !== undefined ? sheet.categoryRequired : true
   });
   
   const [jumuiaList, setJumuiaList] = useState([]);
@@ -37,13 +39,11 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     return { Authorization: `Bearer ${token}` };
   };
 
-  // ============ SHOW TOAST ============
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ============ FETCH JUMUIA LIST ============
   useEffect(() => {
     const fetchJumuia = async () => {
       try {
@@ -61,14 +61,12 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     fetchJumuia();
   }, []);
 
-  // ============ FETCH WHATSAPP GROUPS ============
   useEffect(() => {
     if (formData.enableWhatsAppAutoSend) {
       fetchWhatsAppGroups();
     }
   }, [formData.enableWhatsAppAutoSend]);
 
-  // ============ LOAD SELECTED GROUPS ============
   useEffect(() => {
     if (formData.whatsAppGroupIds) {
       const ids = formData.whatsAppGroupIds.split(',').map(id => id.trim()).filter(id => id);
@@ -81,7 +79,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   }, [formData.whatsAppGroupIds, formData.whatsAppGroupNames]);
 
-  // ============ FETCH WHATSAPP GROUPS ============
   const fetchWhatsAppGroups = async () => {
     setLoadingGroups(true);
     try {
@@ -94,7 +91,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         const groupList = response.data.groups || [];
         setWhatsappGroups(groupList);
         
-        // Check bot status
         const statusRes = await api.get('/api/admin/whatsapp/status', {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -108,7 +104,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   };
 
-  // ============ HANDLE INPUT CHANGE ============
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -117,7 +112,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }));
   };
 
-  // ============ HANDLE GROUP SELECTION ============
   const handleGroupToggle = (groupId, groupName) => {
     setSelectedGroups(prev => {
       const exists = prev.some(g => g.id === groupId);
@@ -129,12 +123,22 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     });
   };
 
-  // ============ HANDLE SUBMIT ============
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const trimmedCategoryName = (formData.categoryName || '').trim();
+    const categoryOptionList = (formData.categoryOptions || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (trimmedCategoryName && categoryOptionList.length < 2) {
+      showToast('A check-in category needs a name and at least 2 options.', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
-      // 1. Update sheet details
       const sheetData = {
         title: formData.title,
         description: formData.description || null,
@@ -143,14 +147,16 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         location: formData.location || null,
         jumuiaId: formData.jumuiaId || null,
         allowSelfCheckin: formData.allowSelfCheckin,
-        enableWifiCheckin: formData.enableQRCheckin
+        enableWifiCheckin: formData.enableQRCheckin,
+        categoryName: trimmedCategoryName || null,
+        categoryOptions: categoryOptionList,
+        categoryRequired: formData.categoryRequired !== false
       };
 
       await api.put(`/api/attendance/sheet/${sheet.id}/details`, sheetData, {
         headers: getHeaders()
       });
 
-      // 2. Update WhatsApp settings
       const whatsappData = {
         enableWhatsAppAutoSend: formData.enableWhatsAppAutoSend || false,
         whatsAppGroupIds: selectedGroups.map(g => g.id).join(','),
@@ -177,7 +183,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   };
 
-  // ============ HANDLE SEND NOW ============
   const handleSendNow = async () => {
     if (selectedGroups.length === 0) {
       showToast('Please select at least one WhatsApp group', 'error');
@@ -205,7 +210,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   };
 
-  // ============ HANDLE DELETE SHEET ============
   const handleDeleteSheet = async () => {
     if (!window.confirm(`Delete "${sheet.title}" permanently? This cannot be undone.`)) return;
     setLoading(true);
@@ -220,13 +224,11 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
     }
   };
   
-  // ============ SET TODAY'S DATE ============
   const today = new Date().toISOString().split('T')[0];
   
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={e => e.stopPropagation()}>
-        {/* Toast Notification */}
         {toast && (
           <div className={`toast ${toast.type}`}>
             {toast.message}
@@ -240,11 +242,9 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
         
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            {/* ============ SHEET DETAILS ============ */}
             <div className="settings-section">
               <h4><FileSpreadsheet size={20} /> Sheet Details</h4>
               
-              {/* Title */}
               <div className="form-group">
                 <label>Event Title *</label>
                 <input
@@ -257,7 +257,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                 />
               </div>
               
-              {/* Description */}
               <div className="form-group">
                 <label>Description (Optional)</label>
                 <textarea
@@ -269,7 +268,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                 />
               </div>
               
-              {/* Date & Time Row */}
               <div className="form-row">
                 <div className="form-group">
                   <label>Date *</label>
@@ -293,7 +291,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                 </div>
               </div>
               
-              {/* Location */}
               <div className="form-group">
                 <label>Location</label>
                 <input
@@ -305,7 +302,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                 />
               </div>
               
-              {/* Target Audience */}
               <div className="form-group">
                 <label>Target Group (Optional)</label>
                 <select
@@ -330,7 +326,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
               </div>
             </div>
 
-            {/* ============ CHECK-IN METHODS ============ */}
             <div className="divider">
               <span>Check-in Methods</span>
             </div>
@@ -347,12 +342,62 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
               </label>
             </div>
 
-            {/* ============ WHATSAPP AUTO-SEND ============ */}
             <div className="divider">
-              <span><FaWhatsapp size={12} color="#25D366" marginBottom={12} fontWeight={600} />         WhatsApp Auto-Send</span>
+              <span>🎼 Check-In Category (Optional)</span>
             </div>
 
-            {/* Enable WhatsApp */}
+            <div className="settings-section category-section">
+              <p className="category-help">
+                Give members a category to pick at check-in.
+                <br />
+                Examples: <code>Voice Part</code> → <code>Soprano, Alto, Tenor, Bass</code>
+              </p>
+
+              <div className="form-group">
+                <label>Category Name</label>
+                <input
+                  type="text"
+                  name="categoryName"
+                  value={formData.categoryName || ''}
+                  onChange={handleChange}
+                  placeholder="e.g., Voice Part, Jumuia, Year of Study"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Options (comma-separated)</label>
+                <input
+                  type="text"
+                  name="categoryOptions"
+                  value={formData.categoryOptions || ''}
+                  onChange={handleChange}
+                  placeholder="e.g., Soprano, Alto, Tenor, Bass"
+                />
+                <div className="helper-text">
+                  Separate options with commas — need at least 2
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="checkbox-label" style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="categoryRequired"
+                    checked={formData.categoryRequired !== false}
+                    onChange={handleChange}
+                  />
+                  <span>Required at check-in</span>
+                </label>
+                <div className="helper-text">
+                  If checked, members must pick one. Uncheck to allow skipping.
+                </div>
+              </div>
+            </div>
+
+            <div className="divider">
+              <span><FaWhatsapp size={12} color="#25D366" />         WhatsApp Auto-Send</span>
+            </div>
+
             <div className="settings-section">
               <div className="whatsapp-toggle-row">
                 <div className="whatsapp-toggle-info">
@@ -374,10 +419,8 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
               </div>
             </div>
 
-            {/* WhatsApp Settings */}
             {formData.enableWhatsAppAutoSend && (
               <>
-                {/* Bot Status */}
                 <div className={`bot-status ${botConnected ? 'connected' : 'disconnected'}`}>
                   {botConnected ? (
                     <>
@@ -392,7 +435,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                   )}
                 </div>
 
-                {/* Group Selection */}
                 <div className="settings-section">
                   <label className="section-label">Select WhatsApp Groups</label>
                   {loadingGroups ? (
@@ -419,7 +461,8 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                       ))}
                     </div>
                   )}
-                  <div className="helper-text"><FaCheckCircle size= "12px" color="green" margin-bottom="5px" />  
+                  <div className="helper-text">
+                    <FaCheckCircle size="12px" color="green" />{' '}
                     {selectedGroups.length > 0 
                       ?  ` ${selectedGroups.length} group(s) selected` 
                       : 'Select at least one group to send attendance lists'}
@@ -435,7 +478,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                   </button>
                 </div>
 
-                {/* Custom Message */}
                 <div className="settings-section">
                   <label className="section-label">Custom Message (Optional)</label>
                   <textarea
@@ -451,7 +493,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                   </div>
                 </div>
 
-                {/* Send Options */}
                 <div className="settings-section">
                   <label className="section-label">Send Options</label>
                   <div className="send-options">
@@ -476,7 +517,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
                   </div>
                 </div>
 
-                {/* Selected Groups Summary & Send Now */}
                 {selectedGroups.length > 0 && (
                   <div className="selected-summary">
                     <div className="summary-text">
@@ -497,7 +537,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
             )}
           </div>
           
-          {/* ============ FOOTER ============ */}
           <div className="modal-footer">
             <button type="button" className="btn-danger" onClick={handleDeleteSheet}>
               Delete Sheet
@@ -658,7 +697,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           font-weight: 500;
         }
 
-        /* WhatsApp Toggle */
         .whatsapp-toggle-row {
           display: flex;
           justify-content: space-between;
@@ -731,7 +769,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           transform: translateX(20px);
         }
 
-        /* Bot Status */
         .bot-status {
           display: flex;
           align-items: center;
@@ -754,17 +791,15 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           border: 1px solid #fecaca;
         }
 
-        /* Groups Grid */
         .groups-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 8px;
           max-height: 180px;
           overflow-y: auto;
-          padding: 4px;
+          padding: 8px;
           border: 1px solid #e0e0e0;
           border-radius: 8px;
-          padding: 8px;
         }
 
         .group-checkbox {
@@ -871,7 +906,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           cursor: not-allowed;
         }
 
-        /* Custom Message */
         .custom-message-input {
           width: 100%;
           padding: 10px 12px;
@@ -893,7 +927,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           margin-top: 6px;
         }
 
-        /* Send Options */
         .send-options {
           display: flex;
           gap: 24px;
@@ -915,7 +948,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           accent-color: #1a1a1a;
         }
 
-        /* Selected Summary */
         .selected-summary {
           display: flex;
           justify-content: space-between;
@@ -957,7 +989,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           cursor: not-allowed;
         }
 
-        /* Toast */
         .toast {
           position: fixed;
           top: 20px;
@@ -982,7 +1013,6 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           to { transform: rotate(360deg); }
         }
 
-        /* Footer */
         .modal-footer {
           display: flex;
           justify-content: flex-end;
@@ -1043,7 +1073,28 @@ export default function SettingsModal({ sheet, onClose, onUpdate }) {
           cursor: not-allowed;
         }
 
-        /* Responsive */
+        .category-section {
+          background: #faf5ff;
+          border: 1px solid #e9d5ff;
+          border-radius: 12px;
+          padding: 16px;
+        }
+
+        .category-help {
+          font-size: 12px;
+          color: #6b21a8;
+          margin: 0 0 12px 0;
+          line-height: 1.6;
+        }
+
+        .category-help code {
+          background: white;
+          padding: 1px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          color: #5b21b6;
+        }
+
         @media (max-width: 640px) {
           .settings-modal {
             width: 95%;

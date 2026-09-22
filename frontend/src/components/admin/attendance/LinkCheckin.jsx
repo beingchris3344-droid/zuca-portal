@@ -44,9 +44,6 @@ const slides = [
   { id: 12, image: slide12 },
 ];
 
-// ============================================================
-// SINGLE STYLE BLOCK — injected once at module level
-// ============================================================
 const PAGE_STYLES = `
 @keyframes pulseDot {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -923,7 +920,6 @@ const PAGE_STYLES = `
 }
 `;
 
-// Inject once globally (runs at module load, not per-render)
 if (typeof document !== 'undefined' && !document.getElementById('link-checkin-styles')) {
   const styleEl = document.createElement('style');
   styleEl.id = 'link-checkin-styles';
@@ -931,9 +927,6 @@ if (typeof document !== 'undefined' && !document.getElementById('link-checkin-st
   document.head.appendChild(styleEl);
 }
 
-// ============================================================
-// Typing Loading Component
-// ============================================================
 const TypingLoading = ({ meetingData }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -1181,9 +1174,6 @@ const TypingLoading = ({ meetingData }) => {
   );
 };
 
-// ============================================================
-// MAIN
-// ============================================================
 export default function LinkCheckin() {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -1262,7 +1252,7 @@ export default function LinkCheckin() {
             });
             if (!cancelled && meResponse.data) {
               const sheetId = data.sheetId || data.sheet?.id;
-              navigate(`/member/attendance?sheetId=${sheetId}`);
+              navigate(`/member/attendance/sheet/${sheetId}`);
               return;
             }
           } catch (authError) {
@@ -1342,7 +1332,7 @@ export default function LinkCheckin() {
           setLoginError('Meeting information unavailable.');
           return;
         }
-        navigate(`/member/attendance?sheetId=${sheetId}`);
+        navigate(`/member/attendance/sheet/${sheetId}`);
       } else {
         setLoginError(data.error || "Invalid email or password");
       }
@@ -1388,14 +1378,14 @@ export default function LinkCheckin() {
       
       showToast('Checked in successfully!', 'success');
       setTimeout(() => {
-        navigate(`/member/attendance?sheetId=${sheet.id}`);
+        navigate(`/member/attendance/sheet/${sheet.id}`);
       }, 1000);
     } catch (error) {
       const errorMsg = error.response?.data;
       if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
         showToast('You have already checked in for this meeting', 'info');
         setTimeout(() => {
-          navigate(`/member/attendance?sheetId=${sheet.id}`);
+          navigate(`/member/attendance/sheet/${sheet.id}`);
         }, 1000);
       } else {
         showToast(errorMsg?.message || 'Personal check-in is not allowed for this meeting', 'error');
@@ -1414,7 +1404,7 @@ export default function LinkCheckin() {
       showToast('Meeting information unavailable', 'error');
       return;
     }
-    navigate(`/member/attendance?sheetId=${sheet.id}&showScanner=true`);
+    navigate(`/member/attendance/sheet/${sheet.id}?showScanner=true`);
   };
 
   if (loading) {

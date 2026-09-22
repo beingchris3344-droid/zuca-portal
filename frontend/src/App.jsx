@@ -53,6 +53,8 @@ import MessengerPage from './pages/MessengerPage';
 import { MessengerProvider } from './contexts/MessengerContext';
 import MemberAttendance from './pages/member/MemberAttendance';
 import MemberAttendanceHistory from './pages/member/MemberAttendanceHistory';
+import MemberSheetPage from './pages/member/MemberSheetPage';
+
 import LinkCheckin from './components/admin/attendance/LinkCheckin';
 import MinutesList from './pages/admin/minutes/MinutesList';
 import MinutesViewPage from './pages/admin/minutes/MinutesViewPage';
@@ -489,6 +491,8 @@ useEffect(() => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="member/attendance" element={<MemberAttendance />} />
+                    <Route path="member/attendance/sheet/:sheetId" element={<MemberSheetPage />} />
+
           <Route path="member/attendance-history" element={<MemberAttendanceHistory />} />
           
           <Route path="/mass-programs" element={<MassPrograms />} />

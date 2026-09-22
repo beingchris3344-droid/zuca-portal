@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import bg from "../assets/2.jpg";
 
@@ -31,15 +30,67 @@ import {
   FiXCircle,
   FiInfo,
   FiHeart,
+  FiSliders,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow, FaFire  } from "react-icons/fa";
+import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow, FaFire, FaHandsHelping  } from "react-icons/fa";
 
 import { MdWavingHand } from "react-icons/md";
+const PROFILE_THEMES = {
+  /* ===== Original 8 ===== */
+  emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
+  sunset:   "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #be185d 100%)",
+  ocean:    "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
+  forest:   "linear-gradient(135deg, #15803d 0%, #166534 50%, #365314 100%)",
+  midnight: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
+  royal:    "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+  rose:     "linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%)",
+  amber:    "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)",
+
+  /* ===== Blues ===== */
+  sky:      "linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #2563eb 100%)",
+  azure:    "linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #1e40af 100%)",
+  ice:      "linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 50%, #0ea5e9 100%)",
+  navy:     "linear-gradient(135deg, #0c4a6e 0%, #075985 50%, #1e3a8a 100%)",
+
+  /* ===== Greens ===== */
+  mint:     "linear-gradient(135deg, #6ee7b7 0%, #10b981 50%, #047857 100%)",
+  lime:     "linear-gradient(135deg, #bef264 0%, #84cc16 50%, #15803d 100%)",
+  jade:     "linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #115e59 100%)",
+  sage:     "linear-gradient(135deg, #a7f3d0 0%, #4ade80 50%, #065f46 100%)",
+
+  /* ===== Purples / Pinks ===== */
+  violet:   "linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%)",
+  lavender: "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 50%, #7c3aed 100%)",
+  fuchsia:  "linear-gradient(135deg, #e879f9 0%, #d946ef 50%, #a21caf 100%)",
+  blush:    "linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 50%, #ec4899 100%)",
+
+  /* ===== Warm tones ===== */
+  coral:    "linear-gradient(135deg, #fb923c 0%, #f87171 50%, #e11d48 100%)",
+  peach:    "linear-gradient(135deg, #fed7aa 0%, #fdba74 50%, #f97316 100%)",
+  gold:     "linear-gradient(135deg, #fde047 0%, #eab308 50%, #ca8a04 100%)",
+  fire:     "linear-gradient(135deg, #facc15 0%, #f97316 50%, #dc2626 100%)",
+
+  /* ===== Neutral / monochrome ===== */
+  slate:    "linear-gradient(135deg, #64748b 0%, #475569 50%, #1e293b 100%)",
+  charcoal: "linear-gradient(135deg, #4b5563 0%, #374151 50%, #111827 100%)",
+  stone:    "linear-gradient(135deg, #d6d3d1 0%, #78716c 50%, #292524 100%)",
+  ink:      "linear-gradient(135deg, #1f2937 0%, #0f172a 50%, #000000 100%)",
+
+  /* ===== Special effects (2-stop, dramatic) ===== */
+  aurora:   "linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #f43f5e 100%)",
+  twilight: "linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #f59e0b 100%)",
+  neon:     "linear-gradient(135deg, #06b6d4 0%, #f0abfc 50%, #a3e635 100%)",
+  candy:    "linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)",
+};
 
 function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [profileImage, setProfileImage] = useState(null);
+  const [coverImage, setCoverImage] = useState(null);
+const [profileTheme, setProfileTheme] = useState("emerald");
+const [showThemePicker, setShowThemePicker] = useState(false);
+const coverInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState("");
@@ -758,6 +809,19 @@ useEffect(() => {
   if (storedUser) {
     setUser(storedUser);
     setProfileImage(storedUser.profileImage);
+
+    const coverUrl = storedUser.coverImage?.startsWith("http")
+      ? storedUser.coverImage
+      : storedUser.coverImage
+      ? `${BASE_URL}/${storedUser.coverImage}`
+      : null;
+    setCoverImage(coverUrl);
+
+    setProfileTheme(
+      storedUser.profileTheme ||
+        localStorage.getItem("profileTheme") ||
+        "emerald"
+    );
   }
   
   const hour = new Date().getHours();
@@ -769,6 +833,17 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, []);
 
+
+useEffect(() => {
+  if (!showThemePicker) return;
+  const handler = (e) => {
+    const picker = e.target.closest("[data-theme-picker]");
+    const trigger = e.target.closest("[data-theme-trigger]");
+    if (!picker && !trigger) setShowThemePicker(false);
+  };
+  document.addEventListener("mousedown", handler);
+  return () => document.removeEventListener("mousedown", handler);
+}, [showThemePicker]);
 
 // ===== LISTEN FOR ONLINE/OFFLINE =====
 useEffect(() => {
@@ -1426,6 +1501,15 @@ useEffect(() => {
     navigate("/login");
   };
 
+  const handleDashboardThemeChange = (themeId) => {
+  setProfileTheme(themeId);
+  localStorage.setItem("profileTheme", themeId);
+  const stored = JSON.parse(localStorage.getItem("user") || "{}");
+  stored.profileTheme = themeId;
+  localStorage.setItem("user", JSON.stringify(stored));
+  setUser(stored);
+};
+
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'long',
@@ -1451,51 +1535,332 @@ useEffect(() => {
 
       <div className="dashboard">
         <div className="dashboard-content">
-          {/* HEADER */}
-          <div className="header">
-            <div className="header-left">
-              <h1 className="greeting">
-                {greeting}, <span className="user-name">{user.fullName?.split(" ")[0]}    </span>
-                <span className="wave"><MdWavingHand color="#ffffff" size={25}/></span>
-              </h1>
-              <p className="date">{formatDate(currentTime)}</p>
-            </div>
-            <div className="header-right">
 
-          {/* REFRESH BUTTON */}
-          <button 
-            onClick={refreshAllData}
-            className="refresh-btn"
-            title="Refresh Data"
-            aria-label="Refresh Data"
-          >
-            <FiRefreshCw size={20} color="#ffffff"/>
-          </button>
-              
+{/* =========================================================
+    UNIFIED PROFILE HERO
+   ========================================================= */}
+<div className="dash-hero">
+  <div className="dash-hero-cover">
+    {coverImage ? (
+      <>
+        <img src={coverImage} alt="Cover" className="dash-hero-cover-img" />
+        <div className="dash-hero-cover-overlay" />
+      </>
+    ) : (
+      <div
+        className="dash-hero-cover-gradient"
+        style={{
+          background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
+        }}
+      />
+    )}
 
-               {/* QR SCAN BUTTON - ADD THIS */}
-    <button className="qr-scan-header-btn" onClick={() => setShowScanner(true)}>
-      <QrCode size={18} /> Scan QR
+    <button
+      onClick={refreshAllData}
+      className="dash-hero-back"
+      title="Refresh"
+      aria-label="Refresh dashboard"
+    >
+      <FiRefreshCw size={18} />
     </button>
-              <button className="ai-btn" onClick={() => window.dispatchEvent(new CustomEvent('openZUCAI'))}>
-                <FiMessageSquare size={18} /> Ask zuca
-              </button>
 
-               {/* NEW FEEDBACK/COMPLAINTS BUTTON */}
-  <button 
-    className="feedback-btn" 
-    onClick={() => navigate("/feedback")}
-    title="Give Feedback or Report an Issue"
+    <div className="dash-hero-greeting">
+      <h1 className="dash-hero-greeting-title">
+        {greeting}, {user.fullName?.split(" ")[0]}{" "}
+        <span className="wave">
+          <MdWavingHand color="#ffffff" size={22} />
+        </span>
+      </h1>
+      <p className="dash-hero-greeting-date">{formatDate(currentTime)}</p>
+    </div>
+
+  <div className="dash-hero-cover-actions">
+  <label
+    className="dash-hero-cover-btn"
+    title="Upload cover photo"
+    style={{ cursor: "pointer" }}
   >
-    <FiAlertCircle size={18} /> Feedback
+    <FiCamera size={14} />
+    <span>Cover</span>
+    <input
+      type="file"
+      accept="image/*"
+      hidden
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        try {
+          const token = localStorage.getItem("token");
+          const fd = new FormData();
+          fd.append("cover", file);
+
+          const res = await axios.post(
+            `${BASE_URL}/api/users/${user.id}/upload-cover`,
+            fd,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          const updated = res.data.user;
+          const url = updated.coverImage?.startsWith("http")
+            ? updated.coverImage
+            : updated.coverImage
+            ? `${BASE_URL}/${updated.coverImage}`
+            : null;
+
+          setCoverImage(url);
+          localStorage.setItem("user", JSON.stringify(updated));
+          setUser(updated);
+        } catch (err) {
+          console.error("Cover upload failed:", err);
+          alert(
+            err.response?.data?.error ||
+              err.response?.data?.message ||
+              "Failed to upload cover."
+          );
+        } finally {
+          if (e.target) e.target.value = "";
+        }
+      }}
+    />
+  </label>
+
+  <button
+    type="button"
+    data-theme-trigger
+    onClick={() => setShowThemePicker((v) => !v)}
+    className="dash-hero-cover-btn"
+    title="Choose theme"
+  >
+    <FiSliders size={14} />
+    <span>Theme</span>
   </button>
+</div>
 
-
-              <button className="logout-btn" onClick={handleLogout}>
-                <FiLogOut size={16} /> Exit
-              </button>
-            </div>
+    <AnimatePresence>
+      {showThemePicker && (
+        <motion.div
+          data-theme-picker
+          initial={{ opacity: 0, y: -8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.97 }}
+          transition={{ duration: 0.15 }}
+          className="dash-theme-picker"
+        >
+          <div className="dash-theme-picker-header">
+            <span>Choose a banner theme</span>
+            <button
+              type="button"
+              onClick={() => setShowThemePicker(false)}
+              className="dash-theme-picker-close"
+              aria-label="Close theme picker"
+            >
+              ✕
+            </button>
           </div>
+          <div className="dash-theme-grid">
+            {Object.entries(PROFILE_THEMES).map(([id, gradient]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  handleDashboardThemeChange(id);
+                  setShowThemePicker(false);
+                }}
+                className="dash-theme-swatch"
+                style={{
+                  background: gradient,
+                  outline: profileTheme === id ? "3px solid #ffffff" : "none",
+                  boxShadow:
+                    profileTheme === id
+                      ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
+                      : "0 2px 6px -3px rgba(0,0,0,0.3)",
+                }}
+                title={id}
+                aria-label={`Theme ${id}`}
+              >
+                {profileTheme === id && (
+                  <span className="dash-theme-check">✓</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="dash-theme-hint">
+            Upload a cover photo to override the theme.
+          </p>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <div className="dash-hero-body">
+      <div className="dash-hero-avatar-wrap">
+        <div className="dash-hero-avatar">
+          {profileImage ? (
+            <img src={profileImage} alt={user.fullName} />
+          ) : (
+            <span>{user.fullName?.charAt(0).toUpperCase() || "U"}</span>
+          )}
+        </div>
+        <button
+          className="dash-hero-avatar-cam"
+          onClick={() => setShowProfileSettings(true)}
+          aria-label="Change profile photo"
+          title="Change profile photo"
+        >
+          <FiCamera size={16} />
+        </button>
+      </div>
+
+      <div className="dash-hero-identity">
+        <h1 className="dash-hero-name">
+          {user.fullName?.split(" ")[0]?.toUpperCase()}
+          {"\n"}
+          {user.fullName?.split(" ").slice(1).join(" ")?.toUpperCase()}
+        </h1>
+        <p className="dash-hero-email">{user.email}</p>
+
+        <div className="dash-hero-chips">
+          <span className="dash-hero-chip">
+            {user.role?.toUpperCase() || "MEMBER"}
+          </span>
+          <span className="dash-hero-chip">
+    {user.membership_number || "Z#TEMP"}
+  </span>
+
+          {user.phone && (
+            <span className="dash-hero-chip">
+              <FiPhone size={12} /> {user.phone}
+            </span>
+          )}
+          {user.homeJumuia && (
+            <span className="dash-hero-chip">
+              <FaHandsHelping/> {user.homeJumuia.name}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <button
+        className="dash-hero-remove"
+         onClick={() => navigate("/profile-settings")}
+        title="Open Profile Settings"
+      >
+        <FiSettings size={13} />
+        <span>Manage profile and Birthday</span>
+      </button>
+    </div>
+
+    {/* ===== Actions row ===== */}
+    <div className="dash-hero-tabs">
+      <button
+        className="dash-hero-tab dash-hero-tab-active"
+        onClick={() => navigate("/dashboard")}
+      >
+        <FiGrid size={14} />
+        <span>Dashboard</span>
+      </button>
+
+      <button
+        className="dash-hero-tab"
+        onClick={() => setShowScanner(true)}
+      >
+        <QrCode size={14} />
+        <span>Scan QR</span>
+      </button>
+
+      <button
+        className="dash-hero-tab"
+        onClick={() =>
+          window.dispatchEvent(new CustomEvent("openZUCAI"))
+        }
+      >
+        <FiMessageSquare size={14} />
+        <span>Ask ZUCA</span>
+      </button>
+
+      <button
+        className="dash-hero-tab"
+        onClick={() => navigate("/feedback")}
+      >
+        <FiAlertCircle size={14} />
+        <span>Feedback</span>
+      </button>
+
+      <button
+        className="dash-hero-tab dash-hero-tab-danger"
+        onClick={handleLogout}
+      >
+        <FiLogOut size={14} />
+        <span>Exit</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+{/* =========================================================
+    QUICK STATS — hanging card with side hangers
+   ========================================================= */}
+<div className="dash-quickstats">
+  <span
+  className="dash-hanger dash-hanger-left"
+  aria-hidden="true"
+  style={{
+    background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
+  }}
+/>
+<span
+  className="dash-hanger dash-hanger-right"
+  aria-hidden="true"
+  style={{
+    background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
+  }}
+/>
+
+  <div className="dash-quickstat">
+    <div className="dash-quickstat-icon"><FaCalendarAlt /></div>
+    <div className="dash-quickstat-text">
+      <span className="dash-quickstat-value">{getMemberSinceMonths()}</span>
+      <span className="dash-quickstat-label">Joined</span>
+    </div>
+  </div>
+
+  <div className="dash-quickstat-divider" />
+
+  <div className="dash-quickstat">
+    <div className="dash-quickstat-icon"><FaHandHoldingHeart /></div>
+    <div className="dash-quickstat-text">
+      <span className="dash-quickstat-value">
+        KES {getTotalPaidFromPledges().toLocaleString()}
+      </span>
+      <span className="dash-quickstat-label">Total Paid</span>
+    </div>
+  </div>
+
+  <div className="dash-quickstat-divider" />
+
+  <div className="dash-quickstat">
+    <div className="dash-quickstat-icon">
+      <FaWhatsapp color="#25D366" size={20} />
+    </div>
+    <div className="dash-quickstat-text">
+      <a
+        href={getWhatsAppLink()}
+        className="dash-quickstat-link"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Message You🫵
+      </a>
+      <span className="dash-quickstat-label">WhatsApp</span>
+    </div>
+  </div>
+</div>
+         
 
 {/* ===== DYNAMIC COUNTDOWN - FROM DATABASE ===== */}
 {countdownSettings && countdownSettings.isActive && !isCountdownComplete && (
@@ -1839,86 +2204,7 @@ useEffect(() => {
 )}
 
 
-         {/* USER PROFILE CARD */}
-<div className="profile-card">
-  <div className="profile-row">
-    <div className="avatar-section">
-      <div className="avatar-wrapper" onClick={() => setShowProfileSettings(true)}>
-        {profileImage ? (
-          <img src={profileImage} alt={user.fullName} />
-        ) : (
-          <div className="avatar-placeholder">{user.fullName?.charAt(0).toUpperCase()}</div>
-        )}
-        <div className="avatar-overlay"><FiCamera size={20} /></div>
-      </div>
-        {/* SETTINGS ICON BUTTON - OUTSIDE avatar-wrapper */}
-      <button 
-        className="settings-icon-btn"
-        onClick={() => setShowProfileSettings(true)}
-        aria-label="Profile Settings"
-        title="Profile Settings"
-      >
-        <FiSettings size={22} color="#000000" />
-      </button>
-    </div>
-    <div className="profile-info">
-      <div className="info-header">
-        <h2>{user.fullName}</h2>
-      </div>
-      {/* LINE ADDED BELOW NAME */}
-      <div className="name-divider">
-        <div className="divider-line"></div>
-      </div>
-      <div className="membership-row">
-        <span className="member-badge">{user.membership_number || "Z#TEMP"}</span>
-      </div>
-      <p className="email-row">
-  <span className="icon-style">✉</span> 
-  <span className="text-style">{user.email}</span>
-</p> 
-
-<p className="phone-row">
-  <span className="icon-style">☏</span> 
-  <span className="text-style">{user.phone || "Not set"}</span>
-</p>
-
-
-      <div className="badges">
-        <span className="role-badge"><FaUserTie /> {user.role?.toUpperCase() || "MEMBER"}</span>
-        {user.homeJumuia && <span className="jumuia-badge"><FaUsers size={10} /> {user.homeJumuia.name}</span>}
-      </div>
-    </div>
-  </div>
-  <div className="profile-stats">
-    <div className="stat-item">
-      <div className="stat-icon"><FaCalendarAlt /></div>
-      <div className="stat-info">
-        <span className="stat-value">{getMemberSinceMonths()}</span>
-        <span className="stat-label">Joined</span>
-      </div>
-    </div>
-    <div className="stat-divider"></div>
-    <div className="stat-item">
-      <div className="stat-icon"><FaHandHoldingHeart size={30}/></div>
-      <div className="stat-info">
-        <span className="stat-value">KES {getTotalPaidFromPledges().toLocaleString()}</span>
-        <span className="stat-label">Total Paid</span>
-      </div>
-    </div>
-    <div className="stat-divider"></div>
-    <div className="stat-item">
-      <div className="stat-icon">
-        <FaWhatsapp color="#25D366" size={24} />
-      </div>
-      <div className="stat-info">
-        <a href={getWhatsAppLink()} className="whatsapp-link" target="_blank" rel="noopener noreferrer">
-          Message You🫵
-        </a>
-        <span className="stat-label">WhatsApp</span>
-      </div>
-    </div>
-  </div>
-</div>
+       
 
 
 {/* ACTIVE MEETINGS CARD */}
@@ -9399,12 +9685,12 @@ useEffect(() => {
 ========================================================= */
 
 .dashboard-ad-visual {
-  position: relative;
-  overflow: hidden;
-  background: #f8fafc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: auto;
+  overflow: auto;
+  background: #ffffff;
+  display: auto;
+  align-items: auto;
+  justify-content: auto;
   height: auto;
   width: 100%;
 }
@@ -9416,9 +9702,9 @@ useEffect(() => {
 
 .dashboard-ad-image {
   width: 100%;
-  height: auto !important;
-  display: block;
-  object-fit: contain !important;
+  height: 100% !important;
+  display: auto;
+  object-fit: fit !important;
   object-position: center;
   transition: transform 0.6s ease;
 }
@@ -9438,12 +9724,7 @@ useEffect(() => {
 
   inset: 0;
 
-  background:
-    linear-gradient(
-      90deg,
-      rgba(0, 0, 0, 0.015),
-      rgba(0, 0, 0, 0.04)
-    );
+ 
 
   pointer-events: none;
 }
@@ -9459,7 +9740,8 @@ useEffect(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    background: #ffffff;
+
 }
 
 .dashboard-ad-placeholder span {
@@ -10050,6 +10332,9 @@ useEffect(() => {
   height: 180px;
 }
 
+
+
+
   /* ============================================
    SECTION TITLE - UNIFIED LARGER SIZE
    ============================================ */
@@ -10332,6 +10617,771 @@ useEffect(() => {
   border-color: #8b5cf6;
 }
 
+
+/* =========================================================
+   DASHBOARD HERO
+   ========================================================= */
+
+.dash-hero {
+  position: relative;
+  width: 100%;
+  margin-bottom: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -20px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  z-index: 4;
+}
+
+.dash-hero-cover {
+  position: relative;
+  padding: 60px 20px 16px;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.dash-hero-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.dash-hero-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.15) 0%,
+    rgba(15, 23, 42, 0.6) 100%
+  );
+  z-index: 1;
+}
+
+.dash-hero-cover-gradient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: background 0.4s ease;
+}
+
+/* ---------- Refresh (top-left) ---------- */
+.dash-hero-back {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.18s ease;
+  z-index: 4;
+}
+
+.dash-hero-back:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.dash-hero-back svg {
+  transition: transform 0.5s ease;
+}
+
+.dash-hero-back:hover svg {
+  transform: rotate(180deg);
+}
+
+/* ---------- Greeting ---------- */
+.dash-hero-greeting {
+  position: absolute;
+  top: 20px;
+  left: 80px;
+  right: 220px;
+  z-index: 4;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.dash-hero-greeting-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 2px;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  line-height: 1.2;
+}
+
+.dash-hero-greeting-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  font-weight: 500;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- Cover / Theme buttons ---------- */
+.dash-hero-cover-actions {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+  z-index: 4;
+}
+
+.dash-hero-cover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.dash-hero-cover-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+/* ---------- Theme picker ---------- */
+.dash-theme-picker {
+  position: auto;
+  top: 72px;
+  right: 24px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  width: 360px;
+  z-index: 10;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+}
+
+.dash-theme-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dash-theme-picker-close {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #475569;
+}
+
+.dash-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.dash-theme-swatch {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.dash-theme-check {
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.dash-theme-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 12px 0 0;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ---------- Body (avatar + identity) ---------- */
+.dash-hero-body {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 0;
+  flex-wrap: wrap;
+  z-index: 3;
+}
+
+.dash-hero-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 100px;
+  height: 100px;
+}
+
+.dash-hero-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 3px solid #ffffff;
+  overflow: hidden;
+  cursor: pointer;
+  background: #ffffff;
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.dash-hero-avatar:hover {
+  transform: scale(1.02);
+}
+
+.dash-hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dash-hero-avatar span {
+  background: linear-gradient(135deg, #22c55e, #0ea5e9);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.dash-hero-avatar-cam {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0f172a;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.35);
+  transition: all 0.18s ease;
+}
+
+.dash-hero-avatar-cam:hover {
+  transform: scale(1.1);
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.dash-hero-identity {
+  flex: 1;
+  min-width: 0;
+  color: #ffffff;
+  padding-bottom: 4px;
+}
+
+.dash-hero-name {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 0 4px;
+  letter-spacing: -0.2px;
+  line-height: 1.15;
+  word-break: break-word;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  white-space: pre-line;
+}
+
+.dash-hero-email {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 12px;
+  word-break: break-all;
+  font-weight: 500;
+}
+
+.dash-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dash-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-transform: uppercase;
+}
+
+.dash-hero-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.18s ease;
+  align-self: flex-end;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.dash-hero-remove:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+/* ---------- Actions row ---------- */
+.dash-hero-tabs {
+  position: relative;
+  margin: 16px -6px -6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.2);
+  overflow-x: auto;
+  z-index: 4;
+}
+
+.dash-hero-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.dash-hero-tab:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dash-hero-tab-active {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 6px 14px -6px rgba(15, 23, 42, 0.4);
+}
+
+.dash-hero-tab-active:hover {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #ffffff;
+}
+
+.dash-hero-tab-danger {
+  color: #dc2626;
+  margin-left: auto;
+}
+
+.dash-hero-tab-danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* =========================================================
+   QUICK STATS — hanging card
+   ========================================================= */
+
+.dash-quickstats {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+
+  margin-top: 40px;
+  margin-bottom: 22px;
+  margin-left: 48px;
+  margin-right: 48px;
+
+  box-shadow: 0 12px 30px -12px rgba(15, 23, 42, 0.2);
+  z-index: 5;
+  overflow: visible;
+}
+
+
+
+
+.dash-hanger {
+  position: absolute;
+  top: -44px;
+  width: 30px;
+border-radius: 9px;
+  height: 4px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 999;
+  transition: background 0.4s ease;
+}
+
+.dash-hanger::before,
+.dash-hanger::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.2);
+}
+
+.dash-hanger-left {
+  left: 24px;
+}
+
+.dash-hanger-right {
+  right: 24px;
+}
+
+.dash-hanger::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #94a3b8;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
+}
+
+.dash-hanger::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.dash-quickstat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+.dash-quickstat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.dash-quickstat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dash-quickstat-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.dash-quickstat-label {
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.dash-quickstat-divider {
+  width: 1px;
+  height: 36px;
+  background: #e2e8f0;
+}
+
+.dash-quickstat-link {
+  font-size: 14px;
+  font-weight: 800;
+  color: #25D366;
+  text-decoration: none;
+  letter-spacing: -0.2px;
+}
+
+.dash-quickstat-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .dash-hero-greeting {
+    right: 160px;
+  }
+  .dash-hero-greeting-title {
+    font-size: 17px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-hero-cover {
+    padding: 90px 16px 20px;
+    min-height: 260px;
+  }
+
+  .dash-hero-back {
+    top: 14px;
+    left: 14px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .dash-hero-greeting {
+    top: 14px;
+    left: 60px;
+    right: 130px;
+  }
+
+  .dash-hero-greeting-title {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+
+  .dash-hero-greeting-date {
+    font-size: 10.5px;
+  }
+
+  .dash-hero-cover-actions {
+    top: 14px;
+    right: 14px;
+    gap: 6px;
+  }
+
+  .dash-hero-cover-btn {
+    padding: 7px 11px;
+    font-size: 11px;
+  }
+
+  /* Keep labels visible on mobile — do NOT hide spans */
+  .dash-hero-cover-btn span {
+    display: inline;
+  }
+
+  .dash-hero-avatar-wrap,
+  .dash-hero-avatar {
+    width: 96px;
+    height: 96px;
+  }
+
+  .dash-hero-avatar span {
+    font-size: 34px;
+  }
+
+  .dash-hero-avatar-cam {
+    width: 30px;
+    height: 30px;
+  }
+
+  .dash-hero-name {
+    font-size: 20px;
+  }
+
+  .dash-hero-email {
+    font-size: 12px;
+  }
+
+  .dash-hero-remove {
+    width: 100%;
+    justify-content: center;
+    margin-top: 6px;
+  }
+
+  .dash-hero-tabs {
+    margin: 20px -8px -8px;
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .dash-hero-tab {
+    padding: 8px 10px;
+    font-size: 11.5px;
+    gap: 5px;
+  }
+
+  /* Keep tab labels visible on mobile too */
+  .dash-hero-tab span {
+    display: inline;
+  }
+
+  .dash-quickstats {
+    margin-left: 24px;
+    margin-right: 24px;
+    margin-top: 32px;
+    padding: 14px 16px;
+    gap: 8px;
+  }
+
+  .dash-hanger {
+    top: -32px;
+    height: 32px;
+  }
+
+  .dash-hanger-left {
+    left: 16px;
+  }
+
+  .dash-hanger-right {
+    right: 16px;
+  }
+
+ .dash-quickstat {
+  min-width: 0;
+  flex-direction: column;
+  text-align: center;
+  gap: 6px;
+}
+
+.dash-quickstat-divider {
+  display: none;
+}
+}
+
+@media (max-width: 480px) {
+  .dash-hero-greeting-title {
+    font-size: 14px;
+  }
+
+  .dash-hero-greeting {
+    right: 110px;
+  }
+
+  .dash-hero-cover-btn {
+    padding: 6px 9px;
+    font-size: 10.5px;
+  }
+
+  .dash-hero-cover-btn span {
+    display: inline;
+  }
+
+  .dash-hero-name {
+    font-size: 18px;
+  }
+
+  .dash-hero-avatar-wrap,
+  .dash-hero-avatar {
+    width: 84px;
+    height: 84px;
+  }
+
+  .dash-hero-avatar span {
+    font-size: 28px;
+  }
+
+  .dash-hero-tab {
+    padding: 7px 8px;
+    font-size: 10.5px;
+    gap: 4px;
+  }
+
+  .dash-hero-tab span {
+    display: inline;
+  }
+}
 
 /* ============================================
    SKELETON LOADERS
@@ -11003,7 +12053,8 @@ useEffect(() => {
 .section-card > button:last-child {
   align-self: center !important;
   margin-top: 0.5rem !important;
-}
+}import ProfileSettings from './../components/ProfileSettings';
+
 
  
 

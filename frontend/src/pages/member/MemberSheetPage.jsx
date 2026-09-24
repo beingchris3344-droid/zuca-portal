@@ -10,12 +10,11 @@ import {
 import { FaFileAlt } from 'react-icons/fa';
 import { getDeviceId, getDeviceName } from '../../utils/deviceId';
 import CategoryPickerModal from './CategoryPickerModal';
-
+import QRScanner from '../../components/member/attendance/QRScanner';
 export default function MemberSheetPage() {
   const { sheetId } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const showScanner = searchParams.get('showScanner') === 'true';
+ const [showScanner, setShowScanner] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -377,13 +376,13 @@ export default function MemberSheetPage() {
             )}
 
             {sheet.isActive && (
-              <button
-                className="checkin-btn-qr"
-                onClick={() => navigate(`/member/attendance/sheet/${sheetId}?showScanner=true`)}
-              >
-                <QrCode size={18} />
-                Scan QR
-              </button>
+             <button
+  className="checkin-btn-qr"
+  onClick={() => setShowScanner(true)}
+>
+  <QrCode size={18} />
+  Scan QR
+</button>
             )}
           </div>
         </div>
@@ -399,6 +398,16 @@ export default function MemberSheetPage() {
           onClose={() => setShowPicker(false)}
         />
       )}
+
+    {showScanner && (
+  <QRScanner
+    onClose={() => setShowScanner(false)}
+    onScanned={(payload) => {
+      setShowScanner(false);
+      handleCheckin(payload?.categoryValue || null);
+    }}
+  />
+)}
 
       <style>{pageStyles}</style>
     </div>

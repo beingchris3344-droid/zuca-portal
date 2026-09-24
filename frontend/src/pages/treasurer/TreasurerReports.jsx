@@ -872,7 +872,7 @@ const exportReportAsWord = () => {
                     <div className="audit-details">
                       <div className="audit-performed-by">
                         <FaUser /> By: <strong>{log.performedByName || "Unknown"}</strong>
-                        {log.ipAddress && <span className="audit-ip"><FaMapMarker /> IP: {log.ipAddress}</span>}
+                        {log.ipAddress && <span className="audit-ip"> IP: {log.ipAddress}</span>}
                       </div>
                       
                       {log.action === "CREATE" && log.newData && (

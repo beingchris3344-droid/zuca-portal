@@ -12053,7 +12053,7 @@ border-radius: 9px;
 .section-card > button:last-child {
   align-self: center !important;
   margin-top: 0.5rem !important;
-}import ProfileSettings from './../components/ProfileSettings';
+}
 
 
  

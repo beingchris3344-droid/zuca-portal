@@ -1,14 +1,16 @@
 // frontend/src/components/CoverCropper.jsx
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FiX, FiZoomIn, FiZoomOut, FiDroplet } from "react-icons/fi";
+import {
+  FiX, FiZoomIn, FiZoomOut, FiDroplet, FiMove, FiMaximize2,
+} from "react-icons/fi";
 
 /* =========================================================
    CONFIG
    ========================================================= */
 
 const CROP_WIDTH = 500;
-const ASPECT = 1;              // square crop box
+const ASPECT = 1;
 const OUTPUT_W = 1600;
 const OUTPUT_H = 640;
 
@@ -19,7 +21,10 @@ const MIN_BLUR = 0;
 const MAX_BLUR = 80;
 const DARK_OVERLAY = 0.18;
 
-const FEATHER_RATIO = 0.1;     // 10% of canvas width gets the fade
+// Placement controls for the sharp crop inside the banner
+const MIN_PLACEMENT_SIZE = 0.3;   // 30% of banner width
+const MAX_PLACEMENT_SIZE = 1.2;   // 120% — overflow allowed
+const DEFAULT_PLACEMENT_SIZE = 0.7;
 
 export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
   const [imageUrl, setImageUrl] = useState(null);
@@ -31,11 +36,19 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
   const [blurPx, setBlurPx] = useState(DEFAULT_BLUR);
   const [previewUrl, setPreviewUrl] = useState(null);
 
+  /* Placement state — where the sharp crop sits in the banner */
+  const [placement, setPlacement] = useState({ x: 0.5, y: 0.5 }); // 0..1 normalized center
+  const [placementSize, setPlacementSize] = useState(DEFAULT_PLACEMENT_SIZE);
+
   const dragStartRef = useRef({ x: 0, y: 0 });
   const offsetRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef(1);
   const naturalSizeRef = useRef({ w: 0, h: 0 });
   const imgRef = useRef(null);
+  const previewRef = useRef(null);
+
+  const [previewDragging, setPreviewDragging] = useState(false);
+  const previewDragStartRef = useRef({ x: 0, y: 0, px: 0.5, py: 0.5 });
 
   const cropW = CROP_WIDTH;
   const cropH = Math.round(CROP_WIDTH / ASPECT);
@@ -73,7 +86,7 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
     return () => URL.revokeObjectURL(url);
   }, [imageFile, cropW, cropH]);
 
-  /* ---------- Drag ---------- */
+  /* ---------- Crop box drag ---------- */
   const handleMouseDown = (e) => {
     e.preventDefault();
     setDragging(true);
@@ -103,7 +116,6 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
 
   useEffect(() => {
     if (!dragging) return;
-
     const onMove = (e) => {
       if (e.touches) {
         const t = e.touches[0];
@@ -127,18 +139,64 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
     };
   }, [dragging, applyMove]);
 
+  /* ---------- Preview drag (place the sharp crop) ---------- */
+  const handlePreviewDragStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const t = e.touches ? e.touches[0] : e;
+    const rect = previewRef.current.getBoundingClientRect();
+
+    setPreviewDragging(true);
+    previewDragStartRef.current = {
+      x: t.clientX,
+      y: t.clientY,
+      px: placement.x,
+      py: placement.y,
+      rectW: rect.width,
+      rectH: rect.height,
+    };
+  };
+
+  useEffect(() => {
+    if (!previewDragging) return;
+
+    const onMove = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      const start = previewDragStartRef.current;
+
+      const dx = (t.clientX - start.x) / start.rectW;
+      const dy = (t.clientY - start.y) / start.rectH;
+
+      const nx = Math.max(0, Math.min(1, start.px + dx));
+      const ny = Math.max(0, Math.min(1, start.py + dy));
+
+      setPlacement({ x: nx, y: ny });
+    };
+    const onEnd = () => setPreviewDragging(false);
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [previewDragging]);
+
   /* ---------- Zoom ---------- */
   const applyZoom = (newScale, focusX, focusY) => {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newScale));
-
     const pointX = (focusX - offsetRef.current.x) / scaleRef.current;
     const pointY = (focusY - offsetRef.current.y) / scaleRef.current;
-
     const next = {
       x: focusX - pointX * clamped,
       y: focusY - pointY * clamped,
     };
-
     setScale(clamped);
     scaleRef.current = clamped;
     setOffset(next);
@@ -159,7 +217,7 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
   };
 
   /* =========================================================
-     RENDER BANNER — Feathered sharp → blurred
+     RENDER BANNER — with user-controlled placement
      ========================================================= */
   const renderBanner = useCallback(
     (forExport = false) => {
@@ -181,14 +239,8 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
 
       cropCtx.drawImage(
         imgRef.current,
-        sourceX,
-        sourceY,
-        sourceW,
-        sourceH,
-        0,
-        0,
-        cropW,
-        cropH
+        sourceX, sourceY, sourceW, sourceH,
+        0, 0, cropW, cropH
       );
 
       /* ----- 2. Compose banner ----- */
@@ -200,7 +252,7 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
       const cropRatio = cropCanvas.width / cropCanvas.height;
       const outputRatio = W / H;
 
-      /* ---- 2a. Blurred background (cover-fit, oversized) ---- */
+      /* ---- 2a. Blurred background (fills everything) ---- */
       ctx.save();
       if (blurPx > 0) ctx.filter = `blur(${(blurPx * W) / OUTPUT_W}px)`;
 
@@ -218,82 +270,25 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
       ctx.drawImage(cropCanvas, bgX, bgY, bgW, bgH);
       ctx.restore();
 
-      /* ---- 2b. Dark overlay on background ---- */
+      /* ---- 2b. Dark overlay ---- */
       ctx.fillStyle = `rgba(0, 0, 0, ${DARK_OVERLAY})`;
       ctx.fillRect(0, 0, W, H);
 
-      /* ---- 2c. Compute sharp foreground dimensions (fit inside) ---- */
-      let fgW, fgH;
-      if (cropRatio > outputRatio) {
-        fgW = W;
-        fgH = W / cropRatio;
-      } else {
-        fgH = H;
-        fgW = H * cropRatio;
-      }
+      /* ---- 2c. Sharp foreground — placed by the user ---- */
+      /*
+       * placementSize is a fraction of the banner width.
+       * placement.x/y are the normalized center position (0..1).
+       * The crop is drawn as a square sized to `placementSize * W`.
+       */
+      const fgSize = W * placementSize;
+      const fgX = placement.x * W - fgSize / 2;
+      const fgY = placement.y * H - fgSize / 2;
 
-      const fgX = (W - fgW) / 2;
-      const fgY = (H - fgH) / 2;
-
-      /* ---- 2d. Build feather mask ---- */
-      const feather = Math.round(W * FEATHER_RATIO);
-
-      const maskCanvas = document.createElement("canvas");
-      maskCanvas.width = fgW;
-      maskCanvas.height = fgH;
-      const maskCtx = maskCanvas.getContext("2d");
-
-      // Fully opaque white
-      maskCtx.fillStyle = "#ffffff";
-      maskCtx.fillRect(0, 0, fgW, fgH);
-
-      // Erase outer edges with gradients
-      maskCtx.globalCompositeOperation = "destination-out";
-
-      // Left
-      let grad = maskCtx.createLinearGradient(0, 0, feather, 0);
-      grad.addColorStop(0, "rgba(0,0,0,1)");
-      grad.addColorStop(1, "rgba(0,0,0,0)");
-      maskCtx.fillStyle = grad;
-      maskCtx.fillRect(0, 0, feather, fgH);
-
-      // Right
-      grad = maskCtx.createLinearGradient(fgW - feather, 0, fgW, 0);
-      grad.addColorStop(0, "rgba(0,0,0,0)");
-      grad.addColorStop(1, "rgba(0,0,0,1)");
-      maskCtx.fillStyle = grad;
-      maskCtx.fillRect(fgW - feather, 0, feather, fgH);
-
-      // Top
-      grad = maskCtx.createLinearGradient(0, 0, 0, feather);
-      grad.addColorStop(0, "rgba(0,0,0,1)");
-      grad.addColorStop(1, "rgba(0,0,0,0)");
-      maskCtx.fillStyle = grad;
-      maskCtx.fillRect(0, 0, fgW, feather);
-
-      // Bottom
-      grad = maskCtx.createLinearGradient(0, fgH - feather, 0, fgH);
-      grad.addColorStop(0, "rgba(0,0,0,0)");
-      grad.addColorStop(1, "rgba(0,0,0,1)");
-      maskCtx.fillStyle = grad;
-      maskCtx.fillRect(0, fgH - feather, fgW, feather);
-
-      /* ---- 2e. Apply mask to the sharp crop ---- */
-      const sharpCanvas = document.createElement("canvas");
-      sharpCanvas.width = fgW;
-      sharpCanvas.height = fgH;
-      const sharpCtx = sharpCanvas.getContext("2d");
-
-      sharpCtx.drawImage(cropCanvas, 0, 0, fgW, fgH);
-      sharpCtx.globalCompositeOperation = "destination-in";
-      sharpCtx.drawImage(maskCanvas, 0, 0);
-
-      /* ---- 2f. Composite feathered sharp layer onto the banner ---- */
-      ctx.drawImage(sharpCanvas, fgX, fgY);
+      ctx.drawImage(cropCanvas, fgX, fgY, fgSize, fgSize);
 
       return canvas;
     },
-    [cropW, cropH, blurPx]
+    [cropW, cropH, blurPx, placement, placementSize]
   );
 
   /* ---------- Live preview ---------- */
@@ -307,7 +302,7 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
     }, 80);
 
     return () => clearTimeout(id);
-  }, [imageUrl, naturalSize, offset, scale, blurPx, renderBanner]);
+  }, [imageUrl, naturalSize, offset, scale, blurPx, placement, placementSize, renderBanner]);
 
   /* ---------- Export ---------- */
   const handleUpload = async () => {
@@ -341,12 +336,18 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
     }
   };
 
+  const resetPlacement = () => {
+    setPlacement({ x: 0.5, y: 0.5 });
+    setPlacementSize(DEFAULT_PLACEMENT_SIZE);
+  };
+
   if (!imageUrl || !naturalSize.w) return null;
 
   const zoomPercent = Math.round(
     (scale / Math.min(cropW / naturalSize.w, cropH / naturalSize.h)) * 100
   );
   const blurPercent = Math.round((blurPx / MAX_BLUR) * 100);
+  const sizePercent = Math.round(placementSize * 100);
 
   return (
     <motion.div
@@ -379,21 +380,39 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           </button>
         </div>
 
-        {/* Live preview */}
+        {/* LIVE PREVIEW — draggable to place the sharp crop */}
         <div style={styles.previewSection}>
           <div style={styles.previewLabel}>
             <span style={styles.previewDot} />
-            Live preview — how it will appear
+            Live preview — drag the image to reposition
           </div>
-          <div style={styles.previewFrame}>
+          <div
+            ref={previewRef}
+            style={{
+              ...styles.previewFrame,
+              cursor: previewDragging ? "grabbing" : "grab",
+            }}
+            onMouseDown={handlePreviewDragStart}
+            onTouchStart={handlePreviewDragStart}
+          >
             {previewUrl && (
-              <img src={previewUrl} alt="Live preview" style={styles.previewImg} />
+              <img
+                src={previewUrl}
+                alt="Live preview"
+                style={styles.previewImg}
+                draggable={false}
+              />
             )}
             <div style={styles.previewAvatar} />
+            <div style={styles.dragHint}>
+              <FiMove size={12} />
+              Drag to move
+            </div>
           </div>
         </div>
 
-        {/* Crop area */}
+        {/* CROP BOX — where the user selects their square region */}
+        <div style={styles.cropAreaLabel}>Select the area you want as your cover</div>
         <div
           style={{
             ...styles.cropWrapper,
@@ -435,7 +454,7 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           <div style={{ ...styles.corner, bottom: 8, right: 8, borderBottom: "3px solid #fff", borderRight: "3px solid #fff" }} />
         </div>
 
-        {/* Zoom row */}
+        {/* CROP ZOOM */}
         <div style={styles.controlRow}>
           <button
             onClick={() => zoomSlider(scale / 1.15)}
@@ -466,14 +485,38 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           <span style={styles.controlValue}>{zoomPercent}%</span>
         </div>
 
-        {/* Blur row */}
+        {/* PLACEMENT SIZE */}
+        <div style={styles.controlRow}>
+          <span style={styles.controlBtn} aria-label="Size in banner">
+            <FiMaximize2 size={16} />
+          </span>
+          <span style={styles.controlLabel}>Size</span>
+          <input
+            type="range"
+            min={MIN_PLACEMENT_SIZE}
+            max={MAX_PLACEMENT_SIZE}
+            step={0.01}
+            value={placementSize}
+            onChange={(e) => setPlacementSize(parseFloat(e.target.value))}
+            style={styles.slider}
+          />
+          <button
+            type="button"
+            onClick={resetPlacement}
+            style={styles.resetBtn}
+            title="Reset placement"
+          >
+            Reset
+          </button>
+          <span style={styles.controlValue}>{sizePercent}%</span>
+        </div>
+
+        {/* BLUR */}
         <div style={styles.controlRow}>
           <span style={styles.controlBtn} aria-label="Blur intensity">
             <FiDroplet size={16} />
           </span>
-
           <span style={styles.controlLabel}>Blur</span>
-
           <input
             type="range"
             min={MIN_BLUR}
@@ -483,7 +526,6 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
             onChange={(e) => setBlurPx(parseFloat(e.target.value))}
             style={styles.slider}
           />
-
           <button
             type="button"
             onClick={() => setBlurPx(DEFAULT_BLUR)}
@@ -492,12 +534,11 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           >
             Reset
           </button>
-
           <span style={styles.controlValue}>{blurPercent}%</span>
         </div>
 
         <p style={styles.hint}>
-          Drag anywhere · Zoom in or out · Adjust blur
+          Crop your photo · Drag the preview to place it · Adjust size & blur
         </p>
 
         {/* Actions */}
@@ -594,9 +635,7 @@ const styles = {
   },
 
   /* ---------- Live preview ---------- */
-  previewSection: {
-    marginBottom: 18,
-  },
+  previewSection: { marginBottom: 18 },
 
   previewLabel: {
     display: "flex",
@@ -626,6 +665,8 @@ const styles = {
     overflow: "hidden",
     background: "#0f172a",
     border: "1px solid #e2e8f0",
+    touchAction: "none",
+    userSelect: "none",
   },
 
   previewImg: {
@@ -635,6 +676,7 @@ const styles = {
     height: "100%",
     objectFit: "cover",
     display: "block",
+    pointerEvents: "none",
   },
 
   previewAvatar: {
@@ -647,9 +689,36 @@ const styles = {
     background: "#ffffff",
     boxShadow: "0 0 0 4px #ffffff, 0 6px 16px rgba(0,0,0,0.25)",
     border: "2px solid #22c55e",
+    pointerEvents: "none",
+  },
+
+  dragHint: {
+    position: "absolute",
+    right: 8,
+    top: 8,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "4px 8px",
+    background: "rgba(0,0,0,0.5)",
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: 600,
+    borderRadius: 6,
+    backdropFilter: "blur(4px)",
+    pointerEvents: "none",
   },
 
   /* ---------- Crop area ---------- */
+  cropAreaLabel: {
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: "#64748b",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+
   cropWrapper: {
     position: "relative",
     margin: "0 auto",

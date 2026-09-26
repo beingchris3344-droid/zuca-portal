@@ -7,6 +7,7 @@ import logo from '../assets/zuca-logo.png';
 import BASE_URL from "../api";
 import ProfileImageCropper from '../components/ProfileImageCropper';
 import ProfileSettings from '../components/ProfileSettings';
+import CoverCropper from '../components/CoverCropper';
 
 import QRScanner from '../components/member/attendance/QRScanner';
 import { QrCode } from 'lucide-react';
@@ -91,6 +92,8 @@ function Dashboard() {
 const [profileTheme, setProfileTheme] = useState("emerald");
 const [showThemePicker, setShowThemePicker] = useState(false);
 const coverInputRef = useRef(null);
+const [pendingCoverFile, setPendingCoverFile] = useState(null);
+const [showCoverCropper, setShowCoverCropper] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState("");
@@ -1510,6 +1513,47 @@ useEffect(() => {
   setUser(stored);
 };
 
+const handleCoverCropComplete = async (croppedFile) => {
+  if (!croppedFile || !user) return;
+
+  try {
+    const token = localStorage.getItem("token");
+    const fd = new FormData();
+    fd.append("cover", croppedFile);
+
+    const res = await axios.post(
+      `${BASE_URL}/api/users/${user.id}/upload-cover`,
+      fd,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    const updated = res.data.user;
+    const url = updated.coverImage?.startsWith("http")
+      ? updated.coverImage
+      : updated.coverImage
+      ? `${BASE_URL}/${updated.coverImage}`
+      : null;
+
+    setCoverImage(url);
+    localStorage.setItem("user", JSON.stringify(updated));
+    setUser(updated);
+    setShowCoverCropper(false);
+    setPendingCoverFile(null);
+  } catch (err) {
+    console.error("Cover upload failed:", err);
+    alert(
+      err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Failed to upload cover."
+    );
+  }
+};
+
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'long',
@@ -1583,51 +1627,29 @@ useEffect(() => {
     <FiCamera size={14} />
     <span>Cover</span>
     <input
-      type="file"
-      accept="image/*"
-      hidden
-      onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file || !user) return;
+  type="file"
+  accept="image/*"
+  hidden
+  onChange={(e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
 
-        try {
-          const token = localStorage.getItem("token");
-          const fd = new FormData();
-          fd.append("cover", file);
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
 
-          const res = await axios.post(
-            `${BASE_URL}/api/users/${user.id}/upload-cover`,
-            fd,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image must be 10MB or smaller.");
+      return;
+    }
 
-          const updated = res.data.user;
-          const url = updated.coverImage?.startsWith("http")
-            ? updated.coverImage
-            : updated.coverImage
-            ? `${BASE_URL}/${updated.coverImage}`
-            : null;
+    setPendingCoverFile(file);
+    setShowCoverCropper(true);
 
-          setCoverImage(url);
-          localStorage.setItem("user", JSON.stringify(updated));
-          setUser(updated);
-        } catch (err) {
-          console.error("Cover upload failed:", err);
-          alert(
-            err.response?.data?.error ||
-              err.response?.data?.message ||
-              "Failed to upload cover."
-          );
-        } finally {
-          if (e.target) e.target.value = "";
-        }
-      }}
-    />
+    if (e.target) e.target.value = "";
+  }}
+/>
   </label>
 
   <button
@@ -3647,6 +3669,18 @@ useEffect(() => {
           
         }}
       />
+
+
+      {showCoverCropper && pendingCoverFile && (
+  <CoverCropper
+    imageFile={pendingCoverFile}
+    onCropComplete={handleCoverCropComplete}
+    onClose={() => {
+      setShowCoverCropper(false);
+      setPendingCoverFile(null);
+    }}
+  />
+)}
 
       {/* QR SCANNER MODAL */}
 {showScanner && (

@@ -6,7 +6,7 @@ import axios from "axios";
 import {
   FiSave, FiUser, FiMail, FiPhone, FiLock, FiCheckCircle,
   FiAlertCircle, FiCamera, FiTrash2, FiArrowLeft, FiShield,
-  FiEye, FiEyeOff, FiGift, FiSliders,
+  FiEye, FiEyeOff, FiGift, FiSliders, FiDroplet, FiZoomIn, FiZoomOut,
 } from "react-icons/fi";
 import BASE_URL from "../api";
 
@@ -26,46 +26,686 @@ const guiltMessages = [
 ];
 
 /* ================================================================
-   THEMES — preset gradients for the hero banner
+   THEMES
 ================================================================ */
 
 const THEMES = {
-  emerald: {
-    name: "Emerald",
-    gradient: "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
+  emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
+  sunset:   "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #be185d 100%)",
+  ocean:    "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
+  forest:   "linear-gradient(135deg, #15803d 0%, #166534 50%, #365314 100%)",
+  midnight: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
+  royal:    "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+  rose:     "linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%)",
+  amber:    "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)",
+  sky:      "linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #2563eb 100%)",
+  azure:    "linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #1e40af 100%)",
+  ice:      "linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 50%, #0ea5e9 100%)",
+  navy:     "linear-gradient(135deg, #0c4a6e 0%, #075985 50%, #1e3a8a 100%)",
+  mint:     "linear-gradient(135deg, #6ee7b7 0%, #10b981 50%, #047857 100%)",
+  lime:     "linear-gradient(135deg, #bef264 0%, #84cc16 50%, #15803d 100%)",
+  jade:     "linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #115e59 100%)",
+  sage:     "linear-gradient(135deg, #a7f3d0 0%, #4ade80 50%, #065f46 100%)",
+  violet:   "linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%)",
+  lavender: "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 50%, #7c3aed 100%)",
+  fuchsia:  "linear-gradient(135deg, #e879f9 0%, #d946ef 50%, #a21caf 100%)",
+  blush:    "linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 50%, #ec4899 100%)",
+  coral:    "linear-gradient(135deg, #fb923c 0%, #f87171 50%, #e11d48 100%)",
+  peach:    "linear-gradient(135deg, #fed7aa 0%, #fdba74 50%, #f97316 100%)",
+  gold:     "linear-gradient(135deg, #fde047 0%, #eab308 50%, #ca8a04 100%)",
+  fire:     "linear-gradient(135deg, #facc15 0%, #f97316 50%, #dc2626 100%)",
+  slate:    "linear-gradient(135deg, #64748b 0%, #475569 50%, #1e293b 100%)",
+  charcoal: "linear-gradient(135deg, #4b5563 0%, #374151 50%, #111827 100%)",
+  stone:    "linear-gradient(135deg, #d6d3d1 0%, #78716c 50%, #292524 100%)",
+  ink:      "linear-gradient(135deg, #1f2937 0%, #0f172a 50%, #000000 100%)",
+  aurora:   "linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #f43f5e 100%)",
+  twilight: "linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #f59e0b 100%)",
+  neon:     "linear-gradient(135deg, #06b6d4 0%, #f0abfc 50%, #a3e635 100%)",
+  candy:    "linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)",
+};
+
+/* ================================================================
+   COVER CROPPER CONFIG
+================================================================ */
+
+const CROP_WIDTH = 500;
+const CROP_ASPECT = 1;
+const OUTPUT_W = 1600;
+const OUTPUT_H = 640;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 6;
+const DEFAULT_BLUR = 40;
+const MIN_BLUR = 0;
+const MAX_BLUR = 80;
+const DARK_OVERLAY = 0.18;
+const FEATHER_RATIO = 0.1;
+
+/* ================================================================
+   COVER CROPPER COMPONENT
+================================================================ */
+
+function CoverCropper({ imageFile, onCropComplete, onClose }) {
+  const [imageUrl, setImageUrl] = useState(null);
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [blurPx, setBlurPx] = useState(DEFAULT_BLUR);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const scaleRef = useRef(1);
+  const naturalSizeRef = useRef({ w: 0, h: 0 });
+  const imgRef = useRef(null);
+
+  const cropW = CROP_WIDTH;
+  const cropH = Math.round(CROP_WIDTH / CROP_ASPECT);
+
+  useEffect(() => { offsetRef.current = offset; }, [offset]);
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
+  useEffect(() => { naturalSizeRef.current = naturalSize; }, [naturalSize]);
+
+  useEffect(() => {
+    if (!imageFile) return;
+    const url = URL.createObjectURL(imageFile);
+    setImageUrl(url);
+
+    const img = new Image();
+    img.onload = () => {
+      const nat = { w: img.width, h: img.height };
+      setNaturalSize(nat);
+      naturalSizeRef.current = nat;
+
+      const fitScale = Math.min(cropW / img.width, cropH / img.height);
+      setScale(fitScale);
+      scaleRef.current = fitScale;
+
+      const centered = {
+        x: (cropW - img.width * fitScale) / 2,
+        y: (cropH - img.height * fitScale) / 2,
+      };
+      setOffset(centered);
+      offsetRef.current = centered;
+    };
+    img.src = url;
+
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile, cropW, cropH]);
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setDragging(true);
+    dragStartRef.current = {
+      x: e.clientX - offsetRef.current.x,
+      y: e.clientY - offsetRef.current.y,
+    };
+  };
+
+  const handleTouchStart = (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    setDragging(true);
+    dragStartRef.current = {
+      x: t.clientX - offsetRef.current.x,
+      y: t.clientY - offsetRef.current.y,
+    };
+  };
+
+  const applyMove = (clientX, clientY) => {
+    const newX = clientX - dragStartRef.current.x;
+    const newY = clientY - dragStartRef.current.y;
+    const next = { x: newX, y: newY };
+    offsetRef.current = next;
+    setOffset(next);
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      if (e.touches) {
+        const t = e.touches[0];
+        applyMove(t.clientX, t.clientY);
+      } else {
+        applyMove(e.clientX, e.clientY);
+      }
+    };
+    const onEnd = () => setDragging(false);
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [dragging]);
+
+  const applyZoom = (newScale, focusX, focusY) => {
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newScale));
+    const pointX = (focusX - offsetRef.current.x) / scaleRef.current;
+    const pointY = (focusY - offsetRef.current.y) / scaleRef.current;
+    const next = {
+      x: focusX - pointX * clamped,
+      y: focusY - pointY * clamped,
+    };
+    setScale(clamped);
+    scaleRef.current = clamped;
+    setOffset(next);
+    offsetRef.current = next;
+  };
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const focusX = e.clientX - rect.left;
+    const focusY = e.clientY - rect.top;
+    const delta = -e.deltaY * 0.0015;
+    applyZoom(scaleRef.current * (1 + delta), focusX, focusY);
+  };
+
+  const zoomSlider = (newScale) => {
+    applyZoom(newScale, cropW / 2, cropH / 2);
+  };
+
+  const renderBanner = (forExport = false) => {
+    if (!imgRef.current || !naturalSizeRef.current.w) return null;
+
+    const W = forExport ? OUTPUT_W : 480;
+    const H = forExport ? OUTPUT_H : Math.round(480 * (OUTPUT_H / OUTPUT_W));
+
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = cropW;
+    cropCanvas.height = cropH;
+    const cropCtx = cropCanvas.getContext("2d");
+
+    const sourceX = -offsetRef.current.x / scaleRef.current;
+    const sourceY = -offsetRef.current.y / scaleRef.current;
+    const sourceW = cropW / scaleRef.current;
+    const sourceH = cropH / scaleRef.current;
+
+    cropCtx.drawImage(
+      imgRef.current,
+      sourceX, sourceY, sourceW, sourceH,
+      0, 0, cropW, cropH
+    );
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    const cropRatio = cropCanvas.width / cropCanvas.height;
+    const outputRatio = W / H;
+
+    /* 2a. Blurred background */
+    ctx.save();
+    if (blurPx > 0) ctx.filter = `blur(${(blurPx * W) / OUTPUT_W}px)`;
+
+    let bgW, bgH, bgX, bgY;
+    if (cropRatio > outputRatio) {
+      bgH = H * 1.25;
+      bgW = bgH * cropRatio;
+    } else {
+      bgW = W * 1.25;
+      bgH = bgW / cropRatio;
+    }
+    bgX = (W - bgW) / 2;
+    bgY = (H - bgH) / 2;
+
+    ctx.drawImage(cropCanvas, bgX, bgY, bgW, bgH);
+    ctx.restore();
+
+    /* 2b. Dark overlay */
+    ctx.fillStyle = `rgba(0, 0, 0, ${DARK_OVERLAY})`;
+    ctx.fillRect(0, 0, W, H);
+
+    /* 2c. Sharp foreground (fit inside) */
+    let fgW, fgH;
+    if (cropRatio > outputRatio) {
+      fgW = W;
+      fgH = W / cropRatio;
+    } else {
+      fgH = H;
+      fgW = H * cropRatio;
+    }
+    const fgX = (W - fgW) / 2;
+    const fgY = (H - fgH) / 2;
+
+    /* 2d. Feather mask */
+    const feather = Math.round(W * FEATHER_RATIO);
+
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = fgW;
+    maskCanvas.height = fgH;
+    const maskCtx = maskCanvas.getContext("2d");
+
+    maskCtx.fillStyle = "#ffffff";
+    maskCtx.fillRect(0, 0, fgW, fgH);
+    maskCtx.globalCompositeOperation = "destination-out";
+
+    let grad = maskCtx.createLinearGradient(0, 0, feather, 0);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    maskCtx.fillStyle = grad;
+    maskCtx.fillRect(0, 0, feather, fgH);
+
+    grad = maskCtx.createLinearGradient(fgW - feather, 0, fgW, 0);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,1)");
+    maskCtx.fillStyle = grad;
+    maskCtx.fillRect(fgW - feather, 0, feather, fgH);
+
+    grad = maskCtx.createLinearGradient(0, 0, 0, feather);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    maskCtx.fillStyle = grad;
+    maskCtx.fillRect(0, 0, fgW, feather);
+
+    grad = maskCtx.createLinearGradient(0, fgH - feather, 0, fgH);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,1)");
+    maskCtx.fillStyle = grad;
+    maskCtx.fillRect(0, fgH - feather, fgW, feather);
+
+    /* 2e. Apply mask */
+    const sharpCanvas = document.createElement("canvas");
+    sharpCanvas.width = fgW;
+    sharpCanvas.height = fgH;
+    const sharpCtx = sharpCanvas.getContext("2d");
+    sharpCtx.drawImage(cropCanvas, 0, 0, fgW, fgH);
+    sharpCtx.globalCompositeOperation = "destination-in";
+    sharpCtx.drawImage(maskCanvas, 0, 0);
+
+    /* 2f. Composite */
+    ctx.drawImage(sharpCanvas, fgX, fgY);
+
+    return canvas;
+  };
+
+  useEffect(() => {
+    if (!imageUrl || !naturalSize.w) return;
+    const id = setTimeout(() => {
+      const canvas = renderBanner(false);
+      if (!canvas) return;
+      setPreviewUrl(canvas.toDataURL("image/jpeg", 0.7));
+    }, 80);
+    return () => clearTimeout(id);
+  }, [imageUrl, naturalSize, offset, scale, blurPx]);
+
+  const handleUpload = () => {
+    if (!imgRef.current || uploading) return;
+    setUploading(true);
+    try {
+      const canvas = renderBanner(true);
+      if (!canvas) throw new Error("Could not render banner");
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            alert("Failed to crop image.");
+            setUploading(false);
+            return;
+          }
+          const file = new File([blob], `cover-${Date.now()}.jpg`, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          onCropComplete(file);
+        },
+        "image/jpeg",
+        0.92
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to crop image.");
+      setUploading(false);
+    }
+  };
+
+  if (!imageUrl || !naturalSize.w) return null;
+
+  const zoomPercent = Math.round(
+    (scale / Math.min(cropW / naturalSize.w, cropH / naturalSize.h)) * 100
+  );
+  const blurPercent = Math.round((blurPx / MAX_BLUR) * 100);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={cs.overlay}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !uploading) onClose();
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.96, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.96, y: 20, opacity: 0 }}
+        transition={{ type: "spring", damping: 22, stiffness: 240 }}
+        style={cs.modal}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={cs.header}>
+          <h2 style={cs.title}>Adjust your cover</h2>
+          <button onClick={onClose} style={cs.closeBtn} disabled={uploading}>
+            ✕
+          </button>
+        </div>
+
+        <div style={cs.previewSection}>
+          <div style={cs.previewLabel}>
+            <span style={cs.previewDot} />
+            Live preview — how it will appear
+          </div>
+          <div style={cs.previewFrame}>
+            {previewUrl && <img src={previewUrl} alt="preview" style={cs.previewImg} />}
+            <div style={cs.previewAvatar} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            ...cs.cropWrapper,
+            width: cropW,
+            height: cropH,
+            cursor: dragging ? "grabbing" : "grab",
+          }}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onWheel={handleWheel}
+        >
+          <img
+            ref={imgRef}
+            src={imageUrl}
+            alt="Cover preview"
+            draggable={false}
+            style={{
+              position: "absolute",
+              left: offset.x,
+              top: offset.y,
+              width: naturalSize.w * scale,
+              height: naturalSize.h * scale,
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          />
+          <div style={cs.gridOverlay}>
+            <div style={{ ...cs.gridLine, top: "33.33%", left: 0, right: 0, height: 1 }} />
+            <div style={{ ...cs.gridLine, top: "66.66%", left: 0, right: 0, height: 1 }} />
+            <div style={{ ...cs.gridLine, left: "33.33%", top: 0, bottom: 0, width: 1 }} />
+            <div style={{ ...cs.gridLine, left: "66.66%", top: 0, bottom: 0, width: 1 }} />
+          </div>
+        </div>
+
+        <div style={cs.controlRow}>
+          <button onClick={() => zoomSlider(scale / 1.15)} style={cs.controlBtn}>
+            <FiZoomOut size={18} />
+          </button>
+          <input
+            type="range"
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
+            step={0.001}
+            value={scale}
+            onChange={(e) => zoomSlider(parseFloat(e.target.value))}
+            style={cs.slider}
+          />
+          <button onClick={() => zoomSlider(scale * 1.15)} style={cs.controlBtn}>
+            <FiZoomIn size={18} />
+          </button>
+          <span style={cs.controlValue}>{zoomPercent}%</span>
+        </div>
+
+        <div style={cs.controlRow}>
+          <span style={cs.controlBtn}>
+            <FiDroplet size={16} />
+          </span>
+          <span style={cs.controlLabel}>Blur</span>
+          <input
+            type="range"
+            min={MIN_BLUR}
+            max={MAX_BLUR}
+            step={1}
+            value={blurPx}
+            onChange={(e) => setBlurPx(parseFloat(e.target.value))}
+            style={cs.slider}
+          />
+          <button
+            type="button"
+            onClick={() => setBlurPx(DEFAULT_BLUR)}
+            style={cs.resetBtn}
+          >
+            Reset
+          </button>
+          <span style={cs.controlValue}>{blurPercent}%</span>
+        </div>
+
+        <p style={cs.hint}>Drag anywhere · Zoom in or out · Adjust blur</p>
+
+        <div style={cs.actions}>
+          <button onClick={onClose} style={cs.cancelBtn} disabled={uploading}>
+            Cancel
+          </button>
+          <button
+            onClick={handleUpload}
+            disabled={uploading}
+            style={{
+              ...cs.uploadBtn,
+              opacity: uploading ? 0.7 : 1,
+              cursor: uploading ? "not-allowed" : "pointer",
+            }}
+          >
+            {uploading ? (
+              <>
+                <span style={cs.spinner} />
+                Uploading...
+              </>
+            ) : (
+              "Upload Cover"
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+const cs = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.78)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    zIndex: 1300,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
   },
-  sunset: {
-    name: "Sunset",
-    gradient: "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #be185d 100%)",
+  modal: {
+    background: "#ffffff",
+    borderRadius: 20,
+    padding: 24,
+    maxWidth: 620,
+    width: "100%",
+    maxHeight: "92vh",
+    overflowY: "auto",
+    boxShadow: "0 25px 60px -20px rgba(0, 0, 0, 0.4)",
+    boxSizing: "border-box",
   },
-  ocean: {
-    name: "Ocean",
-    gradient: "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  forest: {
-    name: "Forest",
-    gradient: "linear-gradient(135deg, #15803d 0%, #166534 50%, #365314 100%)",
+  title: { margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" },
+  closeBtn: {
+    background: "#f1f5f9",
+    border: "none",
+    borderRadius: 10,
+    width: 36,
+    height: 36,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#475569",
+    fontSize: 14,
   },
-  midnight: {
-    name: "Midnight",
-    gradient: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
+  previewSection: { marginBottom: 18 },
+  previewLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#64748b",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  royal: {
-    name: "Royal",
-    gradient: "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+  previewDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "#22c55e",
+    boxShadow: "0 0 0 3px rgba(34, 197, 94, 0.15)",
   },
-  rose: {
-    name: "Rose",
-    gradient: "linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%)",
+  previewFrame: {
+    position: "relative",
+    width: "100%",
+    aspectRatio: `${OUTPUT_W} / ${OUTPUT_H}`,
+    borderRadius: 12,
+    overflow: "hidden",
+    background: "#0f172a",
+    border: "1px solid #e2e8f0",
   },
-  amber: {
-    name: "Amber",
-    gradient: "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)",
+  previewImg: {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+  previewAvatar: {
+    position: "absolute",
+    left: "8%",
+    bottom: "-20%",
+    width: "16%",
+    aspectRatio: "1",
+    borderRadius: "50%",
+    background: "#ffffff",
+    boxShadow: "0 0 0 4px #ffffff, 0 6px 16px rgba(0,0,0,0.25)",
+    border: "2px solid #22c55e",
+  },
+  cropWrapper: {
+    position: "relative",
+    margin: "0 auto",
+    overflow: "hidden",
+    borderRadius: 14,
+    background: "#ffffff",
+    maxWidth: "100%",
+    touchAction: "none",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    boxShadow: "0 12px 40px -18px rgba(15, 23, 42, 0.4)",
+  },
+  gridOverlay: { position: "absolute", inset: 0, pointerEvents: "none" },
+  gridLine: { position: "absolute", background: "rgba(15, 23, 42, 0.15)" },
+  controlRow: { display: "flex", alignItems: "center", gap: 12, marginTop: 14 },
+  controlBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#475569",
+    flexShrink: 0,
+  },
+  controlLabel: { fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 32 },
+  controlValue: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#0f172a",
+    minWidth: 44,
+    textAlign: "right",
+  },
+  slider: { flex: 1, accentColor: "#0f172a", cursor: "pointer" },
+  resetBtn: {
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "4px 10px",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    borderRadius: 8,
+    color: "#475569",
+    cursor: "pointer",
+  },
+  hint: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    margin: "16px 0 0",
+  },
+  actions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 20,
+    paddingTop: 18,
+    borderTop: "1px solid #f1f5f9",
+  },
+  cancelBtn: {
+    padding: "10px 18px",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    cursor: "pointer",
+  },
+  uploadBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 22px",
+    background: "linear-gradient(135deg, #0f172a, #1e293b)",
+    border: "none",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#ffffff",
+    cursor: "pointer",
+    boxShadow: "0 6px 14px -6px rgba(15, 23, 42, 0.5)",
+  },
+  spinner: {
+    width: 14,
+    height: 14,
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "#fff",
+    borderRadius: "50%",
+    animation: "spin 0.6s linear infinite",
+    display: "inline-block",
   },
 };
 
 /* ================================================================
-   CREATE 16:9 PROFILE IMAGE
+   16:9 PROFILE IMAGE
 ================================================================ */
 
 const createProfileImage16x9 = (file) => {
@@ -205,18 +845,17 @@ function ProfileSettings({ user, onUserUpdate }) {
 
   const [fingerprintUpdated, setFingerprintUpdated] = useState(false);
 
-  /* ---------- COVER PHOTO + THEME ---------- */
+  /* COVER + THEME */
   const [coverImage, setCoverImage] = useState(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [pendingCoverFile, setPendingCoverFile] = useState(null);
+  const [showCoverCropper, setShowCoverCropper] = useState(false);
   const [theme, setTheme] = useState("emerald");
   const [showThemePicker, setShowThemePicker] = useState(false);
 
   const coverInputRef = useRef(null);
 
-  /* ============================================================
-     LOAD USER DATA
-  ============================================================ */
-
+  /* LOAD USER DATA */
   useEffect(() => {
     if (!user) return;
 
@@ -246,17 +885,11 @@ function ProfileSettings({ user, onUserUpdate }) {
     setCoverImage(coverUrl);
 
     const savedTheme =
-      user.profileTheme ||
-      localStorage.getItem("profileTheme") ||
-      "emerald";
-
+      user.profileTheme || localStorage.getItem("profileTheme") || "emerald";
     setTheme(savedTheme);
   }, [user]);
 
-  /* ============================================================
-     DELETE COUNTDOWN
-  ============================================================ */
-
+  /* DELETE COUNTDOWN */
   useEffect(() => {
     let timer;
     if (deleteStep === 3 && deleteCountdown > 0) {
@@ -269,26 +902,17 @@ function ProfileSettings({ user, onUserUpdate }) {
     };
   }, [deleteStep, deleteCountdown]);
 
-  /* ============================================================
-     CLOSE THEME PICKER ON OUTSIDE CLICK
-  ============================================================ */
-
+  /* CLOSE THEME PICKER */
   useEffect(() => {
     if (!showThemePicker) return;
-
     const handler = (e) => {
       const picker = e.target.closest("[data-theme-picker]");
       const trigger = e.target.closest("[data-theme-trigger]");
       if (!picker && !trigger) setShowThemePicker(false);
     };
-
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showThemePicker]);
-
-  /* ============================================================
-     HELPERS
-  ============================================================ */
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -391,14 +1015,10 @@ function ProfileSettings({ user, onUserUpdate }) {
     }
   };
 
-  /* ============================================================
-     COVER PHOTO
-  ============================================================ */
-
-  const handleCoverSelect = async (e) => {
+  /* COVER — open cropper */
+  const handleCoverSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-
     if (!file.type.startsWith("image/")) {
       setError("Please select a valid image file.");
       return;
@@ -407,15 +1027,24 @@ function ProfileSettings({ user, onUserUpdate }) {
       setError("Cover image must be 10MB or smaller.");
       return;
     }
-
     setError("");
     setSuccess("");
-    setUploadingCover(true);
+    setPendingCoverFile(file);
+    setShowCoverCropper(true);
+    if (coverInputRef.current) coverInputRef.current.value = "";
+  };
 
+  /* COVER — receive cropped file and upload */
+  const handleCoverUpload = async (croppedFile) => {
+    if (!croppedFile || !user) return;
     try {
+      setError("");
+      setSuccess("");
+      setUploadingCover(true);
+
       const token = localStorage.getItem("token");
       const fd = new FormData();
-      fd.append("cover", file);
+      fd.append("cover", croppedFile);
 
       const res = await axios.post(
         `${BASE_URL}/api/users/${user.id}/upload-cover`,
@@ -439,6 +1068,8 @@ function ProfileSettings({ user, onUserUpdate }) {
       localStorage.setItem("user", JSON.stringify(updated));
       if (onUserUpdate) onUserUpdate(updated);
 
+      setShowCoverCropper(false);
+      setPendingCoverFile(null);
       setSuccess("Cover photo updated!");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -450,7 +1081,6 @@ function ProfileSettings({ user, onUserUpdate }) {
       );
     } finally {
       setUploadingCover(false);
-      if (coverInputRef.current) coverInputRef.current.value = "";
     }
   };
 
@@ -484,10 +1114,6 @@ function ProfileSettings({ user, onUserUpdate }) {
     }
   };
 
-  /* ============================================================
-     THEME
-  ============================================================ */
-
   const handleThemeChange = async (themeId) => {
     setTheme(themeId);
     localStorage.setItem("profileTheme", themeId);
@@ -507,10 +1133,6 @@ function ProfileSettings({ user, onUserUpdate }) {
       console.warn("Theme save to backend failed (kept locally):", err);
     }
   };
-
-  /* ============================================================
-     SAVE PROFILE
-  ============================================================ */
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -582,10 +1204,6 @@ function ProfileSettings({ user, onUserUpdate }) {
     }
   };
 
-  /* ============================================================
-     DELETE ACCOUNT
-  ============================================================ */
-
   const handleDeleteAccount = async () => {
     if (deleteCountdown > 0 || deleting) return;
     setDeleting(true);
@@ -644,13 +1262,9 @@ function ProfileSettings({ user, onUserUpdate }) {
     { id: "advanced", label: "Advanced", icon: <FiSliders size={14} /> },
   ];
 
-  /* ============================================================
-     RENDER
-  ============================================================ */
-
   return (
     <div style={s.page}>
-      {/* ================= HERO BANNER ================= */}
+      {/* HERO */}
       <div style={s.hero}>
         {coverImage ? (
           <>
@@ -661,7 +1275,7 @@ function ProfileSettings({ user, onUserUpdate }) {
           <div
             style={{
               ...s.heroGradient,
-              background: THEMES[theme]?.gradient || THEMES.emerald.gradient,
+              background: THEMES[theme] || THEMES.emerald,
             }}
           />
         )}
@@ -675,7 +1289,6 @@ function ProfileSettings({ user, onUserUpdate }) {
           <FiArrowLeft size={18} />
         </button>
 
-        {/* Cover + theme controls */}
         <div style={s.heroCoverControls}>
           <label
             style={{
@@ -725,7 +1338,7 @@ function ProfileSettings({ user, onUserUpdate }) {
           )}
         </div>
 
-        {/* Theme picker popover */}
+        {/* THEME PICKER */}
         <AnimatePresence>
           {showThemePicker && (
             <motion.div
@@ -748,7 +1361,7 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </button>
               </div>
               <div style={s.themeGrid}>
-                {Object.entries(THEMES).map(([id, t]) => (
+                {Object.entries(THEMES).map(([id, gradient]) => (
                   <button
                     key={id}
                     type="button"
@@ -758,14 +1371,14 @@ function ProfileSettings({ user, onUserUpdate }) {
                     }}
                     style={{
                       ...s.themeSwatch,
-                      background: t.gradient,
+                      background: gradient,
                       outline: theme === id ? "3px solid #ffffff" : "none",
                       boxShadow:
                         theme === id
                           ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
                           : "0 2px 6px -3px rgba(0,0,0,0.3)",
                     }}
-                    title={t.name}
+                    title={id}
                   >
                     {theme === id && <span style={s.themeSwatchCheck}>✓</span>}
                   </button>
@@ -851,7 +1464,7 @@ function ProfileSettings({ user, onUserUpdate }) {
         </div>
       </div>
 
-      {/* ================= TABS ================= */}
+      {/* TABS */}
       <div style={s.tabsWrap}>
         <div style={s.tabs}>
           {tabs.map((t) => (
@@ -868,7 +1481,7 @@ function ProfileSettings({ user, onUserUpdate }) {
         </div>
       </div>
 
-      {/* ================= CONTENT ================= */}
+      {/* CONTENT */}
       <div style={s.body}>
         <div style={s.content}>
           {error && (
@@ -886,7 +1499,6 @@ function ProfileSettings({ user, onUserUpdate }) {
 
           <form onSubmit={handleSubmit} style={s.form}>
             <AnimatePresence mode="wait">
-              {/* ============ GENERAL TAB ============ */}
               {activeTab === "general" && (
                 <motion.div
                   key="general"
@@ -945,7 +1557,6 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </motion.div>
               )}
 
-              {/* ============ SECURITY TAB ============ */}
               {activeTab === "security" && (
                 <motion.div
                   key="security"
@@ -1013,7 +1624,6 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </motion.div>
               )}
 
-              {/* ============ BIRTHDAY TAB ============ */}
               {activeTab === "birthday" && (
                 <motion.div
                   key="birthday"
@@ -1033,7 +1643,6 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </motion.div>
               )}
 
-              {/* ============ ADVANCED TAB ============ */}
               {activeTab === "advanced" && (
                 <motion.div
                   key="advanced"
@@ -1295,7 +1904,7 @@ function ProfileSettings({ user, onUserUpdate }) {
         </div>
       </div>
 
-      {/* ================= FULL PROFILE IMAGE ================= */}
+      {/* FULL IMAGE */}
       <AnimatePresence>
         {showFullImage && profileImage && (
           <motion.div
@@ -1326,7 +1935,7 @@ function ProfileSettings({ user, onUserUpdate }) {
         )}
       </AnimatePresence>
 
-      {/* ================= CROPPER ================= */}
+      {/* PROFILE CROPPER */}
       <AnimatePresence>
         {showCropper && selectedImageFile && (
           <ProfileImageCropper
@@ -1336,6 +1945,22 @@ function ProfileSettings({ user, onUserUpdate }) {
               if (!uploadingImage) {
                 setShowCropper(false);
                 setSelectedImageFile(null);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* COVER CROPPER */}
+      <AnimatePresence>
+        {showCoverCropper && pendingCoverFile && (
+          <CoverCropper
+            imageFile={pendingCoverFile}
+            onCropComplete={handleCoverUpload}
+            onClose={() => {
+              if (!uploadingCover) {
+                setShowCoverCropper(false);
+                setPendingCoverFile(null);
               }
             }}
           />
@@ -1435,7 +2060,6 @@ function Actions({ onCancel, loading, label }) {
 ================================================================ */
 
 const s = {
-  /* ---------- PAGE ---------- */
   page: {
     width: "100%",
     minHeight: "100%",
@@ -1445,7 +2069,6 @@ const s = {
     paddingBottom: 40,
   },
 
-  /* ---------- HERO ---------- */
   hero: {
     position: "relative",
     background: "#0f172a",
@@ -1534,7 +2157,6 @@ const s = {
     animation: "spin 0.6s linear infinite",
   },
 
-  /* ---------- THEME PICKER ---------- */
   themePicker: {
     position: "absolute",
     top: 72,
@@ -1543,7 +2165,7 @@ const s = {
     borderRadius: 16,
     border: "1px solid #e2e8f0",
     padding: 16,
-    width: 300,
+    width: 360,
     zIndex: 5,
     boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.35)",
   },
@@ -1574,14 +2196,14 @@ const s = {
 
   themeGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 10,
+    gridTemplateColumns: "repeat(6, 1fr)",
+    gap: 8,
   },
 
   themeSwatch: {
     aspectRatio: "1",
     border: "none",
-    borderRadius: 12,
+    borderRadius: 10,
     cursor: "pointer",
     transition: "all 0.15s ease",
     display: "flex",
@@ -1592,7 +2214,7 @@ const s = {
 
   themeSwatchCheck: {
     color: "white",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 800,
     textShadow: "0 2px 4px rgba(0,0,0,0.4)",
   },
@@ -1756,7 +2378,6 @@ const s = {
     transition: "all 0.15s ease",
   },
 
-  /* ---------- TABS ---------- */
   tabsWrap: {
     maxWidth: 1100,
     margin: "-28px auto 0",
@@ -1808,10 +2429,7 @@ const s = {
     boxShadow: "0 6px 14px -6px rgba(15, 23, 42, 0.4)",
   },
 
-  /* ---------- BODY ---------- */
-  body: {
-    padding: "24px 32px 0",
-  },
+  body: { padding: "24px 32px 0" },
 
   content: {
     maxWidth: 1100,
@@ -1827,7 +2445,6 @@ const s = {
     gap: 20,
   },
 
-  /* ---------- SECTION CARD ---------- */
   section: {
     background: "#ffffff",
     border: "1px solid #e2e8f0",
@@ -1856,10 +2473,7 @@ const s = {
     flexShrink: 0,
   },
 
-  sectionHeaderText: {
-    flex: 1,
-    minWidth: 0,
-  },
+  sectionHeaderText: { flex: 1, minWidth: 0 },
 
   sectionTitle: {
     fontSize: 15,
@@ -1882,12 +2496,7 @@ const s = {
     gap: 16,
   },
 
-  /* ---------- FIELDS ---------- */
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
+  field: { display: "flex", flexDirection: "column", gap: 6 },
 
   label: {
     display: "flex",
@@ -1911,9 +2520,7 @@ const s = {
     color: "#0f172a",
   },
 
-  pwWrapper: {
-    position: "relative",
-  },
+  pwWrapper: { position: "relative" },
 
   pwInput: {
     width: "100%",
@@ -1942,7 +2549,6 @@ const s = {
     borderRadius: 8,
   },
 
-  /* ---------- BANNERS ---------- */
   errorMsg: {
     display: "flex",
     alignItems: "center",
@@ -1969,7 +2575,6 @@ const s = {
     fontWeight: 500,
   },
 
-  /* ---------- ACTIONS ---------- */
   actions: {
     display: "flex",
     gap: 12,
@@ -2014,7 +2619,6 @@ const s = {
     display: "inline-block",
   },
 
-  /* ---------- FULL IMAGE ---------- */
   fullImgOverlay: {
     position: "fixed",
     inset: 0,
@@ -2057,10 +2661,6 @@ const s = {
   },
 };
 
-/* ================================================================
-   DANGER ZONE STYLES
-================================================================ */
-
 const dz = {
   box: {
     background: "#fef2f2",
@@ -2068,14 +2668,12 @@ const dz = {
     borderRadius: 12,
     border: "1px solid #fecaca",
   },
-
   warning: {
     fontSize: 13,
     color: "#991b1b",
     margin: "0 0 12px",
     lineHeight: 1.5,
   },
-
   initialBtn: {
     display: "flex",
     alignItems: "center",
@@ -2089,7 +2687,6 @@ const dz = {
     fontWeight: 600,
     cursor: "pointer",
   },
-
   confirmBox: {
     background: "#fff",
     padding: 20,
@@ -2097,28 +2694,24 @@ const dz = {
     border: "2px solid #fecaca",
     marginTop: 12,
   },
-
   confirmTitle: {
     fontSize: 15,
     fontWeight: 700,
     color: "#1e293b",
     marginBottom: 12,
   },
-
   lossBox: {
     background: "#f0fdf4",
     padding: 14,
     borderRadius: 10,
     marginBottom: 12,
   },
-
   lossTitle: {
     fontWeight: 600,
     color: "#16a34a",
     marginBottom: 6,
     fontSize: 13,
   },
-
   lossList: {
     color: "#475569",
     fontSize: 13,
@@ -2126,20 +2719,13 @@ const dz = {
     paddingLeft: 16,
     margin: 0,
   },
-
   guiltText: {
     fontStyle: "italic",
     color: "#64748b",
     marginBottom: 14,
     fontSize: 13,
   },
-
-  btnRow: {
-    display: "flex",
-    gap: 10,
-    marginTop: 14,
-  },
-
+  btnRow: { display: "flex", gap: 10, marginTop: 14 },
   cancelBtn: {
     padding: "8px 16px",
     background: "#f1f5f9",
@@ -2149,7 +2735,6 @@ const dz = {
     cursor: "pointer",
     color: "#475569",
   },
-
   continueBtn: {
     padding: "8px 16px",
     background: "#ef4444",
@@ -2160,7 +2745,6 @@ const dz = {
     fontWeight: 600,
     cursor: "pointer",
   },
-
   select: {
     width: "100%",
     padding: "10px 14px",
@@ -2172,13 +2756,11 @@ const dz = {
     background: "#fff",
     boxSizing: "border-box",
   },
-
   typeLabel: {
     fontSize: 13,
     color: "#475569",
     marginBottom: 6,
   },
-
   typeHighlight: {
     background: "#fee2e2",
     padding: "2px 8px",
@@ -2187,7 +2769,6 @@ const dz = {
     fontWeight: 700,
     color: "#dc2626",
   },
-
   confirmInput: {
     width: "100%",
     padding: "10px 14px",

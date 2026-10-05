@@ -1,43 +1,24 @@
-import { useEffect, useState, useRef } from "react";import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import bg from "../assets/2.jpg";
-
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
-import logo from '../assets/zuca-logo.png';
 import BASE_URL from "../api";
-import ProfileImageCropper from '../components/ProfileImageCropper';
-import ProfileSettings from '../components/ProfileSettings';
-import CoverCropper from '../components/CoverCropper';
-
-import QRScanner from '../components/member/attendance/QRScanner';
-import { QrCode } from 'lucide-react';
-import { 
-  FiMessageSquare,FiBook,FiLogOut, FiCamera, FiTrash2, FiArrowRight, 
-  FiBell, FiCalendar, FiUsers, FiMusic, FiImage, FiDollarSign, 
-  FiGrid, FiSettings, FiSend, FiMail, FiPhone, FiUser, FiHome, FiUpload,
-  FiChevronRight, FiChevronLeft, FiPhoneCall,  FiAlertCircle, FiMessageCircle, FiActivity,  FiPause, FiX,
-  FiPlay,
-  FiMaximize2,
-  
-  FiCheckCircle,
-  FiClock,
-  FiVideo,
-  
-  FiBookOpen,
-  FiClipboard,
-  FiYoutube,
-  FiRefreshCw,
-  FiAlertTriangle,
-  FiXCircle,
-  FiInfo,
-  FiHeart,
-  FiSliders,
+import logo from "../assets/zuca-logo.png";
+import ProfileSettings from "../components/ProfileSettings";
+import React from "react";
+import CoverCropper from "../components/CoverCropper";
+import QRScanner from "../components/member/attendance/QRScanner";
+import { QrCode } from "lucide-react";
+import {
+  FiBell, FiRefreshCw, FiCamera, FiSliders, FiX, FiChevronRight, FiChevronLeft,
+  FiHome, FiCalendar, FiMessageCircle, FiHeart, FiMusic, FiImage, FiBook, FiGrid, 
+  FiMessageSquare, FiAlertCircle, FiSettings, FiLogOut, FiPhone, FiClock, FiMapPin,
+  FiPlay, FiPause, FiMaximize2, FiArrowRight, FiUsers, FiMoreHorizontal, FiCheck,FiUpload, FiDownload, FiShare2, FiCopy, FiTrash, FiEdit2, FiSearch, FiFilter, FiFileText,
+  FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle,
 } from "react-icons/fi";
-import { FaWhatsapp, FaPrayingHands, FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments, FaUserTie,  FaBell, FaImages, FaPhotoVideo ,FaUsers, FaCalendar, FaRegCalendar, FaThLarge, FaDonate,FaHandHoldingHeart, FaDove,FaGamepad,FaCalendarPlus,FaBook, FaUser, FaCalendarAlt, FaClock,FaMapMarker, FaSearchLocation, FaLocationArrow, FaFire, FaHandsHelping  } from "react-icons/fa";
-
+import { FaHandHoldingHeart, FaWhatsapp } from "react-icons/fa";
 import { MdWavingHand } from "react-icons/md";
-const PROFILE_THEMES = {
-  /* ===== Original 8 ===== */
+
+const THEMES = {
   emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
   sunset:   "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #be185d 100%)",
   ocean:    "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
@@ -46,12061 +27,1797 @@ const PROFILE_THEMES = {
   royal:    "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
   rose:     "linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%)",
   amber:    "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)",
-
-  /* ===== Blues ===== */
   sky:      "linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #2563eb 100%)",
   azure:    "linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #1e40af 100%)",
   ice:      "linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 50%, #0ea5e9 100%)",
   navy:     "linear-gradient(135deg, #0c4a6e 0%, #075985 50%, #1e3a8a 100%)",
-
-  /* ===== Greens ===== */
   mint:     "linear-gradient(135deg, #6ee7b7 0%, #10b981 50%, #047857 100%)",
   lime:     "linear-gradient(135deg, #bef264 0%, #84cc16 50%, #15803d 100%)",
   jade:     "linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #115e59 100%)",
   sage:     "linear-gradient(135deg, #a7f3d0 0%, #4ade80 50%, #065f46 100%)",
-
-  /* ===== Purples / Pinks ===== */
   violet:   "linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%)",
   lavender: "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 50%, #7c3aed 100%)",
   fuchsia:  "linear-gradient(135deg, #e879f9 0%, #d946ef 50%, #a21caf 100%)",
   blush:    "linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 50%, #ec4899 100%)",
-
-  /* ===== Warm tones ===== */
   coral:    "linear-gradient(135deg, #fb923c 0%, #f87171 50%, #e11d48 100%)",
   peach:    "linear-gradient(135deg, #fed7aa 0%, #fdba74 50%, #f97316 100%)",
   gold:     "linear-gradient(135deg, #fde047 0%, #eab308 50%, #ca8a04 100%)",
   fire:     "linear-gradient(135deg, #facc15 0%, #f97316 50%, #dc2626 100%)",
-
-  /* ===== Neutral / monochrome ===== */
   slate:    "linear-gradient(135deg, #64748b 0%, #475569 50%, #1e293b 100%)",
   charcoal: "linear-gradient(135deg, #4b5563 0%, #374151 50%, #111827 100%)",
   stone:    "linear-gradient(135deg, #d6d3d1 0%, #78716c 50%, #292524 100%)",
   ink:      "linear-gradient(135deg, #1f2937 0%, #0f172a 50%, #000000 100%)",
-
-  /* ===== Special effects (2-stop, dramatic) ===== */
   aurora:   "linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #f43f5e 100%)",
   twilight: "linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #f59e0b 100%)",
   neon:     "linear-gradient(135deg, #06b6d4 0%, #f0abfc 50%, #a3e635 100%)",
   candy:    "linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)",
 };
-
-function Dashboard() {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [profileImage, setProfileImage] = useState(null);
-  const [coverImage, setCoverImage] = useState(null);
-const [profileTheme, setProfileTheme] = useState("emerald");
-const [showThemePicker, setShowThemePicker] = useState(false);
-const coverInputRef = useRef(null);
-const [pendingCoverFile, setPendingCoverFile] = useState(null);
-const [showCoverCropper, setShowCoverCropper] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [greeting, setGreeting] = useState("");
-  
-  // REAL DATA STATES
-  const [announcements, setAnnouncements] = useState([]);
-  const [massPrograms, setMassPrograms] = useState([]);
-  const [activePledges, setActivePledges] = useState([]);
-  const [jumuiaInfo, setJumuiaInfo] = useState(null);
-  const [featuredGallery, setFeaturedGallery] = useState([]);
-  const [recentHymns, setRecentHymns] = useState([]);
-  const [gameInvites, setGameInvites] = useState([]);
-  const [onlineMembers, setOnlineMembers] = useState([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  
-  // ==================== ADVERTISEMENTS ====================
-const [ads, setAds] = useState([]);
-const [currentAd, setCurrentAd] = useState(0);
-const [adsLoading, setAdsLoading] = useState(true);
-
-
-  const [recentChats, setRecentChats] = useState([]);
-  const [recentNotifications, setRecentNotifications] = useState([]);
-  const [executiveTeam, setExecutiveTeam] = useState([]);
-  const [upcomingSchedules, setUpcomingSchedules] = useState([]);
-  const [todaysReading, setTodaysReading] = useState(null);
-
-  //pause
-  const [isAdPaused, setIsAdPaused] = useState(false);
-const [showFullAd, setShowFullAd] = useState(false);
-  
-  // STATS
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [totalMessages, setTotalMessages] = useState(0);
-  const [totalHymns, setTotalHymns] = useState(0);
-  const [totalMedia, setTotalMedia] = useState(0);
-  const [galleryItems, setGalleryItems] = useState(0);
-
-// Add these states if you want to show loading indicators
-const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
-const [loadingMassPrograms, setLoadingMassPrograms] = useState(true);
-const [loadingPledges, setLoadingPledges] = useState(true);
-const [loadingGallery, setLoadingGallery] = useState(true);
-const [loadingHymns, setLoadingHymns] = useState(true);
-const [loadingJumuia, setLoadingJumuia] = useState(true);
-const [loadingOnline, setLoadingOnline] = useState(true);
-const [loadingChats, setLoadingChats] = useState(true);
-const [loadingExecutive, setLoadingExecutive] = useState(true);
-const [loadingSchedules, setLoadingSchedules] = useState(true);
-const [loadingReading, setLoadingReading] = useState(true);
-const [loadingNotifications, setLoadingNotifications] = useState(true);
-const [loadingSheets, setLoadingSheets] = useState(true);
-const [loadingStats, setLoadingStats] = useState(true);
-  
-  // FINANCIAL STATS
-  const [totalPledged, setTotalPledged] = useState(0);
-  const [totalPaid, setTotalPaid] = useState(0);
-  const [totalPending, setTotalPending] = useState(0);
-  const [activeCampaigns, setActiveCampaigns] = useState(0);
-  
-  // UI STATES
-  const [selectedImageFile, setSelectedImageFile] = useState(null);
-  const [showCropper, setShowCropper] = useState(false);
-  const [showProfileSettings, setShowProfileSettings] = useState(false);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-  // New state for latest readings
-const [latestReadings, setLatestReadings] = useState([]);
-
-   //manual nav
-   const nextAd = () => {
-  setCurrentAd((prev) => (prev + 1) % ads.length);
+const PRIMARY = [
+  ["Home", FiHome, "/dashboard"], ["Events", FiCalendar, "/schedules"],
+  ["Chat", FiMessageCircle, "/chat"], ["Give", FiHeart, "/contributions"],
+  ["Hymns", FiMusic, "/hymns"], ["Gallery", FiImage, "/gallery"],
+  ["Readings", FiBook, "/mass-readings"], ["Mass programs", FiGrid, "/mass-programs"],
+];
+const tk = () => localStorage.getItem("token");
+const H = () => ({ headers: { Authorization: `Bearer ${tk()}` } });
+const money = (n) => `KES ${(n || 0).toLocaleString()}`;
+const ago = (d) => {
+  if (!d) return "";
+  const m = Math.floor((Date.now() - new Date(d)) / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+  if (m < 1440) return `${Math.floor(m / 60)} h ago`;
+  if (m < 10080) return `${Math.floor(m / 1440)} d ago`;
+  return new Date(d).toLocaleDateString();
 };
+const sameDay = (d) => new Date(d).toDateString() === new Date().toDateString();
 
-const previousAd = () => {
-  setCurrentAd(
-    (prev) => (prev - 1 + ads.length) % ads.length
+/* ---------- small shared pieces ---------- */
+function Card({ icon, title, sub, badge, to, link = "See all", children, className = "" }) {
+  const nav = useNavigate();
+  return (
+    <section className={`zd-card ${className}`}>
+      <header className="zd-ch">
+        <span className="zd-ci">{icon}</span>
+        <div className="zd-ct"><h3>{title}</h3>{sub && <p>{sub}</p>}</div>
+        {badge != null && badge !== "" && <em>{badge}</em>}
+        {to && <button onClick={() => nav(to)}>{link}</button>}
+      </header>
+      {children}
+    </section>
   );
+}
+const Sk = ({ n = 2 }) => Array.from({ length: n }).map((_, i) => <div key={i} className="zd-sk" />);
+const Empty = ({ t, s }) => <div className="zd-empty"><b>{t}</b>{s && <span>{s}</span>}</div>;
+const Row = ({ lead, title, text, meta, onClick, arrow = true }) => (
+  <div className={`zd-row ${onClick ? "click" : ""}`} onClick={onClick}>
+    {lead}
+    <div className="zd-rt"><b>{title}</b>{text && <span>{text}</span>}</div>
+    {meta && <small>{meta}</small>}
+    {arrow && onClick && <FiChevronRight />}
+  </div>
+);
+const DateBox = ({ d }) => {
+  const x = new Date(d);
+  return <div className="zd-db"><b>{x.getDate()}</b><i>{x.toLocaleString("default", { month: "short" })}</i></div>;
 };
+const Avatar = ({ p, size = 40 }) => (
+  <div className="zd-av" style={{ width: size, height: size }}>
+    {p?.profileImage ? <img src={p.profileImage} alt="" /> : <span>{(p?.fullName || p?.name || "U")[0].toUpperCase()}</span>}
+  </div>
+);
 
-  // ===== COUNTDOWN STATES =====
-  const [countdownSettings, setCountdownSettings] = useState(null);
-  const [countdownTime, setCountdownTime] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0
-  });
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
 
-  // ===== CACHING SYSTEM FOR DASHBOARD =====
-  const CACHE_KEY = 'user_dashboard_cache';
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem("user") || "null"));
+  const [cover, setCover] = useState(null);
+  const [theme, setTheme] = useState("navy");
+  const [ready, setReady] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
-  const getCachedDashboardData = () => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (!cached) return null;
-      const data = JSON.parse(cached);
-      if (Date.now() - data.timestamp < CACHE_DURATION) {
-        return data;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
+  const [events, setEvents] = useState([]);
+  const [ads, setAds] = useState([]);
+  const [sheets, setSheets] = useState([]);
+  const [ann, setAnn] = useState([]);
+  const [notifs, setNotifs] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [today, setToday] = useState(null);
+  const [readings, setReadings] = useState([]);
+  const [pledges, setPledges] = useState([]);
+  const [fin, setFin] = useState({ pledged: 0, paid: 0, pending: 0, camps: 0 });
+  const [hymns, setHymns] = useState([]);
+  const [totalHymns, setTotalHymns] = useState(0);
+  const [mass, setMass] = useState([]);
+  const [gallery, setGallery] = useState([]);
+  const [online, setOnline] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [exec, setExec] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [jumuia, setJumuia] = useState(null);
+  const [cd, setCd] = useState(null);
+  const [left, setLeft] = useState({ d: 0, h: 0, m: 0, s: 0, done: false });
 
-  const saveDashboardToCache = (data) => {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        ...data,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.error('Cache save error:', error);
-    }
-  };
+  const [adIdx, setAdIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [fullAd, setFullAd] = useState(false);
+  const [evIdx, setEvIdx] = useState(0);
+ const [rtab, setRtab] = useState("mass");
+  const [utab, setUtab] = useState("ann");
+  const [picker, setPicker] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [scanner, setScanner] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [pendingCover, setPendingCover] = useState(null);
+  const evRef = useRef(null);
 
-  const applyCachedDashboardData = (cached) => {
-    if (!cached) return false;
-    
-    console.log('📦 Loading dashboard from cache...');
-    
-    setAnnouncements(cached.announcements || []);
-    setMassPrograms(cached.massPrograms || []);
-    setActivePledges(cached.activePledges || []);
-    setJumuiaInfo(cached.jumuiaInfo || null);
-    setFeaturedGallery(cached.featuredGallery || []);
-    setRecentHymns(cached.recentHymns || []);
-    setGameInvites(cached.gameInvites || []);
-    setOnlineMembers(cached.onlineMembers || []);
-    setRecentChats(cached.recentChats || []);
-    setRecentNotifications(cached.recentNotifications || []);
-    setExecutiveTeam(cached.executiveTeam || []);
-    setUpcomingSchedules(cached.upcomingSchedules || []);
-    setTodaysReading(cached.todaysReading || null);
-    setLatestReadings(cached.latestReadings || []);
-    setTotalUsers(cached.totalUsers || 0);
-    setTotalMessages(cached.totalMessages || 0);
-    setTotalHymns(cached.totalHymns || 0);
-    setTotalMedia(cached.totalMedia || 0);
-    setGalleryItems(cached.galleryItems || 0);
-    setTotalPledged(cached.totalPledged || 0);
-    setTotalPaid(cached.totalPaid || 0);
-    setTotalPending(cached.totalPending || 0);
-    setActiveCampaigns(cached.activeCampaigns || 0);
-    setUnreadNotificationsCount(cached.unreadNotificationsCount || 0);
-    setActiveSheets(cached.activeSheets || []);
-    
-    return true;
-  };
-
-
-  //attendance states
-
-  const [activeSheets, setActiveSheets] = useState([]);
-const [checkingIn, setCheckingIn] = useState(null);
-
-const [showCountdown, setShowCountdown] = useState(true);
-const [timeRemaining, setTimeRemaining] = useState({
-  days: 0,
-  hours: 0,
-  minutes: 0,
-  seconds: 0
-});
-const [isCountdownComplete, setIsCountdownComplete] = useState(false);
-const [showScanner, setShowScanner] = useState(false);
-  
-
-
-
-
- 
-const getEventBadge = (type) => {
-  const badges = {
-    'mass': '⛪ Mass',
-    'meeting': '🤝 Meeting', 
-    'social': '🎉 Social',
-    'workshop': '🛠️ Workshop',
-    'training': '🏋️ Training',
-    'prayer': '🙏 Prayer',
-    'concert': '🎵 Concert',
-    'conference': '💼 Conference',
-    'retreat': '🧘 Retreat',
-    'default': ' Mass'
-  };
-  return badges[type?.toLowerCase()] || badges.default;
-};
-
-
-// ==================== REFRESH ALL DATA ====================
-const refreshAllData = async () => {
-  if (isRefreshing) return;
-  
-  setIsRefreshing(true);
-  console.log('🔄 Refreshing dashboard...');
-  
-  try {
+  /* ---------- load everything (same endpoints as before) ---------- */
+  const load = useCallback(async () => {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    const g = (key, url, fn, secure = true) =>
+      axios.get(`${BASE_URL}${url}`, secure ? H() : undefined)
+        .then((r) => fn(r.data))
+        .catch((e) => console.error(key, e.message))
+        .finally(() => setReady((p) => ({ ...p, [key]: true })));
+    setRefreshing(true);
     await Promise.all([
-      fetchAnnouncements(),
-      fetchMassPrograms(),
-      fetchMyPledges(),
-      fetchFeaturedGallery(),
-      fetchRecentHymns(),
-      fetchGameInvites(),
-      fetchOnlineMembers(),
-      fetchRecentChats(),
-      fetchNotifications(),
-      fetchExecutiveTeam(),
-      fetchUpcomingSchedules(),
-      fetchTodaysReading(),
-      fetchLatestReadings(),
-      fetchActiveSheets(),
-      fetchPublicStats(),
-      fetchAdvertisements(),
-      fetchActiveCampaigns(),
-      fetchJumuiaInfo(),
+      g("events", "/api/upcoming-events?limit=6", (d) => setEvents(d || [])),
+      g("ads", "/api/advertisements", (d) => setAds(Array.isArray(d) ? d : []), false),
+      g("sheets", "/api/attendance/active", (d) => setSheets(d.sheets || [])),
+      g("ann", "/api/announcements", (d) => setAnn((d || []).slice(0, 3))),
+      g("today", "/api/calendar/today", setToday, false),
+      g("readings", "/api/mass-readings?limit=2", (d) => setReadings(d.readings || [])),
+      g("pledges", "/api/my-pledges", (d) => {
+        const a = d || [];
+        setPledges(a.filter((p) => p.status !== "COMPLETED").slice(0, 3));
+        const paid = a.reduce((s, p) => s + (p.amountPaid || 0), 0);
+        const pending = a.reduce((s, p) => s + (p.pendingAmount || 0), 0);
+        setFin((f) => ({ ...f, paid, pending, pledged: paid + pending }));
+      }),
+      g("camps", "/api/contribution-types", (d) =>
+        setFin((f) => ({ ...f, camps: (d || []).filter((c) => !c.deadline || new Date(c.deadline) > new Date()).length }))),
+      g("hymns", "/api/songs?limit=3", (d) => { setHymns(d?.songs || []); setTotalHymns(d?.total || 0); }),
+      g("mass", "/api/mass-programs", (d) => setMass((d || []).filter((p) => new Date(p.date) >= new Date()).slice(0, 3))),
+      g("gallery", "/api/media/public?limit=12", (d) =>
+        setGallery((d.media || []).filter((i) => i.type === "image" || i.mediaType === "image" || i.mimeType?.startsWith("image/")).slice(0, 6))),
+      g("online", "/api/chat/online", (d) => setOnline(d || [])),
+      g("chats", "/api/chat/enhanced", (d) => setChats((d || []).slice(0, 3))),
+      g("exec", "/api/executive/team", (d) => d.success && setExec((d.executives || []).slice(0, 6)), false),
+      g("invites", "/api/games/invites", (d) => setInvites(d || [])),
+      g("cd", "/api/countdown-settings", (d) => d?.success && setCd(d.settings), false),
+      u?.id && g("notifs", `/api/notifications/${u.id}`, (d) => {
+        setNotifs((d || []).slice(0, 3));
+        setUnread((d || []).filter((n) => !n.read).length);
+      }),
+      axios.get(`${BASE_URL}/api/me`, H())
+        .then(async (r) => {
+          if (!r.data.homeJumuia) return;
+          const j = await axios.get(`${BASE_URL}/api/jumuia/${r.data.homeJumuia.id}`, H());
+          setJumuia({ name: j.data.name, leader: j.data.leaders?.[0]?.fullName || "TBA",
+            members: j.data._count?.members || 0, next: j.data.nextMeeting });
+        })
+        .catch((e) => console.error("jumuia", e.message))
+        .finally(() => setReady((p) => ({ ...p, jumuia: true }))),
     ]);
-    
-    console.log('✅ Dashboard refreshed successfully!');
-  } catch (error) {
-    console.error('❌ Error refreshing dashboard:', error);
-  } finally {
-    setIsRefreshing(false);
-  }
-};
-
-// Helper function to get notification icon
-const getNotificationIcon = (type) => {
-  const iconMap = {
-    'announcement': <FiBell size={20} />,
-    'game_invite': <FaGamepad size={20} />,
-    'program': <FiCalendar size={20} />,
-    'mass': <FiBook size={20} />,
-    'checkin': <FiCheckCircle size={20} />,
-    'message': <FiMessageCircle size={20} />,
-    'pledge': <FiDollarSign size={20} />,
-    'event': <FiCalendar size={20} />,
-    'reminder': <FiClock size={20} />,
-    'direct_message': <FiSend size={20} />,
-    'new_media': <FiImage size={20} />,
-    'media': <FiImage size={20} />,
-    'photo': <FiCamera size={20} />,
-    'video': <FiVideo size={20} />,
-    'feedback_new': <FiMessageSquare size={20} />,
-    'feedback': <FiMessageSquare size={20} />,
-    'mass_reading': <FiBookOpen size={20} />,
-    'reading': <FiBookOpen size={20} />,
-    'attendance_sheet_opened': <FiClipboard size={20} />,
-    'attendance': <FiClipboard size={20} />,
-    'youtube_new_video': <FiYoutube size={20} />,
-    'youtube': <FiYoutube size={20} />,
-    'user_login': <FiUser size={20} />,
-    'login': <FiUser size={20} />,
-    'system': <FiSettings size={20} />,
-    'update': <FiRefreshCw size={20} />,
-    'warning': <FiAlertTriangle size={20} />,
-    'error': <FiXCircle size={20} />,
-    'success': <FiCheckCircle size={20} />,
-    'info': <FiInfo size={20} />,
-    'prayer': <FiHeart size={20} />,
-    'donation': <FiHeart size={20} />,
-    'contribution': <FiDollarSign size={20} />,
-    'schedule': <FiCalendar size={20} />,
-    'hymn': <FiMusic size={20} />,
-    'song': <FiMusic size={20} />,
-    'jumuia': <FiUsers size={20} />,
-    'group': <FiUsers size={20} />,
-  };
-  
-  // Return the icon if it exists, otherwise return a default placeholder
-  return iconMap[type] || <FiBell size={20} />;
-};
-
-
-          // Add these helper functions
-const getDay = (dateString) => {
-  return new Date(dateString).getDate();
-};
-
-const getMonth = (dateString) => {
-  return new Date(dateString).toLocaleString('default', { month: 'short' }).toUpperCase();
-};
-
-const isToday = (dateString) => {
-  const today = new Date();
-  const eventDate = new Date(dateString);
-  return today.toDateString() === eventDate.toDateString();
-};
-
-  // ==================== REAL DATA FETCHING ====================
-
-  // Fetch announcements
-  const fetchAnnouncements = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/announcements`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAnnouncements((res.data || []).slice(0, 2));
-    } catch (error) {
-      console.error("Error fetching announcements:", error);
-    }
-  };
-
-
-
- // ==================== FETCH ADVERTISEMENTS INDEPENDENTLY ====================
-const fetchAdvertisements = async () => {
-  try {
-    setAdsLoading(true);
-
-    console.log("📢 Fetching advertisements independently...");
-
-    const response = await axios.get(
-      `${BASE_URL}/api/advertisements`
-    );
-
-    console.log("📢 Advertisement API response:", response.data);
-
-    // Backend returns the advertisements directly as an array
-    const realAds = Array.isArray(response.data)
-      ? response.data
-      : [];
-
-    console.log(`📢 Loaded ${realAds.length} active advertisement(s)`);
-
-    setAds(realAds);
-    setCurrentAd(0);
-
-  } catch (error) {
-    console.error(
-      "❌ Advertisement fetch failed:",
-      error.response?.status,
-      error.response?.data || error.message
-    );
-
-    setAds([]);
-    setCurrentAd(0);
-
-  } finally {
-    setAdsLoading(false);
-  }
-};
-  // Fetch active attendance sheets
-const fetchActiveSheets = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`${BASE_URL}/api/attendance/active`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    setActiveSheets(response.data.sheets || []);
-  } catch (error) {
-    console.error('Error fetching active sheets:', error);
-  }
-};
-
-// Self check-in function
-const handleSelfCheckin = async (sheetId) => {
-  setCheckingIn(sheetId);
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post(`${BASE_URL}/api/attendance/self-checkin`, {
-      sheetId,
-      deviceId: `web-${Date.now()}`,
-      deviceName: navigator.userAgent
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    alert('✅ Checked in successfully!');
-    fetchActiveSheets(); // Refresh the list
-  } catch (error) {
-    const errorMsg = error.response?.data;
-    if (errorMsg?.error === 'ALREADY_CHECKED_IN') {
-      alert('You have already checked in for this meeting');
-    } else {
-      alert(errorMsg?.message || 'Check-in failed');
-    }
-  } finally {
-    setCheckingIn(null);
-  }
-};
-
-  // Fetch mass programs
-  const fetchMassPrograms = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const now = new Date();
-      const upcoming = (res.data || [])
-        .filter(p => new Date(p.date) >= now)
-        .slice(0, 2);
-      setMassPrograms(upcoming);
-    } catch (error) {
-      console.error("Error fetching mass programs:", error);
-    }
-  };
-
-
-  // Fetch latest mass readings for dashboard
-const fetchLatestReadings = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/mass-readings?limit=2`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    setLatestReadings(res.data.readings || []);
-  } catch (error) {
-    console.error("Error fetching mass readings:", error);
-  }
-};
-
-  // Fetch my pledges
-  const fetchMyPledges = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/my-pledges`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const active = (res.data || [])
-        .filter(p => p.status !== "COMPLETED")
-        .slice(0, 2);
-      setActivePledges(active);
-      
-      // Calculate financial stats
-      const pledged = (res.data || []).reduce((sum, p) => sum + (p.amountPaid || 0) + (p.pendingAmount || 0), 0);
-      const paid = (res.data || []).reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-      const pending = (res.data || []).reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
-      setTotalPledged(pledged);
-      setTotalPaid(paid);
-      setTotalPending(pending);
-    } catch (error) {
-      console.error("Error fetching pledges:", error);
-    }
-  };
-
-  // Fetch active campaigns count
-  const fetchActiveCampaigns = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/contribution-types`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const active = (res.data || []).filter(c => {
-        if (!c.deadline) return true;
-        return new Date(c.deadline) > new Date();
-      });
-      setActiveCampaigns(active.length);
-    } catch (error) {
-      console.error("Error fetching campaigns:", error);
-    }
-  };
-
-  // Fetch jumuia info
-  const fetchJumuiaInfo = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const meRes = await axios.get(`${BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (meRes.data.homeJumuia) {
-        const jumuiaRes = await axios.get(`${BASE_URL}/api/jumuia/${meRes.data.homeJumuia.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setJumuiaInfo({
-          id: jumuiaRes.data.id,
-          name: jumuiaRes.data.name,
-          leaderName: jumuiaRes.data.leaders?.[0]?.fullName || "TBA",
-          memberCount: jumuiaRes.data._count?.members || 0,
-          nextMeeting: jumuiaRes.data.nextMeeting || null
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching jumuia:", error);
-    }
-  };
-
- // Fetch 3 random non-featured media for dashboard
-const fetchFeaturedGallery = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/media/public?limit=16`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    console.log("Gallery API response:", res.data);
-    
-    const allMedia = res.data.media || [];
-    
-    console.log("All media items:", allMedia.length);
-    
-    const imagesOnly = allMedia.filter(item => 
-      item.type === 'image' || 
-      item.mediaType === 'image' ||
-      (item.mimeType && item.mimeType.startsWith('image/'))
-    );
-    
-    console.log("Images only:", imagesOnly.length);
-    
-    const galleryToShow = imagesOnly.slice(0, 16);
-    
-    setFeaturedGallery(galleryToShow);
-    setGalleryItems(galleryToShow.length);
-    
-    console.log("Set featured gallery:", galleryToShow.length, "items");
-    
-  } catch (error) {
-    console.error("Error fetching gallery:", error);
-    setFeaturedGallery([]);
-    setGalleryItems(0);
-  }
-};
-  // Fetch recent hymns
-  const fetchRecentHymns = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/songs?limit=3`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setRecentHymns(res.data?.songs || []);
-      setTotalHymns(res.data?.total || 0);
-    } catch (error) {
-      console.error("Error fetching hymns:", error);
-    }
-  };
-
-  // Fetch game invites
-  const fetchGameInvites = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/games/invites`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setGameInvites(res.data || []);
-    } catch (error) {
-      console.error("Error fetching game invites:", error);
-    }
-  };
-
-  // Fetch online members
-  const fetchOnlineMembers = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/chat/online`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOnlineMembers(res.data || []);
-    } catch (error) {
-      console.error("Error fetching online members:", error);
-    }
-  };
-
-  // Fetch recent chat messages
-  const fetchRecentChats = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${BASE_URL}/api/chat/enhanced`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const recent = (res.data || []).slice(0, 2);
-      setRecentChats(recent);
-      setTotalMessages((res.data || []).length);
-    } catch (error) {
-      console.error("Error fetching chats:", error);
-    }
-  };
-
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const userId = user?.id;
-      if (userId) {
-        const res = await axios.get(`${BASE_URL}/api/notifications/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const unread = (res.data || []).filter(n => !n.read);
-        setUnreadNotificationsCount(unread.length);
-        setRecentNotifications((res.data || []).slice(0, 3));
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-    }
-  };
-
-  // Fetch executive team
-  const fetchExecutiveTeam = async () => {
-    try {
-      const res = await axios.get(`${BASE_URL}/api/executive/team`);
-      if (res.data.success && res.data.executives) {
-        setExecutiveTeam(res.data.executives.slice(0, 6));
-      }
-    } catch (error) {
-      console.error("Error fetching executive team:", error);
-    }
-  };
-
-  // Fetch upcoming schedules
-  const fetchUpcomingSchedules = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    setUpcomingSchedules(res.data);
-  } catch (error) {
-    console.error("Error fetching upcoming events:", error);
-  }
-};
-
-
-
-
-  // Fetch today's liturgical reading
-  const fetchTodaysReading = async () => {
-    try {
-      const res = await axios.get(`${BASE_URL}/api/calendar/today`);
-      setTodaysReading(res.data);
-    } catch (error) {
-      console.error("Error fetching reading:", error);
-    }
-  };
-
-  // Fetch system stats
-  const fetchSystemStats = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const [usersRes, mediaRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/users`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
-        axios.get(`${BASE_URL}/api/admin/media/stats`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { totalMedia: 0 } }))
-      ]);
-      setTotalUsers((usersRes.data || []).length);
-      setTotalMedia(mediaRes.data?.totalMedia || 0);
-    } catch (error) {
-      console.error("Error fetching system stats:", error);
-    }
-  };
-
-
-   
-
-
-   const fetchPublicStats = async () => {
-    try {
-      const [campaignsRes, usersRes, mediaRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/public/campaigns/count`),
-        axios.get(`${BASE_URL}/api/public/users/count`),
-        axios.get(`${BASE_URL}/api/public/media/count`)
-      ]);
-      
-      setActiveCampaigns(campaignsRes.data.count);
-      setTotalUsers(usersRes.data.count);
-      setTotalMedia(mediaRes.data.count);
-    } catch (error) {
-      console.error("Error fetching public stats:", error);
-      // Set fallback values so dashboard still shows something
-      setActiveCampaigns(0);
-      setTotalUsers(0);
-      setTotalMedia(0);
-    }
-  };
-
-  // Format relative time
-  const formatRelativeTime = (date) => {
-    if (!date) return "Unknown";
-    const now = new Date();
-    const diffMs = now - new Date(date);
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    return new Date(date).toLocaleDateString();
-  };
-
-  // Format date for mass programs
-  const formatMassDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  // Get member since months
-  const getMemberSinceMonths = () => {
-    if (!user?.createdAt) return "New";
-    const created = new Date(user.createdAt);
-    const now = new Date();
-    const months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
-    if (months < 1) return "New";
-    if (months === 1) return "1 month";
-    return `${months} months`;
-  };
-
-  // Get total paid from pledges
-  const getTotalPaidFromPledges = () => {
-    return totalPaid;
-  };
-
-  // WhatsApp link
-  const getWhatsAppLink = () => {
-    const phone = user?.phone?.replace(/[^0-9]/g, '');
-    if (!phone) return "#";
-    return `https://wa.me/${phone}`;
-  };
-
-
-  // ===== FETCH USER FROM LOCALSTORAGE IMMEDIATELY =====
-useEffect(() => {
-  const storedUser = JSON.parse(localStorage.getItem("user"));
-  if (storedUser) {
-    setUser(storedUser);
-    setProfileImage(storedUser.profileImage);
-
-    const coverUrl = storedUser.coverImage?.startsWith("http")
-      ? storedUser.coverImage
-      : storedUser.coverImage
-      ? `${BASE_URL}/${storedUser.coverImage}`
-      : null;
-    setCoverImage(coverUrl);
-
-    setProfileTheme(
-      storedUser.profileTheme ||
-        localStorage.getItem("profileTheme") ||
-        "emerald"
-    );
-  }
-  
-  const hour = new Date().getHours();
-  if (hour < 12) setGreeting("Good Morning");
-  else if (hour < 16) setGreeting("Good Afternoon");
-  else setGreeting("Good Evening");
-  
-  const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-  return () => clearInterval(timer);
-}, []);
-
-
-useEffect(() => {
-  if (!showThemePicker) return;
-  const handler = (e) => {
-    const picker = e.target.closest("[data-theme-picker]");
-    const trigger = e.target.closest("[data-theme-trigger]");
-    if (!picker && !trigger) setShowThemePicker(false);
-  };
-  document.addEventListener("mousedown", handler);
-  return () => document.removeEventListener("mousedown", handler);
-}, [showThemePicker]);
-
-// ===== LISTEN FOR ONLINE/OFFLINE =====
-useEffect(() => {
-  const handleOnline = () => {
-    console.log('📶 Device is back ONLINE - Refreshing...');
-    // Wait a moment for network to stabilize
-    setTimeout(refreshAllData, 1000);
-  };
-
-  // Listen for online event
-  window.addEventListener('online', handleOnline);
-
-  // Clean up
-  return () => {
-    window.removeEventListener('online', handleOnline);
-  };
-}, []);
-
-// ===== FETCH COUNTDOWN (Like Ads) =====
-useEffect(() => {
-  const fetchCountdown = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/countdown-settings`);
-      if (response.data?.success && response.data?.settings) {
-        setCountdownSettings(response.data.settings);
-        
-        const targetDate = new Date(response.data.settings.targetDate);
-        const now = new Date();
-        const diff = targetDate - now;
-        
-        if (diff <= 0) {
-          setIsCountdownComplete(true);
-          setShowCountdown(false);
-        } else {
-          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-          
-          setCountdownTime({ days, hours, minutes, seconds });
-          setShowCountdown(response.data.settings.isActive);
-        }
-      }
-    } catch (error) {
-      console.error("Countdown error:", error);
-    }
-  };
-  
-  fetchCountdown();
-}, []);
-
-// ===== FETCH ADVERTISEMENTS =====
-useEffect(() => {
-  const fetchAds = async () => {
-    try {
-      setAdsLoading(true);
-      const response = await axios.get(`${BASE_URL}/api/advertisements`);
-      const realAds = Array.isArray(response.data) ? response.data : [];
-      setAds(realAds);
-      setCurrentAd(0);
-    } catch (error) {
-      console.error("Ads error:", error);
-      setAds([]);
-    } finally {
-      setAdsLoading(false);
-    }
-  };
-  
-  fetchAds();
-  
-  const refreshAds = setInterval(fetchAds, 5 * 60 * 1000);
-  return () => clearInterval(refreshAds);
-}, []);
-
-// ===== FETCH ANNOUNCEMENTS (Like Ads) =====
-useEffect(() => {
-  const fetchAnnouncements = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/announcements`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAnnouncements((response.data || []).slice(0, 2));
-      setLoadingAnnouncements(false);
-    } catch (error) {
-      console.error("Announcements error:", error);
-      setLoadingAnnouncements(false);
-    }
-  };
-  
-  fetchAnnouncements();
-  const interval = setInterval(fetchAnnouncements, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH MASS PROGRAMS (Like Ads) =====
-useEffect(() => {
-  const fetchMassPrograms = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/mass-programs`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const now = new Date();
-      const upcoming = (response.data || [])
-        .filter(p => new Date(p.date) >= now)
-        .slice(0, 2);
-      setMassPrograms(upcoming);
-      setLoadingMassPrograms(false);
-    } catch (error) {
-      console.error("Mass Programs error:", error);
-      setLoadingMassPrograms(false);
-    }
-  };
-  
-  fetchMassPrograms();
-  const interval = setInterval(fetchMassPrograms, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH MY PLEDGES (Like Ads) =====
-useEffect(() => {
-  const fetchPledges = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/my-pledges`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const active = (response.data || [])
-        .filter(p => p.status !== "COMPLETED")
-        .slice(0, 2);
-      setActivePledges(active);
-      
-      const pledged = (response.data || []).reduce((sum, p) => sum + (p.amountPaid || 0) + (p.pendingAmount || 0), 0);
-      const paid = (response.data || []).reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-      const pending = (response.data || []).reduce((sum, p) => sum + (p.pendingAmount || 0), 0);
-      setTotalPledged(pledged);
-      setTotalPaid(paid);
-      setTotalPending(pending);
-      setLoadingPledges(false);
-    } catch (error) {
-      console.error("Pledges error:", error);
-      setLoadingPledges(false);
-    }
-  };
-  
-  fetchPledges();
-  const interval = setInterval(fetchPledges, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH GALLERY (Like Ads) =====
-useEffect(() => {
-  const fetchGallery = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/media/public?limit=13`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const allMedia = response.data.media || [];
-      const imagesOnly = allMedia.filter(item => 
-        item.type === 'image' || 
-        item.mediaType === 'image' ||
-        (item.mimeType && item.mimeType.startsWith('image/'))
-      );
-      setFeaturedGallery(imagesOnly.slice(0, 16));
-      setGalleryItems(imagesOnly.length);
-      setLoadingGallery(false);
-    } catch (error) {
-      console.error("Gallery error:", error);
-      setLoadingGallery(false);
-    }
-  };
-  
-  fetchGallery();
-  const interval = setInterval(fetchGallery, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH HYMNS (Like Ads) =====
-useEffect(() => {
-  const fetchHymns = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/songs?limit=3`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setRecentHymns(response.data?.songs || []);
-      setTotalHymns(response.data?.total || 0);
-      setLoadingHymns(false);
-    } catch (error) {
-      console.error("Hymns error:", error);
-      setLoadingHymns(false);
-    }
-  };
-  
-  fetchHymns();
-  const interval = setInterval(fetchHymns, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH JUMUIA (Like Ads) =====
-useEffect(() => {
-  const fetchJumuia = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const meRes = await axios.get(`${BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (meRes.data.homeJumuia) {
-        const jumuiaRes = await axios.get(`${BASE_URL}/api/jumuia/${meRes.data.homeJumuia.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setJumuiaInfo({
-          id: jumuiaRes.data.id,
-          name: jumuiaRes.data.name,
-          leaderName: jumuiaRes.data.leaders?.[0]?.fullName || "TBA",
-          memberCount: jumuiaRes.data._count?.members || 0,
-          nextMeeting: jumuiaRes.data.nextMeeting || null
-        });
-      }
-      setLoadingJumuia(false);
-    } catch (error) {
-      console.error("Jumuia error:", error);
-      setLoadingJumuia(false);
-    }
-  };
-  
-  fetchJumuia();
-  const interval = setInterval(fetchJumuia, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH ONLINE MEMBERS (Like Ads) =====
-useEffect(() => {
-  const fetchOnline = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/chat/online`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOnlineMembers(response.data || []);
-      setLoadingOnline(false);
-    } catch (error) {
-      console.error("Online members error:", error);
-      setLoadingOnline(false);
-    }
-  };
-  
-  fetchOnline();
-  const interval = setInterval(fetchOnline, 30 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH RECENT CHATS (Like Ads) =====
-useEffect(() => {
-  const fetchChats = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/chat/enhanced`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setRecentChats((response.data || []).slice(0, 2));
-      setTotalMessages((response.data || []).length);
-      setLoadingChats(false);
-    } catch (error) {
-      console.error("Chats error:", error);
-      setLoadingChats(false);
-    }
-  };
-  
-  fetchChats();
-  const interval = setInterval(fetchChats, 30 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH EXECUTIVE TEAM (Like Ads) =====
-useEffect(() => {
-  const fetchExecutive = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/executive/team`);
-      if (response.data.success && response.data.executives) {
-        setExecutiveTeam(response.data.executives.slice(0, 6));
-      }
-      setLoadingExecutive(false);
-    } catch (error) {
-      console.error("Executive error:", error);
-      setLoadingExecutive(false);
-    }
-  };
-  
-  fetchExecutive();
-  const interval = setInterval(fetchExecutive, 10 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH UPCOMING SCHEDULES (Like Ads) =====
-useEffect(() => {
-  const fetchSchedules = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/upcoming-events?limit=1`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUpcomingSchedules(response.data || []);
-      setLoadingSchedules(false);
-    } catch (error) {
-      console.error("Schedules error:", error);
-      setLoadingSchedules(false);
-    }
-  };
-  
-  fetchSchedules();
-  const interval = setInterval(fetchSchedules, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH TODAY'S READING (Like Ads) =====
-useEffect(() => {
-  const fetchReading = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/calendar/today`);
-      setTodaysReading(response.data);
-      setLoadingReading(false);
-    } catch (error) {
-      console.error("Reading error:", error);
-      setLoadingReading(false);
-    }
-  };
-  
-  fetchReading();
-  const interval = setInterval(fetchReading, 60 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH LATEST READINGS (Like Ads) =====
-useEffect(() => {
-  const fetchLatestReadings = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/mass-readings?limit=2`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setLatestReadings(response.data.readings || []);
-    } catch (error) {
-      console.error("Latest readings error:", error);
-    }
-  };
-  
-  fetchLatestReadings();
-  const interval = setInterval(fetchLatestReadings, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH NOTIFICATIONS (Like Ads) =====
-useEffect(() => {
-  const fetchNotifications = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const storedUser = JSON.parse(localStorage.getItem("user"));
-      if (storedUser?.id) {
-        const response = await axios.get(`${BASE_URL}/api/notifications/${storedUser.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const unread = (response.data || []).filter(n => !n.read);
-        setUnreadNotificationsCount(unread.length);
-        setRecentNotifications((response.data || []).slice(0, 3));
-      }
-      setLoadingNotifications(false);
-    } catch (error) {
-      console.error("Notifications error:", error);
-      setLoadingNotifications(false);
-    }
-  };
-  
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 30 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH ACTIVE ATTENDANCE SHEETS (Like Ads) =====
-useEffect(() => {
-  const fetchSheets = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/attendance/active`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setActiveSheets(response.data.sheets || []);
-      setLoadingSheets(false);
-    } catch (error) {
-      console.error("Attendance sheets error:", error);
-      setLoadingSheets(false);
-    }
-  };
-  
-  fetchSheets();
-  const interval = setInterval(fetchSheets, 30 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH SYSTEM STATS (Like Ads) =====
-useEffect(() => {
-  const fetchStats = async () => {
-    try {
-      const [usersRes, mediaRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/public/users/count`),
-        axios.get(`${BASE_URL}/api/public/media/count`)
-      ]);
-      setTotalUsers(usersRes.data.count);
-      setTotalMedia(mediaRes.data.count);
-      setLoadingStats(false);
-    } catch (error) {
-      console.error("Stats error:", error);
-      setLoadingStats(false);
-    }
-  };
-  
-  fetchStats();
-  const interval = setInterval(fetchStats, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== COUNTDOWN TIMER =====
-useEffect(() => {
-  if (!countdownSettings || !countdownSettings.isActive || isCountdownComplete) {
-    return;
-  }
-
-  const targetDate = new Date(countdownSettings.targetDate);
-  
-  const interval = setInterval(() => {
-    const now = new Date();
-    const diff = targetDate - now;
-    
-    if (diff <= 0) {
-      setIsCountdownComplete(true);
-      setShowCountdown(false);
-      clearInterval(interval);
-      return;
-    }
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-    setCountdownTime({ days, hours, minutes, seconds });
-  }, 1000);
-
-  return () => clearInterval(interval);
-}, [countdownSettings, isCountdownComplete]);
-
-// ===== ADVERTISEMENT AUTO-PLAY =====
-useEffect(() => {
-  if (ads.length <= 1 || isAdPaused) return;
-
-  const interval = setInterval(() => {
-    setCurrentAd((prev) => (prev + 1) % ads.length);
-  }, 5000);
-
-  return () => clearInterval(interval);
-}, [ads.length, isAdPaused]);
-
-// ===== GAME INVITES =====
-useEffect(() => {
-  const fetchGameInvites = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/games/invites`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setGameInvites(response.data || []);
-    } catch (error) {
-      console.error("Game invites error:", error);
-    }
-  };
-  
-  fetchGameInvites();
-  const interval = setInterval(fetchGameInvites, 30 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-// ===== FETCH ACTIVE CAMPAIGNS =====
-useEffect(() => {
-  const fetchCampaigns = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/api/contribution-types`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const active = (response.data || []).filter(c => {
-        if (!c.deadline) return true;
-        return new Date(c.deadline) > new Date();
-      });
-      setActiveCampaigns(active.length);
-    } catch (error) {
-      console.error("Campaigns error:", error);
-    }
-  };
-  
-  fetchCampaigns();
-  const interval = setInterval(fetchCampaigns, 5 * 60 * 1000);
-  return () => clearInterval(interval);
-}, []);
-
-     
-  // ===== FETCH COUNTDOWN IMMEDIATELY (SEPARATE FROM OTHER DATA) =====
-  useEffect(() => {
-    const fetchCountdownImmediately = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/api/countdown-settings`);
-        if (response.data?.success && response.data?.settings) {
-          setCountdownSettings(response.data.settings);
-          
-          const targetDate = new Date(response.data.settings.targetDate);
-          const now = new Date();
-          const diff = targetDate - now;
-          
-          if (diff <= 0) {
-            setIsCountdownComplete(true);
-            setShowCountdown(false);
-          } else {
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            setCountdownTime({ days, hours, minutes, seconds });
-            setShowCountdown(response.data.settings.isActive);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching countdown settings:", error);
-      }
-    };
-
-    fetchCountdownImmediately();
+    setRefreshing(false);
   }, []);
 
-  // ===== COUNTDOWN TIMER =====
   useEffect(() => {
-    if (!countdownSettings || !countdownSettings.isActive || isCountdownComplete) {
-      return;
+    if (user) {
+      const c = user.coverImage;
+      setCover(c ? (c.startsWith("http") ? c : `${BASE_URL}/${c}`) : null);
+      setTheme(user.profileTheme || localStorage.getItem("profileTheme") || "navy");
     }
+    load();
+    const t = setInterval(load, 60000);
+    const evs = ["newNotification", "notificationUpdate", "notificationRead", "notificationAllRead", "online"];
+    evs.forEach((e) => window.addEventListener(e, load));
+    return () => { clearInterval(t); evs.forEach((e) => window.removeEventListener(e, load)); };
+    // eslint-disable-next-line
+  }, [load]);
 
-    const targetDate = new Date(countdownSettings.targetDate);
-    
-    const interval = setInterval(() => {
-      const now = new Date();
-      const diff = targetDate - now;
-      
-      if (diff <= 0) {
-        setIsCountdownComplete(true);
-        setShowCountdown(false);
-        clearInterval(interval);
-        return;
-      }
-      
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
-      setCountdownTime({ days, hours, minutes, seconds });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [countdownSettings, isCountdownComplete]);
-
-
-// ==================== SYNC NOTIFICATIONS WITH BELL ====================
-useEffect(() => {
-  // This listens for when the bell updates notifications
-  const handleNotificationUpdate = (event) => {
-    console.log('📢 Bell updated, refreshing dashboard...');
-    fetchNotifications();
-  };
-
-  // Listen for when a single notification is marked as read
-  const handleNotificationRead = (event) => {
-    console.log('📢 Notification marked as read in bell');
-    fetchNotifications();
-  };
-
-  // Listen for when ALL notifications are marked as read
-  const handleAllRead = () => {
-    console.log('📢 All notifications marked as read in bell');
-    fetchNotifications();
-  };
-
-  // Listen for new notifications
-  const handleNewNotification = (event) => {
-    console.log('📢 New notification received:', event.detail);
-    fetchNotifications();
-  };
-
-  // Add all event listeners
-  window.addEventListener('notificationUpdate', handleNotificationUpdate);
-  window.addEventListener('notificationRead', handleNotificationRead);
-  window.addEventListener('notificationAllRead', handleAllRead);
-  window.addEventListener('newNotification', handleNewNotification);
-
-  // Clean up
-  return () => {
-    window.removeEventListener('notificationUpdate', handleNotificationUpdate);
-    window.removeEventListener('notificationRead', handleNotificationRead);
-    window.removeEventListener('notificationAllRead', handleAllRead);
-    window.removeEventListener('newNotification', handleNewNotification);
-  };
-}, [fetchNotifications]);
-
-  // Socket listeners
   useEffect(() => {
     if (!window.io || !user) return;
-    
-    const socket = window.io(BASE_URL, {
-      auth: { token: localStorage.getItem("token") }
-    });
-    
-    socket.on("connect", () => {
-      socket.emit("join", user.id);
-    });
-    
-  socket.on("new_notification", (data) => {
-  console.log('🔔 New notification received in dashboard:', data);
-  fetchNotifications(); // Refresh dashboard
-  fetchAnnouncements(); // Refresh announcements
-  
-  // Also dispatch an event so the bell knows to refresh
-  window.dispatchEvent(new CustomEvent('newNotification', {
-    detail: { notification: data }
-  }));
-});
-    
-    socket.on("new_message", () => {
-      fetchRecentChats();
-    });
-    
-    socket.on("online_members", (data) => {
-      fetchOnlineMembers();
-    });
-    
-    socket.on("game_invite_received", () => {
-      fetchGameInvites();
-    });
-    
-    return () => socket.disconnect();
-  }, [user]);
+    const s = window.io(BASE_URL, { auth: { token: tk() } });
+    s.on("connect", () => s.emit("join", user.id));
+    ["new_notification", "new_message", "online_members", "game_invite_received"].forEach((e) =>
+      s.on(e, () => { load(); if (e === "new_notification") window.dispatchEvent(new CustomEvent("newNotification")); }));
+    return () => s.disconnect();
+  }, [user, load]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    navigate("/login");
+  /* countdown */
+  useEffect(() => {
+    if (!cd?.isActive) return;
+    const tick = () => {
+      const diff = new Date(cd.targetDate) - new Date();
+      if (diff <= 0) return setLeft({ d: 0, h: 0, m: 0, s: 0, done: true });
+      setLeft({ d: Math.floor(diff / 864e5), h: Math.floor((diff % 864e5) / 36e5),
+        m: Math.floor((diff % 36e5) / 6e4), s: Math.floor((diff % 6e4) / 1e3), done: false });
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [cd]);
+
+  /* ad autoplay */
+  useEffect(() => {
+    if (ads.length < 2 || paused) return;
+    const t = setInterval(() => setAdIdx((i) => (i + 1) % ads.length), 5000);
+    return () => clearInterval(t);
+  }, [ads.length, paused]);
+
+  /* ---------- actions ---------- */
+  const logout = () => { localStorage.removeItem("user"); localStorage.removeItem("token"); navigate("/login"); };
+  const pickTheme = (id) => {
+    setTheme(id);
+    localStorage.setItem("profileTheme", id);
+    const s = { ...JSON.parse(localStorage.getItem("user") || "{}"), profileTheme: id };
+    localStorage.setItem("user", JSON.stringify(s));
+    setUser(s);
+    setPicker(false);
+  };
+  const onCover = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!f.type.startsWith("image/")) return alert("Please select an image file.");
+    if (f.size > 10 * 1024 * 1024) return alert("Image must be 10MB or smaller.");
+    setPendingCover(f);
+  };
+  const saveCover = async (file) => {
+    if (!file || !user) return;
+    try {
+      const fd = new FormData();
+      fd.append("cover", file);
+      const r = await axios.post(`${BASE_URL}/api/users/${user.id}/upload-cover`, fd, {
+        headers: { Authorization: `Bearer ${tk()}`, "Content-Type": "multipart/form-data" },
+      });
+      const u = r.data.user;
+      setCover(u.coverImage ? (u.coverImage.startsWith("http") ? u.coverImage : `${BASE_URL}/${u.coverImage}`) : null);
+      localStorage.setItem("user", JSON.stringify(u));
+      setUser(u);
+      setPendingCover(null);
+    } catch (err) {
+      alert(err.response?.data?.error || err.response?.data?.message || "Failed to upload cover.");
+    }
   };
 
-  const handleDashboardThemeChange = (themeId) => {
-  setProfileTheme(themeId);
-  localStorage.setItem("profileTheme", themeId);
-  const stored = JSON.parse(localStorage.getItem("user") || "{}");
-  stored.profileTheme = themeId;
-  localStorage.setItem("user", JSON.stringify(stored));
-  setUser(stored);
-};
 
-const handleCoverCropComplete = async (croppedFile) => {
-  if (!croppedFile || !user) return;
-
+  const removeCover = async () => {
+  if (!user) return;
+  if (!window.confirm("Remove your cover photo?")) return;
   try {
-    const token = localStorage.getItem("token");
-    const fd = new FormData();
-    fd.append("cover", croppedFile);
-
-    const res = await axios.post(
-      `${BASE_URL}/api/users/${user.id}/upload-cover`,
-      fd,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      }
-    );
-
-    const updated = res.data.user;
-    const url = updated.coverImage?.startsWith("http")
-      ? updated.coverImage
-      : updated.coverImage
-      ? `${BASE_URL}/${updated.coverImage}`
-      : null;
-
-    setCoverImage(url);
+    await axios.delete(`${BASE_URL}/api/users/${user.id}/delete-cover`, H());
+    const updated = { ...user, coverImage: null };
+    setCover(null);
     localStorage.setItem("user", JSON.stringify(updated));
     setUser(updated);
-    setShowCoverCropper(false);
-    setPendingCoverFile(null);
   } catch (err) {
-    console.error("Cover upload failed:", err);
     alert(
       err.response?.data?.error ||
-        err.response?.data?.message ||
-        "Failed to upload cover."
+      err.response?.data?.message ||
+      "Failed to remove cover."
     );
   }
 };
-
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long',
-      month: 'long', 
-      day: 'numeric',
-      year: 'numeric'
-    });
+  const slide = (dir) => {
+    const el = evRef.current;
+    if (el) el.scrollBy({ left: dir * ((el.firstChild?.offsetWidth || 300) + 12), behavior: "smooth" });
+  };
+  const onEvScroll = (e) => {
+    const el = e.currentTarget;
+    setEvIdx(Math.round(el.scrollLeft / ((el.firstChild?.offsetWidth || 300) + 12)));
   };
 
+  if (!user) return null;
 
+  const first = user.fullName?.split(" ")[0] || "Member";
+  const months = (() => {
+    if (!user.createdAt) return "New";
+    const c = new Date(user.createdAt), n = new Date();
+    const m = (n.getFullYear() - c.getFullYear()) * 12 + n.getMonth() - c.getMonth();
+    return m < 1 ? "New" : m === 1 ? "1 month" : `${m} months`;
+  })();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 16 ? "Good afternoon" : "Good evening";
+  const wa = user.phone ? `https://wa.me/${user.phone.replace(/\D/g, "")}` : "#";
+  const ad = ads[adIdx];
 
-  if (!user) {
-    return (
-      <div className="error-container">
-        
-      </div>
-    );
-  }
+  const nextEvent = events && events.length > 0
+  ? [...events].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0]
+  : null;
+
+const nextEventText = nextEvent
+  ? `ON  ${new Date(nextEvent.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} - we'll be having (${nextEvent.title}) `.toUpperCase()
+  : null;
+
+  const utility = [
+    ["Scan QR", QrCode, () => setScanner(true)],
+    ["Ask ZUCA", FiMessageSquare, () => window.dispatchEvent(new CustomEvent("openZUCAI"))],
+    ["Feedback", FiAlertCircle, () => navigate("/feedback")],
+    ["Settings", FiSettings, () => navigate("/profile-settings")],
+    ["Exit", FiLogOut, logout, true],
+  ];
+  const bottom = [["Attendance", FiUser, "/member/attendance"], ["Events", FiCalendar, "/schedules"], ["Lyrics", FiMusic, "/hymns"]];
 
   return (
-    <>
-    
+    <div className="zd">
+      {/* ===== SIDEBAR (desktop / tablet) ===== */}
+      <aside className="zd-side">
+        <div className="zd-sb-brand" onClick={() => navigate("/dashboard")}>
+          <img src={logo} alt="ZUCA" /><span>ZUCA Portal</span>
+        </div>
+        {PRIMARY.map(([l, I, to]) => (
+          <button key={l} className={pathname === to ? "on" : ""} onClick={() => navigate(to)} title={l}>
+            <I size={18} /><span>{l}</span>
+          </button>
+        ))}
+        <hr />
+        {utility.map(([l, I, f, danger]) => (
+          <button key={l} className={danger ? "danger" : ""} onClick={f} title={l}>
+            <I size={18} /><span>{l}</span>
+          </button>
+        ))}
+      </aside>
 
-      <div className="dashboard">
-        <div className="dashboard-content">
-
-{/* =========================================================
-    UNIFIED PROFILE HERO
-   ========================================================= */}
-<div className="dash-hero">
-  <div className="dash-hero-cover">
-    {coverImage ? (
-      <>
-        <img src={coverImage} alt="Cover" className="dash-hero-cover-img" />
-        <div className="dash-hero-cover-overlay" />
-      </>
-    ) : (
-      <div
-        className="dash-hero-cover-gradient"
-        style={{
-          background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
-        }}
-      />
-    )}
-
-    <button
-      onClick={refreshAllData}
-      className="dash-hero-back"
-      title="Refresh"
-      aria-label="Refresh dashboard"
-    >
-      <FiRefreshCw size={18} />
-    </button>
-
-    <div className="dash-hero-greeting">
-      <h1 className="dash-hero-greeting-title">
-        {greeting}, {user.fullName?.split(" ")[0]}{" "}
-        <span className="wave">
-          <MdWavingHand color="#ffffff" size={22} />
-        </span>
-      </h1>
-      <p className="dash-hero-greeting-date">{formatDate(currentTime)}</p>
-    </div>
-
-  <div className="dash-hero-cover-actions">
-  <label
-    className="dash-hero-cover-btn"
-    title="Upload cover photo"
-    style={{ cursor: "pointer" }}
-  >
-    <FiCamera size={14} />
-    <span>Cover</span>
-    <input
-  type="file"
-  accept="image/*"
-  hidden
-  onChange={(e) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image must be 10MB or smaller.");
-      return;
-    }
-
-    setPendingCoverFile(file);
-    setShowCoverCropper(true);
-
-    if (e.target) e.target.value = "";
-  }}
-/>
+      {/* ===== 1. HERO ===== */}
+      <div className="zd-wrap">
+        <div className="zd-hero">
+          {cover
+            ? <img className="zd-cover" src={cover} alt="Cover" />
+            : <div className="zd-cover" style={{ background: THEMES[theme] || THEMES.navy }} />}
+          <div className="zd-shade" />
+          <button className="zd-ib zd-tl" onClick={load} aria-label="Refresh">
+            <FiRefreshCw size={17} className={refreshing ? "spin" : ""} />
+          </button>
+       <div className="zd-tr">
+  <label className="zd-ib" title="Upload cover photo">
+    <FiCamera size={17} />
+    <input type="file" accept="image/*" hidden onChange={onCover} />
   </label>
-
-  <button
-    type="button"
-    data-theme-trigger
-    onClick={() => setShowThemePicker((v) => !v)}
-    className="dash-hero-cover-btn"
-    title="Choose theme"
-  >
-    <FiSliders size={14} />
-    <span>Theme</span>
+  <button className="zd-ib" onClick={() => setPicker((v) => !v)} aria-label="Choose theme">
+    <FiSliders size={17} />
   </button>
+  {cover && (
+    <button
+      className="zd-ib zd-ib-danger"
+      onClick={removeCover}
+      title="Remove cover photo"
+      aria-label="Remove cover photo"
+    >
+      <FiTrash2 size={17} />
+    </button>
+  )}
 </div>
-
-    <AnimatePresence>
-      {showThemePicker && (
-        <motion.div
-          data-theme-picker
-          initial={{ opacity: 0, y: -8, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.97 }}
-          transition={{ duration: 0.15 }}
-          className="dash-theme-picker"
-        >
-          <div className="dash-theme-picker-header">
-            <span>Choose a banner theme</span>
-            <button
-              type="button"
-              onClick={() => setShowThemePicker(false)}
-              className="dash-theme-picker-close"
-              aria-label="Close theme picker"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="dash-theme-grid">
-            {Object.entries(PROFILE_THEMES).map(([id, gradient]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  handleDashboardThemeChange(id);
-                  setShowThemePicker(false);
-                }}
-                className="dash-theme-swatch"
-                style={{
-                  background: gradient,
-                  outline: profileTheme === id ? "3px solid #ffffff" : "none",
-                  boxShadow:
-                    profileTheme === id
-                      ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
-                      : "0 2px 6px -3px rgba(0,0,0,0.3)",
-                }}
-                title={id}
-                aria-label={`Theme ${id}`}
-              >
-                {profileTheme === id && (
-                  <span className="dash-theme-check">✓</span>
-                )}
-              </button>
-            ))}
-          </div>
-          <p className="dash-theme-hint">
-            Upload a cover photo to override the theme.
-          </p>
-        </motion.div>
-      )}
-    </AnimatePresence>
-
-    <div className="dash-hero-body">
-      <div className="dash-hero-avatar-wrap">
-        <div className="dash-hero-avatar">
-          {profileImage ? (
-            <img src={profileImage} alt={user.fullName} />
-          ) : (
-            <span>{user.fullName?.charAt(0).toUpperCase() || "U"}</span>
-          )}
-        </div>
+       {picker && (
+  <div className="zd-picker">
+    <div>
+      <b>Banner theme</b>
+      <button onClick={() => setPicker(false)} aria-label="Close"><FiX /></button>
+    </div>
+    <div className="zd-sw">
+      {Object.entries(THEMES).map(([id, g]) => (
         <button
-          className="dash-hero-avatar-cam"
-          onClick={() => setShowProfileSettings(true)}
-          aria-label="Change profile photo"
-          title="Change profile photo"
+          key={id}
+          style={{
+            background: g,
+            outline: theme === id ? "3px solid #ffffff" : "none",
+            boxShadow:
+              theme === id
+                ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
+                : "0 2px 6px -3px rgba(0,0,0,0.3)",
+          }}
+          title={id}
+          onClick={() => pickTheme(id)}
         >
-          <FiCamera size={16} />
+          {theme === id && <FiCheck />}
         </button>
-      </div>
-
-      <div className="dash-hero-identity">
-        <h1 className="dash-hero-name">
-          {user.fullName?.split(" ")[0]?.toUpperCase()}
-          {"\n"}
-          {user.fullName?.split(" ").slice(1).join(" ")?.toUpperCase()}
-        </h1>
-        <p className="dash-hero-email">{user.email}</p>
-
-        <div className="dash-hero-chips">
-          <span className="dash-hero-chip">
-            {user.role?.toUpperCase() || "MEMBER"}
-          </span>
-          <span className="dash-hero-chip">
-    {user.membership_number || "Z#TEMP"}
-  </span>
-
-          {user.phone && (
-            <span className="dash-hero-chip">
-              <FiPhone size={12} /> {user.phone}
-            </span>
-          )}
-          {user.homeJumuia && (
-            <span className="dash-hero-chip">
-              <FaHandsHelping/> {user.homeJumuia.name}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <button
-        className="dash-hero-remove"
-         onClick={() => navigate("/profile-settings")}
-        title="Open Profile Settings"
-      >
-        <FiSettings size={13} />
-        <span>Manage profile and Birthday</span>
-      </button>
+      ))}
     </div>
-
-    {/* ===== Actions row ===== */}
-    <div className="dash-hero-tabs">
-      <button
-        className="dash-hero-tab dash-hero-tab-active"
-        onClick={() => navigate("/dashboard")}
-      >
-        <FiGrid size={14} />
-        <span>Dashboard</span>
-      </button>
-
-      <button
-        className="dash-hero-tab"
-        onClick={() => setShowScanner(true)}
-      >
-        <QrCode size={14} />
-        <span>Scan QR</span>
-      </button>
-
-      <button
-        className="dash-hero-tab"
-        onClick={() =>
-          window.dispatchEvent(new CustomEvent("openZUCAI"))
-        }
-      >
-        <FiMessageSquare size={14} />
-        <span>Ask ZUCA</span>
-      </button>
-
-      <button
-        className="dash-hero-tab"
-        onClick={() => navigate("/feedback")}
-      >
-        <FiAlertCircle size={14} />
-        <span>Feedback</span>
-      </button>
-
-      <button
-        className="dash-hero-tab dash-hero-tab-danger"
-        onClick={handleLogout}
-      >
-        <FiLogOut size={14} />
-        <span>Exit</span>
-      </button>
-    </div>
+    <small>Upload a cover photo to override the theme.</small>
   </div>
-</div>
-
-{/* =========================================================
-    QUICK STATS — hanging card with side hangers
-   ========================================================= */}
-<div className="dash-quickstats">
-  <span
-  className="dash-hanger dash-hanger-left"
-  aria-hidden="true"
-  style={{
-    background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
-  }}
-/>
-<span
-  className="dash-hanger dash-hanger-right"
-  aria-hidden="true"
-  style={{
-    background: PROFILE_THEMES[profileTheme] || PROFILE_THEMES.emerald,
-  }}
-/>
-
-  <div className="dash-quickstat">
-    <div className="dash-quickstat-icon"><FaCalendarAlt /></div>
-    <div className="dash-quickstat-text">
-      <span className="dash-quickstat-value">{getMemberSinceMonths()}</span>
-      <span className="dash-quickstat-label">Joined</span>
-    </div>
-  </div>
-
-  <div className="dash-quickstat-divider" />
-
-  <div className="dash-quickstat">
-    <div className="dash-quickstat-icon"><FaHandHoldingHeart /></div>
-    <div className="dash-quickstat-text">
-      <span className="dash-quickstat-value">
-        KES {getTotalPaidFromPledges().toLocaleString()}
-      </span>
-      <span className="dash-quickstat-label">Total Paid</span>
-    </div>
-  </div>
-
-  <div className="dash-quickstat-divider" />
-
-  <div className="dash-quickstat">
-    <div className="dash-quickstat-icon">
-      <FaWhatsapp color="#25D366" size={20} />
-    </div>
-    <div className="dash-quickstat-text">
-      <a
-        href={getWhatsAppLink()}
-        className="dash-quickstat-link"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Message You🫵
-      </a>
-      <span className="dash-quickstat-label">WhatsApp</span>
-    </div>
-  </div>
-</div>
-         
-
-{/* ===== DYNAMIC COUNTDOWN - FROM DATABASE ===== */}
-{countdownSettings && countdownSettings.isActive && !isCountdownComplete && (
-  <motion.div
-    initial={{ opacity: 0, y: -20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -50 }}
-    transition={{ duration: 0.5 }}
-    className="countdown-container"
-    style={{ borderLeft: `4px solid ${countdownSettings.eventColor || '#10b981'}` }}
-  >
-    <div className="countdown-content">
-      <div className="countdown-header">
-        <span className="countdown-icon">{countdownSettings.icon || '🎄'}</span>
-        <span className="countdown-title">{countdownSettings.title || 'COUNTDOWN'}</span>
-        <span className="countdown-icon">{countdownSettings.icon || '🎄'}</span>
-      </div>
-      
-      <div className="countdown-grid">
-        <div className="countdown-item">
-          <div className="countdown-number" style={{ 
-            background: countdownSettings.eventColor || '#10b981',
-            color: 'white',
-            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
-          }}>
-            {String(countdownTime.days).padStart(2, '0')}
-          </div>
-          <div className="countdown-label">Days</div>
-        </div>
-        <div className="countdown-separator">:</div>
-        <div className="countdown-item">
-          <div className="countdown-number" style={{ 
-            background: countdownSettings.eventColor || '#10b981',
-            color: 'white',
-            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
-          }}>
-            {String(countdownTime.hours).padStart(2, '0')}
-          </div>
-          <div className="countdown-label">Hours</div>
-        </div>
-        <div className="countdown-separator">:</div>
-        <div className="countdown-item">
-          <div className="countdown-number" style={{ 
-            background: countdownSettings.eventColor || '#10b981',
-            color: 'white',
-            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
-          }}>
-            {String(countdownTime.minutes).padStart(2, '0')}
-          </div>
-          <div className="countdown-label">Minutes</div>
-        </div>
-        <div className="countdown-separator">:</div>
-        <div className="countdown-item">
-          <div className="countdown-number" style={{ 
-            background: countdownSettings.eventColor || '#10b981',
-            color: 'white',
-            boxShadow: `0 4px 15px ${countdownSettings.eventColor || '#10b981'}40`
-          }}>
-            {String(countdownTime.seconds).padStart(2, '0')}
-          </div>
-          <div className="countdown-label">Seconds</div>
-        </div>
-      </div>
-
-      {countdownSettings.subtitle && (
-        <div className="countdown-event-info">
-          <span>
-            <FaCalendar color={countdownSettings.eventColor || '#10b981'} /> 
-            {countdownSettings.subtitle}
-          </span>
-        </div>
-      )}
-    </div>
-  </motion.div>
 )}
-
-{/* ==================== REAL API ADVERTISEMENT ==================== */}
-{ads.length > 0 && (
-  <div className="dashboard-ad-container">
-
-    {/* WHAT'S TRENDING — OUTSIDE IMAGE */}
-    <div className="dashboard-ad-label">
-      <span className="dashboard-ad-label-dot"></span>
-      WHAT'S TRENDING
-    </div>
-
-    <div className="dashboard-ad-wrapper">
-
-      <AnimatePresence mode="wait">
-        {ads[currentAd] && (
-          <motion.div
-            key={ads[currentAd].id}
-            className="dashboard-ad-card"
-            initial={{ opacity: 0, x: 35 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -35 }}
-            transition={{
-              duration: 0.45,
-              ease: "easeOut"
-            }}
-            onClick={() => {
-              if (ads[currentAd].link) {
-                window.location.href = ads[currentAd].link;
-              }
-            }}
-          >
-
-            {/* ================= IMAGE ================= */}
-            <div className="dashboard-ad-visual">
-
-              {ads[currentAd].image ? (
-                <img
-                  src={ads[currentAd].image}
-                  alt={
-                    ads[currentAd].title ||
-                    "Advertisement"
-                  }
-                  className="dashboard-ad-image"
-                />
-              ) : (
-                <div className="dashboard-ad-placeholder">
-                  <span>📢</span>
-                </div>
-              )}
-
-              {/* IMAGE OVERLAY */}
-              <div className="dashboard-ad-gradient"></div>
-
-            </div>
-
-
-            {/* ================= CONTENT ================= */}
-            <div className="dashboard-ad-content">
-
-              {/* SMALL LABEL */}
-              <span className="dashboard-ad-small">
-                ZETECH . UNIVERSITY . CATHOLIC . ACTION
-              </span>
-
-              {/* TITLE */}
-              {ads[currentAd].title && (
-                <h2 className="dashboard-ad-title">
-                  {ads[currentAd].title}
-                </h2>
-              )}
-
-            {/* DESCRIPTION */}
-{ads[currentAd].description && (
-  <p className="dashboard-ad-description">
-    {ads[currentAd].description}
-  </p>
-)}
-
-{/* CTA */}
-<button
-  type="button"
-  className="dashboard-ad-button"
-  onClick={(e) => {
-    e.stopPropagation();
-
-    const link = ads[currentAd]?.link;
-
-    console.log("ADVERTISEMENT LINK:", link);
-
-    if (link) {
-      window.location.href = link;
-    }
-  }}
->
-  <span>
-    {ads[currentAd]?.buttonText || "Go to Page"}
-  </span>
-
-  <FiArrowRight />
-</button>
-            </div>
-
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {ads.length > 0 && (
-  <div className="dashboard-ad-controls">
-
-    <div className="dashboard-ad-navigation">
-
-      <button
-        type="button"
-        className="dashboard-ad-nav-button"
-        onClick={previousAd}
-        aria-label="Previous advertisement"
-      >
-        <FiChevronLeft />
-      </button>
-
-      <button
-        type="button"
-        className="dashboard-ad-play-button"
-        onClick={() => setIsAdPaused((prev) => !prev)}
-        aria-label={
-          isAdPaused
-            ? "Play advertisements"
-            : "Pause advertisements"
-        }
-      >
-        {isAdPaused ? <FiPlay /> : <FiPause />}
-
-        <span>
-          {isAdPaused ? "Play" : "Pause"}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        className="dashboard-ad-nav-button"
-        onClick={nextAd}
-        aria-label="Next advertisement"
-      >
-        <FiChevronRight />
-      </button>
-
-    </div>
-
+        <div className="zd-greet">
+  <h1>{greeting}, {first} <MdWavingHand size={18} /></h1>
+  <p>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+  {nextEventText && (
     <button
       type="button"
-      className="dashboard-ad-full-button"
-      onClick={() => setShowFullAd(true)}
+      className="zd-greet-next"
+      onClick={() => navigate("/schedules")}
     >
-      <FiMaximize2 />
-      View Full Advertisement
+      <FiCalendar size={12} />
+      <span>{nextEventText}</span>
+      <FiChevronRight size={12} />
     </button>
-
-  </div>
-)}
-
-    </div>
-
-    
-
-
-    {/* ================= DOTS ================= */}
-    {ads.length > 1 && (
-      <div className="dashboard-ad-dots">
-
-        {ads.map((ad, index) => (
-          <button
-            key={ad.id}
-            type="button"
-            className={`dashboard-ad-dot ${
-              index === currentAd
-                ? "active"
-                : ""
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCurrentAd(index);
-            }}
-            aria-label={`View advertisement ${index + 1}`}
-          />
-        ))}
-
-      </div>
-    )}
-
-  </div>
-)}
-
-
-{showFullAd && ads[currentAd] && (
-  <div
-    className="dashboard-ad-modal-overlay"
-    onClick={() => setShowFullAd(false)}
-  >
-    <div
-      className="dashboard-ad-modal"
-      onClick={(e) => e.stopPropagation()}
-    >
-
-      <button
-        type="button"
-        className="dashboard-ad-modal-close"
-        onClick={() => setShowFullAd(false)}
-        aria-label="Close advertisement"
-      >
-        <FiX />
-      </button>
-
-      {ads[currentAd].image && (
-        <div className="dashboard-ad-modal-image">
-          <img
-            src={ads[currentAd].image}
-            alt={
-              ads[currentAd].title ||
-              "Advertisement"
-            }
-          />
+  )}
+</div>
         </div>
-      )}
 
-      <div className="dashboard-ad-modal-content">
+        {/* profile card */}
+        <div className="zd-prof">
+          <div className="zd-pmain">
+            <div className="zd-pav" onClick={() => setSettings(true)} title="Change profile photo">
+              {user.profileImage ? <img src={user.profileImage} alt={user.fullName} /> : <span>{first[0].toUpperCase()}</span>}
+              <i className="zd-on" /><b><FiCamera size={12} /></b>
+            </div>
+            <div className="zd-pinfo">
+              <h2>{user.fullName}</h2>
+              <p>{user.email}</p>
+              <div className="zd-chips">
+                <span>{user.role || "Member"}</span>
+                <span>{user.membership_number || "Z#TEMP"}</span>
+                {user.phone && <span><FiPhone size={11} />{user.phone}</span>}
+                {user.homeJumuia && <span><FiUsers size={11} />{user.homeJumuia.name}</span>}
+              </div>
+            </div>
+            <button
+  className="zd-pgo"
+  onClick={() => navigate("/profile-settings")}
+  aria-label="Manage profile and birthday"
+  title="Manage profile and birthday"
+>
+  <FiSettings size={14} />
+  <span>Profile &amp; Birthday</span>
+  <FiChevronRight size={14} />
+</button>
+          </div>
+          <div className="zd-stats">
+            <div><FiCalendar /><span><b>{months}</b><small>Joined</small></span></div>
+            <div><FiHeart /><span><b>{money(fin.paid)}</b><small>Total paid</small></span></div>
+            <a href={wa} target="_blank" rel="noopener noreferrer"><FaWhatsapp color="#16a34a" /><span><b>Message you</b><small>WhatsApp</small></span></a>
+          </div>
+        </div>
 
-        <span className="dashboard-ad-small">
-          ZETECH . UNIVERSITY . CATHOLIC . ACTION
-        </span>
+        {/* ===== ACTION PILLS (QR / Ask / Feedback / Exit) ===== */}
+<div className="zd-actions">
+  <button onClick={() => navigate("/dashboard")} className="zd-act on">
+    <FiGrid size={15} /><span>Dashboard</span>
+  </button>
+  <button onClick={() => setScanner(true)} className="zd-act">
+    <QrCode size={15} /><span>Scan QR</span>
+  </button>
+  <button onClick={() => window.dispatchEvent(new CustomEvent("openZUCAI"))} className="zd-act">
+    <FiMessageSquare size={15} /><span>Ask ZUCA</span>
+  </button>
+  <button onClick={() => navigate("/feedback")} className="zd-act">
+    <FiAlertCircle size={15} /><span>Feedback</span>
+  </button>
+  <button onClick={logout} className="zd-act danger">
+    <FiLogOut size={15} /><span>Exit</span>
+  </button>
+</div>
+<br/>
 
-        {ads[currentAd].title && (
-          <h2>
-            {ads[currentAd].title}
-          </h2>
-        )}
+  {/* ===== COUNTDOWN ===== */}
+            {cd?.isActive && !left.done && (
+              <div
+                className="countdown-container"
+                style={{ borderLeft: `4px solid ${cd.eventColor || "#10b981"}` }}
+              >
+                <div className="countdown-content">
+                  <div className="countdown-header">
+                    <span className="countdown-icon">{cd.icon || "🎄"}</span>
+                    <span className="countdown-title">{cd.title || "COUNTDOWN"}</span>
+                    <span className="countdown-icon">{cd.icon || "🎄"}</span>
+                  </div>
 
-        {ads[currentAd].description && (
-          <p>
-            {ads[currentAd].description}
-          </p>
-        )}
+                  <div className="countdown-grid">
+                    {[
+                      [left.d, "Days"],
+                      [left.h, "Hours"],
+                      [left.m, "Minutes"],
+                      [left.s, "Seconds"],
+                    ].map(([val, lbl], i) => (
+                      <React.Fragment key={lbl}>
+                        {i > 0 && <div className="countdown-separator">:</div>}
+                        <div className="countdown-item">
+                          <div
+                            className="countdown-number"
+                            style={{
+                              background: cd.eventColor || "#10b981",
+                              color: "#fff",
+                              boxShadow: `0 4px 15px ${cd.eventColor || "#10b981"}40`,
+                            }}
+                          >
+                            {String(val).padStart(2, "0")}
+                          </div>
+                          <div className="countdown-label">{lbl}</div>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
 
-        {ads[currentAd].buttonText && (
-          <button
-            type="button"
-            className="dashboard-ad-button"
-            onClick={() => {
-              if (ads[currentAd]?.link) {
-                window.location.href =
-                  ads[currentAd].link;
-              }
-            }}
-          >
-            <span>
-              {ads[currentAd].buttonText}
-            </span>
+                  {cd.subtitle && (
+                    <div className="countdown-event-info">
+                      <span>
+                        <FiCalendar size={14} /> {cd.subtitle}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            <FiArrowRight />
-          </button>
-        )}
-
-      </div>
-
-    </div>
-  </div>
-)}
-
-
-       
-
-
-{/* ACTIVE MEETINGS CARD */}
-{activeSheets.length > 0 && (
+        {/* ===== 2. ACTIVE MEETINGS ===== */}
+{sheets.length > 0 && (
   <div className="active-meetings-card">
     <div className="section-header">
       <div className="header-with-icon">
         <div className="header-icon-meeting"></div>
         <div>
           <h3>ACTIVE MEETINGS</h3>
-          <p className="header-subtitle">This an active meeting click to verify your attendance</p>
+          <p className="header-subtitle">This is an active meeting click to verify your attendance</p>
         </div>
       </div>
-      <div className="meeting-count-badge">{activeSheets.length} Active</div>
+      <div className="meeting-count-badge">{sheets.length} Active</div>
     </div>
 
     <div className="active-meetings-list">
-      {activeSheets.slice(0, 2).map(sheet => (
+      {sheets.slice(0, 2).map((sheet) => (
         <div key={sheet.id} className="meeting-card-active">
           <div className="meeting-status-row">
             <span className="live-indicator">● LIVE</span>
             <span className="meeting-time-sm">
-              <span className="time-icon">
-                <FaClock></FaClock></span> {sheet.eventTime || '4:30 PM'}
+              <FiClock size={12} /> {sheet.eventTime || "4:30 PM"}
             </span>
           </div>
-          
+
           <h4 className="meeting-title-sm">{sheet.title}</h4>
-          
+
           <div className="meeting-details-sm">
-            <span><span className="detail-icon"><FaCalendar></FaCalendar></span> {new Date(sheet.eventDate).toLocaleDateString()}</span>
-            <span><span className="detail-icon"><FaLocationArrow></FaLocationArrow></span> {sheet.location || 'ZUCA'}</span>
+            <span><FiCalendar size={12} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
+            <span><FiMapPin size={12} /> {sheet.location || "ZUCA"}</span>
           </div>
-          
+
           <div className="meeting-stats-sm">
-            <span className="stat-icon-sm"><FaUsers></FaUsers></span>
+            <FiUsers size={12} />
             <span>{sheet._count?.entries || 0} people checked in</span>
           </div>
-          
+
           {sheet.enableWifiCheckin && sheet.wifiSSID && (
             <div className="meeting-wifi-sm">
-              <span className="wifi-icon">📶</span>
+              <span>📶</span>
               <span>Wi-Fi: {sheet.wifiSSID}</span>
             </div>
           )}
-          
-   <button 
-  className="checkin-btn-sm"
-  onClick={() => navigate('/member/attendance')}
->
-  Let's Check In →
-</button>
+
+          <button
+            className="checkin-btn-sm"
+            onClick={() => navigate("/member/attendance")}
+          >
+            Let's Check In →
+          </button>
         </div>
       ))}
     </div>
-    
-    {activeSheets.length > 2 && (
-     <button className="view-all-meetings" onClick={() => navigate('/member/attendance')}>
-  View All {activeSheets.length} Meetings →
-</button>
-    )}
-  </div>
-)}
 
-
-       {/* TODAY'S LITURGICAL READING - PREMIUM DESIGN */}
-{todaysReading && (
-  <div className="section-card reading-premium-card">
-    <div className="reading-premium-header">
-      <div className="reading-header-icon">
-        <span className="reading-icon"><FiBook color="#ffffff" /></span>
-      </div>
-      <div className="reading-header-content">
-        <h3 className="reading-premium-title">Today's Liturgical Reading</h3>
-        <p className="reading-premium-subtitle">Daily Catholic Daily Readings</p>
-      </div>
-      <div className="reading-date-badge">
-        {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-      </div>
-    </div>
-
-    <div className="reading-premium-body">
-      <div className="reading-celebration">
-        <span className="celebration-icon"></span>
-        <span className="celebration-text">{todaysReading.celebration || "Daily Reading"}</span>
-      </div>
-
-      <div className="readings-container">
-        {todaysReading.readings?.firstReading && (
-          <div className="reading-verse-card">
-            <div className="verse-header">
-              <span className="verse-icon">✍︎</span>
-              <span className="verse-title">First Reading</span>
-            </div>
-            <div className="verse-citation">{todaysReading.readings.firstReading.citation}</div>
-            <p className="verse-preview">
-              {todaysReading.readings.firstReading.text?.substring(0, 80)}...
-            </p>
-          </div>
-        )}
-
-        {todaysReading.readings?.psalm && (
-          <div className="reading-verse-card psalm-card">
-            <div className="verse-header">
-              <span className="verse-icon">🎵</span>
-              <span className="verse-title">Responsorial Psalm</span>
-            </div>
-            <div className="verse-citation">{todaysReading.readings.psalm.citation}</div>
-          </div>
-        )}
-
-        {todaysReading.readings?.secondReading && (
-          <div className="reading-verse-card">
-            <div className="verse-header">
-              <span className="verse-icon"><FaBook /></span>
-              <span className="verse-title">Second Reading</span>
-            </div>
-            <div className="verse-citation">{todaysReading.readings.secondReading.citation}</div>
-          </div>
-        )}
-
-        {todaysReading.readings?.gospel && (
-          <div className="reading-verse-card gospel-card">
-            <div className="verse-header">
-              <span className="verse-icon">𓆩♱𓆪</span>
-              <span className="verse-title">Holy Gospel</span>
-            </div>
-            <div className="verse-citation">{todaysReading.readings.gospel.citation}</div>
-            <p className="verse-preview">
-              {todaysReading.readings.gospel.text?.substring(0, 100)}...
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="reading-premium-footer">
-        <button className="reading-full-btn" onClick={() => navigate(`/liturgical-calendar`)}>
-          <span>Read Full Readings</span>
-          <FiArrowRight className="btn-arrow-icon" />
-        </button>
-        <div className="reading-footer-note">
-          <span><FiCalendar /> {new Date().getFullYear()}</span>
-          <span></span>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-
-   {/* UPCOMING SCHEDULED EVENTS - PREMIUM DESIGN */}
-<div className="section-card schedules-section">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-calendar"><FaCalendarPlus size={28} color="#141313" /></div>
-      <div>
-        
-       <h3 className="section-title">Upcoming ZUCA Scheduled Events</h3>
-        <p className="header-subtitle">ZUCA indoor and out door activities</p>
-      </div>
-    </div>
-    {upcomingSchedules.length > 0 && (
-      <div className="total-badge schedule-badge">
-        {upcomingSchedules.length} {upcomingSchedules.length === 1 ? 'Event' : 'Events'}
-      </div>
-    )}
-  </div>
-
- <div className="events-timeline">
-  {loadingSchedules ? (
-    <>
-      <div className="skeleton-schedule-item">
-        <div className="skeleton skeleton-schedule-date"></div>
-        <div className="skeleton-schedule-content">
-          <div className="skeleton skeleton-schedule-title"></div>
-          <div className="skeleton-schedule-details">
-            <div className="skeleton skeleton-schedule-chip"></div>
-            <div className="skeleton skeleton-schedule-chip"></div>
-          </div>
-          <div className="skeleton skeleton-schedule-description"></div>
-        </div>
-      </div>
-    </>
-  ) : upcomingSchedules.length === 0 ? (
-    <div className="empty-state-calendar">
-      <div className="calendar-icon"><FaCalendar /></div>
-      <p>No upcoming events</p>
-      <span>Check back soon for new schedules</span>
-    </div>
-  ) : (
-    upcomingSchedules.slice(0, 2).map((event, index) => (
-      <div key={event.id} className="event-card-premium">
-        {index !== upcomingSchedules.length - 1 && (
-          <div className="timeline-connector-dash"></div>
-        )}
-        
-        <div className="event-date-premium">
-          <div className="date-card">
-            <div className="date-day-number">
-              {new Date(event.eventDate).getDate()}
-            </div>
-            <div className="date-month-year">
-              {new Date(event.eventDate).toLocaleString('default', { month: 'short' }).toUpperCase()}
-              <span className="date-year">
-                {new Date(event.eventDate).getFullYear()}
-              </span>
-            </div>
-          </div>
-          {isToday(event.eventDate) && (
-            <div className="today-flare">TODAY</div>
-          )}
-        </div>
-
-        <div className="event-content-premium">
-          <div className="event-header-premium">
-            <h4 className="event-title-premium">{event.title}</h4>
-            <div className="event-type-badge">
-              {getEventBadge(event.type)}
-            </div>
-          </div>
-
-          <div className="event-details-premium">
-            <div className="detail-chip">
-              <span className="chip-icon"><FaClock /></span>
-              <span>{event.eventTime || "Time TBA"}</span>
-            </div>
-            <div className="detail-chip">
-              <span className="chip-icon"><FaMapMarker /></span>
-              <span>{event.location || "Venue TBD"}</span>
-            </div>
-            {event.duration && (
-              <div className="detail-chip">
-                <span className="chip-icon"><FaStopwatch /></span>
-                <span>{event.duration}</span>
-              </div>
-            )}
-          </div>
-
-          {event.description && (
-            <p className="event-description-premium">
-              {event.description.length > 100 
-                ? `${event.description.substring(0, 100)}...` 
-                : event.description}
-            </p>
-          )}
-
-          <div className="event-footer-premium">
-            <div className="event-organizer">
-              <span className="organizer-icon"><FaUser /></span>
-              <span>{event.organizer || "ZUCA Community"}</span>
-            </div>
-            <button 
-              className="event-details-btn"
-              onClick={() => navigate(`/schedules`)}
-            >
-              View Details
-              <FiChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-        
-        <div className={`event-status-indicator ${isToday(event.eventDate) ? 'status-today' : 'status-upcoming'}`}>
-          {isToday(event.eventDate) ? ' Live' : ' Scheduled'}
-        </div>
-      </div>
-    ))
-  )}
-</div>
-
-  <button className="view-all-schedules" onClick={() => navigate("/schedules")}>
-    <span>Browse All Events</span>
-    <FiArrowRight className="button-arrow-icon" />
-  </button>
-</div>
-
-
-
-{/* MASS READINGS - DASHBOARD CARD */}
-<div className="section-card readings-dashboard-card">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-reading"><FaBook color="#000000" /></div>
-      <div>
-       <h2 className="section-title">Mass Readings</h2>
-        <p className="header-subtitle">Readings for mass</p>
-      </div>
-    </div>
-    <button className="view-all-readings-btn" onClick={() => navigate("/mass-readings")}>
-      View All →
-    </button>
-  </div>
-
-  <div className="readings-dashboard-list">
-  {loadingReading ? (
-    <>
-      <div className="skeleton-reading-item">
-        <div className="skeleton skeleton-reading-date"></div>
-        <div className="skeleton-reading-content">
-          <div className="skeleton skeleton-reading-title"></div>
-          <div className="skeleton skeleton-reading-desc"></div>
-          <div className="skeleton skeleton-reading-meta"></div>
-        </div>
-      </div>
-      <div className="skeleton-reading-item">
-        <div className="skeleton skeleton-reading-date"></div>
-        <div className="skeleton-reading-content">
-          <div className="skeleton skeleton-reading-title"></div>
-          <div className="skeleton skeleton-reading-desc"></div>
-          <div className="skeleton skeleton-reading-meta"></div>
-        </div>
-      </div>
-    </>
-  ) : latestReadings.length === 0 ? (
-    <div className="empty-state-reading">
-      <span><FaBook /></span>
-      <p>No readings available</p>
-      <span className="empty-sub">Check back later for daily readings</span>
-    </div>
-  ) : (
-    latestReadings.map((reading) => (
-      <motion.div
-        key={reading.id}
-        className="reading-dash-item"
-        onClick={() => navigate(`/mass-readings/${reading.id}`)}
-        whileHover={{ x: 5 }}
-        transition={{ type: "spring", stiffness: 300 }}
+    {sheets.length > 2 && (
+      <button
+        className="view-all-meetings"
+        onClick={() => navigate("/member/attendance")}
       >
-        <div className="reading-dash-date">
-          <span className="dash-date-day">{new Date(reading.date).getDate()}</span>
-          <span className="dash-date-month">{new Date(reading.date).toLocaleString('default', { month: 'short' })}</span>
-        </div>
-        <div className="reading-dash-content">
-          <h4>{reading.title}</h4>
-          <p>{reading.description || 'Mass Readings'}</p>
-          <div className="reading-dash-meta">
-            <span className="reading-dash-files">
-              {reading.attachments?.length || 0} files
-            </span>
-            <span className="reading-dash-date-text">
-              {new Date(reading.date).toLocaleDateString()}
-            </span>
-          </div>
-        </div>
-        <div className="reading-dash-arrow">→</div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="upload-reading-btn" onClick={() => navigate("/mass-readings/upload")}>
-    <FiUpload size={16} />
-    Upload New Reading
-  </button>
-</div>
-
-
-
-
-{/* Online Members Section */}
-<div className="online-section-premium">
-  <div className="online-header-premium">
-    <span className="online-title-premium"><FaUsers></FaUsers> Online Members</span>
-    <span className="online-count">{onlineMembers.length}</span>
+        View All {sheets.length} Meetings →
+      </button>
+    )}
   </div>
-  
-  {loadingOnline ? (
-    <div className="skeleton-online-grid">
-      {[1,2,3,4,5,6].map(i => (
-        <div key={i} className="skeleton-online-item">
-          <div className="skeleton skeleton-online-avatar"></div>
-          <div className="skeleton skeleton-online-name"></div>
-        </div>
-      ))}
-    </div>
-  ) : onlineMembers.length === 0 ? (
-    <div className="empty-online-state">
-      <span className="empty-online-icon"><FaUser /></span>
-      <p>No one is online right now</p>
-      <span className="empty-online-sub">Check back later</span>
-    </div>
-  ) : (
-    <div className="online-members-grid">
-      {onlineMembers.map((member, index) => (                 // ✅ NO SLICE - SHOWS ALL
-        <motion.div
-          key={member.id}
-          className="online-member-premium"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: Math.min(index * 0.05, 0.5) }}   // ✅ Cap delay so 100 users don't take 5s
-          whileHover={{ y: -3 }}
-        >
-          <div className="online-member-avatar">
-            {member.profileImage ? (
-              <img src={member.profileImage} alt={member.fullName} />
-            ) : (
-              <span>{member.fullName?.charAt(0).toUpperCase()}</span>
+)}
+        <div className="zd-grid">
+          <main className="zd-main">
+            {/* ===== 3. ADVERT ===== */}
+            {ad && (
+              <section>
+                <div className="zd-trend"><i />What's trending</div>
+                <div className="zd-ad" key={ad.id}>
+                  <div className="zd-adimg">
+                    {ad.image ? <img src={ad.image} alt={ad.title || "Advertisement"} /> : <div className="zd-adph"><FiImage size={40} /></div>}
+                  </div>
+                  <div className="zd-adtx">
+                    <small>ZETECH UNIVERSITY CATHOLIC ACTION</small>
+                    {ad.title && <h2>{ad.title}</h2>}
+                    {ad.description && <p>{ad.description}</p>}
+                    {ad.link && (
+                      <button className="zd-btn" onClick={() => (window.location.href = ad.link)}>
+                        {ad.buttonText || "Go to page"} <FiArrowRight />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="zd-adctl">
+                  <div>
+                    <button onClick={() => setAdIdx((i) => (i - 1 + ads.length) % ads.length)} aria-label="Previous"><FiChevronLeft /></button>
+                    <button onClick={() => setPaused((p) => !p)} aria-label={paused ? "Play" : "Pause"}>
+                      {paused ? <FiPlay /> : <FiPause />}
+                    </button>
+                    <button onClick={() => setAdIdx((i) => (i + 1) % ads.length)} aria-label="Next"><FiChevronRight /></button>
+                  </div>
+                  {ads.length > 1 && (
+                    <div className="zd-dots">
+                      {ads.map((a, i) => <button key={a.id} className={i === adIdx ? "on" : ""} onClick={() => setAdIdx(i)} aria-label={`Advert ${i + 1}`} />)}
+                    </div>
+                  )}
+                  <button onClick={() => setFullAd(true)}><FiMaximize2 /> <span>Full advert</span></button>
+                </div>
+              </section>
             )}
-            <div className="online-status-dot"></div>
-          </div>
-          <div className="online-member-name">
-            {member.fullName?.split(' ')[0] || 'Member'}
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  )}
-  
-  <button 
-    className="online-action-btn"
-    onClick={() => navigate("/chat")}
+
+            {/* ===== 4. UPCOMING EVENTS (sliding) ===== */}
+            <section>
+              <div className="zd-sh">
+                <h3>Upcoming events</h3>
+                <div>
+                  <button className="zd-arrow" onClick={() => slide(-1)} aria-label="Previous event"><FiChevronLeft /></button>
+                  <button className="zd-arrow" onClick={() => slide(1)} aria-label="Next event"><FiChevronRight /></button>
+                  <button className="zd-link" onClick={() => navigate("/schedules")}>See all</button>
+                </div>
+              </div>
+              {!ready.events ? <Sk n={1} /> : events.length === 0 ? (
+                <Empty t="No upcoming events" s="Check back soon for new schedules" />
+              ) : (
+                <>
+                  <div className="zd-track" ref={evRef} onScroll={onEvScroll}>
+                  {events.map((e) => (
+  <article
+    key={e.id}
+    className="zd-ev"
+    onClick={() => navigate("/schedules")}
+    style={{
+      background: e.image
+        ? undefined
+        : (THEMES[theme] || THEMES.navy),
+    }}
   >
-    <span>💬 Join Chat</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-    <div>
-      <div></div>
-
-
-
-{loadingJumuia ? (
-  <div className="section-card jumuia-dashboard-card">
-    <div className="skeleton-jumuia-card">
-      <div className="skeleton skeleton-jumuia-name"></div>
-      <div className="skeleton-jumuia-info-grid">
-        <div className="skeleton-jumuia-info-item">
-          <div className="skeleton skeleton-jumuia-label"></div>
-          <div className="skeleton skeleton-jumuia-value"></div>
-        </div>
-        <div className="skeleton-jumuia-info-item">
-          <div className="skeleton skeleton-jumuia-label"></div>
-          <div className="skeleton skeleton-jumuia-value"></div>
-        </div>
-        <div className="skeleton-jumuia-info-item">
-          <div className="skeleton skeleton-jumuia-label"></div>
-          <div className="skeleton skeleton-jumuia-value"></div>
-        </div>
-      </div>
-      <div className="skeleton" style={{width: '100%', height: '36px', borderRadius: '10px', marginTop: '8px'}}></div>
-    </div>
-  </div>
-) : jumuiaInfo && (
-  <div className="section-card jumuia-dashboard-card">
-    <div className="section-header">
-      <div className="header-icon-small">
-        <span><FaPrayingHands size={28} color="#1a1818" /></span>
-      </div>
-      <h2 className="section-title">My Home Jumuia - {jumuiaInfo.name}</h2>
-      <div className="jumuia-status-badge-small">
-        <span className="status-dot"></span>
-        Active
-      </div>
-    </div>
-
-    <div className="jumuia-dashboard-content">
-      <div className="jumuia-name-dashboard">
-        {jumuiaInfo.name}
-      </div>
-      
-      <div className="jumuia-quick-info">
-        <div className="quick-info-item">
-          <span className="info-emoji"><FaUserTie/></span>
-          <div className="info-text">
-            <span className="info-label">Leader</span>
-            <span className="info-value">{jumuiaInfo.leaderName?.split(' ')[0] || "TBA"}</span>
-          </div>
-        </div>
-        
-        <div className="quick-info-item">
-          <span className="info-emoji"><FaUsers/></span>
-          <div className="info-text">
-            <span className="info-label">Members</span>
-            <span className="info-value">{jumuiaInfo.memberCount || 0}</span>
-          </div>
-        </div>
-        
-        {jumuiaInfo.nextMeeting && (
-          <div className="quick-info-item meeting-highlight">
-            <span className="info-emoji"><FaCalendar /></span>
-            <div className="info-text">
-              <span className="info-label">Next Meeting</span>
-              <span className="info-value meeting-date">
-                {new Date(jumuiaInfo.nextMeeting).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <button 
-        className="jumuia-chat-btn-dashboard"
-        onClick={() => navigate("/jumuia-contributions")}
-      >
-        View Jumuia Contributions →
-      </button>
-    </div>
-  </div>
-)}
-
-       
-
-{/* FINANCIAL STATS ROW - PREMIUM DESIGN */}
-<div className="financial-stats-grid">
-  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
-    <div className="financial-stat-icon pledged-icon">
-      <span>⛁ </span>
-    </div>
-    <div className="financial-stat-content">
-      <span className="financial-stat-value">KES {totalPledged.toLocaleString()}</span>
-      <span className="financial-stat-label">Total Pledged</span>
-    </div>
-    <div className="financial-stat-trend positive">
-      <span>↑</span>
-    </div>
-  </div>
-
-  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
-    <div className="financial-stat-icon paid-icon">
-      <span>☑</span>
-    </div>
-    <div className="financial-stat-content">
-      <span className="financial-stat-value">KES {totalPaid.toLocaleString()}</span>
-      <span className="financial-stat-label">Total Paid</span>
-    </div>
-    <div className="financial-stat-trend success">
-      <span>✓</span>
-    </div>
-  </div>
-
-  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
-    <div className="financial-stat-icon pending-icon">
-      <span>◔</span>
-    </div>
-    <div className="financial-stat-content">
-      <span className="financial-stat-value">KES {totalPending.toLocaleString()}</span>
-      <span className="financial-stat-label">Total Pending</span>
-    </div>
-    <div className="financial-stat-trend warning">
-      <span>⏰</span>
-    </div>
-  </div>
-
-  <div className="financial-stat-card" onClick={() => navigate("/contributions")}>
-    <div className="financial-stat-icon campaigns-icon">
-      <span>⚡︎</span>
-    </div>
-    <div className="financial-stat-content">
-      <span className="financial-stat-value">{activeCampaigns}</span>
-      <span className="financial-stat-label">Active Campaigns</span>
-    </div>
-    <div className="financial-stat-trend info">
-      <span>📈</span>
-    </div>
-  </div>
-</div>
-
-          {/* TWO COLUMN LAYOUT */}
-          <div className="two-columns">
-            {/* LEFT COLUMN */}
-            <div className="left-column">
-
-               {/* RECENT NOTIFICATIONS - PREMIUM */}
-<div className="section-card notifications-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-notification"><FaBell color="#0f172a" /></div>
+    <div
+      className="zd-evbg"
+      style={
+        e.image
+          ? { backgroundImage: `url(${e.image})` }
+          : { background: "transparent" }
+      }
+    />
+    {sameDay(e.eventDate) && <span className="zd-tag red">TODAY</span>}
+    <div className="zd-evbar">
+      <DateBox d={e.eventDate} />
       <div>
-        <h2 className="section-title">Notifications</h2>
-        <p className="header-subtitle"> {user.fullName?.split(" ")[0]} take note of important notifications</p>
+        <b>{e.title}</b>
+        <span><FiClock size={12} /> {e.eventTime || "Time TBA"}</span>
+        <span><FiMapPin size={12} /> {e.location || "Venue TBA"}</span>
       </div>
     </div>
-    <div className="notif-badge">
-      {unreadNotificationsCount > 0 ? `${unreadNotificationsCount} Unread` : 'All Read'}
-    </div>
-  </div>
+  </article>
+))}
+                  </div>
+                  {events.length > 1 && (
+                    <div className="zd-dots c">
+                      {events.map((e, i) => <button key={e.id} className={i === evIdx ? "on" : ""} aria-label={`Event ${i + 1}`}
+                        onClick={() => evRef.current?.scrollTo({ left: i * ((evRef.current.firstChild?.offsetWidth || 300) + 12), behavior: "smooth" })} />)}
+                    </div>
+                  )}
+                </>
+              )}
+                      </section>
 
- <div className="notifications-premium-list">
-  {loadingNotifications ? (
-    <>
-      <div className="skeleton-notif-item">
-        <div className="skeleton skeleton-notif-icon"></div>
-        <div className="skeleton-notif-content">
-          <div className="skeleton skeleton-notif-title"></div>
-          <div className="skeleton skeleton-notif-message"></div>
-        </div>
-      </div>
-      <div className="skeleton-notif-item">
-        <div className="skeleton skeleton-notif-icon"></div>
-        <div className="skeleton-notif-content">
-          <div className="skeleton skeleton-notif-title"></div>
-          <div className="skeleton skeleton-notif-message"></div>
-        </div>
-      </div>
-      <div className="skeleton-notif-item">
-        <div className="skeleton skeleton-notif-icon"></div>
-        <div className="skeleton-notif-content">
-          <div className="skeleton skeleton-notif-title"></div>
-          <div className="skeleton skeleton-notif-message"></div>
-        </div>
-      </div>
-    </>
-  ) : recentNotifications.length === 0 ? (
-    <div className="empty-notif-state">
-      <span className="empty-notif-icon">🔕</span>
-      <p>No notifications</p>
-      <span className="empty-notif-sub">You're all caught up!</span>
-    </div>
-  ) : (
-    recentNotifications.map((notif, index) => (
-      <motion.div 
-        key={notif.id} 
-        className={`notif-item-premium ${!notif.read ? 'notif-unread' : ''}`}
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: index * 0.08 }}
-        whileHover={{ x: 4 }}
-        onClick={() => navigate("/announcements")}
-      >
-<div className="notif-icon-premium">
-  {getNotificationIcon(notif.type)}
+          
+
+            <div className="zd-two">
+              <Card icon={<FiBook />} title="Readings" sub="Daily and Mass readings" to="/mass-readings">
+               <div className="zd-tabs">
+  <button className={rtab === "mass" ? "on" : ""} onClick={() => setRtab("mass")}>Mass readings</button>
+  <button className={rtab === "today" ? "on" : ""} onClick={() => setRtab("today")}>Today</button>
 </div>
-        <div className="notif-content-premium">
-          <div className="notif-header-premium">
-            <span className="notif-title-premium">{notif.title || 'Update'}</span>
-            {!notif.read && <span className="notif-unread-dot">●</span>}
-          </div>
-          <div className="notif-message-premium">{notif.message}</div>
-          <div className="notif-time-premium">{formatRelativeTime(notif.createdAt)}</div>
-        </div>
-        <div className="notif-arrow-premium">
-          <FiChevronRight size={16} />
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="notif-action-btn" onClick={() => navigate("/announcements")}>
-    <span>🔔 View All Notifications</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-             {/* RECENT ANNOUNCEMENTS */}
-<div className="section-card announcements-premium">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-announcement"><FaFire color="#0f172a" /></div>
-      <div>
-        <h3 className="section-title">Recent Announcements</h3>
-        <p className="header-subtitle">Latest updates from ZUCA</p>
-      </div>
-    </div>
-    {announcements.length > 0 && (
-      <div className="total-badge">
-        {announcements.length} New
-      </div>
-    )}
-  </div>
-
-<div className="announcements-premium-list">
-  {loadingAnnouncements ? (
-    <>
-      <div className="skeleton-announcement-item">
-        <div className="skeleton skeleton-announcement-number"></div>
-        <div className="skeleton-announcement-content">
-          <div className="skeleton skeleton-announcement-title"></div>
-          <div className="skeleton skeleton-announcement-message"></div>
-        </div>
-      </div>
-      <div className="skeleton-announcement-item">
-        <div className="skeleton skeleton-announcement-number"></div>
-        <div className="skeleton-announcement-content">
-          <div className="skeleton skeleton-announcement-title"></div>
-          <div className="skeleton skeleton-announcement-message"></div>
-        </div>
-      </div>
-    </>
-  ) : announcements.length === 0 ? (
-    <div className="empty-state-announcement">
-      <div className="empty-announcement-icon">📭</div>
-      <p>No announcements yet</p>
-      <span>Check back later for updates</span>
-    </div>
-  ) : (
-    announcements.map((ann, index) => (
-      <motion.div
-        key={ann.id}
-        className="announcement-premium-item"
-        onClick={() => navigate("/announcements")}
-        whileHover={{ x: 5 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="announcement-premium-number">{index + 1}</div>
-        <div className="announcement-premium-content">
-          <div className="announcement-premium-header">
-            <div className="announcement-premium-title">{ann.title}</div>
-            <div className="announcement-premium-time">
-              {formatRelativeTime(ann.createdAt)}
-            </div>
-          </div>
-          <div className="announcement-premium-message">
-            {ann.content?.substring(0, 80)}...
-          </div>
-        </div>
-        <div className="announcement-premium-arrow">
-          <FiChevronRight size={18} />
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="view-all-premium" onClick={() => navigate("/announcements")}>
-    <span>View All Announcements</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-
-              {/* MY ACTIVE PLEDGES - COMPACT */}
-<div className="section-card pledges-compact">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-small-pledge"><FaHandHoldingHeart size={39} color="#141313" /></div>
-      <h2 className="section-title">MY ACTIVE PLEDGES</h2>
-    </div>
-    {activePledges.length > 0 && (
-      <div className="pledge-count-badge">{activePledges.length}</div>
-    )}
-  </div>
-
-  <div className="pledges-compact-list">
-  {loadingPledges ? (
-    <>
-      <div className="skeleton-pledge-item">
-        <div className="skeleton-pledge-header">
-          <div className="skeleton skeleton-pledge-title"></div>
-          <div className="skeleton skeleton-pledge-percent"></div>
-        </div>
-        <div className="skeleton skeleton-pledge-bar"></div>
-        <div className="skeleton skeleton-pledge-footer"></div>
-      </div>
-      <div className="skeleton-pledge-item">
-        <div className="skeleton-pledge-header">
-          <div className="skeleton skeleton-pledge-title"></div>
-          <div className="skeleton skeleton-pledge-percent"></div>
-        </div>
-        <div className="skeleton skeleton-pledge-bar"></div>
-        <div className="skeleton skeleton-pledge-footer"></div>
-      </div>
-    </>
-  ) : activePledges.length === 0 ? (
-    <div className="empty-state-compact-pledge">
-      <span>◔</span>
-      <p>No active pledges</p>
-    </div>
-  ) : (
-    activePledges.map(pledge => {
-      const progress = pledge.amountRequired > 0 ? (pledge.amountPaid / pledge.amountRequired) * 100 : 0;
-      return (
-        <div key={pledge.id} className="pledge-compact-item" onClick={() => navigate("/contributions")}>
-          <div className="pledge-compact-header">
-            <div className="pledge-compact-title">{pledge.title}</div>
-            <div className="pledge-compact-percent">{progress.toFixed(0)}%</div>
-          </div>
-          <div className="progress-bar-compact">
-            <div className="progress-fill-compact" style={{ width: `${progress}%` }}></div>
-          </div>
-          <div className="pledge-compact-footer">
-            <span>KES {pledge.amountPaid.toLocaleString()} / {pledge.amountRequired.toLocaleString()}</span>
-            {pledge.pendingAmount > 0 && (
-              <span className="pledge-pending-compact">Pending: KES {pledge.pendingAmount.toLocaleString()}</span>
-            )}
-          </div>
-        </div>
-      );
-    })
-  )}
-</div>
-
-  <button className="view-all-compact-pledge" onClick={() => navigate("/contributions")}>
-    Make a Pledge →
-  </button>
-</div>
-            {/* RECENT HYMNS */}
-<div className="section-card hymns-section">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-music"><FaMusic color="#0f172a" /></div>
-      <div>
-        <h2 className="section-title">RECENT HYMNS</h2>
-        <p className="header-subtitle">Recently added Lyrics</p>
-      </div>
-    </div>
-    {recentHymns.length > 0 && (
-      <div className="total-badge">{recentHymns.length} hymns</div>
-    )}
-  </div>
-
- <div className="hymns-list">
-  {loadingHymns ? (
-    <>
-      <div className="skeleton-hymn-item">
-        <div className="skeleton skeleton-hymn-number"></div>
-        <div className="skeleton-hymn-content">
-          <div className="skeleton skeleton-hymn-title"></div>
-          <div className="skeleton skeleton-hymn-preview"></div>
-        </div>
-      </div>
-      <div className="skeleton-hymn-item">
-        <div className="skeleton skeleton-hymn-number"></div>
-        <div className="skeleton-hymn-content">
-          <div className="skeleton skeleton-hymn-title"></div>
-          <div className="skeleton skeleton-hymn-preview"></div>
-        </div>
-      </div>
-      <div className="skeleton-hymn-item">
-        <div className="skeleton skeleton-hymn-number"></div>
-        <div className="skeleton-hymn-content">
-          <div className="skeleton skeleton-hymn-title"></div>
-          <div className="skeleton skeleton-hymn-preview"></div>
-        </div>
-      </div>
-    </>
-  ) : recentHymns.length === 0 ? (
-    <div className="empty-state-music">
-      <div className="music-note">🎶</div>
-      <p>No hymns available</p>
-      <span>Check back soon for new songs</span>
-    </div>
-  ) : (
-    recentHymns.map((hymn, index) => (
-      <motion.div
-        key={hymn.id}
-        className="hymn-item"
-        onClick={() => navigate(`/hymn/${hymn.title}`)}
-        whileHover={{ x: 5 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="hymn-number">{index + 1}</div>
-        <div className="hymn-content">
-          <div className="hymn-title-wrapper">
-            <span className="hymn-title">{hymn.title}</span>
-            {hymn.category && (
-              <span className="hymn-category">{hymn.category}</span>
-            )}
-          </div>
-          {hymn.verses && (
-            <div className="hymn-preview">
-              {hymn.verses.split('\n')[0]?.substring(0, 60)}...
-            </div>
-          )}
-          <div className="hymn-meta">
-            {hymn.createdAt && (
-              <span className="hymn-date">
-                <FaRegCalendar /> {formatRelativeTime(hymn.createdAt)}
-              </span>
-            )}
-            {hymn.numVerses && (
-              <span className="hymn-verses">
-                <FaBook /> {hymn.numVerses} verses
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="hymn-arrow">
-          <FiChevronRight size={20} />
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="view-all-music" onClick={() => navigate("/hymns")}>
-    <span>Browse Full Hymn Book</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-            </div>
-
-            {/* RIGHT COLUMN */}
-            <div className="right-column">
-             {/* UPCOMING MASS PROGRAMS */}
-<div className="section-card mass-premium">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-mass"><FaCalendar color="#0f172a" /></div>
-      <div>
-        <h2 className="section-title">UPCOMING MASS PROGRAMS</h2>
-        <p className="header-subtitle">Mass songs programe</p>
-      </div>
-    </div>
-    {massPrograms.length > 0 && (
-      <div className="total-badge">
-        {massPrograms.length} Upcoming
-      </div>
-    )}
-  </div>
-
-  <div className="mass-premium-list">
-  {loadingMassPrograms ? (
-    <>
-      <div className="skeleton-mass-item">
-        <div className="skeleton skeleton-mass-date"></div>
-        <div className="skeleton-mass-content">
-          <div className="skeleton skeleton-mass-venue"></div>
-          <div className="skeleton skeleton-mass-time"></div>
-        </div>
-      </div>
-      <div className="skeleton-mass-item">
-        <div className="skeleton skeleton-mass-date"></div>
-        <div className="skeleton-mass-content">
-          <div className="skeleton skeleton-mass-venue"></div>
-          <div className="skeleton skeleton-mass-time"></div>
-        </div>
-      </div>
-    </>
-  ) : massPrograms.length === 0 ? (
-    <div className="empty-state-mass">
-      <div className="empty-mass-icon">˗ˏˋ ✞ ˎˊ˗</div>
-      <p>No upcoming mass programs  </p>
-      <span>We'll notify you;</span>
-    </div>
-  ) : (
-    massPrograms.map((prog, index) => (
-      <div 
-        key={prog.id} 
-        className="mass-premium-item"
-        onClick={() => navigate("/mass-programs")}
-      >
-        <div className="mass-premium-date">
-          <div className="mass-date-day">
-            {new Date(prog.date).getDate()}
-          </div>
-          <div className="mass-date-month">
-            {new Date(prog.date).toLocaleString('default', { month: 'short' }).toUpperCase()}
-          </div>
-        </div>
-        
-        <div className="mass-premium-content">
-          <div className="mass-premium-venue">{prog.venue}</div>
-          <div className="mass-premium-details">
-            <span className="mass-time">🕐 {prog.time || "10:00 AM"}</span>
-            {prog.presider && (
-              <span className="mass-presider"> {prog.presider}</span>
-            )}
-          </div>
-        </div>
-        
-        <div className="mass-premium-arrow">
-          <FiChevronRight size={18} />
-        </div>
-      </div>
-    ))
-  )}
-</div>
-
-  <button className="view-all-premium" onClick={() => navigate("/mass-programs")}>
-    <span>View Full program</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-
-           
-   {/* FEATURED GALLERY */}
-<div className="section-card gallery-premium">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-gallery"><FaPhotoVideo color="#000000" /></div>
-      <div>
-        <h2 className="section-title">FEATURED GALLERY</h2>
-        <p className="header-subtitle">Moments from zuca</p>
-      </div>
-    </div>
-    {featuredGallery.length > 0 && (
-      <div className="total-badge">
-        {featuredGallery.length} photos
-      </div>
-    )}
-  </div>
-
-  <div className="gallery-premium-grid">
-  {loadingGallery ? (
-    <div className="skeleton-gallery-grid">
-      {[1,2,3,4,5,6].map(i => (
-        <div key={i} className="skeleton skeleton-gallery-item"></div>
+                {rtab === "today" ? (
+                  !ready.today ? <Sk /> : !today ? <Empty t="No reading today" /> : (
+                    <div className="zd-list">
+                      <div className="zd-cele">{today.celebration || "Daily reading"}</div>
+                      {[["First reading", today.readings?.firstReading], ["Psalm", today.readings?.psalm],
+                        ["Second reading", today.readings?.secondReading], ["Gospel", today.readings?.gospel]]
+                        .filter(([, r]) => r).map(([l, r]) => (
+                          <Row key={l} title={l} text={r.citation} onClick={() => navigate("/liturgical-calendar")} />
+                        ))}
+                    </div>
+                  )
+) : !ready.readings ? <Sk /> : readings.length === 0 ? (
+  <>
+    <Empty t="No readings available" />
+    <button
+      type="button"
+      className="zd-upload-reading"
+      onClick={() => navigate("/mass-readings/upload")}
+    >
+      <FiUpload size={15} />
+      <span>Upload New Reading</span>
+    </button>
+  </>
+) : (
+  <>
+    <div className="zd-list">
+      {readings.map((r) => (
+        <Row key={r.id} lead={<DateBox d={r.date} />} title={r.title}
+          text={r.description || "Mass readings"} meta={`${r.attachments?.length || 0} files`}
+          onClick={() => navigate(`/mass-readings/${r.id}`)} />
       ))}
     </div>
-  ) : featuredGallery.length === 0 ? (
-    <div className="empty-state-gallery">
-      <div className="empty-gallery-icon"><FaPhotoVideo /></div>
-      <p>No gallery items</p>
-      <span>Check back soon for photos</span>
-    </div>
-  ) : (
-    featuredGallery.map((item, idx) => (
-      <motion.div
-        key={item.id}
-        className="gallery-premium-item"
-        onClick={() => navigate(`/gallery/${item.id}`)}
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="gallery-premium-image">
-          {item.url || item.thumbnailUrl ? (
-            <img 
-              src={item.thumbnailUrl || item.url} 
-              alt={item.title || "Gallery image"}
-              loading="lazy"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='20' rx='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='2.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-4-3 3-4-4-5 5'%3E%3C/path%3E%3C/svg%3E";
-              }}
-            />
-          ) : (
-            <div className="gallery-premium-placeholder"><FaPhotoVideo /></div>
-          )}
-          <div className="gallery-premium-overlay">
-            <span className="overlay-icon">🔍</span>
-            <span className="overlay-text">View</span>
-          </div>
-        </div>
-        <div className="gallery-premium-info">
-          <div className="gallery-premium-title">
-            {item.title?.substring(0, 25) || "ZUCA Memory"}
-          </div>
-          {item.createdAt && (
-            <div className="gallery-premium-date">
-              {new Date(item.createdAt).toLocaleDateString()}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-  <button className="view-all-premium" onClick={() => navigate("/gallery")}>
-    <span>View Full Gallery</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-            </div>
-          </div>
 
-          {/* GAMES & COMMUNITY - PREMIUM DESIGN */}
-<div className="section-card games-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-games"><FaGamepad size={28} color="#141313" /></div>
-      <div>
-        <h2 className="section-title">GAMES</h2>
-        <p className="header-subtitle">Connect, play, and grow together</p>
-      </div>
-    </div>
-    {gameInvites.length > 0 && (
-      <div className="games-badge">{gameInvites.length} Invites</div>
-    )}
-  </div>
+    {/* ===== Upload New Reading — only in Mass readings tab ===== */}
+    <button
+      type="button"
+      className="zd-upload-reading"
+      onClick={() => navigate("/mass-readings/upload")}
+    >
+      <FiUpload size={15} />
+      <span>Upload New Reading</span>
+    </button>
+  </>
+)}
+</Card>
 
-  <div className="games-community-premium">
-    {/* Games Section */}
-    <div className="games-section-premium">
-      <div className="games-header-premium">
-        <span className="games-title-premium">ᯤ Active Game Invites</span>
-        <span className="games-count">{gameInvites.length}</span>
-      </div>
-      
-      {gameInvites.length === 0 ? (
-        <div className="empty-games-state">
-          <span className="empty-games-icon"><FaGamepad /></span>
-          <p>No active game invites</p>
-          <span className="empty-games-sub">Start a game or challenge a friend!</span>
+              <Card icon={<FiBell />} title="Updates" badge={unread ? `${unread} unread` : ""} to="/announcements">
+                <div className="zd-tabs">
+                  <button className={utab === "ann" ? "on" : ""} onClick={() => setUtab("ann")}>Announcements</button>
+                  <button className={utab === "notif" ? "on" : ""} onClick={() => setUtab("notif")}>Notifications</button>
+                </div>
+                {(utab === "ann" ? !ready.ann : !ready.notifs) ? <Sk /> :
+                  (utab === "ann" ? ann : notifs).length === 0 ? <Empty t={utab === "ann" ? "No announcements yet" : "You're all caught up"} /> : (
+                    <div className="zd-list">
+                      {(utab === "ann" ? ann : notifs).map((n) => (
+                        <Row key={n.id}
+                          lead={<span className={`zd-dot ${utab === "notif" && !n.read ? "on" : ""}`} />}
+                          title={n.title || "Update"} text={(n.content || n.message || "").slice(0, 70)}
+                          meta={ago(n.createdAt)} onClick={() => navigate("/announcements")} />
+                      ))}
+                    </div>
+                  )}
+              </Card>
+            </div>
+
+          
+            
+            
+          </main>
+
+          {/* ===== RIGHT RAIL ===== */}
+          <aside className="zd-rail">
+            {cd?.isActive && !left.done && (
+              <section className="zd-cd" style={{ borderTopColor: cd.eventColor || "#fff" }}>
+                <small>{cd.title || "Countdown"}</small>
+                <div>
+                  {[["Days", left.d], ["Hrs", left.h], ["Min", left.m], ["Sec", left.s]].map(([l, v]) => (
+                    <span key={l}><b>{String(v).padStart(2, "0")}</b><i>{l}</i></span>
+                  ))}
+                </div>
+                {cd.subtitle && <p>{cd.subtitle}</p>}
+              </section>
+            )}
+
+            <Card icon={<FaHandHoldingHeart />} title="My giving" to="/contributions" link="Give">
+              <div className="zd-fin">
+                {[["Pledged", fin.pledged], ["Paid", fin.paid], ["Pending", fin.pending]].map(([l, v]) => (
+                  <div key={l}><b>{money(v)}</b><small>{l}</small></div>
+                ))}
+                <div><b>{fin.camps}</b><small>Active campaigns</small></div>
+              </div>
+              {!ready.pledges ? <Sk n={1} /> : pledges.length === 0 ? <Empty t="No active pledges" /> : pledges.map((p) => {
+                const pr = p.amountRequired > 0 ? Math.min(100, (p.amountPaid / p.amountRequired) * 100) : 0;
+                return (
+                  <div key={p.id} className="zd-pl" onClick={() => navigate("/contributions")}>
+                    <div><b>{p.title}</b><span>{pr.toFixed(0)}%</span></div>
+                    <div className="zd-bar"><i style={{ width: `${pr}%` }} /></div>
+                    <small>{money(p.amountPaid)} / {money(p.amountRequired)}</small>
+                  </div>
+                );
+              })}
+            </Card>
+
+            {jumuia && (
+              <Card icon={<FiUsers />} title="My home jumuia" sub={jumuia.name} to="/jumuia-contributions" link="Contributions">
+                <div className="zd-fin">
+                  <div><b>{jumuia.leader.split(" ")[0]}</b><small>Leader</small></div>
+                  <div><b>{jumuia.members}</b><small>Members</small></div>
+                  {jumuia.next && <div><b>{new Date(jumuia.next).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</b><small>Next meeting</small></div>}
+                </div>
+              </Card>
+            )}
+
+            <Card icon={<FiUsers />} title="Online now" badge={online.length} to="/chat" link="Join chat">
+              {!ready.online ? <Sk n={1} /> : online.length === 0 ? <Empty t="No one is online" /> : (
+                <div className="zd-online">
+                  {online.map((m) => (
+                    <div key={m.id}><Avatar p={m} size={42} /><i /><span>{m.fullName?.split(" ")[0] || "Member"}</span></div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card icon={<FiClipboard />} title="Executive team" to="/executive" link="Full team">
+              {!ready.exec ? <Sk /> : exec.length === 0 ? <Empty t="Leadership team coming soon" /> : (
+                <div className="zd-list">
+                  {exec.map((x) => (
+                    <div key={x.id} className="zd-row click" onClick={() => navigate("/executive")}>
+                      <Avatar p={x} />
+                      <div className="zd-rt"><b>{x.name?.split(" ")[0] || "Leader"}</b><span>{x.position?.title || "Executive member"}</span></div>
+                      {x.phone && <a className="zd-mini" href={`tel:${x.phone}`} onClick={(e) => e.stopPropagation()} aria-label="Call"><FiPhone size={14} /></a>}
+                      {x.whatsappLink && <a className="zd-mini" href={x.whatsappLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="WhatsApp"><FaWhatsapp size={15} /></a>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </aside>
         </div>
-      ) : (
-        <div className="game-invites-list">
-          {gameInvites.slice(0, 2).map((invite, index) => (
-            <motion.div
-              key={invite.id}
-              className="game-invite-premium"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <div className="game-invite-avatar">
-                {invite.fromUser?.profileImage ? (
-                  <img src={invite.fromUser.profileImage} alt="Player" />
-                ) : (
-                  <span>🎮</span>
-                )}
-              </div>
-              <div className="game-invite-content">
-                <div className="game-invite-sender">
-                  <strong>{invite.fromUser?.fullName?.split(' ')[0] || 'Someone'}</strong>
-                  <span className="game-invite-action">challenged you!</span>
-                </div>
-                <div className="game-invite-meta">
-                  <span className="game-type">{invite.gameType || '🎯 Quick Game'}</span>
-                  <span className="game-time">{formatRelativeTime(invite.createdAt)}</span>
-                </div>
-              </div>
-              <button 
-                className="game-invite-accept"
-                onClick={() => navigate(`/games/accept/${invite.id}`)}
-              >
-                Accept →
-              </button>
-            </motion.div>
-          ))}
+
+        {/* ===== FOOTER ===== */}
+        <footer className="zd-foot">
+          <div>
+            <img src={logo} alt="ZUCA" onClick={() => navigate("/dashboard")} />
+            <span><b>ZUCA Portal</b><small>Zetech University Catholic Action</small></span>
+          </div>
+          <nav>
+            {[["About", "/about"], ["Contact", "/contact"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([l, to]) => (
+              <button key={l} onClick={() => navigate(to)}>{l}</button>
+            ))}
+          </nav>
+          <p>© {new Date().getFullYear()} ZUCA Portal | v 1.0 | Created by <b>@CHRISWEBSYS</b></p>
+        </footer>
+      </div>
+
+      {/* ===== MOBILE BOTTOM NAV ===== */}
+      <nav className="zd-bnav">
+        {bottom.map(([l, I, to]) => (
+          <button key={l} className={pathname === to ? "on" : ""} onClick={() => navigate(to)}><I size={21} /><span>{l}</span></button>
+        ))}
+        <button onClick={() => setSheet(true)}><FiMoreHorizontal size={21} /><span>More</span></button>
+      </nav>
+
+      {sheet && (
+        <div className="zd-ov" onClick={() => setSheet(false)}>
+          <div className="zd-sheet" onClick={(e) => e.stopPropagation()}>
+            <div><h3>More</h3><button onClick={() => setSheet(false)} aria-label="Close"><FiX /></button></div>
+            {PRIMARY.slice(3).map(([l, I, to]) => (
+              <button key={l} onClick={() => { setSheet(false); navigate(to); }}><I /><span>{l}</span><FiChevronRight /></button>
+            ))}
+            {utility.map(([l, I, f, danger]) => (
+              <button key={l} className={danger ? "danger" : ""} onClick={() => { setSheet(false); f(); }}><I /><span>{l}</span><FiChevronRight /></button>
+            ))}
+          </div>
         </div>
       )}
-      
-      <button 
-        className="games-action-btn"
-        onClick={() => navigate("/games")}
-      >
-        <span><FaGamepad /> Play Games</span>
-        <FiArrowRight className="button-icon" />
-      </button>
-    </div>
 
-   
-    </div>
-  </div>
-</div>
-
-          {/* QUICK STATS - PREMIUM DESIGN */}
-<div className="section-card stats-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-stats"><FiActivity /></div>
-      <div>
-        <h2 className="section-title">ZUCA STATUS</h2>
-        <p className="header-subtitle">ZUCA at a glance</p>
-      </div>
-    </div>
-    <div className="stats-live-badge">● LIVE</div>
-  </div>
-
- <div className="quick-stats-premium-grid">
-  {loadingStats ? (
-    <>
-      <div className="skeleton-quick-stat">
-        <div className="skeleton skeleton-quick-icon"></div>
-        <div className="skeleton-quick-content">
-          <div className="skeleton skeleton-quick-value"></div>
-          <div className="skeleton skeleton-quick-label"></div>
-        </div>
-      </div>
-      <div className="skeleton-quick-stat">
-        <div className="skeleton skeleton-quick-icon"></div>
-        <div className="skeleton-quick-content">
-          <div className="skeleton skeleton-quick-value"></div>
-          <div className="skeleton skeleton-quick-label"></div>
-        </div>
-      </div>
-    </>
-  ) : (
-    <>
-      <motion.div 
-        className="quick-stat-premium"
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="stat-premium-icon hymns-icon"><FaMusic /></div>
-        <div className="stat-premium-content">
-          <div className="stat-premium-value">{totalHymns || 0}</div>
-          <div className="stat-premium-label">Hymns Lyrics</div>
-        </div>
-        <div className="stat-premium-trend">↑</div>
-      </motion.div>
-
-      <motion.div 
-        className="quick-stat-premium"
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="stat-premium-icon media-icon"><FaPhotoVideo /></div>
-        <div className="stat-premium-content">
-          <div className="stat-premium-value">{totalMedia || 0}</div>
-          <div className="stat-premium-label">Media</div>
-        </div>
-        <div className="stat-premium-trend">↑</div>
-      </motion.div>
-    </>
-  )}
-
-
-    <motion.div ></motion.div>
-  </div>
-</div>
-          
-
-          {/* EXECUTIVE TEAM QUICK ACCESS */}
-<div className="section-card executive-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-executive"><FaUserTie color="#e41811"/></div>
-      <div>
-        <h2 className="section-title">EXECUTIVE TEAM</h2>
-        <p className="header-subtitle">ZUCA Leadership & Administration</p>
-      </div>
-    </div>
-    {executiveTeam.length > 0 && (
-      <div className="total-badge">
-        {executiveTeam.length} Members
-      </div>
-    )}
-  </div>
-
-  <div className="executive-premium-grid">
-  {loadingExecutive ? (
-    <div className="skeleton-executive-grid">
-      {[1,2,3,4,5].map(i => (
-        <div key={i} className="skeleton-executive-item">
-          <div className="skeleton skeleton-executive-avatar"></div>
-          <div className="skeleton skeleton-executive-name"></div>
-          <div className="skeleton skeleton-executive-role"></div>
-        </div>
-      ))}
-    </div>
-  ) : executiveTeam.length === 0 ? (
-    <div className="empty-state-executive">
-      <div className="empty-executive-icon"><FaUserTie /></div>
-      <p>No executive team assigned</p>
-      <span>Leadership team coming soon</span>
-    </div>
-  ) : (
-    executiveTeam.map((exec, index) => (
-      <motion.div
-        key={exec.id}
-        className="executive-premium-card"
-        onClick={() => navigate("/executive")}
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <div className="executive-premium-avatar">
-          {exec.profileImage ? (
-            <img src={exec.profileImage} alt={exec.name} />
-          ) : (
-            <div className="executive-avatar-placeholder">
-              {exec.position?.title === "Chairperson" && "👑"}
-              {exec.position?.title === "Secretary" && "📝"}
-              {exec.position?.title === "Treasurer" && "💰"}
-              {exec.position?.title === "Choir Moderator" && "🎵"}
-              {exec.position?.title === "Media Moderator" && "📸"}
-              {!exec.position?.title && "👤"}
-            </div>
-          )}
-        </div>
-        <div className="executive-premium-info">
-          <div className="executive-premium-name">
-            {exec.name?.split(' ')[0] || "Leader"}
-          </div>
-          <div className="executive-premium-role">
-            {exec.position?.title || "Executive Member"}
-          </div>
-        </div>
-        <div className="executive-premium-contact">
-          {exec.phone && (
-            <a 
-              href={`tel:${exec.phone}`} 
-              className="executive-call-btn"
-              onClick={(e) => e.stopPropagation()}
-            >
-              📞
-            </a>
-          )}
-          {exec.whatsappLink && (
-            <a 
-              href={exec.whatsappLink} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="executive-wa-btn"
-              onClick={(e) => e.stopPropagation()}
-            >
-              💬
-            </a>
-          )}
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="view-all-premium" onClick={() => navigate("/executive")}>
-    <span>View Full Executive Team</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-
-          {/* RECENT CHAT ACTIVITY - PREMIUM */}
-<div className="section-card chat-premium full-width">
-  <div className="section-header">
-    <div className="header-with-icon">
-      <div className="header-icon-chat">💬</div>
-      <div>
-        <h2 className="section-title">RECENT CHAT ACTIVITY</h2>
-        <p className="header-subtitle">What are people saying in the group</p>
-      </div>
-    </div>
-    {recentChats.length > 0 && (
-      <div className="chat-badge">{recentChats.length} New</div>
-    )}
-  </div>
-
-  <div className="chat-activities-premium">
-  {loadingChats ? (
-    <>
-      <div className="skeleton-chat-item">
-        <div className="skeleton skeleton-chat-avatar"></div>
-        <div className="skeleton-chat-content">
-          <div className="skeleton-chat-header">
-            <div className="skeleton skeleton-chat-user"></div>
-            <div className="skeleton skeleton-chat-time"></div>
-          </div>
-          <div className="skeleton skeleton-chat-message"></div>
-        </div>
-      </div>
-      <div className="skeleton-chat-item">
-        <div className="skeleton skeleton-chat-avatar"></div>
-        <div className="skeleton-chat-content">
-          <div className="skeleton-chat-header">
-            <div className="skeleton skeleton-chat-user"></div>
-            <div className="skeleton skeleton-chat-time"></div>
-          </div>
-          <div className="skeleton skeleton-chat-message"></div>
-        </div>
-      </div>
-    </>
-  ) : recentChats.length === 0 ? (
-    <div className="empty-chat-state">
-      <span className="empty-chat-icon">💭</span>
-      <p>No recent chat activity</p>
-      <span className="empty-chat-sub">Start a conversation!</span>
-    </div>
-  ) : (
-    recentChats.map((chat, index) => (
-      <motion.div 
-        key={chat.id} 
-        className="chat-item-premium"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.1 }}
-        whileHover={{ x: 4 }}
-      >
-        <div className="chat-avatar-premium">
-          {chat.user?.profileImage ? (
-            <img src={chat.user.profileImage} alt={chat.user.fullName} />
-          ) : (
-            <span>{chat.user?.fullName?.charAt(0).toUpperCase() || 'U'}</span>
-          )}
-        </div>
-        <div className="chat-content-premium">
-          <div className="chat-header-premium">
-            <span className="chat-user-name">{chat.user?.fullName?.split(' ')[0] || 'User'}</span>
-            <span className="chat-time-premium">{formatRelativeTime(chat.createdAt)}</span>
-          </div>
-          <div className="chat-message-premium">
-            "{chat.content?.substring(0, 60)}{chat.content?.length > 60 ? '...' : ''}"
-          </div>
-        </div>
-        <div className="chat-reply-indicator">
-          <FiChevronRight size={16} />
-        </div>
-      </motion.div>
-    ))
-  )}
-</div>
-
-  <button className="chat-action-btn" onClick={() => navigate("/chat")}>
-    <span>💬 Go to Chat</span>
-    <FiArrowRight className="button-icon" />
-  </button>
-</div>
-
-        
-      {/* FOOTER - PREMIUM */}
-      <div className="footer-premium">
-        <div className="footer-content">
-          <div className="footer-brand">
-            <img 
-              src={logo} 
-              alt="ZUCA Logo" 
-              className="footer-logo-img"
-              onClick={() => navigate("/dashboard")}
-              style={{ cursor: "pointer" }}
-            />
-            <div className="footer-brand-text">
-              <h4>ZUCA Portal</h4>
-              <p>Zetech University Catholic Action</p>
+      {fullAd && ad && (
+        <div className="zd-ov mid" onClick={() => setFullAd(false)}>
+          <div className="zd-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="zd-x" onClick={() => setFullAd(false)} aria-label="Close"><FiX /></button>
+            {ad.image && <img src={ad.image} alt={ad.title || "Advertisement"} />}
+            <div>
+              <small>ZETECH UNIVERSITY CATHOLIC ACTION</small>
+              {ad.title && <h2>{ad.title}</h2>}
+              {ad.description && <p>{ad.description}</p>}
+              {ad.buttonText && ad.link && <button className="zd-btn" onClick={() => (window.location.href = ad.link)}>{ad.buttonText} <FiArrowRight /></button>}
             </div>
           </div>
-          
-          <div className="footer-links">
-            <a href="#" onClick={() => navigate("/about")}>About</a>
-            <a href="#" onClick={() => navigate("/contact")}>Contact</a>
-            <a href="#" onClick={() => navigate("/privacy")}>Privacy</a>
-            <a href="#" onClick={() => navigate("/terms")}>Terms</a>
-          </div>
-          
-          <div className="footer-social">
-           
-          </div>
         </div>
-        
-    <div className="footer-bottom">
-  <p>© {new Date().getFullYear()} ZUCA Portal | v 1.0 | {new Date().toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric' 
-  })}</p>
-  <p className="creator">Created by <strong>@CHRISWEBSYS</strong></p>
-</div>
-      </div>
-
-      {/* MODALS */}
-      {showCropper && (
-        <ProfileImageCropper
-          imageFile={selectedImageFile}
-          onCropComplete={(croppedFile) => {
-            setShowCropper(false);
-          }}
-          onClose={() => {
-            setShowCropper(false);
-            setSelectedImageFile(null);
-          }}
-        />
       )}
 
-      <ProfileSettings
-        isOpen={showProfileSettings}
-        onClose={() => setShowProfileSettings(false)}
-        user={user}
-        onUserUpdate={(updatedUser) => {
-          setUser(updatedUser);
-          setProfileImage(updatedUser.profileImage);
-
-          
-        }}
-      />
-
-
-      {showCoverCropper && pendingCoverFile && (
-  <CoverCropper
-    imageFile={pendingCoverFile}
-    onCropComplete={handleCoverCropComplete}
-    onClose={() => {
-      setShowCoverCropper(false);
-      setPendingCoverFile(null);
-    }}
-  />
-)}
-
-      {/* QR SCANNER MODAL */}
-{showScanner && (
-  <QRScanner 
-    onClose={() => setShowScanner(false)}
-    onSuccess={() => {
-      setShowScanner(false);
-      fetchActiveSheets();
-    }}
-  />
-)}
-
-      
+      {pendingCover && <CoverCropper imageFile={pendingCover} onCropComplete={saveCover} onClose={() => setPendingCover(null)} />}
+      {scanner && <QRScanner onClose={() => setScanner(false)} onSuccess={() => { setScanner(false); load(); }} />}
+      <ProfileSettings isOpen={settings} onClose={() => setSettings(false)} user={user} onUserUpdate={(u) => setUser(u)} />
+        
 
       <style>{`
-        /* GLOBAL STYLES - MOBILE FIRST */
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        body {
-  background: linear-gradient(135deg, #ffffff 0%, #eeeeee 100%);
-          
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-        }
-
-        .dashboard {
-          min-height: 100vh;
-          padding: 16px;
-        }
-
-        .dashboard-content {
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        /* HEADER */
-        .header {
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-          border-radius: 20px;
-          padding: 20px;
-          margin-bottom: 16px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-
-        .greeting {
-          color: white;
-          font-size: 20px;
-          font-weight: 600;
-        }
-
-        .user-name {
-          background: linear-gradient(135deg, #ffffff, #ffffff);
-          -webkit-background-clip: text;
-          background-clip: text;
-          font-weight: 900;
-          color: #1ace38;
-        }
-
-        .wave {
-          display: inline-block;
-          margin-left: 4px;
-        }
-
-        .date {
-          color: #94a3b8;
-          font-size: 12px;
-          margin-top: 4px;
-        }
-
-        .header-right {
-          display: flex;
-          gap: 8px;
-        }
-
-        .ai-btn, .logout-btn {
-          padding: 8px 16px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          border: none;
-          transition: all 0.3s ease;
-        }
-
-        .ai-btn {
-          background: rgba(220, 38, 38, 0.9);
-          color: white;
-        }
-
-        .logout-btn {
-          background: rgba(255, 255, 255, 0.1);
-          color: #dc2626;
-          backdrop-filter: blur(10px);
-        }
-
-        /* PROFILE CARD */
-        .profile-card {
-          background: #ffffff;
-          
-          border-radius: 0px;
-          padding: 15px;
-          margin-bottom: 20px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }
-
-        .profile-row {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          margin-bottom: 20px;
-        }
-
-        .avatar-wrapper {
-          position: relative;
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          overflow: hidden;
-          border: 4px solid #0ce428;
-          cursor: pointer;
-        }
-
-        /* Name divider line */
-.name-divider {
-  margin: 6px 0 8px 0;
-}
-
-.divider-line {
-  height: 2px;
-  background: linear-gradient(90deg, #000000, #33ff00, #000000);
-  border-radius: 2px;
-  width: 90%;
-  transition: width 0.3s ease;
-}
-
-.profile-card:hover .divider-line {
-  width: 100px;
-}
-
-        .avatar-wrapper img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .avatar-placeholder {
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(135deg, #ff0000, #764ba2);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 32px;
-          font-weight: bold;
-          color: white;
-        }
-
-        .avatar-overlay {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: rgba(0,0,0,0.6);
-          padding: 4px;
-          display: flex;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity 0.3s;
-        }
-
-        .avatar-wrapper:hover .avatar-overlay {
-          opacity: 1;
-        }
-
-        .profile-info {
-          flex: 1;
-             }
-
-        .info-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-bottom: 4px;
-        }
-
-        .info-header h2 {
-          font-size: 15px;
-          font-weight: 900;
-         font-style: italic;
-          color: #1e293b;
-        }
-
-        .member-badge {
-          background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 11px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .email, .phone {
-          font-size: 13px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-
-        .badges {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-top: 6px;
-        }
-
-        .role-badge, .jumuia-badge {
-          padding: 3px 10px;
-          border-radius: 12px;
-          font-size: 10px;
-          font-weight: 600;
-        }
-
-        .role-badge {
-          background: #eff6ff;
-          color: #3b82f6;
-        }
-
-        .jumuia-badge {
-          background: #ecfdf5;
-          color: #10b981;
-        }
-
-        .profile-stats {
-          display: flex;
-          align-items: center;
-          justify-content: space-around;
-          padding: 12px 0;
-          border-top: 1px solid #000000 ;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .stat-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .stat-icon {
-          font-size: 24px;
-        }
-
-        .stat-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .stat-value {
-          font-size: 14px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .stat-label {
-          font-size: 10px;
-          color: #64748b;
-        }
-
-        .stat-divider {
-          width: 1px;
-          height: 30px;
-          background: #000000;
-        }
-
-        .whatsapp-link {
-          font-size: 14px;
-          font-weight: 700;
-          color: #25D366;
-          text-decoration: none;
-        }
-
-        /* STATS ROW */
-        .stats-row {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .stats-row {
-            grid-template-columns: repeat(4, 1fr);
-          }
-        }
-
-        .stat-card {
-          background: white;
-          border-radius: 16px;
-          padding: 14px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          cursor: pointer;
-          transition: all 0.3s;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        .stat-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .stat-card .stat-icon {
-          font-size: 28px;
-        }
-
-        .stat-card .stat-value {
-          font-size: 18px;
-        }
-
-        /* TWO COLUMN LAYOUT */
-        .two-columns {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-          .two-columns {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-      /* ============================================
-   MAIN CARD
-   ============================================ */
-
-
-.section-card:hover {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
-}
-
-.full-width {
-  width: 100%;
-}
-
-/* ============================================
-   SECTION HEADER
-   ============================================ */
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.75rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #f5f5f5;
-}
-
-.section-header h3 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin: 0;
-  letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1a1a1a, #333);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.event-counter {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-/* ============================================
-   EVENTS LIST
-   ============================================ */
-.events-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-  margin-bottom: 1.75rem;
-  max-height: 450px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-/* Custom scrollbar */
-.events-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.events-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-
-.events-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border-radius: 10px;
-}
-
-/* ============================================
-   EMPTY STATE
-   ============================================ */
-.empty-state {
-  text-align: center;
-  padding: 3rem 1.5rem;
-  background: linear-gradient(135deg, #faf9ff, #f5f3ff);
-  border-radius: 20px;
-  border: 1px dashed #e0e0e0;
-}
-
-.empty-emoji {
-  font-size: 3rem;
-  margin-bottom: 0.75rem;
-  display: inline-block;
-}
-
-.empty-state p {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #666;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state span {
-  font-size: 0.8rem;
-  color: #999;
-}
-
-/* ============================================
-   EVENT ITEM - MODERN DESIGN
-   ============================================ */
-.event-item {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  transition: all 0.25s ease;
-  border: 1px solid #f0f0f0;
-  position: relative;
-  overflow: hidden;
-}
-
-.event-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 3px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  transform: scaleY(0);
-  transition: transform 0.25s ease;
-}
-
-.event-item:hover {
-  transform: translateX(4px);
-  border-color: #e8e8ff;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-}
-
-.event-item:hover::before {
-  transform: scaleY(1);
-}
-
-/* Date Box */
-.event-date-box {
-  min-width: 60px;
-  text-align: center;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  padding: 0.5rem;
-  border-radius: 14px;
-  color: white;
-  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.2);
-}
-
-.event-day {
-  font-size: 1.5rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.event-month {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Event Info */
-.event-info {
-  flex: 1;
-}
-
-.event-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 0.35rem;
-  letter-spacing: -0.2px;
-}
-
-.event-time-info {
-  font-size: 0.75rem;
-  color: #888;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.time-icon {
-  font-size: 0.7rem;
-}
-
-.time-separator {
-  color: #ddd;
-}
-
-/* Event Badge */
-.event-badge {
-  background: #f0fdf4;
-  color: #16a34a;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  white-space: nowrap;
-  border: 1px solid #dcfce7;
-}
-
-.event-badge:contains("Today") {
-  background: #fef3c7;
-  color: #d97706;
-  border-color: #fde68a;
-}
-
-/* ============================================
-   VIEW ALL BUTTON
-   ============================================ */
-.view-all {
-  width: 100%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  border: none;
-  padding: 0.85rem;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.view-all::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.view-all:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-}
-
-.view-all:hover::before {
-  left: 100%;
-}
-
-.view-all:active {
-  transform: translateY(0px);
-}
-
-/* ============================================
-   RESPONSIVE DESIGN
-   ============================================ */
-@media (max-width: 640px) {
-  .section-card {
-    padding: 1.25rem;
-  }
-  
-  .section-header h3 {
-    font-size: 1rem;
-  }
-  
-  .event-item {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-  
-  .event-date-box {
-    min-width: 50px;
-  }
-  
-  .event-day {
-    font-size: 1.2rem;
-  }
-  
-  .event-title {
-    font-size: 0.85rem;
-  }
-  
-  .event-time-info {
-    font-size: 0.7rem;
-  }
-  
-  .event-badge {
-    font-size: 0.65rem;
-    padding: 0.2rem 0.6rem;
-  }
-  
-  .view-all {
-    padding: 0.7rem;
-    font-size: 0.8rem;
-  }
-}
-
-/* ============================================
-   FIX FOR "TODAY" BADGE (using CSS attr)
-   ============================================ */
-.event-badge[data-status="today"] {
-  background: #fef3c7;
-  color: #d97706;
-  border-color: #fde68a;
-}
-        /* ANNOUNCEMENTS */
-        .announcements-list, .pledges-list, .hymns-list, .programs-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .announcement-item, .pledge-item, .program-item {
-          padding: 12px;
-          background: #f8fafc;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .announcement-item:hover, .pledge-item:hover, .program-item:hover {
-          background: #f1f5f9;
-          transform: translateX(4px);
-        }
-
-        .announcement-item {
-          display: flex;
-          gap: 12px;
-        }
-
-        .announcement-icon {
-          font-size: 20px;
-        }
-
-        .announcement-title {
-          font-weight: 600;
-          font-size: 13px;
-          color: #1e293b;
-        }
-
-        .announcement-message {
-          font-size: 11px;
-          color: #64748b;
-          margin-top: 2px;
-        }
-
-        .announcement-time {
-          font-size: 10px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-
-        /* PLEDGES */
-        .pledge-title {
-          font-weight: 600;
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-
-        .progress-bar {
-          background: #e2e8f0;
-          border-radius: 20px;
-          height: 6px;
-          overflow: hidden;
-          margin-bottom: 6px;
-        }
-
-        .progress-fill {
-          background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-          height: 100%;
-          border-radius: 20px;
-        }
-
-        .pledge-stats {
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-
-        .pledge-pending {
-          font-size: 10px;
-          color: #f59e0b;
-        }
-
-        /* HYMNS */
-        .hymn-item {
-          padding: 8px 0;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .hymn-bullet {
-          color: #3b82f6;
-        }
-
-        .hymn-title {
-          font-size: 13px;
-          color: #334155;
-        }
-
-        /* PROGRAMS */
-        .program-date, .program-venue, .program-time {
-          font-size: 12px;
-          color: #64748b;
-          margin-bottom: 2px;
-        }
-
-       /* GALLERY GRID */
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.gallery-item {
-  aspect-ratio: 1;
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-  border-radius: 16px;
-  overflow: hidden;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.gallery-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
-}
-
-.gallery-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.gallery-item:hover img {
-  transform: scale(1.05);
-}
-
-.gallery-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48px;
-  color: #94a3b8;
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-}
-
-.gallery-label {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-  color: white;
-  font-size: 11px;
-  padding: 8px 6px 4px;
-  text-align: center;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-  backdrop-filter: blur(4px);
-}
-        /* JUMUIA */
-        .jumuia-content {
-          text-align: center;
-          padding: 12px;
-          background: linear-gradient(135deg, #0bc549c2, #47ee05bd);
-          border-radius: 16px;
-          color: white;
-        }
-
-        .jumuia-name {
-          font-size: 20px;
-          font-weight: 700;
-          margin-bottom: 8px;
-        }
-
-        .jumuia-detail {
-          font-size: 12px;
-          margin-bottom: 4px;
-          opacity: 0.9;
-        }
-
-        .jumuia-chat-btn {
-          margin-top: 12px;
-          background: rgba(255,255,255,0.2);
-          border: none;
-          padding: 8px 16px;
-          border-radius: 20px;
-          color: white;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        /* GAMES & COMMUNITY */
-        .games-community {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-        }
-
-        @media (min-width: 600px) {
-          .games-community {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        .games-section, .online-section {
-          background: #f8fafc;
-          border-radius: 16px;
-          padding: 12px;
-        }
-
-        .games-title, .online-title {
-          font-weight: 600;
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-
-        .game-invite, .online-name {
-          font-size: 12px;
-          color: #64748b;
-        }
-
-        .online-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin: 8px 0;
-        }
-
-        .games-btn, .online-btn {
-          margin-top: 10px;
-          padding: 6px 12px;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          border-radius: 20px;
-          font-size: 11px;
-          cursor: pointer;
-        }
-
-        /* QUICK STATS */
-        .quick-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-        }
-
-        @media (min-width: 768px) {
-          .quick-stats-grid {
-            grid-template-columns: repeat(5, 1fr);
-          }
-        }
-
-        .quick-stat {
-          text-align: center;
-          padding: 8px;
-          background: #f8fafc;
-          border-radius: 12px;
-        }
-
-        .quick-stat-value {
-          font-size: 20px;
-          font-weight: 800;
-          color: #1e293b;
-        }
-
-        .quick-stat-label {
-          font-size: 10px;
-          color: #64748b;
-        }
-
-        /* READING */
-        .reading-card {
-          background: linear-gradient(135deg, #fef3c7, #fffbeb);
-        }
-
-        .reading-title {
-          font-weight: 600;
-          margin-bottom: 8px;
-        }
-
-        .reading-item {
-          font-size: 13px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-
-        .reading-btn {
-          margin-top: 12px;
-          padding: 8px 16px;
-          background: #d97706;
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        /* EXECUTIVE */
-        .executive-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        @media (min-width: 600px) {
-          .executive-grid {
-            grid-template-columns: repeat(5, 1fr);
-          }
-        }
-
-        .executive-item {
-          text-align: center;
-          padding: 10px;
-          background: #f8fafc;
-          border-radius: 12px;
-          cursor: pointer;
-        }
-
-        .executive-icon {
-          font-size: 28px;
-          margin-bottom: 4px;
-        }
-
-        .executive-name {
-          font-size: 10px;
-          color: #334155;
-          font-weight: 500;
-        }
-
-        /* CHAT ACTIVITIES */
-        .chat-item {
-          padding: 10px;
-          background: #f8fafc;
-          border-radius: 12px;
-          margin-bottom: 8px;
-          font-size: 12px;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: baseline;
-          gap: 4px;
-        }
-
-        .chat-time {
-          font-size: 9px;
-          color: #94a3b8;
-          margin-left: auto;
-        }
-
-        /* NOTIFICATIONS */
-        .notification-item {
-          display: flex;
-          gap: 12px;
-          padding: 12px;
-          background: #f8fafc;
-          border-radius: 12px;
-          margin-bottom: 8px;
-        }
-
-        .notification-item.unread {
-          background: #eff6ff;
-        }
-
-        .notification-icon {
-          font-size: 20px;
-        }
-
-        .notification-title {
-          font-weight: 600;
-          font-size: 12px;
-        }
-
-        .notification-message {
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .notification-time {
-          font-size: 9px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-
-        /* EVENTS */
-        .event-item {
-          padding: 8px 0;
-          font-size: 13px;
-          color: #334155;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .event-item:last-child {
-          border-bottom: none;
-        }
-
-        /* BUTTONS */
-        .view-all {
-          margin-top: 2px;
-          width: 100%;
-          padding: 10px;
-          background: #f1f5f9;
-          border: none;
-          border-radius: 12px;
-          color: #3b82f6;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .view-all:hover {
-          background: #e2e8f0;
-        }
-
-        /* EMPTY STATE */
-        .empty-state {
-          text-align: center;
-          padding: 24px;
-          color: #94a3b8;
-          font-size: 13px;
-        }
-
-        /* FOOTER */
-        .footer {
-          text-align: center;
-          padding: 20px;
-          margin-top: 20px;
-          border-top: 1px solid #e2e8f0;
-        }
-
-        .footer p {
-          font-size: 10px;
-          color: #94a3b8;
-        }
-
-        .creator {
-          margin-top: 4px;
-          font-size: 9px;
-          color: #cbd5e1;
-        }
-
-        /* ANIMATIONS */
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        /* ============================================
-   REFRESH BUTTON - SIMPLE & TRANSPARENT
-   ============================================ */
-
-.refresh-btn {
-  background: transparent !important;
-  border: none !important;
-  color: #64748b !important;
-  cursor: pointer !important;
-  padding: 8px !important;
-  border-radius: 50% !important;
-  transition: all 0.3s ease !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 40px !important;
-  height: 40px !important;
-}
-
-.refresh-btn:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-  color: #0f172a !important;
-  transform: rotate(45deg) !important;
-}
-
-.refresh-btn:active {
-  transform: rotate(90deg) !important;
-  color: #3b82f6 !important;
-}
-
-/* Spinning animation when refreshing */
-.refresh-btn.spinning svg {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-        /* ============================================
-   ENHANCED HYMNS SECTION
-   ============================================ */
-
-.hymns-section {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  
-  border-radius: 10px;
-  margin-top: 20px;
-}
-
-.header-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-icon-music {
-  font-size: 2rem;
- 
-  padding: 0.6rem;
-  border-radius: 16px;
- 
-  color: white;
-}
-
-.header-subtitle {
-  font-size: 0.7rem;
-  color: #020202;
-  margin: 0;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-}
-
-.total-badge {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #0f172a;
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border: 1px solid #cbd5e1;
-}
-
-/* Empty State Music */
-.empty-state-music {
-  text-align: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 20px;
-  border: 2px dashed #123241;
-}
-
-.music-note {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-music p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-music span {
-  font-size: 0.75rem;
-  color: #123241;
-}
-
-/* Hymns List */
-.hymns-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.hymns-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.hymns-list::-webkit-scrollbar-track {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.hymns-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 10px;
-}
-
-/* Hymn Item */
-.hymn-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: white;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #cbd5e1;
-  position: relative;
-  overflow: hidden;
-}
-
-.hymn-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  transform: scaleY(0);
-  transition: transform 0.3s ease;
-}
-
-.hymn-item:hover {
-  transform: translateX(4px);
-  border-color: #123241;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
-  background: #f8fafc;
-}
-
-.hymn-item:hover::before {
-  transform: scaleY(1);
-}
-
-/* Hymn Number */
-.hymn-number {
-  min-width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #0f172a;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.9rem;
-  border: 1px solid #cbd5e1;
-}
-
-.hymn-item:hover .hymn-number {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: white;
-  border-color: transparent;
-}
-
-/* Hymn Content */
-.hymn-content {
-  flex: 1;
-}
-
-.hymn-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.35rem;
-}
-
-.hymn-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.2px;
-}
-
-.hymn-category {
-  font-size: 0.65rem;
-  background: #e2e8f0;
-  color: #123241;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  font-weight: 600;
-}
-
-.hymn-preview {
-  font-size: 0.7rem;
-  color: #475569;
-  margin-bottom: 0.35rem;
-  font-style: italic;
-}
-
-.hymn-meta {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.hymn-date, .hymn-verses {
-  font-size: 0.65rem;
-  color: #123241;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-/* Hymn Arrow */
-.hymn-arrow {
-  color: #123241;
-  opacity: 0;
-  transform: translateX(-10px);
-  transition: all 0.3s ease;
-}
-
-.hymn-item:hover .hymn-arrow {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* View All Music Button */
-.view-all-music {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  color: white;
-  border: none;
-  padding: 0.85rem;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.view-all-music::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-  transition: left 0.5s ease;
-}
-
-.view-all-music:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
-}
-
-.view-all-music:hover::before {
-  left: 100%;
-}
-
-.view-all-music:active {
-  transform: translateY(0px);
-}
-
-.button-icon {
-  transition: transform 0.3s ease;
-}
-
-.view-all-music:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Animation */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .hymn-item {
-    padding: 0.75rem;
-  }
-  
-  .hymn-number {
-    min-width: 30px;
-    height: 30px;
-    font-size: 0.75rem;
-  }
-  
-  .hymn-title {
-    font-size: 0.85rem;
-  }
-  
-  .hymn-preview {
-    font-size: 0.65rem;
-  }
-  
-  .hymn-meta {
-    font-size: 0.6rem;
-  }
-  
-  .header-icon-music {
-    font-size: 1.5rem;
-    padding: 0.4rem;
-  }
-}
-
-/* Small polish for membership row */
-.membership-row {
-  margin-bottom: 0.5rem;
-}
-
-.member-badge {
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #1e293b;
-  display: inline-block;
-}
-
-/* Make email/phone cleaner */
-.email, .phone {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #ec0000;
-  margin: 0.2rem 0;
-}
-
-/* Styles just the icons */
-.icon-style {
-  color: #000000;
-  font-size: 24px;
-  margin-right: 8px;
-}
-
-/* Styles just the email and phone text */
-.text-style {
-  color: #ff0000;
-    font-size: 14px;
-
-  font-weight: 500;
-}
-
-
-.email1, .phone1 {
-  font-size: 1.3rem;
-  font-weight: 500;
-  color: #000000;
-  margin: 0.2rem 0;
-}
-
-/* Fix for the 📩 icon - remove extra dash */
-.email {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-/* Keep original everything else */
-/* ============================================
-   PREMIUM SCHEDULES SECTION
-   ============================================ */
-
-.schedules-section {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  border-left: 4px solid #12324100;
-  position: relative;
-  border-radius: 0px;
-  margin-top: 20px;
-  margin-bottom: 30px;
-  padding: 0.1rem 1rem;
-  overflow: hidden;
-}
-
-.schedules-section::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -30%;
-  width: 80%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(18, 50, 65, 0.05) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.header-icon-calendar {
-  font-size: 1rem;
-  
-  padding: 0.3rem;
-  border-radius: 16px;
- 
-  color: white;
-}
-
-.schedule-badge {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #0f172a;
-  border: 1px solid #cbd5e1;
-}
-
-/* Empty State Calendar */
-.empty-state-calendar {
-  text-align: center;
-  padding: 3rem 2rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 24px;
-  border: 2px dashed #123241;
-}
-
-.calendar-icon {
-  font-size: 3.5rem;
-  margin-bottom: 0.75rem;
-  display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-calendar p {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-calendar span {
-  font-size: 0.8rem;
-  color: #123241;
-}
-
-/* Events Timeline */
-.events-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  margin-bottom: 1.75rem;
-  max-height: 600px;
-  overflow-y: auto;
-  padding: 0.5rem;
-  position: relative;
-}
-
-.events-timeline::-webkit-scrollbar {
-  width: 6px;
-}
-
-.events-timeline::-webkit-scrollbar-track {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.events-timeline::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 10px;
-}
-
-/* Premium Event Card */
-.event-card-premium {
-  background: white;
-  border-radius: 20px;
-  padding: 1.2rem;
-  display: flex;
-  gap: 1.25rem;
-  position: relative;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-}
-
-.event-card-premium:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 30px -12px rgba(15, 23, 42, 0.15);
-  border-color: #123241;
-}
-
-/* Timeline Connector */
-.timeline-connector-dash {
-  position: absolute;
-  left: 55px;
-  top: 100%;
-  width: 2px;
-  height: 1.5rem;
-  background: linear-gradient(to bottom, #123241, transparent);
-  z-index: 0;
-}
-
-/* Date Section */
-.event-date-premium {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 80px;
-}
-
-.date-card {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 18px;
-  padding: 0.75rem 0.5rem;
-  text-align: center;
-  color: white;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
-  transition: all 0.3s ease;
-  width: 100%;
-}
-
-.event-card-premium:hover .date-card {
-  transform: scale(1.05);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.35);
-}
-
-.date-day-number {
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1;
-  margin-bottom: 0.25rem;
-}
-
-.date-month-year {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.date-year {
-  font-size: 0.6rem;
-  opacity: 0.8;
-}
-
-.today-flare {
-  background: #ef4444;
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 800;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  letter-spacing: 0.5px;
-  animation: pulse 2s infinite;
-}
-
-/* Event Content */
-.event-content-premium {
-  flex: 1;
-}
-
-.event-header-premium {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.event-title-premium {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-  letter-spacing: -0.3px;
-}
-
-.event-type-badge {
-  font-size: 0.7rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-weight: 600;
-}
-
-/* Event Details Chips */
-.event-details-premium {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.detail-chip {
-  background: #f8fafc;
-  padding: 0.25rem 0.6rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border: 1px solid #e2e8f0;
-}
-
-.chip-icon {
-  font-size: 0.65rem;
-}
-
-.event-description-premium {
-  font-size: 0.75rem;
-  color: #64748b;
-  line-height: 1.5;
-  margin-bottom: 0.75rem;
-}
-
-/* Event Footer */
-.event-footer-premium {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #f1f5f9;
-}
-
-.event-organizer {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
-  color: #94a3b8;
-}
-
-.organizer-icon {
-  font-size: 0.7rem;
-}
-
-.event-details-btn {
-  background: transparent;
-  border: none;
-  color: #123241;
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  transition: all 0.2s ease;
-  padding: 0.25rem 0.5rem;
-  border-radius: 20px;
-}
-
-.event-details-btn:hover {
-  background: #e2e8f0;
-  gap: 0.4rem;
-}
-
-/* Status Indicator - GREEN & RED MAINTAINED */
-.event-status-indicator {
-  font-size: 0.65rem;
-  font-weight: 700;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  padding: 0.5rem 0.25rem;
-  border-radius: 30px;
-  text-align: center;
-  letter-spacing: 1px;
-}
-
-.status-today {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-}
-
-.status-upcoming {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-}
-
-/* View All Button */
-.view-all-schedules {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: white;
-  border: none;
-  padding: 1rem;
-  border-radius: 16px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.view-all-schedules::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.view-all-schedules:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.4);
-}
-
-.view-all-schedules:hover::before {
-  width: 300px;
-  height: 300px;
-}
-
-.view-all-schedules:active {
-  transform: translateY(0px);
-}
-
-.button-arrow-icon {
-  transition: transform 0.3s ease;
-}
-
-.view-all-schedules:hover .button-arrow-icon {
-  transform: translateX(6px);
-}
-
-/* Animations */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-/* Helper function for event badges */
-.event-type-badge {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-/* Different colors for different event types - MAINTAINED */
-.event-card-premium[data-type="mass"] .event-type-badge {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.event-card-premium[data-type="meeting"] .event-type-badge {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.event-card-premium[data-type="social"] .event-type-badge {
-  background: #fce7f3;
-  color: #db2777;
-}
-
-/* Responsive - ORIGINAL SIZE MAINTAINED */
-@media (max-width: 768px) {
-  .event-card-premium {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .event-date-premium {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    min-width: auto;
-  }
-  
-  .date-card {
-    width: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
-  }
-  
-  .date-day-number {
-    font-size: 1.5rem;
-    margin-bottom: 0;
-  }
-  
-  .date-month-year {
-    flex-direction: row;
-    gap: 0.25rem;
-    align-items: baseline;
-  }
-  
-  .timeline-connector-dash {
-    display: none;
-  }
-  
-  .event-status-indicator {
-    writing-mode: horizontal-tb;
-    padding: 0.25rem 0.5rem;
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-  }
-  
-  .event-header-premium {
-    padding-right: 70px;
-  }
-}
-
-/* Desktop enhancements - ORIGINAL SIZE MAINTAINED */
-@media (min-width: 1024px) {
-  .event-title-premium {
-    font-size: 1.1rem;
-  }
-  
-  .detail-chip {
-    font-size: 0.75rem;
-  }
-  
-  .event-description-premium {
-    font-size: 0.8rem;
-  }
-}
-
-/* ============================================
-   PREMIUM EXECUTIVE TEAM SECTION (DASHBOARD SIZE)
-   ============================================ */
-
-.executive-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  margin-bottom: 0;
-  border-radius: 5px;
-  
-  padding: 1rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.header-icon-executive {
-  font-size: 1.8rem;
- 
-  padding: 0.5rem;
-  border-radius: 16px;
-
-  color: white;
-  display: inline-block;
-  margin-bottom: 1rem;
-}
-
-/* Empty State */
-.empty-state-executive {
-  text-align: center;
-  padding: 1.5rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 20px;
-  border: 2px dashed #123241;
-}
-
-.empty-executive-icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-executive p {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-executive span {
-  font-size: 0.7rem;
-  color: #123241;
-}
-
-/* Executive Grid */
-.executive-premium-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-@media (min-width: 768px) {
-  .executive-premium-grid {
-    grid-template-columns: repeat(5, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-  .executive-premium-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-  }
-}
-
-/* Executive Card */
-.executive-premium-card {
-  background: white;
-  border-radius: 20px;
-  padding: 0.75rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #cbd5e1;
-  position: relative;
-  overflow: hidden;
-}
-
-.executive-premium-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #0f172a, #123241);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
-}
-
-.executive-premium-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.25);
-  border-color: #123241;
-}
-
-.executive-premium-card:hover::before {
-  transform: scaleX(1);
-}
-
-/* Avatar */
-.executive-premium-avatar {
-  width: 55px;
-  height: 55px;
-  margin: 0 auto 0.6rem;
-  border-radius: 50%;
-  overflow: hidden;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid #123241;
-  transition: all 0.3s ease;
-}
-
-.executive-premium-card:hover .executive-premium-avatar {
-  transform: scale(1.05);
-  border-color: #0f172a;
-}
-
-.executive-premium-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.executive-avatar-placeholder {
-  font-size: 1.6rem;
-  color: #0f172a;
-}
-
-/* Info */
-.executive-premium-info {
-  margin-bottom: 0.5rem;
-}
-
-.executive-premium-name {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin-bottom: 0.2rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.executive-premium-role {
-  font-size: 0.55rem;
-  color: #123241;
-  font-weight: 600;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-/* Contact Buttons */
-.executive-premium-contact {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.executive-call-btn,
-.executive-wa-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.executive-call-btn {
-  background: #dbeafe;
-  color: #3557a0;
-}
-
-.executive-wa-btn {
-  background: #dcfce7;
-  color: #25D366;
-}
-
-.executive-call-btn:hover,
-.executive-wa-btn:hover {
-  transform: scale(1.1);
-}
-
-/* View All Button */
-.view-all-premium {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a00 0%, #1e293b);
-  color: white;
-  border: none;
-  padding: 0.6rem;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-  margin-top: auto;
-}
-
-.view-all-premium::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.view-all-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
-}
-
-.view-all-premium:hover::before {
-  left: 100%;
-}
-
-.button-icon {
-  transition: transform 0.3s ease;
-  width: 14px;
-  height: 14px;
-}
-
-.view-all-premium:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Animation */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-
-/* ============================================
-   JUMUIA DASHBOARD CARD - COMPACT
-   ============================================ */
-
-.jumuia-dashboard-card {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  padding: 1.25rem;
-  gap: 20px;
-  border-radius: 0px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0;
-  border-bottom: none;
-   
-    border-radius: 15px;
-
-
-}
-
-.header-icon-small {
-  font-size: 1.3rem;
-  padding: 0.3rem;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-}
-
-.header-icon-small span {
-  font-size: 0.9rem;
-}
-
-.section-header h3 {
-  font-size: 1rem;
-  margin: 0;
-  flex: 1;
-}
-
-.jumuia-status-badge-small {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: #dcfce7;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: #16a34a;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  background: #22c55e;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-/* Content */
-.jumuia-dashboard-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.jumuia-name-dashboard {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1e1b4b;
-  margin-bottom: 0.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #f3e8ff;
-}
-
-/* Quick Info Grid */
-.jumuia-quick-info {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.5rem;
-}
-
-.quick-info-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #faf5ff;
-  padding: 0.5rem;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-}
-
-.quick-info-item:hover {
-  background: #f3e8ff;
-  transform: translateX(2px);
-}
-
-.info-emoji {
-  font-size: 1.1rem;
-}
-
-.info-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.info-label {
-  font-size: 0.6rem;
-  color: #6b7280;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.info-value {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #1e1b4b;
-}
-
-.meeting-highlight {
-  background: linear-gradient(135deg, #fef3c7, #fffbeb);
-  border-left: 2px solid #f59e0b;
-}
-
-.meeting-date {
-  color: #d97706;
-  font-size: 0.75rem;
-}
-
-/* Button */
-.jumuia-chat-btn-dashboard {
-  width: 100%;
-  background: linear-gradient(135deg, #061635, #061e2e);
-  color: white;
-  border: none;
-  padding: 0.6rem;
-  border-radius: 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 0.25rem;
-}
-
-.jumuia-chat-btn-dashboard:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .jumuia-quick-info {
-    grid-template-columns: 1fr;
-  }
-  
-  .jumuia-dashboard-card {
-    padding: 1rem;
-  }
-  
-  .jumuia-name-dashboard {
-    font-size: 0.9rem;
-  }
-  
-  .info-value {
-    font-size: 0.75rem;
-  }
-}
-/* ============================================
-   PREMIUM LITURGICAL READING CARD (DASHBOARD)
-   ============================================ */
-
-.reading-premium-card {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  border-left: 5px solid #12324100;
-  padding: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  margin-bottom: 30px;
-  /* Dashboard card sizing */
-  height: 100%;  /* Fills grid/flex parent evenly */
-  display: flex;
-  flex-direction: column;
-}
-
-.reading-premium-header {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  padding: 0.75rem 1rem;  /* Reduced from 0rem 0.1rem */
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  
-  flex-wrap: nowrap;  /* No wrapping on dashboard */
-}
-
-.reading-header-icon {
-  border-radius: 50%;
-  width: 40px;  /* Smaller for dashboard */
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.reading-icon {
-  font-size: 1.4rem;  /* Smaller */
-}
-
-.reading-header-content {
-  flex: 1;
-  min-width: 0;  /* Allows text truncation */
-}
-
-.reading-premium-title {
-  font-size: 0.95rem;  /* Smaller for dashboard */
-  font-weight: 700;
-  color: white;
-  margin: 0;
-  letter-spacing: -0.3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.reading-premium-subtitle {
-  font-size: 0.65rem;  /* Smaller */
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0.1rem 0 0 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.reading-date-badge {
-  background: rgba(255, 255, 255, 0.25);
-  padding: 0.2rem 0.6rem;
-  border-radius: 30px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: white;
-  backdrop-filter: blur(4px);
-  flex-shrink: 0;
-}
-
-.reading-premium-body {
-  padding: 1rem;  /* Reduced */
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.reading-celebration {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  padding: 0.35rem 0.8rem;
-  border-radius: 40px;
-  margin-bottom: 0.75rem;  /* Reduced */
-  border: 1px solid #ffffff;
-  width: fit-content;
-}
-
-.celebration-icon {
-  font-size: 0.85rem;
-}
-
-.celebration-text {
-  font-size: 0.7rem;  /* Smaller */
-  font-weight: 600;
-  color: #ffffff;
-  white-space: nowrap;
-}
-
-.readings-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;  /* Reduced */
-  margin-bottom: 0.75rem;  /* Reduced */
-}
-
-.reading-verse-card {
-  background: white;
-  border-radius: 12px;  /* Slightly smaller */
-  padding: 0.6rem;  /* Reduced */
-  transition: all 0.3s ease;
-  border: 1px solid #000000;
-  position: relative;
-  overflow: hidden;
-}
-
-.reading-verse-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  transform: scaleY(0);
-  transition: transform 0.3s ease;
-}
-
-.reading-verse-card:hover {
-  transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-}
-
-.verse-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.3rem;
-}
-
-.verse-icon {
-  font-size: 1.2rem;
-}
-
-.verse-title {
-  font-size: 0.6rem;  /* Smaller */
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #000000;
-}
-
-.verse-citation {
-  font-size: 0.7rem;  /* Smaller */
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 0.15rem;
-}
-
-.verse-preview {
-  font-size: 0.6rem;  /* Smaller */
-  color: #64748b;
-  font-style: italic;
-  line-height: 1.3;
-  margin-top: 0.15rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;  /* Limit to 2 lines */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.gospel-card {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff);
-  border: 1px solid #000000;
-}
-
-.psalm-card {
-  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
-  border: 1px solid #a7f3d0;
-}
-
-.psalm-card .verse-title {
-  color: #059669;
-}
-
-.reading-premium-footer {
-  margin-top: auto;  /* Pushes footer to bottom */
-}
-
-.reading-full-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  color: white;
-  border: none;
-  padding: 0.6rem;  /* Reduced */
-  border-radius: 12px;  /* Smaller */
-  font-weight: 600;
-  font-size: 0.75rem;  /* Smaller */
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
-}
-
-.reading-full-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
-}
-
-.btn-arrow-icon {
-  transition: transform 0.3s ease;
-  width: 14px;
-  height: 14px;
-}
-
-.reading-footer-note {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  font-size: 0.55rem;  /* Smaller */
-  color: #212930;
-  text-align: center;
-  flex-wrap: wrap;
-}
-
-/* Dashboard Grid Layout (add to parent container) */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.25rem;
-  align-items: stretch;
-}
-
-/* Make all cards in dashboard equal height */
-.dashboard-grid > * {
-  height: 100%;
-}
-
-/* Responsive for smaller dashboard widgets */
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;  /* Stack on tablet */
-  }
-}
-
-@media (max-width: 640px) {
-  .reading-premium-header {
-    padding: 0.6rem 0.75rem;
-    gap: 0.5rem;
-  }
-  
-  .reading-header-icon {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .reading-icon {
-    font-size: 1.1rem;
-  }
-  
-  .reading-premium-title {
-    font-size: 0.85rem;
-  }
-  
-  .reading-premium-subtitle {
-    font-size: 0.55rem;
-  }
-  
-  .reading-premium-body {
-    padding: 0.75rem;
-  }
-  
-  .reading-celebration {
-    padding: 0.25rem 0.6rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .celebration-text {
-    font-size: 0.6rem;
-  }
-  
-  .readings-container {
-    gap: 0.5rem;
-  }
-  
-  .reading-verse-card {
-    padding: 0.5rem;
-  }
-  
-  .verse-preview {
-    font-size: 0.55rem;
-    -webkit-line-clamp: 2;
-  }
-  
-  .reading-full-btn {
-    padding: 0.5rem;
-    font-size: 0.7rem;
-  }
-}
-/* ============================================
-   PREMIUM FINANCIAL STATS GRID (DASHBOARD STYLE)
-   ============================================ */
-
-.financial-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-@media (max-width: 1024px) {
-  .financial-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .financial-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .financial-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-}
-
-/* Financial Stat Card */
-.financial-stat-card {
-  background: white;
-  border-radius: 20px;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-}
-
-.financial-stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
-}
-
-.financial-stat-card:hover::before {
-  transform: scaleX(1);
-}
-
-.financial-stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.2);
-  border-color: #123241;
-}
-
-/* Individual card hover effects (keeping unique colors but matching slate theme) */
-.financial-stat-card:first-child::before {
-  background: linear-gradient(90deg, #0f172a, #1e293b);
-}
-.financial-stat-card:nth-child(2)::before {
-  background: linear-gradient(90deg, #123241, #1a4a5f);
-}
-.financial-stat-card:nth-child(3)::before {
-  background: linear-gradient(90deg, #0f172a, #1e293b);
-}
-.financial-stat-card:nth-child(4)::before {
-  background: linear-gradient(90deg, #123241, #1a4a5f);
-}
-
-/* Icons */
-.financial-stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2.7rem;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-}
-
-.financial-stat-card:hover .financial-stat-icon {
-  transform: scale(1.05);
-}
-
-.pledged-icon {
-  color: #0f172a;
-}
-
-.paid-icon {
-  color: #123241;
-}
-
-.pending-icon {
-  color: #0f172a;
-}
-
-.campaigns-icon {
-  color: #123241;
-}
-
-/* Content */
-.financial-stat-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.financial-stat-value {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.3px;
-}
-
-.financial-stat-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: #123241;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-/* Trend Indicators */
-.financial-stat-trend {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 700;
-  opacity: 0.8;
-  transition: opacity 0.3s ease;
-  flex-shrink: 0;
-}
-
-.financial-stat-card:hover .financial-stat-trend {
-  opacity: 1;
-}
-
-.positive {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.success {
-  background: #e2e8f0;
-  color: #123241;
-}
-
-.warning {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.info {
-  background: #e2e8f0;
-  color: #123241;
-}
-/* ============================================
-   PREMIUM ANNOUNCEMENTS SECTION
-   ============================================ */
-
-.announcements-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  border-radius: 10px;
-  margin-top: 30px;
-  border-left: 4px solid #12324100;
-}
-
-.header-icon-announcement {
-  font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a00 0%, #1e293b00);
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: white;
-}
-
-/* Empty State */
-.empty-state-announcement {
-  text-align: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 20px;
-  border: 2px dashed #123241;
-}
-
-.empty-announcement-icon {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-announcement p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-announcement span {
-  font-size: 0.75rem;
-  color: #123241;
-}
-
-/* Announcements List */
-.announcements-premium-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  max-height: 380px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.announcements-premium-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.announcements-premium-list::-webkit-scrollbar-track {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.announcements-premium-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 10px;
-}
-
-/* Announcement Item */
-.announcement-premium-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: white;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #cbd5e1;
-  position: relative;
-  overflow: hidden;
-}
-
-.announcement-premium-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  transform: scaleY(0);
-  transition: transform 0.3s ease;
-}
-
-.announcement-premium-item:hover {
-  transform: translateX(4px);
-  border-color: #123241;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
-  background: #f8fafc;
-}
-
-.announcement-premium-item:hover::before {
-  transform: scaleY(1);
-}
-
-/* Announcement Number */
-.announcement-premium-number {
-  min-width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #0f172a;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.9rem;
-  border: 1px solid #cbd5e1;
-}
-
-.announcement-premium-item:hover .announcement-premium-number {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: white;
-  border-color: transparent;
-}
-
-/* Announcement Content */
-.announcement-premium-content {
-  flex: 1;
-}
-
-.announcement-premium-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.announcement-premium-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.2px;
-}
-
-.announcement-premium-time {
-  font-size: 0.65rem;
-  color: #123241;
-  background: #e2e8f0;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  font-weight: 500;
-}
-
-.announcement-premium-message {
-  font-size: 0.75rem;
-  color: #475569;
-  line-height: 1.4;
-}
-
-/* Announcement Arrow */
-.announcement-premium-arrow {
-  color: #123241;
-  opacity: 0;
-  transform: translateX(-8px);
-  transition: all 0.3s ease;
-}
-
-.announcement-premium-item:hover .announcement-premium-arrow {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* View All Button */
-.view-all-premium {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  color: white;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.view-all-premium::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.view-all-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
-}
-
-.view-all-premium:hover::before {
-  left: 100%;
-}
-
-.view-all-premium:active {
-  transform: translateY(0px);
-}
-
-.button-icon {
-  transition: transform 0.3s ease;
-}
-
-.view-all-premium:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .announcement-premium-item {
-    padding: 0.75rem;
-  }
-  
-  .announcement-premium-number {
-    min-width: 30px;
-    height: 30px;
-    font-size: 0.75rem;
-  }
-  
-  .announcement-premium-title {
-    font-size: 0.85rem;
-  }
-  
-  .announcement-premium-message {
-    font-size: 0.7rem;
-  }
-  
-  .header-icon-announcement {
-    font-size: 1.5rem;
-    padding: 0.4rem;
-  }
-}
-
-/* Animation */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-/* ============================================
-   COMPACT PLEDGES SECTION
-   ============================================ */
-
-.pledges-compact {
-  padding: 1rem !important;
-  border-left: 4px solid #12324100;
-  margin-top: 50px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-}
-
-.header-icon-small-pledge {
-  font-size: 1.2rem;
-  background: linear-gradient(135deg, #0f172a00, #1e293b00);
-  padding: 0.3rem;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: white;
-}
-
-.header-icon-small-pledge span {
-  font-size: 0.9rem;
-}
-
-.section-header .header-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.section-header .header-with-icon h3 {
-  font-size: 0.9rem;
-  margin: 0;
-  color: #0f172a;
-}
-
-.pledge-count-badge {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 20px;
-}
-
-.pledges-compact-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 0.75rem;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.pledges-compact-list::-webkit-scrollbar {
-  width: 3px;
-}
-
-.pledges-compact-list::-webkit-scrollbar-track {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.pledges-compact-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 10px;
-}
-
-.empty-state-compact-pledge {
-  text-align: center;
-  padding: 1rem;
-  background: #e2e8f0;
-  border-radius: 12px;
+.zd{--ink:#0f172a;--mut:#64748b;--ln:#e2e8f0;--bg:#f8fafc;--red:#dc2626;
+  min-height:100vh;background:var(--bg);color:var(--ink);padding-bottom:78px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif}
+.zd *{box-sizing:border-box}
+.zd h1,.zd h2,.zd h3,.zd p{margin:0}
+.zd button{font-family:inherit;cursor:pointer}
+.zd button:focus-visible,.zd a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.zd-wrap{max-width:1240px;margin:0 auto}
+.spin{animation:zs 1s linear infinite}@keyframes zs{to{transform:rotate(360deg)}}
+
+/* sidebar */
+.zd-side{display:none}
+.zd-sb-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;cursor:pointer;font-weight:800}
+.zd-sb-brand img{width:36px;height:36px;object-fit:contain}
+.zd-side button{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:0;border-radius:10px;
+  background:none;color:var(--mut);font-size:14px;font-weight:600;text-align:left}
+.zd-side button:hover{background:#f1f5f9;color:var(--ink)}
+.zd-side button.on{background:var(--ink);color:#fff}
+.zd-side button.danger{color:var(--red)}
+.zd-side hr{border:0;border-top:1px solid var(--ln);margin:10px 0;width:100%}
+
+/* hero */
+.zd-hero{position:relative;height:270px;overflow:hidden;border-radius:0 0 8px 8px;background:var(--ink)}
+.zd-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.zd-shade{
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(180deg,
+      rgba(15,23,42,.60) 0%,
+      rgba(15,23,42,.20) 28%,
+      rgba(15,23,42,.55) 55%,
+      rgba(15,23,42,.95) 100%
+    ),
+    linear-gradient(90deg,
+      rgba(15,23,42,.65) 0%,
+      rgba(15,23,42,.15) 50%,
+      transparent 100%
+    );
+}
+.zd-ib{position:relative;width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.35);
+  background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;backdrop-filter:blur(8px);cursor:pointer}
+.zd-ib:hover{background:rgba(255,255,255,.3)}
+
+.zd-ib-danger{
+  background:rgba(220,38,38,.25);
+  border-color:rgba(248,113,113,.5);
+  color:#fecaca;
+}
+.zd-ib-danger:hover{
+  background:rgba(220,38,38,.55);
+  color:#ffffff;
+  border-color:rgba(248,113,113,.8);
+  transform:scale(1.05);
+}
+.zd-ib i{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;border-radius:9Spx;background:var(--red);
+  font:700 10px/17px sans-serif;font-style:normal;text-align:center;padding:0 4px}
+.zd-tl{position:absolute;top:16px;left:16px}
+.zd-tr{position:absolute;top:16px;right:16px;display:flex;gap:8px}
+.zd-greet{
+  position:absolute;
+  left:20px;
+  right:20px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#fff;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  pointer-events:none;
+  z-index:2;
+}
+.zd-greet h1{
+  font-size:20px;font-weight:800;letter-spacing:-.3px;
+  display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;
+  line-height:1.15;
+  text-shadow:0 2px 14px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.6);
+}
+.zd-greet p{
+  font-size:11.5px;opacity:.95;margin:0;
+  text-shadow:0 1px 8px rgba(0,0,0,.7);
+}
+.zd-picker{
+  position: fixed;
+  top:64px;
+  right:16px;
+  z-index:6;
+  width:360px;
+  max-width:calc(100% - 32px);
+  max-height:60vh;
+  overflow-y:auto;
+  background:#fff;
+  color:var(--ink);
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 25px 50px -12px rgba(15,23,42,.35);
+}
+.zd-picker>div:first-child{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+  font-size:13px;
+  font-weight:700;
+  color:#0f172a;
+}
+.zd-picker>div:first-child button{
+  border:0;
+  background:#f1f5f9;
+  border-radius:8px;
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  color:#475569;
+}
+.zd-sw{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:8px;
+}
+.zd-sw button{
+  aspect-ratio:1;
+  border:0;
+  border-radius:10px;
+  color:#fff;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  transition:transform .15s ease;
+}
+.zd-sw button:hover{
+  transform:scale(1.08);
+}
+.zd-picker small{
+  display:block;
+  margin-top:12px;
+  color:#94a3b8;
+  font-size:11px;
+  text-align:center;
+  line-height:1.4;
 }
 
-.empty-state-compact-pledge span {
-  font-size: 1.5rem;
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.empty-state-compact-pledge p {
-  font-size: 0.7rem;
-  color: #123241;
-  margin: 0;
-}
-
-.pledge-compact-item {
-  background: white;
-  border-radius: 12px;
-  padding: 0.6rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid #cbd5e1;
-}
-
-.pledge-compact-item:hover {
-  background: #f8fafc;
-  transform: translateX(2px);
-  border-color: #123241;
-}
-
-.pledge-compact-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.4rem;
-}
-
-.pledge-compact-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.pledge-compact-percent {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #123241;
-}
-
-.progress-bar-compact {
-  background: #e2e8f0;
-  border-radius: 20px;
-  height: 4px;
-  overflow: hidden;
-  margin-bottom: 0.4rem;
-}
-
-.progress-fill-compact {
-  background: linear-gradient(90deg, #0f172a, #1e293b);
-  height: 100%;
-  border-radius: 20px;
-  transition: width 0.3s ease;
-}
-
-.pledge-compact-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.6rem;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.pledge-compact-footer span:first-child {
-  color: #475569;
-  font-weight: 500;
-}
-
-.pledge-pending-compact {
-  color: #123241;
-  font-weight: 600;
-}
-
-.view-all-compact-pledge {
-  width: 100%;
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  padding: 0.5rem;
-  border-radius: 10px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #0f172a;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.view-all-compact-pledge:hover {
-  background: #e2e8f0;
-  border-color: #123241;
-  color: #0f172a;
-}
-/* ============================================
-   PREMIUM GALLERY SECTION
-   ============================================ */
-
-.gallery-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  border-radius: 10px;
-  border-left: 4px solid #12324100;
-}
-
-.header-icon-gallery {
-  font-size: 2rem;
-  background: linear-gradient(135deg, #0f172a00 0%, #1e293b00);
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: white;
-}
-
-/* Gallery Grid */
-.gallery-premium-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-@media (max-width: 640px) {
-  .gallery-premium-grid {
-    gap: 0.75rem;
-  }
-}
-
-/* Gallery Item */
-.gallery-premium-item {
-  cursor: pointer;
-  border-radius: 16px;
-  overflow: hidden;
-  background: white;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid #cbd5e1;
-}
-
-.gallery-premium-item:hover {
-  box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.25);
-  border-color: #123241;
-}
-
-/* Gallery Image */
-.gallery-premium-image {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-}
-
-.gallery-premium-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.gallery-premium-item:hover .gallery-premium-image img {
-  transform: scale(1.08);
-}
-
-/* Overlay */
-.gallery-premium-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.gallery-premium-item:hover .gallery-premium-overlay {
-  opacity: 1;
-}
-
-.overlay-icon {
-  font-size: 1.2rem;
-  color: white;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0.3rem;
-  border-radius: 50%;
-}
-
-.overlay-text {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-}
-
-/* Placeholder */
-.gallery-premium-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2.5rem;
-  color: #64748b;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-}
-
-/* Gallery Info */
-.gallery-premium-info {
-  padding: 0.6rem;
-  text-align: center;
-}
-
-.gallery-premium-title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gallery-premium-date {
-  font-size: 0.6rem;
-  color: #123241;
-  margin-top: 0.2rem;
-}
-
-/* Empty State */
-.empty-state-gallery {
-  text-align: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 20px;
-  border: 2px dashed #123241;
-}
-
-.empty-gallery-icon {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-gallery p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-gallery span {
-  font-size: 0.75rem;
-  color: #123241;
-}
-
-/* Animation */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-/* ============================================
-   PREMIUM MASS PROGRAMS SECTION
-   ============================================ */
-
-.mass-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff  100%);
-  border-radius: 10px;
-  border-left: 4px solid #12324100;
-  margin-bottom: 30px;
-  margin-top: 30px;
-}
-
-.header-icon-mass {
-  font-size: 2rem;
- 
-  padding: 0.6rem;
-  border-radius: 16px;
- 
-  color: white;
-}
-
-/* Empty State */
-.empty-state-mass {
-  text-align: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-radius: 20px;
-  border: 2px dashed #123241;
-}
-
-.empty-mass-icon {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-.empty-state-mass p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-state-mass span {
-  font-size: 0.75rem;
-  color: #123241;
-}
-
-/* Mass List */
-.mass-premium-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  max-height: 350px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.mass-premium-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.mass-premium-list::-webkit-scrollbar-track {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.mass-premium-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 10px;
-}
-
-/* Mass Item */
-.mass-premium-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #cbd5e1;
-  position: relative;
-  overflow: hidden;
-}
-
-.mass-premium-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  transform: scaleY(0);
-  transition: transform 0.3s ease;
-}
-
-.mass-premium-item:hover {
-  transform: translateX(4px);
-  border-color: #123241;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
-  background: #f8fafc;
-}
-
-.mass-premium-item:hover::before {
-  transform: scaleY(1);
-}
-
-/* Date Box */
-.mass-premium-date {
-  min-width: 60px;
-  text-align: center;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  padding: 0.5rem;
-  border-radius: 14px;
-  color: white;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2);
-}
-
-.mass-date-day {
-  font-size: 1.4rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.mass-date-month {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Mass Content */
-.mass-premium-content {
-  flex: 1;
-}
-
-.mass-premium-venue {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin-bottom: 0.25rem;
-}
-
-.mass-premium-details {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.mass-time, .mass-presider {
-  font-size: 0.7rem;
-  color: #123241;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-/* Arrow */
-.mass-premium-arrow {
-  color: #123241;
-  opacity: 0;
-  transform: translateX(-8px);
-  transition: all 0.3s ease;
-}
-
-.mass-premium-item:hover .mass-premium-arrow {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* View All Button */
-.view-all-premium {
-  width: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b);
-  color: white;
-  border: none;
-  padding: 0.75rem;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.view-all-premium::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.view-all-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
-}
-
-.view-all-premium:hover::before {
-  left: 100%;
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .mass-premium-item {
-    padding: 0.6rem;
-  }
-  
-  .mass-premium-date {
-    min-width: 50px;
-  }
-  
-  .mass-date-day {
-    font-size: 1.2rem;
-  }
-  
-  .mass-premium-venue {
-    font-size: 0.8rem;
-  }
-  
-  .mass-time, .mass-presider {
-    font-size: 0.65rem;
-  }
-  
-  .header-icon-mass {
-    font-size: 1.5rem;
-    padding: 0.4rem;
-  }
-}
-
-/* Animation */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
 
 /* ============================================
    ACTIVE MEETINGS CARD
    ============================================ */
-
-.active-meetings-card {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
-  border-radius: 10px;
-  padding: 1.2rem;
-  margin-bottom: 1.5rem;
-  border-left: 4px solid #dc2626;
+.active-meetings-card{
+  background:#fff;
+  border-radius:10px;
+  padding:1.2rem;
+  margin:16px 16px 1.5rem;
+  border-left:4px solid #dc2626;
+  box-shadow:0 6px 18px -12px rgba(15,23,42,.25);
 }
-
-.header-icon-meeting {
-  font-size: 1.8rem;
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  padding: 0.5rem;
-  border-radius: 16px;
-  color: white;
-  display: inline-block;
+.header-icon-meeting{
+  width:10px;height:10px;
+  background:linear-gradient(135deg,#dc2626,#b91c1c);
+  border-radius:16px;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:1.6rem;color:#fff;
+  flex-shrink:0;
 }
-
-.meeting-count-badge {
-  background: #dc2626;
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
+.header-with-icon{
+  display:flex;align-items:center;gap:12px;
 }
-
-.active-meetings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
+.meeting-count-badge{
+  padding:.2rem .5rem;border-radius:30px;
+  font-size:.7rem;font-weight:700;
+  BACKGROUND:linear-gradient(135deg,#dc2626,#b91c1c);
+  color:#fff;
+  white-space:nowrap;
 }
-
-.meeting-card-active {
-  background: white;
-  border-radius: 20px;
-  padding: 1rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
+.active-meetings-list{
+  display:flex;flex-direction:column;gap:1rem;margin-top:1rem;
 }
-
-.meeting-card-active:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  border-color: #dc2626;
+.meeting-card-active{
+  background:#fff;border-radius:20px;padding:1rem;
+  border:1px solid #e2e8f0;transition:all .3s ease;
 }
-
-.meeting-status-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
+.meeting-card-active:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 20px rgba(0,0,0,.1);
+  border-color:#dc2626;
 }
-
-.live-indicator {
-  background: #dc2626;
-  color: white;
-  font-size: 0.7rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  font-weight: 600;
+.meeting-status-row{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:.75rem;
 }
-
-.meeting-time-sm {
-  font-size: 0.7rem;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+.live-indicator{
+  background:#dc2626;color:#fff;font-size:.7rem;
+  padding:.2rem .6rem;border-radius:20px;font-weight:600;
 }
-
-.meeting-title-sm {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
+.meeting-time-sm{
+  font-size:.7rem;color:#64748b;
+  display:flex;align-items:center;gap:.25rem;
 }
-
-.meeting-details-sm {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.7rem;
-  color: #64748b;
-  margin-bottom: 0.5rem;
+.meeting-title-sm{
+  font-size:1rem;font-weight:700;color:#1e293b;
+  margin:0 0 .5rem 0;
 }
-
-.detail-icon {
-  margin-right: 0.2rem;
+.meeting-details-sm{
+  display:flex;gap:1rem;font-size:.7rem;color:#64748b;
+  margin-bottom:.5rem;flex-wrap:wrap;
 }
-
-.meeting-stats-sm {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
-  color: #64748b;
-  margin-bottom: 0.5rem;
+.meeting-details-sm span{
+  display:inline-flex;align-items:center;gap:.25rem;
 }
-
-.meeting-wifi-sm {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
-  color: #3b82f6;
-  margin-bottom: 0.75rem;
+.meeting-stats-sm{
+  display:flex;align-items:center;gap:.3rem;
+  font-size:.7rem;color:#64748b;margin-bottom:.5rem;
 }
-
-.checkin-btn-sm {
-  width: 100%;
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  color: white;
-  border: none;
-  padding: 0.6rem;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.meeting-wifi-sm{
+  display:flex;align-items:center;gap:.3rem;
+  font-size:.7rem;color:#3b82f6;margin-bottom:.75rem;
 }
-
-.checkin-btn-sm:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+.checkin-btn-sm{
+  width:100%;
+  background:linear-gradient(135deg,#dc2626,#b91c1c);
+  color:#fff;border:0;padding:.6rem;border-radius:12px;
+  font-weight:600;font-size:.8rem;cursor:pointer;
+  transition:all .3s ease;
 }
-
-.checkin-btn-sm:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.checkin-btn-sm:hover{
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(220,38,38,.3);
 }
-
-.view-all-meetings {
-  width: 100%;
-  background: transparent;
-  border: 1px solid #dc2626;
-  color: #dc2626;
-  padding: 0.6rem;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.75rem;
-  cursor: pointer;
-  margin-top: 1rem;
-  transition: all 0.3s ease;
+.view-all-meetings{
+  width:100%;background:transparent;border:1px solid #dc2626;
+  color:#dc2626;padding:.6rem;border-radius:12px;
+  font-weight:600;font-size:.75rem;cursor:pointer;
+  margin-top:1rem;transition:all .3s ease;
 }
+.view-all-meetings:hover{background:#dc2626;color:#fff}
 
-.view-all-meetings:hover {
-  background: #dc2626;
-  color: white;
-}
-
-@media (max-width: 640px) {
-  .active-meetings-card {
-    padding: 1rem;
-  }
-  
-  .meeting-title-sm {
-    font-size: 0.9rem;
-  }
-  
-  .checkin-btn-sm {
-    font-size: 0.7rem;
-    padding: 0.5rem;
-  }
-}
-/* ============================================
-   GAMES & COMMUNITY - CLEAN LIGHT THEME
-   ============================================ */
-
-.games-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 10px;
-  border-left: 4px solid #44434202;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.games-premium:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-/* Header */
-.header-icon-games {
-  font-size: 2rem;
-  
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: #f59e0b;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-.games-badge {
-  background: #fef3c7;
-  color: #000000;
-  padding: 0.3rem 0.8rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-/* Two Column Layout */
-.games-community-premium {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-top: 0.5rem;
-}
-
-@media (max-width: 768px) {
-  .games-community-premium {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-}
-
-/* Games Section */
-.games-section-premium {
-  background: #f8fafc;
-  border-radius: 20px;
-  padding: 1.25rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
-}
-
-.games-section-premium:hover {
-  background: #f1f5f9;
-  border-color: #000000;
-}
-
-.games-header-premium {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.games-title-premium {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.games-count {
-  background: #ffffff;
-  padding: 0.2rem 0.7rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  color: #000000;
-  font-weight: 600;
-}
-
-/* Empty State Games */
-.empty-games-state {
-  text-align: center;
-  padding: 1.5rem 1rem;
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px dashed #e2e8f0;
-}
-
-.empty-games-icon {
-  font-size: 2.5rem;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.empty-games-state p {
-  font-size: 0.85rem;
-  color: #64748b;
-  margin: 0;
-  font-weight: 500;
-}
-
-.empty-games-sub {
-  font-size: 0.65rem;
-  color: #94a3b8;
-  display: block;
-  margin-top: 0.25rem;
-}
-
-/* Game Invites List */
-.game-invites-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.game-invites-list::-webkit-scrollbar {
-  width: 3px;
-}
-
-.game-invites-list::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 10px;
-}
-
-.game-invites-list::-webkit-scrollbar-thumb {
-  background: #f59e0b;
-  border-radius: 10px;
-}
-
-/* Individual Game Invite */
-.game-invite-premium {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: #ffffff;
-  border-radius: 14px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border: 1px solid #e2e8f0;
-}
-
-.game-invite-premium:hover {
-  background: #fef3c7;
-  border-color: #f59e0b;
-  transform: translateX(4px);
-}
-
-.game-invite-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #fef3c7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  flex-shrink: 0;
-  overflow: hidden;
-  color: #f59e0b;
-}
-
-.game-invite-avatar img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.game-invite-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.game-invite-sender {
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.game-invite-sender strong {
-  color: #1e293b;
-  font-weight: 700;
-}
-
-.game-invite-action {
-  color: #94a3b8;
-  margin-left: 0.2rem;
-}
-
-.game-invite-meta {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.6rem;
-  color: #94a3b8;
-  margin-top: 0.2rem;
-  flex-wrap: wrap;
-}
-
-.game-type {
-  background: #fef3c7;
-  padding: 0.1rem 0.5rem;
-  border-radius: 10px;
-  color: #f59e0b;
-  font-weight: 600;
-}
-
-.game-time {
-  color: #94a3b8;
-}
-
-.game-invite-accept {
-  background: #f59e0b;
-  color: white;
-  border: none;
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.game-invite-accept:hover {
-  background: #d97706;
-  transform: scale(1.05);
-}
-
-/* Games Action Button */
-.games-action-btn {
-  width: 100%;
-  background: #fff90;
-  color: #1e293b;
-  border: none;
-  padding: 0.7rem;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.games-action-btn:hover {
-  background: #d97706;
-  transform: translateY(-2px);
-}
-
-.games-action-btn:active {
-  transform: translateY(0);
+@media (max-width:640px){
+  .active-meetings-card{padding:1rem;margin:12px 12px 1.5rem}
+  .meeting-title-sm{font-size:.9rem}
+  .checkin-btn-sm{font-size:.7rem;padding:.5rem}
 }
 
 /* ============================================
-   ONLINE MEMBERS SECTION
+   COUNTDOWN
    ============================================ */
-
-.online-section-premium {
-  background: #f8fafc;
-  border-radius: 20px;
-  margin-bottom: 1.5rem;
-  margin-top: 2.5rem;
-  padding: 1.25rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
-}
-
-.online-section-premium:hover {
-  background: #f1f5f9;
-  border-color: #3b82f6;
-}
-
-.online-header-premium {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.online-title-premium {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.online-count {
-  background: #dbeafe;
-  padding: 0.2rem 0.7rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  color: #3b82f6;
-  font-weight: 600;
-}
-
-/* Empty State Online */
-.empty-online-state {
-  text-align: center;
-  padding: 1.5rem 1rem;
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px dashed #e2e8f0;
-}
-
-.empty-online-icon {
-  font-size: 2.5rem;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.empty-online-state p {
-  font-size: 0.85rem;
-  color: #64748b;
-  margin: 0;
-  font-weight: 500;
-}
-
-.empty-online-sub {
-  font-size: 0.65rem;
-  color: #94a3b8;
-  display: block;
-  margin-top: 0.25rem;
-}
-
-.online-members-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  max-height: 420px;         /* ✅ Scroll if too many */
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.online-members-grid::-webkit-scrollbar {
-  width: 4px;
-}
-
-.online-members-grid::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 10px;
-}
-
-.online-members-grid::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 10px;
-}
-
-@media (max-width: 480px) {
-  .online-members-grid {
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-    gap: 0.5rem;
-    max-height: 320px;
-  }
-}
-
-/* Individual Online Member */
-.online-member-premium {
-  text-align: center;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-}
-
-.online-member-premium:hover {
-  background: #f1f5f9;
-  border-color: #3b82f6;
-  transform: translateY(-3px);
-}
-
-.online-member-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  margin: 0 auto 0.3rem;
-  position: relative;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1e293b;
-  overflow: hidden;
-}
-
-.online-member-avatar img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.online-status-dot {
-  position: absolute;
-  top: 30px;
-  left: 25px;
-  width: 12px;
-  height: 12px;
-  background: #22c55e;
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-}
-
-.online-member-name {
-  font-size: 0.6rem;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 500;
-}
-
-.online-more-indicator {
-  text-align: center;
-  font-size: 0.65rem;
-  color: #94a3b8;
-  margin-bottom: 0.75rem;
-  padding: 0.3rem;
-  background: #f1f5f9;
-  border-radius: 10px;
-}
-
-/* Online Action Button */
-.online-action-btn {
-  width: 100%;
-  background: #000000;
-  color: white;
-  border: none;
-  padding: 0.7rem;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.online-action-btn:hover {
-  background: #2563eb;
-  transform: translateY(-2px);
-}
-
-.online-action-btn:active {
-  transform: translateY(0);
-}
-
-/* Button Icon Animation */
-.button-icon {
-  transition: transform 0.3s ease;
-}
-
-.games-action-btn:hover .button-icon,
-.online-action-btn:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Section Header overrides */
-.games-premium .section-header {
-  border-bottom-color: #f1f5f9;
-}
-
-.games-premium .section-header h3 {
-  color: #1e293b;
-  background: none;
-  -webkit-text-fill-color: #1e293b;
-}
-
-.games-premium .header-subtitle {
-  color: #94a3b8;
-}
-
-/* Responsive fine-tuning */
-@media (max-width: 640px) {
-  .games-premium {
-    padding: 1rem;
-  }
-  
-  .games-section-premium,
-  .online-section-premium {
-    padding: 1rem;
-  }
-  
-  .game-invite-premium {
-    padding: 0.6rem;
-    flex-wrap: wrap;
-  }
-  
-  .game-invite-accept {
-    width: 100%;
-    text-align: center;
-    padding: 0.4rem;
-    font-size: 0.7rem;
-  }
-  
-  .online-members-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  
-  .online-member-avatar {
-    width: 38px;
-    height: 38px;
-    font-size: 0.8rem;
-  }
-  
-  .online-status-dot {
-    width: 10px;
-    height: 10px;
-  }
-  
-  .header-icon-games {
-    width: 40px;
-    height: 40px;
-    font-size: 1.5rem;
-  }
-}
-
-/* Scrollbar styling for Firefox */
-.game-invites-list {
-  scrollbar-width: thin;
-  scrollbar-color: #f59e0b #f1f5f9;
-}
-
-/* ============================================
-   QUICK STATS - CLEAN NEUTRAL THEME
-   ============================================ */
-
-.stats-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 10px;
-  
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.stats-premium:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-.header-icon-stats {
-  font-size: 2rem;
-  background: #f1f5f9;
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-.stats-live-badge {
-  background: #dcfce7;
-  color: #22c55e;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-/* Quick Stats Grid */
-.quick-stats-premium-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-@media (max-width: 1024px) {
-  .quick-stats-premium-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .quick-stats-premium-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .quick-stats-premium-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-  }
-}
-
-/* Individual Stat Card */
-.quick-stat-premium {
-  background: #f8fafc;
-  border-radius: 16px;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  transition: all 0.3s ease;
-  border: 1px solid #e2e8f0;
-  cursor: default;
-}
-
-.quick-stat-premium:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  transform: translateY(-2px);
-}
-
-.stat-premium-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  flex-shrink: 0;
-}
-
-.users-icon {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.messages-icon {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.hymns-icon {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.media-icon {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.gallery-icon {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.stat-premium-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.stat-premium-value {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #1e293b;
-  letter-spacing: -0.3px;
-}
-
-.stat-premium-label {
-  font-size: 0.6rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-weight: 600;
-}
-
-.stat-premium-trend {
-  font-size: 0.7rem;
-  color: #22c55e;
-  font-weight: 700;
-  background: #dcfce7;
-  padding: 0.15rem 0.4rem;
-  border-radius: 10px;
-}
-  /* ============================================
-   RECENT CHAT ACTIVITY - CLEAN NEUTRAL THEME
-   ============================================ */
-
-.chat-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 0px;
- 
-  padding: 1.5rem;
-  Margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.chat-premium:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-.header-icon-chat {
-  font-size: 2rem;
-  background: #f1f5f9;
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-.chat-badge {
-  background: #e2e8f0;
-  color: #475569;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-/* Chat Activities */
-.chat-activities-premium {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.chat-activities-premium::-webkit-scrollbar {
-  width: 4px;
-}
-
-.chat-activities-premium::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 10px;
-}
-
-.chat-activities-premium::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 10px;
-}
-
-/* Empty State */
-.empty-chat-state {
-  text-align: center;
-  padding: 2rem;
-  background: #f8fafc;
-  border-radius: 16px;
-  border: 1px dashed #e2e8f0;
-}
-
-.empty-chat-icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.empty-chat-state p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-chat-sub {
-  font-size: 0.75rem;
-  color: #94a3b8;
-}
-
-/* Chat Item */
-.chat-item-premium {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.chat-item-premium:hover {
-  border-color: #94a3b8;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  background: #f8fafc;
-}
-
-.chat-avatar-premium {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #475569;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.chat-avatar-premium img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.chat-content-premium {
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-header-premium {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.2rem;
-}
-
-.chat-user-name {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.chat-time-premium {
-  font-size: 0.6rem;
-  color: #94a3b8;
-}
-
-.chat-message-premium {
-  font-size: 0.75rem;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chat-reply-indicator {
-  color: #94a3b8;
-  opacity: 0;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-}
-
-.chat-item-premium:hover .chat-reply-indicator {
-  opacity: 1;
-}
-
-/* Chat Action Button */
-.chat-action-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #1e293b, #334155);
-  color: white;
-  border: none;
-  padding: 0.75rem;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.chat-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.3);
-}
-
-.chat-action-btn:active {
-  transform: translateY(0);
-}
-
-.chat-action-btn .button-icon {
-  transition: transform 0.3s ease;
-}
-
-.chat-action-btn:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .chat-premium {
-    padding: 1rem;
-  }
-  
-  .chat-item-premium {
-    padding: 0.6rem;
-  }
-  
-  .chat-avatar-premium {
-    width: 34px;
-    height: 34px;
-    font-size: 0.8rem;
-  }
-  
-  .chat-user-name {
-    font-size: 0.75rem;
-  }
-  
-  .chat-message-premium {
-    font-size: 0.7rem;
-  }
-  
-  .header-icon-chat {
-    width: 40px;
-    height: 40px;
-    font-size: 1.5rem;
-  }
-}
-
-/* ============================================
-   RECENT NOTIFICATIONS - CLEAN NEUTRAL THEME
-   ============================================ */
-
-.notifications-premium {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 0px;
-  
-  padding: 1.5rem;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.notifications-premium:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-.header-icon-notification {
-  font-size: 2rem;
-  background: #f1f5f9;
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-.notif-badge {
-  background: #e2e8f0;
-  color: #475569;
-  padding: 0.25rem 0.75rem;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-/* Notifications List */
-.notifications-premium-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  max-height: 350px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.notifications-premium-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.notifications-premium-list::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 10px;
-}
-
-.notifications-premium-list::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 10px;
-}
-
-/* Empty State */
-.empty-notif-state {
-  text-align: center;
-  padding: 2rem;
-  background: #f8fafc;
-  border-radius: 16px;
-  border: 1px dashed #e2e8f0;
-}
-
-.empty-notif-icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.empty-notif-state p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.25rem 0;
-}
-
-.empty-notif-sub {
-  font-size: 0.75rem;
-  color: #94a3b8;
-}
-
-/* Notification Item */
-.notif-item-premium {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.notif-item-premium:hover {
-  border-color: #94a3b8;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  background: #f8fafc;
-}
-
-.notif-unread {
-  background: #f8fafc;
-  border-left: 3px solid #3b82f6;
-}
-
-.notif-unread:hover {
-  background: #f1f5f9;
-}
-
-.notif-icon-premium {
-  font-size: 1.5rem;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #f1f5f9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.notif-content-premium {
-  flex: 1;
-  min-width: 0;
-}
-
-.notif-header-premium {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.2rem;
-}
-
-.notif-title-premium {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.notif-unread-dot {
-  color: #3b82f6;
-  font-size: 0.6rem;
-  animation: pulse-dot 2s infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.notif-message-premium {
-  font-size: 0.75rem;
-  color: #64748b;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.notif-time-premium {
-  font-size: 0.6rem;
-  color: #94a3b8;
-  margin-top: 0.25rem;
-}
-
-.notif-arrow-premium {
-  color: #94a3b8;
-  opacity: 0;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-}
-
-.notif-item-premium:hover .notif-arrow-premium {
-  opacity: 1;
-}
-
-/* Notification Action Button */
-.notif-action-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #1e293b, #334155);
-  color: white;
-  border: none;
-  padding: 0.75rem;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.notif-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.3);
-}
-
-.notif-action-btn:active {
-  transform: translateY(0);
-}
-
-.notif-action-btn .button-icon {
-  transition: transform 0.3s ease;
-}
-
-.notif-action-btn:hover .button-icon {
-  transform: translateX(4px);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .notifications-premium {
-    padding: 1rem;
-  }
-  
-  .notif-item-premium {
-    padding: 0.6rem;
-  }
-  
-  .notif-icon-premium {
-    width: 34px;
-    height: 34px;
-    font-size: 1.2rem;
-  }
-  
-  .notif-title-premium {
-    font-size: 0.75rem;
-  }
-  
-  .notif-message-premium {
-    font-size: 0.7rem;
-  }
-  
-  .header-icon-notification {
-    width: 40px;
-    height: 40px;
-    font-size: 1.5rem;
-  }
-}
-
-/* ============================================
-   FOOTER - PREMIUM DESIGN
-   ============================================ */
-
-.footer-premium {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 10px;
-  padding: 0rem 0.5rem 0.5rem;
-  margin-top: 2rem;
-    margin-bottom: 5rem;
-
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 1.5rem;
-}
-
-/* Brand Section */
-.footer-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.footer-logo-img {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 6px;
-  object-fit: contain;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.footer-logo-img:hover {
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
-}
-
-.footer-brand-text h4 {
-  font-size: 1rem;
-  font-weight: 700;
-  color: white;
-  margin: 0;
-  letter-spacing: -0.3px;
-}
-
-.footer-brand-text p {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  margin: 0;
-}
-
-/* Links Section */
-.footer-links {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.footer-links a {
-  color: #94a3b8;
-  text-decoration: none;
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  position: relative;
-  cursor: pointer;
-}
-
-.footer-links a::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #60a5fa, #c084fc);
-  transition: width 0.3s ease;
-}
-
-.footer-links a:hover {
-  color: white;
-}
-
-.footer-links a:hover::after {
-  width: 100%;
-}
-
-/* Social Section */
-.footer-social {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.social-link {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  color: #94a3b8;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-}
-
-.social-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  transform: translateY(-3px);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-/* Footer Bottom */
-.footer-bottom {
-  text-align: center;
-}
-
-.footer-bottom p {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin: 0;
-  letter-spacing: 0.3px;
-}
-
-.footer-bottom .creator {
-  font-size: 0.65rem;
-  color: #64748b;
-  margin-top: 0.25rem;
-}
-
-.footer-bottom .creator strong {
-  color: #94a3b8;
-  font-weight: 600;
-  background: linear-gradient(90deg, #60a5fa, #c084fc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .footer-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 1rem;
-  }
-  
-  .footer-brand {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .footer-links {
-    justify-content: center;
-    gap: 1rem;
-  }
-  
-  .footer-social {
-    justify-content: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .footer-premium {
-    padding: 1.5rem 1rem 1rem;
-    border-radius: 16px;
-  }
-  
-  .footer-logo-img {
-    width: 40px;
-    height: 40px;
-    padding: 4px;
-  }
-  
-  .footer-links {
-    gap: 0.75rem;
-  }
-  
-  .footer-links a {
-    font-size: 0.7rem;
-  }
-  
-  .social-link {
-    width: 34px;
-    height: 34px;
-    font-size: 0.9rem;
-  }
-  
-  .footer-bottom p {
-    font-size: 0.65rem;
-  }
-}
-
-.countdown-container {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 24px;
-  padding: 2rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  animation: slideDown 0.6s ease-out;
-}
-
-@keyframes slideDown {
-  0% {
-    opacity: 0;
-    transform: translateY(-30px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.countdown-container::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at center, rgba(96, 165, 250, 0.08) 0%, transparent 70%);
-  animation: rotate-bg 20s linear infinite;
-}
-
-@keyframes rotate-bg {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.countdown-container::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, #60a5fa, #c084fc, #60a5fa);
-  background-size: 300% 300%;
-  border-radius: 24px;
-  z-index: -1;
-  animation: borderGlow 3s ease-in-out infinite;
-  opacity: 0.3;
-}
-
-@keyframes borderGlow {
-  0% {
-    background-position: 0% 50%;
-    opacity: 0.3;
-  }
-  50% {
-    background-position: 100% 50%;
-    opacity: 0.6;
-  }
-  100% {
-    background-position: 0% 50%;
-    opacity: 0.3;
-  }
-}
-
-.countdown-content {
-  position: relative;
-  z-index: 1;
-}
-
-.countdown-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  animation: fadeInUp 0.8s ease-out;
-}
-
-@keyframes fadeInUp {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.countdown-icon {
-  font-size: 1.5rem;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-}
-
-.countdown-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 1px;
-}
-
-.countdown-grid {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.countdown-item {
-  text-align: center;
-  min-width: 60px;
-  animation: fadeInScale 0.6s ease-out forwards;
-  opacity: 0;
-}
-
-.countdown-item:nth-child(1) { animation-delay: 0.1s; }
-.countdown-item:nth-child(2) { animation-delay: 0.2s; }
-.countdown-item:nth-child(3) { animation-delay: 0.3s; }
-.countdown-item:nth-child(4) { animation-delay: 0.4s; }
-.countdown-item:nth-child(5) { animation-delay: 0.5s; }
-.countdown-item:nth-child(6) { animation-delay: 0.6s; }
-.countdown-item:nth-child(7) { animation-delay: 0.7s; }
-
-@keyframes fadeInScale {
-  0% {
-    opacity: 0;
-    transform: scale(0.8) translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.countdown-number {
-  font-size: 3rem;
-  font-weight: 800;
-  color: white;
-  line-height: 1;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0.5rem;
-  border-radius: 12px;
-  min-width: 60px;
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, #60a5fa, #c084fc);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  transition: transform 0.3s ease;
-  animation: numberPulse 1s ease-in-out;
-}
-
-@keyframes numberPulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.countdown-number:hover {
-  transform: scale(1.1);
-}
-
-.countdown-label {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-top: 0.25rem;
-  transition: color 0.3s ease;
-}
-
-.countdown-item:hover .countdown-label {
-  color: #60a5fa;
-}
-
-.countdown-separator {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #475569;
-  padding-bottom: 1.5rem;
-  animation: blink 1s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.2;
-  }
-}
-
-.countdown-event-info {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  animation: fadeInUp 0.8s ease-out 0.5s both;
-}
-
-.countdown-event-info span {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.countdown-event-info span:hover {
-  color: #60a5fa;
-  transform: translateY(-2px);
-}
-
-.countdown-event-info span::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #60a5fa, #c084fc);
-  transition: width 0.3s ease;
-}
-
-.countdown-event-info span:hover::after {
-  width: 100%;
-}
-
-@media (max-width: 640px) {
-  .countdown-container {
-    padding: 1.5rem 1rem;
-  }
-
-  .countdown-number {
-    font-size: 2rem;
-    min-width: 40px;
-  }
-
-  .countdown-item {
-    min-width: 40px;
-  }
-
-  .countdown-grid {
-    gap: 0.25rem;
-  }
-
-  .countdown-separator {
-    font-size: 1.5rem;
-    padding-bottom: 1.2rem;
-  }
-
-  .countdown-title {
-    font-size: 1rem;
-  }
-
-  .countdown-event-info {
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .countdown-event-info span {
-    font-size: 0.75rem;
-  }
-
-  .countdown-item {
-    animation-duration: 0.4s;
-  }
-
-  .countdown-number {
-    animation: numberPulseMobile 1s ease-in-out;
-  }
-
-  @keyframes numberPulseMobile {
-    0% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.05);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-}
-
-@keyframes waveAnimation {
-  0% { transform: rotate( 0.0deg) }
-  10% { transform: rotate(14.0deg) }  /* Wave right */
-  20% { transform: rotate(-8.0deg) }  /* Wave left */
-  30% { transform: rotate(14.0deg) }  /* Wave right */
-  40% { transform: rotate(-4.0deg) }  /* Wave left */
-  50% { transform: rotate(10.0deg) }  /* Wave right */
-  60% { transform: rotate( 0.0deg) }  /* Return to center */
-  100% { transform: rotate( 0.0deg) } /* Pause before waving again */
-}
-
-.wave {
-  animation-name: waveAnimation;
-  animation-duration: 1.5s;           /* Total time for one full loop */
-  animation-iteration-count: infinite;/* Loop forever */
-  transform-origin: 70% 70%;         /* Pivots from the bottom wrist area */
-  display: inline-block;             /* Required for transformation to work */
-}
-
-
-/* Settings Icon Button - BELOW AVATAR */
-.avatar-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-icon-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #000000;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 11px;
-  font-weight: 500;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.settings-icon-btn:hover {
-  background: #f1f5f9;
-  border-color: #000000;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-}
-
-.settings-icon-btn:active {
-  transform: translateY(0px);
-}
-
-.settings-label {
-  color: #000000;
-}
-
-
-  /* ============================================
-   MASS READINGS DASHBOARD CARD
-   ============================================ */
-
-.readings-dashboard-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 0px;
-
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.readings-dashboard-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-.header-icon-reading {
-  font-size: 2rem;
-  background: #f5f3ff;
-  padding: 0.6rem;
-  border-radius: 16px;
-  color: #8b5cf6;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-.view-all-readings-btn {
-  background: transparent;
-  border: none;
-  color: #;
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 4px 12px;
-  border-radius: 20px;
-}
-
-.view-all-readings-btn:hover {
-  background: #f5f3ff;
-}
-
-.readings-dashboard-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin: 1rem 0 1rem 0;
-}
-
-.reading-dash-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: white;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #f1f5f9;
-}
-
-.reading-dash-item:hover {
-  background: #f5f3ff;
-  border-color: #8b5cf6;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
-}
-
-.reading-dash-date {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 48px;
-  background: #f8fafc;
-  padding: 4px 8px;
-  border-radius: 10px;
-}
-
-.dash-date-day {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #1e293b;
-  line-height: 1;
-}
-
-.dash-date-month {
-  font-size: 0.6rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.reading-dash-content {
-  flex: 1;
-}
-
-.reading-dash-content h4 {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 2px 0;
-}
-
-.reading-dash-content p {
-  font-size: 0.7rem;
-  color: #64748b;
-  margin: 0 0 4px 0;
-}
-
-.reading-dash-meta {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.6rem;
-  color: #94a3b8;
-}
-
-.reading-dash-files {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.reading-dash-arrow {
-  color: #94a3b8;
-  transition: all 0.3s ease;
-}
-
-.reading-dash-item:hover .reading-dash-arrow {
-  color: #8b5cf6;
-  transform: translateX(4px);
-}
-
-.empty-state-reading {
-  text-align: center;
-  padding: 2rem 1rem;
-  background: #f8fafc;
-  border-radius: 14px;
-  border: 1px dashed #e2e8f0;
-}
-
-.empty-state-reading span {
-  font-size: 2.5rem;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.empty-state-reading p {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #64748b;
-  margin: 0;
-}
-
-.empty-state-reading .empty-sub {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  display: block;
-  margin-top: 0.25rem;
-}
-
-/* ============================================
-   QR SCAN BUTTON - IN HEADER (Matches Theme)
-   ============================================ */
-
-.qr-scan-header-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.qr-scan-header-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
-}
-
-.qr-scan-header-btn:active {
-  transform: translateY(0px);
-}
-
-.qr-scan-header-btn svg {
-  color: #10b981;
-}
-
-/* =========================================================
-   DASHBOARD ADVERTISEMENT
-========================================================= */
-
-.dashboard-ad-container {
-  width: 100%;
-  margin: 24px 0;
-  position: relative;
-}
-
-
-/* =========================================================
-   WHAT'S TRENDING
-   OUTSIDE THE IMAGE
-========================================================= */
-
-.dashboard-ad-label {
-  display: flex;
-  
-  align-items: center;
-  gap: 7px;
-
-  width: fit-content;
-
-  margin: 0 0 9px 4px;
-
-  color: #334155;
-
-  font-size: 11px;
-  font-weight: 800;
-
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
-}
-
-.dashboard-ad-label-dot {
-  width: 7px;
-  height: 7px;
-
-  flex-shrink: 0;
-
-  border-radius: 50%;
-
-  background: #22c55e;
-
-  box-shadow:
-    0 0 0 3px rgba(34, 197, 94, 0.15);
-}
-
-
-/* =========================================================
-   WRAPPER
-========================================================= */
-
-.dashboard-ad-wrapper {
-  width: 100%;
-
-  overflow: hidden;
-
-  border-radius: 1s2px;
-}
-
-
-/* =========================================================
-   MAIN CARD
-========================================================= */
-
-.dashboard-ad-card {
-  position: relative;
-
-  width: 100%;
-  min-height: 280px;
-
-  display: grid;
-
-  grid-template-columns: 42% 58%;
-
-  overflow: hidden;
-
-  border-radius: 2px;
-
-  background: #ffffff;
-
-  border: 1px solid rgba(15, 23, 42, 0.08);
-
-  box-shadow:
-    0 12px 35px rgba(15, 23, 42, 0.08);
-
-  cursor: pointer;
-
-  transition:
-    box-shadow 0.25s ease,
-    transform 0.25s ease;
-}
-
-.dashboard-ad-card:hover {
-  box-shadow:
-    0 16px 42px rgba(15, 23, 42, 0.12);
-}
-
-
-/* =========================================================
-   IMAGE SIDE
-========================================================= */
-
-.dashboard-ad-visual {
-  position: auto;
-  overflow: auto;
-  background: #ffffff;
-  display: auto;
-  align-items: auto;
-  justify-content: auto;
-  height: auto;
-  width: 100%;
-}
-
-
-/* =========================================================
-   IMAGE
-========================================================= */
-
-.dashboard-ad-image {
-  width: 100%;
-  height: 100% !important;
-  display: auto;
-  object-fit: fit !important;
-  object-position: center;
-  transition: transform 0.6s ease;
-}
-
-.dashboard-ad-card:hover .dashboard-ad-image {
-  transform: scale(1.03);
-}
-
-
-/* =========================================================
-   IMAGE GRADIENT
-   VERY SUBTLE
-========================================================= */
-
-.dashboard-ad-gradient {
-  position: absolute;
-
-  inset: 0;
-
- 
-
-  pointer-events: none;
-}
-
-
-/* =========================================================
-   IMAGE PLACEHOLDER
-========================================================= */
-
-.dashboard-ad-placeholder {
-  width: 100%;
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-    background: #ffffff;
-
-}
-
-.dashboard-ad-placeholder span {
-  font-size: 55px;
-}
-
-
-/* =========================================================
-   CONTENT SIDE
-========================================================= */
-
-.dashboard-ad-content {
-  position: relative;
-
-  min-width: 0;
-
-  display: flex;
-
-  flex-direction: column;
-
-  justify-content: center;
-
-  padding: 38px 45px;
-
-  background: #ffffff;
-}
-
-
-/* =========================================================
-   SMALL CATEGORY
-========================================================= */
-
-.dashboard-ad-small {
-  display: block;
-
-  width: fit-content;
-
-  margin-bottom: 11px;
-
-  color: #64748b;
-
-  font-size: 10px;
-
-  font-weight: 800;
-
-  line-height: 1.4;
-
-  letter-spacing: 1.4px;
-
-  text-transform: uppercase;
-}
-
-
-/* =========================================================
-   TITLE
-========================================================= */
-
-.dashboard-ad-title {
-  margin: 0 0 12px;
-
-  max-width: 560px;
-
-  color: #0f172a;
-
-  font-size: clamp(
-    25px,
-    3vw,
-    38px
-  );
-
-  line-height: 1.1;
-
-  font-weight: 800;
-
-  letter-spacing: -0.7px;
-
-  word-break: break-word;
-}
-
-
-/* =========================================================
-   DESCRIPTION
-========================================================= */
-
-.dashboard-ad-description {
-  margin: 0;
-
-  max-width: 540px;
-
-  color: #64748b;
-
-  font-size: 15px;
-
-  line-height: 1.65;
-
-  font-weight: 400;
-}
-
-
-/* =========================================================
-   CTA BUTTON
-========================================================= */
-
-.dashboard-ad-button {
-  display: inline-flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  gap: 9px;
-
-  width: fit-content;
-
-  margin-top: 24px;
-
-  padding: 11px 18px;
-
-  border: none;
-
-  border-radius: 10px;
-
-  background: #111827;
-
-  color: #ffffff;
-
-  font-size: 13px;
-
-  font-weight: 700;
-
-  line-height: 1;
-
-  cursor: pointer;
-
-  transition:
-    transform 0.2s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.dashboard-ad-button svg {
-  font-size: 16px;
-
-  transition:
-    transform 0.2s ease;
-}
-
-.dashboard-ad-button:hover {
-  background: #000000;
-
-  transform: translateY(-1px);
-
-  box-shadow:
-    0 7px 18px rgba(0, 0, 0, 0.16);
-}
-
-.dashboard-ad-button:hover svg {
-  transform: translateX(4px);
-}
-
-
-/* =========================================================
-   DOT NAVIGATION
-========================================================= */
-
-.dashboard-ad-dots {
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  gap: 7px;
-
-  margin-top: 13px;
-}
-
-.dashboard-ad-dot {
-  width: 7px;
-  height: 7px;
-
-  padding: 0;
-
-  border: none;
-
-  border-radius: 50%;
-
-  background: #cbd5e1;
-
-  cursor: pointer;
-
-  transition:
-    width 0.25s ease,
-    background 0.25s ease,
-    transform 0.2s ease;
-}
-
-.dashboard-ad-dot:hover {
-  transform: scale(1.15);
-
-  background: #94a3b8;
-}
-
-.dashboard-ad-dot.active {
-  width: 23px;
-
-  border-radius: 999px;
-
-  background: #0f172a;
-}
-
-/* =========================================================
-   AD CONTROLS
-========================================================= */
-
-.dashboard-ad-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-
-  margin-top: 12px;
-}
-
-.dashboard-ad-navigation {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dashboard-ad-nav-button,
-.dashboard-ad-play-button,
-.dashboard-ad-full-button {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
-
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.dashboard-ad-nav-button {
-  width: 34px;
-  height: 34px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 9px;
-}
-
-.dashboard-ad-nav-button svg {
-  font-size: 17px;
-}
-
-.dashboard-ad-play-button {
-  height: 34px;
-
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  padding: 0 12px;
-
-  border-radius: 9px;
-
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.dashboard-ad-play-button svg {
-  font-size: 14px;
-}
-
-.dashboard-ad-full-button {
-  height: 34px;
-
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  padding: 0 13px;
-
-  border-radius: 9px;
-
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.dashboard-ad-nav-button:hover,
-.dashboard-ad-play-button:hover,
-.dashboard-ad-full-button:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-
-  transform: translateY(-1px);
-
-  box-shadow:
-    0 4px 12px rgba(15, 23, 42, 0.08);
-}
-
-
-/* =========================================================
-   FULL ADVERTISEMENT MODAL
-========================================================= */
-
-.dashboard-ad-modal-overlay {
-  position: fixed;
-  inset: 0;
-
-  z-index: 9999;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 24px;
-
-  background: rgba(15, 23, 42, 0.72);
-
-  backdrop-filter: blur(6px);
-}
-
-.dashboard-ad-modal {
-  position: relative;
-
-  width: min(900px, 100%);
-  max-height: 90vh;
-
-  overflow: hidden;
-
-  display: flex;
-  flex-direction: column;
-
-  border-radius: 20px;
-
-  background: #ffffff;
-
-  box-shadow:
-    0 25px 70px rgba(0, 0, 0, 0.25);
-}
-
-.dashboard-ad-modal-close {
-  position: absolute;
-
-  top: 14px;
-  right: 14px;
-
-  z-index: 5;
-
-  width: 38px;
-  height: 38px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: none;
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, 0.94);
-
-  color: #0f172a;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.12);
-}
-
-.dashboard-ad-modal-close svg {
-  font-size: 19px;
-}
-
-.dashboard-ad-modal-image {
-  width: 100%;
-  max-height: 480px;
-
-  background: #f8fafc;
-
-  overflow: hidden;
-}
-
-.dashboard-ad-modal-image img {
-  display: block;
-
-  width: 100%;
-  height: 100%;
-
-  max-height: 480px;
-
-  object-fit: contain;
-}
-
-.dashboard-ad-modal-content {
-  padding: 30px 34px 34px;
-}
-
-.dashboard-ad-modal-content h2 {
-  margin: 8px 0 12px;
-
-  color: #0f172a;
-
-  font-size: clamp(26px, 4vw, 38px);
-
-  line-height: 1.15;
-}
-
-.dashboard-ad-modal-content p {
-  margin: 0;
-
-  max-width: 720px;
-
-  color: #64748b;
-
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-
-/* =========================================================
-   MOBILE
-========================================================= */
-
-@media (max-width: 650px) {
-
-  .dashboard-ad-controls {
-    flex-wrap: wrap;
-  }
-
-  .dashboard-ad-full-button {
-    flex: 1;
-    justify-content: center;
-  }
-
-  .dashboard-ad-modal-overlay {
-    padding: 12px;
-  }
-
-  .dashboard-ad-modal {
-    max-height: 94vh;
-    border-radius: 16px;
-  }
-
-  .dashboard-ad-modal-image {
-    max-height: 320px;
-  }
-
-  .dashboard-ad-modal-image img {
-    max-height: 320px;
-  }
-
-  .dashboard-ad-modal-content {
-    padding: 23px 20px 25px;
-  }
-
-  .dashboard-ad-modal-content h2 {
-    font-size: 25px;
-  }
-
-}
-
-
-/* =========================================================
-   TABLET
-========================================================= */
-
-@media (max-width: 900px) {
-
-  .dashboard-ad-container {
-    margin: 22px 0;
-  }
-
-  .dashboard-ad-card {
-    grid-template-columns: 45% 55%;
-
-    min-height: 250px;
-
-    border-radius: 20px;
-  }
-
-  .dashboard-ad-visual {
-    min-height: 250px;
-  }
-
-  .dashboard-ad-image {
-    min-height: 250px;
-  }
-
-  .dashboard-ad-placeholder {
-    min-height: 250px;
-  }
-
-  .dashboard-ad-content {
-    padding: 30px;
-  }
-
-  .dashboard-ad-small {
-    font-size: 9px;
-
-    letter-spacing: 1.1px;
-  }
-
-  .dashboard-ad-title {
-    font-size: 28px;
-
-    line-height: 1.12;
-  }
-
-  .dashboard-ad-description {
-    font-size: 14px;
-
-    line-height: 1.55;
-  }
-
-  .dashboard-ad-button {
-    margin-top: 20px;
-  }
-}
-
-
-/* =========================================================
-   MOBILE
-========================================================= */
-
-@media (max-width: 650px) {
-
-  .dashboard-ad-container {
-    margin: 18px 0;
-  }
-
-
-  /* TRENDING LABEL */
-
-  .dashboard-ad-label {
-    margin: 0 0 9px 2px;
-
-    font-size: 10px;
-
-    letter-spacing: 0.6px;
-    
-  }
-
-  .dashboard-ad-label-dot {
-    width: 6px;
-    height: 6px;
-  }
-
-
-  /* CARD */
-
-  .dashboard-ad-wrapper {
-    border-radius: 18px;
-  }
-
-  .dashboard-ad-card {
-    display: flex;
-
-    flex-direction: column;
-
-    min-height: auto;
-
-    border-radius: 18px;
-  }
-
-
-  /* IMAGE */
-
- .dashboard-ad-visual {
-  width: 100%;
-  height: auto !important;
-}
-
-  .dashboard-ad-image {
-  width: 100%;
-  height: auto !important;
-  object-fit: contain !important;
-}
-
-  .dashboard-ad-placeholder {
-  width: 100%;
-  height: 180px;
-}
-
-
-
-
-  /* ============================================
-   SECTION TITLE - UNIFIED LARGER SIZE
-   ============================================ */
-
-.section-title {
-  font-size: 1rem !important;  /* 16px - larger and readable */
-  font-weight: 700 !important;
-  color: #0f172a !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  margin: 0 !important;
-  background: none !important;
-  -webkit-text-fill-color: #0f172a !important;
-}
-
-
-  /* CONTENT */
-
-  .dashboard-ad-content {
-    padding: 22px 21px 24px;
-  }
-
-
-  /* CATEGORY */
-
-  .dashboard-ad-small {
-    margin-bottom: 7px;
-
-    font-size: 9px;
-
-    letter-spacing: 1px;
-
-    line-height: 1.45;
-  }
-
-
-  /* TITLE */
-
-  .dashboard-ad-title {
-    margin: 0 0 9px;
-
-    font-size: 25px;
-
-    line-height: 1.15;
-
-    letter-spacing: -0.4px;
-  }
-
-
-  /* DESCRIPTION */
-
-  .dashboard-ad-description {
-    font-size: 13px;
-
-    line-height: 1.55;
-  }
-
-
-  /* BUTTON */
-
-  .dashboard-ad-button {
-    margin-top: 18px;
-
-    padding: 10px 15px;
-
-    font-size: 12px;
-
-    border-radius: 9px;
-  }
-
-  .dashboard-ad-button svg {
-    font-size: 14px;
-  }
-
-
-  /* DOTS */
-
-  .dashboard-ad-dots {
-    margin-top: 11px;
-
-    gap: 6px;
-  }
-
-  .dashboard-ad-dot {
-    width: 6px;
-    height: 6px;
-  }
-
-  .dashboard-ad-dot.active {
-    width: 20px;
-  }
-}
-
-
-/* =========================================================
-   SMALL PHONES
-========================================================= */
-
-@media (max-width: 400px) {
-
-  .dashboard-ad-container {
-    margin: 16px 0;
-  }
-
-
-  /* IMAGE */
-
-  .dashboard-ad-visual {
-    height: 180px;
-
-    min-height: 180px;
-  }
-
-  .dashboard-ad-image {
-    height: 180px;
-
-    min-height: 180px;
-  }
-
-  .dashboard-ad-placeholder {
-    height: 180px;
-
-    min-height: 180px;
-  }
-
-
-  /* CONTENT */
-
-  .dashboard-ad-content {
-    padding: 19px;
-  }
-
-
-  /* TITLE */
-
-  .dashboard-ad-title {
-    font-size: 22px;
-
-    line-height: 1.15;
-  }
-
-
-  /* DESCRIPTION */
-
-  .dashboard-ad-description {
-    font-size: 12.5px;
-
-    line-height: 1.55;
-  }
-
-
-  /* BUTTON */
-
-  .dashboard-ad-button {
-    margin-top: 16px;
-
-    padding: 9px 14px;
-
-    font-size: 11.5px;
-  }
-}
-
-
-/* =========================================================
-   VERY SMALL PHONES
-========================================================= */
-
-@media (max-width: 350px) {
-
-  .dashboard-ad-visual {
-    height: 165px;
-
-    min-height: 165px;
-  }
-    
-
-  .dashboard-ad-image {
-    height: 165px;
-
-    min-height: 165px;
-  }
-
-  .dashboard-ad-placeholder {
-    height: 165px;
-
-    min-height: 165px;
-  }
-
-  .dashboard-ad-content {
-    padding: 17px;
-  }
-
-  .dashboard-ad-title {
-    font-size: 20px;
-  }
-
-  .dashboard-ad-description {
-    font-size: 12px;
-  }
-}
-
-/* /* ============================================
-   FEEDBACK BUTTON - IN HEADER
-   ============================================ */
-
-.feedback-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08); /* ← you also missed a colon here */
-}
-
-.feedback-btn:hover {
-  background: #ffffff;      /* ✅ Fixed */
-  color: #0f172a;           /* Optional: dark text on hover */
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.3);
-}
-
-.feedback-btn:active {
-  transform: translateY(0px);
-}
-
-.feedback-btn svg {
-  color: #ffffff;
-}
-
-@media (max-width: 640px) {
-  .feedback-btn {
-    padding: 6px 12px;
-    font-size: 10px;
-  }
-  
-  .feedback-btn span {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .qr-scan-header-btn {
-    padding: 6px 12px;
-    font-size: 10px;
-  }
-  
-  .qr-scan-header-btn span {
-    display: none;
-  }
-}
-
-.upload-reading-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.6rem;
-  border: 1px dashed #8b5cf6;
-  border-radius: 12px;
-  background: transparent;
-  color: #;
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.upload-reading-btn:hover {
-  background: #8b5cf6;
-  color: white;
-  border-color: #8b5cf6;
-}
-
-
-/* =========================================================
-   DASHBOARD HERO
-   ========================================================= */
-
-.dash-hero {
-  position: relative;
-  width: 100%;
-  margin-bottom: 0;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 20px 50px -20px rgba(15, 23, 42, 0.25);
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  z-index: 4;
-}
-
-.dash-hero-cover {
-  position: relative;
-  padding: 60px 20px 16px;
-  min-height: 220px;
-  overflow: hidden;
-}
-
-.dash-hero-cover-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 0;
-}
-
-.dash-hero-cover-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(15, 23, 42, 0.15) 0%,
-    rgba(15, 23, 42, 0.6) 100%
-  );
-  z-index: 1;
-}
-
-.dash-hero-cover-gradient {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  transition: background 0.4s ease;
-}
-
-/* ---------- Refresh (top-left) ---------- */
-.dash-hero-back {
-  position: absolute;
-  top: 20px;
-  left: 24px;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-  color: #ffffff;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.18s ease;
-  z-index: 4;
-}
-
-.dash-hero-back:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
-}
-
-.dash-hero-back svg {
-  transition: transform 0.5s ease;
-}
-
-.dash-hero-back:hover svg {
-  transform: rotate(180deg);
-}
-
-/* ---------- Greeting ---------- */
-.dash-hero-greeting {
-  position: absolute;
-  top: 20px;
-  left: 80px;
-  right: 220px;
-  z-index: 4;
-  color: #ffffff;
-  pointer-events: none;
-}
-
-.dash-hero-greeting-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0 0 2px;
-  letter-spacing: -0.3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  line-height: 1.2;
-}
-
-.dash-hero-greeting-date {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
-  margin: 0;
-  font-weight: 500;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* ---------- Cover / Theme buttons ---------- */
-.dash-hero-cover-actions {
-  position: absolute;
-  top: 20px;
-  right: 24px;
-  display: flex;
-  gap: 8px;
-  z-index: 4;
-}
-
-.dash-hero-cover-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  color: #ffffff;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}
-
-.dash-hero-cover-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
-
-/* ---------- Theme picker ---------- */
-.dash-theme-picker {
-  position: auto;
-  top: 72px;
-  right: 24px;
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  padding: 16px;
-  width: 360px;
-  z-index: 10;
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
-}
-
-.dash-theme-picker-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.dash-theme-picker-close {
-  background: #f1f5f9;
-  border: none;
-  border-radius: 8px;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 12px;
-  color: #475569;
-}
-
-.dash-theme-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-}
-
-.dash-theme-swatch {
-  aspect-ratio: 1;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.dash-theme-check {
-  color: white;
-  font-size: 18px;
-  font-weight: 800;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-.dash-theme-hint {
-  font-size: 11px;
-  color: #94a3b8;
-  margin: 12px 0 0;
-  text-align: center;
-  line-height: 1.4;
-}
-
-/* ---------- Body (avatar + identity) ---------- */
-.dash-hero-body {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
-  margin-top: 0;
-  flex-wrap: wrap;
-  z-index: 3;
-}
-
-.dash-hero-avatar-wrap {
-  position: relative;
-  flex-shrink: 0;
-  width: 100px;
-  height: 100px;
-}
-
-.dash-hero-avatar {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: 3px solid #ffffff;
-  overflow: hidden;
-  cursor: pointer;
-  background: #ffffff;
-  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease;
-}
-
-.dash-hero-avatar:hover {
-  transform: scale(1.02);
-}
-
-.dash-hero-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.dash-hero-avatar span {
-  background: linear-gradient(135deg, #22c55e, #0ea5e9);
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 36px;
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-
-.dash-hero-avatar-cam {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #0f172a;
-  border: 2px solid #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.35);
-  transition: all 0.18s ease;
-}
-
-.dash-hero-avatar-cam:hover {
-  transform: scale(1.1);
-  background: #f0fdf4;
-  color: #16a34a;
-}
-
-.dash-hero-identity {
-  flex: 1;
-  min-width: 0;
-  color: #ffffff;
-  padding-bottom: 4px;
-}
-
-.dash-hero-name {
-  font-size: 26px;
-  font-weight: 900;
-  color: #ffffff;
-  margin: 0 0 4px;
-  letter-spacing: -0.2px;
-  line-height: 1.15;
-  word-break: break-word;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  white-space: pre-line;
-}
-
-.dash-hero-email {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  margin: 0 0 12px;
-  word-break: break-all;
-  font-weight: 500;
-}
-
-.dash-hero-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.dash-hero-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  text-transform: uppercase;
-}
-
-.dash-hero-remove {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 16px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 10px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.18s ease;
-  align-self: flex-end;
-  margin-bottom: 4px;
-  white-space: nowrap;
-}
-
-.dash-hero-remove:hover {
-  background: rgba(255, 255, 255, 0.28);
-  transform: translateY(-1px);
-}
-
-/* ---------- Actions row ---------- */
-.dash-hero-tabs {
-  position: relative;
-  margin: 16px -6px -6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 5px;
-  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.2);
-  overflow-x: auto;
-  z-index: 4;
-}
-
-.dash-hero-tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 16px;
-  background: transparent;
-  border: none;
-  border-radius: 10px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.18s ease;
-}
-
-.dash-hero-tab:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.dash-hero-tab-active {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: #ffffff;
-  font-weight: 700;
-  box-shadow: 0 6px 14px -6px rgba(15, 23, 42, 0.4);
-}
-
-.dash-hero-tab-active:hover {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: #ffffff;
-}
-
-.dash-hero-tab-danger {
-  color: #dc2626;
-  margin-left: auto;
-}
-
-.dash-hero-tab-danger:hover {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-/* =========================================================
-   QUICK STATS — hanging card
-   ========================================================= */
-
-.dash-quickstats {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-around;
-  gap: 8px;
-  padding: 16px 20px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-
-  margin-top: 40px;
-  margin-bottom: 22px;
-  margin-left: 48px;
-  margin-right: 48px;
-
-  box-shadow: 0 12px 30px -12px rgba(15, 23, 42, 0.2);
-  z-index: 5;
-  overflow: visible;
-}
-
-
-
-
-.dash-hanger {
-  position: absolute;
-  top: -44px;
-  width: 30px;
-border-radius: 9px;
-  height: 4px;
-  border-radius: 4px;
-  pointer-events: none;
-  z-index: 999;
-  transition: background 0.4s ease;
-}
-
-.dash-hanger::before,
-.dash-hanger::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.2);
-}
-
-.dash-hanger-left {
-  left: 24px;
-}
-
-.dash-hanger-right {
-  right: 24px;
-}
-
-.dash-hanger::before {
-  content: "";
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid #94a3b8;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
-}
-
-.dash-hanger::after {
-  content: "";
-  position: absolute;
-  bottom: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid #cbd5e1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-}
-
-.dash-quickstat {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  justify-content: center;
-}
-
-.dash-quickstat-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #475569;
-  font-size: 17px;
-  flex-shrink: 0;
-}
-
-.dash-quickstat-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.dash-quickstat-value {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.2px;
-}
-
-.dash-quickstat-label {
-  font-size: 10px;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.dash-quickstat-divider {
-  width: 1px;
-  height: 36px;
-  background: #e2e8f0;
-}
-
-.dash-quickstat-link {
-  font-size: 14px;
-  font-weight: 800;
-  color: #25D366;
-  text-decoration: none;
-  letter-spacing: -0.2px;
-}
-
-.dash-quickstat-link:hover {
-  text-decoration: underline;
-}
-
-/* ---------- Responsive ---------- */
-@media (max-width: 900px) {
-  .dash-hero-greeting {
-    right: 160px;
-  }
-  .dash-hero-greeting-title {
-    font-size: 17px;
-  }
-}
-
-@media (max-width: 768px) {
-  .dash-hero-cover {
-    padding: 90px 16px 20px;
-    min-height: 260px;
-  }
-
-  .dash-hero-back {
-    top: 14px;
-    left: 14px;
-    width: 36px;
-    height: 36px;
-  }
-
-  .dash-hero-greeting {
-    top: 14px;
-    left: 60px;
-    right: 130px;
-  }
-
-  .dash-hero-greeting-title {
-    font-size: 15px;
-    line-height: 1.25;
-  }
-
-  .dash-hero-greeting-date {
-    font-size: 10.5px;
-  }
-
-  .dash-hero-cover-actions {
-    top: 14px;
-    right: 14px;
-    gap: 6px;
-  }
-
-  .dash-hero-cover-btn {
-    padding: 7px 11px;
-    font-size: 11px;
-  }
-
-  /* Keep labels visible on mobile — do NOT hide spans */
-  .dash-hero-cover-btn span {
-    display: inline;
-  }
-
-  .dash-hero-avatar-wrap,
-  .dash-hero-avatar {
-    width: 96px;
-    height: 96px;
-  }
-
-  .dash-hero-avatar span {
-    font-size: 34px;
-  }
-
-  .dash-hero-avatar-cam {
-    width: 30px;
-    height: 30px;
-  }
-
-  .dash-hero-name {
-    font-size: 20px;
-  }
-
-  .dash-hero-email {
-    font-size: 12px;
-  }
-
-  .dash-hero-remove {
-    width: 100%;
-    justify-content: center;
-    margin-top: 6px;
-  }
-
-  .dash-hero-tabs {
-    margin: 20px -8px -8px;
-    padding: 6px;
-    gap: 4px;
-  }
-
-  .dash-hero-tab {
-    padding: 8px 10px;
-    font-size: 11.5px;
-    gap: 5px;
-  }
-
-  /* Keep tab labels visible on mobile too */
-  .dash-hero-tab span {
-    display: inline;
-  }
-
-  .dash-quickstats {
-    margin-left: 24px;
-    margin-right: 24px;
-    margin-top: 32px;
-    padding: 14px 16px;
-    gap: 8px;
-  }
-
-  .dash-hanger {
-    top: -32px;
-    height: 32px;
-  }
-
-  .dash-hanger-left {
-    left: 16px;
-  }
-
-  .dash-hanger-right {
-    right: 16px;
-  }
-
- .dash-quickstat {
-  min-width: 0;
-  flex-direction: column;
-  text-align: center;
-  gap: 6px;
-}
-
-.dash-quickstat-divider {
-  display: none;
-}
-}
-
-@media (max-width: 480px) {
-  .dash-hero-greeting-title {
-    font-size: 14px;
-  }
-
-  .dash-hero-greeting {
-    right: 110px;
-  }
-
-  .dash-hero-cover-btn {
-    padding: 6px 9px;
-    font-size: 10.5px;
-  }
-
-  .dash-hero-cover-btn span {
-    display: inline;
-  }
-
-  .dash-hero-name {
-    font-size: 18px;
-  }
-
-  .dash-hero-avatar-wrap,
-  .dash-hero-avatar {
-    width: 84px;
-    height: 84px;
-  }
-
-  .dash-hero-avatar span {
-    font-size: 28px;
-  }
-
-  .dash-hero-tab {
-    padding: 7px 8px;
-    font-size: 10.5px;
-    gap: 4px;
-  }
-
-  .dash-hero-tab span {
-    display: inline;
-  }
-}
-
-/* ============================================
-   SKELETON LOADERS
-   ============================================ */
-
-.skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 8px;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-/* Skeleton for Announcements */
-.skeleton-announcement-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-announcement-number {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.skeleton-announcement-content {
-  flex: 1;
-}
-
-.skeleton-announcement-title {
-  width: 70%;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-
-.skeleton-announcement-message {
-  width: 90%;
-  height: 12px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Hymns */
-.skeleton-hymn-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-hymn-number {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.skeleton-hymn-content {
-  flex: 1;
-}
-
-.skeleton-hymn-title {
-  width: 60%;
-  height: 14px;
-  border-radius: 4px;
-  margin-bottom: 6px;
-}
-
-.skeleton-hymn-preview {
-  width: 80%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Gallery */
-.skeleton-gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-}
-
-.skeleton-gallery-item {
-  aspect-ratio: 1;
-  border-radius: 16px;
-}
-
-/* Skeleton for Mass Programs */
-.skeleton-mass-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-mass-date {
-  width: 60px;
-  height: 60px;
-  border-radius: 14px;
-  flex-shrink: 0;
-}
-
-.skeleton-mass-content {
-  flex: 1;
-}
-
-.skeleton-mass-venue {
-  width: 50%;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 6px;
-}
-
-.skeleton-mass-time {
-  width: 40%;
-  height: 12px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Pledges */
-.skeleton-pledge-item {
-  padding: 0.6rem;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-pledge-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.skeleton-pledge-title {
-  width: 50%;
-  height: 14px;
-  border-radius: 4px;
-}
-
-.skeleton-pledge-percent {
-  width: 30px;
-  height: 14px;
-  border-radius: 4px;
-}
-
-.skeleton-pledge-bar {
-  width: 100%;
-  height: 4px;
-  border-radius: 20px;
-  margin-bottom: 6px;
-}
-
-.skeleton-pledge-footer {
-  width: 60%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Notifications */
-.skeleton-notif-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-notif-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.skeleton-notif-content {
-  flex: 1;
-}
-
-.skeleton-notif-title {
-  width: 50%;
-  height: 14px;
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
-.skeleton-notif-message {
-  width: 70%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Online Members */
-.skeleton-online-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-}
-
-.skeleton-online-item {
-  text-align: center;
-  padding: 0.5rem;
-}
-
-.skeleton-online-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  margin: 0 auto 0.3rem;
-}
-
-.skeleton-online-name {
-  width: 40px;
-  height: 8px;
-  border-radius: 4px;
-  margin: 0 auto;
-}
-
-/* Skeleton for Jumuia */
-.skeleton-jumuia-card {
-  padding: 1.25rem;
-}
-
-.skeleton-jumuia-name {
-  width: 60%;
-  height: 20px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-}
-
-.skeleton-jumuia-info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-}
-
-.skeleton-jumuia-info-item {
-  padding: 0.5rem;
-  border-radius: 10px;
-}
-
-.skeleton-jumuia-label {
-  width: 60%;
-  height: 8px;
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
-.skeleton-jumuia-value {
-  width: 40%;
-  height: 12px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Executive Team */
-.skeleton-executive-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.75rem;
-}
-
-.skeleton-executive-item {
-  text-align: center;
-  padding: 0.75rem;
-}
-
-.skeleton-executive-avatar {
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  margin: 0 auto 0.6rem;
-}
-
-.skeleton-executive-name {
-  width: 50px;
-  height: 10px;
-  border-radius: 4px;
-  margin: 0 auto 4px;
-}
-
-.skeleton-executive-role {
-  width: 40px;
-  height: 8px;
-  border-radius: 4px;
-  margin: 0 auto;
-}
-
-/* Skeleton for Schedules */
-.skeleton-schedule-item {
-  background: white;
-  border-radius: 20px;
-  padding: 1.2rem;
-  display: flex;
-  gap: 1.25rem;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-schedule-date {
-  width: 80px;
-  height: 70px;
-  border-radius: 18px;
-  flex-shrink: 0;
-}
-
-.skeleton-schedule-content {
-  flex: 1;
-}
-
-.skeleton-schedule-title {
-  width: 60%;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-
-.skeleton-schedule-details {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 8px;
-}
-
-.skeleton-schedule-chip {
-  width: 80px;
-  height: 20px;
-  border-radius: 30px;
-}
-
-.skeleton-schedule-description {
-  width: 80%;
-  height: 12px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Chat */
-.skeleton-chat-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-chat-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.skeleton-chat-content {
-  flex: 1;
-}
-
-.skeleton-chat-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.skeleton-chat-user {
-  width: 30%;
-  height: 12px;
-  border-radius: 4px;
-}
-
-.skeleton-chat-time {
-  width: 20%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-.skeleton-chat-message {
-  width: 70%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Stats */
-.skeleton-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1rem;
-}
-
-.skeleton-stat-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 16px;
-}
-
-.skeleton-stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.skeleton-stat-content {
-  flex: 1;
-}
-
-.skeleton-stat-value {
-  width: 40px;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
-.skeleton-stat-label {
-  width: 50px;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Mass Readings */
-.skeleton-reading-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: white;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-reading-date {
-  width: 48px;
-  height: 40px;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
-
-.skeleton-reading-content {
-  flex: 1;
-}
-
-.skeleton-reading-title {
-  width: 50%;
-  height: 14px;
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
-.skeleton-reading-desc {
-  width: 60%;
-  height: 10px;
-  border-radius: 4px;
-}
-
-.skeleton-reading-meta {
-  width: 30%;
-  height: 8px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Quick Stats */
-.skeleton-quick-stat {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 16px;
-}
-
-.skeleton-quick-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.skeleton-quick-content {
-  flex: 1;
-}
-
-.skeleton-quick-value {
-  width: 30px;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
-.skeleton-quick-label {
-  width: 40px;
-  height: 10px;
-  border-radius: 4px;
-}
-
-/* Skeleton for Active Meetings */
-.skeleton-meeting-item {
-  padding: 1rem;
-  background: white;
-  border-radius: 20px;
-  border: 1px solid #e2e8f0;
-}
-
-.skeleton-meeting-status {
-  width: 60px;
-  height: 20px;
-  border-radius: 20px;
-  margin-bottom: 8px;
-}
-
-.skeleton-meeting-title {
-  width: 70%;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-
-.skeleton-meeting-details {
-  display: flex;
-  gap: 1rem;
-}
-
-.skeleton-meeting-detail {
-  width: 80px;
-  height: 12px;
-  border-radius: 4px;
-}
-
-.skeleton-meeting-stats {
-  width: 100px;
-  height: 12px;
-  border-radius: 4px;
-  margin: 8px 0;
-}
-
-.skeleton-meeting-btn {
-  width: 100%;
-  height: 36px;
-  border-radius: 12px;
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .skeleton-executive-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .skeleton-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .skeleton-schedule-item {
-    flex-direction: column;
-  }
-  
-  .skeleton-schedule-date {
-    width: 100%;
-    height: 50px;
-  }
-}
-
-@media (max-width: 640px) {
-  .readings-dashboard-card {
-    padding: 1rem;
-  }
-  
-  .reading-dash-item {
-    padding: 0.6rem 0.75rem;
-  }
-  
-  .reading-dash-date {
-    min-width: 40px;
-  }
-  
-  .dash-date-day {
-    font-size: 1rem;
-  }
-  
-  .reading-dash-content h4 {
-    font-size: 0.8rem;
-  }
-}
-
-
-
-/* Responsive adjustments */
-@media (max-width: 640px) {
-  .settings-icon-btn {
-    padding: 4px s4px;
-    font-size: 10px;
-  }
-  
-  .settings-icon-btn svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  /* ============================================
-   FIX: REDUCE BUTTON PADDING
-   ============================================ */
-
-.view-all-premium,
-.view-all-music,
-.view-all-compact-pledge,
-.view-all-schedules,
-.view-all-readings-btn,
-.view-all-meetings,
-.notif-action-btn,
-.chat-action-btn,
-.games-action-btn,
-.online-action-btn,
-.jumuia-chat-btn-dashboard,
-.upload-reading-btn,
-.reading-full-btn,
-.view-all,
-.view-all-music,
-.view-all-compact-pledge,
-.games-action-btn,
-.online-action-btn,
-.notif-action-btn,
-.chat-action-btn {
-  padding: 0.3rem 0.8rem !important;
-  font-size: 0.7rem !important;
-  min-height: auto !important;
-  height: auto !important;
-  line-height: 1.4 !important;
-  border-radius: 8px !important;
-  width: auto !important;
-  min-width: 100px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 0.3rem !important;
-}
-
-/* For buttons that should be full width */
-.view-all-schedules,
-.upload-reading-btn,
-.reading-full-btn {
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* Center all buttons in their cards */
-.section-card {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-.section-card > button:last-child {
-  align-self: center !important;
-  margin-top: 0.5rem !important;
-}
-
-
- 
-
- 
-  
- 
-
-
-    `}</style>
+.countdown-container{
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+  border-radius:24px;padding:2rem;margin-bottom:1.5rem;
+  text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 8px 32px rgba(0,0,0,.2);
+  border:1px solid rgba(255,255,255,.08);
+  animation:cdSlideDown .6s ease-out;
+}
+@keyframes cdSlideDown{
+  0%{opacity:0;transform:translateY(-30px) scale(.95)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+.countdown-container::before{
+  content:'';position:absolute;top:-50%;left:-50%;
+  width:200%;height:200%;
+  background:radial-gradient(circle at center,rgba(96,165,250,.08) 0%,transparent 70%);
+  animation:cdRotate 20s linear infinite;
+}
+@keyframes cdRotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.countdown-container::after{
+  content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;
+  background:linear-gradient(45deg,#60a5fa,#c084fc,#60a5fa);
+  background-size:300% 300%;border-radius:24px;z-index:-1;
+  animation:cdBorderGlow 3s ease-in-out infinite;opacity:.3;
+}
+@keyframes cdBorderGlow{
+  0%{background-position:0% 50%;opacity:.3}
+  50%{background-position:100% 50%;opacity:.6}
+  100%{background-position:0% 50%;opacity:.3}
+}
+.countdown-content{position:relative;z-index:1}
+.countdown-header{
+  display:flex;align-items:center;justify-content:center;
+  gap:.75rem;margin-bottom:1.5rem;
+  animation:cdFadeInUp .8s ease-out;
+}
+@keyframes cdFadeInUp{
+  0%{opacity:0;transform:translateY(20px)}
+  100%{opacity:1;transform:translateY(0)}
+}
+.countdown-icon{
+  font-size:1.5rem;
+  animation:cdPulse 2s ease-in-out infinite;
+}
+@keyframes cdPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+.countdown-title{
+  font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:1px;
+}
+.countdown-grid{
+  display:flex;align-items:center;justify-content:center;
+  gap:.5rem;margin-bottom:1.5rem;
+}
+.countdown-item{
+  text-align:center;min-width:60px;
+  animation:cdFadeInScale .6s ease-out forwards;opacity:0;
+}
+.countdown-item:nth-child(1){animation-delay:.1s}
+.countdown-item:nth-child(2){animation-delay:.2s}
+.countdown-item:nth-child(3){animation-delay:.3s}
+.countdown-item:nth-child(4){animation-delay:.4s}
+.countdown-item:nth-child(5){animation-delay:.5s}
+.countdown-item:nth-child(6){animation-delay:.6s}
+.countdown-item:nth-child(7){animation-delay:.7s}
+@keyframes cdFadeInScale{
+  0%{opacity:0;transform:scale(.8) translateY(20px)}
+  100%{opacity:1;transform:scale(1) translateY(0)}
+}
+.countdown-number{
+  font-size:3rem;font-weight:800;color:#fff;line-height:1;
+  padding:.5rem;border-radius:12px;min-width:60px;
+  font-variant-numeric:tabular-nums;
+  transition:transform .3s ease;
+}
+.countdown-number:hover{transform:scale(1.1)}
+.countdown-label{
+  font-size:.7rem;color:#94a3b8;font-weight:600;
+  text-transform:uppercase;letter-spacing:1px;margin-top:.25rem;
+  transition:color .3s ease;
+}
+.countdown-item:hover .countdown-label{color:#60a5fa}
+.countdown-separator{
+  font-size:2rem;font-weight:700;color:#475569;
+  padding-bottom:1.5rem;
+  animation:cdBlink 1s ease-in-out infinite;
+}
+@keyframes cdBlink{0%,100%{opacity:1}50%{opacity:.2}}
+.countdown-event-info{
+  display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;
+  padding-top:1rem;border-top:1px solid rgba(255,255,255,.05);
+}
+.countdown-event-info span{
+  font-size:.85rem;color:#94a3b8;font-weight:500;
+  display:inline-flex;align-items:center;gap:6px;
+}
+@media(max-width:640px){
+  .countdown-container{padding:1.5rem 1rem}
+  .countdown-number{font-size:2rem;min-width:40px}
+  .countdown-item{min-width:40px}
+  .countdown-grid{gap:.25rem}
+  .countdown-separator{font-size:1.5rem;padding-bottom:1.2rem}
+  .countdown-title{font-size:1rem}
+  .countdown-event-info{flex-direction:column;gap:.5rem;align-items:center}
+  .countdown-event-info span{font-size:.75rem}
+}
+
+/* profile card */
+.zd-prof{position:relative;z-index:2;margin:-46px 16px 0;background:#fff;border:1px solid var(--ln);border-radius:18px;
+  box-shadow:0 12px 30px -16px rgba(15,23,42,.25);display:flex;flex-wrap:wrap;align-items:center}
+.zd-pmain{display:flex;align-items:center;gap:14px;padding:14px 16px;flex:1 1 100%;min-width:0}
+.zd-pav{position:relative;width:76px;height:76px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px var(--ln);flex-shrink:0;cursor:pointer}
+.zd-pav img,.zd-pav>span{width:100%;height:100%;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--ink);color:#fff;font-size:28px;font-weight:800}
+.zd-on{position:absolute;left:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+.zd-pav b{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--ln);display:grid;place-items:center}
+.zd-pinfo{flex:1;min-width:0}
+.zd-pinfo h2{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:-.2px;overflow-wrap:anywhere}
+.zd-pinfo p{font-size:12.5px;color:var(--mut);margin:2px 0 8px;overflow-wrap:anywhere}
+.zd-chips{display:flex;flex-wrap:wrap;gap:6px}
+.zd-chips span{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid var(--ln);border-radius:99px;background:var(--bg);font-size:11px;font-weight:700;text-transform:uppercase;color:#334155}
+.zd-pgo{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:1px 1px;
+  height:auto;
+  width:auto;
+  border:1px solid var(--ln);
+  border-radius:10px;
+  background:#fff;
+  color:#475569;
+  font-size:7px;
+  font-weight:600;
+  cursor:pointer;
+  flex-shrink:0;
+  white-space:nowrap;
+  transition:all .18s ease;
+}
+.zd-pgo:hover{
+  background:var(--ink);
+  color:#fff;
+  border-color:transparent;
+  transform:translateY(-1px);
+  box-shadow:0 6px 14px -6px rgba(15,23,42,.4);
+}
+.zd-pgo svg{flex-shrink:0}
+.zd-pgo span{display:inline}
+
+
+.zd-stats{display:flex;flex:1 1 100%;border-top:1px solid var(--ln)}
+.zd-stats>*{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 6px;text-decoration:none;color:var(--ink);min-width:0}
+.zd-stats>*+*{border-left:1px solid var(--ln)}
+.zd-stats svg{font-size:18px;color:#475569;flex-shrink:0}
+.zd-stats span{display:flex;flex-direction:column;min-width:0}
+.zd-stats b{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zd-stats small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+
+/* layout */
+.zd-pad{padding:16px 16px 0;display:flex;flex-direction:column;gap:10px}
+.zd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}
+.zd-main,.zd-rail{display:flex;flex-direction:column;gap:16px;min-width:0}
+.zd-two{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+/* ===== LIVE meetings — BIG, BOLD, RED ===== */
+.zd-live{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+  background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);
+  border:0;
+  border-left:6px solid #7f1d1d;
+  border-radius:16px;
+  padding:18px 20px;
+  box-shadow:0 12px 28px -12px rgba(220,38,38,.55),
+             0 0 0 1px rgba(220,38,38,.15);
+  color:#ffffff;
+  position:relative;
+  overflow:hidden;
+  animation:zd-live-pulse 2.4s ease-in-out infinite;
+}
+
+/* soft pulsing glow */
+@keyframes zd-live-pulse{
+  0%,100%{
+    box-shadow:0 12px 28px -12px rgba(220,38,38,.55),
+               0 0 0 1px rgba(220,38,38,.15);
+  }
+  50%{
+    box-shadow:0 12px 34px -8px rgba(220,38,38,.75),
+               0 0 0 3px rgba(220,38,38,.15);
+  }
+}
+
+/* decorative diagonal stripe on the right */
+.zd-live::after{
+  content:"";
+  position:absolute;
+  top:-40%;
+  right:-10%;
+  width:180px;
+  height:180%;
+  background:linear-gradient(90deg,
+    rgba(255,255,255,.08) 0%,
+    rgba(255,255,255,.02) 100%);
+  transform:rotate(15deg);
+  pointer-events:none;
+}
+
+.zd-lt{flex:1;min-width:220px;position:relative;z-index:1}
+
+.zd-lt h3{
+  font-size:20px;
+  font-weight:900;
+  margin:8px 0 6px;
+  color:#ffffff;
+  letter-spacing:-.3px;
+  line-height:1.2;
+  text-shadow:0 2px 6px rgba(0,0,0,.25);
+  text-transform:uppercase;
+}
+
+.zd-lt p{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 18px;
+  font-size:13px;
+  color:rgba(255,255,255,.9);
+  font-weight:600;
+}
+
+.zd-lt p span{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+
+.zd-lt p span svg{
+  width:14px;
+  height:14px;
+  flex-shrink:0;
+}
+
+/* the BIG red → white Check-In button */
+.zd-live>button{
+  background:#ffffff;
+  color:#dc2626;
+  border:0;
+  border-radius:12px;
+  padding:14px 28px;
+  font-weight:900;
+  font-size:15px;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  width:100%;
+  cursor:pointer;
+  position:relative;
+  z-index:1;
+  box-shadow:0 6px 16px -6px rgba(0,0,0,.35);
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+  animation:zd-live-btn-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes zd-live-btn-blink{
+  0%,100%{ background:#ffffff; }
+  50%    { background:#fff5f5; }
+}
+
+.zd-live>button:hover{
+  transform:translateY(-2px) scale(1.02);
+  box-shadow:0 10px 24px -6px rgba(0,0,0,.45);
+  animation-play-state:paused;
+  background:#ffffff;
+}
+
+.zd-live>button:active{
+  transform:translateY(0) scale(1);
+}
+
+/* ===== LIVE tag on top ===== */
+.zd-tag{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1px;
+  padding:5px 12px;
+  border-radius:99px;
+  text-transform:uppercase;
+}
+
+.zd-tag.red{
+  background:#ffffff;
+  color:#dc2626;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);
+}
+
+/* pulsing dot before LIVE */
+.zd-tag.red::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#dc2626;
+  animation:zd-live-dot 1.2s ease-in-out infinite;
+}
+
+@keyframes zd-live-dot{
+  0%,100%{
+    opacity:1;
+    transform:scale(1);
+  }
+  50%{
+    opacity:.4;
+    transform:scale(.75);
+  }
+}
+
+/* Mobile tweak */
+@media (max-width:520px){
+  .zd-live{
+    padding:16px 16px;
+    border-radius:14px;
+    border-left-width:5px;
+  }
+  .zd-lt h3{
+    font-size:16px;
+    margin:6px 0 4px;
+  }
+  .zd-lt p{
+    font-size:11.5px;
+    gap:4px 12px;
+  }
+  .zd-live>button{
+    padding:12px 20px;
+    font-size:13.5px;
+    letter-spacing:.3px;
+  }
+  .zd-tag{
+    font-size:10px;
+    padding:4px 10px;
+  }
+}
+.zd-link{background:none;border:0;color:var(--ink);font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:4px}
+
+/* advert */
+.zd-trend{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#334155;margin:0 0 8px 2px}
+.zd-trend i{width:7px;height:7px;border-radius:50%;background:#22c55e}
+.zd-ad{display:flex;flex-direction:column;background:#fff;border:1px solid var(--ln);border-radius:16px;overflow:hidden;animation:zf .4s ease}
+@keyframes zf{from{opacity:0}to{opacity:1}}
+.zd-adimg{background:#f1f5f9;display:grid;place-items:center}
+.zd-adimg img{width:100%;max-height:300px;object-fit:contain;display:block}
+.zd-adph{height:150px;display:grid;place-items:center;color:#94a3b8}
+.zd-adtx{padding:18px 20px 22px;display:flex;flex-direction:column;justify-content:center;gap:8px}
+.zd-adtx small,.zd-modal small{font-size:10px;font-weight:800;letter-spacing:1.3px;color:var(--mut)}
+.zd-adtx h2{font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.4px}
+.zd-adtx p{font-size:14px;line-height:1.6;color:var(--mut)}
+.zd-btn{display:inline-flex;align-items:center;gap:8px;width:fit-content;margin-top:6px;background:var(--ink);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700}
+.zd-adctl{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}
+.zd-adctl>div:first-child{display:flex;gap:6px}
+.zd-adctl>button,.zd-adctl>div:first-child button{height:34px;min-width:34px;padding:0 10px;border:1px solid var(--ln);background:#fff;color:#334155;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:700}
+.zd-adctl button:hover{background:#f1f5f9}
+.zd-dots{display:flex;gap:6px;align-items:center}
+.zd-dots.c{justify-content:center;margin-top:10px}
+.zd-dots button{width:6px;height:6px;padding:0;border:0;border-radius:50%;background:#cbd5e1}
+.zd-dots .on{width:20px;border-radius:6px;background:var(--ink)}
+
+/* events */
+.zd-sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.zd-sh h3{font-size:17px;font-weight:800}
+.zd-sh>div{display:flex;align-items:center;gap:8px}
+.zd-arrow{display:none;width:34px;height:34px;border-radius:50%;border:1px solid var(--ln);background:#fff;place-items:center}
+.zd-arrow:hover{background:var(--ink);color:#fff}
+.zd-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
+.zd-track::-webkit-scrollbar{display:none}
+.zd-ev{
+  position:relative;
+  flex:0 0 86%;
+  height:250px;
+  border-radius:18px;
+  overflow:hidden;
+  scroll-snap-align:start;
+  cursor:pointer;
+  background:var(--ink);
+  box-shadow:0 8px 22px -16px rgba(15,23,42,.5);
+  transition:background .4s ease;
+}
+.zd-evbg{
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg,#0f172a,#334155) center/cover;
+}
+.zd-ev .zd-tag{position:absolute;top:12px;right:12px}
+.zd-evbar{
+  position:absolute;left:10px;right:10px;bottom:10px;
+  display:flex;align-items:flex-start;gap:10px;
+  padding:12px;border-radius:14px;
+  background:rgba(15, 23, 42, 0.36);
+  backdrop-filter:blur(10px);
+  color:#fff;
+}
+.zd-evbar>div:nth-child(2){
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:4px;
+}
+.zd-evbar b{
+  font-size:14.5px;
+  font-weight:800;
+  line-height:1.25;
+  white-space:normal;
+  word-break:break-word;
+  overflow:visible;
+  display:block;
+}
+.zd-evbar span{
+  font-size:11.5px;
+  opacity:.92;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  line-height:1.3;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.zd-evbar span svg{flex-shrink:0}
+.zd-db{background:#fff;color:var(--ink);border-radius:11px;min-width:48px;padding:6px 0;text-align:center;flex-shrink:0}
+.zd-db b{display:block;font-size:19px;line-height:1;font-weight:800}
+.zd-db i{font-size:10px;font-weight:800;text-transform:uppercase;font-style:normal;color:var(--mut)}
+
+/* ===== Upload New Reading button (Mass readings tab only) ===== */
+.zd-upload-reading{
+  width:100%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin-top:12px;
+  padding:10px 14px;
+  border:1px dashed #161516;
+  border-radius:12px;
+  background:transparent;
+  color:#161516;
+  font-size:12.5px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .18s ease;
+  font-family:inherit;
+}
+
+.zd-upload-reading:hover{
+  background:#8b5cf6;
+  color:#ffffff;
+  border-style:solid;
+  transform:translateY(-1px);
+  box-shadow:0 6px 14px -6px rgba(2, 2, 2, 0.5);
+}
+
+.zd-upload-reading:active{
+  transform:translateY(0);
+  box-shadow:0 3px 8px -4px rgba(2, 2, 2, 0.4);
+}
+
+.zd-upload-reading svg{
+  flex-shrink:0;
+  width:15px;
+  height:15px;
+}
+
+/* ===== Mobile: keep it comfortably sized ===== */
+@media (max-width:520px){
+  .zd-upload-reading{
+    padding:9px 12px;
+    font-size:12px;
+    gap:6px;
+  }
+}
+
+/* action pills row */
+.zd-actions{
+  display:flex;gap:6px;flex-wrap:wrap;
+  padding:12px 16px 0;
+}
+.zd-act{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 14px;border-radius:10px;
+  border:1px solid var(--ln);background:#fff;color:#475569;
+  font-size:13px;font-weight:600;cursor:pointer;
+  transition:all .18s ease;
+}
+.zd-act:hover{background:#f1f5f9;color:var(--ink);transform:translateY(-1px)}
+.zd-act.on{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;border-color:transparent}
+.zd-act.danger{color:var(--red);margin-left:auto}
+.zd-act.danger:hover{background:#fef2f2}
+
+@media (max-width:768px){
+  .zd-actions{padding:10px 12px 0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .zd-actions::-webkit-scrollbar{display:none}
+  .zd-act{flex-shrink:0;padding:8px 12px;font-size:12px}
+  .zd-act.danger{margin-left:0}
+}
+  .zd-greet-next{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-top:6px;
+  padding:6px 12px;
+  background:rgba(255, 255, 255, 0);
+  border:1px solid rgba(255,255,255,.32);
+  color:#fff;
+  border-radius:999px;
+  font-size:11.5px;
+  font-weight:600;
+  cursor:pointer;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  transition:all .18s ease;
+  pointer-events:auto;
+  max-width:100%;
+  white-space:normal;          
+  text-align:center;
+}
+.zd-greet-next:hover{
+  background:rgba(255,255,255,.3);
+  transform:translateY(-1px);
+}
+.zd-greet-next svg{flex-shrink:0}
+.zd-greet-next span{
+  white-space:normal;          
+  word-break:break-word;      
+  line-height:1.35;
+}
+
+/* cards */
+.zd-card{background:#fff;border:1px solid var(--ln);border-radius:16px;padding:16px;box-shadow:0 4px 14px -10px rgba(15,23,42,.25);min-width:0}
+.zd-ch{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.zd-ci{width:36px;height:36px;border-radius:10px;background:var(--ink);color:#fff;display:grid;place-items:center;flex-shrink:0;font-size:17px}
+.zd-ct{flex:1;min-width:0}
+.zd-ct h3{font-size:15px;font-weight:800}
+.zd-ct p{font-size:11.5px;color:var(--mut);margin-top:1px}
+.zd-ch em{font-style:normal;font-size:11px;font-weight:700;background:#f1f5f9;border:1px solid var(--ln);border-radius:99px;padding:2px 9px;white-space:nowrap}
+.zd-ch>button{background:none;border:0;font-size:12.5px;font-weight:700;color:var(--ink);text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.zd-tabs{display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:3px;margin-bottom:10px}
+.zd-tabs button{flex:1;border:0;background:none;border-radius:8px;padding:7px;font-size:12px;font-weight:700;color:var(--mut)}
+.zd-tabs .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.zd-list{display:flex;flex-direction:column}
+.zd-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #f1f5f9}
+.zd-row:last-child{border-bottom:0}
+.zd-row.click{cursor:pointer}.zd-row.click:hover{background:var(--bg)}
+.zd-row>svg{color:#94a3b8;flex-shrink:0}
+.zd-rt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.zd-rt b{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zd-rt span{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zd-row small{font-size:11px;color:#94a3b8;white-space:nowrap}
+.zd-row .zd-db{background:var(--ink);color:#fff}.zd-row .zd-db i{color:#cbd5e1}
+.zd-lead{width:38px;height:38px;border-radius:10px;background:#f1f5f9;display:grid;place-items:center;color:#334155;flex-shrink:0}
+.zd-dot{width:9px;height:9px;border-radius:50%;background:#e2e8f0;flex-shrink:0}.zd-dot.on{background:var(--ink)}
+.zd-cele{font-size:12px;font-weight:700;background:var(--ink);color:#fff;border-radius:99px;padding:5px 12px;width:fit-content;margin-bottom:6px}
+.zd-av{border-radius:50%;overflow:hidden;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;flex-shrink:0;font-size:14px}
+.zd-av img{width:100%;height:100%;object-fit:cover}
+.zd-mini{width:30px;height:30px;border-radius:50%;border:1px solid var(--ln);display:grid;place-items:center;color:#334155;flex-shrink:0}
+.zd-empty{display:flex;flex-direction:column;align-items:center;gap:3px;padding:20px 10px;border:1px dashed var(--ln);border-radius:12px;background:var(--bg);text-align:center}
+.zd-empty b{font-size:13px}.zd-empty span{font-size:11.5px;color:var(--mut)}
+.zd-sk{height:56px;border-radius:12px;margin-bottom:8px;background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:zk 1.5s infinite}
+@keyframes zk{to{background-position:-200% 0}}
+.zd-gal{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.zd-gal button{aspect-ratio:1;padding:0;border:1px solid var(--ln);border-radius:12px;overflow:hidden;background:#f1f5f9}
+.zd-gal img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.zd-gal button:hover img{transform:scale(1.06)}
+
+/* rail */
+.zd-cd{background:var(--ink);color:#fff;border-radius:16px;padding:16px;text-align:center;border-top:4px solid #fff}
+.zd-cd small{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.85}
+.zd-cd>div{display:flex;justify-content:center;gap:8px;margin:12px 0 4px}
+.zd-cd span{flex:1;max-width:66px;background:rgba(255,255,255,.1);border-radius:10px;padding:8px 0;display:flex;flex-direction:column}
+.zd-cd b{font-size:24px;font-variant-numeric:tabular-nums;line-height:1}
+.zd-cd i{font-size:9.5px;font-style:normal;text-transform:uppercase;opacity:.7;margin-top:3px}
+.zd-cd p{font-size:12px;opacity:.8;margin-top:8px}
+.zd-fin{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.zd-fin>div{background:var(--bg);border:1px solid var(--ln);border-radius:11px;padding:10px}
+.zd-fin b{display:block;font-size:14px;font-weight:800}
+.zd-fin small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.zd-pl{padding:8px 0;cursor:pointer}
+.zd-pl>div:first-child{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.zd-pl span{font-weight:800}
+.zd-bar{height:5px;border-radius:9px;background:#e2e8f0;overflow:hidden}
+.zd-bar i{display:block;height:100%;background:var(--ink);border-radius:9px}
+.zd-pl small{font-size:11px;color:var(--mut);display:block;margin-top:4px}
+.zd-online{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:10px;max-height:230px;overflow-y:auto}
+.zd-online>div{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px}
+.zd-online i{position:absolute;top:30px;left:calc(50% + 8px);width:11px;height:11px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+.zd-online span{font-size:11px;color:var(--mut);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* footer */
+.zd-foot{margin:8px 16px 24px;background:var(--ink);color:#cbd5e1;border-radius:16px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.zd-foot>div{display:flex;align-items:center;gap:10px;text-align:left}
+.zd-foot img{width:42px;height:42px;object-fit:contain;background:rgba(255,255,255,.08);border-radius:10px;padding:5px;cursor:pointer}
+.zd-foot span{display:flex;flex-direction:column}.zd-foot b{color:#fff}.zd-foot small{font-size:11px;color:#94a3b8}
+.zd-foot nav{display:flex;gap:18px}
+.zd-foot nav button{background:none;border:0;color:#94a3b8;font-size:13px}.zd-foot nav button:hover{color:#fff}
+.zd-foot p{font-size:11px;color:#94a3b8}.zd-foot p b{color:#e2e8f0}
+
+/* mobile nav + sheets */
+.zd-bnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--ln);
+  padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+.zd-bnav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:#94a3b8;font-size:11px;font-weight:600}
+.zd-bnav .on{color:var(--ink)}
+.zd-ov{position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.6);display:flex;align-items:flex-end;justify-content:center}
+.zd-ov.mid{align-items:center;padding:16px;backdrop-filter:blur(4px)}
+.zd-sheet{width:100%;max-width:520px;max-height:80vh;overflow-y:auto;background:#fff;border-radius:20px 20px 0 0;padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.zd-sheet>div{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.zd-sheet>div button{width:34px;height:34px;border-radius:50%;border:0;background:#f1f5f9;display:grid;place-items:center}
+.zd-sheet>button{width:100%;display:flex;align-items:center;gap:12px;padding:13px 4px;border:0;border-bottom:1px solid #f1f5f9;background:none;font-size:14.5px;font-weight:600;color:var(--ink);text-align:left}
+.zd-sheet>button span{flex:1}.zd-sheet>button>svg:last-child{color:#cbd5e1}
+.zd-sheet>button.danger{color:var(--red)}
+.zd-modal{position:relative;width:min(860px,100%);max-height:92vh;overflow-y:auto;background:#fff;border-radius:18px}
+.zd-modal img{width:100%;max-height:460px;object-fit:contain;background:#f1f5f9;display:block}
+.zd-modal>div{padding:22px 24px 26px;display:flex;flex-direction:column;gap:8px}
+.zd-modal h2{font-size:28px;line-height:1.15}.zd-modal p{color:var(--mut);line-height:1.65;font-size:15px}
+.zd-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.95);display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.15);z-index:2}
+
+/* tablet: icon sidebar */
+@media (min-width:768px){
+  .zd{padding:0 0 0 72px}
+  .zd-bnav{display:none}
+  .zd-side{display:flex;flex-direction:column;align-items:stretch;position:fixed;left:0;top:0;bottom:0;width:72px;background:#fff;border-right:1px solid var(--ln);
+    padding:14px 10px;overflow-y:auto;z-index:40}
+  .zd-side span{display:none}
+  .zd-side button{justify-content:center;padding:12px 0}
+  .zd-sb-brand{justify-content:center;padding:4px 0 14px}
+  .zd-hero{height:240px;border-radius:0 0 22px 22px}
+.zd-greet h1{font-size:23px}
+  .zd-pmain{flex:1 1 0}
+  .zd-stats{flex:0 0 auto;border-top:0;border-left:1px solid var(--ln);align-self:stretch}
+  .zd-stats>*{padding:0 20px}
+  .zd-live>button{width:auto}
+  .zd-ad{flex-direction:row;min-height:270px}
+  .zd-adimg{flex:0 0 40%}.zd-adimg img{max-height:none;height:100%;object-fit:contain}
+  .zd-adtx{flex:1;padding:28px 34px}.zd-adtx h2{font-size:32px}
+  .zd-arrow{display:grid}
+.zd-ev{flex:0 0 300px;height:250px}
+  .zd-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .zd-foot{flex-direction:row;justify-content:space-between;flex-wrap:wrap;text-align:left}
+  .zd-foot p{flex:1 1 100%;text-align:center}
+}
+/* desktop: full sidebar + sticky right rail */
+@media (min-width:1200px){
+  .zd{padding-left:240px}
+  .zd-side{width:240px;padding:18px 14px}
+  .zd-side span{display:inline}
+  .zd-side button{justify-content:flex-start;padding:10px 12px}
+  .zd-sb-brand{justify-content:flex-start;padding:4px 8px 18px}
+  .zd-hero{margin:0 16px;border-radius:0 0 22px 22px}
+  .zd-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start;padding:20px 16px}
+  .zd-rail{position:sticky;top:16px}
+  .zd-pad{padding:20px 16px 0}
+}
+
+@media (max-width:480px){
+  .zd-greet-next{
+    font-size:10.5px;
+    padding:5px 10px;
+    gap:4px;
+    max-width:100%;
+  }
+}
+@media (prefers-reduced-motion:reduce){.zd *{animation:none!important;transition:none!important}}
+      `}</style>
     </div>
-  </div>
-  </>
   );
 }
-export default Dashboard;

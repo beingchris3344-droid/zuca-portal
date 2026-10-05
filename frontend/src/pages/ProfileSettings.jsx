@@ -2158,7 +2158,7 @@ const s = {
   },
 
   themePicker: {
-    position: "absolute",
+    position: "auto",
     top: 72,
     right: 24,
     background: "#ffffff",

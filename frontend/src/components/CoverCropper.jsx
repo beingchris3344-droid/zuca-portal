@@ -1,8 +1,14 @@
 // frontend/src/components/CoverCropper.jsx
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
-  FiX, FiZoomIn, FiZoomOut, FiDroplet, FiMove, FiMaximize2,
+  FiX,
+  FiZoomIn,
+  FiZoomOut,
+  FiDroplet,
+  FiMove,
+  FiMaximize2,
 } from "react-icons/fi";
 
 /* =========================================================
@@ -11,85 +17,171 @@ import {
 
 const CROP_WIDTH = 500;
 const ASPECT = 1;
+
+// FINAL EXPORT SIZE
 const OUTPUT_W = 1600;
 const OUTPUT_H = 640;
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 6;
+
 const DEFAULT_BLUR = 40;
 const MIN_BLUR = 0;
 const MAX_BLUR = 80;
+
 const DARK_OVERLAY = 0.18;
 
-// Placement controls for the sharp crop inside the banner
-const MIN_PLACEMENT_SIZE = 0.3;   // 30% of banner width
-const MAX_PLACEMENT_SIZE = 1.2;   // 120% — overflow allowed
+// Placement controls
+const MIN_PLACEMENT_SIZE = 0.3;
+const MAX_PLACEMENT_SIZE = 1.2;
 const DEFAULT_PLACEMENT_SIZE = 0.7;
 
-export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
+export default function CoverCropper({
+  imageFile,
+  onCropComplete,
+  onClose,
+}) {
   const [imageUrl, setImageUrl] = useState(null);
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+
+  const [naturalSize, setNaturalSize] = useState({
+    w: 0,
+    h: 0,
+  });
+
   const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const [offset, setOffset] = useState({
+    x: 0,
+    y: 0,
+  });
+
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+
   const [blurPx, setBlurPx] = useState(DEFAULT_BLUR);
+
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  /* Placement state — where the sharp crop sits in the banner */
-  const [placement, setPlacement] = useState({ x: 0.5, y: 0.5 }); // 0..1 normalized center
-  const [placementSize, setPlacementSize] = useState(DEFAULT_PLACEMENT_SIZE);
+  // Sharp crop placement
+  const [placement, setPlacement] = useState({
+    x: 0.5,
+    y: 0.5,
+  });
 
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const offsetRef = useRef({ x: 0, y: 0 });
+  const [placementSize, setPlacementSize] = useState(
+    DEFAULT_PLACEMENT_SIZE
+  );
+
+  const dragStartRef = useRef({
+    x: 0,
+    y: 0,
+  });
+
+  const offsetRef = useRef({
+    x: 0,
+    y: 0,
+  });
+
   const scaleRef = useRef(1);
-  const naturalSizeRef = useRef({ w: 0, h: 0 });
+
+  const naturalSizeRef = useRef({
+    w: 0,
+    h: 0,
+  });
+
   const imgRef = useRef(null);
   const previewRef = useRef(null);
 
   const [previewDragging, setPreviewDragging] = useState(false);
-  const previewDragStartRef = useRef({ x: 0, y: 0, px: 0.5, py: 0.5 });
+
+  const previewDragStartRef = useRef({
+    x: 0,
+    y: 0,
+    px: 0.5,
+    py: 0.5,
+    rectW: 0,
+    rectH: 0,
+  });
 
   const cropW = CROP_WIDTH;
   const cropH = Math.round(CROP_WIDTH / ASPECT);
 
-  useEffect(() => { offsetRef.current = offset; }, [offset]);
-  useEffect(() => { scaleRef.current = scale; }, [scale]);
-  useEffect(() => { naturalSizeRef.current = naturalSize; }, [naturalSize]);
+  /* =========================================================
+     KEEP REFS SYNCHRONIZED
+     ========================================================= */
 
-  /* ---------- Load image ---------- */
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    naturalSizeRef.current = naturalSize;
+  }, [naturalSize]);
+
+  /* =========================================================
+     LOAD ORIGINAL IMAGE
+     ========================================================= */
+
   useEffect(() => {
     if (!imageFile) return;
 
     const url = URL.createObjectURL(imageFile);
+
     setImageUrl(url);
 
     const img = new Image();
+
     img.onload = () => {
-      const nat = { w: img.width, h: img.height };
+      const nat = {
+        w: img.naturalWidth || img.width,
+        h: img.naturalHeight || img.height,
+      };
+
       setNaturalSize(nat);
       naturalSizeRef.current = nat;
 
-      const fitScale = Math.min(cropW / img.width, cropH / img.height);
+      // Fit original image into crop editor
+      const fitScale = Math.min(
+        cropW / nat.w,
+        cropH / nat.h
+      );
+
       setScale(fitScale);
       scaleRef.current = fitScale;
 
       const centered = {
-        x: (cropW - img.width * fitScale) / 2,
-        y: (cropH - img.height * fitScale) / 2,
+        x: (cropW - nat.w * fitScale) / 2,
+        y: (cropH - nat.h * fitScale) / 2,
       };
+
       setOffset(centered);
       offsetRef.current = centered;
     };
+
+    img.onerror = () => {
+      console.error("Failed to load image");
+    };
+
     img.src = url;
 
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
   }, [imageFile, cropW, cropH]);
 
-  /* ---------- Crop box drag ---------- */
+  /* =========================================================
+     CROP BOX DRAG
+     ========================================================= */
+
   const handleMouseDown = (e) => {
     e.preventDefault();
+
     setDragging(true);
+
     dragStartRef.current = {
       x: e.clientX - offsetRef.current.x,
       y: e.clientY - offsetRef.current.y,
@@ -98,8 +190,11 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
 
   const handleTouchStart = (e) => {
     e.preventDefault();
+
     const t = e.touches[0];
+
     setDragging(true);
+
     dragStartRef.current = {
       x: t.clientX - offsetRef.current.x,
       y: t.clientY - offsetRef.current.y,
@@ -109,45 +204,70 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
   const applyMove = useCallback((clientX, clientY) => {
     const newX = clientX - dragStartRef.current.x;
     const newY = clientY - dragStartRef.current.y;
-    const next = { x: newX, y: newY };
+
+    const next = {
+      x: newX,
+      y: newY,
+    };
+
     offsetRef.current = next;
     setOffset(next);
   }, []);
 
   useEffect(() => {
     if (!dragging) return;
+
     const onMove = (e) => {
       if (e.touches) {
+        e.preventDefault();
+
         const t = e.touches[0];
+
         applyMove(t.clientX, t.clientY);
       } else {
         applyMove(e.clientX, e.clientY);
       }
     };
-    const onEnd = () => setDragging(false);
+
+    const onEnd = () => {
+      setDragging(false);
+    };
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchmove", onMove, { passive: false });
+
+    window.addEventListener("touchmove", onMove, {
+      passive: false,
+    });
+
     window.addEventListener("touchend", onEnd);
 
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onEnd);
+
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
   }, [dragging, applyMove]);
 
-  /* ---------- Preview drag (place the sharp crop) ---------- */
+  /* =========================================================
+     PREVIEW DRAG
+     ========================================================= */
+
   const handlePreviewDragStart = (e) => {
     e.preventDefault();
     e.stopPropagation();
 
+    if (!previewRef.current) return;
+
     const t = e.touches ? e.touches[0] : e;
-    const rect = previewRef.current.getBoundingClientRect();
+
+    const rect =
+      previewRef.current.getBoundingClientRect();
 
     setPreviewDragging(true);
+
     previewDragStartRef.current = {
       x: t.clientX,
       y: t.clientY,
@@ -162,101 +282,231 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
     if (!previewDragging) return;
 
     const onMove = (e) => {
+      if (e.touches) {
+        e.preventDefault();
+      }
+
       const t = e.touches ? e.touches[0] : e;
+
       const start = previewDragStartRef.current;
 
-      const dx = (t.clientX - start.x) / start.rectW;
-      const dy = (t.clientY - start.y) / start.rectH;
+      const dx =
+        (t.clientX - start.x) / start.rectW;
 
-      const nx = Math.max(0, Math.min(1, start.px + dx));
-      const ny = Math.max(0, Math.min(1, start.py + dy));
+      const dy =
+        (t.clientY - start.y) / start.rectH;
 
-      setPlacement({ x: nx, y: ny });
+      const nx = Math.max(
+        0,
+        Math.min(1, start.px + dx)
+      );
+
+      const ny = Math.max(
+        0,
+        Math.min(1, start.py + dy)
+      );
+
+      setPlacement({
+        x: nx,
+        y: ny,
+      });
     };
-    const onEnd = () => setPreviewDragging(false);
+
+    const onEnd = () => {
+      setPreviewDragging(false);
+    };
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchmove", onMove, { passive: false });
+
+    window.addEventListener("touchmove", onMove, {
+      passive: false,
+    });
+
     window.addEventListener("touchend", onEnd);
 
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onEnd);
+
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
   }, [previewDragging]);
 
-  /* ---------- Zoom ---------- */
-  const applyZoom = (newScale, focusX, focusY) => {
-    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newScale));
-    const pointX = (focusX - offsetRef.current.x) / scaleRef.current;
-    const pointY = (focusY - offsetRef.current.y) / scaleRef.current;
+  /* =========================================================
+     ZOOM
+     ========================================================= */
+
+  const applyZoom = (
+    newScale,
+    focusX,
+    focusY
+  ) => {
+    const clamped = Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, newScale)
+    );
+
+    const pointX =
+      (focusX - offsetRef.current.x) /
+      scaleRef.current;
+
+    const pointY =
+      (focusY - offsetRef.current.y) /
+      scaleRef.current;
+
     const next = {
       x: focusX - pointX * clamped,
       y: focusY - pointY * clamped,
     };
+
     setScale(clamped);
     scaleRef.current = clamped;
+
     setOffset(next);
     offsetRef.current = next;
   };
 
   const handleWheel = (e) => {
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const focusX = e.clientX - rect.left;
-    const focusY = e.clientY - rect.top;
+
+    const rect =
+      e.currentTarget.getBoundingClientRect();
+
+    const focusX =
+      e.clientX - rect.left;
+
+    const focusY =
+      e.clientY - rect.top;
+
     const delta = -e.deltaY * 0.0015;
-    applyZoom(scaleRef.current * (1 + delta), focusX, focusY);
+
+    applyZoom(
+      scaleRef.current * (1 + delta),
+      focusX,
+      focusY
+    );
   };
 
   const zoomSlider = (newScale) => {
-    applyZoom(newScale, cropW / 2, cropH / 2);
+    applyZoom(
+      newScale,
+      cropW / 2,
+      cropH / 2
+    );
   };
 
   /* =========================================================
-     RENDER BANNER — with user-controlled placement
+     HIGH QUALITY SOURCE CROP
+     
+     IMPORTANT:
+     We DO NOT create a 500x500 intermediate image.
+     
+     We calculate the exact source rectangle from the
+     original image and draw that original image directly
+     into the final 1600x640 canvas.
      ========================================================= */
+
+  const getSourceCrop = () => {
+    if (
+      !imgRef.current ||
+      !naturalSizeRef.current.w ||
+      !naturalSizeRef.current.h
+    ) {
+      return null;
+    }
+
+    const sourceX =
+      -offsetRef.current.x /
+      scaleRef.current;
+
+    const sourceY =
+      -offsetRef.current.y /
+      scaleRef.current;
+
+    const sourceW =
+      cropW /
+      scaleRef.current;
+
+    const sourceH =
+      cropH /
+      scaleRef.current;
+
+    return {
+      x: sourceX,
+      y: sourceY,
+      w: sourceW,
+      h: sourceH,
+    };
+  };
+
+  /* =========================================================
+     HIGH QUALITY BANNER RENDER
+     ========================================================= */
+
   const renderBanner = useCallback(
     (forExport = false) => {
-      if (!imgRef.current || !naturalSizeRef.current.w) return null;
+      if (
+        !imgRef.current ||
+        !naturalSizeRef.current.w
+      ) {
+        return null;
+      }
 
       const W = forExport ? OUTPUT_W : 480;
-      const H = forExport ? OUTPUT_H : Math.round(480 * (OUTPUT_H / OUTPUT_W));
 
-      /* ----- 1. Extract the user's crop ----- */
-      const cropCanvas = document.createElement("canvas");
-      cropCanvas.width = cropW;
-      cropCanvas.height = cropH;
-      const cropCtx = cropCanvas.getContext("2d");
+      const H = forExport
+        ? OUTPUT_H
+        : Math.round(
+            480 * (OUTPUT_H / OUTPUT_W)
+          );
 
-      const sourceX = -offsetRef.current.x / scaleRef.current;
-      const sourceY = -offsetRef.current.y / scaleRef.current;
-      const sourceW = cropW / scaleRef.current;
-      const sourceH = cropH / scaleRef.current;
+      const source = getSourceCrop();
 
-      cropCtx.drawImage(
-        imgRef.current,
-        sourceX, sourceY, sourceW, sourceH,
-        0, 0, cropW, cropH
-      );
+      if (!source) return null;
 
-      /* ----- 2. Compose banner ----- */
-      const canvas = document.createElement("canvas");
+      const canvas =
+        document.createElement("canvas");
+
       canvas.width = W;
       canvas.height = H;
-      const ctx = canvas.getContext("2d");
 
-      const cropRatio = cropCanvas.width / cropCanvas.height;
+      const ctx = canvas.getContext("2d", {
+        alpha: false,
+        desynchronized: false,
+      });
+
+      if (!ctx) return null;
+
+      /*
+       * IMPORTANT FOR IMAGE QUALITY
+       */
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      const cropRatio =
+        source.w / source.h;
+
       const outputRatio = W / H;
 
-      /* ---- 2a. Blurred background (fills everything) ---- */
-      ctx.save();
-      if (blurPx > 0) ctx.filter = `blur(${(blurPx * W) / OUTPUT_W}px)`;
+      /* =====================================================
+         1. BLURRED BACKGROUND
+         ===================================================== */
 
-      let bgW, bgH, bgX, bgY;
+      ctx.save();
+
+      if (blurPx > 0) {
+        ctx.filter = `blur(${
+          (blurPx * W) / OUTPUT_W
+        }px)`;
+      }
+
+      let bgW;
+      let bgH;
+      let bgX;
+      let bgY;
+
       if (cropRatio > outputRatio) {
         bgH = H * 1.25;
         bgW = bgH * cropRatio;
@@ -264,112 +514,305 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
         bgW = W * 1.25;
         bgH = bgW / cropRatio;
       }
+
       bgX = (W - bgW) / 2;
       bgY = (H - bgH) / 2;
 
-      ctx.drawImage(cropCanvas, bgX, bgY, bgW, bgH);
+      /*
+       * DRAW ORIGINAL IMAGE DIRECTLY.
+       * No 500x500 intermediate canvas.
+       */
+      ctx.drawImage(
+        imgRef.current,
+        source.x,
+        source.y,
+        source.w,
+        source.h,
+        bgX,
+        bgY,
+        bgW,
+        bgH
+      );
+
       ctx.restore();
 
-      /* ---- 2b. Dark overlay ---- */
-      ctx.fillStyle = `rgba(0, 0, 0, ${DARK_OVERLAY})`;
+      /* =====================================================
+         2. DARK OVERLAY
+         ===================================================== */
+
+      ctx.fillStyle =
+        `rgba(0, 0, 0, ${DARK_OVERLAY})`;
+
       ctx.fillRect(0, 0, W, H);
 
-      /* ---- 2c. Sharp foreground — placed by the user ---- */
-      /*
-       * placementSize is a fraction of the banner width.
-       * placement.x/y are the normalized center position (0..1).
-       * The crop is drawn as a square sized to `placementSize * W`.
-       */
-      const fgSize = W * placementSize;
-      const fgX = placement.x * W - fgSize / 2;
-      const fgY = placement.y * H - fgSize / 2;
+      /* =====================================================
+         3. SHARP FOREGROUND
+         ===================================================== */
 
-      ctx.drawImage(cropCanvas, fgX, fgY, fgSize, fgSize);
+      const fgSize =
+        W * placementSize;
+
+      const fgX =
+        placement.x * W -
+        fgSize / 2;
+
+      const fgY =
+        placement.y * H -
+        fgSize / 2;
+
+      /*
+       * DRAW ORIGINAL IMAGE DIRECTLY AGAIN.
+       *
+       * This is the major quality improvement.
+       */
+      ctx.drawImage(
+        imgRef.current,
+        source.x,
+        source.y,
+        source.w,
+        source.h,
+        fgX,
+        fgY,
+        fgSize,
+        fgSize
+      );
 
       return canvas;
     },
-    [cropW, cropH, blurPx, placement, placementSize]
+    [
+      cropW,
+      cropH,
+      blurPx,
+      placement,
+      placementSize,
+    ]
   );
 
-  /* ---------- Live preview ---------- */
+  /* =========================================================
+     LIVE PREVIEW
+     ========================================================= */
+
   useEffect(() => {
-    if (!imageUrl || !naturalSize.w) return;
+    if (
+      !imageUrl ||
+      !naturalSize.w
+    ) {
+      return;
+    }
 
     const id = setTimeout(() => {
-      const canvas = renderBanner(false);
+      const canvas =
+        renderBanner(false);
+
       if (!canvas) return;
-      setPreviewUrl(canvas.toDataURL("image/jpeg", 0.7));
-    }, 80);
 
-    return () => clearTimeout(id);
-  }, [imageUrl, naturalSize, offset, scale, blurPx, placement, placementSize, renderBanner]);
+      /*
+       * Preview compression only.
+       * Export does NOT use this image.
+       */
+      setPreviewUrl(
+        canvas.toDataURL(
+          "image/jpeg",
+          0.88
+        )
+      );
+    }, 50);
 
-  /* ---------- Export ---------- */
+    return () => {
+      clearTimeout(id);
+    };
+  }, [
+    imageUrl,
+    naturalSize,
+    offset,
+    scale,
+    blurPx,
+    placement,
+    placementSize,
+    renderBanner,
+  ]);
+
+  /* =========================================================
+     EXPORT / UPLOAD
+     ========================================================= */
+
   const handleUpload = async () => {
-    if (!imgRef.current || uploading || !naturalSizeRef.current.w) return;
+    if (
+      !imgRef.current ||
+      uploading ||
+      !naturalSizeRef.current.w
+    ) {
+      return;
+    }
+
     setUploading(true);
 
     try {
-      const canvas = renderBanner(true);
-      if (!canvas) throw new Error("Could not render banner");
+      /*
+       * Render directly at 1600x640.
+       */
+      const canvas =
+        renderBanner(true);
 
+      if (!canvas) {
+        throw new Error(
+          "Could not render banner"
+        );
+      }
+
+      /*
+       * Maximum JPEG quality.
+       *
+       * We keep JPEG because your existing upload
+       * pipeline expects a .jpg file.
+       */
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            alert("Failed to crop image. Please try again.");
+            alert(
+              "Failed to create image. Please try again."
+            );
+
             setUploading(false);
             return;
           }
-          const croppedFile = new File([blob], `cover-${Date.now()}.jpg`, {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          });
+
+          const croppedFile =
+            new File(
+              [blob],
+              `cover-${Date.now()}.jpg`,
+              {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              }
+            );
+
           onCropComplete(croppedFile);
+
+          setUploading(false);
         },
         "image/jpeg",
-        0.92
+        0.98
       );
     } catch (err) {
-      console.error("Crop error:", err);
-      alert("Failed to crop image. Please try again.");
+      console.error(
+        "Crop error:",
+        err
+      );
+
+      alert(
+        "Failed to process image. Please try again."
+      );
+
       setUploading(false);
     }
   };
 
+  /* =========================================================
+     RESET
+     ========================================================= */
+
   const resetPlacement = () => {
-    setPlacement({ x: 0.5, y: 0.5 });
-    setPlacementSize(DEFAULT_PLACEMENT_SIZE);
+    setPlacement({
+      x: 0.5,
+      y: 0.5,
+    });
+
+    setPlacementSize(
+      DEFAULT_PLACEMENT_SIZE
+    );
   };
 
-  if (!imageUrl || !naturalSize.w) return null;
+  /* =========================================================
+     SAFETY
+     ========================================================= */
 
-  const zoomPercent = Math.round(
-    (scale / Math.min(cropW / naturalSize.w, cropH / naturalSize.h)) * 100
-  );
-  const blurPercent = Math.round((blurPx / MAX_BLUR) * 100);
-  const sizePercent = Math.round(placementSize * 100);
+  if (
+    !imageUrl ||
+    !naturalSize.w
+  ) {
+    return null;
+  }
+
+  const baseScale =
+    Math.min(
+      cropW / naturalSize.w,
+      cropH / naturalSize.h
+    );
+
+  const zoomPercent =
+    Math.round(
+      (scale / baseScale) * 100
+    );
+
+  const blurPercent =
+    Math.round(
+      (blurPx / MAX_BLUR) * 100
+    );
+
+  const sizePercent =
+    Math.round(
+      placementSize * 100
+    );
+
+  /* =========================================================
+     UI
+     ========================================================= */
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{
+        opacity: 0,
+      }}
+      animate={{
+        opacity: 1,
+      }}
+      exit={{
+        opacity: 0,
+      }}
       style={styles.overlay}
       onClick={(e) => {
-        if (e.target === e.currentTarget && !uploading) onClose();
+        if (
+          e.target === e.currentTarget &&
+          !uploading
+        ) {
+          onClose();
+        }
       }}
     >
       <motion.div
-        initial={{ scale: 0.96, y: 20, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.96, y: 20, opacity: 0 }}
-        transition={{ type: "spring", damping: 22, stiffness: 240 }}
+        initial={{
+          scale: 0.96,
+          y: 20,
+          opacity: 0,
+        }}
+        animate={{
+          scale: 1,
+          y: 0,
+          opacity: 1,
+        }}
+        exit={{
+          scale: 0.96,
+          y: 20,
+          opacity: 0,
+        }}
+        transition={{
+          type: "spring",
+          damping: 22,
+          stiffness: 240,
+        }}
         style={styles.modal}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) =>
+          e.stopPropagation()
+        }
       >
-        {/* Header */}
+        {/* HEADER */}
+
         <div style={styles.header}>
-          <h2 style={styles.title}>Adjust your cover</h2>
+          <h2 style={styles.title}>
+            Adjust your cover
+          </h2>
+
           <button
             onClick={onClose}
             style={styles.closeBtn}
@@ -380,20 +823,32 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           </button>
         </div>
 
-        {/* LIVE PREVIEW — draggable to place the sharp crop */}
+        {/* LIVE PREVIEW */}
+
         <div style={styles.previewSection}>
           <div style={styles.previewLabel}>
-            <span style={styles.previewDot} />
-            Live preview — drag the image to reposition
+            <span
+              style={styles.previewDot}
+            />
+
+            Live preview — drag the image
+            to reposition
           </div>
+
           <div
             ref={previewRef}
             style={{
               ...styles.previewFrame,
-              cursor: previewDragging ? "grabbing" : "grab",
+              cursor: previewDragging
+                ? "grabbing"
+                : "grab",
             }}
-            onMouseDown={handlePreviewDragStart}
-            onTouchStart={handlePreviewDragStart}
+            onMouseDown={
+              handlePreviewDragStart
+            }
+            onTouchStart={
+              handlePreviewDragStart
+            }
           >
             {previewUrl && (
               <img
@@ -403,7 +858,11 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
                 draggable={false}
               />
             )}
-            <div style={styles.previewAvatar} />
+
+            <div
+              style={styles.previewAvatar}
+            />
+
             <div style={styles.dragHint}>
               <FiMove size={12} />
               Drag to move
@@ -411,17 +870,30 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           </div>
         </div>
 
-        {/* CROP BOX — where the user selects their square region */}
-        <div style={styles.cropAreaLabel}>Select the area you want as your cover</div>
+        {/* CROP AREA */}
+
+        <div
+          style={styles.cropAreaLabel}
+        >
+          Select the area you want as
+          your cover
+        </div>
+
         <div
           style={{
             ...styles.cropWrapper,
             width: cropW,
             height: cropH,
-            cursor: dragging ? "grabbing" : "grab",
+            cursor: dragging
+              ? "grabbing"
+              : "grab",
           }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
+          onMouseDown={
+            handleMouseDown
+          }
+          onTouchStart={
+            handleTouchStart
+          }
           onWheel={handleWheel}
         >
           <img
@@ -433,31 +905,122 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
               position: "absolute",
               left: offset.x,
               top: offset.y,
-              width: naturalSize.w * scale,
-              height: naturalSize.h * scale,
+              width:
+                naturalSize.w * scale,
+              height:
+                naturalSize.h * scale,
               userSelect: "none",
               pointerEvents: "none",
               willChange: "transform",
             }}
           />
 
-          <div style={styles.gridOverlay}>
-            <div style={{ ...styles.gridLine, top: "33.33%", left: 0, right: 0, height: 1 }} />
-            <div style={{ ...styles.gridLine, top: "66.66%", left: 0, right: 0, height: 1 }} />
-            <div style={{ ...styles.gridLine, left: "33.33%", top: 0, bottom: 0, width: 1 }} />
-            <div style={{ ...styles.gridLine, left: "66.66%", top: 0, bottom: 0, width: 1 }} />
+          {/* GRID */}
+
+          <div
+            style={styles.gridOverlay}
+          >
+            <div
+              style={{
+                ...styles.gridLine,
+                top: "33.33%",
+                left: 0,
+                right: 0,
+                height: 1,
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.gridLine,
+                top: "66.66%",
+                left: 0,
+                right: 0,
+                height: 1,
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.gridLine,
+                left: "33.33%",
+                top: 0,
+                bottom: 0,
+                width: 1,
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.gridLine,
+                left: "66.66%",
+                top: 0,
+                bottom: 0,
+                width: 1,
+              }}
+            />
           </div>
 
-          <div style={{ ...styles.corner, top: 8, left: 8, borderTop: "3px solid #fff", borderLeft: "3px solid #fff" }} />
-          <div style={{ ...styles.corner, top: 8, right: 8, borderTop: "3px solid #fff", borderRight: "3px solid #fff" }} />
-          <div style={{ ...styles.corner, bottom: 8, left: 8, borderBottom: "3px solid #fff", borderLeft: "3px solid #fff" }} />
-          <div style={{ ...styles.corner, bottom: 8, right: 8, borderBottom: "3px solid #fff", borderRight: "3px solid #fff" }} />
+          {/* CORNERS */}
+
+          <div
+            style={{
+              ...styles.corner,
+              top: 8,
+              left: 8,
+              borderTop:
+                "3px solid #fff",
+              borderLeft:
+                "3px solid #fff",
+            }}
+          />
+
+          <div
+            style={{
+              ...styles.corner,
+              top: 8,
+              right: 8,
+              borderTop:
+                "3px solid #fff",
+              borderRight:
+                "3px solid #fff",
+            }}
+          />
+
+          <div
+            style={{
+              ...styles.corner,
+              bottom: 8,
+              left: 8,
+              borderBottom:
+                "3px solid #fff",
+              borderLeft:
+                "3px solid #fff",
+            }}
+          />
+
+          <div
+            style={{
+              ...styles.corner,
+              bottom: 8,
+              right: 8,
+              borderBottom:
+                "3px solid #fff",
+              borderRight:
+                "3px solid #fff",
+            }}
+          />
         </div>
 
-        {/* CROP ZOOM */}
+        {/* ZOOM */}
+
         <div style={styles.controlRow}>
           <button
-            onClick={() => zoomSlider(scale / 1.15)}
+            onClick={() =>
+              zoomSlider(
+                scale / 1.15
+              )
+            }
             style={styles.controlBtn}
             aria-label="Zoom out"
           >
@@ -470,36 +1033,67 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
             max={MAX_ZOOM}
             step={0.001}
             value={scale}
-            onChange={(e) => zoomSlider(parseFloat(e.target.value))}
+            onChange={(e) =>
+              zoomSlider(
+                parseFloat(
+                  e.target.value
+                )
+              )
+            }
             style={styles.slider}
           />
 
           <button
-            onClick={() => zoomSlider(scale * 1.15)}
+            onClick={() =>
+              zoomSlider(
+                scale * 1.15
+              )
+            }
             style={styles.controlBtn}
             aria-label="Zoom in"
           >
             <FiZoomIn size={18} />
           </button>
 
-          <span style={styles.controlValue}>{zoomPercent}%</span>
+          <span
+            style={styles.controlValue}
+          >
+            {zoomPercent}%
+          </span>
         </div>
 
         {/* PLACEMENT SIZE */}
+
         <div style={styles.controlRow}>
-          <span style={styles.controlBtn} aria-label="Size in banner">
+          <span
+            style={styles.controlBtn}
+            aria-label="Size in banner"
+          >
             <FiMaximize2 size={16} />
           </span>
-          <span style={styles.controlLabel}>Size</span>
+
+          <span
+            style={styles.controlLabel}
+          >
+            Size
+          </span>
+
           <input
             type="range"
             min={MIN_PLACEMENT_SIZE}
             max={MAX_PLACEMENT_SIZE}
             step={0.01}
             value={placementSize}
-            onChange={(e) => setPlacementSize(parseFloat(e.target.value))}
+            onChange={(e) =>
+              setPlacementSize(
+                parseFloat(
+                  e.target.value
+                )
+              )
+            }
             style={styles.slider}
           />
+
           <button
             type="button"
             onClick={resetPlacement}
@@ -508,40 +1102,74 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
           >
             Reset
           </button>
-          <span style={styles.controlValue}>{sizePercent}%</span>
+
+          <span
+            style={styles.controlValue}
+          >
+            {sizePercent}%
+          </span>
         </div>
 
         {/* BLUR */}
+
         <div style={styles.controlRow}>
-          <span style={styles.controlBtn} aria-label="Blur intensity">
+          <span
+            style={styles.controlBtn}
+            aria-label="Blur intensity"
+          >
             <FiDroplet size={16} />
           </span>
-          <span style={styles.controlLabel}>Blur</span>
+
+          <span
+            style={styles.controlLabel}
+          >
+            Blur
+          </span>
+
           <input
             type="range"
             min={MIN_BLUR}
             max={MAX_BLUR}
             step={1}
             value={blurPx}
-            onChange={(e) => setBlurPx(parseFloat(e.target.value))}
+            onChange={(e) =>
+              setBlurPx(
+                parseFloat(
+                  e.target.value
+                )
+              )
+            }
             style={styles.slider}
           />
+
           <button
             type="button"
-            onClick={() => setBlurPx(DEFAULT_BLUR)}
+            onClick={() =>
+              setBlurPx(
+                DEFAULT_BLUR
+              )
+            }
             style={styles.resetBtn}
             title="Reset blur"
           >
             Reset
           </button>
-          <span style={styles.controlValue}>{blurPercent}%</span>
+
+          <span
+            style={styles.controlValue}
+          >
+            {blurPercent}%
+          </span>
         </div>
 
         <p style={styles.hint}>
-          Crop your photo · Drag the preview to place it · Adjust size & blur
+          Crop your photo · Drag the
+          preview to place it · Adjust
+          size & blur
         </p>
 
-        {/* Actions */}
+        {/* ACTIONS */}
+
         <div style={styles.actions}>
           <button
             type="button"
@@ -558,14 +1186,20 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
             disabled={uploading}
             style={{
               ...styles.uploadBtn,
-              opacity: uploading ? 0.7 : 1,
-              cursor: uploading ? "not-allowed" : "pointer",
+              opacity: uploading
+                ? 0.7
+                : 1,
+              cursor: uploading
+                ? "not-allowed"
+                : "pointer",
             }}
           >
             {uploading ? (
               <>
-                <span style={styles.spinner} />
-                Uploading...
+                <span
+                  style={styles.spinner}
+                />
+                Processing...
               </>
             ) : (
               "Upload Cover"
@@ -579,15 +1213,17 @@ export default function CoverCropper({ imageFile, onCropComplete, onClose }) {
 
 /* ================================================================
    STYLES
-================================================================ */
+   ================================================================ */
 
 const styles = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(15, 23, 42, 0.78)",
+    background:
+      "rgba(15, 23, 42, 0.78)",
     backdropFilter: "blur(6px)",
-    WebkitBackdropFilter: "blur(6px)",
+    WebkitBackdropFilter:
+      "blur(6px)",
     zIndex: 1200,
     display: "flex",
     alignItems: "center",
@@ -603,7 +1239,8 @@ const styles = {
     width: "100%",
     maxHeight: "92vh",
     overflowY: "auto",
-    boxShadow: "0 25px 60px -20px rgba(0, 0, 0, 0.4)",
+    boxShadow:
+      "0 25px 60px -20px rgba(0, 0, 0, 0.4)",
     boxSizing: "border-box",
   },
 
@@ -634,8 +1271,11 @@ const styles = {
     color: "#475569",
   },
 
-  /* ---------- Live preview ---------- */
-  previewSection: { marginBottom: 18 },
+  /* Preview */
+
+  previewSection: {
+    marginBottom: 18,
+  },
 
   previewLabel: {
     display: "flex",
@@ -654,17 +1294,20 @@ const styles = {
     height: 8,
     borderRadius: "50%",
     background: "#22c55e",
-    boxShadow: "0 0 0 3px rgba(34, 197, 94, 0.15)",
+    boxShadow:
+      "0 0 0 3px rgba(34, 197, 94, 0.15)",
   },
 
   previewFrame: {
     position: "relative",
     width: "100%",
-    aspectRatio: `${OUTPUT_W} / ${OUTPUT_H}`,
+    aspectRatio:
+      `${OUTPUT_W} / ${OUTPUT_H}`,
     borderRadius: 12,
     overflow: "hidden",
     background: "#0f172a",
-    border: "1px solid #e2e8f0",
+    border:
+      "1px solid #e2e8f0",
     touchAction: "none",
     userSelect: "none",
   },
@@ -687,8 +1330,10 @@ const styles = {
     aspectRatio: "1",
     borderRadius: "50%",
     background: "#ffffff",
-    boxShadow: "0 0 0 4px #ffffff, 0 6px 16px rgba(0,0,0,0.25)",
-    border: "2px solid #22c55e",
+    boxShadow:
+      "0 0 0 4px #ffffff, 0 6px 16px rgba(0,0,0,0.25)",
+    border:
+      "2px solid #22c55e",
     pointerEvents: "none",
   },
 
@@ -700,16 +1345,19 @@ const styles = {
     alignItems: "center",
     gap: 4,
     padding: "4px 8px",
-    background: "rgba(0,0,0,0.5)",
+    background:
+      "rgba(0,0,0,0.5)",
     color: "#ffffff",
     fontSize: 10,
     fontWeight: 600,
     borderRadius: 6,
-    backdropFilter: "blur(4px)",
+    backdropFilter:
+      "blur(4px)",
     pointerEvents: "none",
   },
 
-  /* ---------- Crop area ---------- */
+  /* Crop */
+
   cropAreaLabel: {
     fontSize: 11.5,
     fontWeight: 600,
@@ -728,9 +1376,12 @@ const styles = {
     maxWidth: "100%",
     touchAction: "none",
     userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTouchCallout: "none",
-    boxShadow: "0 12px 40px -18px rgba(15, 23, 42, 0.4)",
+    WebkitUserSelect:
+      "none",
+    WebkitTouchCallout:
+      "none",
+    boxShadow:
+      "0 12px 40px -18px rgba(15, 23, 42, 0.4)",
   },
 
   gridOverlay: {
@@ -741,7 +1392,8 @@ const styles = {
 
   gridLine: {
     position: "absolute",
-    background: "rgba(15, 23, 42, 0.15)",
+    background:
+      "rgba(15, 23, 42, 0.15)",
   },
 
   corner: {
@@ -749,10 +1401,12 @@ const styles = {
     width: 22,
     height: 22,
     pointerEvents: "none",
-    filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
+    filter:
+      "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
   },
 
-  /* ---------- Controls ---------- */
+  /* Controls */
+
   controlRow: {
     display: "flex",
     alignItems: "center",
@@ -765,7 +1419,8 @@ const styles = {
     height: 36,
     borderRadius: 10,
     background: "#f8fafc",
-    border: "1px solid #e2e8f0",
+    border:
+      "1px solid #e2e8f0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -799,7 +1454,8 @@ const styles = {
     fontSize: 11,
     fontWeight: 600,
     padding: "4px 10px",
-    border: "1px solid #e2e8f0",
+    border:
+      "1px solid #e2e8f0",
     background: "#ffffff",
     borderRadius: 8,
     color: "#475569",
@@ -810,23 +1466,27 @@ const styles = {
     fontSize: 12,
     color: "#94a3b8",
     textAlign: "center",
-    margin: "16px 0 0",
+    margin:
+      "16px 0 0",
   },
 
-  /* ---------- Actions ---------- */
+  /* Actions */
+
   actions: {
     display: "flex",
     justifyContent: "flex-end",
     gap: 10,
     marginTop: 20,
     paddingTop: 18,
-    borderTop: "1px solid #f1f5f9",
+    borderTop:
+      "1px solid #f1f5f9",
   },
 
   cancelBtn: {
     padding: "10px 18px",
     background: "#ffffff",
-    border: "1px solid #e2e8f0",
+    border:
+      "1px solid #e2e8f0",
     borderRadius: 10,
     fontSize: 13,
     fontWeight: 600,
@@ -839,23 +1499,27 @@ const styles = {
     alignItems: "center",
     gap: 8,
     padding: "10px 22px",
-    background: "linear-gradient(135deg, #0f172a, #1e293b)",
+    background:
+      "linear-gradient(135deg, #0f172a, #1e293b)",
     border: "none",
     borderRadius: 10,
     fontSize: 13,
     fontWeight: 700,
     color: "#ffffff",
     cursor: "pointer",
-    boxShadow: "0 6px 14px -6px rgba(15, 23, 42, 0.5)",
+    boxShadow:
+      "0 6px 14px -6px rgba(15, 23, 42, 0.5)",
   },
 
   spinner: {
     width: 14,
     height: 14,
-    border: "2px solid rgba(255,255,255,0.3)",
+    border:
+      "2px solid rgba(255,255,255,0.3)",
     borderTopColor: "#fff",
     borderRadius: "50%",
-    animation: "spin 0.6s linear infinite",
+    animation:
+      "spin 0.6s linear infinite",
     display: "inline-block",
   },
 };

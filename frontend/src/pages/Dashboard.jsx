@@ -10,10 +10,10 @@ import QRScanner from "../components/member/attendance/QRScanner";
 import { QrCode } from "lucide-react";
 import {
   FiBell, FiRefreshCw, FiCamera, FiSliders, FiX, FiChevronRight, FiChevronLeft,
-  FiHome, FiCalendar, FiMessageCircle, FiHeart, FiMusic, FiImage, FiBook, FiGrid, 
+  FiHome, FiCalendar, FiMessageCircle, FiHeart, FiMusic, FiImage, FiBook, FiGrid,
   FiMessageSquare, FiAlertCircle, FiSettings, FiLogOut, FiPhone, FiClock, FiMapPin,
-  FiPlay, FiPause, FiMaximize2, FiArrowRight, FiUsers, FiMoreHorizontal, FiCheck,FiUpload, FiDownload, FiShare2, FiCopy, FiTrash, FiEdit2, FiSearch, FiFilter, FiFileText,
-  FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle,
+  FiPlay, FiPause, FiMaximize2, FiArrowRight, FiUsers, FiMoreHorizontal, FiCheck, FiUpload, FiDownload, FiShare2, FiCopy, FiTrash, FiEdit2, FiSearch, FiFilter, FiFileText,
+  FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle, FiActivity,
 } from "react-icons/fi";
 import { FaHandHoldingHeart, FaWhatsapp } from "react-icons/fa";
 import { MdWavingHand } from "react-icons/md";
@@ -60,6 +60,16 @@ const PRIMARY = [
 ];
 const tk = () => localStorage.getItem("token");
 const H = () => ({ headers: { Authorization: `Bearer ${tk()}` } });
+const saveUser = (partial) => {
+  try {
+    const current = JSON.parse(localStorage.getItem("user") || "{}");
+    const merged = { ...current, ...partial };
+    localStorage.setItem("user", JSON.stringify(merged));
+    return merged;
+  } catch {
+    return partial;
+  }
+};
 const money = (n) => `KES ${(n || 0).toLocaleString()}`;
 const ago = (d) => {
   if (!d) return "";
@@ -72,7 +82,6 @@ const ago = (d) => {
 };
 const sameDay = (d) => new Date(d).toDateString() === new Date().toDateString();
 
-/* ---------- small shared pieces ---------- */
 function Card({ icon, title, sub, badge, to, link = "See all", children, className = "" }) {
   const nav = useNavigate();
   return (
@@ -107,6 +116,348 @@ const Avatar = ({ p, size = 40 }) => (
   </div>
 );
 
+/* ===== ATTENDANCE GRAPH — colorful & range aware ===== */
+function AttendanceGraph({ meetings, range = "monthly", width = 800, height = 260 }) {
+  if (!meetings || meetings.length === 0) return null;
+
+  const now = new Date();
+  const buckets = [];
+
+  if (range === "weekly") {
+    for (let i = 7; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(now.getDate() - (i * 7 + 6));
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now);
+      end.setDate(now.getDate() - i * 7);
+      end.setHours(23, 59, 59, 999);
+      buckets.push({ label: `W${8 - i}`, start, end, total: 0, attended: 0 });
+    }
+  } else if (range === "semester") {
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+      buckets.push({
+        label: start.toLocaleString("en-US", { month: "short" }),
+        start,
+        end,
+        total: 0,
+        attended: 0,
+      });
+    }
+  } else {
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(now.getDate() - (i * 5 + 4));
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now);
+      end.setDate(now.getDate() - i * 5);
+      end.setHours(23, 59, 59, 999);
+      buckets.push({
+        label: `${end.getDate()}/${end.getMonth() + 1}`,
+        start,
+        end,
+        total: 0,
+        attended: 0,
+      });
+    }
+  }
+
+  meetings.forEach((m) => {
+    const d = new Date(m.eventDate);
+    for (const b of buckets) {
+      if (d >= b.start && d <= b.end) {
+        b.total++;
+        if (m.userAttended) b.attended++;
+        break;
+      }
+    }
+  });
+
+  const points = buckets.map((b) => ({
+    label: b.label,
+    rate: b.total > 0 ? (b.attended / b.total) * 100 : 0,
+    total: b.total,
+    attended: b.attended,
+  }));
+
+  const padX = 46;
+  const padTop = 20;
+  const padBot = 36;
+  const chartW = width - padX * 2;
+  const chartH = height - padTop - padBot;
+
+  const xFor = (i) => padX + (points.length === 1 ? chartW / 2 : (i / (points.length - 1)) * chartW);
+  const yFor = (rate) => padTop + chartH - (rate / 100) * chartH;
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(p.rate)}`).join(" ");
+  const areaPath =
+    `M ${xFor(0)} ${padTop + chartH} ` +
+    points.map((p, i) => `L ${xFor(i)} ${yFor(p.rate)}`).join(" ") +
+    ` L ${xFor(points.length - 1)} ${padTop + chartH} Z`;
+
+  // Color per point — green if >=75%, amber 40-74%, red <40%
+  const colorFor = (rate) => {
+    if (rate >= 75) return "#10b981";
+    if (rate >= 40) return "#f59e0b";
+    return "#ef4444";
+  };
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="zd-att-graph-svg" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="attAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.35" />
+          <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="attLineGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#06b6d4" />
+          <stop offset="50%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#ec4899" />
+        </linearGradient>
+      </defs>
+
+      {/* Horizontal grid lines */}
+      {[25, 50, 75, 100].map((v) => (
+        <line
+          key={v}
+          x1={padX}
+          y1={yFor(v)}
+          x2={padX + chartW}
+          y2={yFor(v)}
+          stroke="#f1f5f9"
+          strokeWidth="1"
+        />
+      ))}
+
+      {/* Y-axis labels */}
+      {[0, 25, 50, 75, 100].map((v) => (
+        <text
+          key={`y-${v}`}
+          x={padX - 10}
+          y={yFor(v) + 4}
+          fontSize="11"
+          fill="#94a3b8"
+          textAnchor="end"
+          fontWeight="700"
+        >
+          {v}%
+        </text>
+      ))}
+
+      {/* Baseline */}
+      <line
+        x1={padX}
+        y1={padTop + chartH}
+        x2={padX + chartW}
+        y2={padTop + chartH}
+        stroke="#cbd5e1"
+        strokeWidth="1"
+      />
+
+      {/* Gradient area under line */}
+      <path d={areaPath} fill="url(#attAreaGrad)" />
+
+      {/* Colored gradient line */}
+      <path
+        d={linePath}
+        fill="none"
+        stroke="url(#attLineGrad)"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Points + labels, each colored by their rate */}
+      {points.map((p, i) => (
+        <g key={i}>
+          <title>{`${p.label} · ${p.attended}/${p.total} attended (${p.rate.toFixed(0)}%)`}</title>
+          <circle
+            cx={xFor(i)}
+            cy={yFor(p.rate)}
+            r="6"
+            fill="#ffffff"
+            stroke={colorFor(p.rate)}
+            strokeWidth="3"
+          />
+          <circle
+            cx={xFor(i)}
+            cy={yFor(p.rate)}
+            r="2"
+            fill={colorFor(p.rate)}
+          />
+          <text
+            x={xFor(i)}
+            y={height - 12}
+            textAnchor="middle"
+            fontSize="11.5"
+            fill="#475569"
+            fontWeight="800"
+          >
+            {p.label}
+          </text>
+          <text
+            x={xFor(i)}
+            y={yFor(p.rate) - 12}
+            textAnchor="middle"
+            fontSize="11"
+            fill={colorFor(p.rate)}
+            fontWeight="800"
+          >
+            {p.rate.toFixed(0)}%
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function attendanceInsight(stats, meetings, user, upcoming = []) {
+  if (!stats) return null;
+
+  const name = user?.fullName?.split(" ")[0] || "friend";
+  const rate = parseInt(stats.attendanceRate) || 0;
+  const total = stats.totalMeetings || 0;
+  const attended = stats.attendedMeetings || 0;
+  const missed = stats.missedMeetings || 0;
+
+  if (total === 0) {
+    return (
+      <span className="zd-insight-p">
+        <strong>{name}</strong>, there aren't any meetings on record for you yet
+        this semester. Once the first one is marked, you'll start seeing your
+        pattern here. For now, the slate is clean.
+      </span>
+    );
+  }
+
+  const byMonth = {};
+  (meetings || []).forEach((m) => {
+    const d = new Date(m.eventDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!byMonth[key]) byMonth[key] = { total: 0, attended: 0 };
+    byMonth[key].total++;
+    if (m.userAttended) byMonth[key].attended++;
+  });
+
+  const sortedMonths = Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b));
+  const rates = sortedMonths.map(([, v]) => (v.total > 0 ? (v.attended / v.total) * 100 : 0));
+
+  let bestMonth = null;
+  if (sortedMonths.length) {
+    const [key, v] = sortedMonths.reduce((a, b) =>
+      b[1].total > 0 && (a[1].total === 0 || b[1].attended / b[1].total > a[1].attended / a[1].total) ? b : a
+    );
+    if (v.total > 0) {
+      const label = new Date(`${key}-01`).toLocaleString("en-US", { month: "long" });
+      bestMonth = { label, rate: Math.round((v.attended / v.total) * 100) };
+    }
+  }
+
+  const sortedMeetings = [...(meetings || [])].sort(
+    (a, b) => new Date(b.eventDate) - new Date(a.eventDate)
+  );
+  let streak = 0;
+  for (const m of sortedMeetings) {
+    if (m.userAttended) streak++;
+    else break;
+  }
+
+  const lastAttended = sortedMeetings.find((m) => m.userAttended);
+  const daysSince = lastAttended
+    ? Math.floor((Date.now() - new Date(lastAttended.eventDate)) / 864e5)
+    : null;
+
+  let trendUp = null;
+  let trendDown = null;
+  let trendFlat = false;
+  if (rates.length >= 2) {
+    const diff = Math.round(rates[rates.length - 1] - rates[rates.length - 2]);
+    if (diff > 5) trendUp = diff;
+    else if (diff < -5) trendDown = Math.abs(diff);
+    else trendFlat = true;
+  }
+
+  const nextMeeting = upcoming?.length
+    ? [...upcoming].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0]
+    : null;
+  const nextWhen = nextMeeting
+    ? new Date(nextMeeting.eventDate).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+
+  const opening =
+    rate >= 90 ? (
+      <><strong>{name}</strong>, your attendance this semester has been <strong>outstanding</strong>. You've made <strong>{attended} of {total}</strong> meetings, which puts you at <strong>{rate}%</strong>.</>
+    ) : rate >= 75 ? (
+      <><strong>{name}</strong>, you've built a <strong>solid record</strong> this semester — <strong>{attended} of {total}</strong> meetings attended, sitting at <strong>{rate}%</strong>.</>
+    ) : rate >= 50 ? (
+      <><strong>{name}</strong>, you're at <strong>{rate}%</strong> this semester — <strong>{attended} out of {total}</strong> meetings. There's a real foundation here, but it's not quite where it could be.</>
+    ) : (
+      <><strong>{name}</strong>, you've made <strong>{attended} of {total}</strong> meetings so far, which comes out to <strong>{rate}%</strong>. It's an honest number — and the good news is there's plenty of room to move it.</>
+    );
+
+  const patternBits = [];
+  if (streak >= 5) {
+    patternBits.push(<>You're on a <strong>{streak}-meeting streak</strong> right now — the kind of consistency that quietly sets the tone for everyone else.</>);
+  } else if (streak >= 3) {
+    patternBits.push(<>You've shown up <strong>{streak} meetings in a row</strong>, and that rhythm is starting to look like a habit.</>);
+  } else if (streak === 2) {
+    patternBits.push(<>You've made the last <strong>two meetings</strong> — small, but it counts.</>);
+  } else if (streak === 0 && daysSince !== null && daysSince <= 14) {
+    patternBits.push(<>You missed the most recent one, but you were there not long before, so it isn't a pattern yet.</>);
+  } else if (streak === 0 && daysSince !== null && daysSince > 14) {
+    patternBits.push(<>It's been a while since the last meeting you attended, and that gap is worth closing before it widens.</>);
+  }
+
+  if (bestMonth && total >= 4) {
+    patternBits.push(<><strong>{bestMonth.label}</strong> was your strongest month so far — you hit <strong>{bestMonth.rate}%</strong> there, which is worth remembering what was different about that stretch.</>);
+  }
+
+  if (trendUp) {
+    patternBits.push(<>Compared to the month before, you're <strong>up {trendUp}%</strong> — whatever you changed recently is working.</>);
+  } else if (trendDown) {
+    patternBits.push(<>Compared to the month before, you've <strong>slipped {trendDown}%</strong>, so this is the moment to steady things before the dip becomes the new normal.</>);
+  } else if (trendFlat && total >= 4) {
+    patternBits.push(<>Month to month, your numbers have stayed roughly the same — <strong>consistent, though not climbing</strong>.</>);
+  }
+
+  const missBits = [];
+  if (missed === 0) missBits.push(<>You haven't missed a single one.</>);
+  else if (missed === 1) missBits.push(<>Only <strong>one missed meeting</strong> so far — barely registers.</>);
+  else if (missed <= 3) missBits.push(<><strong>{missed} missed meetings</strong> is a manageable number to claw back.</>);
+  else missBits.push(<><strong>{missed} missed meetings</strong> is where the percentage is really being held down.</>);
+
+  if (daysSince !== null) {
+    if (daysSince === 0) missBits.push(<>You were there <strong>today</strong>, which is the best possible sign.</>);
+    else if (daysSince === 1) missBits.push(<>You were there <strong>just yesterday</strong>.</>);
+    else if (daysSince <= 7) missBits.push(<>Your last meeting was <strong>{daysSince} days ago</strong>.</>);
+    else if (daysSince <= 21) missBits.push(<>It's been <strong>{daysSince} days</strong> since your last attendance.</>);
+    else missBits.push(<>Your last recorded attendance was <strong>{daysSince} days ago</strong>.</>);
+  }
+
+  const close =
+    nextMeeting && nextWhen ? (
+      <>The next one is <strong>{nextWhen}</strong>{nextMeeting.title ? <> — <strong>{nextMeeting.title}</strong></> : null}, so there's a clear chance to add to the tally.</>
+    ) : (
+      <>Keep an eye on the schedule for the next meeting, and let's see where the number lands by the end of the semester.</>
+    );
+
+  return (
+    <>
+      <span className="zd-insight-p">{opening}</span>
+      {patternBits.length > 0 && (
+        <span className="zd-insight-p">{patternBits.map((b, i) => <React.Fragment key={i}>{b} </React.Fragment>)}</span>
+      )}
+      <span className="zd-insight-p">{missBits.map((b, i) => <React.Fragment key={i}>{b} </React.Fragment>)}</span>
+      <span className="zd-insight-p">{close}</span>
+    </>
+  );
+}
 export default function Dashboard() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -139,11 +490,14 @@ export default function Dashboard() {
   const [cd, setCd] = useState(null);
   const [left, setLeft] = useState({ d: 0, h: 0, m: 0, s: 0, done: false });
 
+  const [myAttendance, setMyAttendance] = useState(null);
+  const [attRange, setAttRange] = useState("monthly");
+
   const [adIdx, setAdIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [fullAd, setFullAd] = useState(false);
   const [evIdx, setEvIdx] = useState(0);
- const [rtab, setRtab] = useState("mass");
+  const [rtab, setRtab] = useState("mass");
   const [utab, setUtab] = useState("ann");
   const [picker, setPicker] = useState(false);
   const [sheet, setSheet] = useState(false);
@@ -152,7 +506,6 @@ export default function Dashboard() {
   const [pendingCover, setPendingCover] = useState(null);
   const evRef = useRef(null);
 
-  /* ---------- load everything (same endpoints as before) ---------- */
   const load = useCallback(async () => {
     const u = JSON.parse(localStorage.getItem("user") || "null");
     const g = (key, url, fn, secure = true) =>
@@ -169,16 +522,16 @@ export default function Dashboard() {
       g("today", "/api/calendar/today", setToday, false),
       g("readings", "/api/mass-readings?limit=2", (d) => setReadings(d.readings || [])),
       g("pledges", "/api/my-pledges", (d) => {
-        const a = d || [];
-        setPledges(a.filter((p) => p.status !== "COMPLETED").slice(0, 3));
-        const paid = a.reduce((s, p) => s + (p.amountPaid || 0), 0);
-        const pending = a.reduce((s, p) => s + (p.pendingAmount || 0), 0);
+        if (!Array.isArray(d)) return;
+        setPledges(d.filter((p) => p.status !== "COMPLETED").slice(0, 3));
+        const paid = d.reduce((s, p) => s + (p.amountPaid || 0), 0);
+        const pending = d.reduce((s, p) => s + (p.pendingAmount || 0), 0);
         setFin((f) => ({ ...f, paid, pending, pledged: paid + pending }));
       }),
       g("camps", "/api/contribution-types", (d) =>
         setFin((f) => ({ ...f, camps: (d || []).filter((c) => !c.deadline || new Date(c.deadline) > new Date()).length }))),
       g("hymns", "/api/songs?limit=3", (d) => { setHymns(d?.songs || []); setTotalHymns(d?.total || 0); }),
-      g("mass", "/api/mass-programs", (d) => setMass((d || []).filter((p) => new Date(p.date) >= new Date()).slice(0, 3))),
+      g("mass", "/api/mass-programs", (d) => setMass((d || []).filter((p) => new Date(p.date) >= new Date()).slice(0, 4))),
       g("gallery", "/api/media/public?limit=12", (d) =>
         setGallery((d.media || []).filter((i) => i.type === "image" || i.mediaType === "image" || i.mimeType?.startsWith("image/")).slice(0, 6))),
       g("online", "/api/chat/online", (d) => setOnline(d || [])),
@@ -192,13 +545,17 @@ export default function Dashboard() {
       }),
       axios.get(`${BASE_URL}/api/me`, H())
         .then(async (r) => {
+          const merged = saveUser(r.data);
+          setUser(merged);
           if (!r.data.homeJumuia) return;
           const j = await axios.get(`${BASE_URL}/api/jumuia/${r.data.homeJumuia.id}`, H());
           setJumuia({ name: j.data.name, leader: j.data.leaders?.[0]?.fullName || "TBA",
             members: j.data._count?.members || 0, next: j.data.nextMeeting });
         })
-        .catch((e) => console.error("jumuia", e.message))
+        .catch((e) => console.error("me", e.message))
         .finally(() => setReady((p) => ({ ...p, jumuia: true }))),
+
+      g("myAttendance", "/api/attendance/member/all-meetings?semesterId=current", (d) => setMyAttendance(d)),
     ]);
     setRefreshing(false);
   }, []);
@@ -226,7 +583,6 @@ export default function Dashboard() {
     return () => s.disconnect();
   }, [user, load]);
 
-  /* countdown */
   useEffect(() => {
     if (!cd?.isActive) return;
     const tick = () => {
@@ -240,21 +596,18 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [cd]);
 
-  /* ad autoplay */
   useEffect(() => {
     if (ads.length < 2 || paused) return;
     const t = setInterval(() => setAdIdx((i) => (i + 1) % ads.length), 5000);
     return () => clearInterval(t);
   }, [ads.length, paused]);
 
-  /* ---------- actions ---------- */
   const logout = () => { localStorage.removeItem("user"); localStorage.removeItem("token"); navigate("/login"); };
   const pickTheme = (id) => {
     setTheme(id);
     localStorage.setItem("profileTheme", id);
-    const s = { ...JSON.parse(localStorage.getItem("user") || "{}"), profileTheme: id };
-    localStorage.setItem("user", JSON.stringify(s));
-    setUser(s);
+    const merged = saveUser({ profileTheme: id });
+    setUser(merged);
     setPicker(false);
   };
   const onCover = (e) => {
@@ -275,32 +628,25 @@ export default function Dashboard() {
       });
       const u = r.data.user;
       setCover(u.coverImage ? (u.coverImage.startsWith("http") ? u.coverImage : `${BASE_URL}/${u.coverImage}`) : null);
-      localStorage.setItem("user", JSON.stringify(u));
-      setUser(u);
+      const merged = saveUser(u);
+      setUser(merged);
       setPendingCover(null);
     } catch (err) {
       alert(err.response?.data?.error || err.response?.data?.message || "Failed to upload cover.");
     }
   };
-
-
   const removeCover = async () => {
-  if (!user) return;
-  if (!window.confirm("Remove your cover photo?")) return;
-  try {
-    await axios.delete(`${BASE_URL}/api/users/${user.id}/delete-cover`, H());
-    const updated = { ...user, coverImage: null };
-    setCover(null);
-    localStorage.setItem("user", JSON.stringify(updated));
-    setUser(updated);
-  } catch (err) {
-    alert(
-      err.response?.data?.error ||
-      err.response?.data?.message ||
-      "Failed to remove cover."
-    );
-  }
-};
+    if (!user) return;
+    if (!window.confirm("Remove your cover photo?")) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/users/${user.id}/delete-cover`, H());
+      setCover(null);
+      const merged = saveUser({ coverImage: null });
+      setUser(merged);
+    } catch (err) {
+      alert(err.response?.data?.error || err.response?.data?.message || "Failed to remove cover.");
+    }
+  };
   const slide = (dir) => {
     const el = evRef.current;
     if (el) el.scrollBy({ left: dir * ((el.firstChild?.offsetWidth || 300) + 12), behavior: "smooth" });
@@ -325,12 +671,12 @@ export default function Dashboard() {
   const ad = ads[adIdx];
 
   const nextEvent = events && events.length > 0
-  ? [...events].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0]
-  : null;
+    ? [...events].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0]
+    : null;
 
-const nextEventText = nextEvent
-  ? `ON  ${new Date(nextEvent.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} - we'll be having (${nextEvent.title}) `.toUpperCase()
-  : null;
+  const nextEventText = nextEvent
+    ? `ON  ${new Date(nextEvent.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} - we'll be having (${nextEvent.title}) `.toUpperCase()
+    : null;
 
   const utility = [
     ["Scan QR", QrCode, () => setScanner(true)],
@@ -343,25 +689,6 @@ const nextEventText = nextEvent
 
   return (
     <div className="zd">
-      {/* ===== SIDEBAR (desktop / tablet) ===== */}
-      <aside className="zd-side">
-        <div className="zd-sb-brand" onClick={() => navigate("/dashboard")}>
-          <img src={logo} alt="ZUCA" /><span>ZUCA Portal</span>
-        </div>
-        {PRIMARY.map(([l, I, to]) => (
-          <button key={l} className={pathname === to ? "on" : ""} onClick={() => navigate(to)} title={l}>
-            <I size={18} /><span>{l}</span>
-          </button>
-        ))}
-        <hr />
-        {utility.map(([l, I, f, danger]) => (
-          <button key={l} className={danger ? "danger" : ""} onClick={f} title={l}>
-            <I size={18} /><span>{l}</span>
-          </button>
-        ))}
-      </aside>
-
-      {/* ===== 1. HERO ===== */}
       <div className="zd-wrap">
         <div className="zd-hero">
           {cover
@@ -371,71 +698,70 @@ const nextEventText = nextEvent
           <button className="zd-ib zd-tl" onClick={load} aria-label="Refresh">
             <FiRefreshCw size={17} className={refreshing ? "spin" : ""} />
           </button>
-       <div className="zd-tr">
-  <label className="zd-ib" title="Upload cover photo">
-    <FiCamera size={17} />
-    <input type="file" accept="image/*" hidden onChange={onCover} />
-  </label>
-  <button className="zd-ib" onClick={() => setPicker((v) => !v)} aria-label="Choose theme">
-    <FiSliders size={17} />
-  </button>
-  {cover && (
-    <button
-      className="zd-ib zd-ib-danger"
-      onClick={removeCover}
-      title="Remove cover photo"
-      aria-label="Remove cover photo"
-    >
-      <FiTrash2 size={17} />
-    </button>
-  )}
-</div>
-       {picker && (
-  <div className="zd-picker">
-    <div>
-      <b>Banner theme</b>
-      <button onClick={() => setPicker(false)} aria-label="Close"><FiX /></button>
-    </div>
-    <div className="zd-sw">
-      {Object.entries(THEMES).map(([id, g]) => (
-        <button
-          key={id}
-          style={{
-            background: g,
-            outline: theme === id ? "3px solid #ffffff" : "none",
-            boxShadow:
-              theme === id
-                ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
-                : "0 2px 6px -3px rgba(0,0,0,0.3)",
-          }}
-          title={id}
-          onClick={() => pickTheme(id)}
-        >
-          {theme === id && <FiCheck />}
-        </button>
-      ))}
-    </div>
-    <small>Upload a cover photo to override the theme.</small>
-  </div>
-)}
-        <div className="zd-greet">
-  <h1>{greeting}, {first} <MdWavingHand size={18} /></h1>
-  <p>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
-  {nextEventText && (
-    <button
-      type="button"
-      className="zd-greet-next"
-      onClick={() => navigate("/schedules")}
-    >
-      <FiCalendar size={12} />
-      <span>{nextEventText}</span>
-      <FiChevronRight size={12} />
-    </button>
-  )}
-</div>
+          <div className="zd-tr">
+            <label className="zd-ib" title="Upload cover photo">
+              <FiCamera size={17} />
+              <input type="file" accept="image/*" hidden onChange={onCover} />
+            </label>
+            <button className="zd-ib" onClick={() => setPicker((v) => !v)} aria-label="Choose theme">
+              <FiSliders size={17} />
+            </button>
+            {cover && (
+              <button
+                className="zd-ib zd-ib-danger"
+                onClick={removeCover}
+                title="Remove cover photo"
+                aria-label="Remove cover photo"
+              >
+                <FiTrash2 size={17} />
+              </button>
+            )}
+          </div>
+          {picker && (
+            <div className="zd-picker">
+              <div>
+                <b>Banner theme</b>
+                <button onClick={() => setPicker(false)} aria-label="Close"><FiX /></button>
+              </div>
+              <div className="zd-sw">
+                {Object.entries(THEMES).map(([id, g]) => (
+                  <button
+                    key={id}
+                    style={{
+                      background: g,
+                      outline: theme === id ? "3px solid #ffffff" : "none",
+                      boxShadow:
+                        theme === id
+                          ? "0 0 0 2px #0f172a, 0 6px 16px -6px rgba(0,0,0,0.5)"
+                          : "0 2px 6px -3px rgba(0,0,0,0.3)",
+                    }}
+                    title={id}
+                    onClick={() => pickTheme(id)}
+                  >
+                    {theme === id && <FiCheck />}
+                  </button>
+                ))}
+              </div>
+              <small>Upload a cover photo to override the theme.</small>
+            </div>
+          )}
+          <div className="zd-greet">
+            <h1>{greeting}, {first} <MdWavingHand size={18} /></h1>
+            <p>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+            {nextEventText && (
+              <button
+                type="button"
+                className="zd-greet-next"
+                onClick={() => navigate("/schedules")}
+              >
+                <FiCalendar size={12} />
+                <span>{nextEventText}</span>
+                <FiChevronRight size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* profile card */}
         <div className="zd-prof">
           <div className="zd-pmain">
             <div className="zd-pav" onClick={() => setSettings(true)} title="Change profile photo">
@@ -446,22 +772,22 @@ const nextEventText = nextEvent
               <h2>{user.fullName}</h2>
               <p>{user.email}</p>
               <div className="zd-chips">
-                <span>{user.role || "Member"}</span>
-                <span>{user.membership_number || "Z#TEMP"}</span>
-                {user.phone && <span><FiPhone size={11} />{user.phone}</span>}
-                {user.homeJumuia && <span><FiUsers size={11} />{user.homeJumuia.name}</span>}
+                <span>A.Type: - {user.role || "Member"}</span>
+                <span>M.NO:- {user.membership_number || "Z#TEMP"}</span>
+                <span>Phone:- {user.phone && <FiPhone size={11} />}{user.phone}</span>
+                <span>Jumuia:- {user.homeJumuia?.name || "Not specified"}</span>
               </div>
             </div>
             <button
-  className="zd-pgo"
-  onClick={() => navigate("/profile-settings")}
-  aria-label="Manage profile and birthday"
-  title="Manage profile and birthday"
->
-  <FiSettings size={14} />
-  <span>Profile &amp; Birthday</span>
-  <FiChevronRight size={14} />
-</button>
+              className="zd-pgo"
+              onClick={() => navigate("/profile-settings")}
+              aria-label="Manage profile and birthday"
+              title="Manage profile and birthday"
+            >
+              <FiSettings size={14} />
+              <span>Profile &amp; Birthday</span>
+              <FiChevronRight size={14} />
+            </button>
           </div>
           <div className="zd-stats">
             <div><FiCalendar /><span><b>{months}</b><small>Joined</small></span></div>
@@ -470,142 +796,151 @@ const nextEventText = nextEvent
           </div>
         </div>
 
-        {/* ===== ACTION PILLS (QR / Ask / Feedback / Exit) ===== */}
-<div className="zd-actions">
-  <button onClick={() => navigate("/dashboard")} className="zd-act on">
-    <FiGrid size={15} /><span>Dashboard</span>
-  </button>
-  <button onClick={() => setScanner(true)} className="zd-act">
-    <QrCode size={15} /><span>Scan QR</span>
-  </button>
-  <button onClick={() => window.dispatchEvent(new CustomEvent("openZUCAI"))} className="zd-act">
-    <FiMessageSquare size={15} /><span>Ask ZUCA</span>
-  </button>
-  <button onClick={() => navigate("/feedback")} className="zd-act">
-    <FiAlertCircle size={15} /><span>Feedback</span>
-  </button>
-  <button onClick={logout} className="zd-act danger">
-    <FiLogOut size={15} /><span>Exit</span>
-  </button>
-</div>
-<br/>
-
-  {/* ===== COUNTDOWN ===== */}
-            {cd?.isActive && !left.done && (
-              <div
-                className="countdown-container"
-                style={{ borderLeft: `4px solid ${cd.eventColor || "#10b981"}` }}
-              >
-                <div className="countdown-content">
-                  <div className="countdown-header">
-                    <span className="countdown-icon">{cd.icon || "🎄"}</span>
-                    <span className="countdown-title">{cd.title || "COUNTDOWN"}</span>
-                    <span className="countdown-icon">{cd.icon || "🎄"}</span>
-                  </div>
-
-                  <div className="countdown-grid">
-                    {[
-                      [left.d, "Days"],
-                      [left.h, "Hours"],
-                      [left.m, "Minutes"],
-                      [left.s, "Seconds"],
-                    ].map(([val, lbl], i) => (
-                      <React.Fragment key={lbl}>
-                        {i > 0 && <div className="countdown-separator">:</div>}
-                        <div className="countdown-item">
-                          <div
-                            className="countdown-number"
-                            style={{
-                              background: cd.eventColor || "#10b981",
-                              color: "#fff",
-                              boxShadow: `0 4px 15px ${cd.eventColor || "#10b981"}40`,
-                            }}
-                          >
-                            {String(val).padStart(2, "0")}
-                          </div>
-                          <div className="countdown-label">{lbl}</div>
-                        </div>
-                      </React.Fragment>
-                    ))}
-                  </div>
-
-                  {cd.subtitle && (
-                    <div className="countdown-event-info">
-                      <span>
-                        <FiCalendar size={14} /> {cd.subtitle}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-        {/* ===== 2. ACTIVE MEETINGS ===== */}
-{sheets.length > 0 && (
-  <div className="active-meetings-card">
-    <div className="section-header">
-      <div className="header-with-icon">
-        <div className="header-icon-meeting"></div>
-        <div>
-          <h3>ACTIVE MEETINGS</h3>
-          <p className="header-subtitle">This is an active meeting click to verify your attendance</p>
+        <div className="zd-actions">
+          <button onClick={() => navigate("/dashboard")} className="zd-act on">
+            <FiGrid size={15} /><span>Dashboard</span>
+          </button>
+          <button onClick={() => setScanner(true)} className="zd-act">
+            <QrCode size={15} /><span>Scan QR</span>
+          </button>
+          <button onClick={() => window.dispatchEvent(new CustomEvent("openZUCAI"))} className="zd-act">
+            <FiMessageSquare size={15} /><span>Ask ZUCA</span>
+          </button>
+          <button onClick={() => navigate("/feedback")} className="zd-act">
+            <FiAlertCircle size={15} /><span>Feedback</span>
+          </button>
+          <button onClick={logout} className="zd-act danger">
+            <FiLogOut size={15} /><span>Exit</span>
+          </button>
         </div>
-      </div>
-      <div className="meeting-count-badge">{sheets.length} Active</div>
-    </div>
+        <br />
 
-    <div className="active-meetings-list">
-      {sheets.slice(0, 2).map((sheet) => (
-        <div key={sheet.id} className="meeting-card-active">
-          <div className="meeting-status-row">
-            <span className="live-indicator">● LIVE</span>
-            <span className="meeting-time-sm">
-              <FiClock size={12} /> {sheet.eventTime || "4:30 PM"}
-            </span>
-          </div>
-
-          <h4 className="meeting-title-sm">{sheet.title}</h4>
-
-          <div className="meeting-details-sm">
-            <span><FiCalendar size={12} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
-            <span><FiMapPin size={12} /> {sheet.location || "ZUCA"}</span>
-          </div>
-
-          <div className="meeting-stats-sm">
-            <FiUsers size={12} />
-            <span>{sheet._count?.entries || 0} people checked in</span>
-          </div>
-
-          {sheet.enableWifiCheckin && sheet.wifiSSID && (
-            <div className="meeting-wifi-sm">
-              <span>📶</span>
-              <span>Wi-Fi: {sheet.wifiSSID}</span>
+        <div className="zd-toprow">
+          {cd?.isActive && !left.done && (
+            <div
+              className="countdown-container"
+              style={{ borderLeft: `4px solid ${cd.eventColor || "#10b981"}` }}
+            >
+              <div className="countdown-content">
+                <div className="countdown-header">
+                  <span className="countdown-icon">{cd.icon || "🎄"}</span>
+                  <span className="countdown-title">{cd.title || "COUNTDOWN"}</span>
+                  <span className="countdown-icon">{cd.icon || "🎄"}</span>
+                </div>
+                <div className="countdown-grid">
+                  {[
+                    [left.d, "Days"],
+                    [left.h, "Hours"],
+                    [left.m, "Minutes"],
+                    [left.s, "Seconds"],
+                  ].map(([val, lbl], i) => (
+                    <React.Fragment key={lbl}>
+                      {i > 0 && <div className="countdown-separator">:</div>}
+                      <div className="countdown-item">
+                        <div
+                          className="countdown-number"
+                          style={{
+                            background: cd.eventColor || "#10b981",
+                            color: "#fff",
+                            boxShadow: `0 4px 15px ${cd.eventColor || "#10b981"}40`,
+                          }}
+                        >
+                          {String(val).padStart(2, "0")}
+                        </div>
+                        <div className="countdown-label">{lbl}</div>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+                {cd.subtitle && (
+                  <div className="countdown-event-info">
+                    <span><FiCalendar size={14} /> {cd.subtitle}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          <button
-            className="checkin-btn-sm"
-            onClick={() => navigate("/member/attendance")}
-          >
-            Let's Check In →
-          </button>
-        </div>
-      ))}
-    </div>
+          {sheets.length > 0 && (
+            <div className="active-meetings-card">
+              <div className="section-header">
+                <div className="header-with-icon">
+                  <div className="header-icon-meeting"></div>
+                  <div>
+                    <h3>ACTIVE MEETINGS</h3>
+                    <p className="header-subtitle">Click to verify your attendance</p>
+                  </div>
+                </div>
+                <div className="meeting-count-badge">{sheets.length} Active</div>
+              </div>
+              <div className="active-meetings-list">
+                {sheets.slice(0, 2).map((sheet) => (
+                  <div key={sheet.id} className="meeting-card-active">
+                    <div className="meeting-status-row">
+                      <span className="live-indicator">● LIVE</span>
+                      <span className="meeting-time-sm">
+                        <FiClock size={12} /> {sheet.eventTime || "4:30 PM"}
+                      </span>
+                    </div>
+                    <h4 className="meeting-title-sm">{sheet.title}</h4>
+                    <div className="meeting-details-sm">
+                      <span><FiCalendar size={12} /> {new Date(sheet.eventDate).toLocaleDateString()}</span>
+                      <span><FiMapPin size={12} /> {sheet.location || "ZUCA"}</span>
+                    </div>
+                    <div className="meeting-stats-sm">
+                      <FiUsers size={12} />
+                      <span>{sheet._count?.entries || 0} people checked in</span>
+                    </div>
+                    {sheet.enableWifiCheckin && sheet.wifiSSID && (
+                      <div className="meeting-wifi-sm">
+                        <span>📶</span>
+                        <span>Wi-Fi: {sheet.wifiSSID}</span>
+                      </div>
+                    )}
+                    <button
+                      className="checkin-btn-sm"
+                      onClick={() => navigate("/member/attendance")}
+                    >
+                      Let's Check In →
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {sheets.length > 2 && (
+                <button
+                  className="view-all-meetings"
+                  onClick={() => navigate("/member/attendance")}
+                >
+                  View All {sheets.length} Meetings →
+                </button>
+              )}
+            </div>
+          )}
 
-    {sheets.length > 2 && (
-      <button
-        className="view-all-meetings"
-        onClick={() => navigate("/member/attendance")}
-      >
-        View All {sheets.length} Meetings →
-      </button>
-    )}
-  </div>
-)}
+          {today && (
+            <div className="zd-today-tile">
+              <div className="zd-today-label">Today's Reading</div>
+              <div className="zd-today-title">{today.celebration || "Daily Reading"}</div>
+              <div className="zd-today-list">
+                {[["First", today.readings?.firstReading], ["Psalm", today.readings?.psalm],
+                  ["Gospel", today.readings?.gospel]]
+                  .filter(([, r]) => r)
+                  .map(([l, r]) => (
+                    <div key={l} className="zd-today-row">
+                      <span>{l}</span>
+                      <b>{r.citation}</b>
+                    </div>
+                  ))}
+              </div>
+              <button className="zd-today-btn" onClick={() => navigate("/liturgical-calendar")}>
+                Read full <FiArrowRight size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="zd-grid">
           <main className="zd-main">
-            {/* ===== 3. ADVERT ===== */}
             {ad && (
               <section>
                 <div className="zd-trend"><i />What's trending</div>
@@ -642,7 +977,6 @@ const nextEventText = nextEvent
               </section>
             )}
 
-            {/* ===== 4. UPCOMING EVENTS (sliding) ===== */}
             <section>
               <div className="zd-sh">
                 <h3>Upcoming events</h3>
@@ -657,36 +991,40 @@ const nextEventText = nextEvent
               ) : (
                 <>
                   <div className="zd-track" ref={evRef} onScroll={onEvScroll}>
-                  {events.map((e) => (
-  <article
-    key={e.id}
-    className="zd-ev"
-    onClick={() => navigate("/schedules")}
-    style={{
-      background: e.image
-        ? undefined
-        : (THEMES[theme] || THEMES.navy),
-    }}
-  >
-    <div
-      className="zd-evbg"
-      style={
-        e.image
-          ? { backgroundImage: `url(${e.image})` }
-          : { background: "transparent" }
-      }
-    />
-    {sameDay(e.eventDate) && <span className="zd-tag red">TODAY</span>}
-    <div className="zd-evbar">
-      <DateBox d={e.eventDate} />
-      <div>
-        <b>{e.title}</b>
-        <span><FiClock size={12} /> {e.eventTime || "Time TBA"}</span>
-        <span><FiMapPin size={12} /> {e.location || "Venue TBA"}</span>
-      </div>
-    </div>
-  </article>
-))}
+                    {events.map((e) => (
+                      <article
+                        key={e.id}
+                        className="zd-ev"
+                        onClick={() => navigate("/schedules")}
+                        style={{
+                          background: e.image
+                            ? undefined
+                            : cover
+                              ? `url(${cover}) center/cover`
+                              : (THEMES[theme] || THEMES.navy),
+                        }}
+                      >
+                        <div
+                          className="zd-evbg"
+                          style={
+                            e.image
+                              ? { backgroundImage: `url(${e.image})` }
+                              : cover
+                                ? { backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" }
+                                : { background: "transparent" }
+                          }
+                        />
+                       <div className="zd-evhead">
+  <DateBox d={e.eventDate} />
+  <div className="zd-evhead-tx">
+    <b>{e.title}</b>
+    <span><FiClock size={12} /> {e.eventTime || "Time TBA"}</span>
+    <span><FiMapPin size={12} /> {e.location || "Venue TBA"}</span>
+  </div>
+</div>
+{sameDay(e.eventDate) && <span className="zd-tag red">TODAY</span>}
+                      </article>
+                    ))}
                   </div>
                   {events.length > 1 && (
                     <div className="zd-dots c">
@@ -696,16 +1034,84 @@ const nextEventText = nextEvent
                   )}
                 </>
               )}
-                      </section>
+            </section>
 
-          
+            {/* ===== MY ATTENDANCE — after events ===== */}
+            {myAttendance?.stats && (
+              <section className="zd-att-full">
+                <header className="zd-att-full-head">
+                  <div className="zd-att-full-title">
+                    <span className="zd-att-full-icon"><FiActivity /></span>
+                    <div>
+                      <h3>My Attendance</h3>
+                      <p>
+                        {myAttendance.stats.totalMeetings} meetings · {myAttendance.stats.attendanceRate}% rate
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="zd-att-full-controls">
+                    <select
+                      className="zd-att-select"
+                      value={attRange}
+                      onChange={(e) => setAttRange(e.target.value)}
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="semester">Semester</option>
+                    </select>
+                    <button
+                      className="zd-att-full-cta"
+                      onClick={() => navigate("/member/attendance-history")}
+                    >
+                      Full report <FiArrowRight size={13} />
+                    </button>
+                  </div>
+                </header>
+
+                <div className="zd-att-full-body">
+  <div className="zd-att-full-graph">
+    <AttendanceGraph
+      meetings={myAttendance.allMeetings}
+      range={attRange}
+    />
+  </div>
+
+  <div className="zd-att-full-side">
+    <div className="zd-att-stat">
+      <span className="zd-att-stat-num">{myAttendance.stats.attendedMeetings}</span>
+      <span className="zd-att-stat-lbl">Attended</span>
+    </div>
+    <div className="zd-att-stat">
+      <span className="zd-att-stat-num">{myAttendance.stats.missedMeetings}</span>
+      <span className="zd-att-stat-lbl">Missed</span>
+    </div>
+    <div className="zd-att-stat">
+      <span className="zd-att-stat-num">{myAttendance.stats.upcomingMeetings}</span>
+      <span className="zd-att-stat-lbl">Upcoming</span>
+    </div>
+    <div className="zd-att-stat">
+      <span className="zd-att-stat-num">{myAttendance.stats.attendanceRate}%</span>
+      <span className="zd-att-stat-lbl">Rate</span>
+    </div>
+  </div>
+</div>
+
+{/* 👇 insight now sits below the graph + stats, full width */}
+<div className="zd-att-full-insight-wrap">
+  <div className="zd-att-full-insight">
+    {attendanceInsight(myAttendance.stats, myAttendance.allMeetings, user, events)}
+  </div>
+</div>
+              </section>
+            )}
 
             <div className="zd-two">
-              <Card icon={<FiBook />} title="Readings" sub="Daily and Mass readings" to="/mass-readings">
-               <div className="zd-tabs">
-  <button className={rtab === "mass" ? "on" : ""} onClick={() => setRtab("mass")}>Mass readings</button>
-  <button className={rtab === "today" ? "on" : ""} onClick={() => setRtab("today")}>Today</button>
-</div>
+              <Card icon={<FiBook color="black" />} title="Readings" sub="Daily and Mass readings" to="/mass-readings">
+                <div className="zd-tabs">
+                  <button className={rtab === "mass" ? "on" : ""} onClick={() => setRtab("mass")}>Mass readings</button>
+                  <button className={rtab === "today" ? "on" : ""} onClick={() => setRtab("today")}>Today</button>
+                </div>
                 {rtab === "today" ? (
                   !ready.today ? <Sk /> : !today ? <Empty t="No reading today" /> : (
                     <div className="zd-list">
@@ -717,40 +1123,38 @@ const nextEventText = nextEvent
                         ))}
                     </div>
                   )
-) : !ready.readings ? <Sk /> : readings.length === 0 ? (
-  <>
-    <Empty t="No readings available" />
-    <button
-      type="button"
-      className="zd-upload-reading"
-      onClick={() => navigate("/mass-readings/upload")}
-    >
-      <FiUpload size={15} />
-      <span>Upload New Reading</span>
-    </button>
-  </>
-) : (
-  <>
-    <div className="zd-list">
-      {readings.map((r) => (
-        <Row key={r.id} lead={<DateBox d={r.date} />} title={r.title}
-          text={r.description || "Mass readings"} meta={`${r.attachments?.length || 0} files`}
-          onClick={() => navigate(`/mass-readings/${r.id}`)} />
-      ))}
-    </div>
-
-    {/* ===== Upload New Reading — only in Mass readings tab ===== */}
-    <button
-      type="button"
-      className="zd-upload-reading"
-      onClick={() => navigate("/mass-readings/upload")}
-    >
-      <FiUpload size={15} />
-      <span>Upload New Reading</span>
-    </button>
-  </>
-)}
-</Card>
+                ) : !ready.readings ? <Sk /> : readings.length === 0 ? (
+                  <>
+                    <Empty t="No readings available" />
+                    <button
+                      type="button"
+                      className="zd-upload-reading"
+                      onClick={() => navigate("/mass-readings/upload")}
+                    >
+                      <FiUpload size={15} />
+                      <span>Upload New Reading</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="zd-list">
+                      {readings.map((r) => (
+                        <Row key={r.id} lead={<DateBox d={r.date} />} title={r.title}
+                          text={r.description || "Mass readings"} meta={`${r.attachments?.length || 0} files`}
+                          onClick={() => navigate(`/mass-readings/${r.id}`)} />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="zd-upload-reading"
+                      onClick={() => navigate("/mass-readings/upload")}
+                    >
+                      <FiUpload size={15} />
+                      <span>Upload New Reading</span>
+                    </button>
+                  </>
+                )}
+              </Card>
 
               <Card icon={<FiBell />} title="Updates" badge={unread ? `${unread} unread` : ""} to="/announcements">
                 <div className="zd-tabs">
@@ -770,13 +1174,8 @@ const nextEventText = nextEvent
                   )}
               </Card>
             </div>
-
-          
-            
-            
           </main>
 
-          {/* ===== RIGHT RAIL ===== */}
           <aside className="zd-rail">
             {cd?.isActive && !left.done && (
               <section className="zd-cd" style={{ borderTopColor: cd.eventColor || "#fff" }}>
@@ -807,6 +1206,23 @@ const nextEventText = nextEvent
                   </div>
                 );
               })}
+            </Card>
+
+            {/* ===== MASS PROGRAMS ===== */}
+            <Card icon={<FiGrid />} title="Mass programs" sub="Upcoming" to="/mass-programs" link="See all">
+              {!ready.mass ? <Sk n={2} /> : mass.length === 0 ? <Empty t="No upcoming mass programs" /> : (
+                <div className="zd-list">
+                  {mass.map((m) => (
+                    <Row
+                      key={m.id}
+                      lead={<DateBox d={m.date} />}
+                      title={m.venue || "Mass"}
+                      text={m.time || "10:00 AM"}
+                      onClick={() => navigate("/mass-programs")}
+                    />
+                  ))}
+                </div>
+              )}
             </Card>
 
             {jumuia && (
@@ -846,7 +1262,6 @@ const nextEventText = nextEvent
           </aside>
         </div>
 
-        {/* ===== FOOTER ===== */}
         <footer className="zd-foot">
           <div>
             <img src={logo} alt="ZUCA" onClick={() => navigate("/dashboard")} />
@@ -861,7 +1276,6 @@ const nextEventText = nextEvent
         </footer>
       </div>
 
-      {/* ===== MOBILE BOTTOM NAV ===== */}
       <nav className="zd-bnav">
         {bottom.map(([l, I, to]) => (
           <button key={l} className={pathname === to ? "on" : ""} onClick={() => navigate(to)}><I size={21} /><span>{l}</span></button>
@@ -900,8 +1314,12 @@ const nextEventText = nextEvent
 
       {pendingCover && <CoverCropper imageFile={pendingCover} onCropComplete={saveCover} onClose={() => setPendingCover(null)} />}
       {scanner && <QRScanner onClose={() => setScanner(false)} onSuccess={() => { setScanner(false); load(); }} />}
-      <ProfileSettings isOpen={settings} onClose={() => setSettings(false)} user={user} onUserUpdate={(u) => setUser(u)} />
-        
+      <ProfileSettings
+        isOpen={settings}
+        onClose={() => setSettings(false)}
+        user={user}
+        onUserUpdate={(u) => setUser(saveUser(u))}
+      />
 
       <style>{`
 .zd{--ink:#0f172a;--mut:#64748b;--ln:#e2e8f0;--bg:#f8fafc;--red:#dc2626;
@@ -914,337 +1332,78 @@ const nextEventText = nextEvent
 .zd-wrap{max-width:1240px;margin:0 auto}
 .spin{animation:zs 1s linear infinite}@keyframes zs{to{transform:rotate(360deg)}}
 
-/* sidebar */
-.zd-side{display:none}
-.zd-sb-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;cursor:pointer;font-weight:800}
-.zd-sb-brand img{width:36px;height:36px;object-fit:contain}
-.zd-side button{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:0;border-radius:10px;
-  background:none;color:var(--mut);font-size:14px;font-weight:600;text-align:left}
-.zd-side button:hover{background:#f1f5f9;color:var(--ink)}
-.zd-side button.on{background:var(--ink);color:#fff}
-.zd-side button.danger{color:var(--red)}
-.zd-side hr{border:0;border-top:1px solid var(--ln);margin:10px 0;width:100%}
+.zd-toprow{display:contents}
+.zd-today-tile{display:none}
 
 /* hero */
 .zd-hero{position:relative;height:270px;overflow:hidden;border-radius:0 0 8px 8px;background:var(--ink)}
 .zd-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.zd-shade{
-  position:absolute;
-  inset:0;
+.zd-shade{position:absolute;inset:0;
   background:
-    linear-gradient(180deg,
-      rgba(15,23,42,.60) 0%,
-      rgba(15,23,42,.20) 28%,
-      rgba(15,23,42,.55) 55%,
-      rgba(15,23,42,.95) 100%
-    ),
-    linear-gradient(90deg,
-      rgba(15,23,42,.65) 0%,
-      rgba(15,23,42,.15) 50%,
-      transparent 100%
-    );
+    linear-gradient(180deg,rgba(15,23,42,.60) 0%,rgba(15,23,42,.20) 28%,rgba(15,23,42,.55) 55%,rgba(15,23,42,.95) 100%),
+    linear-gradient(90deg,rgba(15,23,42,.65) 0%,rgba(15,23,42,.15) 50%,transparent 100%);
 }
 .zd-ib{position:relative;width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.35);
   background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;backdrop-filter:blur(8px);cursor:pointer}
 .zd-ib:hover{background:rgba(255,255,255,.3)}
-
-.zd-ib-danger{
-  background:rgba(220,38,38,.25);
-  border-color:rgba(248,113,113,.5);
-  color:#fecaca;
-}
-.zd-ib-danger:hover{
-  background:rgba(220,38,38,.55);
-  color:#ffffff;
-  border-color:rgba(248,113,113,.8);
-  transform:scale(1.05);
-}
-.zd-ib i{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;border-radius:9Spx;background:var(--red);
-  font:700 10px/17px sans-serif;font-style:normal;text-align:center;padding:0 4px}
+.zd-ib-danger{background:rgba(220,38,38,.25);border-color:rgba(248,113,113,.5);color:#fecaca}
+.zd-ib-danger:hover{background:rgba(220,38,38,.55);color:#fff;border-color:rgba(248,113,113,.8);transform:scale(1.05)}
 .zd-tl{position:absolute;top:16px;left:16px}
 .zd-tr{position:absolute;top:16px;right:16px;display:flex;gap:8px}
-.zd-greet{
-  position:absolute;
-  left:20px;
-  right:20px;
-  top:50%;
-  transform:translateY(-50%);
-  color:#fff;
-  text-align:center;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:6px;
-  pointer-events:none;
-  z-index:2;
-}
-.zd-greet h1{
-  font-size:20px;font-weight:800;letter-spacing:-.3px;
-  display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;
-  line-height:1.15;
-  text-shadow:0 2px 14px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.6);
-}
-.zd-greet p{
-  font-size:11.5px;opacity:.95;margin:0;
-  text-shadow:0 1px 8px rgba(0,0,0,.7);
-}
-.zd-picker{
-  position: fixed;
-  top:64px;
-  right:16px;
-  z-index:6;
-  width:360px;
-  max-width:calc(100% - 32px);
-  max-height:60vh;
-  overflow-y:auto;
-  background:#fff;
-  color:var(--ink);
-  border-radius:16px;
-  padding:16px;
-  box-shadow:0 25px 50px -12px rgba(15,23,42,.35);
-}
-.zd-picker>div:first-child{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:12px;
-  font-size:13px;
-  font-weight:700;
-  color:#0f172a;
-}
-.zd-picker>div:first-child button{
-  border:0;
-  background:#f1f5f9;
-  border-radius:8px;
-  width:26px;
-  height:26px;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-  color:#475569;
-}
-.zd-sw{
-  display:grid;
-  grid-template-columns:repeat(6,1fr);
-  gap:8px;
-}
-.zd-sw button{
-  aspect-ratio:1;
-  border:0;
-  border-radius:10px;
-  color:#fff;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-  transition:transform .15s ease;
-}
-.zd-sw button:hover{
-  transform:scale(1.08);
-}
-.zd-picker small{
-  display:block;
-  margin-top:12px;
-  color:#94a3b8;
-  font-size:11px;
-  text-align:center;
-  line-height:1.4;
-}
+.zd-greet{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:2}
+.zd-greet h1{font-size:20px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;line-height:1.15;text-shadow:0 2px 14px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.6)}
+.zd-greet p{font-size:11.5px;opacity:.95;margin:0;text-shadow:0 1px 8px rgba(0,0,0,.7)}
 
+.zd-picker{position:fixed;top:64px;right:16px;z-index:6;width:360px;max-width:calc(100% - 32px);max-height:60vh;overflow-y:auto;background:#fff;color:var(--ink);border-radius:16px;padding:16px;box-shadow:0 25px 50px -12px rgba(15,23,42,.35)}
+.zd-picker>div:first-child{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;font-weight:700;color:#0f172a}
+.zd-picker>div:first-child button{border:0;background:#f1f5f9;border-radius:8px;width:26px;height:26px;display:grid;place-items:center;cursor:pointer;color:#475569}
+.zd-sw{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.zd-sw button{aspect-ratio:1;border:0;border-radius:10px;color:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .15s ease}
+.zd-sw button:hover{transform:scale(1.08)}
+.zd-picker small{display:block;margin-top:12px;color:#94a3b8;font-size:11px;text-align:center;line-height:1.4}
 
-/* ============================================
-   ACTIVE MEETINGS CARD
-   ============================================ */
-.active-meetings-card{
-  background:#fff;
-  border-radius:10px;
-  padding:1.2rem;
-  margin:16px 16px 1.5rem;
-  border-left:4px solid #dc2626;
-  box-shadow:0 6px 18px -12px rgba(15,23,42,.25);
-}
-.header-icon-meeting{
-  width:10px;height:10px;
-  background:linear-gradient(135deg,#dc2626,#b91c1c);
-  border-radius:16px;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:1.6rem;color:#fff;
-  flex-shrink:0;
-}
-.header-with-icon{
-  display:flex;align-items:center;gap:12px;
-}
-.meeting-count-badge{
-  padding:.2rem .5rem;border-radius:30px;
-  font-size:.7rem;font-weight:700;
-  BACKGROUND:linear-gradient(135deg,#dc2626,#b91c1c);
-  color:#fff;
-  white-space:nowrap;
-}
-.active-meetings-list{
-  display:flex;flex-direction:column;gap:1rem;margin-top:1rem;
-}
-.meeting-card-active{
-  background:#fff;border-radius:20px;padding:1rem;
-  border:1px solid #e2e8f0;transition:all .3s ease;
-}
-.meeting-card-active:hover{
-  transform:translateY(-2px);
-  box-shadow:0 8px 20px rgba(0,0,0,.1);
-  border-color:#dc2626;
-}
-.meeting-status-row{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-bottom:.75rem;
-}
-.live-indicator{
-  background:#dc2626;color:#fff;font-size:.7rem;
-  padding:.2rem .6rem;border-radius:20px;font-weight:600;
-}
-.meeting-time-sm{
-  font-size:.7rem;color:#64748b;
-  display:flex;align-items:center;gap:.25rem;
-}
-.meeting-title-sm{
-  font-size:1rem;font-weight:700;color:#1e293b;
-  margin:0 0 .5rem 0;
-}
-.meeting-details-sm{
-  display:flex;gap:1rem;font-size:.7rem;color:#64748b;
-  margin-bottom:.5rem;flex-wrap:wrap;
-}
-.meeting-details-sm span{
-  display:inline-flex;align-items:center;gap:.25rem;
-}
-.meeting-stats-sm{
-  display:flex;align-items:center;gap:.3rem;
-  font-size:.7rem;color:#64748b;margin-bottom:.5rem;
-}
-.meeting-wifi-sm{
-  display:flex;align-items:center;gap:.3rem;
-  font-size:.7rem;color:#3b82f6;margin-bottom:.75rem;
-}
-.checkin-btn-sm{
-  width:100%;
-  background:linear-gradient(135deg,#dc2626,#b91c1c);
-  color:#fff;border:0;padding:.6rem;border-radius:12px;
-  font-weight:600;font-size:.8rem;cursor:pointer;
-  transition:all .3s ease;
-}
-.checkin-btn-sm:hover{
-  transform:translateY(-1px);
-  box-shadow:0 4px 12px rgba(220,38,38,.3);
-}
-.view-all-meetings{
-  width:100%;background:transparent;border:1px solid #dc2626;
-  color:#dc2626;padding:.6rem;border-radius:12px;
-  font-weight:600;font-size:.75rem;cursor:pointer;
-  margin-top:1rem;transition:all .3s ease;
-}
+/* active meetings */
+.active-meetings-card{background:#fff;border-radius:10px;padding:1.2rem;margin:16px 16px 1.5rem;border-left:4px solid #dc2626;box-shadow:0 6px 18px -12px rgba(15,23,42,.25)}
+.header-icon-meeting{width:10px;height:10px;background:linear-gradient(135deg,#dc2626,#b91c1c);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;color:#fff;flex-shrink:0}
+.header-with-icon{display:flex;align-items:center;gap:12px}
+.meeting-count-badge{padding:.2rem .5rem;border-radius:30px;font-size:.7rem;font-weight:700;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;white-space:nowrap}
+.active-meetings-list{display:flex;flex-direction:column;gap:1rem;margin-top:1rem}
+.meeting-card-active{background:#fff;border-radius:20px;padding:1rem;border:1px solid #e2e8f0;transition:all .3s ease}
+.meeting-card-active:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.1);border-color:#dc2626}
+.meeting-status-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.live-indicator{background:#dc2626;color:#fff;font-size:.7rem;padding:.2rem .6rem;border-radius:20px;font-weight:600}
+.meeting-time-sm{font-size:.7rem;color:#64748b;display:flex;align-items:center;gap:.25rem}
+.meeting-title-sm{font-size:1rem;font-weight:700;color:#1e293b;margin:0 0 .5rem 0}
+.meeting-details-sm{display:flex;gap:1rem;font-size:.7rem;color:#64748b;margin-bottom:.5rem;flex-wrap:wrap}
+.meeting-details-sm span{display:inline-flex;align-items:center;gap:.25rem}
+.meeting-stats-sm{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#64748b;margin-bottom:.5rem}
+.meeting-wifi-sm{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#3b82f6;margin-bottom:.75rem}
+.checkin-btn-sm{width:100%;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:0;padding:.6rem;border-radius:12px;font-weight:600;font-size:.8rem;cursor:pointer;transition:all .3s ease}
+.checkin-btn-sm:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(220,38,38,.3)}
+.view-all-meetings{width:100%;background:transparent;border:1px solid #dc2626;color:#dc2626;padding:.6rem;border-radius:12px;font-weight:600;font-size:.75rem;cursor:pointer;margin-top:1rem;transition:all .3s ease}
 .view-all-meetings:hover{background:#dc2626;color:#fff}
-
 @media (max-width:640px){
   .active-meetings-card{padding:1rem;margin:12px 12px 1.5rem}
   .meeting-title-sm{font-size:.9rem}
   .checkin-btn-sm{font-size:.7rem;padding:.5rem}
 }
 
-/* ============================================
-   COUNTDOWN
-   ============================================ */
-.countdown-container{
-  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
-  border-radius:24px;padding:2rem;margin-bottom:1.5rem;
-  text-align:center;position:relative;overflow:hidden;
-  box-shadow:0 8px 32px rgba(0,0,0,.2);
-  border:1px solid rgba(255,255,255,.08);
-  animation:cdSlideDown .6s ease-out;
-}
-@keyframes cdSlideDown{
-  0%{opacity:0;transform:translateY(-30px) scale(.95)}
-  100%{opacity:1;transform:translateY(0) scale(1)}
-}
-.countdown-container::before{
-  content:'';position:absolute;top:-50%;left:-50%;
-  width:200%;height:200%;
-  background:radial-gradient(circle at center,rgba(96,165,250,.08) 0%,transparent 70%);
-  animation:cdRotate 20s linear infinite;
-}
-@keyframes cdRotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.countdown-container::after{
-  content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;
-  background:linear-gradient(45deg,#60a5fa,#c084fc,#60a5fa);
-  background-size:300% 300%;border-radius:24px;z-index:-1;
-  animation:cdBorderGlow 3s ease-in-out infinite;opacity:.3;
-}
-@keyframes cdBorderGlow{
-  0%{background-position:0% 50%;opacity:.3}
-  50%{background-position:100% 50%;opacity:.6}
-  100%{background-position:0% 50%;opacity:.3}
-}
+/* countdown */
+.countdown-container{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border-radius:24px;padding:2rem;margin-bottom:1.5rem;text-align:center;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);animation:cdSlideDown .6s ease-out}
+@keyframes cdSlideDown{0%{opacity:0;transform:translateY(-30px) scale(.95)}100%{opacity:1;transform:translateY(0) scale(1)}}
 .countdown-content{position:relative;z-index:1}
-.countdown-header{
-  display:flex;align-items:center;justify-content:center;
-  gap:.75rem;margin-bottom:1.5rem;
-  animation:cdFadeInUp .8s ease-out;
-}
-@keyframes cdFadeInUp{
-  0%{opacity:0;transform:translateY(20px)}
-  100%{opacity:1;transform:translateY(0)}
-}
-.countdown-icon{
-  font-size:1.5rem;
-  animation:cdPulse 2s ease-in-out infinite;
-}
+.countdown-header{display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:1.5rem}
+.countdown-icon{font-size:1.5rem;animation:cdPulse 2s ease-in-out infinite}
 @keyframes cdPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
-.countdown-title{
-  font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:1px;
-}
-.countdown-grid{
-  display:flex;align-items:center;justify-content:center;
-  gap:.5rem;margin-bottom:1.5rem;
-}
-.countdown-item{
-  text-align:center;min-width:60px;
-  animation:cdFadeInScale .6s ease-out forwards;opacity:0;
-}
-.countdown-item:nth-child(1){animation-delay:.1s}
-.countdown-item:nth-child(2){animation-delay:.2s}
-.countdown-item:nth-child(3){animation-delay:.3s}
-.countdown-item:nth-child(4){animation-delay:.4s}
-.countdown-item:nth-child(5){animation-delay:.5s}
-.countdown-item:nth-child(6){animation-delay:.6s}
-.countdown-item:nth-child(7){animation-delay:.7s}
-@keyframes cdFadeInScale{
-  0%{opacity:0;transform:scale(.8) translateY(20px)}
-  100%{opacity:1;transform:scale(1) translateY(0)}
-}
-.countdown-number{
-  font-size:3rem;font-weight:800;color:#fff;line-height:1;
-  padding:.5rem;border-radius:12px;min-width:60px;
-  font-variant-numeric:tabular-nums;
-  transition:transform .3s ease;
-}
-.countdown-number:hover{transform:scale(1.1)}
-.countdown-label{
-  font-size:.7rem;color:#94a3b8;font-weight:600;
-  text-transform:uppercase;letter-spacing:1px;margin-top:.25rem;
-  transition:color .3s ease;
-}
-.countdown-item:hover .countdown-label{color:#60a5fa}
-.countdown-separator{
-  font-size:2rem;font-weight:700;color:#475569;
-  padding-bottom:1.5rem;
-  animation:cdBlink 1s ease-in-out infinite;
-}
+.countdown-title{font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:1px}
+.countdown-grid{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:1.5rem}
+.countdown-item{text-align:center;min-width:60px}
+.countdown-number{font-size:3rem;font-weight:800;color:#fff;line-height:1;padding:.5rem;border-radius:12px;min-width:60px;font-variant-numeric:tabular-nums}
+.countdown-label{font-size:.7rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:.25rem}
+.countdown-separator{font-size:2rem;font-weight:700;color:#475569;padding-bottom:1.5rem;animation:cdBlink 1s ease-in-out infinite}
 @keyframes cdBlink{0%,100%{opacity:1}50%{opacity:.2}}
-.countdown-event-info{
-  display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;
-  padding-top:1rem;border-top:1px solid rgba(255,255,255,.05);
-}
-.countdown-event-info span{
-  font-size:.85rem;color:#94a3b8;font-weight:500;
-  display:inline-flex;align-items:center;gap:6px;
-}
+.countdown-event-info{display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;padding-top:1rem;border-top:1px solid rgba(255,255,255,.05)}
+.countdown-event-info span{font-size:.85rem;color:#94a3b8;font-weight:500;display:inline-flex;align-items:center;gap:6px}
 @media(max-width:640px){
   .countdown-container{padding:1.5rem 1rem}
   .countdown-number{font-size:2rem;min-width:40px}
@@ -1257,8 +1416,7 @@ const nextEventText = nextEvent
 }
 
 /* profile card */
-.zd-prof{position:relative;z-index:2;margin:-46px 16px 0;background:#fff;border:1px solid var(--ln);border-radius:18px;
-  box-shadow:0 12px 30px -16px rgba(15,23,42,.25);display:flex;flex-wrap:wrap;align-items:center}
+.zd-prof{position:relative;z-index:2;margin:-46px 16px 0;background:#fff;border:1px solid var(--ln);border-radius:18px;box-shadow:0 12px 30px -16px rgba(15,23,42,.25);display:flex;flex-wrap:wrap;align-items:center}
 .zd-pmain{display:flex;align-items:center;gap:14px;padding:14px 16px;flex:1 1 100%;min-width:0}
 .zd-pav{position:relative;width:76px;height:76px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px var(--ln);flex-shrink:0;cursor:pointer}
 .zd-pav img,.zd-pav>span{width:100%;height:100%;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--ink);color:#fff;font-size:28px;font-weight:800}
@@ -1268,36 +1426,10 @@ const nextEventText = nextEvent
 .zd-pinfo h2{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:-.2px;overflow-wrap:anywhere}
 .zd-pinfo p{font-size:12.5px;color:var(--mut);margin:2px 0 8px;overflow-wrap:anywhere}
 .zd-chips{display:flex;flex-wrap:wrap;gap:6px}
-.zd-chips span{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid var(--ln);border-radius:99px;background:var(--bg);font-size:11px;font-weight:700;text-transform:uppercase;color:#334155}
-.zd-pgo{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:1px 1px;
-  height:auto;
-  width:auto;
-  border:1px solid var(--ln);
-  border-radius:10px;
-  background:#fff;
-  color:#475569;
-  font-size:7px;
-  font-weight:600;
-  cursor:pointer;
-  flex-shrink:0;
-  white-space:nowrap;
-  transition:all .18s ease;
-}
-.zd-pgo:hover{
-  background:var(--ink);
-  color:#fff;
-  border-color:transparent;
-  transform:translateY(-1px);
-  box-shadow:0 6px 14px -6px rgba(15,23,42,.4);
-}
+.zd-chips span{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:0px solid var(--ln);border-radius:10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#334155}
+.zd-pgo{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--ln);border-radius:10px;background:#fff;color:#475569;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap;transition:all .18s ease}
+.zd-pgo:hover{background:var(--ink);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:0 6px 14px -6px rgba(15,23,42,.4)}
 .zd-pgo svg{flex-shrink:0}
-.zd-pgo span{display:inline}
-
-
 .zd-stats{display:flex;flex:1 1 100%;border-top:1px solid var(--ln)}
 .zd-stats>*{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 6px;text-decoration:none;color:var(--ink);min-width:0}
 .zd-stats>*+*{border-left:1px solid var(--ln)}
@@ -1307,192 +1439,16 @@ const nextEventText = nextEvent
 .zd-stats small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
 
 /* layout */
-.zd-pad{padding:16px 16px 0;display:flex;flex-direction:column;gap:10px}
 .zd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}
 .zd-main,.zd-rail{display:flex;flex-direction:column;gap:16px;min-width:0}
 .zd-two{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-/* ===== LIVE meetings — BIG, BOLD, RED ===== */
-.zd-live{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:16px;
-  flex-wrap:wrap;
-  background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);
-  border:0;
-  border-left:6px solid #7f1d1d;
-  border-radius:16px;
-  padding:18px 20px;
-  box-shadow:0 12px 28px -12px rgba(220,38,38,.55),
-             0 0 0 1px rgba(220,38,38,.15);
-  color:#ffffff;
-  position:relative;
-  overflow:hidden;
-  animation:zd-live-pulse 2.4s ease-in-out infinite;
-}
 
-/* soft pulsing glow */
-@keyframes zd-live-pulse{
-  0%,100%{
-    box-shadow:0 12px 28px -12px rgba(220,38,38,.55),
-               0 0 0 1px rgba(220,38,38,.15);
-  }
-  50%{
-    box-shadow:0 12px 34px -8px rgba(220,38,38,.75),
-               0 0 0 3px rgba(220,38,38,.15);
-  }
-}
+/* LIVE tag */
+.zd-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:900;letter-spacing:1px;padding:5px 12px;border-radius:99px;text-transform:uppercase}
+.zd-tag.red{background:#fff;color:#dc2626;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.zd-tag.red::before{content:"";width:7px;height:7px;border-radius:50%;background:#dc2626;animation:zd-live-dot 1.2s ease-in-out infinite}
+@keyframes zd-live-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
 
-/* decorative diagonal stripe on the right */
-.zd-live::after{
-  content:"";
-  position:absolute;
-  top:-40%;
-  right:-10%;
-  width:180px;
-  height:180%;
-  background:linear-gradient(90deg,
-    rgba(255,255,255,.08) 0%,
-    rgba(255,255,255,.02) 100%);
-  transform:rotate(15deg);
-  pointer-events:none;
-}
-
-.zd-lt{flex:1;min-width:220px;position:relative;z-index:1}
-
-.zd-lt h3{
-  font-size:20px;
-  font-weight:900;
-  margin:8px 0 6px;
-  color:#ffffff;
-  letter-spacing:-.3px;
-  line-height:1.2;
-  text-shadow:0 2px 6px rgba(0,0,0,.25);
-  text-transform:uppercase;
-}
-
-.zd-lt p{
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px 18px;
-  font-size:13px;
-  color:rgba(255,255,255,.9);
-  font-weight:600;
-}
-
-.zd-lt p span{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-}
-
-.zd-lt p span svg{
-  width:14px;
-  height:14px;
-  flex-shrink:0;
-}
-
-/* the BIG red → white Check-In button */
-.zd-live>button{
-  background:#ffffff;
-  color:#dc2626;
-  border:0;
-  border-radius:12px;
-  padding:14px 28px;
-  font-weight:900;
-  font-size:15px;
-  letter-spacing:.4px;
-  text-transform:uppercase;
-  width:100%;
-  cursor:pointer;
-  position:relative;
-  z-index:1;
-  box-shadow:0 6px 16px -6px rgba(0,0,0,.35);
-  transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
-  animation:zd-live-btn-blink 1.6s ease-in-out infinite;
-}
-
-@keyframes zd-live-btn-blink{
-  0%,100%{ background:#ffffff; }
-  50%    { background:#fff5f5; }
-}
-
-.zd-live>button:hover{
-  transform:translateY(-2px) scale(1.02);
-  box-shadow:0 10px 24px -6px rgba(0,0,0,.45);
-  animation-play-state:paused;
-  background:#ffffff;
-}
-
-.zd-live>button:active{
-  transform:translateY(0) scale(1);
-}
-
-/* ===== LIVE tag on top ===== */
-.zd-tag{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:1px;
-  padding:5px 12px;
-  border-radius:99px;
-  text-transform:uppercase;
-}
-
-.zd-tag.red{
-  background:#ffffff;
-  color:#dc2626;
-  box-shadow:0 3px 10px rgba(0,0,0,.25);
-}
-
-/* pulsing dot before LIVE */
-.zd-tag.red::before{
-  content:"";
-  width:7px;
-  height:7px;
-  border-radius:50%;
-  background:#dc2626;
-  animation:zd-live-dot 1.2s ease-in-out infinite;
-}
-
-@keyframes zd-live-dot{
-  0%,100%{
-    opacity:1;
-    transform:scale(1);
-  }
-  50%{
-    opacity:.4;
-    transform:scale(.75);
-  }
-}
-
-/* Mobile tweak */
-@media (max-width:520px){
-  .zd-live{
-    padding:16px 16px;
-    border-radius:14px;
-    border-left-width:5px;
-  }
-  .zd-lt h3{
-    font-size:16px;
-    margin:6px 0 4px;
-  }
-  .zd-lt p{
-    font-size:11.5px;
-    gap:4px 12px;
-  }
-  .zd-live>button{
-    padding:12px 20px;
-    font-size:13.5px;
-    letter-spacing:.3px;
-  }
-  .zd-tag{
-    font-size:10px;
-    padding:4px 10px;
-  }
-}
 .zd-link{background:none;border:0;color:var(--ink);font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:4px}
 
 /* advert */
@@ -1525,168 +1481,73 @@ const nextEventText = nextEvent
 .zd-arrow:hover{background:var(--ink);color:#fff}
 .zd-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
 .zd-track::-webkit-scrollbar{display:none}
-.zd-ev{
-  position:relative;
-  flex:0 0 86%;
-  height:250px;
-  border-radius:18px;
-  overflow:hidden;
-  scroll-snap-align:start;
-  cursor:pointer;
-  background:var(--ink);
-  box-shadow:0 8px 22px -16px rgba(15,23,42,.5);
-  transition:background .4s ease;
-}
-.zd-evbg{
+.zd-ev{position:relative;flex:0 0 86%;height:250px;border-radius:18px;overflow:hidden;scroll-snap-align:start;cursor:pointer;background:var(--ink);box-shadow:0 8px 22px -16px rgba(15,23,42,.5)}
+.zd-evbg{position:absolute;inset:0;background:linear-gradient(135deg,#0f172a,#334155) center/cover}
+.zd-ev::after{
+  content:"";
   position:absolute;
   inset:0;
-  background:linear-gradient(135deg,#0f172a,#334155) center/cover;
+  background:linear-gradient(0deg,
+    rgba(15,23,42,.45) 0%,
+    rgba(15,23,42,0) 40%);
+  pointer-events:none;
+  z-index:1;
 }
-.zd-ev .zd-tag{position:absolute;top:12px;right:12px}
-.zd-evbar{
-  position:absolute;left:10px;right:10px;bottom:10px;
-  display:flex;align-items:flex-start;gap:10px;
-  padding:12px;border-radius:14px;
-  background:rgba(15, 23, 42, 0.36);
-  backdrop-filter:blur(10px);
-  color:#fff;
-}
-.zd-evbar>div:nth-child(2){
-  flex:1;min-width:0;
-  display:flex;flex-direction:column;gap:4px;
-}
-.zd-evbar b{
-  font-size:14.5px;
-  font-weight:800;
-  line-height:1.25;
-  white-space:normal;
-  word-break:break-word;
-  overflow:visible;
-  display:block;
-}
-.zd-evbar span{
-  font-size:11.5px;
-  opacity:.92;
+.zd-ev .zd-evbg{ z-index:0; }
+.zd-ev .zd-tag,
+.zd-ev .zd-evbar{ z-index:2; }
+.zd-ev .zd-tag{position:absolute;top:96px;right:12px;z-index:3}
+.zd-evhead{
+  position:absolute;
+  left:0;right:0;top:0;
+  padding:14px 14px 46px;
   display:flex;
-  align-items:center;
-  gap:5px;
-  line-height:1.3;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  align-items:flex-start;
+  gap:10px;
+  color:#fff;
+  background:linear-gradient(
+    180deg,
+    rgba(15,23,42,.88) 0%,
+    rgba(15,23,42,.62) 55%,
+    rgba(15,23,42,0) 100%
+  );
+  z-index:2;
 }
-.zd-evbar span svg{flex-shrink:0}
+.zd-evhead-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.zd-evhead b{font-size:14.5px;font-weight:800;line-height:1.25;word-break:break-word;display:block;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.zd-evhead span{font-size:11.5px;opacity:.95;display:flex;align-items:center;gap:5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.zd-evhead span svg{flex-shrink:0}
 .zd-db{background:#fff;color:var(--ink);border-radius:11px;min-width:48px;padding:6px 0;text-align:center;flex-shrink:0}
 .zd-db b{display:block;font-size:19px;line-height:1;font-weight:800}
 .zd-db i{font-size:10px;font-weight:800;text-transform:uppercase;font-style:normal;color:var(--mut)}
 
-/* ===== Upload New Reading button (Mass readings tab only) ===== */
-.zd-upload-reading{
-  width:100%;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  margin-top:12px;
-  padding:10px 14px;
-  border:1px dashed #161516;
-  border-radius:12px;
-  background:transparent;
-  color:#161516;
-  font-size:12.5px;
-  font-weight:700;
-  cursor:pointer;
-  transition:all .18s ease;
-  font-family:inherit;
-}
+.zd-upload-reading{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:10px 14px;border:1px dashed #161516;border-radius:12px;background:transparent;color:#161516;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .18s ease;font-family:inherit}
+.zd-upload-reading:hover{background:#8b5cf6;color:#fff;border-style:solid;transform:translateY(-1px);box-shadow:0 6px 14px -6px rgba(2,2,2,.5)}
+.zd-upload-reading svg{flex-shrink:0;width:15px;height:15px}
+@media (max-width:520px){.zd-upload-reading{padding:9px 12px;font-size:12px;gap:6px}}
 
-.zd-upload-reading:hover{
-  background:#8b5cf6;
-  color:#ffffff;
-  border-style:solid;
-  transform:translateY(-1px);
-  box-shadow:0 6px 14px -6px rgba(2, 2, 2, 0.5);
-}
-
-.zd-upload-reading:active{
-  transform:translateY(0);
-  box-shadow:0 3px 8px -4px rgba(2, 2, 2, 0.4);
-}
-
-.zd-upload-reading svg{
-  flex-shrink:0;
-  width:15px;
-  height:15px;
-}
-
-/* ===== Mobile: keep it comfortably sized ===== */
-@media (max-width:520px){
-  .zd-upload-reading{
-    padding:9px 12px;
-    font-size:12px;
-    gap:6px;
-  }
-}
-
-/* action pills row */
-.zd-actions{
-  display:flex;gap:6px;flex-wrap:wrap;
-  padding:12px 16px 0;
-}
-.zd-act{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:9px 14px;border-radius:10px;
-  border:1px solid var(--ln);background:#fff;color:#475569;
-  font-size:13px;font-weight:600;cursor:pointer;
-  transition:all .18s ease;
-}
+/* action pills */
+.zd-actions{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px 0}
+.zd-act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;border:1px solid var(--ln);background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;transition:all .18s ease}
 .zd-act:hover{background:#f1f5f9;color:var(--ink);transform:translateY(-1px)}
 .zd-act.on{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;border-color:transparent}
 .zd-act.danger{color:var(--red);margin-left:auto}
 .zd-act.danger:hover{background:#fef2f2}
-
 @media (max-width:768px){
   .zd-actions{padding:10px 12px 0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
   .zd-actions::-webkit-scrollbar{display:none}
   .zd-act{flex-shrink:0;padding:8px 12px;font-size:12px}
   .zd-act.danger{margin-left:0}
 }
-  .zd-greet-next{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  margin-top:6px;
-  padding:6px 12px;
-  background:rgba(255, 255, 255, 0);
-  border:1px solid rgba(255,255,255,.32);
-  color:#fff;
-  border-radius:999px;
-  font-size:11.5px;
-  font-weight:600;
-  cursor:pointer;
-  backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
-  transition:all .18s ease;
-  pointer-events:auto;
-  max-width:100%;
-  white-space:normal;          
-  text-align:center;
-}
-.zd-greet-next:hover{
-  background:rgba(255,255,255,.3);
-  transform:translateY(-1px);
-}
+.zd-greet-next{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 12px;background:rgba(255,255,255,0);border:1px solid rgba(255,255,255,.32);color:#fff;border-radius:999px;font-size:11.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(8px);transition:all .18s ease;pointer-events:auto;max-width:100%;white-space:normal;text-align:center}
+.zd-greet-next:hover{background:rgba(255,255,255,.3);transform:translateY(-1px)}
 .zd-greet-next svg{flex-shrink:0}
-.zd-greet-next span{
-  white-space:normal;          
-  word-break:break-word;      
-  line-height:1.35;
-}
+.zd-greet-next span{white-space:normal;word-break:break-word;line-height:1.35}
 
 /* cards */
 .zd-card{background:#fff;border:1px solid var(--ln);border-radius:16px;padding:16px;box-shadow:0 4px 14px -10px rgba(15,23,42,.25);min-width:0}
 .zd-ch{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.zd-ci{width:36px;height:36px;border-radius:10px;background:var(--ink);color:#fff;display:grid;place-items:center;flex-shrink:0;font-size:17px}
+
 .zd-ct{flex:1;min-width:0}
 .zd-ct h3{font-size:15px;font-weight:800}
 .zd-ct p{font-size:11.5px;color:var(--mut);margin-top:1px}
@@ -1704,9 +1565,29 @@ const nextEventText = nextEvent
 .zd-rt b{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zd-rt span{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zd-row small{font-size:11px;color:#94a3b8;white-space:nowrap}
-.zd-row .zd-db{background:var(--ink);color:#fff}.zd-row .zd-db i{color:#cbd5e1}
-.zd-lead{width:38px;height:38px;border-radius:10px;background:#f1f5f9;display:grid;place-items:center;color:#334155;flex-shrink:0}
+.zd-row .zd-db{
+  background:transparent;
+  color:#000;
+  border-radius:0;
+  min-width:auto;
+  padding:0;
+  text-align:left;
+}
+.zd-row .zd-db b{
+  display:inline;
+  font-size:15px;
+  font-weight:800;
+}
+.zd-row .zd-db i{
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  font-style:normal;
+  color:#000;
+  margin-left:4px;
+}
 .zd-dot{width:9px;height:9px;border-radius:50%;background:#e2e8f0;flex-shrink:0}.zd-dot.on{background:var(--ink)}
+
 .zd-cele{font-size:12px;font-weight:700;background:var(--ink);color:#fff;border-radius:99px;padding:5px 12px;width:fit-content;margin-bottom:6px}
 .zd-av{border-radius:50%;overflow:hidden;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;flex-shrink:0;font-size:14px}
 .zd-av img{width:100%;height:100%;object-fit:cover}
@@ -1715,10 +1596,6 @@ const nextEventText = nextEvent
 .zd-empty b{font-size:13px}.zd-empty span{font-size:11.5px;color:var(--mut)}
 .zd-sk{height:56px;border-radius:12px;margin-bottom:8px;background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:zk 1.5s infinite}
 @keyframes zk{to{background-position:-200% 0}}
-.zd-gal{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.zd-gal button{aspect-ratio:1;padding:0;border:1px solid var(--ln);border-radius:12px;overflow:hidden;background:#f1f5f9}
-.zd-gal img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
-.zd-gal button:hover img{transform:scale(1.06)}
 
 /* rail */
 .zd-cd{background:var(--ink);color:#fff;border-radius:16px;padding:16px;text-align:center;border-top:4px solid #fff}
@@ -1729,7 +1606,7 @@ const nextEventText = nextEvent
 .zd-cd i{font-size:9.5px;font-style:normal;text-transform:uppercase;opacity:.7;margin-top:3px}
 .zd-cd p{font-size:12px;opacity:.8;margin-top:8px}
 .zd-fin{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-.zd-fin>div{background:var(--bg);border:1px solid var(--ln);border-radius:11px;padding:10px}
+.zd-fin>div{border:1px solid var(--ln);border-radius:11px;padding:10px}
 .zd-fin b{display:block;font-size:14px;font-weight:800}
 .zd-fin small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
 .zd-pl{padding:8px 0;cursor:pointer}
@@ -1742,6 +1619,192 @@ const nextEventText = nextEvent
 .zd-online>div{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px}
 .zd-online i{position:absolute;top:30px;left:calc(50% + 8px);width:11px;height:11px;border-radius:50%;background:#22c55e;border:2px solid #fff}
 .zd-online span{font-size:11px;color:var(--mut);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* attendance card — inside main column */
+.zd-att-full{
+  margin:0;
+  background:#fff;
+  border:1px solid var(--ln);
+  border-radius:20px;
+  overflow:hidden;
+  box-shadow:0 6px 22px -14px rgba(15,23,42,.25);
+}
+.zd-att-full-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  padding:20px 24px;
+  border-bottom:1px solid var(--ln);
+  flex-wrap:wrap;
+}
+.zd-att-full-title{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-width:0;
+}
+.zd-att-full-icon{
+  width:46px;
+  height:46px;
+  
+  color:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  font-size:20px;
+}
+.zd-att-full-title h3{
+  font-size:16px;
+  font-weight:800;
+  color:var(--ink);
+  margin:0 0 2px;
+  letter-spacing:-.2px;
+}
+.zd-att-full-title p{
+  font-size:12px;
+  color:var(--mut);
+  margin:0;
+  font-weight:500;
+}
+.zd-att-full-controls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+.zd-att-select{
+  padding:9px 14px;
+  border:1px solid var(--ln);
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font-size:12.5px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:inherit;
+  min-width:130px;
+  transition:border-color .15s;
+}
+.zd-att-select:hover{border-color:#94a3b8}
+.zd-att-select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.zd-att-full-cta{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:9px 16px;
+  background:var(--ink);
+  color:#fff;
+  border:0;
+  border-radius:10px;
+  font-size:12.5px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:inherit;
+  transition:opacity .15s;
+}
+.zd-att-full-cta:hover{opacity:.9}
+.zd-att-full-body{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+}
+@media (min-width:900px){
+  .zd-att-full-body{
+    grid-template-columns: 1fr 260px;
+  }
+}
+.zd-att-full-graph{
+  padding:20px 24px 8px;
+  min-width:0;
+  border-bottom:1px solid var(--ln);
+}
+@media (min-width:900px){
+  .zd-att-full-graph{
+    border-bottom:0;
+    border-right:1px solid var(--ln);
+  }
+}
+.zd-att-graph-svg{
+  width:100%;
+  height:auto;
+  max-height:280px;
+  display:block;
+}
+.zd-att-full-side{
+  padding:20px 24px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+@media (min-width:900px){
+  .zd-att-full-side{
+    padding:24px;
+  }
+}
+.zd-att-stat{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:10px 14px;
+  border:1px solid var(--ln);
+  border-radius:12px;
+}
+.zd-att-stat-num{
+  font-size:20px;
+  font-weight:500;
+  color:var(--ink);
+  letter-spacing:-.5px;
+  line-height:1;
+}
+.zd-att-stat-lbl{
+  font-size:10.5px;
+  font-weight:500;
+  color:var(--mut);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.zd-att-full-insight-wrap{
+  padding:0 24px 24px;
+  border-top:1px solid var(--ln);
+  background:#fff;
+}
+.zd-att-full-insight{
+  font-size:13px;
+  line-height:1.75;
+  color:#334155;
+  font-weight:500;
+  margin:20px 0 0;
+  padding:18px 20px;
+  background:#f8fafc;
+  border-radius:14px;
+  border-left:4px solid #0f172a;
+}
+
+.zd-att-full-insight .zd-insight-p{
+  display:block;
+  margin-bottom:12px;
+}
+.zd-att-full-insight .zd-insight-p:last-child{
+  margin-bottom:0;
+}
+.zd-att-full-insight strong{
+  color:#0f172a;
+  font-weight:800;
+}
+@media (max-width:600px){
+  .zd-att-full-head{padding:16px 18px;gap:12px}
+  .zd-att-full-title h3{font-size:15px}
+  .zd-att-full-title p{font-size:11.5px}
+  .zd-att-full-icon{width:40px;height:40px;font-size:18px}
+  .zd-att-full-controls{width:100%;justify-content:space-between}
+  .zd-att-select{flex:1;min-width:0}
+  .zd-att-full-graph{padding:14px 12px 6px}
+  .zd-att-full-side{padding:16px 18px}
+  .zd-att-stat-num{font-size:18px}
+    .zd-att-full-insight-wrap{padding:0 18px 18px}
+  .zd-att-full-insight{font-size:12.5px;padding:14px 16px;line-height:1.7}
+}
 
 /* footer */
 .zd-foot{margin:8px 16px 24px;background:var(--ink);color:#cbd5e1;border-radius:16px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
@@ -1752,9 +1815,8 @@ const nextEventText = nextEvent
 .zd-foot nav button{background:none;border:0;color:#94a3b8;font-size:13px}.zd-foot nav button:hover{color:#fff}
 .zd-foot p{font-size:11px;color:#94a3b8}.zd-foot p b{color:#e2e8f0}
 
-/* mobile nav + sheets */
-.zd-bnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--ln);
-  padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+/* mobile nav */
+.zd-bnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--ln);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
 .zd-bnav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:#94a3b8;font-size:11px;font-weight:600}
 .zd-bnav .on{color:var(--ink)}
 .zd-ov{position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.6);display:flex;align-items:flex-end;justify-content:center}
@@ -1771,50 +1833,87 @@ const nextEventText = nextEvent
 .zd-modal h2{font-size:28px;line-height:1.15}.zd-modal p{color:var(--mut);line-height:1.65;font-size:15px}
 .zd-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.95);display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.15);z-index:2}
 
-/* tablet: icon sidebar */
+/* tablet */
 @media (min-width:768px){
-  .zd{padding:0 0 0 72px}
   .zd-bnav{display:none}
-  .zd-side{display:flex;flex-direction:column;align-items:stretch;position:fixed;left:0;top:0;bottom:0;width:72px;background:#fff;border-right:1px solid var(--ln);
-    padding:14px 10px;overflow-y:auto;z-index:40}
-  .zd-side span{display:none}
-  .zd-side button{justify-content:center;padding:12px 0}
-  .zd-sb-brand{justify-content:center;padding:4px 0 14px}
   .zd-hero{height:240px;border-radius:0 0 22px 22px}
-.zd-greet h1{font-size:23px}
+  .zd-greet h1{font-size:23px}
   .zd-pmain{flex:1 1 0}
   .zd-stats{flex:0 0 auto;border-top:0;border-left:1px solid var(--ln);align-self:stretch}
   .zd-stats>*{padding:0 20px}
-  .zd-live>button{width:auto}
   .zd-ad{flex-direction:row;min-height:270px}
   .zd-adimg{flex:0 0 40%}.zd-adimg img{max-height:none;height:100%;object-fit:contain}
   .zd-adtx{flex:1;padding:28px 34px}.zd-adtx h2{font-size:32px}
   .zd-arrow{display:grid}
-.zd-ev{flex:0 0 300px;height:250px}
+  .zd-ev{flex:0 0 300px;height:250px}
   .zd-two{grid-template-columns:repeat(2,minmax(0,1fr))}
   .zd-foot{flex-direction:row;justify-content:space-between;flex-wrap:wrap;text-align:left}
   .zd-foot p{flex:1 1 100%;text-align:center}
 }
-/* desktop: full sidebar + sticky right rail */
-@media (min-width:1200px){
-  .zd{padding-left:240px}
-  .zd-side{width:240px;padding:18px 14px}
-  .zd-side span{display:inline}
-  .zd-side button{justify-content:flex-start;padding:10px 12px}
-  .zd-sb-brand{justify-content:flex-start;padding:4px 8px 18px}
-  .zd-hero{margin:0 16px;border-radius:0 0 22px 22px}
-  .zd-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start;padding:20px 16px}
-  .zd-rail{position:sticky;top:16px}
-  .zd-pad{padding:20px 16px 0}
+
+/* ============================================================
+   DESKTOP ≥900px — auto-fit grid, no gaps
+============================================================ */
+@media (min-width:900px){
+  .zd-wrap{padding:0 24px}
+
+  .zd-toprow{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+    gap:16px;
+    margin:20px 0 0;
+    align-items:stretch;
+  }
+  .zd-toprow > *{margin:0}
+
+  .zd-today-tile{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    background:#fff;
+    border:1px solid var(--ln);
+    border-radius:16px;
+    padding:18px;
+    box-shadow:0 4px 14px -10px rgba(15,23,42,.25);
+  }
+  .zd-today-label{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut)}
+  .zd-today-title{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:6px}
+  .zd-today-list{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)}
+  .zd-today-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;gap:8px}
+  .zd-today-row span{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
+  .zd-today-row b{font-weight:800;color:var(--ink);text-align:right}
+  .zd-today-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border:0;border-radius:10px;background:var(--ink);color:#fff;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-start}
+  .zd-today-btn:hover{opacity:.9}
+
+  .zd-grid{
+    grid-template-columns:minmax(0, 1fr) 340px;
+    align-items:stretch;
+    padding:20px 0;
+    gap:20px;
+  }
+  .zd-main,
+  .zd-rail{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-width:0;
+    height:100%;
+  }
+  .zd-rail > *:last-child{
+    flex:1;
+    min-height:0;
+  }
+  .zd-two{align-items:start}
+  .zd-two > .zd-card{height:auto}
+
+  .zd-hero{margin:0;border-radius:0 0 22px 22px}
+  .zd-prof{margin:-46px 0 0}
+  .zd-actions{padding:16px 0 0}
+  .zd-foot{margin:24px 0}
 }
 
 @media (max-width:480px){
-  .zd-greet-next{
-    font-size:10.5px;
-    padding:5px 10px;
-    gap:4px;
-    max-width:100%;
-  }
+  .zd-greet-next{font-size:10.5px;padding:5px 10px;gap:4px;max-width:100%}
 }
 @media (prefers-reduced-motion:reduce){.zd *{animation:none!important;transition:none!important}}
       `}</style>

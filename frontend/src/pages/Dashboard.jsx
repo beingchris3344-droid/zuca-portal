@@ -1538,32 +1538,72 @@ const nextEventText = nextEvent
 /* advert */
 .zd-trend{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#334155;margin:0 0 8px 2px}
 .zd-trend i{width:7px;height:7px;border-radius:50%;background:#22c55e}
-.zd-ad{display:flex;flex-direction:column;background:#fff;border:1px solid var(--ln);border-radius:16px;overflow:hidden;animation:zf .4s ease}
-@keyframes zf{from{opacity:0}to{opacity:1}}
-.zd-adimg{background:#f1f5f9;display:grid;place-items:center}
-.zd-adimg img{width:100%;max-height:300px;object-fit:contain;display:block}
-.zd-adph{height:150px;display:grid;place-items:center;color:#94a3b8}
-.zd-adtx{
-  padding:18px 20px 22px;
+/* Compact advert — mobile-first: image band on top, text below, both capped */
+.zd-ad{
   display:flex;
   flex-direction:column;
-  justify-content:center;
-  gap:12px;
-  min-width:0;
-  max-width:720px;
+  background:#fff;
+  border:1px solid var(--ln);
+  border-radius:16px;
+  overflow:hidden;
+  max-height:280px;
+  animation:zf .4s ease;
 }
-.zd-adtx small,.zd-modal small{font-size:10px;font-weight:800;letter-spacing:1.3px;color:var(--mut)}
-.zd-adtx h2{font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.4px}
+@keyframes zf{from{opacity:0}to{opacity:1}}
+
+.zd-adimg{
+  flex:0 0 auto;
+  width:100%;
+  height:120px;
+  background:#0f172a;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+  scrollbar-color:#475569 transparent;
+}
+.zd-adimg img{
+  width:100%;
+  height:auto;
+  max-height:none;
+  object-fit:contain;
+  display:block;
+}
+.zd-adph{height:120px;display:grid;place-items:center;color:#94a3b8}
+
+.zd-adtx{
+  flex:1;
+  padding:12px 16px 14px;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  gap:6px;
+  min-width:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+  scrollbar-color:#cbd5e1 transparent;
+}
+.zd-adtx h2{font-size:16px;line-height:1.2;font-weight:800;letter-spacing:-.3px}
 .zd-adtx p{
-  font-size:14px;
-  line-height:1.7;
+  font-size:12px;
+  line-height:1.45;
   color:var(--mut);
   white-space:pre-line;
   overflow-wrap:anywhere;
   word-break:break-word;
   max-width:65ch;
 }
-  .zd-btn{display:inline-flex;align-items:center;gap:8px;width:fit-content;margin-top:6px;background:var(--ink);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700}
+
+.zd-adimg::-webkit-scrollbar,
+.zd-adtx::-webkit-scrollbar{width:6px}
+.zd-adimg::-webkit-scrollbar-track,
+.zd-adtx::-webkit-scrollbar-track{background:transparent}
+.zd-adimg::-webkit-scrollbar-thumb{background:#475569;border-radius:6px}
+.zd-adtx::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}
+.zd-adimg::-webkit-scrollbar-thumb:hover{background:#64748b}
+.zd-adtx::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+  .zd-btn{display:inline-flex;align-items:center;gap:6px;width:fit-content;margin-top:2px;background:var(--ink);color:#fff;border:0;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700}
 .zd-adctl{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}
 .zd-adctl>div:first-child{display:flex;gap:6px}
 .zd-adctl>button,.zd-adctl>div:first-child button{height:34px;min-width:34px;padding:0 10px;border:1px solid var(--ln);background:#fff;color:#334155;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:700}
@@ -2002,11 +2042,38 @@ const nextEventText = nextEvent
   .zd-greet h1{font-size:23px}
   .zd-pmain{flex:1 1 0}
   .zd-stats{flex:0 0 auto;border-top:0;border-left:1px solid var(--ln);align-self:stretch}
-  .zd-stats>*{padding:0 20px}
-  .zd-ad{flex-direction:row;min-height:270px}
-  .zd-adimg{flex:0 0 40%}.zd-adimg img{max-height:none;height:100%;object-fit:contain}
-  .zd-adtx{flex:1;padding:28px 34px}.zd-adtx h2{font-size:32px}
+    .zd-stats>*{padding:0 20px}
   .zd-arrow{display:grid}
+    /* Compact side-by-side advert — image left (34%), text right (66%), 200px cap, both scrollable */
+  .zd-ad{flex-direction:row;align-items:stretch;min-height:0;max-height:200px}
+  .zd-adimg{
+    flex:0 0 34%;
+    align-self:stretch;
+    background:#0f172a;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+    scrollbar-color:#475569 transparent;
+  }
+  .zd-adimg img{
+    width:100%;
+    height:auto;
+    max-height:none;
+    object-fit:contain;
+    display:block;
+  }
+  .zd-adtx{
+    flex:1;
+    padding:14px 22px;
+    justify-content:flex-start;
+    gap:6px;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+    scrollbar-color:#cbd5e1 transparent;
+  }
+  .zd-adtx h2{font-size:18px}
   .zd-ev{flex:0 0 300px;height:250px}
   .zd-two{grid-template-columns:repeat(2,minmax(0,1fr))}
   .zd-foot{flex-direction:row;justify-content:space-between;flex-wrap:wrap;text-align:left}

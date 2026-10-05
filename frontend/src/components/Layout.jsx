@@ -7,7 +7,7 @@ import Notifications from "./Notifications";
 import axios from "axios";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
-import FloatingInstallButton from "./FloatingInstallButton";
+//import FloatingInstallButton from "./FloatingInstallButton";
 import {
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell,
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck,
@@ -645,7 +645,7 @@ function Layout() {
         <Outlet />
       </main>
 
-      <FloatingInstallButton />
+      {/* <FloatingInstallButton /> */}
 
       <style>
         {`

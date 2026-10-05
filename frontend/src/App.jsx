@@ -65,7 +65,7 @@ import MassReadingsPage from './pages/MassReadingsPage';
 import MassReadingDetail from './pages/MassReadingDetail';
 import MassReadingUpload from './pages/MassReadingUpload'
 import MassReadingEdit from './pages/MassReadingEdit';
-import FloatingAIAssistantButton from "./components/FloatingAIAssistantButton";
+//import FloatingAIAssistantButton from "./components/FloatingAIAssistantButton";
 import ExecutiveMinutes from './pages/ExecutiveMinutes';
 import ExecutiveMinutesView from './pages/ExecutiveMinutesView';
 import Feedback from './pages/Feedback';
@@ -754,7 +754,8 @@ useEffect(() => {
         )
       )}
 
-        {/* ========== FLOATING AI BUTTON - UNIVERSAL ========== */}
+               {/* ========== FLOATING AI BUTTON - UNIVERSAL (disabled) ========== */}
+    {/*
     {currentUser && (
       <FloatingAIAssistantButton 
         user={currentUser} 
@@ -764,6 +765,7 @@ useEffect(() => {
         }}
       />
     )}
+    */}
     </>
   );
 }

@@ -56,6 +56,10 @@ export default function CoverCropper({
   });
 
   const [dragging, setDragging] = useState(false);
+
+  // Real synchronous lock — blocks duplicate uploads immediately
+  const uploadingRef = useRef(false);
+  // UI state for showing the blocking overlay
   const [uploading, setUploading] = useState(false);
 
   const [blurPx, setBlurPx] = useState(DEFAULT_BLUR);
@@ -174,10 +178,36 @@ export default function CoverCropper({
   }, [imageFile, cropW, cropH]);
 
   /* =========================================================
+     GLOBAL LOCK WHILE UPLOADING
+     - Block body scroll
+     - Block keyboard (Escape, Tab, Enter, everything)
+     ========================================================= */
+
+  useEffect(() => {
+    if (!uploading) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const blockKeys = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    window.addEventListener("keydown", blockKeys, true);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", blockKeys, true);
+    };
+  }, [uploading]);
+
+  /* =========================================================
      CROP BOX DRAG
      ========================================================= */
 
   const handleMouseDown = (e) => {
+    if (uploadingRef.current) return;
     e.preventDefault();
 
     setDragging(true);
@@ -189,6 +219,7 @@ export default function CoverCropper({
   };
 
   const handleTouchStart = (e) => {
+    if (uploadingRef.current) return;
     e.preventDefault();
 
     const t = e.touches[0];
@@ -256,6 +287,7 @@ export default function CoverCropper({
      ========================================================= */
 
   const handlePreviewDragStart = (e) => {
+    if (uploadingRef.current) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -369,6 +401,7 @@ export default function CoverCropper({
   };
 
   const handleWheel = (e) => {
+    if (uploadingRef.current) return;
     e.preventDefault();
 
     const rect =
@@ -390,6 +423,7 @@ export default function CoverCropper({
   };
 
   const zoomSlider = (newScale) => {
+    if (uploadingRef.current) return;
     applyZoom(
       newScale,
       cropW / 2,
@@ -399,13 +433,6 @@ export default function CoverCropper({
 
   /* =========================================================
      HIGH QUALITY SOURCE CROP
-     
-     IMPORTANT:
-     We DO NOT create a 500x500 intermediate image.
-     
-     We calculate the exact source rectangle from the
-     original image and draw that original image directly
-     into the final 1600x640 canvas.
      ========================================================= */
 
   const getSourceCrop = () => {
@@ -479,9 +506,6 @@ export default function CoverCropper({
 
       if (!ctx) return null;
 
-      /*
-       * IMPORTANT FOR IMAGE QUALITY
-       */
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
 
@@ -490,9 +514,7 @@ export default function CoverCropper({
 
       const outputRatio = W / H;
 
-      /* =====================================================
-         1. BLURRED BACKGROUND
-         ===================================================== */
+      /* 1. BLURRED BACKGROUND */
 
       ctx.save();
 
@@ -518,10 +540,6 @@ export default function CoverCropper({
       bgX = (W - bgW) / 2;
       bgY = (H - bgH) / 2;
 
-      /*
-       * DRAW ORIGINAL IMAGE DIRECTLY.
-       * No 500x500 intermediate canvas.
-       */
       ctx.drawImage(
         imgRef.current,
         source.x,
@@ -536,18 +554,14 @@ export default function CoverCropper({
 
       ctx.restore();
 
-      /* =====================================================
-         2. DARK OVERLAY
-         ===================================================== */
+      /* 2. DARK OVERLAY */
 
       ctx.fillStyle =
         `rgba(0, 0, 0, ${DARK_OVERLAY})`;
 
       ctx.fillRect(0, 0, W, H);
 
-      /* =====================================================
-         3. SHARP FOREGROUND
-         ===================================================== */
+      /* 3. SHARP FOREGROUND */
 
       const fgSize =
         W * placementSize;
@@ -560,11 +574,6 @@ export default function CoverCropper({
         placement.y * H -
         fgSize / 2;
 
-      /*
-       * DRAW ORIGINAL IMAGE DIRECTLY AGAIN.
-       *
-       * This is the major quality improvement.
-       */
       ctx.drawImage(
         imgRef.current,
         source.x,
@@ -606,10 +615,6 @@ export default function CoverCropper({
 
       if (!canvas) return;
 
-      /*
-       * Preview compression only.
-       * Export does NOT use this image.
-       */
       setPreviewUrl(
         canvas.toDataURL(
           "image/jpeg",
@@ -637,73 +642,58 @@ export default function CoverCropper({
      ========================================================= */
 
   const handleUpload = async () => {
+    // Synchronous guard — the very first thing we do
     if (
+      uploadingRef.current ||
       !imgRef.current ||
-      uploading ||
       !naturalSizeRef.current.w
     ) {
       return;
     }
 
+    uploadingRef.current = true;
     setUploading(true);
 
     try {
-      /*
-       * Render directly at 1600x640.
-       */
-      const canvas =
-        renderBanner(true);
+      const canvas = renderBanner(true);
 
       if (!canvas) {
-        throw new Error(
-          "Could not render banner"
-        );
+        throw new Error("Could not render banner");
       }
 
-      /*
-       * Maximum JPEG quality.
-       *
-       * We keep JPEG because your existing upload
-       * pipeline expects a .jpg file.
-       */
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            alert(
-              "Failed to create image. Please try again."
-            );
+      // Await the toBlob callback properly
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (b) => {
+            if (b) resolve(b);
+            else reject(new Error("toBlob failed"));
+          },
+          "image/jpeg",
+          0.98
+        );
+      });
 
-            setUploading(false);
-            return;
-          }
-
-          const croppedFile =
-            new File(
-              [blob],
-              `cover-${Date.now()}.jpg`,
-              {
-                type: "image/jpeg",
-                lastModified: Date.now(),
-              }
-            );
-
-          onCropComplete(croppedFile);
-
-          setUploading(false);
-        },
-        "image/jpeg",
-        0.98
+      const croppedFile = new File(
+        [blob],
+        `cover-${Date.now()}.jpg`,
+        {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        }
       );
+
+      await onCropComplete(croppedFile);
+
+      // Close only after the parent confirms success
+      onClose();
     } catch (err) {
-      console.error(
-        "Crop error:",
-        err
-      );
+      console.error("Crop error:", err);
 
       alert(
         "Failed to process image. Please try again."
       );
-
+    } finally {
+      uploadingRef.current = false;
       setUploading(false);
     }
   };
@@ -713,6 +703,8 @@ export default function CoverCropper({
      ========================================================= */
 
   const resetPlacement = () => {
+    if (uploadingRef.current) return;
+
     setPlacement({
       x: 0.5,
       y: 0.5,
@@ -760,454 +752,428 @@ export default function CoverCropper({
      ========================================================= */
 
   return (
-    <motion.div
-      initial={{
-        opacity: 0,
-      }}
-      animate={{
-        opacity: 1,
-      }}
-      exit={{
-        opacity: 0,
-      }}
-      style={styles.overlay}
-      onClick={(e) => {
-        if (
-          e.target === e.currentTarget &&
-          !uploading
-        ) {
-          onClose();
-        }
-      }}
-    >
+    <>
       <motion.div
-        initial={{
-          scale: 0.96,
-          y: 20,
-          opacity: 0,
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        style={styles.overlay}
+        onClick={(e) => {
+          if (
+            e.target === e.currentTarget &&
+            !uploadingRef.current
+          ) {
+            onClose();
+          }
         }}
-        animate={{
-          scale: 1,
-          y: 0,
-          opacity: 1,
-        }}
-        exit={{
-          scale: 0.96,
-          y: 20,
-          opacity: 0,
-        }}
-        transition={{
-          type: "spring",
-          damping: 22,
-          stiffness: 240,
-        }}
-        style={styles.modal}
-        onClick={(e) =>
-          e.stopPropagation()
-        }
       >
-        {/* HEADER */}
+        <motion.div
+          initial={{
+            scale: 0.96,
+            y: 20,
+            opacity: 0,
+          }}
+          animate={{
+            scale: 1,
+            y: 0,
+            opacity: 1,
+          }}
+          exit={{
+            scale: 0.96,
+            y: 20,
+            opacity: 0,
+          }}
+          transition={{
+            type: "spring",
+            damping: 22,
+            stiffness: 240,
+          }}
+          style={styles.modal}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* HEADER */}
 
-        <div style={styles.header}>
-          <h2 style={styles.title}>
-            Adjust your cover
-          </h2>
+          <div style={styles.header}>
+            <h2 style={styles.title}>
+              Adjust your cover
+            </h2>
 
-          <button
-            onClick={onClose}
-            style={styles.closeBtn}
-            aria-label="Close"
-            disabled={uploading}
-          >
-            <FiX size={20} />
-          </button>
-        </div>
+            <button
+              onClick={onClose}
+              style={styles.closeBtn}
+              aria-label="Close"
+              disabled={uploading}
+            >
+              <FiX size={20} />
+            </button>
+          </div>
 
-        {/* LIVE PREVIEW */}
+          {/* LIVE PREVIEW */}
 
-        <div style={styles.previewSection}>
-          <div style={styles.previewLabel}>
-            <span
-              style={styles.previewDot}
-            />
+          <div style={styles.previewSection}>
+            <div style={styles.previewLabel}>
+              <span style={styles.previewDot} />
 
-            Live preview — drag the image
-            to reposition
+              Live preview — drag the image
+              to reposition
+            </div>
+
+            <div
+              ref={previewRef}
+              style={{
+                ...styles.previewFrame,
+                cursor: previewDragging
+                  ? "grabbing"
+                  : "grab",
+              }}
+              onMouseDown={handlePreviewDragStart}
+              onTouchStart={handlePreviewDragStart}
+            >
+              {previewUrl && (
+                <img
+                  src={previewUrl}
+                  alt="Live preview"
+                  style={styles.previewImg}
+                  draggable={false}
+                />
+              )}
+
+              <div style={styles.previewAvatar} />
+
+              <div style={styles.dragHint}>
+                <FiMove size={12} />
+                Drag to move
+              </div>
+            </div>
+          </div>
+
+          {/* CROP AREA */}
+
+          <div style={styles.cropAreaLabel}>
+            Select the area you want as
+            your cover
           </div>
 
           <div
-            ref={previewRef}
             style={{
-              ...styles.previewFrame,
-              cursor: previewDragging
+              ...styles.cropWrapper,
+              width: cropW,
+              height: cropH,
+              cursor: dragging
                 ? "grabbing"
                 : "grab",
             }}
-            onMouseDown={
-              handlePreviewDragStart
-            }
-            onTouchStart={
-              handlePreviewDragStart
-            }
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onWheel={handleWheel}
           >
-            {previewUrl && (
-              <img
-                src={previewUrl}
-                alt="Live preview"
-                style={styles.previewImg}
-                draggable={false}
-              />
-            )}
-
-            <div
-              style={styles.previewAvatar}
+            <img
+              ref={imgRef}
+              src={imageUrl}
+              alt="Cover preview"
+              draggable={false}
+              style={{
+                position: "absolute",
+                left: offset.x,
+                top: offset.y,
+                width: naturalSize.w * scale,
+                height: naturalSize.h * scale,
+                userSelect: "none",
+                pointerEvents: "none",
+                willChange: "transform",
+              }}
             />
 
-            <div style={styles.dragHint}>
-              <FiMove size={12} />
-              Drag to move
+            {/* GRID */}
+
+            <div style={styles.gridOverlay}>
+              <div
+                style={{
+                  ...styles.gridLine,
+                  top: "33.33%",
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                }}
+              />
+
+              <div
+                style={{
+                  ...styles.gridLine,
+                  top: "66.66%",
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                }}
+              />
+
+              <div
+                style={{
+                  ...styles.gridLine,
+                  left: "33.33%",
+                  top: 0,
+                  bottom: 0,
+                  width: 1,
+                }}
+              />
+
+              <div
+                style={{
+                  ...styles.gridLine,
+                  left: "66.66%",
+                  top: 0,
+                  bottom: 0,
+                  width: 1,
+                }}
+              />
+            </div>
+
+            {/* CORNERS */}
+
+            <div
+              style={{
+                ...styles.corner,
+                top: 8,
+                left: 8,
+                borderTop: "3px solid #fff",
+                borderLeft: "3px solid #fff",
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.corner,
+                top: 8,
+                right: 8,
+                borderTop: "3px solid #fff",
+                borderRight: "3px solid #fff",
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.corner,
+                bottom: 8,
+                left: 8,
+                borderBottom: "3px solid #fff",
+                borderLeft: "3px solid #fff",
+              }}
+            />
+
+            <div
+              style={{
+                ...styles.corner,
+                bottom: 8,
+                right: 8,
+                borderBottom: "3px solid #fff",
+                borderRight: "3px solid #fff",
+              }}
+            />
+          </div>
+
+          {/* ZOOM */}
+
+          <div style={styles.controlRow}>
+            <button
+              onClick={() =>
+                zoomSlider(scale / 1.15)
+              }
+              style={styles.controlBtn}
+              aria-label="Zoom out"
+              disabled={uploading}
+            >
+              <FiZoomOut size={18} />
+            </button>
+
+            <input
+              type="range"
+              min={MIN_ZOOM}
+              max={MAX_ZOOM}
+              step={0.001}
+              value={scale}
+              onChange={(e) =>
+                zoomSlider(
+                  parseFloat(e.target.value)
+                )
+              }
+              style={styles.slider}
+              disabled={uploading}
+            />
+
+            <button
+              onClick={() =>
+                zoomSlider(scale * 1.15)
+              }
+              style={styles.controlBtn}
+              aria-label="Zoom in"
+              disabled={uploading}
+            >
+              <FiZoomIn size={18} />
+            </button>
+
+            <span style={styles.controlValue}>
+              {zoomPercent}%
+            </span>
+          </div>
+
+          {/* PLACEMENT SIZE */}
+
+          <div style={styles.controlRow}>
+            <span
+              style={styles.controlBtn}
+              aria-label="Size in banner"
+            >
+              <FiMaximize2 size={16} />
+            </span>
+
+            <span style={styles.controlLabel}>
+              Size
+            </span>
+
+            <input
+              type="range"
+              min={MIN_PLACEMENT_SIZE}
+              max={MAX_PLACEMENT_SIZE}
+              step={0.01}
+              value={placementSize}
+              onChange={(e) =>
+                setPlacementSize(
+                  parseFloat(e.target.value)
+                )
+              }
+              style={styles.slider}
+              disabled={uploading}
+            />
+
+            <button
+              type="button"
+              onClick={resetPlacement}
+              style={styles.resetBtn}
+              title="Reset placement"
+              disabled={uploading}
+            >
+              Reset
+            </button>
+
+            <span style={styles.controlValue}>
+              {sizePercent}%
+            </span>
+          </div>
+
+          {/* BLUR */}
+
+          <div style={styles.controlRow}>
+            <span
+              style={styles.controlBtn}
+              aria-label="Blur intensity"
+            >
+              <FiDroplet size={16} />
+            </span>
+
+            <span style={styles.controlLabel}>
+              Blur
+            </span>
+
+            <input
+              type="range"
+              min={MIN_BLUR}
+              max={MAX_BLUR}
+              step={1}
+              value={blurPx}
+              onChange={(e) =>
+                setBlurPx(
+                  parseFloat(e.target.value)
+                )
+              }
+              style={styles.slider}
+              disabled={uploading}
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                setBlurPx(DEFAULT_BLUR)
+              }
+              style={styles.resetBtn}
+              title="Reset blur"
+              disabled={uploading}
+            >
+              Reset
+            </button>
+
+            <span style={styles.controlValue}>
+              {blurPercent}%
+            </span>
+          </div>
+
+          <p style={styles.hint}>
+            Crop your photo · Drag the
+            preview to place it · Adjust
+            size & blur
+          </p>
+
+          {/* ACTIONS */}
+
+          <div style={styles.actions}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={uploading}
+              style={styles.cancelBtn}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={uploading}
+              style={{
+                ...styles.uploadBtn,
+                opacity: uploading ? 0.7 : 1,
+                cursor: uploading
+                  ? "not-allowed"
+                  : "pointer",
+              }}
+            >
+              {uploading ? (
+                <>
+                  <span style={styles.spinner} />
+                  Processing...
+                </>
+              ) : (
+                "Upload Cover"
+              )}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* FULL-SCREEN BLOCKING LOADING OVERLAY */}
+
+      {uploading && (
+        <div
+          style={styles.blockingOverlay}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => e.stopPropagation()}
+          onWheel={(e) => e.preventDefault()}
+          onTouchStart={(e) => e.preventDefault()}
+          role="alertdialog"
+          aria-busy="true"
+          aria-live="assertive"
+        >
+          <div style={styles.blockingCard}>
+            <span style={styles.blockingSpinner} />
+            <div style={styles.blockingTitle}>
+              Processing your cover…
+            </div>
+            <div style={styles.blockingSubtitle}>
+              Please wait, this will only take a moment.
             </div>
           </div>
         </div>
-
-        {/* CROP AREA */}
-
-        <div
-          style={styles.cropAreaLabel}
-        >
-          Select the area you want as
-          your cover
-        </div>
-
-        <div
-          style={{
-            ...styles.cropWrapper,
-            width: cropW,
-            height: cropH,
-            cursor: dragging
-              ? "grabbing"
-              : "grab",
-          }}
-          onMouseDown={
-            handleMouseDown
-          }
-          onTouchStart={
-            handleTouchStart
-          }
-          onWheel={handleWheel}
-        >
-          <img
-            ref={imgRef}
-            src={imageUrl}
-            alt="Cover preview"
-            draggable={false}
-            style={{
-              position: "absolute",
-              left: offset.x,
-              top: offset.y,
-              width:
-                naturalSize.w * scale,
-              height:
-                naturalSize.h * scale,
-              userSelect: "none",
-              pointerEvents: "none",
-              willChange: "transform",
-            }}
-          />
-
-          {/* GRID */}
-
-          <div
-            style={styles.gridOverlay}
-          >
-            <div
-              style={{
-                ...styles.gridLine,
-                top: "33.33%",
-                left: 0,
-                right: 0,
-                height: 1,
-              }}
-            />
-
-            <div
-              style={{
-                ...styles.gridLine,
-                top: "66.66%",
-                left: 0,
-                right: 0,
-                height: 1,
-              }}
-            />
-
-            <div
-              style={{
-                ...styles.gridLine,
-                left: "33.33%",
-                top: 0,
-                bottom: 0,
-                width: 1,
-              }}
-            />
-
-            <div
-              style={{
-                ...styles.gridLine,
-                left: "66.66%",
-                top: 0,
-                bottom: 0,
-                width: 1,
-              }}
-            />
-          </div>
-
-          {/* CORNERS */}
-
-          <div
-            style={{
-              ...styles.corner,
-              top: 8,
-              left: 8,
-              borderTop:
-                "3px solid #fff",
-              borderLeft:
-                "3px solid #fff",
-            }}
-          />
-
-          <div
-            style={{
-              ...styles.corner,
-              top: 8,
-              right: 8,
-              borderTop:
-                "3px solid #fff",
-              borderRight:
-                "3px solid #fff",
-            }}
-          />
-
-          <div
-            style={{
-              ...styles.corner,
-              bottom: 8,
-              left: 8,
-              borderBottom:
-                "3px solid #fff",
-              borderLeft:
-                "3px solid #fff",
-            }}
-          />
-
-          <div
-            style={{
-              ...styles.corner,
-              bottom: 8,
-              right: 8,
-              borderBottom:
-                "3px solid #fff",
-              borderRight:
-                "3px solid #fff",
-            }}
-          />
-        </div>
-
-        {/* ZOOM */}
-
-        <div style={styles.controlRow}>
-          <button
-            onClick={() =>
-              zoomSlider(
-                scale / 1.15
-              )
-            }
-            style={styles.controlBtn}
-            aria-label="Zoom out"
-          >
-            <FiZoomOut size={18} />
-          </button>
-
-          <input
-            type="range"
-            min={MIN_ZOOM}
-            max={MAX_ZOOM}
-            step={0.001}
-            value={scale}
-            onChange={(e) =>
-              zoomSlider(
-                parseFloat(
-                  e.target.value
-                )
-              )
-            }
-            style={styles.slider}
-          />
-
-          <button
-            onClick={() =>
-              zoomSlider(
-                scale * 1.15
-              )
-            }
-            style={styles.controlBtn}
-            aria-label="Zoom in"
-          >
-            <FiZoomIn size={18} />
-          </button>
-
-          <span
-            style={styles.controlValue}
-          >
-            {zoomPercent}%
-          </span>
-        </div>
-
-        {/* PLACEMENT SIZE */}
-
-        <div style={styles.controlRow}>
-          <span
-            style={styles.controlBtn}
-            aria-label="Size in banner"
-          >
-            <FiMaximize2 size={16} />
-          </span>
-
-          <span
-            style={styles.controlLabel}
-          >
-            Size
-          </span>
-
-          <input
-            type="range"
-            min={MIN_PLACEMENT_SIZE}
-            max={MAX_PLACEMENT_SIZE}
-            step={0.01}
-            value={placementSize}
-            onChange={(e) =>
-              setPlacementSize(
-                parseFloat(
-                  e.target.value
-                )
-              )
-            }
-            style={styles.slider}
-          />
-
-          <button
-            type="button"
-            onClick={resetPlacement}
-            style={styles.resetBtn}
-            title="Reset placement"
-          >
-            Reset
-          </button>
-
-          <span
-            style={styles.controlValue}
-          >
-            {sizePercent}%
-          </span>
-        </div>
-
-        {/* BLUR */}
-
-        <div style={styles.controlRow}>
-          <span
-            style={styles.controlBtn}
-            aria-label="Blur intensity"
-          >
-            <FiDroplet size={16} />
-          </span>
-
-          <span
-            style={styles.controlLabel}
-          >
-            Blur
-          </span>
-
-          <input
-            type="range"
-            min={MIN_BLUR}
-            max={MAX_BLUR}
-            step={1}
-            value={blurPx}
-            onChange={(e) =>
-              setBlurPx(
-                parseFloat(
-                  e.target.value
-                )
-              )
-            }
-            style={styles.slider}
-          />
-
-          <button
-            type="button"
-            onClick={() =>
-              setBlurPx(
-                DEFAULT_BLUR
-              )
-            }
-            style={styles.resetBtn}
-            title="Reset blur"
-          >
-            Reset
-          </button>
-
-          <span
-            style={styles.controlValue}
-          >
-            {blurPercent}%
-          </span>
-        </div>
-
-        <p style={styles.hint}>
-          Crop your photo · Drag the
-          preview to place it · Adjust
-          size & blur
-        </p>
-
-        {/* ACTIONS */}
-
-        <div style={styles.actions}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={uploading}
-            style={styles.cancelBtn}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={handleUpload}
-            disabled={uploading}
-            style={{
-              ...styles.uploadBtn,
-              opacity: uploading
-                ? 0.7
-                : 1,
-              cursor: uploading
-                ? "not-allowed"
-                : "pointer",
-            }}
-          >
-            {uploading ? (
-              <>
-                <span
-                  style={styles.spinner}
-                />
-                Processing...
-              </>
-            ) : (
-              "Upload Cover"
-            )}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+      )}
+    </>
   );
 }
 
@@ -1219,11 +1185,9 @@ const styles = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background:
-      "rgba(15, 23, 42, 0.78)",
+    background: "rgba(15, 23, 42, 0.78)",
     backdropFilter: "blur(6px)",
-    WebkitBackdropFilter:
-      "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
     zIndex: 1200,
     display: "flex",
     alignItems: "center",
@@ -1232,6 +1196,7 @@ const styles = {
   },
 
   modal: {
+    position: "relative",
     background: "#ffffff",
     borderRadius: 20,
     padding: 24,
@@ -1301,13 +1266,11 @@ const styles = {
   previewFrame: {
     position: "relative",
     width: "100%",
-    aspectRatio:
-      `${OUTPUT_W} / ${OUTPUT_H}`,
+    aspectRatio: `${OUTPUT_W} / ${OUTPUT_H}`,
     borderRadius: 12,
     overflow: "hidden",
     background: "#0f172a",
-    border:
-      "1px solid #e2e8f0",
+    border: "1px solid #e2e8f0",
     touchAction: "none",
     userSelect: "none",
   },
@@ -1332,8 +1295,7 @@ const styles = {
     background: "#ffffff",
     boxShadow:
       "0 0 0 4px #ffffff, 0 6px 16px rgba(0,0,0,0.25)",
-    border:
-      "2px solid #22c55e",
+    border: "2px solid #22c55e",
     pointerEvents: "none",
   },
 
@@ -1345,14 +1307,12 @@ const styles = {
     alignItems: "center",
     gap: 4,
     padding: "4px 8px",
-    background:
-      "rgba(0,0,0,0.5)",
+    background: "rgba(0,0,0,0.5)",
     color: "#ffffff",
     fontSize: 10,
     fontWeight: 600,
     borderRadius: 6,
-    backdropFilter:
-      "blur(4px)",
+    backdropFilter: "blur(4px)",
     pointerEvents: "none",
   },
 
@@ -1376,10 +1336,8 @@ const styles = {
     maxWidth: "100%",
     touchAction: "none",
     userSelect: "none",
-    WebkitUserSelect:
-      "none",
-    WebkitTouchCallout:
-      "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none",
     boxShadow:
       "0 12px 40px -18px rgba(15, 23, 42, 0.4)",
   },
@@ -1392,8 +1350,7 @@ const styles = {
 
   gridLine: {
     position: "absolute",
-    background:
-      "rgba(15, 23, 42, 0.15)",
+    background: "rgba(15, 23, 42, 0.15)",
   },
 
   corner: {
@@ -1419,8 +1376,7 @@ const styles = {
     height: 36,
     borderRadius: 10,
     background: "#f8fafc",
-    border:
-      "1px solid #e2e8f0",
+    border: "1px solid #e2e8f0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -1454,8 +1410,7 @@ const styles = {
     fontSize: 11,
     fontWeight: 600,
     padding: "4px 10px",
-    border:
-      "1px solid #e2e8f0",
+    border: "1px solid #e2e8f0",
     background: "#ffffff",
     borderRadius: 8,
     color: "#475569",
@@ -1466,8 +1421,7 @@ const styles = {
     fontSize: 12,
     color: "#94a3b8",
     textAlign: "center",
-    margin:
-      "16px 0 0",
+    margin: "16px 0 0",
   },
 
   /* Actions */
@@ -1478,15 +1432,13 @@ const styles = {
     gap: 10,
     marginTop: 20,
     paddingTop: 18,
-    borderTop:
-      "1px solid #f1f5f9",
+    borderTop: "1px solid #f1f5f9",
   },
 
   cancelBtn: {
     padding: "10px 18px",
     background: "#ffffff",
-    border:
-      "1px solid #e2e8f0",
+    border: "1px solid #e2e8f0",
     borderRadius: 10,
     fontSize: 13,
     fontWeight: 600,
@@ -1514,12 +1466,60 @@ const styles = {
   spinner: {
     width: 14,
     height: 14,
-    border:
-      "2px solid rgba(255,255,255,0.3)",
+    border: "2px solid rgba(255,255,255,0.3)",
     borderTopColor: "#fff",
     borderRadius: "50%",
-    animation:
-      "spin 0.6s linear infinite",
+    animation: "spin 0.6s linear infinite",
     display: "inline-block",
+  },
+
+  /* Blocking loading overlay */
+
+  blockingOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 9999,
+    background: "rgba(15, 23, 42, 0.75)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "wait",
+    userSelect: "none",
+    touchAction: "none",
+  },
+
+  blockingCard: {
+    background: "#ffffff",
+    borderRadius: 16,
+    padding: "28px 36px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10,
+    boxShadow:
+      "0 25px 60px -20px rgba(0,0,0,0.5)",
+    minWidth: 260,
+  },
+
+  blockingSpinner: {
+    width: 32,
+    height: 32,
+    border: "3px solid #e2e8f0",
+    borderTopColor: "#0f172a",
+    borderRadius: "50%",
+    animation: "spin 0.7s linear infinite",
+  },
+
+  blockingTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#0f172a",
+  },
+
+  blockingSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
   },
 };

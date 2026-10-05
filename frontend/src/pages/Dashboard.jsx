@@ -964,9 +964,7 @@ const nextEventText = nextEvent
           )}
         </div>
 
-        <div className="zd-grid">
-          <main className="zd-main">
-            {ad && (
+         {ad && (
               <section>
                 <div className="zd-trend"><i />What's trending</div>
                 <div className="zd-ad" key={ad.id}>
@@ -1003,6 +1001,11 @@ const nextEventText = nextEvent
                 </div>
               </section>
             )}
+
+        <div className="zd-grid">
+          
+          <main className="zd-main">
+           
 
             <section>
               <div className="zd-sh">

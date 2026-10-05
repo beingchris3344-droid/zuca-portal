@@ -450,7 +450,7 @@ export default function HymnLyrics() {
         <div className="hl-container">
           {/* ============= TOP BAR ============= */}
           <div className="hl-topbar">
-            <button className="hl-back-btn" onClick={() => navigate("/hymns")}>
+            <button className="hl-back-btn" onClick={() => navigate(-1)}>
               <FiChevronLeft size={16} />
               Back
             </button>

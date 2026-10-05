@@ -398,18 +398,18 @@ function attendanceInsight(stats, meetings, user, upcoming = []) {
 
   const opening =
     rate >= 90 ? (
-      <><strong>{name}</strong>, your attendance this semester has been <strong>outstanding</strong>. You've made <strong>{attended} of {total}</strong> meetings, which puts you at <strong>{rate}%</strong>.</>
+      <><strong>{name}</strong>, your attendance for this semester has been <strong>outstanding</strong>. You've made <strong>{attended} of {total}</strong> meetings, which puts you at <strong>{rate}%</strong>.</>
     ) : rate >= 75 ? (
-      <><strong>{name}</strong>, you've built a <strong>solid record</strong> this semester — <strong>{attended} of {total}</strong> meetings attended, sitting at <strong>{rate}%</strong>.</>
+      <><strong>{name}</strong>, you've built a <strong>solid record</strong> this semester <strong>{attended} of {total}</strong> meetings attended, sitting at <strong>{rate}%</strong>.</>
     ) : rate >= 50 ? (
-      <><strong>{name}</strong>, you're at <strong>{rate}%</strong> this semester — <strong>{attended} out of {total}</strong> meetings. There's a real foundation here, but it's not quite where it could be.</>
+      <><strong>{name}</strong>, you're at <strong>{rate}%</strong> this semester  <strong>{attended} out of {total}</strong> meetings. There's a real foundation here, but it's not quite where it could be.</>
     ) : (
-      <><strong>{name}</strong>, you've made <strong>{attended} of {total}</strong> meetings so far, which comes out to <strong>{rate}%</strong>. It's an honest number — and the good news is there's plenty of room to move it.</>
+      <><strong>{name}</strong>, you've made <strong>{attended} of {total}</strong> meetings so far, which comes out to <strong>{rate}%</strong>. It's an honest number and the good news is there's plenty of room to move it.</>
     );
 
   const patternBits = [];
   if (streak >= 5) {
-    patternBits.push(<>You're on a <strong>{streak}-meeting streak</strong> right now — the kind of consistency that quietly sets the tone for everyone else.</>);
+    patternBits.push(<>You're on a <strong>{streak}-meeting streak</strong> right now the kind of consistency that quietly sets the tone for everyone else.</>);
   } else if (streak >= 3) {
     patternBits.push(<>You've shown up <strong>{streak} meetings in a row</strong>, and that rhythm is starting to look like a habit.</>);
   } else if (streak === 2) {
@@ -421,20 +421,20 @@ function attendanceInsight(stats, meetings, user, upcoming = []) {
   }
 
   if (bestMonth && total >= 4) {
-    patternBits.push(<><strong>{bestMonth.label}</strong> was your strongest month so far — you hit <strong>{bestMonth.rate}%</strong> there, which is worth remembering what was different about that stretch.</>);
+    patternBits.push(<><strong>{bestMonth.label}</strong> was your strongest month so far you hit <strong>{bestMonth.rate}%</strong> there, which is worth remembering what was different about that stretch.</>);
   }
 
   if (trendUp) {
-    patternBits.push(<>Compared to the month before, you're <strong>up {trendUp}%</strong> — whatever you changed recently is working.</>);
+    patternBits.push(<>Compared to the month before, you're <strong>up {trendUp}%</strong>  whatever you changed recently is working.</>);
   } else if (trendDown) {
     patternBits.push(<>Compared to the month before, you've <strong>slipped {trendDown}%</strong>, so this is the moment to steady things before the dip becomes the new normal.</>);
   } else if (trendFlat && total >= 4) {
-    patternBits.push(<>Month to month, your numbers have stayed roughly the same — <strong>consistent, though not climbing</strong>.</>);
+    patternBits.push(<>Month to month, your numbers have stayed roughly the same  <strong>consistent, though not climbing</strong>.</>);
   }
 
   const missBits = [];
   if (missed === 0) missBits.push(<>You haven't missed a single one.</>);
-  else if (missed === 1) missBits.push(<>Only <strong>one missed meeting</strong> so far — barely registers.</>);
+  else if (missed === 1) missBits.push(<>Only <strong>one missed meeting</strong> so far barely registers.</>);
   else if (missed <= 3) missBits.push(<><strong>{missed} missed meetings</strong> is a manageable number to claw back.</>);
   else missBits.push(<><strong>{missed} missed meetings</strong> is where the percentage is really being held down.</>);
 

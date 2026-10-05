@@ -70,6 +70,20 @@ const saveUser = (partial) => {
     return partial;
   }
 };
+
+// Preserves existing \n\n paragraphs; if the text is one long run-on
+// string, splits it into paragraphs every ~2 sentences.
+const formatAdText = (text) => {
+  if (!text) return "";
+  const trimmed = String(text).trim();
+  if (trimmed.includes("\n")) return trimmed; // already has paragraphs
+  const sentences = trimmed.split(/(?<=[.!?])\s+(?=[A-Z"“])/);
+  const out = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    out.push(sentences.slice(i, i + 2).join(" "));
+  }
+  return out.join("\n\n");
+};
 const money = (n) => `KES ${(n || 0).toLocaleString()}`;
 const ago = (d) => {
   if (!d) return "";
@@ -962,7 +976,9 @@ const nextEventText = nextEvent
                   <div className="zd-adtx">
                     <small>ZETECH UNIVERSITY CATHOLIC ACTION</small>
                     {ad.title && <h2>{ad.title}</h2>}
-                    {ad.description && <p>{ad.description}</p>}
+{ad.description && (
+  <p>{formatAdText(ad.description)}</p>
+)}
                     {ad.link && (
                       <button className="zd-btn" onClick={() => (window.location.href = ad.link)}>
                         {ad.buttonText || "Go to page"} <FiArrowRight />
@@ -1351,7 +1367,9 @@ const nextEventText = nextEvent
             <div>
               <small>ZETECH UNIVERSITY CATHOLIC ACTION</small>
               {ad.title && <h2>{ad.title}</h2>}
-              {ad.description && <p>{ad.description}</p>}
+{ad.description && (
+  <p>{formatAdText(ad.description)}</p>
+)}
               {ad.buttonText && ad.link && <button className="zd-btn" onClick={() => (window.location.href = ad.link)}>{ad.buttonText} <FiArrowRight /></button>}
             </div>
           </div>
@@ -1522,11 +1540,27 @@ const nextEventText = nextEvent
 .zd-adimg{background:#f1f5f9;display:grid;place-items:center}
 .zd-adimg img{width:100%;max-height:300px;object-fit:contain;display:block}
 .zd-adph{height:150px;display:grid;place-items:center;color:#94a3b8}
-.zd-adtx{padding:18px 20px 22px;display:flex;flex-direction:column;justify-content:center;gap:8px}
+.zd-adtx{
+  padding:18px 20px 22px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:12px;
+  min-width:0;
+  max-width:720px;
+}
 .zd-adtx small,.zd-modal small{font-size:10px;font-weight:800;letter-spacing:1.3px;color:var(--mut)}
 .zd-adtx h2{font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.4px}
-.zd-adtx p{font-size:14px;line-height:1.6;color:var(--mut)}
-.zd-btn{display:inline-flex;align-items:center;gap:8px;width:fit-content;margin-top:6px;background:var(--ink);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700}
+.zd-adtx p{
+  font-size:14px;
+  line-height:1.7;
+  color:var(--mut);
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  max-width:65ch;
+}
+  .zd-btn{display:inline-flex;align-items:center;gap:8px;width:fit-content;margin-top:6px;background:var(--ink);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700}
 .zd-adctl{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}
 .zd-adctl>div:first-child{display:flex;gap:6px}
 .zd-adctl>button,.zd-adctl>div:first-child button{height:34px;min-width:34px;padding:0 10px;border:1px solid var(--ln);background:#fff;color:#334155;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:700}
@@ -1946,7 +1980,16 @@ const nextEventText = nextEvent
 .zd-modal{position:relative;width:min(860px,100%);max-height:92vh;overflow-y:auto;background:#fff;border-radius:18px}
 .zd-modal img{width:100%;max-height:460px;object-fit:contain;background:#f1f5f9;display:block}
 .zd-modal>div{padding:22px 24px 26px;display:flex;flex-direction:column;gap:8px}
-.zd-modal h2{font-size:28px;line-height:1.15}.zd-modal p{color:var(--mut);line-height:1.65;font-size:15px}
+.zd-modal h2{font-size:28px;line-height:1.15}
+.zd-modal p{
+  color:var(--mut);
+  line-height:1.7;
+  font-size:15px;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  max-width:65ch;
+}
 .zd-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.95);display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.15);z-index:2}
 
 /* tablet */

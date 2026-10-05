@@ -942,26 +942,7 @@ const nextEventText = nextEvent
             </div>
           )}
 
-          {today && (
-            <div className="zd-today-tile">
-              <div className="zd-today-label">Today's Reading</div>
-              <div className="zd-today-title">{today.celebration || "Daily Reading"}</div>
-              <div className="zd-today-list">
-                {[["First", today.readings?.firstReading], ["Psalm", today.readings?.psalm],
-                  ["Gospel", today.readings?.gospel]]
-                  .filter(([, r]) => r)
-                  .map(([l, r]) => (
-                    <div key={l} className="zd-today-row">
-                      <span>{l}</span>
-                      <b>{r.citation}</b>
-                    </div>
-                  ))}
-              </div>
-              <button className="zd-today-btn" onClick={() => navigate("/liturgical-calendar")}>
-                Read full <FiArrowRight size={13} />
-              </button>
-            </div>
-          )}
+          
         </div>
 
          {ad && (
@@ -1538,7 +1519,7 @@ const nextEventText = nextEvent
 /* advert */
 .zd-trend{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#334155;margin:0 0 8px 2px}
 .zd-trend i{width:7px;height:7px;border-radius:50%;background:#22c55e}
-/* Compact advert — mobile-first: image band on top, text below, both capped */
+/* Advert — mobile-first: fixed 220px card, image band on top, text below */
 .zd-ad{
   display:flex;
   flex-direction:column;
@@ -1546,7 +1527,7 @@ const nextEventText = nextEvent
   border:1px solid var(--ln);
   border-radius:16px;
   overflow:hidden;
-  max-height:280px;
+  height:220px;
   animation:zf .4s ease;
 }
 @keyframes zf{from{opacity:0}to{opacity:1}}
@@ -1554,45 +1535,61 @@ const nextEventText = nextEvent
 .zd-adimg{
   flex:0 0 auto;
   width:100%;
-  height:120px;
+  height:100px;
   background:#0f172a;
-  overflow-y:auto;
-  overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:thin;
-  scrollbar-color:#475569 transparent;
+  overflow:hidden;
 }
 .zd-adimg img{
   width:100%;
-  height:auto;
-  max-height:none;
-  object-fit:contain;
+  height:100%;
+  object-fit:cover;
   display:block;
 }
-.zd-adph{height:120px;display:grid;place-items:center;color:#94a3b8}
+.zd-adph{height:100px;display:grid;place-items:center;color:#94a3b8}
 
 .zd-adtx{
   flex:1;
-  padding:12px 16px 14px;
+  min-height:0;
+  padding:10px 14px 12px;
   display:flex;
   flex-direction:column;
   justify-content:flex-start;
-  gap:6px;
+  gap:4px;
   min-width:0;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:thin;
-  scrollbar-color:#cbd5e1 transparent;
+  overflow:hidden;
 }
-.zd-adtx h2{font-size:16px;line-height:1.2;font-weight:800;letter-spacing:-.3px}
-.zd-adtx p{
-  font-size:12px;
-  line-height:1.45;
+.zd-adtx small{
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.06em;
   color:var(--mut);
-  white-space:pre-line;
+  text-transform:uppercase;
+}
+.zd-adtx h2{
+  margin:2px 0;
+  font-size:14px;
+  line-height:1.25;
+  font-weight:800;
+  color:var(--ink);
+  letter-spacing:-.2px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.zd-adtx p{
+  margin:0;
+  color:var(--mut);
+  font-size:11.5px;
+  line-height:1.45;
+  max-width:65ch;
+  white-space:normal;
   overflow-wrap:anywhere;
   word-break:break-word;
-  max-width:65ch;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
 }
 
 .zd-adimg::-webkit-scrollbar,
@@ -2035,6 +2032,8 @@ const nextEventText = nextEvent
 }
 .zd-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.95);display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.15);z-index:2}
 
+
+
 /* tablet */
 @media (min-width:768px){
   .zd-bnav{display:none}
@@ -2044,41 +2043,70 @@ const nextEventText = nextEvent
   .zd-stats{flex:0 0 auto;border-top:0;border-left:1px solid var(--ln);align-self:stretch}
     .zd-stats>*{padding:0 20px}
   .zd-arrow{display:grid}
-    /* Compact side-by-side advert — image left (34%), text right (66%), 200px cap, both scrollable */
-  .zd-ad{flex-direction:row;align-items:stretch;min-height:0;max-height:200px}
+      /* Advert — desktop: image left, text right, fixed 200px card */
+  .zd-ad{
+    display:flex;
+    flex-direction:row;
+    align-items:stretch;
+    max-height:200px;
+    height:200px;
+    overflow:hidden;
+  }
   .zd-adimg{
     flex:0 0 34%;
-    align-self:stretch;
+    height:100%;
     background:#0f172a;
-    overflow-y:auto;
-    overflow-x:hidden;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-width:thin;
-    scrollbar-color:#475569 transparent;
+    overflow:hidden;
   }
   .zd-adimg img{
     width:100%;
-    height:auto;
-    max-height:none;
-    object-fit:contain;
+    height:100%;
+    object-fit:cover;
     display:block;
   }
   .zd-adtx{
     flex:1;
-    padding:14px 22px;
-    justify-content:flex-start;
+    height:100%;
+    padding:14px 20px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
     gap:6px;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-width:thin;
-    scrollbar-color:#cbd5e1 transparent;
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
   }
-  .zd-adtx h2{font-size:18px}
+  .zd-adtx small{
+    font-size:9px;
+  }
+  .zd-adtx h2{
+    font-size:16px;
+    line-height:1.25;
+    margin:2px 0;
+    display:-webkit-box;
+    -webkit-line-clamp:1;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .zd-adtx p{
+    font-size:11.5px;
+    line-height:1.45;
+    white-space:normal;
+    margin:0;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .zd-btn{
+    margin-top:6px;
+  }
   .zd-ev{flex:0 0 300px;height:250px}
   .zd-two{grid-template-columns:repeat(2,minmax(0,1fr))}
   .zd-foot{flex-direction:row;justify-content:space-between;flex-wrap:wrap;text-align:left}
   .zd-foot p{flex:1 1 100%;text-align:center}
 }
+
 
 /* ============================================================
    DESKTOP ≥900px — auto-fit grid, no gaps
@@ -2141,10 +2169,84 @@ const nextEventText = nextEvent
   .zd-foot{margin:24px 0}
 }
 
+
+
 @media (max-width:480px){
   .zd-greet-next{font-size:10.5px;padding:5px 10px;gap:4px;max-width:100%}
 }
 @media (prefers-reduced-motion:reduce){.zd *{animation:none!important;transition:none!important}}
+
+/* ============================================================
+   ADVERT — mobile only: image top, text bottom, title always visible
+============================================================ */
+@media (max-width: 767px){
+  .zd-ad{
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    height:100% !important;
+    max-height:300px !important;
+    overflow:hidden !important;
+  }
+  
+  .zd-adimg img{
+    width:100% !important;
+    height:fit-content !important;
+    object-fit:contain !important;
+        overflow:visible !important;
+
+  }
+  .zd-adph{
+    height:130px !important;
+    display:grid !important;
+    place-items:center !important;
+    color:#94a3b8 !important;
+  
+  .zd-adtx{
+    flex:1 1 auto !important;
+    height:auto !important;
+    min-height:0 !important;
+    padding:10px 14px 12px !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:flex-start !important;
+    gap:4px !important;
+    overflow:hidden !important;
+  }
+  .zd-adtx small{
+    font-size:9px !important;
+    flex:0 0 auto !important;
+  }
+  .zd-adtx h2{
+    flex:0 0 auto !important;
+    font-size:15px !important;
+    line-height:1.25 !important;
+    margin:2px 0 4px !important;
+    display:-webkit-box !important;
+    -webkit-line-clamp:2 !important;
+    -webkit-box-orient:vertical !important;
+    overflow:hidden !important;
+    white-space:normal !important;
+    max-height:calc(15px * 1.25 * 2) !important;
+  }
+  .zd-adtx p{
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    font-size:11.5px !important;
+    line-height:1.4 !important;
+    white-space:normal !important;
+    margin:0 !important;
+    display:-webkit-box !important;
+    -webkit-line-clamp:2 !important;
+    -webkit-box-orient:vertical !important;
+    overflow:hidden !important;
+    max-height:calc(11.5px * 1.4 * 2) !important;
+  }
+  .zd-btn{
+    flex:0 0 auto !important;
+    margin-top:6px !important;
+  }
+}
       `}</style>
     </div>
   );

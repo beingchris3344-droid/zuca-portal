@@ -339,7 +339,7 @@ const nextEventText = nextEvent
     ["Settings", FiSettings, () => navigate("/profile-settings")],
     ["Exit", FiLogOut, logout, true],
   ];
-  const bottom = [["Attendance", FiUser, "/member/attendance"], ["Events", FiCalendar, "/schedules"], ["Lyrics", FiMusic, "/hymns"]];
+  const bottom = [["Attendance", FiUser, "/member/attendance"], ["Lyrics", FiMusic, "/hymns"], ["Mass programs", FiBook, "/mass-programs"]];
 
   return (
     <div className="zd">

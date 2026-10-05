@@ -108,7 +108,13 @@ const Row = ({ lead, title, text, meta, onClick, arrow = true }) => (
 );
 const DateBox = ({ d }) => {
   const x = new Date(d);
-  return <div className="zd-db"><b>{x.getDate()}</b><i>{x.toLocaleString("default", { month: "short" })}</i></div>;
+  return (
+    <div className="zd-db">
+      <em>{x.toLocaleString("en-US", { weekday: "short" })}</em>
+      <b>{x.getDate()}</b>
+      <i>{x.toLocaleString("default", { month: "short" })}</i>
+    </div>
+  );
 };
 const Avatar = ({ p, size = 40 }) => (
   <div className="zd-av" style={{ width: size, height: size }}>
@@ -674,9 +680,10 @@ export default function Dashboard() {
     ? [...events].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0]
     : null;
 
-  const nextEventText = nextEvent
-    ? `ON  ${new Date(nextEvent.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} - we'll be having (${nextEvent.title}) `.toUpperCase()
-    : null;
+  const lastName = user.fullName?.split(" ").slice(1).join(" ") || "";
+const nextEventText = nextEvent
+  ? `Dear  ${lastName}, kindly remember that on  (${new Date(nextEvent.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}) - we will be having (${nextEvent.title}) Event `
+  : null;
 
   const utility = [
     ["Scan QR", QrCode, () => setScanner(true)],
@@ -695,16 +702,19 @@ export default function Dashboard() {
             ? <img className="zd-cover" src={cover} alt="Cover" />
             : <div className="zd-cover" style={{ background: THEMES[theme] || THEMES.navy }} />}
           <div className="zd-shade" />
-          <button className="zd-ib zd-tl" onClick={load} aria-label="Refresh">
+                    <button className="zd-ib zd-tl" onClick={load} aria-label="Refresh dashboard">
             <FiRefreshCw size={17} className={refreshing ? "spin" : ""} />
+            <span className="zd-ib-label">Refresh</span>
           </button>
           <div className="zd-tr">
             <label className="zd-ib" title="Upload cover photo">
               <FiCamera size={17} />
+              <span className="zd-ib-label">Cover</span>
               <input type="file" accept="image/*" hidden onChange={onCover} />
             </label>
-            <button className="zd-ib" onClick={() => setPicker((v) => !v)} aria-label="Choose theme">
+            <button className="zd-ib" onClick={() => setPicker((v) => !v)} aria-label="Choose banner theme">
               <FiSliders size={17} />
+              <span className="zd-ib-label">Theme</span>
             </button>
             {cover && (
               <button
@@ -714,6 +724,7 @@ export default function Dashboard() {
                 aria-label="Remove cover photo"
               >
                 <FiTrash2 size={17} />
+                <span className="zd-ib-label">Remove</span>
               </button>
             )}
           </div>
@@ -772,7 +783,7 @@ export default function Dashboard() {
               <h2>{user.fullName}</h2>
               <p>{user.email}</p>
               <div className="zd-chips">
-                <span>A.Type: - {user.role || "Member"}</span>
+                <span>Acc.Type: - {user.role || "Member"}</span>
                 <span>M.NO:- {user.membership_number || "Z#TEMP"}</span>
                 <span>Phone:- {user.phone && <FiPhone size={11} />}{user.phone}</span>
                 <span>Jumuia:- {user.homeJumuia?.name || "Not specified"}</span>
@@ -1209,21 +1220,56 @@ export default function Dashboard() {
             </Card>
 
             {/* ===== MASS PROGRAMS ===== */}
-            <Card icon={<FiGrid />} title="Mass programs" sub="Upcoming" to="/mass-programs" link="See all">
-              {!ready.mass ? <Sk n={2} /> : mass.length === 0 ? <Empty t="No upcoming mass programs" /> : (
-                <div className="zd-list">
-                  {mass.map((m) => (
-                    <Row
-                      key={m.id}
-                      lead={<DateBox d={m.date} />}
-                      title={m.venue || "Mass"}
-                      text={m.time || "10:00 AM"}
-                      onClick={() => navigate("/mass-programs")}
-                    />
-                  ))}
-                </div>
-              )}
-            </Card>
+<Card icon={<FiGrid />} title="Mass programs" sub="Upcoming" to="/mass-programs" link="See all">
+  {!ready.mass ? <Sk n={2} /> : mass.length === 0 ? <Empty t="No upcoming mass programs" /> : (
+    <div className="zd-list">
+      {mass.map((m) => {
+        // The 10 liturgical moments in order
+        const slots = [
+          ["Entrance",     m.entrance],
+          ["Mass",         m.mass],
+          ["Bible",        m.bible],
+          ["Offertory",    m.offertory],
+          ["Procession",   m.procession],
+          ["Mtakatifu",    m.mtakatifu],
+          ["Sign of Peace",m.signOfPeace],
+          ["Communion",    m.communion],
+          ["Thanksgiving", m.thanksgiving],
+          ["Exit",         m.exit],
+        ].filter(([, v]) => v && String(v).trim() !== "");
+
+        return (
+          <div key={m.id} className="zd-mp-item">
+            <Row
+              lead={<DateBox d={m.date} />}
+              title={m.venue || "Mass"}
+              text={m.time || "4:30 PM"}
+              onClick={() => navigate("/mass-programs")}
+            />
+
+            {slots.length > 0 && (
+              <ul className="zd-mp-songs">
+                {slots.slice(0, 3).map(([label, song]) => (
+                  <li key={label}>
+                    <FiMusic size={11} />
+                    <span>
+                      <b className="zd-mp-moment">{label}:</b> {song}
+                    </span>
+                  </li>
+                ))}
+                {slots.length > 3 && (
+                  <li className="zd-mp-songs-more">
+                    +{slots.length - 3} more songs
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</Card>
 
             {jumuia && (
               <Card icon={<FiUsers />} title="My home jumuia" sub={jumuia.name} to="/jumuia-contributions" link="Contributions">
@@ -1346,6 +1392,23 @@ export default function Dashboard() {
 .zd-ib{position:relative;width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.35);
   background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;backdrop-filter:blur(8px);cursor:pointer}
 .zd-ib:hover{background:rgba(255,255,255,.3)}
+.zd-ib{
+  width:auto;
+  min-width:38px;
+  height:38px;
+  padding:0 12px;
+  gap:6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:11px;
+}
+.zd-ib-label{
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+  color:#fff;
+}
 .zd-ib-danger{background:rgba(220,38,38,.25);border-color:rgba(248,113,113,.5);color:#fecaca}
 .zd-ib-danger:hover{background:rgba(220,38,38,.55);color:#fff;border-color:rgba(248,113,113,.8);transform:scale(1.05)}
 .zd-tl{position:absolute;top:16px;left:16px}
@@ -1539,7 +1602,7 @@ export default function Dashboard() {
   .zd-act{flex-shrink:0;padding:8px 12px;font-size:12px}
   .zd-act.danger{margin-left:0}
 }
-.zd-greet-next{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 12px;background:rgba(255,255,255,0);border:1px solid rgba(255,255,255,.32);color:#fff;border-radius:999px;font-size:11.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(8px);transition:all .18s ease;pointer-events:auto;max-width:100%;white-space:normal;text-align:center}
+.zd-greet-next{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 12px;background:rgba(255,255,255,0);border:0px solid rgba(255,255,255,.32);color:#fff;border-radius:0px;font-size:11.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(8px);transition:all .18s ease;pointer-events:auto;max-width:100%;white-space:normal;text-align:center}
 .zd-greet-next:hover{background:rgba(255,255,255,.3);transform:translateY(-1px)}
 .zd-greet-next svg{flex-shrink:0}
 .zd-greet-next span{white-space:normal;word-break:break-word;line-height:1.35}
@@ -1556,6 +1619,49 @@ export default function Dashboard() {
 .zd-tabs{display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:3px;margin-bottom:10px}
 .zd-tabs button{flex:1;border:0;background:none;border-radius:8px;padding:7px;font-size:12px;font-weight:700;color:var(--mut)}
 .zd-tabs .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+
+.zd-mp-item{
+  border-bottom:1px solid #f1f5f9;
+  padding-bottom:4px;
+}
+.zd-mp-item:last-child{border-bottom:0}
+.zd-mp-item .zd-row{border-bottom:0}
+
+.zd-mp-songs{
+  list-style:none;
+  margin:0 0 6px 60px;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.zd-mp-songs li{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11.5px;
+  color:#64748b;
+  line-height:1.35;
+}
+.zd-mp-songs li svg{
+  color:#94a3b8;
+  flex-shrink:0;
+}
+.zd-mp-songs li span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.zd-mp-moment{
+  color:#0f172a;
+  font-weight:800;
+  margin-right:2px;
+}
+.zd-mp-songs-more{
+  font-style:italic;
+  color:#94a3b8;
+  font-size:11px;
+}
 .zd-list{display:flex;flex-direction:column}
 .zd-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #f1f5f9}
 .zd-row:last-child{border-bottom:0}
@@ -1565,6 +1671,16 @@ export default function Dashboard() {
 .zd-rt b{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zd-rt span{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zd-row small{font-size:11px;color:#94a3b8;white-space:nowrap}
+.zd-db em{
+  display:block;
+  font-size:9.5px;
+  font-weight:800;
+  text-transform:uppercase;
+  font-style:normal;
+  color:var(--mut);
+  letter-spacing:.4px;
+  margin-bottom:1px;
+}
 .zd-row .zd-db{
   background:transparent;
   color:#000;

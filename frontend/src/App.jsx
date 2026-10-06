@@ -74,6 +74,12 @@ import FeedbackDetail from './pages/FeedbackDetail';
 
 import ProfileSettings from "./pages/ProfileSettings";
 
+//pdf tools
+import PdfToolHub from "./tools/pdf/PdfToolHub";
+import ImageToPdfTool from "./tools/pdf/tools/ImageToPdfTool";
+import MergeTool from "./tools/pdf/tools/MergeTool";
+import RotateTool from "./tools/pdf/tools/RotateTool";
+
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
 import Snake from "./pages/games/Snake";
@@ -508,6 +514,15 @@ useEffect(() => {
            <Route path="/messenger" element={<MessengerPage />} />  
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
+
+
+         
+
+{/* ================= PDF TOOLS ================= */}
+<Route path="/tools/pdf" element={<PdfToolHub />} />
+<Route path="/tools/pdf/image-to-pdf" element={<ImageToPdfTool />} />
+<Route path="/tools/pdf/merge" element={<MergeTool />} />
+<Route path="/tools/pdf/rotate" element={<RotateTool />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
                   <Route path="/executive" element={<ExecutivePage />} />
                   <Route path="/feedback" element={<Feedback />} />

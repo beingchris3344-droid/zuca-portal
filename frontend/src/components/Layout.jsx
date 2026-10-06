@@ -11,7 +11,7 @@ import AnimatedBackground from "./AnimatedBackground";
 import {
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell,
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck,
-  FiAward, FiYoutube, FiMapPin, FiLogOut, FiChevronDown,
+  FiAward, FiYoutube, FiMapPin, FiLogOut,FiFileText, FiChevronDown,
 } from "react-icons/fi";
 import {
   FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments,
@@ -246,6 +246,7 @@ function Layout() {
         { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
         { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
         { path: "/youtube", label: "ZUCA / TUBE", icon: <FaYoutube /> },
+        { path: "/tools/pdf", label: "PDF Tools", icon: <FiFileText /> }, 
       ],
     },
     {

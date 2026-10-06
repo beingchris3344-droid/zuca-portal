@@ -702,6 +702,7 @@ const nextEventText = nextEvent
   const utility = [
     ["Scan QR", QrCode, () => setScanner(true)],
     ["Ask ZUCA", FiMessageSquare, () => window.dispatchEvent(new CustomEvent("openZUCAI"))],
+     ["PDF Tools", FiFileText, () => navigate("/tools/pdf")], 
     ["Feedback", FiAlertCircle, () => navigate("/feedback")],
     ["Settings", FiSettings, () => navigate("/profile-settings")],
     ["Exit", FiLogOut, logout, true],
@@ -822,9 +823,9 @@ const nextEventText = nextEvent
         </div>
 
         <div className="zd-actions">
-          <button onClick={() => navigate("/dashboard")} className="zd-act on">
-            <FiGrid size={15} /><span>Dashboard</span>
-          </button>
+         <button onClick={() => navigate("/tools/pdf")} className="zd-act">
+  <FiFileText size={15} /><span>PDF Tools</span>
+</button>
           <button onClick={() => setScanner(true)} className="zd-act">
             <QrCode size={15} /><span>Scan QR</span>
           </button>

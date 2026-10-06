@@ -532,3 +532,460 @@ button:focus-visible,
   scale: 1 !important;
   box-shadow: none !important;
 }
+
+
+/* ============================================================
+   PDF TOOLS — hub + shell
+   Matches ZUCA's ink / muted / line / bg palette
+============================================================ */
+
+/* ---- Layout container (used by both hub and every tool) ---- */
+.pdf-hub,
+.pdf-shell{
+  max-width:920px;
+  margin:0 auto;
+  padding:24px 16px 96px;
+  color:#0f172a;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+
+/* ---- Headings shared by hub + shell ---- */
+.pdf-hub-head h1,
+.pdf-shell-head h1{
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:-.3px;
+  margin:0 0 4px;
+}
+.pdf-hub-head p,
+.pdf-shell-head p{
+  font-size:13px;
+  color:#64748b;
+  margin:0 0 20px;
+  line-height:1.5;
+}
+
+/* ============================================================
+   HUB — the grid of tool cards
+============================================================ */
+.pdf-hub-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
+  gap:14px;
+}
+
+.pdf-hub-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:10px;
+  padding:18px;
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:16px;
+  cursor:pointer;
+  text-align:left;
+  font-family:inherit;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.pdf-hub-card:hover:not(:disabled){
+  border-color:#0f172a;
+  transform:translateY(-2px);
+  box-shadow:0 12px 26px -16px rgba(15,23,42,.35);
+}
+
+.pdf-hub-card:active:not(:disabled){
+  transform:translateY(0);
+}
+
+/* Coming-soon cards */
+.pdf-hub-card.soon,
+.pdf-hub-card:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+  background:#f8fafc;
+}
+
+/* The icon on each card — plain, no background */
+.pdf-hub-icon{
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  color:#0f172a;
+  flex-shrink:0;
+  transition:transform .18s ease;
+}
+.pdf-hub-card:hover:not(:disabled) .pdf-hub-icon{
+  transform:scale(1.06);
+}
+.pdf-hub-card.soon .pdf-hub-icon{
+  color:#94a3b8;
+}
+
+/* Card text */
+.pdf-hub-card b{
+  font-size:14.5px;
+  font-weight:800;
+  color:#0f172a;
+  letter-spacing:-.2px;
+}
+.pdf-hub-desc{
+  font-size:12px;
+  color:#64748b;
+  line-height:1.4;
+}
+
+/* "Coming soon" pill */
+.pdf-hub-card em{
+  position:absolute;
+  top:12px;
+  right:12px;
+  font-style:normal;
+  font-size:9.5px;
+  font-weight:800;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+  color:#64748b;
+  background:#e2e8f0;
+  border-radius:99px;
+  padding:3px 8px;
+}
+
+/* Footer under the grid */
+.pdf-hub-foot{
+  margin-top:28px;
+  padding:14px 16px;
+  background:#f1f5f9;
+  border-radius:12px;
+  text-align:center;
+}
+.pdf-hub-foot p{
+  margin:0;
+  font-size:12.5px;
+  color:#475569;
+  font-weight:600;
+}
+
+/* ============================================================
+   SHELL — used by every tool (upload → process → download)
+============================================================ */
+
+/* Back button at the top */
+.pdf-back{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:none;
+  border:0;
+  color:#64748b;
+  font-size:13px;
+  font-weight:700;
+  padding:6px 0;
+  margin-bottom:10px;
+  cursor:pointer;
+  font-family:inherit;
+  transition:color .15s ease, transform .15s ease;
+}
+.pdf-back:hover{
+  color:#0f172a;
+  transform:translateX(-2px);
+}
+
+/* Upload dropzone */
+.pdf-drop{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  padding:40px 20px;
+  border:2px dashed #e2e8f0;
+  border-radius:18px;
+  background:#fff;
+  cursor:pointer;
+  text-align:center;
+  transition:all .15s ease;
+}
+.pdf-drop:hover{
+  border-color:#0f172a;
+  background:#f8fafc;
+}
+.pdf-drop svg{color:#94a3b8}
+.pdf-drop b{
+  font-size:15px;
+  font-weight:800;
+  color:#0f172a;
+}
+.pdf-drop span{
+  font-size:12px;
+  color:#64748b;
+}
+
+/* File list */
+.pdf-filelist{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-bottom:14px;
+}
+.pdf-file{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  animation:pdfFileIn .25s ease;
+}
+@keyframes pdfFileIn{
+  from{opacity:0;transform:translateY(-4px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.pdf-file-name{
+  flex:1;
+  font-size:13.5px;
+  font-weight:700;
+  color:#0f172a;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.pdf-file-size{
+  font-size:11.5px;
+  color:#64748b;
+  white-space:nowrap;
+}
+.pdf-file button{
+  width:30px;
+  height:30px;
+  border-radius:8px;
+  border:0;
+  background:#f1f5f9;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  color:#475569;
+  transition:background .15s ease, color .15s ease;
+}
+.pdf-file button:hover{
+  background:#fee2e2;
+  color:#dc2626;
+}
+
+/* "Add more" button under the list */
+.pdf-addmore{
+  align-self:flex-start;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:8px 12px;
+  border:1px dashed #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:700;
+  color:#64748b;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.pdf-addmore:hover{
+  border-color:#0f172a;
+  color:#0f172a;
+  background:#f8fafc;
+}
+
+/* Options panel (page size, rotate angle, merge order, etc.) */
+.pdf-options{
+  margin:14px 0;
+  padding:14px 16px;
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:14px;
+}
+.pdf-options label{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  font-size:13px;
+  font-weight:700;
+  color:#0f172a;
+  flex-wrap:wrap;
+}
+.pdf-options select{
+  padding:7px 10px;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  font-family:inherit;
+  font-size:13px;
+  background:#fff;
+  color:#0f172a;
+  cursor:pointer;
+  transition:border-color .15s ease;
+}
+.pdf-options select:hover{
+  border-color:#94a3b8;
+}
+.pdf-options select:focus{
+  outline:none;
+  border-color:#0f172a;
+  box-shadow:0 0 0 3px rgba(15,23,42,.08);
+}
+
+/* Merge-order list (used inside MergeTool options) */
+.pdf-options-label{
+  width:100%;
+  margin:0 0 6px;
+  font-size:11.5px;
+  font-weight:800;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  color:#64748b;
+}
+.pdf-order-list{
+  width:100%;
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.pdf-order-list li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 10px;
+  background:#f8fafc;
+  border-radius:10px;
+  border:1px solid #e2e8f0;
+}
+.pdf-order-num{
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  background:#0f172a;
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  display:grid;
+  place-items:center;
+  flex-shrink:0;
+}
+.pdf-order-name{
+  flex:1;
+  font-size:13px;
+  font-weight:600;
+  color:#0f172a;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.pdf-order-list li button{
+  width:28px;
+  height:28px;
+  border-radius:8px;
+  border:1px solid #e2e8f0;
+  background:#fff;
+  display:grid;
+  place-items:center;
+  color:#475569;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.pdf-order-list li button:hover:not(:disabled){
+  background:#0f172a;
+  color:#fff;
+  border-color:#0f172a;
+}
+.pdf-order-list li button:disabled{
+  opacity:.35;
+  cursor:not-allowed;
+}
+
+/* Primary run button */
+.pdf-run{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:12px 22px;
+  background:linear-gradient(135deg,#0f172a,#1e293b);
+  color:#fff;
+  border:0;
+  border-radius:12px;
+  font-family:inherit;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:opacity .15s ease, transform .15s ease;
+}
+.pdf-run:hover:not(:disabled){
+  opacity:.92;
+  transform:translateY(-1px);
+}
+.pdf-run:active:not(:disabled){
+  transform:translateY(0);
+}
+.pdf-run:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
+/* Spinner for the busy state */
+.pdf-run .spin{
+  animation:pdfSpin 1s linear infinite;
+}
+@keyframes pdfSpin{
+  to{transform:rotate(360deg)}
+}
+
+/* ============================================================
+   MOBILE tweaks
+============================================================ */
+@media (max-width:520px){
+  .pdf-hub,
+  .pdf-shell{
+    padding:18px 14px 90px;
+  }
+  .pdf-hub-head h1,
+  .pdf-shell-head h1{
+    font-size:19px;
+  }
+  .pdf-hub-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px;
+  }
+  .pdf-hub-card{
+    padding:14px;
+    border-radius:14px;
+  }
+  .pdf-hub-icon{
+    width:38px;
+    height:38px;
+  }
+  .pdf-hub-card b{font-size:13.5px}
+  .pdf-hub-desc{font-size:11.5px}
+  .pdf-drop{padding:30px 16px}
+  .pdf-run{width:100%;justify-content:center}
+  .pdf-options{flex-direction:column;gap:10px}
+  .pdf-options label{justify-content:space-between}
+  .pdf-options select{flex:1;min-width:0}
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .pdf-hub-card,
+  .pdf-hub-icon,
+  .pdf-file,
+  .pdf-run,
+  .pdf-back{
+    transition:none !important;
+    animation:none !important;
+  }
+}

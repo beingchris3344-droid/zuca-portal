@@ -948,7 +948,7 @@ const nextEventText = nextEvent
          {ad && (
               <section>
                 <div className="zd-trend"><i />What's trending</div>
-                <div className="zd-ad" key={ad.id}>
+                <div className="zd-ad anim-slide" key={ad.id}>
                   <div className="zd-adimg">
                     {ad.image ? <img src={ad.image} alt={ad.title || "Advertisement"} /> : <div className="zd-adph"><FiImage size={40} /></div>}
                   </div>
@@ -2582,6 +2582,33 @@ const nextEventText = nextEvent
   .zd-dots{
     flex:1 1 100% !important;
     justify-content:center !important;
+  }
+}
+
+
+/* ============================================================
+   ADVERT — slow, smooth slide-in between ads
+============================================================ */
+@keyframes zdAdSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.zd-ad.anim-slide {
+  /* 1.1s = noticeably slow; ease-out curve keeps the ending soft */
+  animation: zdAdSlideIn 1.1s cubic-bezier(.25,.8,.35,1) both;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce){
+  .zd-ad.anim-slide{
+    animation: none !important;
   }
 }
       `}</style>

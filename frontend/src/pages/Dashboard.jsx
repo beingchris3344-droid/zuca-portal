@@ -1384,17 +1384,31 @@ const nextEventText = nextEvent
 .zd-today-tile{display:none}
 
 /* hero */
-.zd-hero{position:relative;height:270px;overflow:hidden;border-radius:0 0 8px 8px;background:var(--ink)}
-.zd-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.zd-shade{position:absolute;inset:0;
+.zd-hero{
+  position:relative;
+  height:270px;
+  overflow:hidden;
+  border-radius:0 0 8px 8px;
+  background:var(--ink);
+}
+.zd-cover{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.zd-shade{
+  position:absolute;
+  inset:0;
   background:
     linear-gradient(180deg,rgba(15,23,42,.60) 0%,rgba(15,23,42,.20) 28%,rgba(15,23,42,.55) 55%,rgba(15,23,42,.95) 100%),
     linear-gradient(90deg,rgba(15,23,42,.65) 0%,rgba(15,23,42,.15) 50%,transparent 100%);
 }
-.zd-ib{position:relative;width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.35);
-  background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;backdrop-filter:blur(8px);cursor:pointer}
-.zd-ib:hover{background:rgba(255,255,255,.3)}
+
+/* icon buttons — always show label */
 .zd-ib{
+  position:relative;
   width:auto;
   min-width:38px;
   height:38px;
@@ -1404,20 +1418,125 @@ const nextEventText = nextEvent
   align-items:center;
   justify-content:center;
   border-radius:11px;
+  border:1px solid rgba(255,255,255,.35);
+  background:rgba(255,255,255,.18);
+  color:#fff;
+  backdrop-filter:blur(8px);
+  cursor:pointer;
+  flex-shrink:0;
+  transition:background .15s ease, transform .15s ease;
 }
+.zd-ib:hover{background:rgba(255,255,255,.3)}
+.zd-ib:active{transform:scale(.96)}
+
 .zd-ib-label{
   font-size:12px;
   font-weight:700;
   white-space:nowrap;
   color:#fff;
 }
-.zd-ib-danger{background:rgba(220,38,38,.25);border-color:rgba(248,113,113,.5);color:#fecaca}
-.zd-ib-danger:hover{background:rgba(220,38,38,.55);color:#fff;border-color:rgba(248,113,113,.8);transform:scale(1.05)}
-.zd-tl{position:absolute;top:16px;left:16px}
-.zd-tr{position:absolute;top:16px;right:16px;display:flex;gap:8px}
-.zd-greet{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:2}
-.zd-greet h1{font-size:20px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;line-height:1.15;text-shadow:0 2px 14px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.6)}
-.zd-greet p{font-size:11.5px;opacity:.95;margin:0;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+
+.zd-ib-danger{
+  background:rgba(220,38,38,.25);
+  border-color:rgba(248,113,113,.5);
+  color:#fecaca;
+}
+.zd-ib-danger:hover{
+  background:rgba(220,38,38,.55);
+  color:#fff;
+  border-color:rgba(248,113,113,.8);
+  transform:scale(1.05);
+}
+
+/* button clusters — top-left and top-right */
+.zd-tl{
+  position:absolute;
+  top:16px;
+  left:16px;
+  z-index:3;
+}
+.zd-tr{
+  position:absolute;
+  top:16px;
+  right:16px;
+  display:flex;
+  gap:8px;
+  z-index:3;
+  max-width:calc(100% - 100px);   /* leaves room for the Refresh button on the left */
+  flex-wrap:wrap;                 /* 👈 wrap into rows when space runs out */
+  justify-content:flex-end;       /* 👈 keep them anchored right */
+}
+
+/* greeting — stays centered */
+.zd-greet{
+  position:absolute;
+  left:20px;
+  right:20px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#fff;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  pointer-events:none;
+  z-index:2;
+}
+.zd-greet h1{
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:-.3px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  flex-wrap:wrap;
+  line-height:1.15;
+  text-shadow:0 2px 14px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.6);
+}
+.zd-greet p{
+  font-size:11.5px;
+  opacity:.95;
+  margin:0;
+  text-shadow:0 1px 8px rgba(0,0,0,.7);
+}
+
+/* ============================================================
+   HERO — responsive (labels always visible)
+   ============================================================ */
+
+/* Tablets: shrink padding & font a touch */
+@media (max-width:640px){
+  .zd-hero{height:250px}
+  .zd-ib{height:34px;min-width:34px;padding:0 9px;gap:5px}
+  .zd-ib-label{font-size:11px}
+  .zd-greet h1{font-size:17px}
+  .zd-greet p{font-size:11px}
+  .zd-tl{top:12px;left:12px}
+  .zd-tr{top:12px;right:12px;gap:6px;max-width:calc(100% - 90px)}
+}
+
+/* Phones: labels stay, but shrink further and allow wrapping */
+@media (max-width:480px){
+  .zd-hero{height:230px}
+  .zd-ib{height:32px;min-width:32px;padding:0 8px;gap:4px;border-radius:9px}
+  .zd-ib-label{font-size:10px}
+  .zd-tl{top:10px;left:10px}
+  .zd-tr{top:10px;right:10px;gap:5px;max-width:calc(100% - 80px)}
+  .zd-greet{left:14px;right:14px}
+  .zd-greet h1{font-size:15px;gap:4px}
+  .zd-greet p{font-size:10.5px}
+}
+
+/* Very small phones: allow top-right cluster to go 2 rows */
+@media (max-width:360px){
+  .zd-tr{
+    max-width:calc(100% - 70px);
+  }
+  .zd-ib{padding:0 7px;gap:3px}
+  .zd-ib-label{font-size:9.5px}
+}
 
 .zd-picker{position:fixed;top:64px;right:16px;z-index:6;width:360px;max-width:calc(100% - 32px);max-height:60vh;overflow-y:auto;background:#fff;color:var(--ink);border-radius:16px;padding:16px;box-shadow:0 25px 50px -12px rgba(15,23,42,.35)}
 .zd-picker>div:first-child{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;font-weight:700;color:#0f172a}
@@ -1481,27 +1600,208 @@ const nextEventText = nextEvent
 }
 
 /* profile card */
-.zd-prof{position:relative;z-index:2;margin:-46px 16px 0;background:#fff;border:1px solid var(--ln);border-radius:18px;box-shadow:0 12px 30px -16px rgba(15,23,42,.25);display:flex;flex-wrap:wrap;align-items:center}
-.zd-pmain{display:flex;align-items:center;gap:14px;padding:14px 16px;flex:1 1 100%;min-width:0}
-.zd-pav{position:relative;width:76px;height:76px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px var(--ln);flex-shrink:0;cursor:pointer}
-.zd-pav img,.zd-pav>span{width:100%;height:100%;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--ink);color:#fff;font-size:28px;font-weight:800}
-.zd-on{position:absolute;left:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#22c55e;border:2px solid #fff}
-.zd-pav b{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--ln);display:grid;place-items:center}
-.zd-pinfo{flex:1;min-width:0}
-.zd-pinfo h2{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:-.2px;overflow-wrap:anywhere}
-.zd-pinfo p{font-size:12.5px;color:var(--mut);margin:2px 0 8px;overflow-wrap:anywhere}
-.zd-chips{display:flex;flex-wrap:wrap;gap:6px}
-.zd-chips span{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:0px solid var(--ln);border-radius:10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#334155}
-.zd-pgo{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--ln);border-radius:10px;background:#fff;color:#475569;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap;transition:all .18s ease}
-.zd-pgo:hover{background:var(--ink);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:0 6px 14px -6px rgba(15,23,42,.4)}
+/* profile card */
+.zd-prof{
+  position:relative;
+  z-index:2;
+  margin:-46px 16px 0;
+  background:#fff;
+  border:1px solid var(--ln);
+  border-radius:18px;
+  box-shadow:0 12px 30px -16px rgba(15,23,42,.25);
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  overflow:hidden;
+}
+
+.zd-pmain{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:14px 16px;
+  flex:1 1 100%;
+  min-width:0;
+  flex-wrap:nowrap;
+}
+
+/* avatar — never shrinks, keeps position */
+.zd-pav{
+  position:relative;
+  width:76px;
+  height:76px;
+  border-radius:50%;
+  border:3px solid #fff;
+  box-shadow:0 0 0 1px var(--ln);
+  flex:0 0 auto;
+  cursor:pointer;
+}
+.zd-pav img,
+.zd-pav>span{
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  object-fit:cover;
+  display:grid;
+  place-items:center;
+  background:var(--ink);
+  color:#fff;
+  font-size:28px;
+  font-weight:800;
+}
+.zd-on{
+  position:absolute;
+  left:3px;
+  bottom:3px;
+  width:13px;
+  height:13px;
+  border-radius:50%;
+  background:#22c55e;
+  border:2px solid #fff;
+}
+.zd-pav b{
+  position:absolute;
+  right:-2px;
+  bottom:-2px;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:#fff;
+  border:1px solid var(--ln);
+  display:grid;
+  place-items:center;
+}
+
+/* info — shrinks gracefully, truncates text */
+.zd-pinfo{
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+}
+.zd-pinfo h2{
+  font-size:18px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:-.2px;
+  margin:0 0 4px 0;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.zd-pinfo p{
+  font-size:12.5px;
+  color:var(--mut);
+  margin:0 0 8px 0;
+  line-height:1.3;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* chips — wrap to next line only when they run out of space */
+.zd-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  max-width:100%;
+}
+.zd-chips span{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 10px;
+  border:0 solid var(--ln);
+  border-radius:10px;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  color:#334155;
+  background:#f1f5f9;
+  white-space:nowrap;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* profile button — never shrinks, stays on the right */
+.zd-pgo{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border:1px solid var(--ln);
+  border-radius:10px;
+  background:#fff;
+  color:#475569;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  flex:0 0 auto;
+  white-space:nowrap;
+  transition:all .18s ease;
+}
+.zd-pgo:hover{
+  background:var(--ink);
+  color:#fff;
+  border-color:transparent;
+  transform:translateY(-1px);
+  box-shadow:0 6px 14px -6px rgba(15,23,42,.4);
+}
 .zd-pgo svg{flex-shrink:0}
-.zd-stats{display:flex;flex:1 1 100%;border-top:1px solid var(--ln)}
-.zd-stats>*{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 6px;text-decoration:none;color:var(--ink);min-width:0}
+
+/* stats bar — same position, same row */
+.zd-stats{
+  display:flex;
+  flex:1 1 100%;
+  border-top:1px solid var(--ln);
+  flex-wrap:nowrap;
+}
+.zd-stats>*{
+  flex:1 1 0;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  padding:12px 6px;
+  text-decoration:none;
+  color:var(--ink);
+}
 .zd-stats>*+*{border-left:1px solid var(--ln)}
 .zd-stats svg{font-size:18px;color:#475569;flex-shrink:0}
 .zd-stats span{display:flex;flex-direction:column;min-width:0}
-.zd-stats b{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.zd-stats small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.zd-stats b{
+  font-size:13px;
+  font-weight:800;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.zd-stats small{
+  font-size:10px;
+  color:var(--mut);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  font-weight:600;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* tiny phones — keep positions, just shrink sizes a touch */
+@media (max-width:420px){
+  .zd-pmain{gap:10px;padding:12px}
+  .zd-pav{width:60px;height:60px}
+  .zd-pav img,.zd-pav>span{font-size:22px}
+  .zd-pinfo h2{font-size:15px}
+  .zd-pinfo p{font-size:11px}
+  .zd-chips span{font-size:10px;padding:2px 8px}
+  .zd-pgo{padding:5px 8px;font-size:10px}
+  .zd-pgo span{display:none}     /* keep only icon so it never crowds the name */
+  .zd-stats b{font-size:11.5px}
+  .zd-stats small{font-size:9px}
+}
 
 /* layout */
 .zd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}
@@ -2178,73 +2478,110 @@ const nextEventText = nextEvent
 
 /* ============================================================
    ADVERT — mobile only: image top, text bottom, title always visible
+   (Desktop untouched — desktop rules live in the min-width:768px block)
 ============================================================ */
 @media (max-width: 767px){
+
+  /* Card: vertical stack, auto height, no clipping of text */
   .zd-ad{
     display:flex !important;
     flex-direction:column !important;
     align-items:stretch !important;
-    height:100% !important;
-    max-height:300px !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+
+  /* Image band on top — fixed height so it never eats the text */
+  .zd-adimg{
+    flex:0 0 auto !important;
+    width:100% !important;
+    height:180px !important;
+    background:#0f172a !important;
     overflow:hidden !important;
   }
-  
   .zd-adimg img{
     width:100% !important;
-    height:fit-content !important;
-    object-fit:contain !important;
-        overflow:visible !important;
-
+    height:100% !important;
+    object-fit:cover !important;
+    display:block !important;
   }
   .zd-adph{
-    height:130px !important;
+    height:180px !important;
     display:grid !important;
     place-items:center !important;
     color:#94a3b8 !important;
-  
+  }
+
+  /* Text block below — flows naturally, no forced clamps */
   .zd-adtx{
     flex:1 1 auto !important;
     height:auto !important;
     min-height:0 !important;
-    padding:10px 14px 12px !important;
+    padding:12px 14px 14px !important;
     display:flex !important;
     flex-direction:column !important;
     justify-content:flex-start !important;
-    gap:4px !important;
-    overflow:hidden !important;
+    gap:6px !important;
+    overflow:visible !important;
   }
+
   .zd-adtx small{
     font-size:9px !important;
     flex:0 0 auto !important;
   }
+
+  /* Title — full, wraps naturally, no truncation */
   .zd-adtx h2{
     flex:0 0 auto !important;
     font-size:15px !important;
-    line-height:1.25 !important;
+    line-height:1.3 !important;
     margin:2px 0 4px !important;
-    display:-webkit-box !important;
-    -webkit-line-clamp:2 !important;
-    -webkit-box-orient:vertical !important;
-    overflow:hidden !important;
+    display:block !important;
+    -webkit-line-clamp:unset !important;
     white-space:normal !important;
-    max-height:calc(15px * 1.25 * 2) !important;
+    overflow:visible !important;
+    max-height:none !important;
   }
+
+  /* Description — keep the paragraph formatting from formatAdText() */
   .zd-adtx p{
     flex:1 1 auto !important;
     min-height:0 !important;
-    font-size:11.5px !important;
-    line-height:1.4 !important;
-    white-space:normal !important;
+    font-size:12px !important;
+    line-height:1.5 !important;
+    color:var(--mut) !important;
+    white-space:pre-line !important;
+    overflow-wrap:anywhere !important;
+    word-break:break-word !important;
     margin:0 !important;
-    display:-webkit-box !important;
-    -webkit-line-clamp:2 !important;
-    -webkit-box-orient:vertical !important;
-    overflow:hidden !important;
-    max-height:calc(11.5px * 1.4 * 2) !important;
+    display:block !important;
+    -webkit-line-clamp:unset !important;
+    overflow:visible !important;
+    max-height:none !important;
   }
+
+  /* CTA button */
   .zd-btn{
     flex:0 0 auto !important;
-    margin-top:6px !important;
+    margin-top:8px !important;
+  }
+
+  /* Advert controls under the card — stack nicely on phones */
+  .zd-adctl{
+    gap:8px !important;
+  }
+  .zd-adctl > div:first-child{
+    flex:1 1 auto !important;
+    justify-content:center !important;
+  }
+  .zd-adctl > button{
+    flex:1 1 auto !important;
+    justify-content:center !important;
+  }
+  .zd-dots{
+    flex:1 1 100% !important;
+    justify-content:center !important;
   }
 }
       `}</style>

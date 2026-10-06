@@ -1601,7 +1601,6 @@ const nextEventText = nextEvent
 }
 
 /* profile card */
-/* profile card */
 .zd-prof{
   position:relative;
   z-index:2;
@@ -1618,12 +1617,12 @@ const nextEventText = nextEvent
 
 .zd-pmain{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:14px;
   padding:14px 16px;
   flex:1 1 100%;
   min-width:0;
-  flex-wrap:nowrap;
+  flex-wrap:wrap;              /* 👈 allow button to drop below info */
 }
 
 /* avatar — never shrinks, keeps position */
@@ -1636,6 +1635,7 @@ const nextEventText = nextEvent
   box-shadow:0 0 0 1px var(--ln);
   flex:0 0 auto;
   cursor:pointer;
+  margin-top:2px;
 }
 .zd-pav img,
 .zd-pav>span{
@@ -1673,11 +1673,10 @@ const nextEventText = nextEvent
   place-items:center;
 }
 
-/* info — shrinks gracefully, truncates text */
+/* info — full text, wraps at word boundaries only */
 .zd-pinfo{
-  flex:1 1 auto;
+  flex:1 1 200px;              /* 👈 needs at least ~200px before shrinking */
   min-width:0;
-  overflow:hidden;
 }
 .zd-pinfo h2{
   font-size:18px;
@@ -1686,46 +1685,49 @@ const nextEventText = nextEvent
   letter-spacing:-.2px;
   margin:0 0 4px 0;
   line-height:1.2;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  white-space:normal;
+  overflow-wrap:break-word;    /* 👈 break at word boundaries only */
+  word-break:normal;           /* 👈 NOT 'break-word' — that was breaking mid-word */
+  hyphens:none;
 }
 .zd-pinfo p{
   font-size:12.5px;
   color:var(--mut);
   margin:0 0 8px 0;
   line-height:1.3;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:normal;
+  hyphens:none;
 }
 
-/* chips — wrap to next line only when they run out of space */
+/* chips — wrap at word boundaries only */
 .zd-chips{
   display:flex;
   flex-wrap:wrap;
-  gap:6px;
+  gap:6px 12px;
   max-width:100%;
 }
 .zd-chips span{
   display:inline-flex;
   align-items:center;
   gap:5px;
-  padding:3px 10px;
-  border:0 solid var(--ln);
-  border-radius:10px;
+  padding:0;
+  border:0;
+  border-radius:0;
   font-size:11px;
   font-weight:700;
   text-transform:uppercase;
   color:#334155;
-  background:#f1f5f9;
-  white-space:nowrap;
+  background:transparent;
+  white-space:normal;
+  overflow-wrap:break-word;    /* 👈 break at word boundaries only */
+  word-break:normal;
+  hyphens:none;
   max-width:100%;
-  overflow:hidden;
-  text-overflow:ellipsis;
 }
 
-/* profile button — never shrinks, stays on the right */
+/* profile button — sits on its own line when space is tight */
 .zd-pgo{
   display:inline-flex;
   align-items:center;
@@ -1739,8 +1741,10 @@ const nextEventText = nextEvent
   font-weight:600;
   cursor:pointer;
   flex:0 0 auto;
+  align-self:flex-start;
   white-space:nowrap;
   transition:all .18s ease;
+  margin-left:auto;            /* 👈 push right when on same row as info */
 }
 .zd-pgo:hover{
   background:var(--ink);
@@ -1790,16 +1794,16 @@ const nextEventText = nextEvent
   text-overflow:ellipsis;
 }
 
-/* tiny phones — keep positions, just shrink sizes a touch */
+/* tiny phones — shrink sizes, keep everything readable */
 @media (max-width:420px){
   .zd-pmain{gap:10px;padding:12px}
   .zd-pav{width:60px;height:60px}
   .zd-pav img,.zd-pav>span{font-size:22px}
   .zd-pinfo h2{font-size:15px}
   .zd-pinfo p{font-size:11px}
-  .zd-chips span{font-size:10px;padding:2px 8px}
+  .zd-chips{gap:5px 10px}
+  .zd-chips span{font-size:10px}
   .zd-pgo{padding:5px 8px;font-size:10px}
-  .zd-pgo span{display:none}     /* keep only icon so it never crowds the name */
   .zd-stats b{font-size:11.5px}
   .zd-stats small{font-size:9px}
 }

@@ -68,7 +68,20 @@ export default function ToolShell({
     const t = toast.loading("Processing…");
     try {
       const result = await onProcess(files);
-      downloadBlob(result, outputName);
+
+      // Support two return shapes:
+      //   1) Uint8Array | Blob → treated as PDF, uses `outputName`
+      //   2) { data, filename, mime } → uses the supplied metadata (for ZIPs, etc.)
+      if (result && typeof result === "object" && "data" in result) {
+        downloadBlob(
+          result.data,
+          result.filename || outputName,
+          result.mime || "application/pdf"
+        );
+      } else {
+        downloadBlob(result, outputName);
+      }
+
       toast.success("Done — check your downloads", { id: t });
       setDone(true);
     } catch (err) {
@@ -137,7 +150,7 @@ export default function ToolShell({
         </div>
       )}
 
-           {/* 👇 Thumbnail preview of what will be produced */}
+      {/* 👇 Thumbnail preview of what will be produced */}
       {showPreview && files.length > 0 && (
         <PdfPreview
           files={files}

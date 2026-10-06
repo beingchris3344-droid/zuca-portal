@@ -44,7 +44,7 @@ const TOOLS = [
     label: "Split PDF",
     desc: "Extract or remove pages",
     icon: FiScissors,
-    ready: false,
+    ready: true,
   },
   {
     id: "watermark",
@@ -64,14 +64,14 @@ const TOOLS = [
     label: "Protect PDF",
     desc: "Add a password",
     icon: FiLock,
-    ready: false,
+    ready: true,
   },
   {
     id: "fill-sign",
     label: "Fill & Sign",
     desc: "Add text or signature",
     icon: FiType,
-    ready: false,
+    ready: true,
   },
 ];
 

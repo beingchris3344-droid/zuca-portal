@@ -81,6 +81,9 @@ import MergeTool from "./tools/pdf/tools/MergeTool";
 import RotateTool from "./tools/pdf/tools/RotateTool";
 import PageNumbersTool from "./tools/pdf/tools/PageNumbersTool";
 import WatermarkTool from "./tools/pdf/tools/WatermarkTool";
+import SplitTool from "./tools/pdf/tools/SplitTool";
+import ProtectTool from "./tools/pdf/tools/ProtectTool";
+import FillSignTool from "./tools/pdf/tools/FillSignTool";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -527,6 +530,14 @@ useEffect(() => {
 <Route path="/tools/pdf/rotate" element={<RotateTool />} />
 <Route path="/tools/pdf/page-numbers" element={<PageNumbersTool />} />
 <Route path="/tools/pdf/watermark" element={<WatermarkTool />} />
+<Route path="/tools/pdf/protect" element={<ProtectTool />} />
+<Route path="/tools/pdf/split" element={<SplitTool />} />
+<Route path="/tools/pdf/fill-sign" element={<FillSignTool />} />
+
+
+
+
+
           <Route path="/youtube" element={<UserYoutubeHub />} />
                   <Route path="/executive" element={<ExecutivePage />} />
                   <Route path="/feedback" element={<Feedback />} />

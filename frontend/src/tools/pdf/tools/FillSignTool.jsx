@@ -1,20 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import ToolShell from "../shell/ToolShell";
-import { readAsArrayBuffer, readAsDataURL } from "../lib/readFile";
+import { readAsArrayBuffer } from "../lib/readFile";
 import { withSuffix } from "../lib/download";
 
-// ---------- helpers -----------------------------------------------------
 const FONT_CSS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 const FONT_SIZE_DEFAULT = 24;
 
 export default function FillSignTool() {
   const [files, setFiles] = useState([]);
-  const [items, setItems] = useState([]);   // { id, type, x, y, text, size, color }
-  const [mode, setMode] = useState("text");  // "text" | "sign"
+  const [items, setItems] = useState([]);
+  const [mode, setMode] = useState("text");
   const [canvasSize, setCanvasSize] = useState({ w: 400, h: 560 });
 
-  const canvasRef = useRef(null);
+  const baseCanvasRef = useRef(null);      // PDF page (rendered once)
+  const overlayCanvasRef = useRef(null);   // items (redrawn on every change)
   const dragRef = useRef(null);
   const drawingRef = useRef(false);
   const signatureCanvasRef = useRef(null);
@@ -25,13 +25,13 @@ export default function FillSignTool() {
     setItems([]);
   }, [files]);
 
-  // Render the PDF page as the background, then draw all items on top
+  // ---------- EFFECT 1: render the PDF page ONCE per file ----------
   useEffect(() => {
-    if (!files[0] || !canvasRef.current) return;
+    if (!files[0] || !baseCanvasRef.current) return;
     let cancelled = false;
 
-    async function draw() {
-      const canvas = canvasRef.current;
+    async function drawBase() {
+      const canvas = baseCanvasRef.current;
       const ctx = canvas.getContext("2d");
 
       try {
@@ -54,43 +54,75 @@ export default function FillSignTool() {
 
         canvas.width = scaled.width;
         canvas.height = scaled.height;
-        setCanvasSize({ w: canvas.width, h: canvas.height });
+
+        // Also size the overlay to match
+        if (overlayCanvasRef.current) {
+          overlayCanvasRef.current.width = scaled.width;
+          overlayCanvasRef.current.height = scaled.height;
+        }
+        setCanvasSize({ w: scaled.width, h: scaled.height });
 
         await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-        if (cancelled) return;
-
-        // Draw overlay items
-        items.forEach((item) => {
-          if (item.type === "text") {
-            ctx.font = `bold ${item.size}px ${FONT_CSS}`;
-            ctx.fillStyle = item.color;
-            ctx.textBaseline = "top";
-            ctx.fillText(item.text || "Tap to edit", item.x, item.y);
-          } else if (item.type === "sign" && item.dataUrl) {
-            // Draw signature image
-            const img = new Image();
-            img.src = item.dataUrl;
-            // drawImage needs the image loaded — for the preview we just skip
-            // the async and rely on the signature overlay being already cached
-          }
-        });
       } catch (e) {
-        console.error("Fill & Sign render error:", e);
+        console.error("Fill & Sign base render error:", e);
       }
     }
 
-    draw();
+    drawBase();
     return () => { cancelled = true; };
-  }, [files, items]);
+  }, [files]);
 
-  // ---------- canvas click: add item at click position ----------
+  // ---------- EFFECT 2: draw items on the overlay canvas ----------
+  useEffect(() => {
+    const canvas = overlayCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    // Clear overlay
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let cancelled = false;
+
+    async function drawItems() {
+      for (const item of items) {
+        if (cancelled) return;
+        if (item.type === "text") {
+          ctx.font = `bold ${item.size}px ${FONT_CSS}`;
+          ctx.fillStyle = item.color;
+          ctx.textBaseline = "top";
+          ctx.fillText(item.text || "Click to type", item.x, item.y);
+        } else if (item.type === "sign" && item.dataUrl) {
+          try {
+            const img = await new Promise((resolve, reject) => {
+              const i = new Image();
+              i.onload = () => resolve(i);
+              i.onerror = reject;
+              i.src = item.dataUrl;
+            });
+            if (cancelled) return;
+            ctx.drawImage(img, item.x, item.y, item.width, item.height);
+          } catch (e) {
+            console.error("Signature draw error:", e);
+          }
+        }
+      }
+    }
+
+    drawItems();
+    return () => { cancelled = true; };
+  }, [items, canvasSize]);
+
+  // ---------- canvas click: add item ----------
   const onCanvasClick = (e) => {
-    if (dragRef.current) return;    // ignore clicks during a drag
+    if (dragRef.current) return;
     if (!files[0]) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const rect = overlayCanvasRef.current.getBoundingClientRect();
+    // Convert screen coords → canvas coords (account for CSS size vs actual size)
+    const scaleX = overlayCanvasRef.current.width / rect.width;
+    const scaleY = overlayCanvasRef.current.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     if (mode === "text") {
       const id = Date.now();
@@ -101,39 +133,42 @@ export default function FillSignTool() {
           type: "text",
           x,
           y,
-          text: "Click to type",
+          text: "Click to edit",
           size: FONT_SIZE_DEFAULT,
           color: "#0f172a",
         },
       ]);
     } else if (mode === "sign") {
-      setShowSignPad(true);
-      // Store click position for when the signature is ready
       window.__signClickPos = { x, y };
+      setShowSignPad(true);
     }
   };
 
-  // ---------- drag items ----------
+  // ---------- drag ----------
   const onItemMouseDown = (e, id) => {
     e.stopPropagation();
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    const rect = canvasRef.current.getBoundingClientRect();
+
+    const rect = overlayCanvasRef.current.getBoundingClientRect();
+    const scaleX = overlayCanvasRef.current.width / rect.width;
+    const scaleY = overlayCanvasRef.current.height / rect.height;
+
     dragRef.current = {
       id,
-      offsetX: e.clientX - rect.left - item.x,
-      offsetY: e.clientY - rect.top - item.y,
-      moved: false,
+      offsetX: (e.clientX - rect.left) * scaleX - item.x,
+      offsetY: (e.clientY - rect.top) * scaleY - item.y,
     };
   };
 
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current) return;
-      dragRef.current.moved = true;
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left - dragRef.current.offsetX;
-      const y = e.clientY - rect.top - dragRef.current.offsetY;
+      const rect = overlayCanvasRef.current.getBoundingClientRect();
+      const scaleX = overlayCanvasRef.current.width / rect.width;
+      const scaleY = overlayCanvasRef.current.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX - dragRef.current.offsetX;
+      const y = (e.clientY - rect.top) * scaleY - dragRef.current.offsetY;
       setItems((prev) =>
         prev.map((it) =>
           it.id === dragRef.current.id ? { ...it, x, y } : it
@@ -142,8 +177,7 @@ export default function FillSignTool() {
     };
     const onUp = () => {
       if (dragRef.current) {
-        // Delay resetting so onCanvasClick ignores the release
-        setTimeout(() => { dragRef.current = null; }, 30);
+        setTimeout(() => { dragRef.current = null; }, 50);
       }
     };
     window.addEventListener("mousemove", onMove);
@@ -154,26 +188,32 @@ export default function FillSignTool() {
     };
   }, []);
 
-  // ---------- signature drawing ----------
+  // ---------- signature pad ----------
   const startDraw = (e) => {
     drawingRef.current = true;
     const canvas = signatureCanvasRef.current;
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#0f172a";
+    ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
   };
   const moveDraw = (e) => {
     if (!drawingRef.current) return;
     const canvas = signatureCanvasRef.current;
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
     ctx.stroke();
   };
-  const endDraw = () => {
-    drawingRef.current = false;
-  };
+  const endDraw = () => { drawingRef.current = false; };
   const clearSignature = () => {
     const canvas = signatureCanvasRef.current;
     if (!canvas) return;
@@ -183,18 +223,27 @@ export default function FillSignTool() {
   const saveSignature = () => {
     const canvas = signatureCanvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL("image/png");
+    const trimmed = trimCanvas(canvas);
+    const dataUrl = trimmed.toDataURL("image/png");
     const pos = window.__signClickPos || { x: 40, y: 40 };
 
     const id = Date.now();
     setItems((prev) => [
       ...prev,
-      { id, type: "sign", x: pos.x, y: pos.y, dataUrl, width: 160, height: 60 },
+      {
+        id,
+        type: "sign",
+        x: pos.x,
+        y: pos.y,
+        dataUrl,
+        width: 160,
+        height: 64,
+      },
     ]);
     setShowSignPad(false);
   };
 
-  // ---------- edit item ----------
+  // ---------- edit / remove ----------
   const editItem = (id) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
@@ -211,7 +260,7 @@ export default function FillSignTool() {
     setItems((prev) => prev.filter((it) => it.id !== id));
   };
 
-  // ---------- process: bake items into the PDF ----------
+  // ---------- bake into PDF ----------
   const process = async ([file]) => {
     const buf = await readAsArrayBuffer(file);
     const pdf = await PDFDocument.load(buf, { ignoreEncryption: true });
@@ -219,15 +268,13 @@ export default function FillSignTool() {
     const { width: pw, height: ph } = page.getSize();
 
     const helv = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-    // canvas is at scale = canvasSize.w / pw
     const scale = canvasSize.w / pw;
 
     for (const item of items) {
-      const pdfX = item.x / scale;
-      const pdfY = ph - (item.y / scale) - (item.size / scale);
-
       if (item.type === "text") {
+        const pdfX = item.x / scale;
+        const pdfY = ph - (item.y / scale) - (item.size / scale);
+
         const hex = item.color.replace("#", "");
         const r = parseInt(hex.slice(0, 2), 16) / 255;
         const g = parseInt(hex.slice(2, 4), 16) / 255;
@@ -246,7 +293,7 @@ export default function FillSignTool() {
         const w = item.width / scale;
         const h = item.height / scale;
         page.drawImage(img, {
-          x: pdfX,
+          x: item.x / scale,
           y: ph - (item.y / scale) - h,
           width: w,
           height: h,
@@ -296,45 +343,68 @@ export default function FillSignTool() {
               <div className="pdf-fs-stage">
                 <p className="pdf-fs-hint">
                   {mode === "text"
-                    ? "Click anywhere on the page to add text. Drag to move."
+                    ? "Click the page to add text. Drag to move. Double-click to edit."
                     : "Click where the signature should go."}
                 </p>
                 <div className="pdf-fs-canvas-wrap">
+                  {/* PDF page — rendered once */}
                   <canvas
-                    ref={canvasRef}
-                    className="pdf-fs-canvas"
+                    ref={baseCanvasRef}
+                    className="pdf-fs-canvas pdf-fs-base"
+                  />
+                  {/* Overlay — items, redrawn on every change */}
+                  <canvas
+                    ref={overlayCanvasRef}
+                    className="pdf-fs-canvas pdf-fs-overlay"
                     onClick={onCanvasClick}
                   />
-                  {/* Drag handles for items */}
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="pdf-fs-item"
-                      style={{
-                        left: item.x,
-                        top: item.y,
-                        width: item.type === "text" ? 200 : item.width,
-                        height: item.type === "text" ? item.size + 8 : item.height,
-                      }}
-                      onMouseDown={(e) => onItemMouseDown(e, item.id)}
-                      onDoubleClick={() => editItem(item.id)}
-                    >
-                      <span className="pdf-fs-item-inner">
-                        {item.type === "text" ? item.text : "signature"}
-                      </span>
-                      <button
-                        type="button"
-                        className="pdf-fs-item-x"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeItem(item.id);
+                  {/* Drag handles */}
+                  {items.map((item) => {
+                    const rect = overlayCanvasRef.current?.getBoundingClientRect();
+                    const scale = rect ? rect.width / overlayCanvasRef.current.width : 1;
+                    const w = item.type === "text" ? "auto" : item.width * scale;
+                    const h = item.type === "text" ? "auto" : item.height * scale;
+                    return (
+                      <div
+                        key={item.id}
+                        className="pdf-fs-item"
+                        style={{
+                          left: item.x * scale,
+                          top: item.y * scale,
+                          width: w,
+                          height: h,
                         }}
-                        aria-label="Remove"
+                        onMouseDown={(e) => onItemMouseDown(e, item.id)}
+                        onDoubleClick={() => editItem(item.id)}
                       >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                        {item.type === "text" ? (
+                          <span
+                            className="pdf-fs-item-inner"
+                            style={{ fontSize: item.size * scale }}
+                          >
+                            {item.text}
+                          </span>
+                        ) : (
+                          <img
+                            src={item.dataUrl}
+                            alt="signature"
+                            className="pdf-fs-item-sig"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          className="pdf-fs-item-x"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeItem(item.id);
+                          }}
+                          aria-label="Remove"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -342,7 +412,6 @@ export default function FillSignTool() {
         }
       />
 
-      {/* ============ SIGNATURE MODAL ============ */}
       {showSignPad && (
         <div className="pdf-fs-modal-overlay" onClick={() => setShowSignPad(false)}>
           <div className="pdf-fs-modal" onClick={(e) => e.stopPropagation()}>
@@ -369,16 +438,12 @@ export default function FillSignTool() {
       )}
 
       <style>{`
-        /* Fill & Sign — toolbar, canvas, drag items, sign modal */
         .pdf-fs-options{
           flex-direction:column;
           align-items:stretch;
           gap:12px;
         }
-        .pdf-fs-toolbar{
-          display:flex;
-          gap:6px;
-        }
+        .pdf-fs-toolbar{display:flex;gap:6px;}
         .pdf-fs-toolbar button{
           flex:1;
           padding:9px 14px;
@@ -392,15 +457,8 @@ export default function FillSignTool() {
           cursor:pointer;
           transition:all .15s ease;
         }
-        .pdf-fs-toolbar button:hover{
-          border-color:#0f172a;
-          color:#0f172a;
-        }
-        .pdf-fs-toolbar button.on{
-          background:#0f172a;
-          color:#fff;
-          border-color:#0f172a;
-        }
+        .pdf-fs-toolbar button:hover{border-color:#0f172a;color:#0f172a;}
+        .pdf-fs-toolbar button.on{background:#0f172a;color:#fff;border-color:#0f172a;}
 
         .pdf-fs-stage{margin-top:6px;}
         .pdf-fs-hint{
@@ -421,23 +479,40 @@ export default function FillSignTool() {
         .pdf-fs-canvas{
           display:block;
           width:100%;
+        }
+        .pdf-fs-base{position:relative;z-index:1;}
+        .pdf-fs-overlay{
+          position:absolute;
+          inset:0;
+          z-index:2;
           cursor:crosshair;
+          background:transparent;
         }
         .pdf-fs-item{
           position:absolute;
+          z-index:3;
           cursor:move;
-          outline:1px dashed rgba(15,23,42,.4);
+          outline:1px dashed rgba(15,23,42,.45);
           background:rgba(15,23,42,.04);
           border-radius:4px;
           user-select:none;
+          touch-action:none;
         }
         .pdf-fs-item-inner{
           display:block;
           padding:2px 4px;
-          font:bold 24px ${FONT_CSS};
+          font-weight:bold;
           color:#0f172a;
           white-space:nowrap;
           pointer-events:none;
+        }
+        .pdf-fs-item-sig{
+          display:block;
+          width:100%;
+          height:100%;
+          object-fit:contain;
+          pointer-events:none;
+          background:transparent;
         }
         .pdf-fs-item-x{
           position:absolute;
@@ -455,9 +530,9 @@ export default function FillSignTool() {
           place-items:center;
           cursor:pointer;
           padding:0;
+          z-index:4;
         }
 
-        /* Modal */
         .pdf-fs-modal-overlay{
           position:fixed;
           inset:0;
@@ -509,19 +584,52 @@ export default function FillSignTool() {
           color:#475569;
           cursor:pointer;
         }
-        .pdf-fs-modal-actions button:hover{
-          border-color:#0f172a;
-          color:#0f172a;
-        }
-        .pdf-fs-modal-actions button.primary{
-          background:#0f172a;
-          color:#fff;
-          border-color:#0f172a;
-        }
-        .pdf-fs-modal-actions button.primary:hover{
-          opacity:.92;
-        }
+        .pdf-fs-modal-actions button:hover{border-color:#0f172a;color:#0f172a;}
+        .pdf-fs-modal-actions button.primary{background:#0f172a;color:#fff;border-color:#0f172a;}
+        .pdf-fs-modal-actions button.primary:hover{opacity:.92;}
       `}</style>
     </>
   );
+}
+
+// ---------- helpers -----------------------------------------------------
+function trimCanvas(source) {
+  const { width, height } = source;
+  const ctx = source.getContext("2d");
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+
+  let top = height, left = width, right = 0, bottom = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const alpha = pixels[(y * width + x) * 4 + 3];
+      if (alpha > 0) {
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+        if (x < left) left = x;
+        if (x > right) right = x;
+      }
+    }
+  }
+
+  if (right < left || bottom < top) {
+    const blank = document.createElement("canvas");
+    blank.width = 1;
+    blank.height = 1;
+    return blank;
+  }
+
+  const pad = 6;
+  top = Math.max(0, top - pad);
+  left = Math.max(0, left - pad);
+  right = Math.min(width - 1, right + pad);
+  bottom = Math.min(height - 1, bottom + pad);
+
+  const w = right - left + 1;
+  const h = bottom - top + 1;
+
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  out.getContext("2d").drawImage(source, left, top, w, h, 0, 0, w, h);
+  return out;
 }

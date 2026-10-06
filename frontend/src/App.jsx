@@ -79,6 +79,8 @@ import PdfToolHub from "./tools/pdf/PdfToolHub";
 import ImageToPdfTool from "./tools/pdf/tools/ImageToPdfTool";
 import MergeTool from "./tools/pdf/tools/MergeTool";
 import RotateTool from "./tools/pdf/tools/RotateTool";
+import PageNumbersTool from "./tools/pdf/tools/PageNumbersTool";
+import WatermarkTool from "./tools/pdf/tools/WatermarkTool";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -523,6 +525,8 @@ useEffect(() => {
 <Route path="/tools/pdf/image-to-pdf" element={<ImageToPdfTool />} />
 <Route path="/tools/pdf/merge" element={<MergeTool />} />
 <Route path="/tools/pdf/rotate" element={<RotateTool />} />
+<Route path="/tools/pdf/page-numbers" element={<PageNumbersTool />} />
+<Route path="/tools/pdf/watermark" element={<WatermarkTool />} />
           <Route path="/youtube" element={<UserYoutubeHub />} />
                   <Route path="/executive" element={<ExecutivePage />} />
                   <Route path="/feedback" element={<Feedback />} />

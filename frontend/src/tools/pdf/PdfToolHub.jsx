@@ -51,15 +51,14 @@ const TOOLS = [
     label: "Watermark",
     desc: "Stamp name + reg number",
     icon: FiDroplet,
-    ready: false,
+    ready: true,
   },
   {
     id: "page-numbers",
     label: "Page numbers",
     desc: "Number every page",
     icon: FiHash,
-    ready: false,
-  },
+  ready: true,  },
   {
     id: "protect",
     label: "Protect PDF",

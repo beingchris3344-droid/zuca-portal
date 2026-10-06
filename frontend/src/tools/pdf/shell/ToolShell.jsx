@@ -6,6 +6,7 @@ import {
 import toast from "react-hot-toast";
 import { downloadBlob, formatBytes } from "../lib/download";
 import { kindOf, isHeic } from "../lib/readFile";
+import PdfPreview from "./PdfPreview";
 
 export default function ToolShell({
   title,
@@ -14,10 +15,15 @@ export default function ToolShell({
   multiple = false,
   files,
   setFiles,
-  onProcess,                 // async (files) => Uint8Array | Blob
+  onProcess,
   outputName = "zuca-output.pdf",
   processLabel = "Process",
-  options,                   // optional JSX between filelist and button
+  options,
+  showPreview = true,
+  previewRotate = 0,
+  onMove,
+  onRotatePreview,
+  previewOverlay,
 }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
@@ -59,8 +65,6 @@ export default function ToolShell({
     setBusy(true);
     setDone(false);
 
-    // Optimistic: show success state immediately after start feels smooth
-    // (real completion replaces it below; errors revert it)
     const t = toast.loading("Processing…");
     try {
       const result = await onProcess(files);
@@ -131,6 +135,18 @@ export default function ToolShell({
             onChange={pick}
           />
         </div>
+      )}
+
+           {/* 👇 Thumbnail preview of what will be produced */}
+      {showPreview && files.length > 0 && (
+        <PdfPreview
+          files={files}
+          rotateAngle={previewRotate}
+          onRemove={remove}
+          onMove={onMove}
+          onRotate={onRotatePreview}
+          overlay={previewOverlay}
+        />
       )}
 
       {options}

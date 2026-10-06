@@ -20,6 +20,7 @@ import {
   FaDove, FaPrayingHands, FaGamepad, FaCalendarPlus,
   FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport,
   FaBirthdayCake, FaUser, FaRegFilePdf, FaSun,
+  FaFilePdf,
 } from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
@@ -246,7 +247,9 @@ function Layout() {
         { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
         { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
         { path: "/youtube", label: "ZUCA / TUBE", icon: <FaYoutube /> },
-        { path: "/tools/pdf", label: "PDF Tools", icon: <FiFileText /> }, 
+        { path: "/tools/pdf", label: "I ❤️ PDF tools", icon:  <FaFilePdf color="red" size={15} /> }, 
+
+       
       ],
     },
     {

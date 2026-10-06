@@ -9,6 +9,15 @@ export default function ImageToPdfTool() {
   const [pageSize, setPageSize] = useState("a4");
   const [margin, setMargin] = useState(24);
 
+  // -- reorder helper (used by the preview thumbnails) ---------------------
+  const move = (from, to) => {
+    if (to < 0 || to >= files.length) return;
+    const next = [...files];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setFiles(next);
+  };
+
   const process = async (items) => {
     const pdf = await PDFDocument.create();
 
@@ -86,6 +95,7 @@ export default function ImageToPdfTool() {
       files={files}
       setFiles={setFiles}
       onProcess={process}
+      onMove={move}
       outputName={outputName}
       processLabel="Create PDF"
       options={

@@ -14,13 +14,11 @@ export default function RotateTool() {
     const pdf = await PDFDocument.load(buf, { ignoreEncryption: true });
     const pages = pdf.getPages();
 
-    // Which pages to rotate
     const targets =
       scope === "first" ? [pages[0]] :
       scope === "last"  ? [pages[pages.length - 1]] :
       pages;
 
-    // Rotate — degrees are additive, so 90° twice = 180° total
     for (const page of targets) {
       if (!page) continue;
       const current = page.getRotation().angle || 0;
@@ -42,21 +40,25 @@ export default function RotateTool() {
       files={files}
       setFiles={setFiles}
       onProcess={process}
+      previewRotate={angle}
       outputName={outputName}
       processLabel="Rotate & Download"
       options={
         <div className="pdf-options">
           <label>
-            Rotate by
-            <select
-              value={angle}
-              onChange={(e) => setAngle(Number(e.target.value))}
-            >
-              <option value={90}>90° clockwise</option>
-              <option value={180}>180° (upside down)</option>
-              <option value={270}>90° counter-clockwise</option>
-            </select>
-          </label>
+  Rotate by
+  <select
+    value={angle}
+    onChange={(e) => setAngle(Number(e.target.value))}
+  >
+    <option value={90}>90° clockwise</option>
+    <option value={180}>180° (upside down)</option>
+    <option value={270}>270° (90° counter-clockwise)</option>
+    <option value={360}>360° (full circle)</option>
+    <option value={450}>450° (90° + full circle)</option>
+    <option value={540}>540° (180° + full circle)</option>
+  </select>
+</label>
 
           <label>
             Apply to

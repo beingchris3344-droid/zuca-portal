@@ -15,8 +15,9 @@ import {
   FiPlay, FiPause, FiMaximize2, FiArrowRight, FiUsers, FiMoreHorizontal, FiCheck, FiUpload, FiDownload, FiShare2, FiCopy, FiTrash, FiEdit2, FiSearch, FiFilter, FiFileText,
   FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle, FiActivity,
 } from "react-icons/fi";
-import { FaHandHoldingHeart, FaWhatsapp } from "react-icons/fa";
+import { FaFilePdf, FaHandHoldingHeart, FaHeart, FaWhatsapp } from "react-icons/fa";
 import { MdWavingHand } from "react-icons/md";
+import { color } from "framer-motion";
 
 const THEMES = {
   emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
@@ -702,7 +703,7 @@ const nextEventText = nextEvent
   const utility = [
     ["Scan QR", QrCode, () => setScanner(true)],
     ["Ask ZUCA", FiMessageSquare, () => window.dispatchEvent(new CustomEvent("openZUCAI"))],
-     ["PDF Tools", FiFileText, () => navigate("/tools/pdf")], 
+     ["PDF Tools", FaFilePdf , () => navigate("/tools/pdf")], 
     ["Feedback", FiAlertCircle, () => navigate("/feedback")],
     ["Settings", FiSettings, () => navigate("/profile-settings")],
     ["Exit", FiLogOut, logout, true],
@@ -824,7 +825,7 @@ const nextEventText = nextEvent
 
         <div className="zd-actions">
          <button onClick={() => navigate("/tools/pdf")} className="zd-act">
-  <FiFileText size={15} /><span>PDF Tools</span>
+  <FaFilePdf color="red" size={15} /><span>i <FaHeart color="red" /> PDF tools</span>
 </button>
           <button onClick={() => setScanner(true)} className="zd-act">
             <QrCode size={15} /><span>Scan QR</span>

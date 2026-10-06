@@ -43,6 +43,7 @@ export default function MergeTool() {
       files={files}
       setFiles={setFiles}
       onProcess={process}
+      onMove={move}
       outputName={outputName}
       processLabel="Merge PDFs"
       options={

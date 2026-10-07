@@ -13,11 +13,50 @@ import {
   FiHome, FiCalendar, FiMessageCircle, FiHeart, FiMusic, FiImage, FiBook, FiGrid,
   FiMessageSquare, FiAlertCircle, FiSettings, FiLogOut, FiPhone, FiClock, FiMapPin,
   FiPlay, FiPause, FiMaximize2, FiArrowRight, FiUsers, FiMoreHorizontal, FiCheck, FiUpload, FiDownload, FiShare2, FiCopy, FiTrash, FiEdit2, FiSearch, FiFilter, FiFileText,
-  FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle, FiActivity,
+  FiDollarSign, FiClipboard, FiTrash2, FiUser, FiXCircle, FiCheckCircle, FiInfo, FiLink, FiExternalLink, FiGlobe, FiChevronDown, FiChevronUp, FiArrowLeft, FiArrowUp, FiArrowDown, FiArrowRightCircle, FiArrowLeftCircle, FiActivity,
 } from "react-icons/fi";
-import { FaFilePdf, FaHandHoldingHeart, FaHeart, FaWhatsapp } from "react-icons/fa";
+import { FaFilePdf, FaHandHoldingHeart, FaHeart, FaGlobe ,FaWhatsapp  } from "react-icons/fa";
 import { MdWavingHand } from "react-icons/md";
 import { color } from "framer-motion";
+
+
+
+const SERVER_TOOL = [
+  {
+    id: "compress",
+    label: "Zetech E-lerning portal",
+    desc: "Open (ZDS) portal",
+    icon: FaGlobe,
+    url: "https://elearning.zetech.ac.ke/my/",
+    ready: true,
+  },
+   {
+    id: "compress",
+    label: "Zetech Students portal",
+    desc: "Open main students portal",
+    icon: FiGlobe,
+    url: "https://student.zetech.ac.ke/index.php",
+    ready: false,
+  },
+
+   {
+    id: "compress",
+    label: "Zetech Tathmini portal",
+    desc: "Lecturers Evaluation portal",
+    icon: FiGlobe,
+    url: "https://tathmini.zetech.ac.ke/",
+    ready: false,
+  },
+
+  {
+    id: "compress",
+    label: "Zetech Website",
+    desc: "Zetech University official website",
+    icon: FiGlobe,
+    url: "https://www.zetech.ac.ke/",
+    ready: false,
+  },
+]
 
 const THEMES = {
   emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
@@ -988,6 +1027,9 @@ const nextEventText = nextEvent
         <div className="zd-grid">
           
           <main className="zd-main">
+
+
+
            
 
             <section>
@@ -1048,6 +1090,32 @@ const nextEventText = nextEvent
                 </>
               )}
             </section>
+
+
+             {/* ========== SERVER TOOLS ========== */}
+                  <section className="pdf-hub-section">
+                    <div className="pdf-hub-section-head">
+                      <h2>ZETECH UNIVERSITY LINKS</h2>
+                      <p>Useful links to open university portals</p>
+                    </div>
+                    <div className="pdf-hub-grid">
+                      {SERVER_TOOL.map(({ id, label, desc, icon: Icon, url }) => (
+                        <a
+                          key={id}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="pdf-hub-card pdf-hub-card-external"
+                        >
+                          <span className="pdf-hub-icon"><Icon size={22} /></span>
+                          <b>{label}</b>
+                          <span className="pdf-hub-desc">{desc}</span>
+                          <FiExternalLink size={13} className="pdf-hub-external-badge" />
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+           
 
             {/* ===== MY ATTENDANCE — after events ===== */}
             {myAttendance?.stats && (
@@ -1201,6 +1269,8 @@ const nextEventText = nextEvent
                 {cd.subtitle && <p>{cd.subtitle}</p>}
               </section>
             )}
+
+               
 
             <Card icon={<FaHandHoldingHeart />} title="My giving" to="/contributions" link="Give">
               <div className="zd-fin">
@@ -2589,6 +2659,74 @@ const nextEventText = nextEvent
     flex:1 1 100% !important;
     justify-content:center !important;
   }
+}
+
+
+ /* Section layout */
+        .pdf-hub-section{
+          margin-bottom:32px;
+        }
+        .pdf-hub-section-head{
+          margin-bottom:12px;
+        }
+        .pdf-hub-section-head h2{
+          font-size:15px;
+          font-weight:800;
+          letter-spacing:-.2px;
+          margin:0 0 2px;
+          color:#0f172a;
+        }
+        .pdf-hub-section-head p{
+          margin:0;
+          font-size:12px;
+          color:#64748b;
+          font-weight:500;
+        }
+
+
+        /* Section layout */
+.pdf-hub-section{
+  margin-bottom:32px;
+}
+
+.pdf-hub-section-head{
+  margin-bottom:12px;
+}
+
+.pdf-hub-section-head h2{
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:-.2px;
+  margin:0 0 2px;
+  color:#0f172a;
+}
+
+.pdf-hub-section-head p{
+  margin:0;
+  font-size:12px;
+  color:#64748b;
+  font-weight:500;
+}
+
+/* Desktop version 2 grid */
+.pdf-hub-grid{
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:16px;
+}
+
+/* Optional: if you're using a card inside the grid */
+.pdf-hub-card{
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:14px 16px;
+  transition:box-shadow .2s ease, transform .2s ease;
+}
+
+.pdf-hub-card:hover{
+  box-shadow:0 4px 14px rgba(15,23,42,.08);
+  transform:translateY(-1px);
 }
 
 

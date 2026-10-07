@@ -5,11 +5,33 @@ import {
   FiFileText, FiExternalLink, FiCpu, FiZap, FiGlobe, FiEdit3, FiTrash2,
   FiCopy, FiTrendingUp, FiCamera,     
 } from "react-icons/fi";
+import { FaGlobe } from "react-icons/fa";
 
+
+
+const SERVER_TOOL = [
+  {
+    id: "compress",
+    label: "Zetech E-lerning portal",
+    desc: "Open (ZDS) portal",
+    icon: FaGlobe,
+    url: "https://elearning.zetech.ac.ke/my/",
+    ready: true,
+  },
+   {
+    id: "compress",
+    label: "Zetech Students portal",
+    desc: "Open main students portal",
+    icon: FiGlobe,
+    url: "https://student.zetech.ac.ke/index.php",
+    ready: false,
+  },
+]
 // ================================================================
 // BROWSER TOOLS — the ones you built. Untouched.
 // ================================================================
 const TOOLS = [
+  
   {
     id: "image-to-pdf",
     label: "Image to PDF",
@@ -65,6 +87,7 @@ const TOOLS = [
 // SERVER TOOLS — open iLovePDF in a new tab
 // ================================================================
 const SERVER_TOOLS = [
+  
   {
     id: "compress",
     label: "Compress PDF",
@@ -268,6 +291,31 @@ export default function PdfToolHub() {
         </p>
       </header>
 
+
+       {/* ========== SERVER TOOLS ========== */}
+      <section className="pdf-hub-section">
+        <div className="pdf-hub-section-head">
+          <h2>ZETECH LINKS</h2>
+          <p>Useful links to open school portals</p>
+        </div>
+        <div className="pdf-hub-grid">
+          {SERVER_TOOL.map(({ id, label, desc, icon: Icon, url }) => (
+            <a
+              key={id}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pdf-hub-card pdf-hub-card-external"
+            >
+              <span className="pdf-hub-icon"><Icon size={22} /></span>
+              <b>{label}</b>
+              <span className="pdf-hub-desc">{desc}</span>
+              <FiExternalLink size={13} className="pdf-hub-external-badge" />
+            </a>
+          ))}
+        </div>
+      </section>
+
       {/* ========== BROWSER TOOLS ========== */}
       <section className="pdf-hub-section">
         <div className="pdf-hub-section-head">
@@ -289,6 +337,8 @@ export default function PdfToolHub() {
           ))}
         </div>
       </section>
+
+      
 
       {/* ========== SERVER TOOLS ========== */}
       <section className="pdf-hub-section">
@@ -313,6 +363,9 @@ export default function PdfToolHub() {
           ))}
         </div>
       </section>
+
+
+      
 
       {/* ========== AI TOOLS ========== */}
       <section className="pdf-hub-section">

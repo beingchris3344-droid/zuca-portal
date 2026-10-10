@@ -1,5 +1,5 @@
 // frontend/src/components/Layout.jsx
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/zuca-logo.png";
@@ -11,7 +11,8 @@ import AnimatedBackground from "./AnimatedBackground";
 import {
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell,
   FiDollarSign, FiMusic, FiMessageSquare, FiUserCheck,
-  FiAward, FiYoutube, FiMapPin, FiLogOut,FiFileText, FiChevronDown,
+  FiAward, FiYoutube, FiMapPin, FiLogOut, FiFileText, FiChevronDown,
+  FiMenu, FiX,
 } from "react-icons/fi";
 import {
   FaYoutube, FaChurch, FaMoneyBillWave, FaMusic, FaComments,
@@ -28,7 +29,7 @@ import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
 import { toggleDark } from "../utils/darkReader";
 
 
-// Messenger Icon with Badge Component
+// Messenger Icon with Badge Component (kept)
 const MessengerIcon = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -74,7 +75,46 @@ const MessengerIcon = () => {
 };
 
 
+/* ============================================================
+   PAGE META — title shown in the header
+============================================================ */
+const PAGE_META = {
+  "/dashboard":               { title: "Home" },
+  "/announcements":           { title: "Announcements" },
+  "/schedules":               { title: "Semester Schedule" },
+  "/mass-programs":           { title: "Mass Programs" },
+  "/liturgical-calendar":     { title: "Liturgical Calendar" },
+  "/member/attendance":       { title: "My Attendance" },
+  "/join-jumuia":             { title: "Join a Jumuia" },
+  "/jumuia-contributions":    { title: "My Jumuia" },
+  "/executive":               { title: "Executive Team" },
+  "/executive/minutes":       { title: "Meeting Minutes" },
+  "/hymns":                   { title: "Lyrics Book" },
+  "/prayer":                  { title: "Prayer Book" },
+  "/youtube":                 { title: "ZUCA / TUBE" },
+  "/tools/pdf":               { title: "PDF Tools" },
+  "/gallery":                 { title: "Gallery" },
+  "/messenger":               { title: "Messages" },
+  "/chat":                    { title: "Chat" },
+  "/games":                   { title: "Games Arcade" },
+  "/contributions":           { title: "Contributions" },
+  "/profile":                 { title: "Birthday Settings" },
+  "/profile-settings":        { title: "Profile Settings" },
+};
+
+function metaForPath(pathname) {
+  if (!pathname) return { title: "Dashboard" };
+  if (PAGE_META[pathname]) return PAGE_META[pathname];
+  const match = Object.keys(PAGE_META)
+    .filter((k) => pathname.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0];
+  return match ? PAGE_META[match] : { title: "Home" };
+}
+
+
 function Layout() {
+  const location = useLocation();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [sidebarShadow, setSidebarShadow] = useState(false);
@@ -88,11 +128,10 @@ function Layout() {
   const [isExecutive, setIsExecutive] = useState(false);
   const [loadingExecutive, setLoadingExecutive] = useState(true);
 
-  // Fetch user details including jumuia name
+  // Fetch user details
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-
     const fetchUserDetails = async () => {
       try {
         const response = await axios.get(`${BASE_URL}/api/me`, {
@@ -107,7 +146,6 @@ function Layout() {
         setIsJumuiaLoading(false);
       }
     };
-
     fetchUserDetails();
   }, []);
 
@@ -116,15 +154,11 @@ function Layout() {
     if (storedUser) setUser(storedUser);
   }, []);
 
-  // Check if user has executive position
+  // Executive check
   useEffect(() => {
     const checkExecutiveStatus = async () => {
       const token = localStorage.getItem("token");
-      if (!token) {
-        setLoadingExecutive(false);
-        return;
-      }
-
+      if (!token) { setLoadingExecutive(false); return; }
       try {
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
         const response = await axios.get(
@@ -139,7 +173,6 @@ function Layout() {
         setLoadingExecutive(false);
       }
     };
-
     checkExecutiveStatus();
   }, []);
 
@@ -150,10 +183,8 @@ function Layout() {
       if (mobile) setMenuOpen(false);
       else setMenuOpen(true);
     };
-
     window.addEventListener("resize", handleResize);
     handleResize();
-
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
@@ -193,6 +224,11 @@ function Layout() {
     return () => container?.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    if (isMobile) setMenuOpen(false);
+  }, [location.pathname, isMobile]);
+
   if (!user) return null;
 
   const profileImageUrl = user.profileImage
@@ -207,7 +243,10 @@ function Layout() {
     window.location.href = "/login";
   };
 
-  // ==================== SECTIONED NAVIGATION ====================
+  const currentMeta = metaForPath(location.pathname);
+  const firstName = user.fullName?.split(" ")[0] || "Member";
+
+  // Nav sections
   const navSections = [
     {
       label: "Main",
@@ -231,13 +270,7 @@ function Layout() {
         },
         { path: "/executive", label: "Executive Team", icon: <FaUserTie /> },
         ...(isExecutive || user?.role === "admin" || user?.specialRole === "admin"
-          ? [
-              {
-                path: "/executive/minutes",
-                label: "Meeting Minutes",
-                icon: <FaRegFilePdf />,
-              },
-            ]
+          ? [{ path: "/executive/minutes", label: "Meeting Minutes", icon: <FaRegFilePdf /> }]
           : []),
       ],
     },
@@ -247,9 +280,7 @@ function Layout() {
         { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
         { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
         { path: "/youtube", label: "ZUCA / TUBE", icon: <FaYoutube /> },
-        { path: "/tools/pdf", label: "I ❤️ PDF tools", icon:  <FaFilePdf color="red" size={15} /> }, 
-
-       
+        { path: "/tools/pdf", label: "I ❤️ PDF tools", icon: <FaFilePdf color="red" size={15} /> },
       ],
     },
     {
@@ -287,6 +318,7 @@ function Layout() {
         )}
       </AnimatePresence>
 
+      {/* ================= SIDEBAR — UNCHANGED ================= */}
       <motion.aside
         ref={sidebarRef}
         className="sidebar"
@@ -295,7 +327,6 @@ function Layout() {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         style={sidebarStyle}
       >
-        {/* ---------- BRAND ---------- */}
         <div style={logoSection}>
           <img src={logo} alt="ZUCA Logo" style={logoStyle} />
           <div style={logoText}>
@@ -304,7 +335,6 @@ function Layout() {
           </div>
         </div>
 
-        {/* ---------- USER BADGE ---------- */}
         <div style={userBadgeStyle}>
           {profileImageUrl ? (
             <img src={profileImageUrl} alt={user.fullName} style={userBadgeAvatar} />
@@ -319,7 +349,6 @@ function Layout() {
           </div>
         </div>
 
-        {/* ---------- ROLE SWITCHER ---------- */}
         {(user?.specialRole || user?.role === "admin") && (
           <>
             {user?.role === "admin" && user?.specialRole ? (
@@ -328,31 +357,22 @@ function Layout() {
                   onChange={async (e) => {
                     const targetRole = e.target.value;
                     if (!targetRole) return;
-
                     const selectEl = e.target;
                     const wrapperEl = selectEl.parentElement;
-
                     const loadingDiv = document.createElement("div");
                     loadingDiv.innerHTML = `
                       <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
                       Switching...
                     `;
                     loadingDiv.style.cssText = `
-                      position: absolute;
-                      inset: 0;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      background: #05e448e3;
-                      color: white;
-                      font-size: 13px;
-                      font-weight: 600;
-                      borderRadius: 8px;
-                      zIndex: 10;
+                      position: absolute; inset: 0;
+                      display: flex; align-items: center; justify-content: center;
+                      background: #05e448e3; color: white;
+                      font-size: 13px; font-weight: 600;
+                      borderRadius: 8px; zIndex: 10;
                     `;
                     wrapperEl.appendChild(loadingDiv);
                     selectEl.style.visibility = "hidden";
-
                     try {
                       const token = localStorage.getItem("token");
                       const res = await axios.post(
@@ -360,7 +380,6 @@ function Layout() {
                         { targetRole },
                         { headers: { Authorization: `Bearer ${token}` } }
                       );
-
                       localStorage.setItem("token", res.data.token);
                       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
                       storedUser.role = res.data.role;
@@ -410,14 +429,12 @@ function Layout() {
                 onClick={async (e) => {
                   const btn = e.currentTarget;
                   const originalHTML = btn.innerHTML;
-
                   btn.innerHTML = `
                     <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
                     Switching...
                   `;
                   btn.style.opacity = "0.7";
                   btn.style.pointerEvents = "none";
-
                   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
                   const isOnRolePage =
                     window.location.pathname.includes("/admin") ||
@@ -427,7 +444,6 @@ function Layout() {
                     window.location.pathname.includes("/leader") ||
                     window.location.pathname.includes("/media-moderator");
                   const targetRole = isOnRolePage ? "member" : user.specialRole || user.role;
-
                   try {
                     const token = localStorage.getItem("token");
                     const res = await axios.post(
@@ -435,7 +451,6 @@ function Layout() {
                       { targetRole },
                       { headers: { Authorization: `Bearer ${token}` } }
                     );
-
                     localStorage.setItem("token", res.data.token);
                     storedUser.role = res.data.role;
                     storedUser.jumuiaCode = res.data.jumuiaCode || storedUser.homeJumuia?.code;
@@ -477,7 +492,6 @@ function Layout() {
           </>
         )}
 
-        {/* ---------- SECTIONED NAVIGATION ---------- */}
         <div ref={scrollContainerRef} style={navContainer(sidebarShadow)}>
           <nav style={navStyle}>
             {navSections.map((section) => (
@@ -499,7 +513,6 @@ function Layout() {
           </nav>
         </div>
 
-        {/* ---------- FOOTER / SIGN OUT ---------- */}
         <div style={sidebarFooterStyle}>
           <div style={sidebarFooterDivider} />
           <motion.button
@@ -514,268 +527,396 @@ function Layout() {
         </div>
       </motion.aside>
 
-      <main style={mainContentStyle(isMobile, menuOpen)}>
-        <motion.header
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          style={headerStyle}
-        >
-          <div style={headerLeftStyle}>
-            <motion.button
+      {/* ================= MAIN ================= */}
+      <main style={mainContentStyle(isMobile)}>
+        {/* ============================================================
+            HEADER — admin-bar vibe, green avatar ring, dropdown caret,
+            no breadcrumb. Works from 320px up.
+        ============================================================ */}
+        <header className="admin-header">
+          <div className="admin-header-left">
+            <button
               onClick={() => setMenuOpen(!menuOpen)}
-              style={hamburgerStyle}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               className="mobile-hamburger"
+              aria-label="Toggle menu"
             >
-              <span style={hamburgerIconStyle}>{menuOpen ? "✕" : "☰"}</span>
-            </motion.button>
+              {menuOpen ? <FiX size={18} /> : <FiMenu size={18} />}
+            </button>
 
-            <div style={titleBlockStyle}>
-              <span style={pageTitleStyle}>Home</span>
-              <span style={pageSubtitleStyle}>
-                <span style={liveDotStyle} />
-                Welcome back, {user.fullName.split(" ")[0]}
-              </span>
-            </div>
+            <span className="admin-header-eyebrow">Member</span>
+            <span className="admin-header-title">{currentMeta.title}</span>
           </div>
 
-          <div style={headerRightStyle}>
-            <motion.button
+          <div className="admin-header-right">
+            <span className="admin-header-online">
+              <span className="admin-online-dot" />
+              <span className="admin-online-text">Online</span>
+            </span>
+
+            <button
+              className="admin-header-btn"
               onClick={toggleDark}
-              style={iconButtonStyle}
-              whileHover={{ scale: 1.06, backgroundColor: "#fef3c7" }}
-              whileTap={{ scale: 0.94 }}
               aria-label="Toggle dark mode"
             >
-              <FaSun style={{ fontSize: "17px", color: "#f8a006" }} />
-            </motion.button>
+              <FaSun size={12} />
+              <span className="admin-btn-label">Theme</span>
+            </button>
 
-            <div style={enhancedNotificationWrapperStyle}>
+            <div className="admin-header-notif">
               <Notifications userId={user.id} />
             </div>
 
-            <div ref={userMenuRef} style={userMenuContainerStyle}>
-              <motion.div
-                style={userMenuTriggerStyle}
+            <div className="notification-container" ref={userMenuRef}>
+              <button
+                type="button"
+                className="admin-user-trigger"
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                whileHover={{ backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }}
-                whileTap={{ scale: 0.98 }}
+                aria-label="User menu"
+                aria-expanded={showUserMenu}
               >
-                <div style={avatarRingStyle}>
+                <div className="admin-header-avatar">
                   {profileImageUrl ? (
-                    <img
-                      src={profileImageUrl}
-                      alt={user.fullName.split(" ")[0]}
-                      style={headerAvatarStyle}
-                    />
+                    <img src={profileImageUrl} alt={firstName} />
                   ) : (
-                    <div style={headerAvatarFallbackStyle}>
-                      {user.fullName.charAt(0).toUpperCase()}
-                    </div>
+                    <span className="admin-avatar-fallback">
+                      {firstName[0].toUpperCase()}
+                    </span>
                   )}
-                  <span style={onlineDotStyle} />
                 </div>
-                <span style={userNameStyle}>
-                  {user.fullName.split(" ").slice(1).join(" ") || user.fullName}
-                </span>
                 <FiChevronDown
-                  style={{
-                    ...dropdownArrowStyle,
-                    transform: showUserMenu ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s ease",
-                  }}
+                  size={14}
+                  className="admin-user-caret"
+                  style={{ transform: showUserMenu ? "rotate(180deg)" : "rotate(0deg)" }}
                 />
-              </motion.div>
+              </button>
 
               <AnimatePresence>
                 {showUserMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                    style={userDropdownStyle}
+                    className="notification-dropdown"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.12 }}
                   >
-                    <div style={userDropdownHeader}>
+                    <div className="admin-dropdown-head">
                       <strong>{user.fullName}</strong>
-                      <span style={userDropdownEmail}>{user.email}</span>
+                      <span>{user.email}</span>
                     </div>
-                    <div style={userDropdownDivider} />
+                    <div className="admin-dropdown-divider" />
 
-                    {/* 1. Birthday Settings */}
-                    <motion.button
+                    <button
+                      className="admin-dropdown-item"
                       onClick={() => {
                         setShowUserMenu(false);
                         window.location.href = "/profile";
                       }}
-                      style={userDropdownItem}
-                      whileHover={{ backgroundColor: "#f0fdf4" }}
                     >
-                      <FaBirthdayCake style={dropdownItemIcon} />
-                      Birthday Settings
-                    </motion.button>
+                      <FaBirthdayCake size={13} />
+                      <span>Birthday Settings</span>
+                    </button>
 
-                    {/* 2. Profile Settings (new full page) */}
-                    <motion.button
+                    <button
+                      className="admin-dropdown-item"
                       onClick={() => {
                         setShowUserMenu(false);
                         window.location.href = "/profile-settings";
                       }}
-                      style={userDropdownItem}
-                      whileHover={{ backgroundColor: "#f0fdf4" }}
                     >
-                      <FaUser style={dropdownItemIcon} />
-                      Profile Settings
-                    </motion.button>
+                      <FaUser size={13} />
+                      <span>Profile Settings</span>
+                    </button>
 
-                    {/* 3. Sign Out */}
-                    <motion.button
+                    <div className="admin-dropdown-divider" />
+
+                    <button
+                      className="admin-dropdown-item danger"
                       onClick={handleLogout}
-                      style={{ ...userDropdownItem, color: "#dc2626" }}
-                      whileHover={{ backgroundColor: "#fef2f2" }}
                     >
-                      <FiLogOut style={dropdownItemIcon} />
-                      Sign Out
-                    </motion.button>
+                      <FiLogOut size={13} />
+                      <span>Sign Out</span>
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           </div>
-        </motion.header>
+        </header>
 
         <Outlet />
       </main>
 
       {/* <FloatingInstallButton /> */}
 
-      <style>
-        {`
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
+      <style>{`
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body, #root {
+          height: 100%; width: 100%;
+          margin: 0 !important; padding: 0 !important;
+          overflow: hidden;
+        }
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #f8fafc;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+        main { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+        main::-webkit-scrollbar { width: 6px; height: 6px; }
+        main::-webkit-scrollbar-track { background: transparent; }
+        main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-          html, body, #root {
-            height: 100%;
-            width: 100%;
-            margin: 0 !important;
-            padding: 0 !important;
+        /* SIDEBAR — unchanged */
+        .sidebar div::-webkit-scrollbar { width: 6px; }
+        .sidebar div::-webkit-scrollbar-track { background: transparent; }
+        .sidebar div::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .sidebar div::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .sidebar nav a { transition: background 0.15s ease, color 0.15s ease; }
+        .sidebar nav a:hover { background: #f1f5f9; }
+        .sidebar nav a[aria-current="page"]::before {
+          content: ""; position: absolute;
+          left: -12px; top: 8px; bottom: 8px;
+          width: 3px; border-radius: 0 3px 3px 0;
+          background: #4e46e504;
+        }
+
+        /* ============================================================
+           HEADER — admin-bar vibe + green avatar ring + caret
+        ============================================================ */
+        .admin-header{
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          height: 52px;
+          padding: 0 16px;
+          background: #ffffff;
+          border-bottom: 1px solid #e5e5e5;
+          flex-shrink: 0;
+          position: sticky;
+          top: 0;
+          z-index: 30;
+        }
+        .admin-header-left{
+          display: flex; align-items: center; gap: 10px;
+          min-width: 0; flex: 1 1 auto;
+        }
+        .admin-header-eyebrow{
+          font-size: 10.5px; font-weight: 700;
+          letter-spacing: .08em; text-transform: uppercase;
+          color: #a3a3a3; padding-right: 10px;
+          border-right: 1px solid #e5e5e5;
+          flex-shrink: 0; line-height: 1;
+        }
+        .admin-header-title{
+          font-size: 14px; font-weight: 600;
+          color: #0f0f0f; letter-spacing: -.01em;
+          white-space: nowrap; overflow: hidden;
+          text-overflow: ellipsis; min-width: 0;
+        }
+
+        .admin-header-right{
+          display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+        }
+
+        .admin-header-btn{
+          display: inline-flex; align-items: center; gap: 6px;
+          height: 32px; padding: 0 10px;
+          background: transparent;
+          border: 1px solid #e5e5e5;
+          border-radius: 6px;
+          color: #404040; font-size: 12px; font-weight: 500;
+          cursor: pointer;
+          transition: background .12s ease, border-color .12s ease;
+          white-space: nowrap;
+        }
+        .admin-header-btn:hover{ background: #f5f5f5; border-color: #d4d4d4; }
+        .admin-header-btn svg{ color: #737373; }
+
+        .admin-header-online{
+          display: inline-flex; align-items: center; gap: 6px;
+          height: 32px; padding: 0 10px;
+          font-size: 12px; color: #737373; font-weight: 500;
+          white-space: nowrap;
+        }
+        .admin-online-dot{
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #16a34a; flex-shrink: 0;
+        }
+
+        .admin-header-notif{
+          display: flex; align-items: center; justify-content: center;
+          height: 32px;
+        }
+
+        /* USER TRIGGER — avatar with green ring + caret */
+        .admin-user-trigger{
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          height: 32px;
+          padding: 0 4px;
+          background: transparent;
+          border: 0;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background .12s ease;
+        }
+        .admin-user-trigger:hover{ background: #f5f5f5; }
+
+        .admin-header-avatar{
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          overflow: hidden;
+          background: #fafafa;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          /* green ring, matches member avatar style */
+          box-shadow: 0 0 0 2px #22c55e;
+          border: 2px solid #ffffff;
+        }
+        .admin-header-avatar img{
+          width: 100%; height: 100%;
+          object-fit: cover; display: block;
+        }
+        .admin-avatar-fallback{
+          font-size: 11px; font-weight: 700;
+          color: #525252;
+        }
+
+        .admin-user-caret{
+          color: #737373;
+          transition: transform .18s ease;
+          flex-shrink: 0;
+        }
+
+        /* DROPDOWN */
+        .notification-container{ position: relative; }
+        .notification-dropdown{
+          position: absolute;
+          top: 42px;
+          right: 0;
+          width: 240px;
+          max-width: calc(100vw - 24px);
+          background: #fff;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          box-shadow: 0 4px 16px -4px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.04);
+          overflow: hidden;
+          z-index: 9999;
+        }
+        .admin-dropdown-head{ padding: 10px 12px 8px; }
+        .admin-dropdown-head strong{
+          display: block; font-size: 13px; font-weight: 600;
+          color: #0f0f0f;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .admin-dropdown-head span{
+          display: block; font-size: 12px; color: #a3a3a3;
+          margin-top: 1px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .admin-dropdown-divider{
+          height: 1px; background: #f0f0f0; margin: 2px 0;
+        }
+        .admin-dropdown-item{
+          width: 100%; display: flex; align-items: center; gap: 8px;
+          padding: 8px 12px;
+          background: transparent; border: 0;
+          color: #404040; font-size: 13px; font-weight: 500;
+          text-align: left; cursor: pointer;
+          transition: background .1s ease;
+        }
+        .admin-dropdown-item svg{ color: #737373; flex-shrink: 0; }
+        .admin-dropdown-item:hover{ background: #f5f5f5; }
+        .admin-dropdown-item.danger{ color: #dc2626; }
+        .admin-dropdown-item.danger svg{ color: #dc2626; }
+        .admin-dropdown-item.danger:hover{ background: #fef2f2; }
+
+        /* HAMBURGER */
+        .mobile-hamburger{
+          width: 32px; height: 32px;
+          display: none;
+          align-items: center; justify-content: center;
+          background: transparent;
+          border: 1px solid #e5e5e5;
+          border-radius: 6px;
+          color: #666; cursor: pointer;
+          transition: background .12s ease, color .12s ease;
+          flex-shrink: 0;
+        }
+        .mobile-hamburger:hover{ background: #f5f5f5; color: #0f0f0f; }
+        @media (max-width: 900px){ .mobile-hamburger{ display: inline-flex; } }
+
+        /* RESPONSIVE — works from 320px up */
+        @media (max-width: 900px){
+          .admin-header{ padding: 0 12px; gap: 10px; }
+          .admin-online-text{ display: none; }
+          .admin-btn-label{ display: none; }
+          .admin-header-btn{ padding: 0 8px; }
+        }
+        @media (max-width: 720px){
+          .admin-header-online{ display: none; }
+        }
+        @media (max-width: 640px){
+          .admin-header{ padding: 0 10px; gap: 8px; }
+          .admin-header-eyebrow{ display: none; }
+          .admin-header-title{ font-size: 13.5px; }
+          .admin-header-right{ gap: 4px; }
+        }
+        @media (max-width: 480px){
+          .admin-header{ height: 48px; padding: 0 8px; gap: 6px; }
+          .admin-header-title{ font-size: 13px; }
+          .admin-header-btn{ height: 30px; padding: 0 6px; font-size: 11.5px; }
+          .admin-header-avatar{ width: 26px; height: 26px; }
+          .admin-user-trigger{ height: 30px; }
+          .mobile-hamburger{ width: 30px; height: 30px; }
+        }
+        @media (max-width: 360px){
+          .admin-header-title{
+            max-width: 90px;
             overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
+          .admin-header-btn{ display: none; }
+        }
 
-          body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f8fafc;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-          }
-
-          main {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 transparent;
-          }
-
-          main::-webkit-scrollbar { width: 6px; height: 6px; }
-          main::-webkit-scrollbar-track { background: transparent; }
-          main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-          main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-          /* Sidebar scrollbar — subtle */
-          .sidebar div::-webkit-scrollbar { width: 6px; }
-          .sidebar div::-webkit-scrollbar-track { background: transparent; }
-          .sidebar div::-webkit-scrollbar-thumb {
-            background: #e2e8f0;
-            border-radius: 10px;
-          }
-          .sidebar div::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-
-          @media (max-width: 900px) {
-            .mobile-hamburger { display: flex !important; }
-          }
-
-          .sidebar { z-index: 50 !important; }
-          .mobile-backdrop { z-index: 40 !important; }
-          header { z-index: 10 !important; }
-
-          .notifications-dropdown,
-          [class*="Notifications"] [style*="position: fixed"],
-          [class*="Notifications"] [style*="position: absolute"] {
-            z-index: 9999999 !important;
-          }
-
-          .messenger-badge {
-            position: absolute;
-            top: -8px;
-            right: -12px;
-            background: #25D366;
-            color: white;
-            font-size: 10px;
-            font-weight: 600;
-            min-width: 18px;
-            height: 18px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-          }
-
-          select option {
-            background: #ffffff;
-            color: #0f172a;
-            padding: 10px;
-          }
-
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-
-          @keyframes pulseDot {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-            50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
-          }
-
-          /* Nav link hover & active states */
-          .sidebar nav a {
-            transition: background 0.15s ease, color 0.15s ease;
-          }
-
-          .sidebar nav a:hover {
-            background: #f1f5f9;
-          }
-
-          .sidebar nav a[aria-current="page"]::before {
-            content: "";
-            position: absolute;
-            left: -12px;
-            top: 8px;
-            bottom: 8px;
-            width: 3px;
-            border-radius: 0 3px 3px 0;
-            background: #4e46e504;
-          }
-
-          @media (max-width: 600px) {
-            .header-right-wrapper { gap: 2px !important; }
-            .notification-wrapper { padding: 2px !important; }
-            .user-menu-trigger { padding: 2px 6px !important; }
-            .user-name-display { display: none !important; }
-          }
-        `}
-      </style>
+        /* MISC */
+        .notifications-dropdown,
+        [class*="Notifications"] [style*="position: fixed"],
+        [class*="Notifications"] [style*="position: absolute"]{
+          z-index: 9999999 !important;
+        }
+        .messenger-badge{
+          position: absolute; top: -8px; right: -12px;
+          background: #25D366; color: #fff;
+          font-size: 10px; font-weight: 600;
+          min-width: 18px; height: 18px; border-radius: 20px;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0 5px; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+        }
+        select option{ background: #fff; color: #0f172a; padding: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulseDot{
+          0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.6); }
+          50%     { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          *{ animation: none !important; transition: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
 
+
 /* ============================================================
-   STYLES
-   ============================================================ */
+   JS STYLE OBJECTS — sidebar + layout only
+============================================================ */
 
 const containerStyle = {
   height: "100vh",
@@ -796,11 +937,9 @@ const backdropStyle = {
   zIndex: 40,
 };
 
-/* ---------- SIDEBAR SHELL ---------- */
 const sidebarStyle = {
   position: "fixed",
-  left: 0,
-  top: 0,
+  left: 0, top: 0,
   height: "100vh",
   width: "256px",
   background: "#ffffff",
@@ -812,487 +951,122 @@ const sidebarStyle = {
   overflowY: "hidden",
 };
 
-/* ---------- BRAND ---------- */
 const logoSection = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  padding: "8px 8px 16px",
-  marginBottom: "8px",
+  display: "flex", alignItems: "center", gap: "12px",
+  padding: "8px 8px 16px", marginBottom: "8px",
   borderBottom: "1px solid #f1f5f9",
 };
-
-const logoStyle = {
-  width: "40px",
-  height: "auto",
-  borderRadius: "8px",
-};
-
+const logoStyle = { width: "40px", height: "auto", borderRadius: "8px" };
 const logoText = { flex: 1, minWidth: 0 };
-
 const logoTitle = {
-  color: "#0f172a",
-  fontSize: "12px",
-  fontWeight: "700",
-  margin: 0,
-  lineHeight: "1.3",
-  letterSpacing: "0.4px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  color: "#0f172a", fontSize: "12px", fontWeight: "700",
+  margin: 0, lineHeight: "1.3", letterSpacing: "0.4px",
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
-
 const logoSubtitle = {
-  color: "#94a3b8",
-  fontSize: "11px",
-  margin: "2px 0 0",
-  fontWeight: "500",
+  color: "#94a3b8", fontSize: "11px",
+  margin: "2px 0 0", fontWeight: "500",
 };
 
-/* ---------- USER BADGE ---------- */
 const userBadgeStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  padding: "8px",
-  borderRadius: "8px",
-  marginTop: "16px",
-  marginBottom: "16px",
+  display: "flex", alignItems: "center", gap: "10px",
+  padding: "8px", borderRadius: "8px",
+  marginTop: "16px", marginBottom: "16px",
 };
-
 const userBadgeAvatar = {
-  width: "36px",
-  height: "36px",
-  borderRadius: "36px",
-  objectFit: "cover",
-  flexShrink: 0,
+  width: "36px", height: "36px", borderRadius: "36px",
+  objectFit: "cover", flexShrink: 0,
 };
-
 const userBadgeFallback = {
-  width: "36px",
-  height: "36px",
-  borderRadius: "36px",
+  width: "36px", height: "36px", borderRadius: "36px",
   background: "linear-gradient(135deg, #4af705, #46e553)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "15px",
-  fontWeight: "600",
-  color: "#fff",
-  flexShrink: 0,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: "15px", fontWeight: "600", color: "#fff", flexShrink: 0,
 };
-
 const userBadgeInfo = { flex: 1, minWidth: 0 };
-
 const userBadgeName = {
-  display: "block",
-  color: "#0f172a",
-  fontSize: "13px",
-  fontWeight: "600",
+  display: "block", color: "#0f172a", fontSize: "13px", fontWeight: "600",
   marginBottom: "1px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
-
 const userBadgeRole = {
-  display: "block",
-  color: "#94a3b8",
-  fontSize: "10px",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  fontWeight: "600",
+  display: "block", color: "#94a3b8", fontSize: "10px",
+  textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600",
 };
 
-/* ---------- ROLE SWITCHER ---------- */
 const roleSwitchSelectStyle = {
-  width: "100%",
-  padding: "8px 12px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  fontSize: "12px",
-  fontWeight: "600",
-  color: "#0f172a",
-  cursor: "pointer",
-  outline: "none",
-  marginBottom: "16px",
-  transition: "all 0.15s ease",
+  width: "100%", padding: "8px 12px",
+  borderRadius: "8px", border: "1px solid #e2e8f0",
+  background: "#ffffff", fontSize: "12px", fontWeight: "600",
+  color: "#0f172a", cursor: "pointer", outline: "none",
+  marginBottom: "16px", transition: "all 0.15s ease",
 };
 
 const roleSwitchButtonStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "6px",
-  padding: "9px 12px",
-  background: "#46e569e1",
-  color: "#080808",
-  border: "none",
-  borderRadius: "8px",
-  fontSize: "12px",
-  fontWeight: "600",
-  cursor: "pointer",
-  width: "100%",
-  marginBottom: "16px",
-  transition: "background 0.15s ease",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  gap: "6px", padding: "9px 12px",
+  background: "#46e569e1", color: "#080808",
+  border: "none", borderRadius: "8px",
+  fontSize: "12px", fontWeight: "600",
+  cursor: "pointer", width: "100%",
+  marginBottom: "16px", transition: "background 0.15s ease",
 };
 
-/* ---------- NAV CONTAINER ---------- */
 const navContainer = (shadow) => ({
-  flex: 1,
-  overflowY: "auto",
-  paddingRight: "2px",
+  flex: 1, overflowY: "auto", paddingRight: "2px",
   transition: "box-shadow 0.3s",
   boxShadow: shadow ? "inset 0 8px 10px -8px rgba(0,0,0,0.05)" : "none",
 });
-
 const navStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "2px",
-  paddingBottom: "8px",
+  display: "flex", flexDirection: "column", gap: "2px", paddingBottom: "8px",
 };
-
 const navSectionStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "1px",
-  marginBottom: "14px",
+  display: "flex", flexDirection: "column", gap: "1px", marginBottom: "14px",
 };
-
 const navSectionLabelStyle = {
-  fontSize: "10px",
-  fontWeight: "700",
-  color: "#94a3b8",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  padding: "6px 12px",
-  userSelect: "none",
+  fontSize: "10px", fontWeight: "700", color: "#94a3b8",
+  textTransform: "uppercase", letterSpacing: "0.08em",
+  padding: "6px 12px", userSelect: "none",
 };
-
 const navRowStyle = (isActive) => ({
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  padding: "9px 12px",
-  borderRadius: "8px",
-  fontSize: "13.5px",
-  fontWeight: isActive ? "600" : "500",
+  display: "flex", alignItems: "center", gap: "12px",
+  padding: "9px 12px", borderRadius: "8px",
+  fontSize: "13.5px", fontWeight: isActive ? "600" : "500",
   color: isActive ? "#0f0f0fee" : "#475569",
   background: isActive ? "#eef2ff" : "transparent",
-  textDecoration: "none",
-  position: "relative",
-  cursor: "pointer",
+  textDecoration: "none", position: "relative", cursor: "pointer",
 });
-
 const navRowIconStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "18px",
-  height: "18px",
-  fontSize: "17px",
-  color: "inherit",
-  flexShrink: 0,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: "18px", height: "18px", fontSize: "17px",
+  color: "inherit", flexShrink: 0,
 };
-
 const navRowLabelStyle = {
-  flex: 1,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  flex: 1, whiteSpace: "nowrap",
+  overflow: "hidden", textOverflow: "ellipsis",
 };
 
-/* ---------- SIDEBAR FOOTER ---------- */
-const sidebarFooterStyle = {
-  marginTop: "auto",
-  paddingTop: "8px",
-};
-
+const sidebarFooterStyle = { marginTop: "auto", paddingTop: "8px" };
 const sidebarFooterDivider = {
-  height: "1px",
-  background: "#f1f5f9",
-  margin: "8px 0 12px",
+  height: "1px", background: "#f1f5f9", margin: "8px 0 12px",
 };
-
 const sidebarLogoutButton = {
-  width: "100%",
-  padding: "9px 12px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  background: "#ffffff",
-  color: "#475569",
-  fontSize: "13px",
-  fontWeight: "600",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  cursor: "pointer",
-  transition: "all 0.15s ease",
+  width: "100%", padding: "9px 12px",
+  borderRadius: "8px", border: "1px solid #e2e8f0",
+  background: "#ffffff", color: "#475569",
+  fontSize: "13px", fontWeight: "600",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  gap: "8px", cursor: "pointer", transition: "all 0.15s ease",
 };
+const logoutIconStyle = { fontSize: "16px" };
 
-const logoutIconStyle = {
-  fontSize: "16px",
-};
-
-/* ---------- MAIN CONTENT ---------- */
-const mainContentStyle = (isMobile, menuOpen) => ({
+const mainContentStyle = (isMobile) => ({
   marginLeft: isMobile ? 0 : "256px",
-  padding: 0,
-  position: "relative",
-  zIndex: 1,
-  height: "100vh",
-  overflowY: "auto",
-  overflowX: "hidden",
+  padding: 0, position: "relative", zIndex: 1,
+  height: "100vh", overflowY: "auto", overflowX: "hidden",
   transition: "margin-left 0.3s ease",
   width: isMobile ? "100%" : `calc(100% - 256px)`,
   background: "#f8fafc",
 });
-
-/* ---------- HEADER ---------- */
-const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  background: "rgba(255, 255, 255, 0.85)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  padding: "12px 22px",
-  borderBottom: "1px solid #e2e8f0",
-  position: "sticky",
-  top: 0,
-  zIndex: 30,
-  flexShrink: 0,
-  boxShadow:
-    "0 1px 0 rgba(255,255,255,0.7) inset, 0 6px 24px -14px rgba(15, 23, 42, 0.12)",
-};
-
-const headerLeftStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "16px",
-  minWidth: 0,
-};
-
-const hamburgerStyle = {
-  display: "none",
-  background: "transparent",
-  border: "1px solid #e2e8f0",
-  borderRadius: "8px",
-  width: "36px",
-  height: "36px",
-  cursor: "pointer",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const hamburgerIconStyle = {
-  color: "#475569",
-  fontSize: "18px",
-  fontWeight: "700",
-  lineHeight: 1,
-};
-
-const titleBlockStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "2px",
-  minWidth: 0,
-};
-
-const pageTitleStyle = {
-  color: "#0f172a",
-  fontSize: "15px",
-  fontWeight: "700",
-  letterSpacing: "-0.01em",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const pageSubtitleStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  color: "#94a3b8",
-  fontSize: "11px",
-  fontWeight: "500",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const liveDotStyle = {
-  width: "6px",
-  height: "6px",
-  borderRadius: "50%",
-  background: "#22c55e",
-  boxShadow: "0 0 0 0 rgba(34,197,94,0.6)",
-  animation: "pulseDot 2s infinite",
-  flexShrink: 0,
-};
-
-const headerRightStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  flexShrink: 0,
-};
-
-const iconButtonStyle = {
-  width: "36px",
-  height: "36px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#fef9ec",
-  border: "1px solid #fce589f3",
-  borderRadius: "10px",
-  cursor: "pointer",
-  transition: "all 0.18s ease",
-};
-
-const enhancedNotificationWrapperStyle = {
-  position: "relative",
-  zIndex: 999999,
-  isolation: "isolate",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-const userMenuContainerStyle = {
-  position: "relative",
-  zIndex: 100,
-  flexShrink: 0,
-};
-
-const userMenuTriggerStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "4px 10px 4px 4px",
-  borderRadius: "999px",
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  cursor: "pointer",
-  transition: "all 0.18s ease",
-  boxShadow: "0 2px 6px -3px rgba(15, 23, 42, 0.1)",
-};
-
-const avatarRingStyle = {
-  position: "relative",
-  width: "32px",
-  height: "32px",
-  flexShrink: 0,
-};
-
-const headerAvatarStyle = {
-  width: "32px",
-  height: "32px",
-  borderRadius: "50%",
-  objectFit: "cover",
-  border: "2px solid #ffffff",
-  boxShadow: "0 0 0 2px #22c55e",
-  display: "block",
-};
-
-const headerAvatarFallbackStyle = {
-  width: "32px",
-  height: "32px",
-  borderRadius: "50%",
-  background: "linear-gradient(135deg, #22c55e, #16a34a)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "13px",
-  fontWeight: "700",
-  color: "#fff",
-  border: "2px solid #ffffff",
-  boxShadow: "0 0 0 2px #22c55e",
-};
-
-const onlineDotStyle = {
-  position: "absolute",
-  bottom: "0px",
-  right: "0px",
-  width: "9px",
-  height: "9px",
-  borderRadius: "50%",
-  background: "#22c55e",
-  border: "2px solid #ffffff",
-};
-
-const userNameStyle = {
-  color: "#0f172a",
-  fontSize: "13px",
-  fontWeight: "700",
-  whiteSpace: "nowrap",
-};
-
-const dropdownArrowStyle = {
-  color: "#16a34a",
-  fontSize: "14px",
-};
-
-/* ---------- USER DROPDOWN ---------- */
-const userDropdownStyle = {
-  position: "absolute",
-  top: "calc(100% + 10px)",
-  right: 0,
-  width: "250px",
-  background: "#ffffff",
-  borderRadius: "14px",
-  border: "1px solid #e2e8f0",
-  boxShadow:
-    "0 20px 40px -20px rgba(15, 23, 42, 0.25), 0 8px 16px -8px rgba(15, 23, 42, 0.1)",
-  zIndex: 102,
-  overflow: "hidden",
-};
-
-const userDropdownHeader = {
-  padding: "14px 16px",
-  borderBottom: "1px solid #f1f5f9",
-  fontSize: "13px",
-  color: "#0f172a",
-  background: "linear-gradient(135deg, #f0fdf4, #ecfdf5)",
-};
-
-const userDropdownEmail = {
-  display: "block",
-  color: "#94a3b8",
-  fontSize: "11.5px",
-  marginTop: "2px",
-  fontWeight: "400",
-};
-
-const userDropdownDivider = {
-  height: "1px",
-  background: "#f1f5f9",
-};
-
-const userDropdownItem = {
-  width: "100%",
-  padding: "10px 14px",
-  background: "transparent",
-  border: "none",
-  color: "#334155",
-  fontSize: "13px",
-  fontWeight: "600",
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  cursor: "pointer",
-  textAlign: "left",
-  transition: "all 0.15s ease",
-};
-
-const dropdownItemIcon = {
-  fontSize: "15px",
-  color: "#16a34a",
-};
 
 export default Layout;

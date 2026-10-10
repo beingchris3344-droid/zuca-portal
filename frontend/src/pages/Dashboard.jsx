@@ -1200,7 +1200,12 @@ const nextEventText = nextEvent
                       {[["First reading", today.readings?.firstReading], ["Psalm", today.readings?.psalm],
                         ["Second reading", today.readings?.secondReading], ["Gospel", today.readings?.gospel]]
                         .filter(([, r]) => r).map(([l, r]) => (
-                          <Row key={l} title={l} text={r.citation} onClick={() => navigate("/liturgical-calendar")} />
+                         <Row
+  key={l}
+  title={l}
+  text={r.citation}
+  onClick={() => window.open("https://mycatholic.life/upcoming-reflections/#cal", "_blank", "noopener")}
+/>
                         ))}
                     </div>
                   )

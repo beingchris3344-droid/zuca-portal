@@ -255,7 +255,7 @@ function Layout() {
         { path: "/announcements", label: "Announcements", icon: <FiBell /> },
         { path: "/schedules", label: "Semester Schedule", icon: <FaCalendarPlus /> },
         { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt /> },
-        { path: "/liturgical-calendar", label: "Liturgical Calendar", icon: <FaRegCalendar /> },
+        { path: "https://mycatholic.life/upcoming-reflections/#cal", label: "Liturgical Calendar", icon: <FaRegCalendar />, external: true },
         { path: "/member/attendance", label: "Attendance/Records", icon: <FaUsers color="#ee0e46" /> },
       ],
     },
@@ -497,17 +497,31 @@ function Layout() {
             {navSections.map((section) => (
               <div key={section.label} style={navSectionStyle}>
                 <div style={navSectionLabelStyle}>{section.label}</div>
-                {section.items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => isMobile && setMenuOpen(false)}
-                    style={({ isActive }) => navRowStyle(isActive)}
-                  >
-                    <span style={navRowIconStyle}>{item.icon}</span>
-                    <span style={navRowLabelStyle}>{item.label}</span>
-                  </NavLink>
-                ))}
+                {section.items.map((item) =>
+  item.external ? (
+    <a
+      key={item.path}
+      href={item.path}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => isMobile && setMenuOpen(false)}
+      style={navRowStyle(false)}
+    >
+      <span style={navRowIconStyle}>{item.icon}</span>
+      <span style={navRowLabelStyle}>{item.label}</span>
+    </a>
+  ) : (
+    <NavLink
+      key={item.path}
+      to={item.path}
+      onClick={() => isMobile && setMenuOpen(false)}
+      style={({ isActive }) => navRowStyle(isActive)}
+    >
+      <span style={navRowIconStyle}>{item.icon}</span>
+      <span style={navRowLabelStyle}>{item.label}</span>
+    </NavLink>
+  )
+)}
               </div>
             ))}
           </nav>

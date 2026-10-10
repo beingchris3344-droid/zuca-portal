@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaBell } from "react-icons/fa";
-import { FiX, FiCheck, FiClock, FiEyeOff } from "react-icons/fi";
+import { FiX, FiCheck, FiClock, FiEyeOff, FiBell } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import BASE_URL from "../api";
@@ -690,7 +690,7 @@ export default function Notifications({ userId }) {
         onClick={() => setShowDropdown(!showDropdown)}
         style={styles.bellButton}
       >
-        <span style={{ fontSize: '22px', lineHeight: 1 }}>🔔</span>
+        <span style={{ fontSize: '18px', lineHeight: 1 }}><FiBell/></span>
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
@@ -884,19 +884,19 @@ const styles = {
   
   badge: {
     position: "absolute",
-    top: "-5px",
+    top: "0px",
     right: "-5px",
-    background: "#ef4444",
+    background: "#ee0f0f",
     color: "white",
     fontSize: "11px",
     fontWeight: "bold",
-    minWidth: "20px",
-    height: "20px",
+    minWidth: "18px",
+    height: "18px",
     borderRadius: "10px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    border: "2px solid #1e293b",
+    border: "2px solid #fffffffa",
     zIndex: 1000000,
   },
   

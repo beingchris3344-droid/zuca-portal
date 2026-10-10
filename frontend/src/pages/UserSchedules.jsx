@@ -55,13 +55,19 @@ const eventEnd = (ev) => {
   return new Date(s.getTime() + 60 * 60 * 1000);
 };
 
+// Build the URL for a single server event — used by both "Add" buttons
 const buildEventUrl = (eventId) =>
   `${BASE_URL}/api/calendar/event/${eventId}.ics`;
 
+// Build the URL for the whole schedule
 const buildScheduleUrl = (scheduleId) =>
   `${BASE_URL}/api/calendar/${scheduleId}.ics`;
 
+// Direct-add — same-tab navigation so iOS/macOS/Android intercept and prompt
 const openInCalendar = (url) => {
+  // Navigate to the URL. On mobile, the OS recognises text/calendar and offers
+  // to add to the user's calendar app. On desktop, it downloads the .ics and
+  // the user's default calendar app opens it.
   window.location.href = url;
 };
 
@@ -145,35 +151,26 @@ const parseScheduleDate = (raw, fallbackYear) => {
   const d = new Date(year, month, day);
   return isNaN(d) ? null : d.toISOString();
 };
-
-/* ============================================================
-   THE FIX — use the `events` array (real UUIDs)
-============================================================ */
 const flattenScheduleEvents = (schedule) => {
-  // Use the `events` relation — that's where the real UUIDs live.
-  const list = (schedule.events || [])
-    .filter((e) => e && e.eventDate && (e.title || e.groupName))
-    .map((e) => {
-      // Titles look like "ZUCA INTERNAL MASS ANIMATIONS  - ANIMATORS ST PEREGRINE"
-      const fullTitle = e.title || e.groupName || "Event";
-      const dashIdx = fullTitle.indexOf(" - ");
-      const section = dashIdx > 0 ? fullTitle.slice(0, dashIdx).trim() : "Schedule";
-      const eventName = dashIdx > 0 ? fullTitle.slice(dashIdx + 3).trim() : fullTitle;
-
-      return {
-        id: e.id,                       // ✅ real UUID
-        date: e.eventDate,              // ISO string
-        time: e.eventTime || null,      // "16:30"
-        event: eventName,
-        section,
-        location: e.location || "Zetech University",
+  const out = [];
+  const year = schedule.startDate ? new Date(schedule.startDate).getFullYear() : new Date().getFullYear();
+  (schedule.sections || []).forEach((sec) => {
+    (sec.tableRows || []).forEach((row) => {
+      if (!row.date || !row.event) return;
+      const parsed = parseScheduleDate(row.date, year);
+      if (!parsed) return;
+      out.push({
+        // tableRow.id links to the server event (same id used in the events relation)
+        id: row.id,
+        date: parsed,
+        event: row.event.trim(),
+        section: sec.title || "Schedule",
         scheduleId: schedule.id,
         scheduleTitle: schedule.title,
-      };
-    })
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  return list;
+      });
+    });
+  });
+  return out.sort((a, b) => new Date(a.date) - new Date(b.date));
 };
 
 /* ============================================================
@@ -271,6 +268,7 @@ function UserSchedules() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* ---------- user cover/theme ---------- */
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("user") || "null");
     if (!stored) return;
@@ -279,6 +277,7 @@ function UserSchedules() {
     setTheme(stored.profileTheme || localStorage.getItem("profileTheme") || "navy");
   }, []);
 
+  /* ---------- fetch ---------- */
   const fetchSchedules = useCallback(async () => {
     setLoading(true);
     try {
@@ -302,6 +301,7 @@ function UserSchedules() {
 
   useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
 
+  /* ---------- fullscreen ---------- */
   const enterFullscreen = () => {
     const el = document.querySelector(".us-modal-panel");
     if (el?.requestFullscreen) el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
@@ -344,6 +344,7 @@ function UserSchedules() {
     setDaySheet(null);
   };
 
+  /* ---------- downloads ---------- */
   const buildFullDocumentHTML = (schedule) => {
     const sections = schedule.sections || [];
     const generalPoints = schedule.generalPoints || [];
@@ -442,6 +443,7 @@ function UserSchedules() {
     finally { setDownloadLoading(false); }
   };
 
+  /* ---------- filter ---------- */
   const filteredSchedules = schedules.filter((schedule) => {
     const matchesSearch = (schedule.title || "").toLowerCase().includes(searchTerm.toLowerCase());
     const scheduleYear = schedule.startDate ? new Date(schedule.startDate).getFullYear() : null;
@@ -453,6 +455,7 @@ function UserSchedules() {
     schedules.map((s) => (s.startDate ? new Date(s.startDate).getFullYear() : null)).filter(Boolean)
   )].sort((a, b) => b - a);
 
+  /* ---------- flatten ---------- */
   const allEvents = useMemo(() => {
     const list = [];
     filteredSchedules.forEach((s) => {
@@ -477,6 +480,7 @@ function UserSchedules() {
 
   const goBack = () => navigate(-1);
 
+  /* ---------- DIRECT add handlers (server URLs) ---------- */
   const handleAddOneFromCard = (ev, e) => {
     e?.stopPropagation?.();
     if (!ev.id) {
@@ -502,6 +506,7 @@ function UserSchedules() {
     showToast("Opening your calendar…", "success");
   };
 
+  // Bulk — still uses one .ics download since URLs can't carry multiple events
   const handleAddSection = (sectionTitle, e) => {
     e?.stopPropagation?.();
     const secEvents = scheduleEvents.filter((ev) => ev.section === sectionTitle);
@@ -512,10 +517,12 @@ function UserSchedules() {
 
   const handleAddAll = () => {
     if (!selectedSchedule) return;
+    // Prefer the server route (single URL, cleaner)
     openInCalendar(buildScheduleUrl(selectedSchedule.id));
     showToast("Opening your calendar…", "success");
   };
 
+  /* ---------- featured slider + autoplay ---------- */
   const slideFeat = (dir) => {
     const el = featRef.current;
     if (el) el.scrollBy({ left: dir * ((el.firstChild?.offsetWidth || 300) + 14), behavior: "smooth" });
@@ -539,6 +546,9 @@ function UserSchedules() {
     return () => clearInterval(id);
   }, [featPaused, featuredEvents.length]);
 
+  /* ============================================================
+     RENDER
+  ============================================================ */
   return (
     <div className="us">
       <AnimatePresence>
@@ -554,6 +564,7 @@ function UserSchedules() {
         )}
       </AnimatePresence>
 
+      {/* ================= HERO ================= */}
       <section className="us-hero">
         {cover
           ? <img className="us-cover" src={cover} alt="Cover" />
@@ -572,6 +583,7 @@ function UserSchedules() {
         </div>
       </section>
 
+      {/* ================= TOOLBAR ================= */}
       <section className="us-toolbar">
         <div className="us-search">
           <FiSearch size={14} />
@@ -600,6 +612,7 @@ function UserSchedules() {
         </span>
       </section>
 
+      {/* ================= FEATURED SLIDER ================= */}
       {!loading && featuredEvents.length > 0 && (
         <section className="us-feat">
           <div className="us-feat-head">
@@ -656,8 +669,8 @@ function UserSchedules() {
                   <div className="us-ev-body">
                     <h3>{ev.event}</h3>
                     <div className="us-ev-meta">
-                      <span><FiClock size={11} /> {ev.time || "4:30 PM"}</span>
-                      <span><FiMapPin size={11} /> {ev.location || "Zetech"}</span>
+                      <span><FiClock size={11} /> 4:30 PM</span>
+                      <span><FiMapPin size={11} /> Zetech</span>
                     </div>
                     <div className="us-ev-actions">
                       <button
@@ -706,6 +719,7 @@ function UserSchedules() {
         </section>
       )}
 
+      {/* ================= ALL SCHEDULES ================= */}
       {loading ? (
         <div className="us-loader">
           <div className="us-spinner" />
@@ -763,6 +777,7 @@ function UserSchedules() {
         </section>
       )}
 
+      {/* ================= RECENT ================= */}
       {recentlyViewed.length > 1 && (
         <section className="us-recent">
           <div className="us-recent-head">
@@ -786,6 +801,7 @@ function UserSchedules() {
         </section>
       )}
 
+      {/* ================= MODAL ================= */}
       <AnimatePresence>
         {showModal && selectedSchedule && (
           <motion.div
@@ -846,80 +862,58 @@ function UserSchedules() {
                       </div>
                     )}
 
-                    {scheduleEvents.length > 0 ? (
-                      Object.entries(
-                        scheduleEvents.reduce((acc, ev) => {
-                          if (!acc[ev.section]) acc[ev.section] = [];
-                          acc[ev.section].push(ev);
-                          return acc;
-                        }, {})
-                      ).map(([secTitle, rows]) => (
-                        <section key={secTitle} className="us-section">
+                    {(selectedSchedule.sections || []).map((sec, idx) => {
+                      const rows = (sec.tableRows || []).filter((r) => r.date && r.event);
+                      if (!sec.title && !rows.length && !sec.freeText) return null;
+                      const secKey = sec.title || `section-${idx}`;
+                      return (
+                        <section key={secKey} className="us-section">
                           <div className="us-section-head">
-                            <h3><span className="us-section-bar" />{secTitle}</h3>
-                            <button className="us-section-add" onClick={(e) => handleAddSection(secTitle, e)}>
-                              <FiDownload size={12} /><span>Save all</span>
-                            </button>
-                          </div>
-                          <div className="us-table">
-                            <div className="us-tr us-tr-head">
-                              <div className="us-th">Date</div>
-                              <div className="us-th">Event</div>
-                              <div className="us-th us-th-action">Add</div>
-                            </div>
-                            {rows.map((ev) => (
-                              <div key={ev.id} className="us-tr">
-                                <div className="us-td us-td-date">
-                                  {new Date(ev.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                                </div>
-                                <div className="us-td">{ev.event}</div>
-                                <div className="us-td us-td-action">
-                                  <button
-                                    className="us-add-btn"
-                                    onClick={(e) => handleAddOne(ev, e)}
-                                    title="Add to my calendar"
-                                  >
-                                    <FiCalendar size={12} />
-                                    <span>Add</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      ))
-                    ) : (
-                      (selectedSchedule.sections || []).map((sec, idx) => {
-                        const rows = (sec.tableRows || []).filter((r) => r.date && r.event);
-                        if (!sec.title && !rows.length && !sec.freeText) return null;
-                        const secKey = sec.title || `section-${idx}`;
-                        return (
-                          <section key={secKey} className="us-section">
-                            <div className="us-section-head">
-                              <h3><span className="us-section-bar" />{sec.title || "Section"}</h3>
-                            </div>
+                            <h3><span className="us-section-bar" />{sec.title || "Section"}</h3>
                             {rows.length > 0 && (
-                              <div className="us-table">
-                                <div className="us-tr us-tr-head">
-                                  <div className="us-th">Date</div>
-                                  <div className="us-th">Event</div>
-                                  <div className="us-th us-th-action" />
-                                </div>
-                                {rows.map((row, i) => (
+                              <button className="us-section-add" onClick={(e) => handleAddSection(sec.title, e)}>
+                                <FiDownload size={12} /><span>Save all</span>
+                              </button>
+                            )}
+                          </div>
+                          {rows.length > 0 && (
+                            <div className="us-table">
+                              <div className="us-tr us-tr-head">
+                                <div className="us-th">Date</div>
+                                <div className="us-th">Event</div>
+                                <div className="us-th us-th-action">Add</div>
+                              </div>
+                              {rows.map((row, i) => {
+                                const iso = parseScheduleDate(
+                                  row.date,
+                                  selectedSchedule.startDate ? new Date(selectedSchedule.startDate).getFullYear() : new Date().getFullYear()
+                                );
+                                const ev = iso ? { id: row.id, date: iso, event: row.event, section: sec.title || "Schedule" } : null;
+                                return (
                                   <div key={row.id || i} className="us-tr">
                                     <div className="us-td us-td-date">{row.date}</div>
                                     <div className="us-td">{row.event}</div>
-                                    <div className="us-td us-td-action" />
+                                    <div className="us-td us-td-action">
+                                      {ev && (
+                                        <button
+                                          className="us-add-btn"
+                                          onClick={(e) => handleAddOne(ev, e)}
+                                          title="Add to my calendar"
+                                        >
+                                          <FiCalendar size={12} />
+                                          <span>Add</span>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                            {sec.freeText && <div className="us-section-note">{sec.freeText}</div>}
-                          </section>
-                        );
-                      })
-                    )}
-
+                                );
+                              })}
+                            </div>
+                          )}
+                          {sec.freeText && <div className="us-section-note">{sec.freeText}</div>}
+                        </section>
+                      );
+                    })}
                     {selectedSchedule.additionalNotes && (
                       <div className="us-section-note us-section-note-final">{selectedSchedule.additionalNotes}</div>
                     )}
@@ -938,8 +932,8 @@ function UserSchedules() {
                     {scheduleEvents.length > 0 && (
                       <div className="us-upcoming">
                         <div className="us-upcoming-head">Upcoming from this schedule</div>
-                        {scheduleEvents.slice(0, 5).map((ev) => (
-                          <div key={ev.id} className="us-upcoming-row">
+                        {scheduleEvents.slice(0, 5).map((ev, i) => (
+                          <div key={ev.id || i} className="us-upcoming-row">
                             <div className="us-upcoming-date">
                               {new Date(ev.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </div>
@@ -990,12 +984,12 @@ function UserSchedules() {
                         <b>{new Date(calYear, calMonth, daySheet.day).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</b>
                         <button onClick={() => setDaySheet(null)} className="us-icon-btn"><FiX size={15} /></button>
                       </div>
-                      {daySheet.events.map((ev) => (
-                        <div key={ev.id} className="us-day-row">
+                      {daySheet.events.map((ev, i) => (
+                        <div key={ev.id || i} className="us-day-row">
                           <div className="us-day-marker" />
                           <div className="us-day-body">
                             <b>{ev.event}</b>
-                            <span>{ev.section} · <FiClock size={11} /> {ev.time || "4:30 PM"}</span>
+                            <span>{ev.section} · <FiClock size={11} /> 4:30 PM</span>
                           </div>
                           <button
                             className="us-add-btn"
@@ -1015,6 +1009,7 @@ function UserSchedules() {
         )}
       </AnimatePresence>
 
+      {/* ================= STYLES ================= */}
       <style>{`
         .us{
           max-width:1240px;margin:0 auto;

@@ -39,16 +39,9 @@ const THEMES = {
 ============================================================ */
 const pad = (n) => String(n).padStart(2, "0");
 
-// Local time formatter for ICS (no Z, so it's a floating local time)
 const fmtICS = (d) => {
   const x = new Date(d);
   return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}T${pad(x.getHours())}${pad(x.getMinutes())}00`;
-};
-
-// UTC ISO compact for Google links
-const fmtGoogle = (d) => {
-  const x = new Date(d);
-  return `${x.getUTCFullYear()}${pad(x.getUTCMonth() + 1)}${pad(x.getUTCDate())}T${pad(x.getUTCHours())}${pad(x.getUTCMinutes())}00Z`;
 };
 
 const eventStart = (ev) => {
@@ -62,57 +55,29 @@ const eventEnd = (ev) => {
   return new Date(s.getTime() + 60 * 60 * 1000);
 };
 
-// Detect platform — returns "apple" | "google" | "outlook" | "generic"
-const detectPlatform = () => {
-  if (typeof navigator === "undefined") return "generic";
-  const ua = navigator.userAgent || "";
-  if (/iPhone|iPad|iPod|Macintosh/.test(ua)) return "apple";
-  if (/Android/.test(ua)) return "google";
-  if (/Windows/.test(ua)) return "outlook";
-  return "generic";
+// Build the URL for a single server event — used by both "Add" buttons
+const buildEventUrl = (eventId) =>
+  `${BASE_URL}/api/calendar/event/${eventId}.ics`;
+
+// Build the URL for the whole schedule
+const buildScheduleUrl = (scheduleId) =>
+  `${BASE_URL}/api/calendar/${scheduleId}.ics`;
+
+// Direct-add — same-tab navigation so iOS/macOS/Android intercept and prompt
+const openInCalendar = (url) => {
+  // Navigate to the URL. On mobile, the OS recognises text/calendar and offers
+  // to add to the user's calendar app. On desktop, it downloads the .ics and
+  // the user's default calendar app opens it.
+  window.location.href = url;
 };
 
 /* ============================================================
-   ADD-TO-CALENDAR TARGETS
+   Fallback ICS builder (only used for bulk downloads)
 ============================================================ */
-
-// Google — opens web view; on Android the Google Calendar app intercepts it
-const googleUrl = (ev, title) => {
+const buildVEventFallback = (ev, title, index = 0) => {
   const s = eventStart(ev);
   const e = eventEnd(ev);
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: ev.event,
-    dates: `${fmtGoogle(s)}/${fmtGoogle(e)}`,
-    details: `${ev.section || ""} — ${title}`.trim(),
-    location: "Zetech University",
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-};
-
-// Outlook Web — opens Outlook on the web; Windows Mail intercepts on desktop
-const outlookUrl = (ev, title) => {
-  const s = eventStart(ev);
-  const e = eventEnd(ev);
-  const params = new URLSearchParams({
-    path: "/calendar/action/compose",
-    rru: "addevent",
-    subject: ev.event,
-    startdt: s.toISOString(),
-    enddt: e.toISOString(),
-    body: `${ev.section || ""} — ${title}`.trim(),
-    location: "Zetech University",
-  });
-  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
-};
-
-// Apple / generic — webcal:// works on iOS & macOS
-// We host the ICS as a data: URI, but Safari refuses long ones.
-// Best practical path: build a blob and give the user a real .ics on desktop.
-const buildVEvent = (ev, title, index = 0) => {
-  const s = eventStart(ev);
-  const e = eventEnd(ev);
-  const uid = `zuca-${title.replace(/\W+/g, "-")}-${index}-${s.getTime()}@zuca`;
+  const uid = `zuca-fallback-${index}-${s.getTime()}@zuca`;
   const desc = `${ev.section || ""} — ${title}`.trim();
   return [
     "BEGIN:VEVENT",
@@ -122,7 +87,7 @@ const buildVEvent = (ev, title, index = 0) => {
     `DTEND:${fmtICS(e)}`,
     `SUMMARY:${ev.event.replace(/,/g, "\\,")}`,
     `DESCRIPTION:${desc.replace(/,/g, "\\,")}`,
-    `LOCATION:Zetech University`,
+    "LOCATION:Zetech University",
     "BEGIN:VALARM",
     "TRIGGER:-PT30M",
     "ACTION:DISPLAY",
@@ -140,11 +105,10 @@ const buildICS = (events, title) => {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];
-  const body = events.flatMap((ev, i) => buildVEvent(ev, title, i));
+  const body = events.flatMap((ev, i) => buildVEventFallback(ev, title, i));
   return [...head, ...body, "END:VCALENDAR"].join("\r\n");
 };
 
-// Download .ics file (fallback + "Add all")
 const downloadICS = (events, filename) => {
   const blob = new Blob([buildICS(events, filename)], {
     type: "text/calendar;charset=utf-8",
@@ -157,46 +121,6 @@ const downloadICS = (events, filename) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-};
-
-/* ============================================================
-   THE MAIN ACTION — direct add, no download
-============================================================ */
-const addToCalendar = (ev, scheduleTitle, platformOverride = null) => {
-  const platform = platformOverride || detectPlatform();
-  const title = scheduleTitle;
-
-  // ----- Apple path: iOS/macOS opens .ics blob as calendar event directly -----
-  if (platform === "apple") {
-    // Safari on iOS happily opens a blob: URL as a .ics download;
-    // tapping it goes straight to Calendar. Use it.
-    const blob = new Blob([buildICS([ev], title)], {
-      type: "text/calendar;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    // Navigate in-place; iOS Calendar takes over
-    window.location.href = url;
-    // Cleanup later
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    return "apple";
-  }
-
-  // ----- Google path (Android, desktop Chrome/Firefox) -----
-  if (platform === "google") {
-    // Open in new tab so we don't lose the page
-    window.open(googleUrl(ev, title), "_blank", "noopener");
-    return "google";
-  }
-
-  // ----- Outlook path (Windows) -----
-  if (platform === "outlook") {
-    window.open(outlookUrl(ev, title), "_blank", "noopener");
-    return "outlook";
-  }
-
-  // ----- Generic fallback: Google (most universal web option) -----
-  window.open(googleUrl(ev, title), "_blank", "noopener");
-  return "google";
 };
 
 /* ============================================================
@@ -236,6 +160,8 @@ const flattenScheduleEvents = (schedule) => {
       const parsed = parseScheduleDate(row.date, year);
       if (!parsed) return;
       out.push({
+        // tableRow.id links to the server event (same id used in the events relation)
+        id: row.id,
         date: parsed,
         event: row.event.trim(),
         section: sec.title || "Schedule",
@@ -554,15 +480,15 @@ function UserSchedules() {
 
   const goBack = () => navigate(-1);
 
-  /* ---------- DIRECT add handlers (no download) ---------- */
+  /* ---------- DIRECT add handlers (server URLs) ---------- */
   const handleAddOneFromCard = (ev, e) => {
     e?.stopPropagation?.();
-    const s = schedules.find((x) => x.id === ev.scheduleId) || { title: ev.scheduleTitle };
-    const route = addToCalendar(ev, s.title);
-    showToast(
-      route === "apple" ? "Opening your calendar…" : "Opening calendar in a new tab…",
-      "success"
-    );
+    if (!ev.id) {
+      showToast("This event can't be added yet", "error");
+      return;
+    }
+    openInCalendar(buildEventUrl(ev.id));
+    showToast("Opening your calendar…", "success");
   };
 
   const scheduleEvents = useMemo(() => {
@@ -572,27 +498,28 @@ function UserSchedules() {
 
   const handleAddOne = (ev, e) => {
     e?.stopPropagation?.();
-    if (!selectedSchedule) return;
-    const route = addToCalendar(ev, selectedSchedule.title);
-    showToast(
-      route === "apple" ? "Opening your calendar…" : "Opening calendar in a new tab…",
-      "success"
-    );
+    if (!ev.id) {
+      showToast("This event can't be added yet", "error");
+      return;
+    }
+    openInCalendar(buildEventUrl(ev.id));
+    showToast("Opening your calendar…", "success");
   };
 
+  // Bulk — still uses one .ics download since URLs can't carry multiple events
   const handleAddSection = (sectionTitle, e) => {
     e?.stopPropagation?.();
     const secEvents = scheduleEvents.filter((ev) => ev.section === sectionTitle);
     if (!secEvents.length) return;
-    // Bulk → always ICS (can't do multi-event on Google via URL)
     downloadICS(secEvents, `${selectedSchedule.title} - ${sectionTitle}`);
-    showToast(`Added ${secEvents.length} event${secEvents.length > 1 ? "s" : ""}`, "success");
+    showToast(`Downloading ${secEvents.length} event${secEvents.length > 1 ? "s" : ""}…`, "success");
   };
 
   const handleAddAll = () => {
-    if (!selectedSchedule || !scheduleEvents.length) return;
-    downloadICS(scheduleEvents, selectedSchedule.title);
-    showToast(`Added ${scheduleEvents.length} events`, "success");
+    if (!selectedSchedule) return;
+    // Prefer the server route (single URL, cleaner)
+    openInCalendar(buildScheduleUrl(selectedSchedule.id));
+    showToast("Opening your calendar…", "success");
   };
 
   /* ---------- featured slider + autoplay ---------- */
@@ -719,7 +646,7 @@ function UserSchedules() {
             {featuredEvents.map((ev, i) => {
               const d = new Date(ev.date);
               return (
-                <article key={`${ev.scheduleId}-${i}`} className="us-ev">
+                <article key={`${ev.scheduleId}-${ev.id || i}`} className="us-ev">
                   <div
                     className="us-ev-bg"
                     style={
@@ -917,7 +844,7 @@ function UserSchedules() {
                   <FiCalendar size={14} /><span>Calendar</span>
                 </button>
                 <div className="us-tabs-spacer" />
-                <button className="us-tab-cta" onClick={handleAddAll}><FiDownload size={13} /><span>Add all</span></button>
+                <button className="us-tab-cta" onClick={handleAddAll}><FiCalendar size={13} /><span>Add all</span></button>
               </div>
 
               <div className="us-modal-body">
@@ -961,9 +888,9 @@ function UserSchedules() {
                                   row.date,
                                   selectedSchedule.startDate ? new Date(selectedSchedule.startDate).getFullYear() : new Date().getFullYear()
                                 );
-                                const ev = iso ? { date: iso, event: row.event, section: sec.title || "Schedule" } : null;
+                                const ev = iso ? { id: row.id, date: iso, event: row.event, section: sec.title || "Schedule" } : null;
                                 return (
-                                  <div key={i} className="us-tr">
+                                  <div key={row.id || i} className="us-tr">
                                     <div className="us-td us-td-date">{row.date}</div>
                                     <div className="us-td">{row.event}</div>
                                     <div className="us-td us-td-action">
@@ -1006,7 +933,7 @@ function UserSchedules() {
                       <div className="us-upcoming">
                         <div className="us-upcoming-head">Upcoming from this schedule</div>
                         {scheduleEvents.slice(0, 5).map((ev, i) => (
-                          <div key={i} className="us-upcoming-row">
+                          <div key={ev.id || i} className="us-upcoming-row">
                             <div className="us-upcoming-date">
                               {new Date(ev.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </div>
@@ -1058,7 +985,7 @@ function UserSchedules() {
                         <button onClick={() => setDaySheet(null)} className="us-icon-btn"><FiX size={15} /></button>
                       </div>
                       {daySheet.events.map((ev, i) => (
-                        <div key={i} className="us-day-row">
+                        <div key={ev.id || i} className="us-day-row">
                           <div className="us-day-marker" />
                           <div className="us-day-body">
                             <b>{ev.event}</b>
@@ -1436,12 +1363,11 @@ function UserSchedules() {
         .us-add-btn{
           display:inline-flex;align-items:center;gap:5px;
           padding:6px 10px;border-radius:8px;
-          
           font-size:11.5px;font-weight:800;
           cursor:pointer;font-family:inherit;transition:all .12s ease;
           white-space:nowrap;
         }
-       
+
         .us-upcoming-row .us-add-btn,
         .us-day-row .us-add-btn{
           width:34px;height:34px;padding:0;justify-content:center;

@@ -14,6 +14,7 @@ import {
   FiCopy, FiPrinter, FiMail, FiX, FiClock,
   FiMusic, FiInbox, FiMoreHorizontal, FiArrowLeft,
   FiCalendar, FiSun,
+  FiBook,
 } from "react-icons/fi";
 import {
   BsWhatsapp, BsTwitter, BsFileImage, BsMusicNoteBeamed,
@@ -21,6 +22,8 @@ import {
 } from "react-icons/bs";
 import { MdOutlineFormatQuote } from "react-icons/md";
 import BASE_URL from "../api";
+import BookletModal from "../components/BookletModal";
+import { createPortal } from "react-dom";
 
 /* =========================================================
    MODULE-LEVEL CACHE (survives component re-mount)
@@ -151,6 +154,7 @@ export default function MassPrograms() {
   const [showMenu, setShowMenu] = useState(false);
   const [cover, setCover] = useState(null);
   const [theme, setTheme] = useState("navy");
+  const [bookletProgram, setBookletProgram] = useState(null);
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -647,6 +651,14 @@ export default function MassPrograms() {
   Tap any song to open its lyrics
 </div>
 
+<button
+  className="mp-booklet-btn"
+  onClick={() => setBookletProgram(p)}
+>
+  <FiBook size={15} />
+  <span>Download Full Booklet with lyrics</span>
+</button>
+
       </motion.header>
 
       {/* The table — clean rows, no heavy borders */}
@@ -768,6 +780,11 @@ export default function MassPrograms() {
                 </button>
               </div>
 
+              <button onClick={() => { setShowMenu(false); setBookletProgram(p); }}>
+  <FiBook size={17} /> Open booklet
+</button>
+<div className="mp-sheet-sep" />
+
               <button onClick={() => { setShowMenu(false); setShareModal(p); }}>
                 <FiShare2 size={17} /> Share
               </button>
@@ -875,6 +892,14 @@ export default function MassPrograms() {
         )}
       </AnimatePresence>
 
+
+{/* Booklet modal */}
+{bookletProgram && (
+  <BookletModal
+    program={bookletProgram}
+    onClose={() => setBookletProgram(null)}
+  />
+)}
       <style>{mainCSS}</style>
     </div>
   );
@@ -1786,6 +1811,34 @@ const mainCSS = `
     transition:all .15s ease;font-family:inherit;
   }
   .mp-modal-options button:hover{background:#eef2f7;border-color:var(--ln)}
+
+    .mp-booklet-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    padding:12px 20px;
+    background:var(--ink);
+    color:#fff;
+    border:0;
+    border-radius:12px;
+    font-size:13.5px;
+    font-weight:700;
+    letter-spacing:.01em;
+    font-family:inherit;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    box-shadow:0 6px 16px -8px rgba(15,23,42,.45);
+  }
+  .mp-booklet-btn:hover{
+    background:#1e293b;
+    transform:translateY(-1px);
+    box-shadow:0 12px 24px -10px rgba(15,23,42,.55);
+  }
+  .mp-booklet-btn:active{
+    transform:translateY(0);
+  }
+  .mp-booklet-btn svg{flex-shrink:0}
 
   /* ---------- MOBILE ---------- */
   @media (max-width:640px){

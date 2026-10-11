@@ -502,11 +502,11 @@ export default function QRScanner({ onClose, onSuccess, sheetId: propSheetId }) 
                   {!isInitializing && isScanning && (
                     <>
                       <p className="scanner-instruction">
-                        📱 Point camera at QR code
+                         Point camera at QR code
                       </p>
                       <p className="scanner-hint">
                         {isOffline 
-                          ? "⚠️ Offline mode - check-ins will be saved"
+                          ? " Offline mode - check-ins will be saved"
                           : "Center the QR code in the frame"}
                       </p>
                     </>
